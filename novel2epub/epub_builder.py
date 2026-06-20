@@ -5,8 +5,6 @@ import html
 import re
 from pathlib import Path
 
-from ebooklib import epub
-
 from .storage import Chapter, Manifest
 
 _CSS = """
@@ -40,6 +38,13 @@ def build_epub(
     language: str = "vi",
 ) -> Path:
     """chapters_html: danh sách (chapter, tiêu_đề_hiển_thị, nội_dung_markdown)."""
+    try:
+        from ebooklib import epub
+    except ImportError as e:  # pragma: no cover
+        raise ImportError(
+            "Chưa cài ebooklib. Chạy: pip install ebooklib"
+        ) from e
+
     book = epub.EpubBook()
     book.set_identifier(f"novel2epub-{manifest.slug}")
     book.set_title(manifest.title or manifest.slug)

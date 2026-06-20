@@ -21,11 +21,13 @@ cd novel2epub
 python -m pip install -r requirements.txt
 ```
 
-> `firecrawl-py` chỉ cần khi dùng engine `firecrawl`. Engine mặc định `http`
-> chỉ cần `requests` + `beautifulsoup4`. Engine `crawl4ai` cần thêm:
+> `crawl4ai` và `firecrawl-py` là dependency tùy chọn, không cài mặc định để
+> tránh lỗi build `lxml` trên Windows. Chỉ cài khi cần:
 > ```bash
 > pip install crawl4ai && crawl4ai-setup   # cài Playwright + Chromium
+> pip install firecrawl-py
 > ```
+> Engine mặc định `http` chỉ cần `requests` + `beautifulsoup4`.
 > `fastapi`/`uvicorn`/`jinja2`/`python-multipart` chỉ cần nếu dùng Web UI (xem dưới).
 
 ## Cấu hình

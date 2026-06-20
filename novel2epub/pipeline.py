@@ -102,19 +102,39 @@ def step_crawl(cfg: Config, log: LogFn = _print) -> Manifest:
     crawler = make_crawler(cfg.crawl)
     try:
         manifest = storage.load_manifest()
-        if manifest is None or not manifest.chapters:
+        
+        # Thử lấy mục lục mới từ config hiện tại
+        try:
             log(f"[crawl] Đọc mục lục: {cfg.crawl.toc_url}")
             page_title, chapters = crawler.fetch_toc()
-            manifest = Manifest(
-                slug=cfg.novel.slug,
-                title=cfg.novel.title or page_title,
-                author=cfg.novel.author,
-                chapters=chapters,
-            )
+            
+            if manifest is None:
+                manifest = Manifest(
+                    slug=cfg.novel.slug,
+                    title=cfg.novel.title or page_title,
+                    author=cfg.novel.author,
+                    chapters=chapters,
+                )
+            else:
+                manifest.title = cfg.novel.title or manifest.title or page_title
+                manifest.author = cfg.novel.author or manifest.author
+                
+                # Trộn danh sách chương: giữ lại title_vi của các chương đã dịch
+                old_chapters_by_url = {ch.url: ch for ch in manifest.chapters}
+                merged_chapters = []
+                for new_ch in chapters:
+                    old_ch = old_chapters_by_url.get(new_ch.url)
+                    if old_ch:
+                        new_ch.title_vi = old_ch.title_vi or new_ch.title_vi
+                    merged_chapters.append(new_ch)
+                manifest.chapters = merged_chapters
+                
             storage.save_manifest(manifest)
-            log(f"[crawl] Tìm thấy {len(chapters)} chương.")
-        else:
-            log(f"[crawl] Dùng manifest có sẵn: {len(manifest.chapters)} chương.")
+            log(f"[crawl] Cập nhật mục lục thành công: {len(manifest.chapters)} chương.")
+        except Exception as e:
+            if manifest is None or not manifest.chapters:
+                raise RuntimeError(f"Không thể lấy mục lục và chưa có cache cục bộ: {e}") from e
+            log(f"[crawl] Không thể cập nhật mục lục mới ({e}). Sử dụng lại cache mục lục có sẵn: {len(manifest.chapters)} chương.")
 
         total = len(manifest.chapters)
         for i, ch in enumerate(manifest.chapters, 1):

@@ -1,0 +1,18 @@
+# Local runtime data and build outputs
+data/
+*.epub
+
+# Local configuration
+config.yaml
+library.yaml
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/

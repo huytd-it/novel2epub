@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}novel2epub — Thư viện ebook{% endblock %}
+{% block content %}
+<div class="hero">
+    <div>
+        <h2>Thư viện ebook</h2>
+        <p class="muted">Library: <code>{{ library_path }}</code> · Config mặc định: <code>{{ config_path }}</code></p>
+    </div>
+</div>
+
+<p>
+    Trạng thái chung:
+    {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
+    {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+</p>
+
+<pre id="log">{{ job.log | join('\n') }}</pre>
+
+{% if ebooks %}
+<h3>Ebooks ({{ ebooks|length }})</h3>
+<table>
+    <tr><th>Slug</th><th>Tên</th><th>Chương</th><th>Raw</th><th>Dịch</th><th>EPUB</th><th></th></tr>
+    {% for ebook in ebooks %}
+    <tr>
+        <td><code>{{ ebook.slug }}</code></td>
+        <td>
+            <strong>{{ ebook.name }}</strong><br>
+            <span class="muted">{{ ebook.cfg.novel.author }}</span>
+        </td>
+        <td>{{ ebook.manifest.chapters|length if ebook.manifest else 0 }}</td>
+        <td>{{ ebook.raw_count }}</td>
+        <td>{{ ebook.translated_count }}</td>
+        <td>{% if ebook.epub_exists %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
+        <td><a href="/ebooks/{{ ebook.slug }}">mở</a></td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p class="muted">Chưa có ebook nào trong thư viện.</p>
+{% endif %}
+{% endblock %}

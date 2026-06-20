@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ cfg.novel.title or cfg.novel.slug }} — novel2epub{% endblock %}
+{% block content %}
+<p><a href="/">&larr; Quay lại thư viện</a></p>
+
+<div class="hero split">
+    <div>
+        <h2>{{ cfg.novel.title or cfg.novel.slug }}</h2>
+        <p class="muted">Slug: <code>{{ slug }}</code> · Tác giả: {{ cfg.novel.author or "-" }}</p>
+        <p class="muted">Config: <code>{{ config_path }}</code></p>
+        <p class="muted">Crawl: <code>{{ cfg.crawl.engine }}</code> · Dịch: <code>{{ cfg.translate.type }}</code> · Model: <code>{{ cfg.translate.cli.model or "-" }}</code></p>
+    </div>
+    <div class="stack actions">
+        <form method="post" action="/ebooks/{{ slug }}/jobs/crawl"><button {% if job.running %}disabled{% endif %}>Crawl</button></form>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/translate"><button {% if job.running %}disabled{% endif %}>Dịch</button></form>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/build"><button {% if job.running %}disabled{% endif %}>Build EPUB</button></form>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/run"><button {% if job.running %}disabled{% endif %}>Chạy tất cả</button></form>
+        {% if epub_exists %}<a class="button" href="/ebooks/{{ slug }}/download">Tải EPUB ({{ epub_path }})</a>{% endif %}
+    </div>
+</div>
+
+<p>
+    Trạng thái:
+    {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
+    {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+</p>
+
+<pre id="log">{{ job.log | join('\n') }}</pre>
+
+{% if chapters %}
+<div class="section-head">
+    <h3>Chương ({{ chapters|length }})</h3>
+    <p class="muted">Bấm vào từng chương để sửa tay hoặc soát prompt/dịch.</p>
+</div>
+<table>
+    <tr><th>#</th><th>Tiêu đề (Trung)</th><th>Tiêu đề (Việt)</th><th>Raw</th><th>Dịch</th><th></th></tr>
+    {% for ch in chapters %}
+    <tr>
+        <td>{{ ch.index }}</td>
+        <td>{{ ch.title_zh }}</td>
+        <td>{{ ch.title_vi }}</td>
+        <td>{% if ch.has_raw %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
+        <td>{% if ch.has_translated %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
+        <td><a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}">xem / sửa</a></td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p class="muted">Chưa có chương nào — bấm "Crawl" để bắt đầu.</p>
+{% endif %}
+
+<script>
+const logEl = document.getElementById("log");
+async function poll() {
+    const res = await fetch("/api/status");
+    const data = await res.json();
+    logEl.textContent = data.log.join("\n");
+    logEl.scrollTop = logEl.scrollHeight;
+    if (!data.running && {{ "true" if job.running else "false" }}) {
+        location.reload();
+    }
+}
+setInterval(poll, 1500);
+</script>
+{% endblock %}

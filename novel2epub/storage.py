@@ -30,6 +30,15 @@ class Manifest:
     slug: str
     title: str = ""
     author: str = ""
+    # Metadata bản gốc (tiếng Trung) crawl từ trang mục lục.
+    description: str = ""
+    cover_url: str = ""
+    # Tên file ảnh bìa đã tải về (nằm trong thư mục <data_dir>/<slug>/).
+    cover_file: str = ""
+    # Metadata đã dịch sang tiếng Việt (dùng cho EPUB).
+    title_vi: str = ""
+    author_vi: str = ""
+    description_vi: str = ""
     chapters: list[Chapter] = field(default_factory=list)
 
     def to_json(self) -> str:
@@ -38,6 +47,12 @@ class Manifest:
                 "slug": self.slug,
                 "title": self.title,
                 "author": self.author,
+                "description": self.description,
+                "cover_url": self.cover_url,
+                "cover_file": self.cover_file,
+                "title_vi": self.title_vi,
+                "author_vi": self.author_vi,
+                "description_vi": self.description_vi,
                 "chapters": [asdict(c) for c in self.chapters],
             },
             ensure_ascii=False,
@@ -71,6 +86,12 @@ class Storage:
             slug=data.get("slug", self.slug),
             title=data.get("title", ""),
             author=data.get("author", ""),
+            description=data.get("description", ""),
+            cover_url=data.get("cover_url", ""),
+            cover_file=data.get("cover_file", ""),
+            title_vi=data.get("title_vi", ""),
+            author_vi=data.get("author_vi", ""),
+            description_vi=data.get("description_vi", ""),
             chapters=chapters,
         )
 
@@ -124,6 +145,22 @@ class Storage:
         self.meta_path(ch).write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
         )
+
+    # ----- ảnh bìa -----
+    def write_cover(self, content: bytes, ext: str) -> str:
+        """Lưu ảnh bìa vào <root>/cover.<ext>, trả về tên file (để ghi vào manifest)."""
+        self.ensure_dirs()
+        ext = (ext or "jpg").lstrip(".").lower() or "jpg"
+        name = f"cover.{ext}"
+        (self.root / name).write_bytes(content)
+        return name
+
+    def cover_fs_path(self, manifest: "Manifest") -> Path | None:
+        """Đường dẫn tuyệt đối tới ảnh bìa nếu manifest có khai báo và file tồn tại."""
+        if not manifest.cover_file:
+            return None
+        path = self.root / manifest.cover_file
+        return path if path.exists() else None
 
     def glossary_path(self, name: str) -> Path:
         return self.glossary_dir / name

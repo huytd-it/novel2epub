@@ -125,6 +125,9 @@ python -m novel2epub -c config.yaml crawl       # lấy mục lục + nội dung
 python -m novel2epub -c config.yaml translate   # dịch các chương đã crawl
 python -m novel2epub -c config.yaml build        # đóng gói EPUB
 
+# AI đánh giá glossary + bản dịch (chỉ xem, không sửa file):
+python -m novel2epub -c config.yaml evaluate --from 1 --to 2
+
 # Hoặc chạy tất cả:
 python -m novel2epub -c config.yaml run
 

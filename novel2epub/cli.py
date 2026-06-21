@@ -6,7 +6,16 @@ import sys
 from pathlib import Path
 
 from .config import load_config, load_library
-from .pipeline import run_all, step_build, step_crawl, step_translate, step_translate_selected
+from .pipeline import (
+    run_all,
+    step_build,
+    step_crawl,
+    step_crawl_selected,
+    step_evaluate_translation,
+    step_translate,
+    step_translate_meta,
+    step_translate_selected,
+)
 
 
 DEFAULT_LIBRARY_PATH = "library.yaml"
@@ -48,8 +57,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("-e", "--ebook", default="", help="Slug ebook trong library.yaml")
     parser.add_argument("--library", default=DEFAULT_LIBRARY_PATH, help="Đường dẫn file library.yaml")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("crawl", help="Crawl mục lục + nội dung chương")
+    crawl_parser = sub.add_parser("crawl", help="Crawl mục lục + nội dung chương")
+    crawl_parser.add_argument("--from", dest="start", type=int, default=None, help="Crawl từ chương số")
+    crawl_parser.add_argument("--to", dest="end", type=int, default=None, help="Crawl đến chương số")
+    crawl_parser.add_argument("--force", action="store_true", help="Tải lại cả chương đã có raw")
+    crawl_parser.add_argument("--retries", type=int, default=0, help="Số lần thử lại khi tải chương lỗi")
     sub.add_parser("translate", help="Dịch các chương đã crawl sang tiếng Việt")
+    sub.add_parser("meta", help="Dịch metadata truyện (tên, tác giả, mô tả) sang tiếng Việt")
+    evaluate_parser = sub.add_parser("evaluate", help="AI đánh giá glossary + bản dịch (chỉ xem, không sửa)")
+    evaluate_parser.add_argument("--from", dest="start", type=int, default=None, help="Đánh giá từ chương số")
+    evaluate_parser.add_argument("--to", dest="end", type=int, default=None, help="Đánh giá đến chương số")
     sub.add_parser("build", help="Đóng gói EPUB từ các chương đã dịch")
     sub.add_parser("run", help="Chạy toàn bộ: crawl -> translate -> build")
     sub.add_parser("list", help="Liệt kê các ebook trong library")
@@ -90,7 +107,16 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "crawl":
-            step_crawl(cfg)
+            if args.force or args.retries or args.start is not None or args.end is not None:
+                step_crawl_selected(
+                    cfg,
+                    start=args.start,
+                    end=args.end,
+                    force=args.force,
+                    retries=args.retries,
+                )
+            else:
+                step_crawl(cfg)
         elif args.command == "translate":
             if args.force or args.missing or args.chapter is not None or args.start is not None or args.end is not None:
                 step_translate_selected(
@@ -103,6 +129,10 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 step_translate(cfg)
+        elif args.command == "meta":
+            step_translate_meta(cfg, force=True)
+        elif args.command == "evaluate":
+            step_evaluate_translation(cfg, start=args.start, end=args.end)
         elif args.command == "build":
             step_build(cfg)
         elif args.command == "run":

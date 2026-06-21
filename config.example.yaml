@@ -50,6 +50,18 @@ crawl:
   # Bảng mã trang. Để trống = tự đoán. Nhiều site Trung dùng "gbk"/"gb2312".
   encoding: ""
 
+  # ----- Metadata truyện (title, tác giả, mô tả, ảnh bìa) -----
+  # Để trống thì crawler tự lấy từ thẻ OG/meta chuẩn của trang mục lục:
+  #   title       <- og:novel:book_name / og:title / <title>
+  #   author      <- og:novel:author / meta[name=author]
+  #   description <- og:description / meta[name=description]
+  #   cover       <- og:image
+  # Chỉ đặt selector khi trang KHÔNG có thẻ OG (CSS selector trong trang mục lục).
+  title_selector: ""     # vd "#info h1"
+  author_selector: ""    # vd "#info p:nth-of-type(1)"
+  desc_selector: ""      # vd "#intro"
+  cover_selector: ""     # vd "#fmimg img" (lấy src của <img>)
+
   # ----- chỉ dùng cho engine = "crawl4ai" -----
   # Chạy trình duyệt ẩn (headless). Đặt false để mở cửa sổ thật khi debug.
   headless: true

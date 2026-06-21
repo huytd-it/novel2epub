@@ -13,6 +13,7 @@ from .. import deps
 router = APIRouter()
 
 _MAX_SUGGEST_CHAPTERS = 5
+_MAX_EVALUATE_CHAPTERS = 5
 _GLOSSARY_FILES = ("names.txt", "vietphrase.txt")
 
 
@@ -103,6 +104,57 @@ def ebook_glossary_suggest(
             "suggest_error": error,
             "chapter_from": chapter_from,
             "chapter_to": chapter_to,
+            "job": request.app.state.job.status(),
+        },
+    )
+
+
+@router.post("/ebooks/{slug}/glossary/evaluate")
+def ebook_glossary_evaluate(
+    request: Request, slug: str, chapter_from: int = Form(...), chapter_to: int = Form(...)
+):
+    """AI đánh giá glossary + bản dịch của một phạm vi chương — chỉ trả báo cáo
+    (read-only), không sửa file, không áp dụng gì."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    names = storage.glossary_path("names.txt")
+    vietphrase = storage.glossary_path("vietphrase.txt")
+    error = ""
+    report: dict | None = None
+
+    if manifest is None:
+        error = "Chưa có manifest — hãy crawl trước."
+    else:
+        selected = [
+            c for c in manifest.chapters if chapter_from <= c.index <= chapter_to and storage.has_translated(c)
+        ]
+        if not selected:
+            error = "Không có chương đã dịch nào trong phạm vi đã chọn."
+        elif len(selected) > _MAX_EVALUATE_CHAPTERS:
+            error = f"Chỉ đánh giá tối đa {_MAX_EVALUATE_CHAPTERS} chương/lần — hãy chọn phạm vi hẹp hơn."
+        else:
+            chapters_text = [
+                (storage.read_raw(c) if storage.has_raw(c) else "", storage.read_translated(c))
+                for c in selected
+            ]
+            glossary = glossary_ai.load_glossary(cfg.translate)
+            report = glossary_ai.evaluate_translation(cfg.translate, chapters_text, glossary)
+            if not report.get("summary") and not report.get("issues"):
+                error = "AI không trả về đánh giá (hoặc gọi CLI lỗi) — kiểm tra log server."
+
+    return deps.templates.TemplateResponse(
+        request,
+        "glossary.html",
+        {
+            "slug": slug,
+            "names": names.read_text(encoding="utf-8") if names.exists() else "",
+            "vietphrase": vietphrase.read_text(encoding="utf-8") if vietphrase.exists() else "",
+            "suggestions": [],
+            "report": report,
+            "evaluate_error": error,
+            "eval_chapter_from": chapter_from,
+            "eval_chapter_to": chapter_to,
             "job": request.app.state.job.status(),
         },
     )

@@ -29,6 +29,13 @@ class CrawlConfig:
     toc_selector: str = ""
     # CSS selector tiêu đề chương (tùy chọn). Vd "h1".
     chapter_title_selector: str = ""
+    # ----- selector metadata truyện ở trang mục lục/giới thiệu (tùy chọn) -----
+    # Để trống thì crawler tự lấy từ thẻ OG/meta chuẩn (og:title, og:novel:author,
+    # og:description, og:image...). Đặt selector khi trang không có thẻ OG.
+    title_selector: str = ""
+    author_selector: str = ""
+    desc_selector: str = ""
+    cover_selector: str = ""
     # Bảng mã trang. Để trống = tự đoán (apparent_encoding). Vd "gbk", "utf-8".
     encoding: str = ""
     user_agent: str = (

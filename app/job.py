@@ -12,11 +12,20 @@ from collections import deque
 from typing import Callable
 
 from novel2epub.config import Config
-from novel2epub.pipeline import run_all, step_build, step_crawl, step_translate
+from novel2epub.pipeline import (
+    run_all,
+    step_build,
+    step_crawl,
+    step_fetch_toc,
+    step_translate,
+    step_translate_meta,
+)
 
 _STEPS: dict[str, Callable[[Config, Callable[[str], None]], object]] = {
     "crawl": step_crawl,
+    "fetch-toc": step_fetch_toc,
     "translate": step_translate,
+    "translate-meta": step_translate_meta,
     "build": step_build,
     "run": run_all,
 }

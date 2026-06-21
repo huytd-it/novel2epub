@@ -36,8 +36,13 @@ def build_epub(
     chapters_html: list[tuple[Chapter, str, str]],
     out_path: str | Path,
     language: str = "vi",
+    cover_path: str | Path | None = None,
 ) -> Path:
-    """chapters_html: danh sách (chapter, tiêu_đề_hiển_thị, nội_dung_markdown)."""
+    """chapters_html: danh sách (chapter, tiêu_đề_hiển_thị, nội_dung_markdown).
+
+    Ưu tiên metadata tiếng Việt (title_vi/author_vi/description_vi) nếu có; nhúng
+    ảnh bìa khi cover_path tồn tại.
+    """
     try:
         from ebooklib import epub
     except ImportError as e:  # pragma: no cover
@@ -47,10 +52,19 @@ def build_epub(
 
     book = epub.EpubBook()
     book.set_identifier(f"novel2epub-{manifest.slug}")
-    book.set_title(manifest.title or manifest.slug)
+    book.set_title(manifest.title_vi or manifest.title or manifest.slug)
     book.set_language(language)
-    if manifest.author:
-        book.add_author(manifest.author)
+    author = manifest.author_vi or manifest.author
+    if author:
+        book.add_author(author)
+    description = manifest.description_vi or manifest.description
+    if description:
+        book.add_metadata("DC", "description", description)
+
+    if cover_path is not None:
+        cover_path = Path(cover_path)
+        if cover_path.exists():
+            book.set_cover(cover_path.name, cover_path.read_bytes())
 
     css = epub.EpubItem(
         uid="style",

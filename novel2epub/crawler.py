@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import time
+from dataclasses import dataclass, field
 from typing import Protocol
 from urllib.parse import urljoin
 
@@ -20,8 +21,19 @@ from .storage import Chapter
 _MD_LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 
 
+@dataclass
+class TocResult:
+    """Kết quả đọc trang mục lục: metadata truyện + danh sách chương."""
+
+    title: str = ""
+    author: str = ""
+    description: str = ""
+    cover_url: str = ""
+    chapters: list[Chapter] = field(default_factory=list)
+
+
 class Crawler(Protocol):
-    def fetch_toc(self) -> tuple[str, list[Chapter]]: ...
+    def fetch_toc(self) -> TocResult: ...
     def fetch_chapter(self, ch: Chapter) -> str: ...
     def sleep(self) -> None: ...
     def close(self) -> None: ...
@@ -45,6 +57,22 @@ def _get(obj, key, default=None):
     if isinstance(obj, dict):
         return obj.get(key, default)
     return getattr(obj, key, default)
+
+
+def _meta_get(meta, *keys: str) -> str:
+    """Trả về giá trị chuỗi không rỗng đầu tiên theo các khóa metadata cho trước.
+
+    Một số provider trả giá trị dạng list (vd nhiều og:image) — lấy phần tử đầu.
+    """
+    if not isinstance(meta, dict):
+        return ""
+    for key in keys:
+        val = meta.get(key)
+        if isinstance(val, (list, tuple)):
+            val = val[0] if val else ""
+        if val:
+            return str(val).strip()
+    return ""
 
 
 class FirecrawlCrawler:
@@ -83,11 +111,11 @@ class FirecrawlCrawler:
         }
 
     # ---------- mục lục ----------
-    def fetch_toc(self) -> tuple[str, list[Chapter]]:
-        """Trả về (tiêu đề trang, danh sách chương theo thứ tự xuất hiện)."""
+    def fetch_toc(self) -> TocResult:
+        """Trả về metadata truyện + danh sách chương theo thứ tự xuất hiện."""
         res = self._scrape(self.cfg.toc_url, formats=["markdown", "links"])
         markdown = res["markdown"]
-        title = _get(res["metadata"], "title", "") or ""
+        meta = res["metadata"]
 
         pattern = re.compile(self.cfg.chapter_link_pattern)
         chapters: list[Chapter] = []
@@ -113,7 +141,13 @@ class FirecrawlCrawler:
 
         if self.cfg.max_chapters and self.cfg.max_chapters > 0:
             chapters = chapters[: self.cfg.max_chapters]
-        return title, chapters
+        return TocResult(
+            title=_meta_get(meta, "og:novel:book_name", "title", "ogTitle") or "",
+            author=_meta_get(meta, "og:novel:author", "author") or "",
+            description=_meta_get(meta, "description", "og:description", "ogDescription") or "",
+            cover_url=_meta_get(meta, "og:image", "ogImage") or "",
+            chapters=chapters,
+        )
 
     # ---------- nội dung chương ----------
     def fetch_chapter(self, ch: Chapter) -> str:
@@ -176,12 +210,52 @@ class HttpCrawler:
             resp.encoding = resp.apparent_encoding
         return BeautifulSoup(resp.text, "html.parser")
 
-    # ---------- mục lục ----------
-    def fetch_toc(self) -> tuple[str, list[Chapter]]:
-        soup = self._get_soup(self.cfg.toc_url)
-        title = ""
-        if soup.title and soup.title.string:
+    # ---------- metadata ----------
+    def _meta_tag(self, soup, *queries: str) -> str:
+        """Lấy content của thẻ <meta> đầu tiên khớp (property hoặc name)."""
+        for q in queries:
+            tag = soup.find("meta", attrs={"property": q}) or soup.find("meta", attrs={"name": q})
+            content = (tag.get("content") if tag else "") or ""
+            if content.strip():
+                return content.strip()
+        return ""
+
+    def _sel_text(self, soup, selector: str) -> str:
+        if not selector:
+            return ""
+        node = soup.select_one(selector)
+        return node.get_text(strip=True) if node is not None else ""
+
+    def _extract_meta(self, soup) -> tuple[str, str, str, str]:
+        """Trả (title, author, description, cover_url) theo ưu tiên
+        selector cấu hình -> thẻ OG/meta chuẩn -> fallback."""
+        title = self._sel_text(soup, self.cfg.title_selector) \
+            or self._meta_tag(soup, "og:novel:book_name", "og:title")
+        if not title and soup.title and soup.title.string:
             title = soup.title.string.strip()
+
+        author = self._sel_text(soup, self.cfg.author_selector) \
+            or self._meta_tag(soup, "og:novel:author", "author")
+
+        description = self._sel_text(soup, self.cfg.desc_selector) \
+            or self._meta_tag(soup, "og:description", "description")
+
+        cover_url = ""
+        if self.cfg.cover_selector:
+            img = soup.select_one(self.cfg.cover_selector)
+            if img is not None:
+                src = img.get("src") or img.get("data-src") or ""
+                cover_url = urljoin(self.cfg.toc_url, src.strip()) if src else ""
+        if not cover_url:
+            og_img = self._meta_tag(soup, "og:image")
+            cover_url = urljoin(self.cfg.toc_url, og_img) if og_img else ""
+
+        return title, author, description, cover_url
+
+    # ---------- mục lục ----------
+    def fetch_toc(self) -> TocResult:
+        soup = self._get_soup(self.cfg.toc_url)
+        title, author, description, cover_url = self._extract_meta(soup)
 
         scope = soup
         if self.cfg.toc_selector:
@@ -202,7 +276,13 @@ class HttpCrawler:
         ]
         if self.cfg.max_chapters and self.cfg.max_chapters > 0:
             chapters = chapters[: self.cfg.max_chapters]
-        return title, chapters
+        return TocResult(
+            title=title,
+            author=author,
+            description=description,
+            cover_url=cover_url,
+            chapters=chapters,
+        )
 
     # ---------- nội dung chương ----------
     def fetch_chapter(self, ch: Chapter) -> str:
@@ -297,10 +377,9 @@ class Crawl4AICrawler:
         return getattr(md, "raw_markdown", md) if not isinstance(md, str) else md
 
     # ---------- mục lục ----------
-    def fetch_toc(self) -> tuple[str, list[Chapter]]:
+    def fetch_toc(self) -> TocResult:
         result = self._arun(self.cfg.toc_url)
         meta = getattr(result, "metadata", {}) or {}
-        title = (meta.get("title") if isinstance(meta, dict) else "") or ""
 
         links = getattr(result, "links", {}) or {}
         internal = links.get("internal", []) if isinstance(links, dict) else []
@@ -325,7 +404,17 @@ class Crawl4AICrawler:
         ]
         if self.cfg.max_chapters and self.cfg.max_chapters > 0:
             chapters = chapters[: self.cfg.max_chapters]
-        return title, chapters
+
+        cover_url = _meta_get(meta, "og:image", "image")
+        if cover_url:
+            cover_url = urljoin(self.cfg.toc_url, cover_url)
+        return TocResult(
+            title=_meta_get(meta, "og:novel:book_name", "title", "og:title"),
+            author=_meta_get(meta, "og:novel:author", "author"),
+            description=_meta_get(meta, "description", "og:description"),
+            cover_url=cover_url,
+            chapters=chapters,
+        )
 
     # ---------- nội dung chương ----------
     def fetch_chapter(self, ch: Chapter) -> str:

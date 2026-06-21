@@ -55,6 +55,43 @@
 <hr>
 
 <div class="section-head">
+    <h3>AI đánh giá bản dịch (chỉ xem)</h3>
+    <p class="muted">AI đọc glossary + bản gốc/bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần) rồi chấm điểm và liệt kê vấn đề (glossary chưa nhất quán, dịch sai/khô, dùng sai thuật ngữ). <strong>Chỉ là báo cáo</strong> — không sửa file, không ghi đè gì.</p>
+</div>
+<form method="post" action="/ebooks/{{ slug }}/glossary/evaluate" class="form-row">
+    <label>Từ chương <input type="number" name="chapter_from" value="{{ eval_chapter_from or 1 }}" min="0" required></label>
+    <label>đến chương <input type="number" name="chapter_to" value="{{ eval_chapter_to or 1 }}" min="0" required></label>
+    <button type="submit">AI đánh giá</button>
+</form>
+
+{% if evaluate_error %}<p class="badge no">{{ evaluate_error }}</p>{% endif %}
+
+{% if report %}
+{% if report.score is not none %}<p><strong>Điểm:</strong> {{ report.score }}/10</p>{% endif %}
+{% if report.summary %}<p><strong>Nhận xét:</strong> {{ report.summary }}</p>{% endif %}
+{% if report.issues %}
+<table>
+    <tr><th>Mức độ</th><th>Loại</th><th>Chương</th><th>Nguồn</th><th>Hiện tại</th><th>Đề xuất</th><th>Lý do</th></tr>
+    {% for it in report.issues %}
+    <tr>
+        <td>{{ it.severity }}</td>
+        <td>{{ it.category }}</td>
+        <td>{{ it.chapter }}</td>
+        <td>{{ it.source }}</td>
+        <td>{{ it.current }}</td>
+        <td>{{ it.suggestion }}</td>
+        <td class="muted">{{ it.reason }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% elif not evaluate_error %}
+<p class="badge ok">Không phát hiện vấn đề nào.</p>
+{% endif %}
+{% endif %}
+
+<hr>
+
+<div class="section-head">
     <h3>AI rewrite chương (ghi đè bản dịch)</h3>
     <p class="muted">AI sẽ biên tập lại toàn bộ bản dịch trong phạm vi đã chọn theo glossary + nguyên tắc "edit hay" (dùng từ đồng nghĩa linh hoạt, câu tự nhiên, tên chương hay hơn...). <strong>Đây là hành động ghi đè trực tiếp</strong> — bản trước khi rewrite được lưu lại trong meta của từng chương, nhưng nên backup/commit trước khi chạy trên phạm vi lớn.</p>
 </div>

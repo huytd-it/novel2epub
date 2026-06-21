@@ -60,8 +60,36 @@ REWRITE_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt.
 Chỉ trả về toàn văn bản đã biên tập lại (giữ nguyên cách chia đoạn). KHÔNG thêm lời mở đầu, ghi chú, giải thích, hay code fence.
 """
 
+EVALUATE_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, nhiệm vụ là ĐÁNH GIÁ (review) chứ KHÔNG sửa.
+
+Hãy đọc glossary hiện tại + các cặp bản gốc/bản dịch dưới đây rồi đánh giá:
+1. Chất lượng & tính nhất quán của GLOSSARY: mục trùng lặp, mâu thuẫn (một Hán -> nhiều cách dịch khác nhau), Hán-Việt sai hoặc khó hiểu, mục nên có nhưng còn thiếu.
+2. Chất lượng BẢN DỊCH: trung thành với bản gốc, văn phong mượt/tự nhiên, ngôi xưng hợp ngữ cảnh, câu không khô/máy móc.
+3. ĐỐI CHIẾU CHÉO glossary <-> bản dịch: chương có dùng đúng cách dịch trong glossary không; thuật ngữ/tên riêng nào trong chương đang dịch lệch so với bảng.
+
+Nguyên tắc:
+- Chỉ nêu vấn đề có thật, dẫn được chỗ cụ thể; không bịa, không spoil.
+- Với mỗi vấn đề, đề xuất cách sửa ngắn gọn nhưng KHÔNG tự viết lại cả chương.
+
+Glossary hiện tại:
+{glossary}
+
+--- Bản gốc (Trung) ---
+{raw}
+
+--- Bản dịch hiện tại (Việt) ---
+{translated}
+
+Chỉ trả về JSON object, không kèm giải thích, không dùng code fence. Dạng:
+{{"summary": "<nhận xét tổng quan ngắn>", "score": <số 0-10 hoặc null>, "issues": [
+  {{"category": "glossary|consistency|mistranslation|hanviet|fluency|other", "severity": "high|medium|low", "chapter": "<số chương/tên hoặc rỗng>", "source": "<Hán liên quan hoặc rỗng>", "current": "<chỗ dịch có vấn đề>", "suggestion": "<đề xuất sửa>", "reason": "<lý do ngắn>"}}
+]}}
+Nếu không có vấn đề, trả về "issues": [].
+"""
+
 
 _JSON_ARRAY = re.compile(r"\[.*\]", re.DOTALL)
+_JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 
 
 def _parse_suggestions(text: str) -> list[dict]:
@@ -144,3 +172,109 @@ def rewrite_chapter(cfg: TranslateConfig, raw: str, current_translation: str, gl
     )
     output = cli_runner.run_cli(cfg.cli, prompt)
     return _apply_glossary(_clean_output(output), glossary)
+
+
+_EMPTY_REPORT = {"summary": "", "score": None, "issues": []}
+
+
+def _parse_evaluation(text: str) -> dict:
+    """Parse JSON object báo cáo đánh giá. Lỗi parse -> report rỗng (không raise)."""
+    text = _clean_output(text)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        match = _JSON_OBJECT.search(text)
+        if not match:
+            return dict(_EMPTY_REPORT)
+        try:
+            data = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return dict(_EMPTY_REPORT)
+    if not isinstance(data, dict):
+        return dict(_EMPTY_REPORT)
+
+    valid_categories = {"glossary", "consistency", "mistranslation", "hanviet", "fluency", "other"}
+    valid_severities = {"high", "medium", "low"}
+    issues = []
+    for item in data.get("issues", []) if isinstance(data.get("issues"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        category = item.get("category")
+        severity = item.get("severity")
+        issues.append(
+            {
+                "category": category if category in valid_categories else "other",
+                "severity": severity if severity in valid_severities else "low",
+                "chapter": str(item.get("chapter", "")).strip(),
+                "source": str(item.get("source", "")).strip(),
+                "current": str(item.get("current", "")).strip(),
+                "suggestion": str(item.get("suggestion", "")).strip(),
+                "reason": str(item.get("reason", "")).strip(),
+            }
+        )
+
+    score = data.get("score")
+    try:
+        score = int(score) if score is not None else None
+    except (TypeError, ValueError):
+        score = None
+
+    return {"summary": str(data.get("summary", "")).strip(), "score": score, "issues": issues}
+
+
+def evaluate_translation(
+    cfg: TranslateConfig,
+    chapters: list[tuple[str, str]],
+    glossary: dict[str, str],
+) -> dict:
+    """Gọi AI đánh giá glossary + bản dịch của các chương đã chọn, trả report.
+
+    Read-only: không sửa file, không áp dụng gì. Lỗi gọi CLI hoặc parse JSON
+    không raise — trả report rỗng để không sập UI.
+    """
+    raw_combined = "\n\n".join(raw for raw, _ in chapters if raw.strip())
+    translated_combined = "\n\n".join(t for _, t in chapters if t.strip())
+    if not raw_combined.strip() and not translated_combined.strip():
+        return dict(_EMPTY_REPORT)
+
+    glossary_text = _format_glossary(glossary) or "(chưa có mục nào)"
+    prompt = EVALUATE_PROMPT.format(glossary=glossary_text, raw=raw_combined, translated=translated_combined)
+    try:
+        output = cli_runner.run_cli(cfg.cli, prompt)
+    except Exception:
+        return dict(_EMPTY_REPORT)
+
+    return _parse_evaluation(output)
+
+
+def format_evaluation_text(report: dict) -> str:
+    """Định dạng report thành plain-text cho CLI / log."""
+    lines: list[str] = []
+    summary = report.get("summary", "")
+    score = report.get("score")
+    if score is not None:
+        lines.append(f"Điểm: {score}/10")
+    if summary:
+        lines.append(f"Nhận xét: {summary}")
+    issues = report.get("issues", [])
+    if not issues:
+        lines.append("Không phát hiện vấn đề nào.")
+        return "\n".join(lines)
+    lines.append(f"Vấn đề ({len(issues)}):")
+    for i, it in enumerate(issues, 1):
+        head = f"  {i}. [{it.get('severity', '')}/{it.get('category', '')}]"
+        chapter = it.get("chapter", "")
+        if chapter:
+            head += f" chương {chapter}"
+        source = it.get("source", "")
+        if source:
+            head += f" — {source}"
+        lines.append(head)
+        current = it.get("current", "")
+        suggestion = it.get("suggestion", "")
+        if current or suggestion:
+            lines.append(f"     {current} -> {suggestion}")
+        reason = it.get("reason", "")
+        if reason:
+            lines.append(f"     Lý do: {reason}")
+    return "\n".join(lines)

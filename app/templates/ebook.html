@@ -13,12 +13,72 @@
     <div class="stack actions">
         <form method="post" action="/ebooks/{{ slug }}/jobs/crawl"><button {% if job.running %}disabled{% endif %}>Crawl</button></form>
         <form method="post" action="/ebooks/{{ slug }}/jobs/translate"><button {% if job.running %}disabled{% endif %}>Dịch</button></form>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta"><button {% if job.running %}disabled{% endif %}>Dịch metadata (AI)</button></form>
         <form method="post" action="/ebooks/{{ slug }}/jobs/build"><button {% if job.running %}disabled{% endif %}>Build EPUB</button></form>
         <form method="post" action="/ebooks/{{ slug }}/jobs/run"><button {% if job.running %}disabled{% endif %}>Chạy tất cả</button></form>
         {% if epub_exists %}<a class="button" href="/ebooks/{{ slug }}/download">Tải EPUB ({{ epub_path }})</a>{% endif %}
         <a class="button" href="/ebooks/{{ slug }}/glossary">Glossary</a>
     </div>
 </div>
+
+{% if manifest %}
+<div class="meta-card">
+    {% if manifest.cover_file %}
+    <img class="cover" src="/ebooks/{{ slug }}/cover" alt="bìa">
+    {% endif %}
+    <div class="meta-body">
+        <h3>{{ manifest.title_vi or manifest.title or "(chưa có tên)" }}</h3>
+        {% if manifest.title_vi and manifest.title %}<p class="muted">Gốc: {{ manifest.title }}</p>{% endif %}
+        <p class="muted">Tác giả: {{ manifest.author_vi or manifest.author or "-" }}</p>
+        {% if manifest.description or manifest.description_vi %}
+        <p class="desc">{{ manifest.description_vi or manifest.description }}</p>
+        {% endif %}
+        {% if not (manifest.title_vi or manifest.author_vi or manifest.description_vi) and manifest.title %}
+        <p class="muted"><em>Metadata chưa dịch — bấm "Dịch metadata (AI)" để dịch sang tiếng Việt.</em></p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<details class="crawl-panel"{% if not chapters %} open{% endif %}>
+    <summary>Crawl nâng cao — chọn phạm vi chương &amp; tùy chọn</summary>
+    <p class="muted">
+        <strong>Bước 1:</strong> bấm "Lấy mục lục" để lấy nhanh danh sách chương + thông tin truyện (không tải nội dung).
+        <strong>Bước 2:</strong> xem bảng chương bên dưới rồi chọn "Từ/Đến". Để trống = tải toàn bộ chương còn thiếu; "Crawl lại" sẽ tải đè cả chương đã có.
+    </p>
+    <form method="post" action="/ebooks/{{ slug }}/jobs/fetch-toc" class="inline-form">
+        <button type="submit" {% if job.running %}disabled{% endif %}>Lấy mục lục</button>
+    </form>
+    <form method="post" action="/ebooks/{{ slug }}/jobs/crawl-range" class="form-row" id="crawl-form">
+        <label>Từ chương
+            <input type="number" name="start" id="range-start" min="1" placeholder="đầu" value="{{ manifest and 1 or '' }}">
+        </label>
+        <label>Đến chương
+            <input type="number" name="end" id="range-end" min="1" placeholder="cuối"
+                   value="{{ manifest.chapters|length if manifest else '' }}">
+        </label>
+        <label>Engine
+            <select name="engine">
+                <option value="">giữ cấu hình ({{ cfg.crawl.engine }})</option>
+                <option value="http">http (nhanh, tĩnh)</option>
+                <option value="crawl4ai">crawl4ai (trình duyệt, JS)</option>
+                <option value="firecrawl">firecrawl (API)</option>
+            </select>
+        </label>
+        <label>Delay (giây)
+            <input type="number" name="delay" min="0" step="0.5"
+                   placeholder="{{ cfg.crawl.delay_seconds }}">
+        </label>
+        <label>Thử lại
+            <input type="number" name="retries" min="0" max="10" value="0">
+        </label>
+        <label class="check">
+            <input type="checkbox" name="force" value="true"> Crawl lại (ghi đè)
+        </label>
+        <button type="submit" {% if job.running %}disabled{% endif %}>Crawl theo lựa chọn</button>
+    </form>
+    <p id="range-info" class="muted"></p>
+</details>
 
 <p>
     Trạng thái:
@@ -33,10 +93,10 @@
     <h3>Chương ({{ chapters|length }})</h3>
     <p class="muted">Bấm vào từng chương để sửa tay hoặc soát prompt/dịch.</p>
 </div>
-<table>
+<table id="chapter-table">
     <tr><th>#</th><th>Tiêu đề (Trung)</th><th>Tiêu đề (Việt)</th><th>Raw</th><th>Dịch</th><th></th></tr>
     {% for ch in chapters %}
-    <tr>
+    <tr data-index="{{ ch.index }}">
         <td>{{ ch.index }}</td>
         <td>{{ ch.title_zh }}</td>
         <td>{{ ch.title_vi }}</td>
@@ -51,6 +111,32 @@
 {% endif %}
 
 <script>
+// --- Highlight phạm vi chương đang chọn trong bảng ---
+const startEl = document.getElementById("range-start");
+const endEl = document.getElementById("range-end");
+const infoEl = document.getElementById("range-info");
+const rows = Array.from(document.querySelectorAll("#chapter-table tr[data-index]"));
+
+function refreshRange() {
+    if (!rows.length || !infoEl) return;
+    const indices = rows.map(r => parseInt(r.dataset.index, 10));
+    const maxIdx = Math.max(...indices);
+    const start = parseInt(startEl && startEl.value, 10) || 1;
+    const end = parseInt(endEl && endEl.value, 10) || maxIdx;
+    const lo = Math.min(start, end), hi = Math.max(start, end);
+    let count = 0;
+    for (const r of rows) {
+        const i = parseInt(r.dataset.index, 10);
+        const inRange = i >= lo && i <= hi;
+        r.classList.toggle("in-range", inRange);
+        if (inRange) count++;
+    }
+    infoEl.textContent = `Sẽ crawl ${count} chương (#${lo}–#${hi}).`;
+}
+if (startEl) startEl.addEventListener("input", refreshRange);
+if (endEl) endEl.addEventListener("input", refreshRange);
+refreshRange();
+
 const logEl = document.getElementById("log");
 async function poll() {
     const res = await fetch("/api/status");

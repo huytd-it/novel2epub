@@ -19,6 +19,7 @@ class Chapter:
     url: str
     title_zh: str = ""
     title_vi: str = ""
+    title_note: str = ""
     missing_fields: list[str] = field(default_factory=list)
     duplicate_of: int | None = None
     last_action_status: str = ""
@@ -41,6 +42,7 @@ class Manifest:
     cover_file: str = ""
     # Metadata đã dịch sang tiếng Việt (dùng cho EPUB).
     title_vi: str = ""
+    title_note: str = ""
     author_vi: str = ""
     description_vi: str = ""
     metadata_missing: list[str] = field(default_factory=list)
@@ -58,6 +60,7 @@ class Manifest:
                 "cover_url": self.cover_url,
                 "cover_file": self.cover_file,
                 "title_vi": self.title_vi,
+                "title_note": self.title_note,
                 "author_vi": self.author_vi,
                 "description_vi": self.description_vi,
                 "metadata_missing": self.metadata_missing,
@@ -97,6 +100,7 @@ class Storage:
                 url=c.get("url", ""),
                 title_zh=c.get("title_zh", ""),
                 title_vi=c.get("title_vi", ""),
+                title_note=c.get("title_note", ""),
                 missing_fields=list(c.get("missing_fields", []) or []),
                 duplicate_of=c.get("duplicate_of"),
                 last_action_status=c.get("last_action_status", ""),
@@ -110,6 +114,7 @@ class Storage:
             cover_url=data.get("cover_url", ""),
             cover_file=data.get("cover_file", ""),
             title_vi=data.get("title_vi", ""),
+            title_note=data.get("title_note", ""),
             author_vi=data.get("author_vi", ""),
             description_vi=data.get("description_vi", ""),
             metadata_missing=list(data.get("metadata_missing", []) or []),

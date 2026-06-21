@@ -29,6 +29,7 @@
     <div class="meta-body">
         <h3>{{ manifest.title_vi or manifest.title or "(chưa có tên)" }}</h3>
         {% if manifest.title_vi and manifest.title %}<p class="muted">Gốc: {{ manifest.title }}</p>{% endif %}
+        {% if manifest.title_note %}<p class="muted">{{ manifest.title_note }}</p>{% endif %}
         <p class="muted">Tác giả: {{ manifest.author_vi or manifest.author or "-" }}</p>
         {% if manifest.author_vi and manifest.author %}<p class="muted">Tác giả gốc: {{ manifest.author }}</p>{% endif %}
         <p class="muted">Nguồn: <a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank">{{ manifest.source_url or cfg.crawl.toc_url }}</a></p>

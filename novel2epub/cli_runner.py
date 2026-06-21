@@ -59,6 +59,16 @@ def run_cli(cli: CliTranslatorConfig, prompt: str, argv: list[str] | None = None
         encoding="utf-8",
         timeout=cli.timeout_seconds,
     )
+    stderr = (proc.stderr or "").strip()
     if proc.returncode != 0:
-        raise RuntimeError(f"CLI trả về mã lỗi {proc.returncode}:\n{proc.stderr.strip()}")
-    return proc.stdout or ""
+        detail = stderr or "(không có stderr)"
+        raise RuntimeError(f"CLI trả về mã lỗi {proc.returncode}:\n{detail}")
+
+    out = proc.stdout or ""
+    # Nhiều AI CLI vẫn thoát mã 0 dù gặp lỗi (auth/rate-limit/sai model) rồi in
+    # lỗi ra stderr và không trả gì ở stdout. Coi output rỗng là thất bại để báo
+    # lỗi thay vì âm thầm ghi bản dịch trống.
+    if not out.strip():
+        detail = stderr or "Không có stderr — kiểm tra command/model/prompt trong config."
+        raise RuntimeError(f"CLI thoát mã 0 nhưng không trả về nội dung:\n{detail}")
+    return out

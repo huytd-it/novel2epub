@@ -88,6 +88,31 @@ input, select {
 .edit-rules ul { padding-left: 1.1rem; margin: 0.6rem 0; }
 .edit-rules li { margin: 0.35rem 0; }
 
+/* --- AI hỗ trợ trong editor chương --- */
+.ai-toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 0.75rem 0; padding: 0.6rem 0.7rem; background: #f0f7ff; border: 1px solid #cfe1f5; border-radius: 8px; }
+.ai-toolbar form { margin: 0; display: inline; }
+.ai-toolbar button { padding: 0.4rem 0.8rem; border: 1px solid #6b8fb5; background: #fff; cursor: pointer; border-radius: 4px; }
+.ai-toolbar button:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-panel { border: 1px solid #e5e5e5; border-radius: 10px; padding: 0.75rem 1rem; margin: 1rem 0; background: #fcfcfc; }
+.ai-panel.review { border-color: #e0c36b; background: #fffdf3; }
+.ai-panel.suggest { border-color: #9ed1a8; background: #f5fbf6; }
+.ai-panel.rewrite { border-color: #9bbbe0; background: #f6f9fd; }
+.link-btn { background: none; border: none; color: #2563eb; cursor: pointer; text-decoration: underline; padding: 0; font-size: 0.9rem; }
+.issue-list { padding-left: 1.2rem; margin: 0.5rem 0; }
+.issue { margin: 0.5rem 0; padding-left: 0.4rem; border-left: 3px solid #ccc; }
+.issue.sev-high { border-left-color: #d33; }
+.issue.sev-medium { border-left-color: #e0a000; }
+.issue.sev-low { border-left-color: #8aa; }
+.issue-tag { display: inline-block; font-size: 0.72rem; padding: 0.05rem 0.4rem; border-radius: 10px; background: #eef; margin-right: 0.3rem; }
+.issue-tag.sev { background: #f3e6c0; }
+.issue .del, .diff-line.del { background: #ffe1e1; text-decoration: line-through; }
+.issue .ins, .diff-line.ins { background: #def7df; }
+.raw-view { width: 100%; height: 60vh; overflow-y: auto; white-space: pre-wrap; word-break: break-word; box-sizing: border-box; border: 1px solid #bbb; border-radius: 4px; padding: 0.5rem; background: #fff; font-family: monospace; font-size: 0.95rem; line-height: 1.6; }
+.raw-view mark { background: #fff1a8; border-radius: 2px; padding: 0 1px; }
+.diff-view { height: 45vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-family: monospace; font-size: 0.85rem; }
+.diff-line { padding: 0 0.4rem; white-space: pre-wrap; word-break: break-word; }
+.diff-line.eq { color: #555; }
+
 @media (max-width: 900px) {
     .cols, .hero { flex-direction: column; }
     .bulk-bar, .quick-guide { position: static; }

@@ -3,6 +3,7 @@
 {% block content %}
 <p><a href="{% if slug %}/ebooks/{{ slug }}{% else %}/{% endif %}">&larr; Quay lại</a></p>
 <h2>Chương {{ ch.index }}: {{ ch.title_vi or ch.title_zh }}</h2>
+{% if ch.title_note %}<p class="muted">{{ ch.title_note }}</p>{% endif %}
 <p class="muted"><a href="{{ ch.url }}" target="_blank">{{ ch.url }}</a></p>
 {% if ch.missing_fields %}<p class="muted">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}
 {% if ch.last_action_status %}<p class="muted">Action gần nhất: {{ ch.last_action_status }}</p>{% endif %}
@@ -60,6 +61,68 @@
 
     <section class="chapter-workspace">
 
+{% set base = "/ebooks/" ~ slug ~ "/chapters/" ~ ch.index %}
+
+<div class="ai-toolbar">
+    <strong>AI hỗ trợ:</strong>
+    <form method="post" action="{{ base }}/ai/review" class="ai-job-form"><button type="submit" title="AI đọc bản dịch và liệt kê vấn đề theo mục III của rule.md — bạn tự sửa tay.">Review chương này</button></form>
+    <form method="post" action="{{ base }}/ai/rewrite" class="ai-job-form"><button type="submit" title="AI biên tập lại cả chương thành bản nháp để bạn xem diff rồi quyết định áp dụng.">Đề xuất bản biên tập</button></form>
+    <form method="post" action="{{ base }}/ai/suggest" class="ai-job-form"><button type="submit" title="AI gợi ý tên riêng/thuật ngữ trong chương để thêm vào glossary.">Gợi ý glossary</button></form>
+    <span class="muted">AI gợi ý, bạn là người quyết định.</span>
+</div>
+
+{% if meta and meta.ai_review and meta.ai_review.report %}
+{% set report = meta.ai_review.report %}
+<div class="ai-panel review">
+    <div class="section-head">
+        <h3>AI review{% if report.score is not none %} · {{ report.score }}/10{% endif %}</h3>
+        <form method="post" action="{{ base }}/ai/review/dismiss"><button type="submit" class="link-btn">Ẩn</button></form>
+    </div>
+    {% if report.summary %}<p>{{ report.summary }}</p>{% endif %}
+    {% if report.issues %}
+    <ol class="issue-list">
+        {% for it in report.issues %}
+        <li class="issue sev-{{ it.severity }}">
+            <span class="issue-tag">{{ CATEGORY_LABELS.get(it.category, it.category) }}</span>
+            <span class="issue-tag sev">{{ it.severity }}</span>
+            {% if it.source %}<code>{{ it.source }}</code>{% endif %}
+            {% if it.current or it.suggestion %}<div><span class="del">{{ it.current }}</span> → <span class="ins">{{ it.suggestion }}</span></div>{% endif %}
+            {% if it.reason %}<div class="muted">{{ it.reason }}</div>{% endif %}
+        </li>
+        {% endfor %}
+    </ol>
+    {% else %}
+    <p class="muted">Không phát hiện vấn đề nào.</p>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if meta and meta.ai_suggestions %}
+<div class="ai-panel suggest">
+    <div class="section-head">
+        <h3>AI gợi ý glossary ({{ meta.ai_suggestions|length }})</h3>
+    </div>
+    <form method="post" action="{{ base }}/ai/suggest/apply">
+        <table class="data-table">
+            <thead><tr><th></th><th>Hán</th><th>Việt</th><th>Loại</th><th>File</th><th>Lý do</th></tr></thead>
+            <tbody>
+            {% for s in meta.ai_suggestions %}
+            <tr>
+                <td><input type="checkbox" name="selected_{{ loop.index0 }}" checked></td>
+                <td><code>{{ s.source }}</code><input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
+                <td>{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
+                <td>{{ s.type }}</td>
+                <td>{{ s.target_file }}<input type="hidden" name="target_file_{{ loop.index0 }}" value="{{ s.target_file }}"></td>
+                <td class="muted">{{ s.reason }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <p><button type="submit">Thêm mục đã tick vào glossary</button></p>
+    </form>
+</div>
+{% endif %}
+
 {% if meta and meta.before_rewrite %}
 <details>
     <summary>Chương này đã được AI rewrite — xem/khôi phục bản trước khi rewrite</summary>
@@ -69,7 +132,7 @@
             <textarea readonly>{{ meta.before_rewrite }}</textarea>
         </div>
         <div>
-            <form method="post" action="{% if slug %}/ebooks/{{ slug }}/chapters/{{ ch.index }}{% else %}/chapters/{{ ch.index }}{% endif %}">
+            <form method="post" action="{{ base }}">
                 <input type="hidden" name="translated" value="{{ meta.before_rewrite }}">
                 <p><button type="submit">Khôi phục bản này (ghi đè bản dịch hiện tại)</button></p>
             </form>
@@ -80,17 +143,44 @@
 
 <div class="cols">
     <div>
-        <h3>Gốc (Trung)</h3>
-        <textarea readonly>{{ raw }}</textarea>
+        <div class="section-head">
+            <h3>Gốc (Trung)</h3>
+            <label class="check muted"><input type="checkbox" id="highlight-toggle" checked> Tô sáng thuật ngữ</label>
+        </div>
+        <div class="raw-view" id="raw-view">{{ raw }}</div>
     </div>
     <div>
         <h3>Bản dịch (Việt) — sửa tay tại đây</h3>
-        <form method="post" action="{% if slug %}/ebooks/{{ slug }}/chapters/{{ ch.index }}{% else %}/chapters/{{ ch.index }}{% endif %}">
-            <textarea name="translated">{{ translated }}</textarea>
+        <form method="post" action="{{ base }}">
+            <textarea name="translated" id="translated-area">{{ translated }}</textarea>
             <p><button type="submit">Lưu bản dịch</button></p>
         </form>
     </div>
 </div>
+
+{% if meta and meta.ai_rewrite and meta.ai_rewrite.text %}
+<div class="ai-panel rewrite">
+    <div class="section-head">
+        <h3>Bản nháp AI biên tập — xem diff trước khi áp dụng</h3>
+        <div class="form-row" style="margin:0">
+            <form method="post" action="{{ base }}/ai/rewrite/apply"><button type="submit">Áp dụng (ghi đè bản dịch)</button></form>
+            <form method="post" action="{{ base }}/ai/rewrite/discard"><button type="submit" class="link-btn">Bỏ bản nháp</button></form>
+        </div>
+    </div>
+    <p class="muted">Đỏ = bị bỏ/đổi so với bản hiện tại · Xanh = AI thêm/sửa. Áp dụng sẽ lưu bản hiện tại vào "trước khi rewrite" để khôi phục được.</p>
+    <div class="cols diff-cols">
+        <div>
+            <h4>Bản dịch hiện tại</h4>
+            <div class="diff-view" id="diff-current"></div>
+        </div>
+        <div>
+            <h4>Bản nháp AI</h4>
+            <div class="diff-view" id="diff-preview"></div>
+        </div>
+    </div>
+    <textarea id="ai-rewrite-text" hidden>{{ meta.ai_rewrite.text }}</textarea>
+</div>
+{% endif %}
 
     </section>
 </div>
@@ -126,6 +216,72 @@ if (glossarySearch) {
     });
 }
 
+// --- Tô sáng thuật ngữ glossary trong panel gốc (Trung) ---
+function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+const rawView = document.getElementById("raw-view");
+const highlightToggle = document.getElementById("highlight-toggle");
+const glossaryTerms = Array.from(new Set(
+    glossaryRows
+        .map(row => (row.querySelector("strong") || {}).textContent || "")
+        .map(t => t.trim())
+        .filter(Boolean)
+)).sort((a, b) => b.length - a.length); // dài trước để không bị cắt cụm
+
+function renderRawView() {
+    if (!rawView) return;
+    const text = rawView.dataset.raw;
+    if (!highlightToggle || !highlightToggle.checked || glossaryTerms.length === 0) {
+        rawView.innerHTML = escapeHtml(text);
+        return;
+    }
+    const pattern = new RegExp(glossaryTerms.map(escapeRegex).join("|"), "g");
+    rawView.innerHTML = escapeHtml(text).replace(pattern, m => `<mark>${m}</mark>`);
+}
+if (rawView) {
+    rawView.dataset.raw = rawView.textContent;
+    renderRawView();
+    if (highlightToggle) highlightToggle.addEventListener("change", renderRawView);
+}
+
+// --- Diff bản dịch hiện tại vs bản nháp AI (line-level LCS) ---
+function lineDiff(aText, bText) {
+    const a = aText.split("\n"), b = bText.split("\n");
+    const n = a.length, m = b.length;
+    const lcs = Array.from({length: n + 1}, () => new Int32Array(m + 1));
+    for (let i = n - 1; i >= 0; i--)
+        for (let j = m - 1; j >= 0; j--)
+            lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    const left = [], right = [];
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+        if (a[i] === b[j]) { left.push(["eq", a[i]]); right.push(["eq", b[j]]); i++; j++; }
+        else if (lcs[i + 1][j] >= lcs[i][j + 1]) { left.push(["del", a[i]]); i++; }
+        else { right.push(["ins", b[j]]); j++; }
+    }
+    while (i < n) left.push(["del", a[i++]]);
+    while (j < m) right.push(["ins", b[j++]]);
+    return [left, right];
+}
+function renderDiffCol(el, rows) {
+    el.innerHTML = rows.map(([kind, line]) =>
+        `<div class="diff-line ${kind}">${escapeHtml(line) || "&nbsp;"}</div>`
+    ).join("");
+}
+const diffCurrent = document.getElementById("diff-current");
+const diffPreview = document.getElementById("diff-preview");
+const rewriteText = document.getElementById("ai-rewrite-text");
+const translatedArea = document.getElementById("translated-area");
+if (diffCurrent && diffPreview && rewriteText && translatedArea) {
+    const [left, right] = lineDiff(translatedArea.value, rewriteText.value);
+    renderDiffCol(diffCurrent, left);
+    renderDiffCol(diffPreview, right);
+}
+
 // --- Job execution & polling ---
 const logEl = document.getElementById("log");
 const statusSection = document.getElementById("job-status-section");
@@ -143,7 +299,7 @@ document.addEventListener("submit", async function(event) {
     const form = event.target;
     const action = form.getAttribute("action") || "";
     
-    if (action.includes("/action") || action.includes("/jobs/")) {
+    if (action.includes("/action") || action.includes("/jobs/") || form.classList.contains("ai-job-form")) {
         event.preventDefault();
         
         setJobButtonsDisabled(true);

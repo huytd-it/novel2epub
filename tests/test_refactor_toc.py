@@ -46,6 +46,9 @@ class _FakeTranslator:
     def translate(self, text):
         return f"VI:{text}"
 
+    def translate_title(self, text, kind="tên chương"):
+        return f"VI:{text}", ""
+
 
 def test_mark_duplicate_chapters_and_visible_range(tmp_path):
     chapters = mark_duplicate_chapters([

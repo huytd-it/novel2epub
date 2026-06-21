@@ -26,6 +26,10 @@ def _print(msg: str) -> None:
     print(msg, flush=True)
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _run_with_heartbeat(log: LogFn, prefix: str, fn: Callable[[], object], *, interval: float = 5.0):
     """Chạy fn ở thread phụ, định kỳ log một nhịp 'vẫn đang chạy' để UI biết job còn sống.
 
@@ -351,8 +355,12 @@ def _translate_meta_inplace(
         return False
     changed = False
     if manifest.title and (force or not manifest.title_vi):
-        manifest.title_vi = _clean_title(translator.translate(manifest.title))
+        title, note = translator.translate_title(manifest.title, kind="tên truyện")
+        manifest.title_vi = _clean_title(title)
+        manifest.title_note = note
         log(f"[meta] Tên truyện: {manifest.title_vi}")
+        if note:
+            log(f"[meta]   Giải thích: {note}")
         changed = True
     if manifest.author and (force or not manifest.author_vi):
         manifest.author_vi = translator.translate(manifest.author).strip()
@@ -402,6 +410,7 @@ def step_translate(cfg: Config, log: LogFn = _print) -> Manifest:
     pending = sum(1 for ch in manifest.chapters if storage.has_raw(ch) and not storage.has_translated(ch))
     log(f"[dịch] Bắt đầu: {pending}/{total} chương cần dịch.")
     done = 0
+    failed = 0
     for i, ch in enumerate(manifest.chapters, 1):
         if not storage.has_raw(ch):
             log(f"[dịch] ({i}/{total}) chưa có raw cho {ch.stem}, bỏ qua.")
@@ -413,11 +422,26 @@ def step_translate(cfg: Config, log: LogFn = _print) -> Manifest:
         log(f"[dịch] ({i}/{total}) → {ch.title_zh or ch.stem} ({len(raw)} ký tự)")
         started = time.monotonic()
 
-        # Dịch tiêu đề (nếu có) + nội dung.
-        if ch.title_zh and not is_noop:
-            ch.title_vi = _clean_title(translator.translate(ch.title_zh))
-            changed = True
-        translated = _run_with_heartbeat(log, f"[dịch]   ({i}/{total})", lambda: translator.translate(raw))
+        try:
+            # Dịch tiêu đề (nếu có) + nội dung.
+            if ch.title_zh and not is_noop:
+                title, note = translator.translate_title(ch.title_zh, kind="tên chương")
+                ch.title_vi = _clean_title(title)
+                ch.title_note = note
+                changed = True
+            translated = _run_with_heartbeat(log, f"[dịch]   ({i}/{total})", lambda: translator.translate(raw))
+        except Exception as e:  # noqa: BLE001 - báo lỗi từng chương thay vì giết cả job
+            failed += 1
+            ch.last_action_status = "failed"
+            log(f"[dịch]   ({i}/{total}) ! Lỗi chương {ch.stem}: {e}")
+            if done == 0:
+                # Lỗi ngay chương đầu tiên dịch được => gần như chắc do cấu hình/CLI;
+                # dừng sớm và báo lỗi rõ thay vì thử lỗi hàng loạt.
+                if changed:
+                    storage.save_manifest(manifest)
+                raise RuntimeError(f"Dịch lỗi ngay chương đầu ({ch.stem}): {e}") from e
+            continue
+
         elapsed = time.monotonic() - started
         storage.write_translated(ch, translated)
         warnings = _quality_warnings(raw, translated)
@@ -427,7 +451,7 @@ def step_translate(cfg: Config, log: LogFn = _print) -> Manifest:
 
     if changed:
         storage.save_manifest(manifest)
-    log(f"[dịch] Hoàn tất. Đã dịch {done} chương.")
+    log(f"[dịch] Hoàn tất. Đã dịch {done} chương, lỗi {failed}.")
     return manifest
 
 
@@ -456,6 +480,7 @@ def step_translate_selected(
     translated_count = 0
     skipped = 0
     replaced = 0
+    failed = 0
     for i, ch in enumerate(selected, 1):
         if not storage.has_raw(ch):
             log(f"[dịch] ({i}/{total}) chưa có raw cho {ch.stem}, bỏ qua.")
@@ -474,10 +499,24 @@ def step_translate_selected(
         raw = storage.read_raw(ch)
         log(f"[dịch] ({i}/{total}) → {ch.title_zh or ch.stem} ({len(raw)} ký tự)")
         started = time.monotonic()
-        if ch.title_zh and not is_noop:
-            ch.title_vi = _clean_title(translator.translate(ch.title_zh))
-            changed = True
-        translated = _run_with_heartbeat(log, f"[dịch]   ({i}/{total})", lambda: translator.translate(raw))
+        try:
+            if ch.title_zh and not is_noop:
+                title, note = translator.translate_title(ch.title_zh, kind="tên chương")
+                ch.title_vi = _clean_title(title)
+                ch.title_note = note
+                changed = True
+            translated = _run_with_heartbeat(log, f"[dịch]   ({i}/{total})", lambda: translator.translate(raw))
+        except Exception as e:  # noqa: BLE001 - báo lỗi từng chương thay vì giết cả job
+            failed += 1
+            ch.last_action_status = "failed"
+            log(f"[dịch]   ({i}/{total}) ! Lỗi chương {ch.stem}: {e}")
+            if translated_count == 0:
+                # Lỗi ngay chương đầu tiên dịch được => gần như chắc do cấu hình/CLI;
+                # dừng sớm và báo lỗi rõ thay vì thử lỗi hàng loạt.
+                if changed:
+                    storage.save_manifest(manifest)
+                raise RuntimeError(f"Dịch lỗi ngay chương đầu ({ch.stem}): {e}") from e
+            continue
         elapsed = time.monotonic() - started
         storage.write_translated(ch, translated)
         warnings = _quality_warnings(raw, translated)
@@ -487,9 +526,9 @@ def step_translate_selected(
         _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title_vi or ch.title_zh or ch.stem, elapsed, translated, warnings)
         if had_translated and force:
             replaced += 1
-    if changed or translated_count or skipped:
+    if changed or translated_count or skipped or failed:
         storage.save_manifest(manifest)
-    log(f"[dịch] Hoàn tất. Đã dịch {translated_count} chương, bỏ qua {skipped}, ghi đè {replaced}.")
+    log(f"[dịch] Hoàn tất. Đã dịch {translated_count} chương, bỏ qua {skipped}, lỗi {failed}, ghi đè {replaced}.")
     return manifest
 
 
@@ -574,6 +613,99 @@ def step_evaluate_translation(
     report = glossary_ai.evaluate_translation(cfg.translate, chapters_text, glossary)
     log(glossary_ai.format_evaluation_text(report))
     return report
+
+
+# ---------------------------------------------------------------------------
+# AI hỗ trợ NGAY TRONG editor của 1 chương (review / rewrite-preview / suggest).
+#
+# Khác với các hàm theo phạm vi ở trên (dùng cho trang Glossary), nhóm này thao
+# tác đúng 1 chương và lưu kết quả vào meta của chương đó (translation_meta/*.json)
+# để editor đọc lại sau khi job nền chạy xong — luồng "AI gợi ý, người review
+# quyết định" của docs/rule.md mục III.
+# ---------------------------------------------------------------------------
+
+
+def _require_chapter(cfg: Config, index: int) -> tuple[Storage, "Manifest", "Chapter"]:
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise RuntimeError(f"Không tìm thấy chương index={index}.")
+    return storage, manifest, ch
+
+
+def _update_chapter_meta(storage: Storage, ch: "Chapter", **changes) -> dict:
+    """Đọc–sửa–ghi meta của 1 chương, chỉ chạm các key được truyền vào.
+
+    Giá trị None nghĩa là xóa key đó khỏi meta (dùng để bỏ preview/review)."""
+    meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+    for key, value in changes.items():
+        if value is None:
+            meta.pop(key, None)
+        else:
+            meta[key] = value
+    storage.write_meta(ch, meta)
+    return meta
+
+
+def step_review_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> dict:
+    """AI review 1 chương (read-only) — lưu báo cáo vào meta['ai_review']."""
+    from . import glossary_ai
+
+    storage, _manifest, ch = _require_chapter(cfg, index)
+    if not storage.has_translated(ch):
+        log("[review] Chương chưa có bản dịch, không có gì để review.")
+        return dict(glossary_ai._EMPTY_REPORT)
+
+    raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
+    translated = storage.read_translated(ch)
+    glossary = glossary_ai.load_glossary(cfg.translate)
+    log(f"[review] Đang phân tích chương {ch.index}: {ch.title_vi or ch.title_zh or ch.stem}")
+    report = glossary_ai.evaluate_translation(cfg.translate, [(raw, translated)], glossary)
+    _update_chapter_meta(storage, ch, ai_review={"report": report, "generated_at": _now_iso()})
+    log(glossary_ai.format_evaluation_text(report))
+    log("[review] Hoàn tất. Mở lại trang chương để xem báo cáo.")
+    return report
+
+
+def step_suggest_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> list[dict]:
+    """AI gợi ý glossary cho 1 chương — lưu vào meta['ai_suggestions']."""
+    from . import glossary_ai
+
+    storage, _manifest, ch = _require_chapter(cfg, index)
+    raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
+    translated = storage.read_translated(ch) if storage.has_translated(ch) else ""
+    existing = glossary_ai.load_glossary(cfg.translate)
+    log(f"[gợi ý] Đang phân tích chương {ch.index}: {ch.title_vi or ch.title_zh or ch.stem}")
+    suggestions = glossary_ai.suggest_glossary(cfg.translate, [(raw, translated)], existing)
+    _update_chapter_meta(storage, ch, ai_suggestions=suggestions)
+    log(f"[gợi ý] Hoàn tất. {len(suggestions)} đề xuất. Mở lại trang chương để chọn áp dụng.")
+    return suggestions
+
+
+def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> str:
+    """AI biên tập lại 1 chương nhưng KHÔNG ghi đè — lưu bản nháp vào
+    meta['ai_rewrite'] để người review xem diff rồi quyết định áp dụng."""
+    from . import glossary_ai
+
+    storage, _manifest, ch = _require_chapter(cfg, index)
+    if not storage.has_translated(ch):
+        log("[rewrite] Chương chưa có bản dịch, không có gì để biên tập.")
+        return ""
+
+    raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
+    current = storage.read_translated(ch)
+    glossary = glossary_ai.load_glossary(cfg.translate)
+    log(f"[rewrite] Đang biên tập lại chương {ch.index}: {ch.title_vi or ch.title_zh or ch.stem}")
+    rewritten = glossary_ai.rewrite_chapter(cfg.translate, raw, current, glossary)
+    if not rewritten.strip():
+        log("[rewrite] AI trả về rỗng — giữ nguyên, không tạo bản nháp.")
+        return ""
+    _update_chapter_meta(storage, ch, ai_rewrite={"text": rewritten, "generated_at": _now_iso()})
+    log("[rewrite] Đã tạo bản nháp. Mở lại trang chương để xem diff và áp dụng.")
+    return rewritten
 
 
 def step_build(cfg: Config, log: LogFn = _print) -> str:

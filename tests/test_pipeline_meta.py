@@ -42,6 +42,9 @@ class _UpperTranslator:
     def translate(self, text):
         return f"VI:{text}"
 
+    def translate_title(self, text, kind="tên chương"):
+        return f"VI:{text}", f"note:{kind}"
+
 
 def test_step_fetch_toc_saves_metadata_no_content(tmp_path, monkeypatch):
     toc = TocResult(
@@ -76,6 +79,7 @@ def test_step_translate_meta_fills_vi(tmp_path, monkeypatch):
 
     manifest = Storage(tmp_path, "t").load_manifest()
     assert manifest.title_vi == "VI:书名"
+    assert manifest.title_note == "note:tên truyện"
     assert manifest.author_vi == "VI:作者"
     assert manifest.description_vi == "VI:简介"
 
@@ -106,6 +110,65 @@ def test_translate_meta_inplace_respects_force(tmp_path):
     # force -> dịch lại
     assert pipeline._translate_meta_inplace(manifest, tr, is_noop=False, log=lambda m: None, force=True) is True
     assert manifest.title_vi == "VI:书名"
+    assert manifest.title_note == "note:tên truyện"
+
+
+class _FlakyTranslator:
+    """Dịch OK trừ những chương có index nằm trong `fail_on` thì ném lỗi."""
+
+    def __init__(self, fail_on):
+        self.fail_on = set(fail_on)
+        self.calls = 0
+
+    def translate(self, text):
+        self.calls += 1
+        if text in self.fail_on:
+            raise RuntimeError("CLI thoát mã 0 nhưng không trả về nội dung")
+        return f"VI:{text}"
+
+
+def test_translate_selected_reports_per_chapter_error_and_continues(tmp_path, monkeypatch):
+    from novel2epub.storage import Manifest
+
+    storage = Storage(tmp_path, "t")
+    chs = [Chapter(index=i, url=f"http://x/{i}") for i in (1, 2, 3)]
+    storage.save_manifest(Manifest(slug="t", chapters=chs))
+    for ch in chs:
+        storage.write_raw(ch, f"raw{ch.index}")
+
+    # Chương 1 dịch được (nên không fail-fast), chương 2 lỗi, chương 3 dịch được.
+    tr = _FlakyTranslator(fail_on={"raw2"})
+    monkeypatch.setattr(pipeline, "make_translator", lambda c: tr)
+
+    logs = []
+    cfg = _cfg(tmp_path)
+    pipeline.step_translate_selected(cfg, logs.append)
+
+    assert storage.has_translated(chs[0]) and storage.has_translated(chs[2])
+    assert not storage.has_translated(chs[1])
+    assert any("Lỗi chương" in m for m in logs)
+    assert any("lỗi 1" in m for m in logs)  # dòng tổng kết
+
+
+def test_translate_selected_fails_fast_on_first_chapter(tmp_path, monkeypatch):
+    from novel2epub.storage import Manifest
+
+    storage = Storage(tmp_path, "t")
+    chs = [Chapter(index=i, url=f"http://x/{i}") for i in (1, 2)]
+    storage.save_manifest(Manifest(slug="t", chapters=chs))
+    for ch in chs:
+        storage.write_raw(ch, f"raw{ch.index}")
+
+    tr = _FlakyTranslator(fail_on={"raw1", "raw2"})
+    monkeypatch.setattr(pipeline, "make_translator", lambda c: tr)
+
+    cfg = _cfg(tmp_path)
+    import pytest
+
+    with pytest.raises(RuntimeError, match="ngay chương đầu"):
+        pipeline.step_translate_selected(cfg, lambda m: None)
+    # Dừng sớm: không thử dịch chương 2 (1 lần gọi cho chương 1).
+    assert tr.calls == 1
 
 
 def test_build_epub_uses_vi_meta_and_cover(tmp_path):

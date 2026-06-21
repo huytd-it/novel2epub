@@ -87,7 +87,8 @@ Nguyên tắc bắt buộc:
 3. Tên riêng, công pháp, địa danh, chiêu thức: giữ theo lối Hán Việt quen thuộc, viết hoa và nhất quán.
 4. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, nhưng vẫn giữ chất cổ trang khi cần.
 5. Giữ nguyên cách chia đoạn của bản gốc. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
-6. Thành ngữ, thơ, câu trích dẫn và tiêu đề truyện/chương nên dịch thoát ý, tự nhiên, không máy móc.
+6. Thành ngữ nên dịch thoát ý, tự nhiên, không máy móc.
+7. Thơ từ, ca phú, Luận ngữ, trích dẫn cổ văn: nếu nhận ra là câu/bài đã có bản dịch tiếng Việt phổ biến, hãy dùng đúng bản dịch đó và ghi tên dịch giả trong ngoặc ngay sau (vd: "— (bản dịch Tản Đà)"). Nếu không nhận ra bản dịch có sẵn, hãy tự chuyển ngữ sao cho người đọc hiểu được nghĩa, không dịch nguyên xi. TUYỆT ĐỐI không dịch kiểu Vietphrase-một-nghĩa (ghép nghĩa từng chữ máy móc, từ nào dịch được thì dịch từ nào không thì giữ nguyên Hán) — nếu thực sự không thể chuyển ngữ, giữ nguyên cả câu ở dạng phiên âm Hán Việt đầy đủ, không phải kiểu Vietphrase.
 
 Phong cách mong muốn:
 - Tông giọng: {tone}
@@ -102,12 +103,30 @@ CHỈ trả về bản dịch tiếng Việt. KHÔNG thêm lời mở đầu, gh
 {text}"""
 
 
+TITLE_PROMPT = """Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt. Nhiệm vụ: chuyển ngữ {kind} sau sang tiếng Việt thật HAY, có hồn, KHÔNG dịch sát nghĩa kiểu máy/Quick Translate.
+
+Nguyên tắc bắt buộc:
+1. Không bê nguyên âm Hán Việt nếu người đọc Việt không hiểu nghĩa.
+2. Có thể đảo cấu trúc, dùng hình ảnh/ẩn dụ tương đương trong tiếng Việt, miễn giữ đúng tinh thần và nội dung cốt lõi.
+3. Ví dụ: "Nắm tay người, kéo người đi" nên dịch thành "Tay nắm tay, cùng nhau cất bước" — hay và tự nhiên hơn nhiều so với dịch sát chữ.
+4. Nếu thực sự không tìm được cách chuyển ngữ hay mà vẫn giữ đúng nghĩa, hãy dịch nghĩa rõ ràng dù kém mượt hơn là giữ Hán Việt khó hiểu, và điền dòng GIẢI THÍCH để người đọc hiểu nghĩa gốc/lý do chọn từ.
+
+{glossary}
+Trả lời ĐÚNG 2 dòng theo định dạng sau, không thêm gì khác:
+TIÊU ĐỀ: <bản dịch tiếng Việt>
+GIẢI THÍCH: <để trống nếu tên đã rõ nghĩa, tự nhiên; chỉ điền nếu cần giải thích thêm cho người đọc>
+
+--- {kind} cần dịch ---
+{text}"""
+
+
 @dataclass
 class CliTranslatorConfig:
     command: str = "claude -p"
     model: str = ""
     mode: str = "stdin"  # stdin | arg
     prompt_template: str = DEFAULT_PROMPT
+    title_prompt_template: str = TITLE_PROMPT
     timeout_seconds: int = 300
 
 

@@ -41,6 +41,34 @@ def _clean_output(text: str) -> str:
     return "\n".join(lines).strip()
 
 
+_TITLE_LINE = re.compile(r"^\s*TI[ÊE]U\s*Đ[ỀE]\s*:\s*(.*)$", re.IGNORECASE)
+_NOTE_LINE = re.compile(r"^\s*GI[ẢA]I\s*TH[ÍI]CH\s*:\s*(.*)$", re.IGNORECASE)
+
+
+def _parse_title_response(raw: str) -> tuple[str, str]:
+    """Tách 'TIÊU ĐỀ: ...' / 'GIẢI THÍCH: ...' từ phản hồi LLM.
+
+    Nếu LLM không theo format yêu cầu, coi cả phản hồi (đã clean) là tiêu đề,
+    không có giải thích — tránh làm vỡ pipeline vì LLM lệch format.
+    """
+    cleaned = _clean_output(raw)
+    title = ""
+    note = ""
+    found_title = False
+    for line in cleaned.splitlines():
+        m = _TITLE_LINE.match(line)
+        if m:
+            title = m.group(1).strip()
+            found_title = True
+            continue
+        m = _NOTE_LINE.match(line)
+        if m:
+            note = m.group(1).strip()
+    if not found_title:
+        return cleaned.strip(), ""
+    return title, note
+
+
 def _format_glossary(glossary: dict[str, str]) -> str:
     if not glossary:
         return ""
@@ -90,11 +118,15 @@ def load_glossary_dict(cfg: TranslateConfig) -> dict[str, str]:
 
 class Translator(Protocol):
     def translate(self, text: str) -> str: ...
+    def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]: ...
 
 
 class NoopTranslator:
     def translate(self, text: str) -> str:
         return text
+
+    def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
+        return text, ""
 
 
 class CLITranslator:
@@ -115,17 +147,19 @@ class CLITranslator:
             han_viet_level=self.cfg.style.han_viet_level,
         )
 
-    def translate(self, text: str) -> str:
-        if not text.strip():
-            return text
-        prompt = self._build_prompt(text)
+    def _build_title_prompt(self, text: str, kind: str) -> str:
+        return self.cli.title_prompt_template.format(
+            text=text,
+            kind=kind,
+            glossary=_format_glossary(self.glossary),
+        )
 
+    def _run_cli_with_retry(self, prompt: str) -> str:
         attempts = max(1, int(self.cfg.retry.attempts))
         last_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             try:
-                out = cli_runner.run_cli(self.cli, prompt, argv=self._argv)
-                return _apply_glossary(_clean_output(out), self.glossary)
+                return cli_runner.run_cli(self.cli, prompt, argv=self._argv)
             except FileNotFoundError as e:
                 raise RuntimeError(
                     f"Không tìm thấy lệnh CLI: {self._argv[0]!r}. "
@@ -141,6 +175,19 @@ class CLITranslator:
 
         assert last_error is not None
         raise last_error
+
+    def translate(self, text: str) -> str:
+        if not text.strip():
+            return text
+        out = self._run_cli_with_retry(self._build_prompt(text))
+        return _apply_glossary(_clean_output(out), self.glossary)
+
+    def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
+        if not text.strip():
+            return text, ""
+        out = self._run_cli_with_retry(self._build_title_prompt(text, kind))
+        title, note = _parse_title_response(out)
+        return _apply_glossary(title, self.glossary), note
 
 
 class GoogleTranslator:
@@ -174,6 +221,9 @@ class GoogleTranslator:
         parts = [self._engine.translate(chunk) or "" for chunk in self._chunks(text)]
         return _apply_glossary("\n".join(parts), self.glossary)
 
+    def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
+        return self.translate(text), ""
+
 
 def make_translator(cfg: TranslateConfig) -> Translator:
     kind = (cfg.type or "none").lower()
@@ -195,6 +245,12 @@ class RateLimited:
 
     def translate(self, text: str) -> str:
         out = self.inner.translate(text)
+        if self.delay > 0:
+            time.sleep(self.delay)
+        return out
+
+    def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
+        out = self.inner.translate_title(text, kind)
         if self.delay > 0:
             time.sleep(self.delay)
         return out

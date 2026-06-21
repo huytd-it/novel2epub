@@ -77,6 +77,12 @@
 
 - What happens when [boundary condition]?
 - How does system handle [error scenario]?
+- If the feature imports a source URL, what happens when title, description,
+  author, chapter title, or chapter URL is missing, duplicated, or malformed?
+- If the feature operates on chapter lists, how do sorting, search/filter, and
+  range selection interact when the visible order changes?
+- If the feature can overwrite cached raw or translated chapters, how does the
+  user confirm override behavior and recover from partial failure?
 
 ## Requirements *(mandatory)*
 
@@ -92,6 +98,14 @@
 - **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
 - **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
 - **FR-005**: System MUST [behavior, e.g., "log all security events"]
+- **FR-META**: If source import or TOC behavior is affected, system MUST define
+  title, description, author, source URL, ordered chapter list, and per-chapter
+  source URL behavior, including missing-field handling.
+- **FR-TRANSLATION**: If translation behavior is affected, system MUST define how
+  Hán Việt names, glossary precedence, and natural Vietnamese rendering are
+  preserved.
+- **FR-CACHE**: If crawl or translate behavior is affected, system MUST define
+  cache reuse, resume behavior, and explicit override semantics.
 
 *Example of marking unclear requirements:*
 
@@ -102,6 +116,10 @@
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]
 - **[Entity 2]**: [What it represents, relationships to other entities]
+- **Novel Metadata**: Title, description, author, source URL, and any curated
+  overrides used to build the EPUB.
+- **Chapter**: Stable index/order, title, source URL, crawl status, translation
+  status, cached file paths, and override eligibility.
 
 ## Success Criteria *(mandatory)*
 

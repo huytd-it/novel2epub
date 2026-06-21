@@ -9,7 +9,7 @@ description: "Task list template for feature implementation"
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: The examples below include test tasks. Tests are OPTIONAL unless the constitution requires them for parsing, sorting, filtering, cache overwrite behavior, manifest/schema changes, or EPUB output effects.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -69,6 +69,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T007 Create base models/entities that all stories depend on
 - [ ] T008 Configure error handling and logging infrastructure
 - [ ] T009 Setup environment configuration management
+- [ ] T0XX Define manifest/cache migration or compatibility handling if novel metadata or chapter state changes
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -83,6 +84,9 @@ Examples of foundational tasks (adjust based on your project):
 ### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+> Constitution-required tests are mandatory for TOC parsing, metadata extraction,
+> sorting/filtering/range selection, cache override behavior, manifest/schema
+> changes, and EPUB output effects unless plan.md justifies manual verification.
 
 - [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
 - [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
@@ -95,6 +99,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
 - [ ] T016 [US1] Add validation and error handling
 - [ ] T017 [US1] Add logging for user story 1 operations
+- [ ] TXXX [US1] Document cache reuse and explicit override behavior for affected crawl/translate actions
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -157,6 +162,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
 - [ ] TXXX Security hardening
 - [ ] TXXX Run quickstart.md validation
+- [ ] TXXX Verify CLI and Web UI behavior remain aligned for affected workflows
 
 ---
 

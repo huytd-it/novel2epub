@@ -40,7 +40,17 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- **Source metadata**: Plan identifies title, description, author, source URL,
+  chapter URLs, and how missing metadata is reported without silent overwrite.
+- **Translation rules**: Plan explains how Hán Việt naming, glossary precedence,
+  and natural Vietnamese output are preserved for affected text.
+- **Pipeline safety**: Plan documents cache reuse, resume behavior, failure
+  reporting, and explicit override/recrawl/retranslate semantics.
+- **Chapter control**: Plan covers ordering, search/filter, active-sort range
+  selection, and per-chapter actions when a chapter list is affected.
+- **Independent verification**: Plan lists automated tests or justified manual
+  verification for parsing, sorting, filtering, cache overwrite behavior,
+  manifest/schema changes, and EPUB output effects.
 
 ## Project Structure
 

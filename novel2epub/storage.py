@@ -19,6 +19,9 @@ class Chapter:
     url: str
     title_zh: str = ""
     title_vi: str = ""
+    missing_fields: list[str] = field(default_factory=list)
+    duplicate_of: int | None = None
+    last_action_status: str = ""
 
     @property
     def stem(self) -> str:
@@ -28,6 +31,7 @@ class Chapter:
 @dataclass
 class Manifest:
     slug: str
+    source_url: str = ""
     title: str = ""
     author: str = ""
     # Metadata bản gốc (tiếng Trung) crawl từ trang mục lục.
@@ -39,12 +43,15 @@ class Manifest:
     title_vi: str = ""
     author_vi: str = ""
     description_vi: str = ""
+    metadata_missing: list[str] = field(default_factory=list)
+    curated_fields: list[str] = field(default_factory=list)
     chapters: list[Chapter] = field(default_factory=list)
 
     def to_json(self) -> str:
         return json.dumps(
             {
                 "slug": self.slug,
+                "source_url": self.source_url,
                 "title": self.title,
                 "author": self.author,
                 "description": self.description,
@@ -53,6 +60,8 @@ class Manifest:
                 "title_vi": self.title_vi,
                 "author_vi": self.author_vi,
                 "description_vi": self.description_vi,
+                "metadata_missing": self.metadata_missing,
+                "curated_fields": self.curated_fields,
                 "chapters": [asdict(c) for c in self.chapters],
             },
             ensure_ascii=False,
@@ -81,9 +90,20 @@ class Storage:
         if not self.manifest_path.exists():
             return None
         data = json.loads(self.manifest_path.read_text(encoding="utf-8"))
-        chapters = [Chapter(**c) for c in data.get("chapters", [])]
+        chapters = []
+        for c in data.get("chapters", []):
+            chapters.append(Chapter(
+                index=c.get("index", 0),
+                url=c.get("url", ""),
+                title_zh=c.get("title_zh", ""),
+                title_vi=c.get("title_vi", ""),
+                missing_fields=list(c.get("missing_fields", []) or []),
+                duplicate_of=c.get("duplicate_of"),
+                last_action_status=c.get("last_action_status", ""),
+            ))
         return Manifest(
             slug=data.get("slug", self.slug),
+            source_url=data.get("source_url", ""),
             title=data.get("title", ""),
             author=data.get("author", ""),
             description=data.get("description", ""),
@@ -92,6 +112,8 @@ class Storage:
             title_vi=data.get("title_vi", ""),
             author_vi=data.get("author_vi", ""),
             description_vi=data.get("description_vi", ""),
+            metadata_missing=list(data.get("metadata_missing", []) or []),
+            curated_fields=list(data.get("curated_fields", []) or []),
             chapters=chapters,
         )
 

@@ -69,8 +69,10 @@ class JobRunner:
         return True
 
     def start_custom(self, step: str, target_fn: Callable[[Callable[[str], None]], object]) -> bool:
-        """Bắt đầu job nền tùy biến (vd rewrite chương) — target_fn chỉ nhận log_fn,
-        cfg/tham số khác phải được bind sẵn qua closure ở caller."""
+        """Bắt đầu job nền tùy biến — target_fn chỉ nhận log_fn.
+
+        Dùng cho các action cần tham số riêng như chapter-action hoặc fetch-toc force.
+        """
         with self._lock:
             if self.running:
                 return False

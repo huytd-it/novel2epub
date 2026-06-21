@@ -30,8 +30,13 @@
         <h3>{{ manifest.title_vi or manifest.title or "(chưa có tên)" }}</h3>
         {% if manifest.title_vi and manifest.title %}<p class="muted">Gốc: {{ manifest.title }}</p>{% endif %}
         <p class="muted">Tác giả: {{ manifest.author_vi or manifest.author or "-" }}</p>
+        {% if manifest.author_vi and manifest.author %}<p class="muted">Tác giả gốc: {{ manifest.author }}</p>{% endif %}
+        <p class="muted">Nguồn: <a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank">{{ manifest.source_url or cfg.crawl.toc_url }}</a></p>
+        <p class="muted">Số chương: {{ manifest.chapters|length }}</p>
+        {% if manifest.metadata_missing %}<p class="muted">Thiếu metadata: {{ manifest.metadata_missing|join(', ') }}</p>{% endif %}
         {% if manifest.description or manifest.description_vi %}
         <p class="desc">{{ manifest.description_vi or manifest.description }}</p>
+        {% if manifest.description_vi and manifest.description %}<details><summary>Mô tả gốc</summary><p class="desc">{{ manifest.description }}</p></details>{% endif %}
         {% endif %}
         {% if not (manifest.title_vi or manifest.author_vi or manifest.description_vi) and manifest.title %}
         <p class="muted"><em>Metadata chưa dịch — bấm "Dịch metadata (AI)" để dịch sang tiếng Việt.</em></p>
@@ -40,45 +45,12 @@
 </div>
 {% endif %}
 
-<details class="crawl-panel"{% if not chapters %} open{% endif %}>
-    <summary>Crawl nâng cao — chọn phạm vi chương &amp; tùy chọn</summary>
-    <p class="muted">
-        <strong>Bước 1:</strong> bấm "Lấy mục lục" để lấy nhanh danh sách chương + thông tin truyện (không tải nội dung).
-        <strong>Bước 2:</strong> xem bảng chương bên dưới rồi chọn "Từ/Đến". Để trống = tải toàn bộ chương còn thiếu; "Crawl lại" sẽ tải đè cả chương đã có.
-    </p>
+<div class="toc-actions">
     <form method="post" action="/ebooks/{{ slug }}/jobs/fetch-toc" class="inline-form">
-        <button type="submit" {% if job.running %}disabled{% endif %}>Lấy mục lục</button>
+        <button type="submit" {% if job.running %}disabled{% endif %}>Lấy toàn bộ danh mục</button>
+        <label class="check"><input type="checkbox" name="force" value="true"> ghi đè metadata</label>
     </form>
-    <form method="post" action="/ebooks/{{ slug }}/jobs/crawl-range" class="form-row" id="crawl-form">
-        <label>Từ chương
-            <input type="number" name="start" id="range-start" min="1" placeholder="đầu" value="{{ manifest and 1 or '' }}">
-        </label>
-        <label>Đến chương
-            <input type="number" name="end" id="range-end" min="1" placeholder="cuối"
-                   value="{{ manifest.chapters|length if manifest else '' }}">
-        </label>
-        <label>Engine
-            <select name="engine">
-                <option value="">giữ cấu hình ({{ cfg.crawl.engine }})</option>
-                <option value="http">http (nhanh, tĩnh)</option>
-                <option value="crawl4ai">crawl4ai (trình duyệt, JS)</option>
-                <option value="firecrawl">firecrawl (API)</option>
-            </select>
-        </label>
-        <label>Delay (giây)
-            <input type="number" name="delay" min="0" step="0.5"
-                   placeholder="{{ cfg.crawl.delay_seconds }}">
-        </label>
-        <label>Thử lại
-            <input type="number" name="retries" min="0" max="10" value="0">
-        </label>
-        <label class="check">
-            <input type="checkbox" name="force" value="true"> Crawl lại (ghi đè)
-        </label>
-        <button type="submit" {% if job.running %}disabled{% endif %}>Crawl theo lựa chọn</button>
-    </form>
-    <p id="range-info" class="muted"></p>
-</details>
+</div>
 
 <p>
     Trạng thái:
@@ -91,53 +63,113 @@
 {% if chapters %}
 <div class="section-head">
     <h3>Chương ({{ chapters|length }})</h3>
-    <p class="muted">Bấm vào từng chương để sửa tay hoặc soát prompt/dịch.</p>
+    <p class="muted">Bảng nhẹ server-side: search/sort/filter qua URL, tick dòng để chạy bulk action.</p>
 </div>
-<table id="chapter-table">
-    <tr><th>#</th><th>Tiêu đề (Trung)</th><th>Tiêu đề (Việt)</th><th>Raw</th><th>Dịch</th><th></th></tr>
+<form method="get" action="/ebooks/{{ slug }}" class="compact-toolbar">
+    <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL">
+    <select name="sort" aria-label="Sắp xếp">
+        {% for key, label in [("source", "Thứ tự"), ("title", "Tiêu đề"), ("raw", "Raw"), ("translated", "Dịch")] %}
+        <option value="{{ key }}" {% if controls.sort == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <select name="direction" aria-label="Chiều sắp xếp">
+        <option value="asc" {% if controls.direction != "desc" %}selected{% endif %}>Tăng</option>
+        <option value="desc" {% if controls.direction == "desc" %}selected{% endif %}>Giảm</option>
+    </select>
+    <select name="filter_raw" aria-label="Lọc raw">
+        {% for value, label in [("any", "Raw: tất cả"), ("yes", "Raw: có"), ("no", "Raw: chưa")] %}
+        <option value="{{ value }}" {% if controls.filter_raw == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <select name="filter_translated" aria-label="Lọc dịch">
+        {% for value, label in [("any", "Dịch: tất cả"), ("yes", "Dịch: có"), ("no", "Dịch: chưa")] %}
+        <option value="{{ value }}" {% if controls.filter_translated == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <select name="filter_missing" aria-label="Lọc thiếu dữ liệu">
+        {% for value, label in [("any", "Thiếu: tất cả"), ("yes", "Thiếu: có"), ("no", "Thiếu: không")] %}
+        <option value="{{ value }}" {% if controls.filter_missing == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">Lọc</button>
+</form>
+<form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" id="bulk-action-form"></form>
+<div class="bulk-bar">
+    <input type="hidden" name="sort" form="bulk-action-form" value="{{ controls.sort }}">
+    <input type="hidden" name="direction" form="bulk-action-form" value="{{ controls.direction }}">
+    <input type="hidden" name="search" form="bulk-action-form" value="{{ controls.search }}">
+    <input type="hidden" name="filter_raw" form="bulk-action-form" value="{{ controls.filter_raw }}">
+    <input type="hidden" name="filter_translated" form="bulk-action-form" value="{{ controls.filter_translated }}">
+    <input type="hidden" name="filter_missing" form="bulk-action-form" value="{{ controls.filter_missing }}">
+    <label>Bulk action
+        <select name="action" form="bulk-action-form"><option value="crawl">Crawl</option><option value="translate">Dịch</option></select>
+    </label>
+    <label>Target
+        <select name="targeting_mode" id="targeting-mode" form="bulk-action-form">
+            <option value="checked">Dòng đã tick</option>
+            <option value="range">Range đang hiển thị</option>
+        </select>
+    </label>
+    <label>Từ <input type="number" name="range_start" form="bulk-action-form" min="1" value="{{ chapters[0].index if chapters else '' }}"></label>
+    <label>Đến <input type="number" name="range_end" form="bulk-action-form" min="1" value="{{ chapters[-1].index if chapters else '' }}"></label>
+    <label class="check"><input type="checkbox" name="override" form="bulk-action-form" value="true"> Override old</label>
+    <span id="checked-info" class="muted">Đã tick 0 chương.</span>
+    <button type="submit" form="bulk-action-form" {% if job.running %}disabled{% endif %}>Chạy</button>
+</div>
+<div class="table-wrap">
+<table id="chapter-table" class="data-table">
+    <thead><tr><th><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th>#</th><th>Tiêu đề</th><th>Raw</th><th>Dịch</th><th>Thiếu</th><th>Action</th><th></th></tr></thead>
+    <tbody>
     {% for ch in chapters %}
     <tr data-index="{{ ch.index }}">
+        <td><input type="checkbox" class="chapter-check" name="checked_indexes" form="bulk-action-form" value="{{ ch.index }}" aria-label="Chọn chương {{ ch.index }}"></td>
         <td>{{ ch.index }}</td>
-        <td>{{ ch.title_zh }}</td>
-        <td>{{ ch.title_vi }}</td>
+        <td><a href="{{ ch.url }}" target="_blank">{{ ch.visible_title }}</a></td>
         <td>{% if ch.has_raw %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
         <td>{% if ch.has_translated %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
+        <td>{{ ch.missing_fields|join(', ') if ch.missing_fields else '-' }}</td>
+        <td>
+            <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="row-actions">
+                <button type="submit" name="action" value="crawl" {% if job.running %}disabled{% endif %}>Crawl</button>
+                <button type="submit" name="action" value="translate" {% if job.running %}disabled{% endif %}>Dịch</button>
+            </form>
+            {% if ch.last_action_status %}<span class="muted">{{ ch.last_action_status }}</span>{% endif %}
+        </td>
         <td><a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}">xem / sửa</a></td>
     </tr>
     {% endfor %}
+    </tbody>
 </table>
+</div>
 {% else %}
 <p class="muted">Chưa có chương nào — bấm "Crawl" để bắt đầu.</p>
 {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
 <script>
-// --- Highlight phạm vi chương đang chọn trong bảng ---
-const startEl = document.getElementById("range-start");
-const endEl = document.getElementById("range-end");
-const infoEl = document.getElementById("range-info");
+// --- Checkbox bulk selection ---
 const rows = Array.from(document.querySelectorAll("#chapter-table tr[data-index]"));
-
-function refreshRange() {
-    if (!rows.length || !infoEl) return;
-    const indices = rows.map(r => parseInt(r.dataset.index, 10));
-    const maxIdx = Math.max(...indices);
-    const start = parseInt(startEl && startEl.value, 10) || 1;
-    const end = parseInt(endEl && endEl.value, 10) || maxIdx;
-    const lo = Math.min(start, end), hi = Math.max(start, end);
-    let count = 0;
-    for (const r of rows) {
-        const i = parseInt(r.dataset.index, 10);
-        const inRange = i >= lo && i <= hi;
-        r.classList.toggle("in-range", inRange);
-        if (inRange) count++;
-    }
-    infoEl.textContent = `Sẽ crawl ${count} chương (#${lo}–#${hi}).`;
-}
-if (startEl) startEl.addEventListener("input", refreshRange);
-if (endEl) endEl.addEventListener("input", refreshRange);
-refreshRange();
-
 const logEl = document.getElementById("log");
+const checkAllEl = document.getElementById("check-all");
+const checkedInfoEl = document.getElementById("checked-info");
+const checks = Array.from(document.querySelectorAll(".chapter-check"));
+
+function refreshCheckedInfo() {
+    if (!checkedInfoEl) return;
+    const count = checks.filter(c => c.checked).length;
+    checkedInfoEl.textContent = `Đã tick ${count} chương.`;
+}
+if (checkAllEl) {
+    checkAllEl.addEventListener("change", () => {
+        for (const c of checks) c.checked = checkAllEl.checked;
+        refreshCheckedInfo();
+    });
+}
+for (const c of checks) c.addEventListener("change", refreshCheckedInfo);
+refreshCheckedInfo();
+
 async function poll() {
     const res = await fetch("/api/status");
     const data = await res.json();

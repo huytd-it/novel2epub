@@ -37,6 +37,39 @@ textarea { width: 100%; height: 60vh; font-family: monospace; font-size: 0.95rem
 .crawl-panel button:disabled { opacity: 0.5; cursor: not-allowed; }
 .inline-form { display: inline-block; margin: 0.3rem 0 0.6rem; }
 tr.in-range td { background: #fff7d6; }
+.toc-actions { margin: 1rem 0; }
+.toc-actions .inline-form { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.bulk-bar {
+    position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 0.65rem;
+    flex-wrap: wrap; margin: 0.5rem 0; padding: 0.65rem 0.75rem;
+    background: #fffdf5; border: 1px solid #eadca8; border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+}
+.bulk-bar label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; }
+.bulk-bar input[type="number"] { width: 5rem; }
+.bulk-bar button, .row-actions button, .toc-actions button {
+    padding: 0.42rem 0.75rem; border: 1px solid #888; background: #f4f4f4;
+    cursor: pointer; border-radius: 4px;
+}
+.bulk-bar button:disabled, .row-actions button:disabled, .toc-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+.compact-toolbar {
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    margin: 0.5rem 0; padding: 0.55rem 0.65rem;
+    background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px;
+}
+.compact-toolbar input, .compact-toolbar select {
+    padding: 0.4rem 0.5rem; border: 1px solid #bbb; border-radius: 4px;
+}
+.compact-toolbar input[type="search"] { min-width: min(22rem, 100%); }
+.compact-toolbar button {
+    padding: 0.42rem 0.8rem; border: 1px solid #888; background: #f4f4f4;
+    cursor: pointer; border-radius: 4px;
+}
+.table-wrap { overflow-x: auto; border: 1px solid #e5e5e5; border-radius: 8px; }
+.data-table { margin: 0; }
+.data-table th { background: #f7f7f7; position: sticky; top: 3.4rem; z-index: 2; }
+.data-table tr:nth-child(even) td { background: #fcfcfc; }
+.row-actions { display: inline-flex; gap: 0.35rem; align-items: center; margin: 0; }
 .meta-card { display: flex; gap: 1rem; align-items: flex-start; border: 1px solid #e5e5e5; border-radius: 8px; padding: 0.8rem 1rem; margin: 1rem 0; background: #fcfcfc; }
 .meta-card .cover { width: 110px; height: auto; border-radius: 4px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
 .meta-card .meta-body { min-width: 0; }
@@ -45,6 +78,7 @@ tr.in-range td { background: #fff7d6; }
 
 @media (max-width: 900px) {
     .cols, .hero { flex-direction: column; }
+    .bulk-bar { position: static; }
     textarea { height: 40vh; }
     table, thead, tbody, th, td, tr { font-size: 0.95rem; }
     th, td { padding: 0.35rem 0.45rem; }

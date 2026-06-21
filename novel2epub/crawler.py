@@ -16,6 +16,7 @@ from urllib.parse import urljoin
 
 from .config import CrawlConfig
 from .storage import Chapter
+from .toc import mark_duplicate_chapters, missing_metadata
 
 # [text](url)
 _MD_LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
@@ -29,6 +30,8 @@ class TocResult:
     author: str = ""
     description: str = ""
     cover_url: str = ""
+    source_url: str = ""
+    metadata_missing: list[str] = field(default_factory=list)
     chapters: list[Chapter] = field(default_factory=list)
 
 
@@ -139,14 +142,17 @@ class FirecrawlCrawler:
                 seen.add(full)
                 chapters.append(Chapter(index=len(chapters) + 1, url=full))
 
-        if self.cfg.max_chapters and self.cfg.max_chapters > 0:
-            chapters = chapters[: self.cfg.max_chapters]
+        title = _meta_get(meta, "og:novel:book_name", "title", "ogTitle") or ""
+        author = _meta_get(meta, "og:novel:author", "author") or ""
+        description = _meta_get(meta, "description", "og:description", "ogDescription") or ""
         return TocResult(
-            title=_meta_get(meta, "og:novel:book_name", "title", "ogTitle") or "",
-            author=_meta_get(meta, "og:novel:author", "author") or "",
-            description=_meta_get(meta, "description", "og:description", "ogDescription") or "",
+            title=title,
+            author=author,
+            description=description,
             cover_url=_meta_get(meta, "og:image", "ogImage") or "",
-            chapters=chapters,
+            source_url=self.cfg.toc_url,
+            metadata_missing=missing_metadata(title, author, description),
+            chapters=mark_duplicate_chapters(chapters),
         )
 
     # ---------- nội dung chương ----------
@@ -274,14 +280,14 @@ class HttpCrawler:
             Chapter(index=i, url=url, title_zh=text)
             for i, (url, text) in enumerate(_dedupe_keep_last(pairs), 1)
         ]
-        if self.cfg.max_chapters and self.cfg.max_chapters > 0:
-            chapters = chapters[: self.cfg.max_chapters]
         return TocResult(
             title=title,
             author=author,
             description=description,
             cover_url=cover_url,
-            chapters=chapters,
+            source_url=self.cfg.toc_url,
+            metadata_missing=missing_metadata(title, author, description),
+            chapters=mark_duplicate_chapters(chapters),
         )
 
     # ---------- nội dung chương ----------
@@ -402,18 +408,20 @@ class Crawl4AICrawler:
             Chapter(index=i, url=url, title_zh=text)
             for i, (url, text) in enumerate(_dedupe_keep_last(pairs), 1)
         ]
-        if self.cfg.max_chapters and self.cfg.max_chapters > 0:
-            chapters = chapters[: self.cfg.max_chapters]
-
         cover_url = _meta_get(meta, "og:image", "image")
         if cover_url:
             cover_url = urljoin(self.cfg.toc_url, cover_url)
+        title = _meta_get(meta, "og:novel:book_name", "title", "og:title")
+        author = _meta_get(meta, "og:novel:author", "author")
+        description = _meta_get(meta, "description", "og:description")
         return TocResult(
-            title=_meta_get(meta, "og:novel:book_name", "title", "og:title"),
-            author=_meta_get(meta, "og:novel:author", "author"),
-            description=_meta_get(meta, "description", "og:description"),
+            title=title,
+            author=author,
+            description=description,
             cover_url=cover_url,
-            chapters=chapters,
+            source_url=self.cfg.toc_url,
+            metadata_missing=missing_metadata(title, author, description),
+            chapters=mark_duplicate_chapters(chapters),
         )
 
     # ---------- nội dung chương ----------

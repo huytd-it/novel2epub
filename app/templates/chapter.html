@@ -4,6 +4,15 @@
 <p><a href="{% if slug %}/ebooks/{{ slug }}{% else %}/{% endif %}">&larr; Quay lại</a></p>
 <h2>Chương {{ ch.index }}: {{ ch.title_vi or ch.title_zh }}</h2>
 <p class="muted"><a href="{{ ch.url }}" target="_blank">{{ ch.url }}</a></p>
+{% if ch.missing_fields %}<p class="muted">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}
+{% if ch.last_action_status %}<p class="muted">Action gần nhất: {{ ch.last_action_status }}</p>{% endif %}
+<form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="form-row">
+    <label>Action
+        <select name="action"><option value="crawl">Crawl</option><option value="translate">Dịch</option></select>
+    </label>
+    <label class="check"><input type="checkbox" name="override" value="true"> Override old</label>
+    <button type="submit">Chạy cho chương này</button>
+</form>
 {% if meta %}
 <p class="muted">Prompt/profile: <code>{{ meta.profile }}</code> · Model: <code>{{ meta.model or "-" }}</code></p>
 {% endif %}

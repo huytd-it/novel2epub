@@ -7,30 +7,36 @@ from fastapi import APIRouter, Request
 
 from novel2epub.config import load_config
 from novel2epub.storage import Storage
+from novel2epub.toc import apply_chapter_query, chapter_rows
 
 from .. import deps
 
 router = APIRouter()
 
 
-def _chapter_rows(cfg) -> list[dict]:
+def _chapter_rows(
+    cfg,
+    *,
+    sort: str = "source",
+    direction: str = "asc",
+    search: str = "",
+    filter_raw: str = "any",
+    filter_translated: str = "any",
+    filter_missing: str = "any",
+):
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
         return []
-    rows = []
-    for ch in manifest.chapters:
-        rows.append(
-            {
-                "index": ch.index,
-                "title_zh": ch.title_zh,
-                "title_vi": ch.title_vi,
-                "url": ch.url,
-                "has_raw": storage.has_raw(ch),
-                "has_translated": storage.has_translated(ch),
-            }
-        )
-    return rows
+    return apply_chapter_query(
+        chapter_rows(manifest.chapters, storage),
+        sort=sort,
+        direction=direction,
+        search=search,
+        filter_raw=filter_raw,
+        filter_translated=filter_translated,
+        filter_missing=filter_missing,
+    )
 
 
 @router.get("/")
@@ -76,7 +82,16 @@ def index(request: Request):
 
 
 @router.get("/ebooks/{slug}")
-def ebook_home(request: Request, slug: str):
+def ebook_home(
+    request: Request,
+    slug: str,
+    sort: str = "source",
+    direction: str = "asc",
+    search: str = "",
+    filter_raw: str = "any",
+    filter_translated: str = "any",
+    filter_missing: str = "any",
+):
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -89,7 +104,23 @@ def ebook_home(request: Request, slug: str):
             "config_path": deps.ebook_config_path(slug),
             "cfg": cfg,
             "manifest": manifest,
-            "chapters": _chapter_rows(cfg),
+            "chapters": _chapter_rows(
+                cfg,
+                sort=sort,
+                direction=direction,
+                search=search,
+                filter_raw=filter_raw,
+                filter_translated=filter_translated,
+                filter_missing=filter_missing,
+            ),
+            "controls": {
+                "sort": sort,
+                "direction": direction,
+                "search": search,
+                "filter_raw": filter_raw,
+                "filter_translated": filter_translated,
+                "filter_missing": filter_missing,
+            },
             "epub_exists": epub_path.exists(),
             "epub_path": str(epub_path),
             "job": request.app.state.job.status(),

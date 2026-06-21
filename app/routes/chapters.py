@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
+from novel2epub.pipeline import step_crawl_selected, step_translate_selected
 from novel2epub.storage import Storage
 
 from .. import deps
@@ -80,4 +81,22 @@ def ebook_chapter_save(slug: str, index: int, translated: str = Form(...)):
         raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
 
     storage.write_translated(ch, translated)
+    return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
+
+
+@router.post("/ebooks/{slug}/chapters/{index}/action")
+def ebook_chapter_action(request: Request, slug: str, index: int, action: str = Form(...), override: bool = Form(False)):
+    cfg = deps.resolved_cfg(slug)
+
+    def _target(log):
+        if action == "crawl":
+            step_crawl_selected(cfg, log, force=override, selected_indexes=[index])
+        elif action == "translate":
+            step_translate_selected(cfg, log, force=override, selected_indexes=[index])
+        else:
+            raise ValueError(f"action không hợp lệ: {action!r}")
+
+    started = request.app.state.job.start_custom(f"chapter-{action}", _target)
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)

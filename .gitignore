@@ -16,3 +16,12 @@ __pycache__/
 .venv/
 venv/
 env/
+dist/
+*.egg-info/
+
+# OS/editor temporary files
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.idea/

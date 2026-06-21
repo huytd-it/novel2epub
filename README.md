@@ -125,6 +125,18 @@ python -m novel2epub -c config.yaml crawl       # lấy mục lục + nội dung
 python -m novel2epub -c config.yaml translate   # dịch các chương đã crawl
 python -m novel2epub -c config.yaml build        # đóng gói EPUB
 
+# Chỉ lấy metadata + toàn bộ mục lục/chapter list, không tải nội dung chương:
+python -m novel2epub -c config.yaml toc
+python -m novel2epub -c config.yaml meta         # dịch title/author/description theo rule Hán Việt
+
+# Xem/lọc/sort danh sách chương (Web UI dùng cùng table này, có checkbox từng row
+# và nút Crawl/Dịch ở từng dòng):
+python -m novel2epub -c config.yaml chapters --sort title --search "章" --filter raw:no
+
+# Chọn range theo danh sách đang sort/filter; --force = override old cache:
+python -m novel2epub -c config.yaml crawl --sort title --search "章" --range 1:3
+python -m novel2epub -c config.yaml translate --sort source --range 1:1 --force
+
 # AI đánh giá glossary + bản dịch (chỉ xem, không sửa file):
 python -m novel2epub -c config.yaml evaluate --from 1 --to 2
 

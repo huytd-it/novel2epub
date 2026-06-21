@@ -12,10 +12,13 @@ from .pipeline import (
     step_crawl,
     step_crawl_selected,
     step_evaluate_translation,
+    step_fetch_toc,
     step_translate,
     step_translate_meta,
     step_translate_selected,
 )
+from .storage import Storage
+from .toc import apply_chapter_query, chapter_rows, parse_filter, parse_range, select_visible_range
 
 
 DEFAULT_LIBRARY_PATH = "library.yaml"
@@ -47,6 +50,47 @@ def _resolve_config_path(config_path: str, library_path: str, ebook_slug: str) -
     return str((Path(library_path).resolve().parent / p).resolve())
 
 
+def _selected_indexes_from_args(cfg, args) -> list[int] | None:
+    if not (getattr(args, "sort", None) or getattr(args, "desc", False) or getattr(args, "search", "") or getattr(args, "filters", None) or getattr(args, "visible_range", "")):
+        return None
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy 'toc' hoặc 'crawl' trước.")
+    filters = parse_filter(getattr(args, "filters", None))
+    rows = apply_chapter_query(
+        chapter_rows(manifest.chapters, storage),
+        sort=getattr(args, "sort", "source") or "source",
+        direction="desc" if getattr(args, "desc", False) else "asc",
+        search=getattr(args, "search", ""),
+        filter_raw=filters["raw"],
+        filter_translated=filters["translated"],
+        filter_missing=filters["missing"],
+    )
+    start, end = parse_range(getattr(args, "visible_range", ""))
+    return select_visible_range(rows, start, end)
+
+
+def _print_chapters(cfg, args) -> None:
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy 'toc' hoặc 'crawl' trước.")
+    filters = parse_filter(args.filters)
+    rows = apply_chapter_query(
+        chapter_rows(manifest.chapters, storage),
+        sort=args.sort,
+        direction="desc" if args.desc else "asc",
+        search=args.search,
+        filter_raw=filters["raw"],
+        filter_translated=filters["translated"],
+        filter_missing=filters["missing"],
+    )
+    for row in rows:
+        missing = ",".join(row.missing_fields) or "-"
+        print(f"{row.index}\t{row.visible_title}\t{row.url}\traw={row.has_raw}\ttranslated={row.has_translated}\tmissing={missing}")
+
+
 def main(argv: list[str] | None = None) -> int:
     _force_utf8()
     parser = argparse.ArgumentParser(
@@ -62,8 +106,21 @@ def main(argv: list[str] | None = None) -> int:
     crawl_parser.add_argument("--to", dest="end", type=int, default=None, help="Crawl đến chương số")
     crawl_parser.add_argument("--force", action="store_true", help="Tải lại cả chương đã có raw")
     crawl_parser.add_argument("--retries", type=int, default=0, help="Số lần thử lại khi tải chương lỗi")
+    crawl_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Sắp xếp danh sách chương trước khi chọn range")
+    crawl_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort danh sách chương")
+    crawl_parser.add_argument("--search", default="", help="Tìm trong tiêu đề hiển thị hoặc URL chương")
+    crawl_parser.add_argument("--filter", dest="filters", action="append", default=[], help="Lọc chương: raw:yes/no, translated:yes/no, missing:yes/no")
+    crawl_parser.add_argument("--range", dest="visible_range", default="", help="Chọn range theo danh sách đang sort/filter, ví dụ 1:3")
     sub.add_parser("translate", help="Dịch các chương đã crawl sang tiếng Việt")
-    sub.add_parser("meta", help="Dịch metadata truyện (tên, tác giả, mô tả) sang tiếng Việt")
+    meta_parser = sub.add_parser("meta", help="Dịch metadata truyện (tên, tác giả, mô tả) sang tiếng Việt")
+    meta_parser.add_argument("--force", action="store_true", help="Dịch lại metadata dù đã có bản dịch")
+    toc_parser = sub.add_parser("toc", help="Lấy mục lục + metadata, không crawl nội dung chương")
+    toc_parser.add_argument("--force", action="store_true", help="Làm mới metadata nguồn dù manifest đã có giá trị")
+    chapters_parser = sub.add_parser("chapters", help="Liệt kê chương với sort/search/filter")
+    chapters_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Khóa sắp xếp")
+    chapters_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort")
+    chapters_parser.add_argument("--search", default="", help="Tìm trong tiêu đề hiển thị hoặc URL chương")
+    chapters_parser.add_argument("--filter", dest="filters", action="append", default=[], help="Lọc chương: raw:yes/no, translated:yes/no, missing:yes/no")
     evaluate_parser = sub.add_parser("evaluate", help="AI đánh giá glossary + bản dịch (chỉ xem, không sửa)")
     evaluate_parser.add_argument("--from", dest="start", type=int, default=None, help="Đánh giá từ chương số")
     evaluate_parser.add_argument("--to", dest="end", type=int, default=None, help="Đánh giá đến chương số")
@@ -77,6 +134,11 @@ def main(argv: list[str] | None = None) -> int:
     translate_parser.add_argument("--chapter", type=int, default=None, help="Dịch một chương cụ thể")
     translate_parser.add_argument("--from", dest="start", type=int, default=None, help="Dịch từ chương số")
     translate_parser.add_argument("--to", dest="end", type=int, default=None, help="Dịch đến chương số")
+    translate_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Sắp xếp danh sách chương trước khi chọn range")
+    translate_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort danh sách chương")
+    translate_parser.add_argument("--search", default="", help="Tìm trong tiêu đề hiển thị hoặc URL chương")
+    translate_parser.add_argument("--filter", dest="filters", action="append", default=[], help="Lọc chương: raw:yes/no, translated:yes/no, missing:yes/no")
+    translate_parser.add_argument("--range", dest="visible_range", default="", help="Chọn range theo danh sách đang sort/filter, ví dụ 1:3")
 
     args = parser.parse_args(argv)
 
@@ -107,18 +169,21 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "crawl":
-            if args.force or args.retries or args.start is not None or args.end is not None:
+            selected_indexes = _selected_indexes_from_args(cfg, args)
+            if args.force or args.retries or args.start is not None or args.end is not None or selected_indexes is not None:
                 step_crawl_selected(
                     cfg,
                     start=args.start,
                     end=args.end,
                     force=args.force,
                     retries=args.retries,
+                    selected_indexes=selected_indexes,
                 )
             else:
                 step_crawl(cfg)
         elif args.command == "translate":
-            if args.force or args.missing or args.chapter is not None or args.start is not None or args.end is not None:
+            selected_indexes = _selected_indexes_from_args(cfg, args)
+            if args.force or args.missing or args.chapter is not None or args.start is not None or args.end is not None or selected_indexes is not None:
                 step_translate_selected(
                     cfg,
                     chapter=args.chapter,
@@ -126,11 +191,16 @@ def main(argv: list[str] | None = None) -> int:
                     end=args.end,
                     force=args.force,
                     missing=args.missing,
+                    selected_indexes=selected_indexes,
                 )
             else:
                 step_translate(cfg)
         elif args.command == "meta":
-            step_translate_meta(cfg, force=True)
+            step_translate_meta(cfg, force=args.force)
+        elif args.command == "toc":
+            step_fetch_toc(cfg, force=args.force)
+        elif args.command == "chapters":
+            _print_chapters(cfg, args)
         elif args.command == "evaluate":
             step_evaluate_translation(cfg, start=args.start, end=args.end)
         elif args.command == "build":

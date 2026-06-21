@@ -14,6 +14,7 @@ from .config import Config
 from .crawler import make_crawler
 from .epub_builder import build_epub
 from .storage import Chapter, Manifest, Storage
+from .toc import mark_duplicate_chapters
 from .translator import RateLimited, make_translator
 
 # Kiểu hàm ghi log; mặc định in ra stdout, UI truyền callback riêng để stream.
@@ -71,6 +72,29 @@ def _chapter_range(chapters: list[Chapter], chapter: int | None, start: int | No
     return selected
 
 
+def _chapter_selection(
+    chapters: list[Chapter],
+    chapter: int | None,
+    start: int | None,
+    end: int | None,
+    selected_indexes: list[int] | None,
+):
+    if selected_indexes is not None:
+        wanted = set(selected_indexes)
+        return [c for c in chapters if c.index in wanted]
+    return _chapter_range(chapters, chapter, start, end)
+
+
+def _apply_default_crawl_limit(cfg: Config, selected: list[Chapter], start: int | None, end: int | None, selected_indexes: list[int] | None) -> list[Chapter]:
+    """Limit default crawl runs without truncating the stored TOC."""
+    if start is not None or end is not None or selected_indexes is not None:
+        return selected
+    limit = cfg.crawl.max_chapters
+    if limit and limit > 0:
+        return selected[:limit]
+    return selected
+
+
 def _build_meta(cfg: Config, ch: Chapter, translated: str, warnings: list[str]) -> dict:
     return {
         "chapter": ch.stem,
@@ -98,7 +122,7 @@ def _quality_warnings(raw: str, translated: str) -> list[str]:
     return warnings
 
 
-def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn) -> Manifest:
+def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, force_meta: bool = False) -> Manifest:
     """Lấy mục lục mới (nếu được) và trộn vào manifest cache, giữ title_vi cũ.
 
     Nếu không lấy được mục lục mới mà đã có cache => dùng lại cache. Nếu vừa
@@ -112,18 +136,25 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn) -> Man
         if manifest is None:
             manifest = Manifest(
                 slug=cfg.novel.slug,
+                source_url=toc.source_url or cfg.crawl.toc_url,
                 title=cfg.novel.title or toc.title,
                 author=cfg.novel.author or toc.author,
                 description=toc.description,
                 cover_url=toc.cover_url,
+                metadata_missing=toc.metadata_missing,
                 chapters=toc.chapters,
             )
         else:
-            manifest.title = cfg.novel.title or manifest.title or toc.title
-            manifest.author = cfg.novel.author or manifest.author or toc.author
-            # Metadata gốc luôn làm mới từ nguồn; bản dịch (*_vi) giữ nguyên.
-            manifest.description = toc.description or manifest.description
-            manifest.cover_url = toc.cover_url or manifest.cover_url
+            manifest.source_url = toc.source_url or manifest.source_url or cfg.crawl.toc_url
+            if force_meta or not manifest.title:
+                manifest.title = cfg.novel.title or toc.title or manifest.title
+            if force_meta or not manifest.author:
+                manifest.author = cfg.novel.author or toc.author or manifest.author
+            if force_meta or not manifest.description:
+                manifest.description = toc.description or manifest.description
+            if force_meta or not manifest.cover_url:
+                manifest.cover_url = toc.cover_url or manifest.cover_url
+            manifest.metadata_missing = toc.metadata_missing
 
             # Trộn danh sách chương: giữ lại title_vi của các chương đã dịch
             old_chapters_by_url = {ch.url: ch for ch in manifest.chapters}
@@ -133,7 +164,7 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn) -> Man
                 if old_ch:
                     new_ch.title_vi = old_ch.title_vi or new_ch.title_vi
                 merged_chapters.append(new_ch)
-            manifest.chapters = merged_chapters
+            manifest.chapters = mark_duplicate_chapters(merged_chapters)
 
         _download_cover(storage, manifest, log)
         storage.save_manifest(manifest)
@@ -204,6 +235,7 @@ def step_crawl_selected(
     force: bool = False,
     retries: int = 0,
     retry_delay: float = 2.0,
+    selected_indexes: list[int] | None = None,
 ) -> Manifest:
     """Crawl nội dung chương trong phạm vi [start, end].
 
@@ -218,33 +250,46 @@ def step_crawl_selected(
     try:
         manifest = _refresh_manifest(cfg, storage, crawler, log)
 
-        selected = _chapter_range(manifest.chapters, None, start, end)
+        selected = _chapter_selection(manifest.chapters, None, start, end, selected_indexes)
+        selected = _apply_default_crawl_limit(cfg, selected, start, end, selected_indexes)
         if start is not None or end is not None:
             log(f"[crawl] Phạm vi: {len(selected)} chương "
                 f"(từ {start or 1} đến {end or len(manifest.chapters)}).")
 
         total = len(selected)
         crawled = 0
+        skipped = 0
+        failed = 0
+        replaced = 0
         for i, ch in enumerate(selected, 1):
             if storage.has_raw(ch) and not force:
+                skipped += 1
+                ch.last_action_status = "skipped"
                 continue
+            had_raw = storage.has_raw(ch)
             log(f"[crawl] ({i}/{total}) {ch.url}")
             content = _fetch_chapter_with_retry(crawler, ch, retries, retry_delay, log)
             if content is None:
+                failed += 1
+                ch.last_action_status = "failed"
                 continue
             if not content.strip():
                 log(f"[crawl]   ! Chương {ch.stem} rỗng, bỏ qua.")
             storage.write_raw(ch, content)
+            ch.last_action_status = "replaced" if had_raw and force else "completed"
+            if had_raw and force:
+                replaced += 1
             crawled += 1
             crawler.sleep()
+        storage.save_manifest(manifest)
     finally:
         crawler.close()
 
-    log(f"[crawl] Hoàn tất. Đã tải {crawled} chương.")
+    log(f"[crawl] Hoàn tất. Đã tải {crawled} chương, bỏ qua {skipped}, lỗi {failed}, ghi đè {replaced}.")
     return manifest
 
 
-def step_fetch_toc(cfg: Config, log: LogFn = _print) -> Manifest:
+def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False) -> Manifest:
     """Chỉ lấy mục lục + metadata (không crawl nội dung chương).
 
     Dùng để xem nhanh danh sách chương + thông tin truyện trước khi chọn phạm vi
@@ -253,7 +298,7 @@ def step_fetch_toc(cfg: Config, log: LogFn = _print) -> Manifest:
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     crawler = make_crawler(cfg.crawl)
     try:
-        manifest = _refresh_manifest(cfg, storage, crawler, log)
+        manifest = _refresh_manifest(cfg, storage, crawler, log, force_meta=force)
     finally:
         crawler.close()
     log("[crawl] Lấy mục lục xong.")
@@ -349,6 +394,7 @@ def step_translate_selected(
     end: int | None = None,
     force: bool = False,
     missing: bool = False,
+    selected_indexes: list[int] | None = None,
 ) -> Manifest:
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -357,16 +403,26 @@ def step_translate_selected(
 
     translator = RateLimited(make_translator(cfg.translate), cfg.translate.delay_seconds)
     is_noop = cfg.translate.type.lower() == "none"
-    selected = _chapter_range(manifest.chapters, chapter, start, end)
+    selected = _chapter_selection(manifest.chapters, chapter, start, end, selected_indexes)
     total = len(selected)
     changed = False
+    translated_count = 0
+    skipped = 0
+    replaced = 0
     for i, ch in enumerate(selected, 1):
         if not storage.has_raw(ch):
             log(f"[dịch] ({i}/{total}) chưa có raw cho {ch.stem}, bỏ qua.")
+            skipped += 1
+            ch.last_action_status = "skipped"
             continue
-        if not force and missing and storage.has_translated(ch):
+        had_translated = storage.has_translated(ch)
+        if not force and missing and had_translated:
+            skipped += 1
+            ch.last_action_status = "skipped"
             continue
-        if not force and not missing and storage.has_translated(ch):
+        if not force and not missing and had_translated:
+            skipped += 1
+            ch.last_action_status = "skipped"
             continue
         raw = storage.read_raw(ch)
         if ch.title_zh and not is_noop:
@@ -375,9 +431,13 @@ def step_translate_selected(
         translated = translator.translate(raw)
         storage.write_translated(ch, translated)
         storage.write_meta(ch, _build_meta(cfg, ch, translated, _quality_warnings(raw, translated)))
-    if changed:
+        ch.last_action_status = "replaced" if had_translated and force else "completed"
+        translated_count += 1
+        if had_translated and force:
+            replaced += 1
+    if changed or translated_count or skipped:
         storage.save_manifest(manifest)
-    log("[dịch] Hoàn tất.")
+    log(f"[dịch] Hoàn tất. Đã dịch {translated_count} chương, bỏ qua {skipped}, ghi đè {replaced}.")
     return manifest
 
 

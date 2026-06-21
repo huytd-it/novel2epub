@@ -28,7 +28,8 @@ crawl:
   # Ví dụ chương có dạng .../book/12345/67890.html
   chapter_link_pattern: "/book/12345/\\d+\\.html"
 
-  # Giới hạn số chương crawl (0 = tất cả). Hữu ích để test trước.
+  # Giới hạn số chương khi crawl nội dung mặc định (0 = tất cả). `toc`/fetch-toc
+  # vẫn luôn lưu toàn bộ danh sách chapter tìm được để bạn sort/search/filter.
   max_chapters: 3
 
   # Các regex (mỗi dòng 1 cái) để xóa rác trong nội dung chương đã crawl

@@ -18,17 +18,19 @@ Yêu cầu Python ≥ 3.10.
 
 ```bash
 cd novel2epub
-python -m pip install -r requirements.txt
+.\.venv\Scripts\activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-> `crawl4ai` và `firecrawl-py` là dependency tùy chọn, không cài mặc định để
-> tránh lỗi build `lxml` trên Windows. Chỉ cài khi cần:
-> ```bash
-> pip install crawl4ai && crawl4ai-setup   # cài Playwright + Chromium
-> pip install firecrawl-py
-> ```
-> Engine mặc định `http` chỉ cần `requests` + `beautifulsoup4`.
-> `fastapi`/`uvicorn`/`jinja2`/`python-multipart` chỉ cần nếu dùng Web UI (xem dưới).
+`crawl4ai` và `firecrawl-py` là dependency tùy chọn, không cài mặc định để
+tránh lỗi build `lxml` trên Windows. Chỉ cài khi cần:
+```bash
+pip install crawl4ai && crawl4ai-setup   # cài Playwright + Chromium
+pip install firecrawl-py
+```
+Engine mặc định `http` chỉ cần `requests` + `beautifulsoup4`.
+`fastapi`/`uvicorn`/`jinja2`/`python-multipart` chỉ cần nếu dùng Web UI (xem dưới).
 
 ## Cấu hình
 

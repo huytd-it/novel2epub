@@ -8,13 +8,12 @@
 from __future__ import annotations
 
 import re
-import shlex
-import shutil
 import subprocess
 import time
 from pathlib import Path
 from typing import Protocol
 
+from . import cli_runner
 from .config import TranslateConfig
 
 # Một số mẫu "lời mở đầu" mà LLM hay tự thêm dù đã bảo đừng.
@@ -66,6 +65,29 @@ def _merge_glossaries(*parts: dict[str, str]) -> dict[str, str]:
     return merged
 
 
+def load_glossary_dict(cfg: TranslateConfig) -> dict[str, str]:
+    """Gộp glossary inline trong config + 2 file names/vietphrase đang trỏ tới.
+
+    Dùng chung cho CLITranslator (dịch chương) và glossary_ai (gợi ý/rewrite).
+    """
+    glossary: dict[str, str] = dict(cfg.glossary)
+    for path in (cfg.glossary_files.names, cfg.glossary_files.vietphrase):
+        if not path:
+            continue
+        p = Path(path)
+        if not p.exists():
+            continue
+        for line in p.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            zh, vi = line.split("=", 1)
+            zh, vi = zh.strip(), vi.strip()
+            if zh and vi:
+                glossary[zh] = vi
+    return glossary
+
+
 class Translator(Protocol):
     def translate(self, text: str) -> str: ...
 
@@ -79,46 +101,8 @@ class CLITranslator:
     def __init__(self, cfg: TranslateConfig):
         self.cfg = cfg
         self.cli = cfg.cli
-        self.glossary = self._load_glossary()
-        # posix=True để xử lý đúng dấu nháy. Trên Windows nếu lệnh có đường dẫn
-        # chứa "\" thì dùng "/" trong config (Python/CLI đều chấp nhận).
-        self._argv = shlex.split(cfg.cli.command, posix=True)
-        if not self._argv:
-            raise ValueError("translate.cli.command đang trống")
-        self._argv[0] = self._resolve_command(self._argv[0])
-        if self.cli.model:
-            self._argv.extend(["--model", self.cli.model])
-
-    def _load_glossary(self) -> dict[str, str]:
-        glossary: dict[str, str] = dict(self.cfg.glossary)
-        for path in (self.cfg.glossary_files.names, self.cfg.glossary_files.vietphrase):
-            if not path:
-                continue
-            p = Path(path)
-            if not p.exists():
-                continue
-            for line in p.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                zh, vi = line.split("=", 1)
-                zh = zh.strip()
-                vi = vi.strip()
-                if zh and vi:
-                    glossary[zh] = vi
-        return glossary
-
-    def _resolve_command(self, command: str) -> str:
-        resolved = shutil.which(command)
-        if resolved:
-            return resolved
-
-        npm_dir = Path.home() / "AppData" / "Roaming" / "npm"
-        for suffix in (".cmd", ".exe", ".bat"):
-            candidate = npm_dir / f"{command}{suffix}"
-            if candidate.exists():
-                return str(candidate)
-        return command
+        self.glossary = load_glossary_dict(cfg)
+        self._argv = cli_runner.build_argv(cfg.cli)
 
     def _build_prompt(self, text: str) -> str:
         return self.cli.prompt_template.format(
@@ -136,51 +120,27 @@ class CLITranslator:
             return text
         prompt = self._build_prompt(text)
 
-        if self.cli.mode == "arg":
-            argv = self._argv + [prompt]
-            stdin_data = None
-        else:  # stdin
-            argv = self._argv
-            stdin_data = prompt
-
         attempts = max(1, int(self.cfg.retry.attempts))
         last_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             try:
-                proc = subprocess.run(
-                    argv,
-                    input=stdin_data,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    timeout=self.cli.timeout_seconds,
-                )
+                out = cli_runner.run_cli(self.cli, prompt, argv=self._argv)
+                return _apply_glossary(_clean_output(out), self.glossary)
             except FileNotFoundError as e:
                 raise RuntimeError(
                     f"Không tìm thấy lệnh CLI: {self._argv[0]!r}. "
                     "Kiểm tra translate.cli.command trong config."
                 ) from e
-            except subprocess.TimeoutExpired as e:
-                last_error = RuntimeError(
-                    f"CLI dịch quá thời gian ({self.cli.timeout_seconds}s)."
-                )
-                if attempt < attempts and self.cfg.retry.delay_seconds > 0:
-                    time.sleep(self.cfg.retry.delay_seconds)
-                continue
+            except subprocess.TimeoutExpired:
+                last_error = RuntimeError(f"CLI dịch quá thời gian ({self.cli.timeout_seconds}s).")
+            except RuntimeError as e:
+                last_error = e
 
-            if proc.returncode == 0:
-                out = _clean_output(proc.stdout or "")
-                return _apply_glossary(out, self.glossary)
-
-            last_error = RuntimeError(
-                f"CLI dịch trả về mã lỗi {proc.returncode}:\n{proc.stderr.strip()}"
-            )
             if attempt < attempts and self.cfg.retry.delay_seconds > 0:
                 time.sleep(self.cfg.retry.delay_seconds)
 
-        if last_error is not None:
-            raise last_error
-        raise RuntimeError("CLI dịch thất bại")
+        assert last_error is not None
+        raise last_error
 
 
 class GoogleTranslator:

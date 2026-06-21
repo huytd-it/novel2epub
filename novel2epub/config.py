@@ -224,6 +224,19 @@ def load_config(path: str | Path) -> Config:
             if not Path(vietphrase_path).is_absolute()
             else vietphrase_path
         )
+    # Nếu không khai báo riêng, mặc định dùng đúng thư mục glossary mà
+    # Storage/trang web Glossary đang đọc-ghi (data_dir/<slug>/glossary/).
+    if not names_path or not vietphrase_path:
+        novel_raw = _as_dict(raw.get("novel"))
+        output_raw = _as_dict(raw.get("output"))
+        slug = novel_raw.get("slug", "novel")
+        data_dir = output_raw.get("data_dir", "data")
+        data_dir_abs = Path(data_dir) if Path(data_dir).is_absolute() else (base_dir / data_dir).resolve()
+        glossary_dir = data_dir_abs / slug / "glossary"
+        if not names_path:
+            names_path = str(glossary_dir / "names.txt")
+        if not vietphrase_path:
+            vietphrase_path = str(glossary_dir / "vietphrase.txt")
     translate = TranslateConfig(
         type=translate_raw.get("type", "cli"),
         profile=translate_raw.get("profile", "traditional_cn_novel"),

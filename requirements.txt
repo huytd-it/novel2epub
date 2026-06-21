@@ -8,6 +8,9 @@ uvicorn>=0.29.0
 jinja2>=3.1.0
 python-multipart>=0.0.9
 
+# Dev/test
+pytest>=8.0.0
+
 # Tùy chọn: chỉ cài khi cần engine crawl4ai / firecrawl.
 # crawl4ai>=0.9.0
 # firecrawl-py>=1.6.0

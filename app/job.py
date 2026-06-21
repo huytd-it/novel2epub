@@ -59,6 +59,33 @@ class JobRunner:
         thread.start()
         return True
 
+    def start_custom(self, step: str, target_fn: Callable[[Callable[[str], None]], object]) -> bool:
+        """Bắt đầu job nền tùy biến (vd rewrite chương) — target_fn chỉ nhận log_fn,
+        cfg/tham số khác phải được bind sẵn qua closure ở caller."""
+        with self._lock:
+            if self.running:
+                return False
+            self.running = True
+            self.step = step
+            self.error = ""
+            self._log.clear()
+
+        thread = threading.Thread(target=self._run_custom, args=(target_fn,), daemon=True)
+        thread.start()
+        return True
+
+    def _run_custom(self, target_fn: Callable[[Callable[[str], None]], object]) -> None:
+        try:
+            target_fn(self._log_line)
+        except Exception as e:  # noqa: BLE001
+            self._log_line(f"[lỗi] {e}")
+            self._log_line(traceback.format_exc())
+            with self._lock:
+                self.error = str(e)
+        finally:
+            with self._lock:
+                self.running = False
+
     def _log_line(self, msg: str) -> None:
         with self._lock:
             self._log.append(msg)

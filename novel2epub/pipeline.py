@@ -229,6 +229,54 @@ def step_translate_selected(
     return manifest
 
 
+def step_rewrite_chapters(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    start: int | None = None,
+    end: int | None = None,
+) -> Manifest:
+    """Biên tập lại (rewrite) các chương đã dịch theo glossary + nguyên tắc 'edit hay'.
+
+    Ghi đè translated/{stem}.md; bản trước khi rewrite được lưu vào meta
+    (key 'before_rewrite') để có thể xem lại/khôi phục.
+    """
+    from . import glossary_ai
+
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    glossary = glossary_ai.load_glossary(cfg.translate)
+    selected = _chapter_range(manifest.chapters, None, start, end)
+    selected = [c for c in selected if storage.has_translated(c)]
+    total = len(selected)
+    if total == 0:
+        log("[rewrite] Không có chương đã dịch nào trong phạm vi đã chọn.")
+        return manifest
+
+    for i, ch in enumerate(selected, 1):
+        log(f"[rewrite] ({i}/{total}) {ch.title_vi or ch.title_zh or ch.stem}")
+        raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
+        current = storage.read_translated(ch)
+        try:
+            rewritten = glossary_ai.rewrite_chapter(cfg.translate, raw, current, glossary)
+        except Exception as e:
+            log(f"[rewrite]   ! Lỗi chương {ch.stem}: {e}")
+            continue
+        if not rewritten.strip():
+            log(f"[rewrite]   ! Kết quả rỗng, giữ nguyên chương {ch.stem}.")
+            continue
+        meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+        meta["before_rewrite"] = current
+        storage.write_meta(ch, meta)
+        storage.write_translated(ch, rewritten)
+
+    log("[rewrite] Hoàn tất.")
+    return manifest
+
+
 def step_build(cfg: Config, log: LogFn = _print) -> str:
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()

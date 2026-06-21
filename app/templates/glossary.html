@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Glossary — novel2epub{% endblock %}
+{% block content %}
+<p><a href="/ebooks/{{ slug }}">&larr; Quay lại ebook</a></p>
+<h2>Glossary</h2>
+<p class="muted">Mỗi dòng dạng <code>Hán = Việt</code>. Dòng bắt đầu bằng <code>#</code> hoặc không có <code>=</code> sẽ bị bỏ qua.</p>
+
+<form method="post" action="/ebooks/{{ slug }}/glossary">
+    <div class="cols">
+        <div>
+            <h3>names.txt (tên riêng)</h3>
+            <textarea name="names" rows="20">{{ names }}</textarea>
+        </div>
+        <div>
+            <h3>vietphrase.txt (thuật ngữ)</h3>
+            <textarea name="vietphrase" rows="20">{{ vietphrase }}</textarea>
+        </div>
+    </div>
+    <p><button type="submit">Lưu glossary</button></p>
+</form>
+
+<hr>
+
+<div class="section-head">
+    <h3>AI gợi ý glossary</h3>
+    <p class="muted">Phân tích bản gốc + bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần), chỉ đưa gợi ý — bạn tự duyệt trước khi lưu.</p>
+</div>
+<form method="post" action="/ebooks/{{ slug }}/glossary/suggest">
+    <label>Từ chương <input type="number" name="chapter_from" value="{{ chapter_from or 1 }}" min="0" required></label>
+    <label>đến chương <input type="number" name="chapter_to" value="{{ chapter_to or 1 }}" min="0" required></label>
+    <button type="submit">AI phân tích</button>
+</form>
+
+{% if suggest_error %}<p class="badge no">{{ suggest_error }}</p>{% endif %}
+
+{% if suggestions %}
+<form method="post" action="/ebooks/{{ slug }}/glossary/apply">
+    <table>
+        <tr><th></th><th>Nguồn (Trung)</th><th>Đề xuất (Việt)</th><th>Loại</th><th>Lý do</th><th>File đích</th></tr>
+        {% for s in suggestions %}
+        <tr>
+            <td><input type="checkbox" name="selected_{{ loop.index0 }}" checked></td>
+            <td>{{ s.source }}<input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
+            <td>{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
+            <td>{{ s.type }}</td>
+            <td class="muted">{{ s.reason }}</td>
+            <td>{{ s.target_file }}<input type="hidden" name="target_file_{{ loop.index0 }}" value="{{ s.target_file }}"></td>
+        </tr>
+        {% endfor %}
+    </table>
+    <p><button type="submit">Lưu các mục đã chọn vào glossary</button></p>
+</form>
+{% endif %}
+
+<hr>
+
+<div class="section-head">
+    <h3>AI rewrite chương (ghi đè bản dịch)</h3>
+    <p class="muted">AI sẽ biên tập lại toàn bộ bản dịch trong phạm vi đã chọn theo glossary + nguyên tắc "edit hay" (dùng từ đồng nghĩa linh hoạt, câu tự nhiên, tên chương hay hơn...). <strong>Đây là hành động ghi đè trực tiếp</strong> — bản trước khi rewrite được lưu lại trong meta của từng chương, nhưng nên backup/commit trước khi chạy trên phạm vi lớn.</p>
+</div>
+<form method="post" action="/ebooks/{{ slug }}/glossary/rewrite">
+    <label>Từ chương <input type="number" name="chapter_from" value="1" min="0" required></label>
+    <label>đến chương <input type="number" name="chapter_to" value="1" min="0" required></label>
+    <button type="submit" {% if job.running %}disabled{% endif %}>AI rewrite</button>
+</form>
+
+<p>
+    Trạng thái job:
+    {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
+    {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+</p>
+<pre id="log">{{ job.log | join('\n') }}</pre>
+
+<script>
+const logEl = document.getElementById("log");
+async function poll() {
+    const res = await fetch("/api/status");
+    const data = await res.json();
+    logEl.textContent = data.log.join("\n");
+    logEl.scrollTop = logEl.scrollHeight;
+    if (!data.running && {{ "true" if job.running else "false" }}) {
+        location.reload();
+    }
+}
+setInterval(poll, 1500);
+</script>
+{% endblock %}

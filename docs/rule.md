@@ -98,13 +98,14 @@ Câu đúng phải là:
 6. Nguyên tắc 6: Đoán bừa cũng nên có căn cứ.
 
 - Vì sao lại nói là đoán bừa, vì có một số từ QT không tra nghĩa được, mà tra ở chỗ khác cũng không được nên phải đoán bừa, nhưng cũng đừng quá chế bậy. Bạn nên liên hệ nội dung đoạn trước và đoạn sau, cố gắng suy đoán xem từ không dịch được đó là nghĩa gì.​
+
 III. Làm thế nào để có bản edit hay.
 
 Để có bản edit đúng đã khó, nhưng để hay thì cần nhiều thời gian hơn, mình có tổng hợp một số nguyên tắc thế này.
 
 1. Nguyên tắc 1: Sử dụng từ đồng nghĩa một cách linh hoạt.
 
-- Khi bạn bấm vào một từ trong QT, màn hình sẽ hiện thị tất cả các nghĩa của từ đó, hãy chọn nghĩa mà bạn cho là phù hợp nhất, khi thấy rằng tất cả đều không phù hợp, hãy nghĩ ra các từ đồng nghĩa khác bạn có thể nghĩ tới, nếu bạn thấy thế quá phiền, vậy khó có được bản edit hay lắm.
+- Khi bạn bấm vào một từ trong Quick Translate, màn hình sẽ hiện thị tất cả các nghĩa của từ đó, hãy chọn nghĩa mà bạn cho là phù hợp nhất, khi thấy rằng tất cả đều không phù hợp, hãy nghĩ ra các từ đồng nghĩa khác bạn có thể nghĩ tới, nếu bạn thấy thế quá phiền, vậy khó có được bản edit hay lắm.
 
 - Khi dùng từ, bạn cũng nên chú ý tới truyện mình edit là truyện hài hước hay chính truyện, nhân vật đang được nói tới như thế nào, nhân vật đó sẽ phải dùng những từ như thế nào mới thể hiện rõ được phong cách của mình?…
 
@@ -125,7 +126,7 @@ Câu nên viết là: Nàng không muốn nghĩ tới gì hết.
 
 4. Nguyên tắc 4:
 
-- Tên chương và tên truyện phải chuyển ngữ sao cho hay hơn bình thường một chút, đừng nên dùng y chang chuyển ngữ của QT. Nếu bạn không chuyển ngữ cho hay được cũng phải giải thích cho người đọc hiểu, không nên để nguyên tên chương là Hán việt, người đọc chắc chắn không hiểu được, và tên chương phần lớn đều hay, thể hiện phần lớn nội dung của chương.
+- Tên chương và tên truyện phải chuyển ngữ sao cho hay hơn bình thường một chút, đừng nên dùng y chang chuyển ngữ của Quick Translate. Nếu bạn không chuyển ngữ cho hay được cũng phải giải thích cho người đọc hiểu, không nên để nguyên tên chương là Hán việt, người đọc chắc chắn không hiểu được, và tên chương phần lớn đều hay, thể hiện phần lớn nội dung của chương.
 VD: Tên truyện: Nắm tay người, kéo người đi.
 Nên chuyển thành: “Tay nắm tay, cùng nhau cất bước” sẽ hay hơn
 ​

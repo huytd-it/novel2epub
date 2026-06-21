@@ -103,22 +103,110 @@
 
 <p>
     Trạng thái job:
-    {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
-    {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+    <span id="status-badge-container">
+        {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
+        {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+    </span>
 </p>
 <pre id="log">{{ job.log | join('\n') }}</pre>
 
 <script>
 const logEl = document.getElementById("log");
-async function poll() {
-    const res = await fetch("/api/status");
-    const data = await res.json();
-    logEl.textContent = data.log.join("\n");
-    logEl.scrollTop = logEl.scrollHeight;
-    if (!data.running && {{ "true" if job.running else "false" }}) {
-        location.reload();
+
+// --- Asynchronous action button handler ---
+function setJobButtonsDisabled(disabled) {
+    const jobButtons = document.querySelectorAll(
+        'form[action*="/rewrite"] button, form[action*="/jobs/"] button, form[action*="/action"] button'
+    );
+    for (const btn of jobButtons) {
+        btn.disabled = disabled;
     }
 }
+
+document.addEventListener("submit", async function(event) {
+    const form = event.target;
+    const action = form.getAttribute("action") || "";
+    
+    if (action.includes("/rewrite") || action.includes("/jobs/") || action.includes("/action")) {
+        event.preventDefault();
+        
+        setJobButtonsDisabled(true);
+        const container = document.getElementById("status-badge-container");
+        if (container) {
+            container.innerHTML = '<span class="badge run">đang kết nối...</span>';
+        }
+        
+        try {
+            const formData = new FormData(form);
+            const submitter = event.submitter;
+            if (submitter && submitter.name && submitter.value) {
+                formData.set(submitter.name, submitter.value);
+            }
+            
+            const response = await fetch(action, {
+                method: form.method || "POST",
+                body: formData
+            });
+            
+            if (!response.ok) {
+                let errMsg = "Có lỗi xảy ra khi bắt đầu job.";
+                try {
+                    const errData = await response.json();
+                    if (errData && errData.detail) {
+                        errMsg = errData.detail;
+                    }
+                } catch (e) {}
+                alert(errMsg);
+                poll();
+            } else {
+                wasRunning = true;
+                setTimeout(poll, 200);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Lỗi kết nối mạng.");
+            poll();
+        }
+    }
+});
+
+let wasRunning = {{ "true" if job.running else "false" }};
+
+async function poll() {
+    try {
+        const res = await fetch("/api/status");
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (logEl) {
+            logEl.textContent = data.log.join("\n");
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        const container = document.getElementById("status-badge-container");
+        if (container) {
+            let html = "";
+            if (data.running) {
+                html += `<span class="badge run">đang chạy: ${data.step}</span> `;
+            } else {
+                html += '<span class="badge ok">rảnh</span> ';
+            }
+            if (data.error) {
+                html += `<span class="badge no">lỗi: ${data.error}</span>`;
+            }
+            container.innerHTML = html;
+        }
+        
+        setJobButtonsDisabled(data.running);
+        
+        // Job rewrite ghi vào file chương, không đụng tới form glossary nên
+        // không reload trang (tránh mất nội dung đang gõ trong textarea).
+        wasRunning = data.running;
+    } catch (e) {
+        console.error("Lỗi khi poll status:", e);
+    }
+}
+poll();
 setInterval(poll, 1500);
 </script>
 {% endblock %}

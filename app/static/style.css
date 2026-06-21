@@ -57,7 +57,7 @@ tr.in-range td { background: #fff7d6; }
     margin: 0.5rem 0; padding: 0.55rem 0.65rem;
     background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px;
 }
-.compact-toolbar input, .compact-toolbar select {
+input, select {
     padding: 0.4rem 0.5rem; border: 1px solid #bbb; border-radius: 4px;
 }
 .compact-toolbar input[type="search"] { min-width: min(22rem, 100%); }
@@ -67,7 +67,7 @@ tr.in-range td { background: #fff7d6; }
 }
 .table-wrap { overflow-x: auto; border: 1px solid #e5e5e5; border-radius: 8px; }
 .data-table { margin: 0; }
-.data-table th { background: #f7f7f7; position: sticky; top: 3.4rem; z-index: 2; }
+.data-table th { background: #f7f7f7; }
 .data-table tr:nth-child(even) td { background: #fcfcfc; }
 .row-actions { display: inline-flex; gap: 0.35rem; align-items: center; margin: 0; }
 .meta-card { display: flex; gap: 1rem; align-items: flex-start; border: 1px solid #e5e5e5; border-radius: 8px; padding: 0.8rem 1rem; margin: 1rem 0; background: #fcfcfc; }
@@ -75,10 +75,24 @@ tr.in-range td { background: #fff7d6; }
 .meta-card .meta-body { min-width: 0; }
 .meta-card .meta-body h3 { margin: 0 0 0.3rem; }
 .meta-card .desc { font-size: 0.92rem; line-height: 1.5; white-space: pre-wrap; max-height: 9rem; overflow-y: auto; }
+.review-shell { display: grid; grid-template-columns: minmax(230px, 300px) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.chapter-workspace { min-width: 0; }
+.quick-guide { position: sticky; top: 1rem; border: 1px solid #e5e5e5; border-radius: 10px; padding: 0.8rem; background: #fcfcfc; max-height: calc(100vh - 2rem); overflow-y: auto; }
+.quick-guide h3 { margin: 0; }
+.quick-search { width: 100%; box-sizing: border-box; padding: 0.45rem 0.55rem; border: 1px solid #bbb; border-radius: 6px; }
+.quick-glossary { display: flex; flex-direction: column; gap: 0.45rem; margin: 0.6rem 0; }
+.glossary-chip { border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.45rem 0.55rem; background: #fff; font-size: 0.9rem; }
+.glossary-chip.relevant { border-color: #d5b451; background: #fff9df; }
+.edit-rules { margin-top: 0.75rem; }
+.edit-rules summary { cursor: pointer; font-weight: 600; }
+.edit-rules ul { padding-left: 1.1rem; margin: 0.6rem 0; }
+.edit-rules li { margin: 0.35rem 0; }
 
 @media (max-width: 900px) {
     .cols, .hero { flex-direction: column; }
-    .bulk-bar { position: static; }
+    .bulk-bar, .quick-guide { position: static; }
+    .review-shell { display: block; }
+    .quick-guide { max-height: none; margin-bottom: 1rem; }
     textarea { height: 40vh; }
     table, thead, tbody, th, td, tr { font-size: 0.95rem; }
     th, td { padding: 0.35rem 0.45rem; }

@@ -10,12 +10,15 @@
 
 <p>
     Trạng thái chung:
-    {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
-    {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+    <span id="status-badge-container">
+        {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
+        {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+    </span>
 </p>
 
 <pre id="log">{{ job.log | join('\n') }}</pre>
 
+<div id="library-region">
 {% if ebooks %}
 <h3>Ebooks ({{ ebooks|length }})</h3>
 <table>
@@ -38,4 +41,67 @@
 {% else %}
 <p class="muted">Chưa có ebook nào trong thư viện.</p>
 {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const logEl = document.getElementById("log");
+let wasRunning = {{ "true" if job.running else "false" }};
+
+async function poll() {
+    try {
+        const res = await fetch("/api/status");
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (logEl) {
+            logEl.textContent = data.log.join("\n");
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        const container = document.getElementById("status-badge-container");
+        if (container) {
+            let html = "";
+            if (data.running) {
+                html += `<span class="badge run">đang chạy: ${data.step}</span> `;
+            } else {
+                html += '<span class="badge ok">rảnh</span> ';
+            }
+            if (data.error) {
+                html += `<span class="badge no">lỗi: ${data.error}</span>`;
+            }
+            container.innerHTML = html;
+        }
+        
+        const isRunningNow = data.running;
+        if (wasRunning && !isRunningNow) {
+            // Job vừa xong: làm mới danh sách ebook qua fetch thay vì reload cả trang
+            wasRunning = false;
+            await loadLibrary();
+            return;
+        }
+        wasRunning = isRunningNow;
+    } catch (e) {
+        console.error("Lỗi khi poll status:", e);
+    }
+}
+
+async function loadLibrary() {
+    try {
+        const res = await fetch("/", { headers: { "X-Requested-With": "fetch" } });
+        if (!res.ok) return;
+        const html = await res.text();
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const fresh = doc.getElementById("library-region");
+        const current = document.getElementById("library-region");
+        if (fresh && current) current.replaceWith(fresh);
+    } catch (e) {
+        console.error("Lỗi khi tải thư viện:", e);
+    }
+}
+
+poll();
+setInterval(poll, 1500);
+</script>
 {% endblock %}

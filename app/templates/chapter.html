@@ -13,9 +13,52 @@
     <label class="check"><input type="checkbox" name="override" value="true"> Override old</label>
     <button type="submit">Chạy cho chương này</button>
 </form>
+
+<div id="job-status-section" style="margin: 1rem 0; padding: 1rem; border: 1px solid #ccc; border-radius: 8px; background: #fcfcfc; display: none;">
+    <p><strong>Trạng thái job:</strong> <span id="status-badge-container"><span class="badge ok">rảnh</span></span></p>
+    <pre id="log" style="background: #111; color: #ddd; padding: 0.5rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.8rem; border-radius: 4px;"></pre>
+</div>
 {% if meta %}
 <p class="muted">Prompt/profile: <code>{{ meta.profile }}</code> · Model: <code>{{ meta.model or "-" }}</code></p>
 {% endif %}
+
+<div class="review-shell">
+    <aside class="quick-guide">
+        <div class="section-head">
+            <h3>Chú giải nhanh</h3>
+            <a class="muted" href="/ebooks/{{ slug }}/glossary">Mở glossary</a>
+        </div>
+        <p class="muted">Ưu tiên hiện các mục xuất hiện trong chương. Dùng khi đọc/sửa để thống nhất tên riêng, thuật ngữ và cách xưng hô.</p>
+        <input id="glossary-search" class="quick-search" type="search" placeholder="Lọc chú giải...">
+        <p class="muted">{{ glossary_relevant_count }}/{{ glossary_rows|length }} mục khớp chương này.</p>
+        <div class="quick-glossary" id="quick-glossary">
+            {% for row in glossary_rows[:80] %}
+            <div class="glossary-chip{% if row.relevant %} relevant{% endif %}" data-search="{{ row.source }} {{ row.suggested }} {{ row.type }} {{ row.file }}">
+                <div><strong>{{ row.source }}</strong> <span class="muted">→</span> {{ row.suggested }}</div>
+                <div class="muted">{{ row.type }} · {{ row.file }}{% if row.relevant %} · trong chương{% endif %}</div>
+            </div>
+            {% else %}
+            <p class="muted">Chưa có glossary. Thêm nhanh ở cuối trang khi gặp tên riêng/thuật ngữ cần thống nhất.</p>
+            {% endfor %}
+        </div>
+        {% if glossary_rows|length > 80 %}
+        <p class="muted">Đang hiện 80 mục đầu. Vào trang Glossary để xem toàn bộ.</p>
+        {% endif %}
+
+        <details class="edit-rules" open>
+            <summary>Checklist edit hay</summary>
+            <ul>
+                <li>Đổi câu máy thành tiếng Việt tự nhiên, không bê nguyên Quick Translator.</li>
+                <li>Chọn ngôi xưng theo quan hệ, tuổi tác, thân phận và cảm xúc.</li>
+                <li>Dùng từ đồng nghĩa linh hoạt, đúng giọng truyện và nhân vật.</li>
+                <li>Cân bằng Hán Việt với thuần Việt để vừa có sắc thái vừa dễ hiểu.</li>
+                <li>Tra lại tên riêng, thành ngữ, thơ từ, điển cố trước khi đoán nghĩa.</li>
+            </ul>
+            <p class="muted">Tham chiếu: <code>docs/rule.md</code>, mục III.</p>
+        </details>
+    </aside>
+
+    <section class="chapter-workspace">
 
 {% if meta and meta.before_rewrite %}
 <details>
@@ -49,6 +92,9 @@
     </div>
 </div>
 
+    </section>
+</div>
+
 <div class="section-head">
     <h3>Thêm nhanh vào Glossary</h3>
     <p class="muted">Thấy tên riêng/thuật ngữ cần thống nhất khi đọc bản dịch? Thêm ngay tại đây, không cần qua trang Glossary.</p>
@@ -65,4 +111,134 @@
     </label>
     <button type="submit">Thêm vào Glossary</button>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const glossarySearch = document.getElementById("glossary-search");
+const glossaryRows = Array.from(document.querySelectorAll(".glossary-chip"));
+if (glossarySearch) {
+    glossarySearch.addEventListener("input", () => {
+        const query = glossarySearch.value.trim().toLowerCase();
+        for (const row of glossaryRows) {
+            row.hidden = query && !row.dataset.search.toLowerCase().includes(query);
+        }
+    });
+}
+
+// --- Job execution & polling ---
+const logEl = document.getElementById("log");
+const statusSection = document.getElementById("job-status-section");
+
+function setJobButtonsDisabled(disabled) {
+    const jobButtons = document.querySelectorAll(
+        'form[action*="/action"] button, form[action*="/jobs/"] button'
+    );
+    for (const btn of jobButtons) {
+        btn.disabled = disabled;
+    }
+}
+
+document.addEventListener("submit", async function(event) {
+    const form = event.target;
+    const action = form.getAttribute("action") || "";
+    
+    if (action.includes("/action") || action.includes("/jobs/")) {
+        event.preventDefault();
+        
+        setJobButtonsDisabled(true);
+        if (statusSection) {
+            statusSection.style.display = "block";
+        }
+        const container = document.getElementById("status-badge-container");
+        if (container) {
+            container.innerHTML = '<span class="badge run">đang kết nối...</span>';
+        }
+        
+        try {
+            const formData = new FormData(form);
+            const submitter = event.submitter;
+            if (submitter && submitter.name && submitter.value) {
+                formData.set(submitter.name, submitter.value);
+            }
+            
+            const response = await fetch(action, {
+                method: form.method || "POST",
+                body: formData
+            });
+            
+            if (!response.ok) {
+                let errMsg = "Có lỗi xảy ra khi bắt đầu job.";
+                try {
+                    const errData = await response.json();
+                    if (errData && errData.detail) {
+                        errMsg = errData.detail;
+                    }
+                } catch (e) {}
+                alert(errMsg);
+                poll();
+            } else {
+                wasRunning = true;
+                setTimeout(poll, 200);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Lỗi kết nối mạng.");
+            poll();
+        }
+    }
+});
+
+let wasRunning = false;
+
+async function poll() {
+    try {
+        const res = await fetch("/api/status");
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        // Show status section if running, or if there is log/error
+        if (statusSection) {
+            if (data.running || data.log.length > 0 || data.error) {
+                statusSection.style.display = "block";
+            } else {
+                statusSection.style.display = "none";
+            }
+        }
+        
+        if (logEl && data.log.length > 0) {
+            logEl.textContent = data.log.join("\n");
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        const container = document.getElementById("status-badge-container");
+        if (container) {
+            let html = "";
+            if (data.running) {
+                html += `<span class="badge run">đang chạy: ${data.step}</span> `;
+            } else {
+                html += '<span class="badge ok">rảnh</span> ';
+            }
+            if (data.error) {
+                html += `<span class="badge no">lỗi: ${data.error}</span>`;
+            }
+            container.innerHTML = html;
+        }
+        
+        setJobButtonsDisabled(data.running);
+        
+        const isRunningNow = data.running;
+        if (wasRunning && !isRunningNow) {
+            location.reload();
+            return;
+        }
+        wasRunning = isRunningNow;
+    } catch (e) {
+        console.error("Lỗi khi poll status:", e);
+    }
+}
+// Start polling immediately to check if a job is already running
+poll();
+setInterval(poll, 1500);
+</script>
 {% endblock %}

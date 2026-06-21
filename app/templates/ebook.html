@@ -54,16 +54,18 @@
 
 <p>
     Trạng thái:
-    {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
-    {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+    <span id="status-badge-container">
+        {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
+        {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+    </span>
 </p>
 
 <pre id="log">{{ job.log | join('\n') }}</pre>
 
-{% if chapters %}
+<div id="toc-region">
 <div class="section-head">
     <h3>Chương ({{ chapters|length }})</h3>
-    <p class="muted">Bảng nhẹ server-side: search/sort/filter qua URL, tick dòng để chạy bulk action.</p>
+    <p class="muted">Bảng nhẹ server-side: search/sort/filter chạy ngầm (không reload trang), tick dòng để chạy bulk action.</p>
 </div>
 <form method="get" action="/ebooks/{{ slug }}" class="compact-toolbar">
     <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL">
@@ -93,6 +95,7 @@
     </select>
     <button type="submit">Lọc</button>
 </form>
+{% if chapters %}
 <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" id="bulk-action-form"></form>
 <div class="bulk-bar">
     <input type="hidden" name="sort" form="bulk-action-form" value="{{ controls.sort }}">
@@ -142,43 +145,197 @@
 </table>
 </div>
 {% else %}
-<p class="muted">Chưa có chương nào — bấm "Crawl" để bắt đầu.</p>
+<p class="muted">Chưa có chương phù hợp — bấm "Crawl" để lấy chương hoặc đổi lại bộ lọc.</p>
 {% endif %}
+</div>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-// --- Checkbox bulk selection ---
-const rows = Array.from(document.querySelectorAll("#chapter-table tr[data-index]"));
-const logEl = document.getElementById("log");
-const checkAllEl = document.getElementById("check-all");
-const checkedInfoEl = document.getElementById("checked-info");
-const checks = Array.from(document.querySelectorAll(".chapter-check"));
+const SLUG = {{ slug | tojson }};
+let wasRunning = {{ "true" if job.running else "false" }};
+let tocToken = 0;       // chống race khi nhiều request filter chồng nhau
+let searchTimer = null; // debounce cho ô tìm kiếm
 
 function refreshCheckedInfo() {
-    if (!checkedInfoEl) return;
-    const count = checks.filter(c => c.checked).length;
-    checkedInfoEl.textContent = `Đã tick ${count} chương.`;
+    const info = document.getElementById("checked-info");
+    if (!info) return;
+    const count = document.querySelectorAll(".chapter-check:checked").length;
+    info.textContent = `Đã tick ${count} chương.`;
 }
-if (checkAllEl) {
-    checkAllEl.addEventListener("change", () => {
-        for (const c of checks) c.checked = checkAllEl.checked;
-        refreshCheckedInfo();
-    });
-}
-for (const c of checks) c.addEventListener("change", refreshCheckedInfo);
-refreshCheckedInfo();
 
-async function poll() {
-    const res = await fetch("/api/status");
-    const data = await res.json();
-    logEl.textContent = data.log.join("\n");
-    logEl.scrollTop = logEl.scrollHeight;
-    if (!data.running && {{ "true" if job.running else "false" }}) {
-        location.reload();
+function setJobButtonsDisabled(disabled) {
+    const jobButtons = document.querySelectorAll(
+        'form[action*="/jobs/"] button, form[action*="/action"] button'
+    );
+    for (const btn of jobButtons) {
+        btn.disabled = disabled;
     }
 }
+
+// --- Tải lại danh mục chương qua fetch, swap DOM thay vì reload trang ---
+function tocUrl() {
+    const form = document.querySelector(".compact-toolbar");
+    if (!form) return `/ebooks/${encodeURIComponent(SLUG)}`;
+    const params = new URLSearchParams(new FormData(form));
+    return `${form.getAttribute("action")}?${params.toString()}`;
+}
+
+async function loadToc(url, { push = true } = {}) {
+    const target = url || tocUrl();
+    const token = ++tocToken;
+
+    // Giữ lại focus + vị trí con trỏ của ô tìm kiếm khi swap
+    const active = document.activeElement;
+    const searchFocused = active && active.matches && active.matches('.compact-toolbar input[type="search"]');
+    const caret = searchFocused ? active.selectionStart : null;
+
+    try {
+        const res = await fetch(target, { headers: { "X-Requested-With": "fetch" } });
+        if (!res.ok || token !== tocToken) return; // bỏ qua response cũ
+        const html = await res.text();
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const fresh = doc.getElementById("toc-region");
+        const current = document.getElementById("toc-region");
+        if (!fresh || !current) return;
+
+        current.replaceWith(fresh);
+        if (push) history.pushState({ toc: true }, "", target);
+        refreshCheckedInfo();
+        setJobButtonsDisabled(wasRunning);
+
+        if (searchFocused) {
+            const ns = document.querySelector('.compact-toolbar input[type="search"]');
+            if (ns) {
+                ns.focus();
+                try { ns.setSelectionRange(caret, caret); } catch (e) {}
+            }
+        }
+    } catch (e) {
+        console.error("Lỗi khi tải danh mục:", e);
+    }
+}
+
+// --- Delegated change: chọn dòng + đổi bộ lọc/sắp xếp (chạy ngầm) ---
+document.addEventListener("change", (event) => {
+    const t = event.target;
+    if (t.id === "check-all") {
+        for (const c of document.querySelectorAll(".chapter-check")) c.checked = t.checked;
+        refreshCheckedInfo();
+    } else if (t.classList && t.classList.contains("chapter-check")) {
+        refreshCheckedInfo();
+    } else if (t.matches && t.matches(".compact-toolbar select")) {
+        loadToc();
+    }
+});
+
+// --- Ô tìm kiếm: debounce rồi filter ngầm ---
+document.addEventListener("input", (event) => {
+    if (event.target.matches && event.target.matches('.compact-toolbar input[type="search"]')) {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => loadToc(), 350);
+    }
+});
+
+window.addEventListener("popstate", () => loadToc(location.href, { push: false }));
+
+// --- Submit: form filter chạy ngầm; job/action gọi API bất đồng bộ ---
+document.addEventListener("submit", async function(event) {
+    const form = event.target;
+
+    if (form.matches(".compact-toolbar")) {
+        event.preventDefault();
+        loadToc();
+        return;
+    }
+
+    const action = form.getAttribute("action") || "";
+    if (action.includes("/jobs/") || action.includes("/action")) {
+        event.preventDefault();
+
+        setJobButtonsDisabled(true);
+        const container = document.getElementById("status-badge-container");
+        if (container) {
+            container.innerHTML = '<span class="badge run">đang kết nối...</span>';
+        }
+
+        try {
+            const formData = new FormData(form);
+            const submitter = event.submitter;
+            if (submitter && submitter.name && submitter.value) {
+                formData.set(submitter.name, submitter.value);
+            }
+
+            const response = await fetch(action, {
+                method: form.method || "POST",
+                body: formData
+            });
+
+            if (!response.ok) {
+                let errMsg = "Có lỗi xảy ra khi bắt đầu job.";
+                try {
+                    const errData = await response.json();
+                    if (errData && errData.detail) {
+                        errMsg = errData.detail;
+                    }
+                } catch (e) {}
+                alert(errMsg);
+                poll();
+            } else {
+                wasRunning = true;
+                setTimeout(poll, 200);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Lỗi kết nối mạng.");
+            poll();
+        }
+    }
+});
+
+async function poll() {
+    try {
+        const res = await fetch("/api/status");
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const logEl = document.getElementById("log");
+        if (logEl) {
+            logEl.textContent = data.log.join("\n");
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        const container = document.getElementById("status-badge-container");
+        if (container) {
+            let html = "";
+            if (data.running) {
+                html += `<span class="badge run">đang chạy: ${data.step}</span> `;
+            } else {
+                html += '<span class="badge ok">rảnh</span> ';
+            }
+            if (data.error) {
+                html += `<span class="badge no">lỗi: ${data.error}</span>`;
+            }
+            container.innerHTML = html;
+        }
+
+        setJobButtonsDisabled(data.running);
+
+        const isRunningNow = data.running;
+        if (wasRunning && !isRunningNow) {
+            // Job vừa xong: làm mới bảng chương qua fetch thay vì reload cả trang
+            wasRunning = false;
+            loadToc(location.href, { push: false });
+            return;
+        }
+        wasRunning = isRunningNow;
+    } catch (e) {
+        console.error("Lỗi khi poll status:", e);
+    }
+}
+poll();
 setInterval(poll, 1500);
+refreshCheckedInfo();
 </script>
 {% endblock %}

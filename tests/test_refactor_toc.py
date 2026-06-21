@@ -239,6 +239,32 @@ def test_chapter_action_routes_start_custom_job(tmp_path, monkeypatch):
     assert calls == ["chapter-crawl", "chapter-translate"]
 
 
+def test_chapter_detail_shows_quick_glossary_and_edit_rules(tmp_path, monkeypatch):
+    from app import deps
+    from app.main import app
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=1, url="http://x/1", title_zh="第一章")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_raw(ch, "庄国 có một vị công tử")
+    storage.write_translated(ch, "Trang Quốc có một vị công tử")
+    storage.write_glossary_file("names.txt", "庄国 = Trang Quốc\n")
+    storage.write_glossary_file("vietphrase.txt", "公子 = công tử\n")
+    monkeypatch.setattr(deps, "library", lambda: type("L", (), {"ebooks": {}})())
+    monkeypatch.setattr(deps, "cfg", lambda: cfg)
+    client = TestClient(app)
+
+    res = client.get("/ebooks/default/chapters/1")
+
+    assert res.status_code == 200
+    assert "Chú giải nhanh" in res.text
+    assert "庄国" in res.text and "Trang Quốc" in res.text
+    assert "Checklist edit hay" in res.text
+    assert "docs/rule.md" in res.text
+    assert "glossary-chip relevant" in res.text
+
+
 def test_bulk_chapter_action_checked_mode_uses_visible_checked_rows(tmp_path, monkeypatch):
     from app import deps
     from app.main import app

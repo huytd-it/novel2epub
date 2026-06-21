@@ -6,6 +6,7 @@ mà không crawl/dịch lại những chương đã hoàn tất.
 from __future__ import annotations
 
 import re
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Callable
@@ -23,6 +24,43 @@ LogFn = Callable[[str], None]
 
 def _print(msg: str) -> None:
     print(msg, flush=True)
+
+
+def _run_with_heartbeat(log: LogFn, prefix: str, fn: Callable[[], object], *, interval: float = 5.0):
+    """Chạy fn ở thread phụ, định kỳ log một nhịp 'vẫn đang chạy' để UI biết job còn sống.
+
+    Nhiều bộ dịch (AI CLI) xử lý một chương mất hàng chục giây mà không in gì ra;
+    nếu không có nhịp này, người dùng nhìn log đứng yên sẽ tưởng job bị treo hoặc
+    đã lỗi. Lỗi phát sinh trong fn được ném lại nguyên vẹn ở thread chính.
+    """
+    result: dict[str, object] = {}
+    error: dict[str, BaseException] = {}
+
+    def _worker() -> None:
+        try:
+            result["value"] = fn()
+        except BaseException as e:  # noqa: BLE001 - ném lại ở thread chính
+            error["error"] = e
+
+    worker = threading.Thread(target=_worker, daemon=True)
+    started = time.monotonic()
+    worker.start()
+    while True:
+        worker.join(timeout=interval)
+        if not worker.is_alive():
+            break
+        log(f"{prefix} … vẫn đang dịch ({time.monotonic() - started:.0f}s)")
+    if "error" in error:
+        raise error["error"]
+    return result.get("value")
+
+
+def _log_chapter_done(log: LogFn, prefix: str, title: str, elapsed: float, translated: str, warnings: list[str]) -> None:
+    """Một dòng xác nhận đã dịch xong 1 chương: thời gian + độ dài + cảnh báo chất lượng."""
+    msg = f"{prefix} ✓ {title} — {elapsed:.0f}s, {len(translated)} ký tự"
+    if warnings:
+        msg += f" ⚠ {'; '.join(warnings)}"
+    log(msg)
 
 
 def _clean_title(vi: str) -> str:
@@ -361,6 +399,9 @@ def step_translate(cfg: Config, log: LogFn = _print) -> Manifest:
     changed = _translate_meta_inplace(manifest, translator, is_noop, log, force=False)
 
     total = len(manifest.chapters)
+    pending = sum(1 for ch in manifest.chapters if storage.has_raw(ch) and not storage.has_translated(ch))
+    log(f"[dịch] Bắt đầu: {pending}/{total} chương cần dịch.")
+    done = 0
     for i, ch in enumerate(manifest.chapters, 1):
         if not storage.has_raw(ch):
             log(f"[dịch] ({i}/{total}) chưa có raw cho {ch.stem}, bỏ qua.")
@@ -368,20 +409,25 @@ def step_translate(cfg: Config, log: LogFn = _print) -> Manifest:
         if storage.has_translated(ch):
             continue
 
-        log(f"[dịch] ({i}/{total}) {ch.title_zh or ch.stem}")
         raw = storage.read_raw(ch)
+        log(f"[dịch] ({i}/{total}) → {ch.title_zh or ch.stem} ({len(raw)} ký tự)")
+        started = time.monotonic()
 
         # Dịch tiêu đề (nếu có) + nội dung.
         if ch.title_zh and not is_noop:
             ch.title_vi = _clean_title(translator.translate(ch.title_zh))
             changed = True
-        translated = translator.translate(raw)
+        translated = _run_with_heartbeat(log, f"[dịch]   ({i}/{total})", lambda: translator.translate(raw))
+        elapsed = time.monotonic() - started
         storage.write_translated(ch, translated)
-        storage.write_meta(ch, _build_meta(cfg, ch, translated, _quality_warnings(raw, translated)))
+        warnings = _quality_warnings(raw, translated)
+        storage.write_meta(ch, _build_meta(cfg, ch, translated, warnings))
+        done += 1
+        _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title_vi or ch.title_zh or ch.stem, elapsed, translated, warnings)
 
     if changed:
         storage.save_manifest(manifest)
-    log("[dịch] Hoàn tất.")
+    log(f"[dịch] Hoàn tất. Đã dịch {done} chương.")
     return manifest
 
 
@@ -405,6 +451,7 @@ def step_translate_selected(
     is_noop = cfg.translate.type.lower() == "none"
     selected = _chapter_selection(manifest.chapters, chapter, start, end, selected_indexes)
     total = len(selected)
+    log(f"[dịch] Bắt đầu xử lý {total} chương trong phạm vi đã chọn.")
     changed = False
     translated_count = 0
     skipped = 0
@@ -425,14 +472,19 @@ def step_translate_selected(
             ch.last_action_status = "skipped"
             continue
         raw = storage.read_raw(ch)
+        log(f"[dịch] ({i}/{total}) → {ch.title_zh or ch.stem} ({len(raw)} ký tự)")
+        started = time.monotonic()
         if ch.title_zh and not is_noop:
             ch.title_vi = _clean_title(translator.translate(ch.title_zh))
             changed = True
-        translated = translator.translate(raw)
+        translated = _run_with_heartbeat(log, f"[dịch]   ({i}/{total})", lambda: translator.translate(raw))
+        elapsed = time.monotonic() - started
         storage.write_translated(ch, translated)
-        storage.write_meta(ch, _build_meta(cfg, ch, translated, _quality_warnings(raw, translated)))
+        warnings = _quality_warnings(raw, translated)
+        storage.write_meta(ch, _build_meta(cfg, ch, translated, warnings))
         ch.last_action_status = "replaced" if had_translated and force else "completed"
         translated_count += 1
+        _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title_vi or ch.title_zh or ch.stem, elapsed, translated, warnings)
         if had_translated and force:
             replaced += 1
     if changed or translated_count or skipped:

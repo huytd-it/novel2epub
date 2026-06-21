@@ -12,6 +12,37 @@ from .. import deps
 router = APIRouter()
 
 
+def _chapter_glossary(storage: Storage, raw: str, translated: str) -> list[dict[str, str | bool]]:
+    """Return glossary rows with entries used in this chapter first."""
+    haystack = f"{raw}\n{translated}".lower()
+    rows: list[dict[str, str | bool]] = []
+    for filename, label in (("names.txt", "Tên riêng"), ("vietphrase.txt", "Thuật ngữ")):
+        for source, suggested in storage.read_glossary_file(filename).items():
+            source_hit = source.lower() in haystack if source else False
+            suggested_hit = suggested.lower() in haystack if suggested else False
+            rows.append({
+                "source": source,
+                "suggested": suggested,
+                "file": filename,
+                "type": label,
+                "relevant": source_hit or suggested_hit,
+            })
+    return sorted(rows, key=lambda row: (not row["relevant"], str(row["type"]), str(row["source"])))
+
+
+def _chapter_context(storage: Storage, ch, raw: str, translated: str, slug: str, meta: dict | None = None) -> dict:
+    glossary_rows = _chapter_glossary(storage, raw, translated)
+    return {
+        "ch": ch,
+        "raw": raw,
+        "translated": translated,
+        "slug": slug,
+        "meta": meta or {},
+        "glossary_rows": glossary_rows,
+        "glossary_relevant_count": sum(1 for row in glossary_rows if row["relevant"]),
+    }
+
+
 @router.get("/chapters/{index}")
 def chapter_detail(request: Request, index: int):
     cfg = deps.cfg()
@@ -28,7 +59,7 @@ def chapter_detail(request: Request, index: int):
     return deps.templates.TemplateResponse(
         request,
         "chapter.html",
-        {"ch": ch, "raw": raw, "translated": translated, "slug": cfg.novel.slug},
+        _chapter_context(storage, ch, raw, translated, cfg.novel.slug),
     )
 
 
@@ -49,7 +80,7 @@ def ebook_chapter_detail(request: Request, slug: str, index: int):
     return deps.templates.TemplateResponse(
         request,
         "chapter.html",
-        {"ch": ch, "raw": raw, "translated": translated, "slug": slug, "meta": meta},
+        _chapter_context(storage, ch, raw, translated, slug, meta),
     )
 
 

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Cài đặt {{ slug }} — novel2epub{% endblock %}
+{% block content %}
+<p><a href="/ebooks/{{ slug }}">&larr; Quay lại ebook</a></p>
+<h2>Cài đặt: {{ cfg.novel.title or slug }}</h2>
+<p class="muted">Ghi vào <code>{{ config_path }}</code> — chỉ đổi đúng các trường bên dưới, comment trong file được giữ nguyên.</p>
+
+<div class="section-head"><h3>Truyện</h3></div>
+<form method="post" action="/ebooks/{{ slug }}/settings/novel">
+    <p><label>Tiêu đề <input type="text" name="title" value="{{ cfg.novel.title }}" size="50"></label></p>
+    <p><label>Tác giả <input type="text" name="author" value="{{ cfg.novel.author }}" size="40"></label></p>
+    <p><label>Ngôn ngữ <input type="text" name="language" value="{{ cfg.novel.language }}" size="8"></label></p>
+    <p><button type="submit">Lưu thông tin truyện</button></p>
+</form>
+
+<hr>
+
+<div class="section-head">
+    <h3>Nguồn truyện (crawl)</h3>
+    <p class="muted">Áp nhanh một <a href="/sources">site preset</a> rồi tinh chỉnh.</p>
+</div>
+{% if presets %}
+<form method="post" action="/ebooks/{{ slug }}/settings/source/apply-preset" class="form-row">
+    <label>Preset
+        <select name="preset">
+            {% for name in presets.keys() %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+        </select>
+    </label>
+    <button type="submit">Áp preset</button>
+</form>
+{% endif %}
+<form method="post" action="/ebooks/{{ slug }}/settings/source">
+    <p>
+        <label>Engine
+            <select name="engine">
+                {% for opt in ["http", "crawl4ai", "firecrawl"] %}
+                <option value="{{ opt }}" {% if cfg.crawl.engine == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </p>
+    <p><label>URL mục lục (toc_url) <input type="text" name="toc_url" value="{{ cfg.crawl.toc_url }}" size="60"></label></p>
+    <p><label>Regex lọc link chương <input type="text" name="chapter_link_pattern" value="{{ cfg.crawl.chapter_link_pattern }}" size="50"></label></p>
+    <p>
+        <label>max_chapters <input type="number" name="max_chapters" value="{{ cfg.crawl.max_chapters }}" min="0"></label>
+        <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.crawl.delay_seconds }}" min="0"></label>
+        <label>encoding <input type="text" name="encoding" value="{{ cfg.crawl.encoding }}" size="8" placeholder="auto"></label>
+    </p>
+    <fieldset>
+        <legend>Selector (engine http)</legend>
+        <p><label>content_selector <input type="text" name="content_selector" value="{{ cfg.crawl.content_selector }}" size="30"></label>
+           <label>toc_selector <input type="text" name="toc_selector" value="{{ cfg.crawl.toc_selector }}" size="30"></label>
+           <label>chapter_title_selector <input type="text" name="chapter_title_selector" value="{{ cfg.crawl.chapter_title_selector }}" size="20"></label></p>
+        <p><label>title_selector <input type="text" name="title_selector" value="{{ cfg.crawl.title_selector }}" size="20"></label>
+           <label>author_selector <input type="text" name="author_selector" value="{{ cfg.crawl.author_selector }}" size="20"></label>
+           <label>desc_selector <input type="text" name="desc_selector" value="{{ cfg.crawl.desc_selector }}" size="20"></label>
+           <label>cover_selector <input type="text" name="cover_selector" value="{{ cfg.crawl.cover_selector }}" size="20"></label></p>
+    </fieldset>
+    <fieldset>
+        <legend>crawl4ai / firecrawl</legend>
+        <p><label class="check"><input type="checkbox" name="headless" value="true" {% if cfg.crawl.headless %}checked{% endif %}> headless</label>
+           <label class="check"><input type="checkbox" name="magic" value="true" {% if cfg.crawl.magic %}checked{% endif %}> magic</label></p>
+        <p><label>js_code <input type="text" name="js_code" value="{{ cfg.crawl.js_code }}" size="50"></label></p>
+        <p><label>api_url <input type="text" name="api_url" value="{{ cfg.crawl.api_url or '' }}" size="40"></label></p>
+        <p><label>api_key (để trống = giữ nguyên) <input type="password" name="api_key" size="40"></label></p>
+    </fieldset>
+    <p><button type="submit">Lưu nguồn</button></p>
+</form>
+
+<hr>
+
+<div class="section-head"><h3>AI CLI (dịch)</h3></div>
+<form method="post" action="/ebooks/{{ slug }}/settings/ai">
+    <p>
+        <label>type
+            <select name="type">
+                {% for opt in ["cli", "google", "none"] %}
+                <option value="{{ opt }}" {% if cfg.translate.type == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </p>
+    <fieldset>
+        <legend>CLI</legend>
+        <p><label>command <input type="text" name="command" value="{{ cfg.translate.cli.command }}" size="30"></label>
+           <label>model <input type="text" name="model" value="{{ cfg.translate.cli.model }}" size="20"></label>
+           <label>mode
+                <select name="mode">
+                    {% for opt in ["stdin", "arg"] %}<option value="{{ opt }}" {% if cfg.translate.cli.mode == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}
+                </select>
+           </label>
+           <label>timeout_seconds <input type="number" name="timeout_seconds" value="{{ cfg.translate.cli.timeout_seconds }}" min="1"></label></p>
+        <p><label>prompt_template (để trống = giữ nguyên)<br><textarea name="prompt_template" rows="10" cols="80">{{ cfg.translate.cli.prompt_template }}</textarea></label></p>
+        <p><label>title_prompt_template (để trống = giữ nguyên)<br><textarea name="title_prompt_template" rows="6" cols="80">{{ cfg.translate.cli.title_prompt_template }}</textarea></label></p>
+    </fieldset>
+    <fieldset>
+        <legend>Style</legend>
+        <p><label>tone <input type="text" name="tone" value="{{ cfg.translate.style.tone }}" size="40"></label></p>
+        <p><label>pronoun_policy <input type="text" name="pronoun_policy" value="{{ cfg.translate.style.pronoun_policy }}" size="20"></label>
+           <label>title_mode <input type="text" name="title_mode" value="{{ cfg.translate.style.title_mode }}" size="15"></label>
+           <label>han_viet_level <input type="text" name="han_viet_level" value="{{ cfg.translate.style.han_viet_level }}" size="15"></label>
+           <label class="check"><input type="checkbox" name="keep_paragraphs" value="true" {% if cfg.translate.style.keep_paragraphs %}checked{% endif %}> keep_paragraphs</label></p>
+    </fieldset>
+    <fieldset>
+        <legend>Retry / Chunk / Rate</legend>
+        <p><label>retry attempts <input type="number" name="retry_attempts" value="{{ cfg.translate.retry.attempts }}" min="1"></label>
+           <label>retry delay_seconds <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.translate.retry.delay_seconds }}" min="0"></label></p>
+        <p><label>chunk max_chars <input type="number" name="chunk_max_chars" value="{{ cfg.translate.chunk.max_chars }}" min="0"></label>
+           <label>chunk overlap_paragraphs <input type="number" name="chunk_overlap_paragraphs" value="{{ cfg.translate.chunk.overlap_paragraphs }}" min="0"></label>
+           <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.translate.delay_seconds }}" min="0"></label></p>
+    </fieldset>
+    <p><button type="submit">Lưu cấu hình AI</button></p>
+</form>
+{% endblock %}

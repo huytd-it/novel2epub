@@ -70,6 +70,18 @@ def test_load_glossary_dict_merges_inline_and_files(tmp_path):
     }
 
 
+def test_load_glossary_dict_strips_note(tmp_path):
+    names = tmp_path / "names.txt"
+    names.write_text("庄国 = Trang Quốc | nước hư cấu\n", encoding="utf-8")
+
+    cfg = TranslateConfig(
+        glossary_files=GlossaryFilesConfig(names=str(names), vietphrase=""),
+    )
+    result = load_glossary_dict(cfg)
+    # Note KHÔNG được lọt vào target (tránh thay thế literal sai khi dịch).
+    assert result == {"庄国": "Trang Quốc"}
+
+
 def test_load_glossary_dict_ignores_missing_files():
     cfg = TranslateConfig(
         glossary={"元宵": "Nguyên Tiêu"},

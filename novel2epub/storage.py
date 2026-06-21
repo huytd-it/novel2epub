@@ -13,6 +13,27 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
+def parse_glossary_line(line: str) -> tuple[str, str, str] | None:
+    """Tách 1 dòng glossary `Hán = Việt | ghi chú` thành (source, target, note).
+
+    - Phần `| ghi chú` là tùy chọn (tương thích ngược dòng cũ `Hán = Việt`).
+    - Trả None nếu dòng rỗng, là comment (`#`) hoặc không có dấu `=`.
+    """
+    line = line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        return None
+    source, rest = line.split("=", 1)
+    source = source.strip()
+    if "|" in rest:
+        target, note = rest.split("|", 1)
+        target, note = target.strip(), note.strip()
+    else:
+        target, note = rest.strip(), ""
+    if not source or not target:
+        return None
+    return source, target, note
+
+
 @dataclass
 class Chapter:
     index: int
@@ -193,22 +214,36 @@ class Storage:
         return self.glossary_dir / name
 
     def read_glossary_file(self, name: str) -> dict[str, str]:
+        """Trả về dict source→target (bỏ ghi chú nếu có)."""
         path = self.glossary_path(name)
         if not path.exists():
             return {}
         glossary: dict[str, str] = {}
         for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "=" not in line:
-                continue
-            zh, vi = line.split("=", 1)
-            zh = zh.strip()
-            vi = vi.strip()
-            if zh and vi:
-                glossary[zh] = vi
+            parsed = parse_glossary_line(line)
+            if parsed:
+                source, target, _note = parsed
+                glossary[source] = target
         return glossary
+
+    def read_glossary_notes(self) -> dict[str, str]:
+        """Gộp names.txt + vietphrase.txt, trả {target: note} cho mục có ghi chú.
+
+        Target (từ tiếng Việt) là chuỗi dùng để dò trong bản dịch khi sinh footnote.
+        """
+        notes: dict[str, str] = {}
+        for name in ("names.txt", "vietphrase.txt"):
+            path = self.glossary_path(name)
+            if not path.exists():
+                continue
+            for line in path.read_text(encoding="utf-8").splitlines():
+                parsed = parse_glossary_line(line)
+                if not parsed:
+                    continue
+                _source, target, note = parsed
+                if note:
+                    notes[target] = note
+        return notes
 
     def write_glossary_file(self, name: str, content: str) -> None:
         self.ensure_dirs()

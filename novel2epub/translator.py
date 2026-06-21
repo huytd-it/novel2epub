@@ -15,6 +15,7 @@ from typing import Protocol
 
 from . import cli_runner
 from .config import TranslateConfig
+from .storage import parse_glossary_line
 
 # Một số mẫu "lời mở đầu" mà LLM hay tự thêm dù đã bảo đừng.
 _PREAMBLE = re.compile(
@@ -106,12 +107,9 @@ def load_glossary_dict(cfg: TranslateConfig) -> dict[str, str]:
         if not p.exists():
             continue
         for line in p.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            zh, vi = line.split("=", 1)
-            zh, vi = zh.strip(), vi.strip()
-            if zh and vi:
+            parsed = parse_glossary_line(line)
+            if parsed:
+                zh, vi, _note = parsed
                 glossary[zh] = vi
     return glossary
 

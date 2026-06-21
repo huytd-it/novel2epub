@@ -2,15 +2,10 @@ requests>=2.31.0
 ebooklib>=0.18
 deep-translator>=1.11.4
 PyYAML>=6.0.1
+ruamel.yaml>=0.18.0
 beautifulsoup4>=4.12.0
 fastapi>=0.110.0
 uvicorn>=0.29.0
 jinja2>=3.1.0
 python-multipart>=0.0.9
-
-# Dev/test
 pytest>=8.0.0
-
-# Tùy chọn: chỉ cài khi cần engine crawl4ai / firecrawl.
-# crawl4ai>=0.9.0
-# firecrawl-py>=1.6.0

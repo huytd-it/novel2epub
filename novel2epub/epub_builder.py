@@ -5,17 +5,40 @@ import html
 import re
 from pathlib import Path
 
+from . import footnotes
 from .storage import Chapter, Manifest
 
 _CSS = """
 body { font-family: serif; line-height: 1.6; margin: 5%; }
 h1 { text-align: center; font-size: 1.4em; margin: 1em 0; }
 p { text-indent: 1.5em; margin: 0.4em 0; text-align: justify; }
+sup.fn a { text-decoration: none; font-size: 0.8em; }
+.footnotes { margin-top: 2em; font-size: 0.9em; }
+.footnotes ol { padding-left: 1.2em; }
+.footnotes li { text-indent: 0; margin: 0.3em 0; }
 """
+
+# Sau khi html.escape, thay placeholder PUA của footnote thành <sup> có anchor.
+_MARK_RE = re.compile(
+    re.escape(footnotes.MARK_OPEN) + r"(\d+)" + re.escape(footnotes.MARK_CLOSE)
+)
+
+
+def _markers_to_html(escaped: str) -> str:
+    return _MARK_RE.sub(
+        lambda m: (
+            f'<sup class="fn"><a id="fnref{m.group(1)}" '
+            f'href="#fn{m.group(1)}">({m.group(1)})</a></sup>'
+        ),
+        escaped,
+    )
 
 
 def _md_to_xhtml_body(md: str) -> str:
-    """Chuyển markdown đơn giản -> các đoạn <p>/<h2> (escape an toàn)."""
+    """Chuyển markdown đơn giản -> các đoạn <p>/<h2> (escape an toàn).
+
+    Placeholder footnote (ký tự PUA) được giữ qua html.escape rồi đổi thành <sup>.
+    """
     blocks: list[str] = []
     for block in re.split(r"\n\s*\n", md.strip()):
         block = block.strip()
@@ -23,12 +46,29 @@ def _md_to_xhtml_body(md: str) -> str:
             continue
         heading = re.match(r"^#{1,6}\s+(.*)$", block)
         if heading:
-            blocks.append(f"<h2>{html.escape(heading.group(1).strip())}</h2>")
+            blocks.append(f"<h2>{_markers_to_html(html.escape(heading.group(1).strip()))}</h2>")
             continue
         # Gộp các dòng trong cùng đoạn, xuống dòng -> <br/>
-        lines = [html.escape(ln.strip()) for ln in block.splitlines() if ln.strip()]
+        lines = [_markers_to_html(html.escape(ln.strip())) for ln in block.splitlines() if ln.strip()]
         blocks.append("<p>" + "<br/>".join(lines) + "</p>")
     return "\n".join(blocks)
+
+
+def _render_footnotes(items: list[dict]) -> str:
+    """Sinh khối <div class="footnotes"> với danh sách định nghĩa + back-link."""
+    if not items:
+        return ""
+    lis = []
+    for it in items:
+        term = html.escape(str(it.get("term", "")))
+        note = html.escape(str(it.get("note", "")))
+        num = it.get("num")
+        body = f"<strong>{term}:</strong> {note}" if term else note
+        lis.append(
+            f'<li id="fn{num}">{body} '
+            f'<a href="#fnref{num}">↩</a></li>'
+        )
+    return '<div class="footnotes"><hr/><ol>' + "".join(lis) + "</ol></div>"
 
 
 def build_epub(
@@ -37,12 +77,15 @@ def build_epub(
     out_path: str | Path,
     language: str = "vi",
     cover_path: str | Path | None = None,
+    footnotes_by_stem: dict[str, list[dict]] | None = None,
 ) -> Path:
     """chapters_html: danh sách (chapter, tiêu_đề_hiển_thị, nội_dung_markdown).
 
     Ưu tiên metadata tiếng Việt (title_vi/author_vi/description_vi) nếu có; nhúng
-    ảnh bìa khi cover_path tồn tại.
+    ảnh bìa khi cover_path tồn tại. `footnotes_by_stem` (tùy chọn) map ch.stem ->
+    danh sách footnote để render khối chú thích ở cuối chương tương ứng.
     """
+    footnotes_by_stem = footnotes_by_stem or {}
     try:
         from ebooklib import epub
     except ImportError as e:  # pragma: no cover
@@ -82,6 +125,7 @@ def build_epub(
             lang=language,
         )
         body = _md_to_xhtml_body(md)
+        body += _render_footnotes(footnotes_by_stem.get(ch.stem, []))
         item.content = (
             f"<html><head><title>{html.escape(title)}</title>"
             f'<link rel="stylesheet" href="style/main.css" type="text/css"/></head>'

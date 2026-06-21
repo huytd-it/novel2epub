@@ -6,6 +6,7 @@
         <h2>Thư viện ebook</h2>
         <p class="muted">Library: <code>{{ library_path }}</code> · Config mặc định: <code>{{ config_path }}</code></p>
     </div>
+    <div><a href="/library">+ Thêm / quản lý ebook</a></div>
 </div>
 
 <p>
@@ -34,7 +35,7 @@
         <td>{{ ebook.raw_count }}</td>
         <td>{{ ebook.translated_count }}</td>
         <td>{% if ebook.epub_exists %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
-        <td><a href="/ebooks/{{ ebook.slug }}">mở</a></td>
+        <td><a href="/ebooks/{{ ebook.slug }}">mở</a> · <a href="/ebooks/{{ ebook.slug }}/settings">cài đặt</a></td>
     </tr>
     {% endfor %}
 </table>

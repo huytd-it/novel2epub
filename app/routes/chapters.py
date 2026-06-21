@@ -28,6 +28,7 @@ router = APIRouter()
 def _chapter_glossary(storage: Storage, raw: str, translated: str) -> list[dict[str, str | bool]]:
     """Return glossary rows with entries used in this chapter first."""
     haystack = f"{raw}\n{translated}".lower()
+    notes = storage.read_glossary_notes()
     rows: list[dict[str, str | bool]] = []
     for filename, label in (("names.txt", "Tên riêng"), ("vietphrase.txt", "Thuật ngữ")):
         for source, suggested in storage.read_glossary_file(filename).items():
@@ -36,6 +37,7 @@ def _chapter_glossary(storage: Storage, raw: str, translated: str) -> list[dict[
             rows.append({
                 "source": source,
                 "suggested": suggested,
+                "note": notes.get(suggested, ""),
                 "file": filename,
                 "type": label,
                 "relevant": source_hit or suggested_hit,

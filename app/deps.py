@@ -10,10 +10,12 @@ from fastapi import HTTPException
 from fastapi.templating import Jinja2Templates
 
 from novel2epub.config import load_config, load_library
+from novel2epub.sources import load_presets
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = os.environ.get("NOVEL2EPUB_CONFIG", "config.yaml")
 LIBRARY_PATH = os.environ.get("NOVEL2EPUB_LIBRARY", "library.yaml")
+SOURCES_PATH = os.environ.get("NOVEL2EPUB_SOURCES", "sources.yaml")
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
@@ -30,6 +32,10 @@ def cfg():
 
 def library():
     return load_library(LIBRARY_PATH)
+
+
+def presets():
+    return load_presets(SOURCES_PATH)
 
 
 def resolve_path(base: Path, value: str) -> str:

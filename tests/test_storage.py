@@ -1,4 +1,51 @@
-from novel2epub.storage import Chapter, Manifest, Storage
+from novel2epub.storage import Chapter, Manifest, Storage, parse_glossary_line
+
+
+def test_parse_glossary_line_variants():
+    assert parse_glossary_line("庄国 = Trang Quốc") == ("庄国", "Trang Quốc", "")
+    assert parse_glossary_line("庄国 = Trang Quốc | nước hư cấu") == (
+        "庄国",
+        "Trang Quốc",
+        "nước hư cấu",
+    )
+    # khoảng trắng thừa được strip
+    assert parse_glossary_line("  道元  =  Đạo Nguyên  |  ghi chú  ") == (
+        "道元",
+        "Đạo Nguyên",
+        "ghi chú",
+    )
+    # comment / không có '=' / rỗng -> None
+    assert parse_glossary_line("# comment") is None
+    assert parse_glossary_line("dòng không có dấu bằng") is None
+    assert parse_glossary_line("   ") is None
+    # thiếu source hoặc target -> None
+    assert parse_glossary_line(" = Trang Quốc") is None
+    assert parse_glossary_line("庄国 = ") is None
+
+
+def test_read_glossary_file_strips_note(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    storage.write_glossary_file(
+        "names.txt",
+        "庄国 = Trang Quốc | nước hư cấu\n道元 = Đạo Nguyên\n",
+    )
+    # read_glossary_file vẫn trả source->target, bỏ note
+    assert storage.read_glossary_file("names.txt") == {
+        "庄国": "Trang Quốc",
+        "道元": "Đạo Nguyên",
+    }
+
+
+def test_read_glossary_notes_merges_only_entries_with_note(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    storage.write_glossary_file("names.txt", "庄国 = Trang Quốc | nước hư cấu\n")
+    storage.write_glossary_file(
+        "vietphrase.txt", "元气 = nguyên khí\n猫虎 = miêu hổ | tàn nhẫn, khốc liệt\n"
+    )
+    assert storage.read_glossary_notes() == {
+        "Trang Quốc": "nước hư cấu",
+        "miêu hổ": "tàn nhẫn, khốc liệt",
+    }
 
 
 def test_read_glossary_file_parses_lines_and_skips_invalid(tmp_path):

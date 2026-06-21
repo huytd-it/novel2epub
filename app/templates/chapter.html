@@ -36,6 +36,7 @@
             {% for row in glossary_rows[:80] %}
             <div class="glossary-chip{% if row.relevant %} relevant{% endif %}" data-search="{{ row.source }} {{ row.suggested }} {{ row.type }} {{ row.file }}">
                 <div><strong>{{ row.source }}</strong> <span class="muted">→</span> {{ row.suggested }}</div>
+                {% if row.note %}<div class="muted">📝 {{ row.note }} <em>· → footnote khi build</em></div>{% endif %}
                 <div class="muted">{{ row.type }} · {{ row.file }}{% if row.relevant %} · trong chương{% endif %}</div>
             </div>
             {% else %}
@@ -141,6 +142,24 @@
 </details>
 {% endif %}
 
+{% if meta and meta.before_find_replace %}
+<details>
+    <summary>Chương này đã bị tìm &amp; thay thế — xem/khôi phục bản trước khi thay</summary>
+    <div class="cols">
+        <div>
+            <h4>Bản trước khi tìm &amp; thay thế</h4>
+            <textarea readonly>{{ meta.before_find_replace }}</textarea>
+        </div>
+        <div>
+            <form method="post" action="{{ base }}">
+                <input type="hidden" name="translated" value="{{ meta.before_find_replace }}">
+                <p><button type="submit">Khôi phục bản này (ghi đè bản dịch hiện tại)</button></p>
+            </form>
+        </div>
+    </div>
+</details>
+{% endif %}
+
 <div class="cols">
     <div>
         <div class="section-head">
@@ -193,6 +212,7 @@
     <input type="hidden" name="chapter_index" value="{{ ch.index }}">
     <label>Hán <input type="text" name="source" placeholder="庄国" required></label>
     <label>Việt <input type="text" name="suggested" placeholder="Trang Quốc" required></label>
+    <label>Ghi chú (tùy chọn) <input type="text" name="note" placeholder="Sẽ thành footnote khi build"></label>
     <label>File đích
         <select name="target_file">
             <option value="names.txt">names.txt (tên riêng)</option>

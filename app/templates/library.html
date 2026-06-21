@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Thư viện — novel2epub{% endblock %}
+{% block content %}
+<h2>Thư viện ebook</h2>
+<p class="muted">Danh sách trong <code>{{ library_path }}</code>. Thêm ebook sẽ tạo file config mới từ <code>config.example.yaml</code> (giữ nguyên comment hướng dẫn).</p>
+
+{% if ebooks %}
+<table>
+    <tr><th>Slug</th><th>Tên</th><th>Config</th><th></th></tr>
+    {% for e in ebooks %}
+    <tr>
+        <td><a href="/ebooks/{{ e.slug }}">{{ e.slug }}</a></td>
+        <td>{{ e.name }}</td>
+        <td><code>{{ e.config }}</code>{% if not e.exists %} <span class="badge no">thiếu file</span>{% endif %}</td>
+        <td>
+            <a href="/ebooks/{{ e.slug }}/settings">Cài đặt</a>
+            <form method="post" action="/library/ebooks/{{ e.slug }}/delete" style="display:inline" onsubmit="return confirm('Gỡ ebook {{ e.slug }} khỏi thư viện?');">
+                <label class="check"><input type="checkbox" name="delete_config" value="true"> xóa cả file config</label>
+                <button type="submit">Gỡ</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p class="muted">Chưa có ebook nào trong thư viện.</p>
+{% endif %}
+
+<hr>
+
+<div class="section-head">
+    <h3>Thêm ebook mới</h3>
+    <p class="muted">Nhập tối thiểu tên + URL mục lục. Có thể chọn một <a href="/sources">site preset</a> để điền sẵn selector/pattern theo website.</p>
+</div>
+<form method="post" action="/library/ebooks">
+    <p><label>Tên truyện <input type="text" name="name" required></label></p>
+    <p><label>Slug (để trống = tự sinh từ tên) <input type="text" name="slug" placeholder="ten-truyen"></label></p>
+    <p><label>URL mục lục (toc_url) <input type="text" name="toc_url" size="60"></label></p>
+    <p>
+        <label>Engine
+            <select name="engine">
+                <option value="http">http</option>
+                <option value="crawl4ai">crawl4ai</option>
+                <option value="firecrawl">firecrawl</option>
+            </select>
+        </label>
+    </p>
+    <p>
+        <label>Site preset
+            <select name="preset">
+                <option value="">— không dùng —</option>
+                {% for name in presets.keys() %}
+                <option value="{{ name }}">{{ name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </p>
+    <p><button type="submit">Tạo ebook</button></p>
+</form>
+{% endblock %}

@@ -171,6 +171,58 @@ def test_translate_selected_fails_fast_on_first_chapter(tmp_path, monkeypatch):
     assert tr.calls == 1
 
 
+def test_step_find_replace_replaces_and_backs_up(tmp_path):
+    from novel2epub.storage import Manifest
+
+    storage = Storage(tmp_path, "t")
+    chs = [Chapter(index=i, url=f"http://x/{i}") for i in (1, 2)]
+    storage.save_manifest(Manifest(slug="t", chapters=chs))
+    storage.write_translated(chs[0], "Trang Quốc và Trang Quốc.")
+    storage.write_translated(chs[1], "Không có gì.")
+
+    cfg = _cfg(tmp_path)
+    logs = []
+    pipeline.step_find_replace(cfg, logs.append, find="Trang Quốc", replace="Trang quốc")
+
+    assert storage.read_translated(chs[0]) == "Trang quốc và Trang quốc."
+    assert storage.read_translated(chs[1]) == "Không có gì."
+    # Bản trước khi thay được lưu để khôi phục.
+    assert storage.read_meta(chs[0])["before_find_replace"] == "Trang Quốc và Trang Quốc."
+    assert not storage.has_meta(chs[1])
+    assert any("tổng 2 lần thay" in m for m in logs)
+
+
+def test_step_find_replace_empty_find_is_noop(tmp_path):
+    from novel2epub.storage import Manifest
+
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_translated(ch, "nguyên văn")
+
+    cfg = _cfg(tmp_path)
+    pipeline.step_find_replace(cfg, lambda m: None, find="", replace="x")
+    assert storage.read_translated(ch) == "nguyên văn"
+
+
+def test_step_build_inserts_glossary_footnotes(tmp_path):
+    from novel2epub.storage import Manifest
+
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=1, url="http://x/1", title_vi="Chương 1")
+    storage.save_manifest(Manifest(slug="t", title_vi="Truyện", chapters=[ch]))
+    storage.write_translated(ch, "Trang Quốc rộng lớn.")
+    storage.write_glossary_file("names.txt", "庄国 = Trang Quốc | nước hư cấu\n")
+
+    cfg = _cfg(tmp_path)
+    cfg.output.epub_path = str(tmp_path / "out.epub")
+    out = pipeline.step_build(cfg, lambda m: None)
+
+    from pathlib import Path
+
+    assert Path(out).exists() and Path(out).stat().st_size > 0
+
+
 def test_build_epub_uses_vi_meta_and_cover(tmp_path):
     from novel2epub.epub_builder import build_epub
     from novel2epub.storage import Manifest

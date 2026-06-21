@@ -3,7 +3,7 @@
 {% block content %}
 <p><a href="/ebooks/{{ slug }}">&larr; Quay lại ebook</a></p>
 <h2>Glossary</h2>
-<p class="muted">Mỗi dòng dạng <code>Hán = Việt</code>. Dòng bắt đầu bằng <code>#</code> hoặc không có <code>=</code> sẽ bị bỏ qua.</p>
+<p class="muted">Mỗi dòng dạng <code>Hán = Việt</code> hoặc <code>Hán = Việt | ghi chú</code>. Dòng bắt đầu bằng <code>#</code> hoặc không có <code>=</code> sẽ bị bỏ qua. Mục có <strong>ghi chú</strong> sẽ tự sinh footnote ở lần xuất hiện đầu tiên trong mỗi chương khi build EPUB.</p>
 
 <form method="post" action="/ebooks/{{ slug }}/glossary">
     <div class="cols">
@@ -92,6 +92,21 @@
 <hr>
 
 <div class="section-head">
+    <h3>Tìm &amp; thay thế toàn novel (literal, không AI)</h3>
+    <p class="muted">Thay thế literal mọi chỗ khớp trong các chương <strong>đã dịch</strong> — nhanh, dùng để đổi tên riêng đã dịch hoặc sửa lỗi hàng loạt. Để trống phạm vi = toàn bộ. <strong>Đây là hành động ghi đè trực tiếp</strong>; bản trước khi thay được lưu trong meta của từng chương (<code>before_find_replace</code>), nhưng nên commit/backup trước khi chạy trên phạm vi lớn.</p>
+</div>
+<form method="post" action="/ebooks/{{ slug }}/glossary/find-replace" class="form-row">
+    <label>Tìm <input type="text" name="find" required></label>
+    <label>Thay bằng <input type="text" name="replace"></label>
+    <label>Từ chương <input type="number" name="chapter_from" value="0" min="0"></label>
+    <label>đến chương <input type="number" name="chapter_to" value="0" min="0"></label>
+    <label class="check"><input type="checkbox" name="also_raw" value="true"> Cả bản gốc (raw)</label>
+    <button type="submit" {% if job.running %}disabled{% endif %}>Tìm &amp; thay thế</button>
+</form>
+
+<hr>
+
+<div class="section-head">
     <h3>AI rewrite chương (ghi đè bản dịch)</h3>
     <p class="muted">AI sẽ biên tập lại toàn bộ bản dịch trong phạm vi đã chọn theo glossary + nguyên tắc "edit hay" (dùng từ đồng nghĩa linh hoạt, câu tự nhiên, tên chương hay hơn...). <strong>Đây là hành động ghi đè trực tiếp</strong> — bản trước khi rewrite được lưu lại trong meta của từng chương, nhưng nên backup/commit trước khi chạy trên phạm vi lớn.</p>
 </div>
@@ -116,7 +131,7 @@ const logEl = document.getElementById("log");
 // --- Asynchronous action button handler ---
 function setJobButtonsDisabled(disabled) {
     const jobButtons = document.querySelectorAll(
-        'form[action*="/rewrite"] button, form[action*="/jobs/"] button, form[action*="/action"] button'
+        'form[action*="/rewrite"] button, form[action*="/find-replace"] button, form[action*="/jobs/"] button, form[action*="/action"] button'
     );
     for (const btn of jobButtons) {
         btn.disabled = disabled;
@@ -127,7 +142,7 @@ document.addEventListener("submit", async function(event) {
     const form = event.target;
     const action = form.getAttribute("action") || "";
     
-    if (action.includes("/rewrite") || action.includes("/jobs/") || action.includes("/action")) {
+    if (action.includes("/rewrite") || action.includes("/find-replace") || action.includes("/jobs/") || action.includes("/action")) {
         event.preventDefault();
         
         setJobButtonsDisabled(true);

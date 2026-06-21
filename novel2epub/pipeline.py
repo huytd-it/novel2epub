@@ -580,6 +580,60 @@ def step_rewrite_chapters(
     return manifest
 
 
+def step_find_replace(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    find: str,
+    replace: str,
+    start: int | None = None,
+    end: int | None = None,
+    also_raw: bool = False,
+) -> Manifest:
+    """Tìm & thay thế literal trên các chương đã dịch (không gọi AI).
+
+    Nhanh, dùng để đổi tên riêng đã dịch hoặc sửa lỗi hàng loạt. Bản trước khi
+    thay được lưu vào meta['before_find_replace'] để có thể khôi phục.
+    """
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    if not find:
+        log("[find-replace] Bỏ qua: ô 'tìm' đang rỗng.")
+        return manifest
+
+    selected = _chapter_range(manifest.chapters, None, start, end)
+    changed_chapters = 0
+    total_replacements = 0
+    for ch in selected:
+        if storage.has_translated(ch):
+            content = storage.read_translated(ch)
+            count = content.count(find)
+            if count:
+                meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+                meta["before_find_replace"] = content
+                storage.write_meta(ch, meta)
+                storage.write_translated(ch, content.replace(find, replace))
+                changed_chapters += 1
+                total_replacements += count
+                log(f"[find-replace] Chương {ch.index}: thay {count} chỗ (bản dịch).")
+        if also_raw and storage.has_raw(ch):
+            raw = storage.read_raw(ch)
+            raw_count = raw.count(find)
+            if raw_count:
+                storage.write_raw(ch, raw.replace(find, replace))
+                total_replacements += raw_count
+                log(f"[find-replace] Chương {ch.index}: thay {raw_count} chỗ (bản gốc).")
+
+    log(
+        f"[find-replace] Hoàn tất. Đổi {changed_chapters} chương, "
+        f"tổng {total_replacements} lần thay."
+    )
+    return manifest
+
+
 def step_evaluate_translation(
     cfg: Config,
     log: LogFn = _print,
@@ -714,11 +768,19 @@ def step_build(cfg: Config, log: LogFn = _print) -> str:
     if manifest is None:
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
 
+    from . import footnotes as _footnotes
+
+    notes = storage.read_glossary_notes()
     chapters_html = []
+    footnotes_by_stem: dict[str, list[dict]] = {}
     for ch in manifest.chapters:
         if storage.has_translated(ch):
             md = storage.read_translated(ch)
             title = ch.title_vi or ch.title_zh or f"Chương {ch.index}"
+            # Chỉ sinh footnote cho bản dịch (glossary target là tiếng Việt).
+            md, fns = _footnotes.annotate(md, notes)
+            if fns:
+                footnotes_by_stem[ch.stem] = fns
         elif storage.has_raw(ch):
             md = storage.read_raw(ch)
             title = ch.title_zh or f"Chương {ch.index}"
@@ -731,7 +793,12 @@ def step_build(cfg: Config, log: LogFn = _print) -> str:
 
     cover_path = storage.cover_fs_path(manifest)
     out = build_epub(
-        manifest, chapters_html, cfg.epub_path, cfg.novel.language, cover_path=cover_path
+        manifest,
+        chapters_html,
+        cfg.epub_path,
+        cfg.novel.language,
+        cover_path=cover_path,
+        footnotes_by_stem=footnotes_by_stem,
     )
     log(f"[build] Đã tạo EPUB: {out}  ({len(chapters_html)} chương)")
     return str(out)

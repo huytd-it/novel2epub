@@ -25,7 +25,7 @@
     <h3>AI gợi ý glossary</h3>
     <p class="muted">Phân tích bản gốc + bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần), chỉ đưa gợi ý — bạn tự duyệt trước khi lưu.</p>
 </div>
-<form method="post" action="/ebooks/{{ slug }}/glossary/suggest">
+<form method="post" action="/ebooks/{{ slug }}/glossary/suggest" class="form-row">
     <label>Từ chương <input type="number" name="chapter_from" value="{{ chapter_from or 1 }}" min="0" required></label>
     <label>đến chương <input type="number" name="chapter_to" value="{{ chapter_to or 1 }}" min="0" required></label>
     <button type="submit">AI phân tích</button>
@@ -58,7 +58,7 @@
     <h3>AI rewrite chương (ghi đè bản dịch)</h3>
     <p class="muted">AI sẽ biên tập lại toàn bộ bản dịch trong phạm vi đã chọn theo glossary + nguyên tắc "edit hay" (dùng từ đồng nghĩa linh hoạt, câu tự nhiên, tên chương hay hơn...). <strong>Đây là hành động ghi đè trực tiếp</strong> — bản trước khi rewrite được lưu lại trong meta của từng chương, nhưng nên backup/commit trước khi chạy trên phạm vi lớn.</p>
 </div>
-<form method="post" action="/ebooks/{{ slug }}/glossary/rewrite">
+<form method="post" action="/ebooks/{{ slug }}/glossary/rewrite" class="form-row">
     <label>Từ chương <input type="number" name="chapter_from" value="1" min="0" required></label>
     <label>đến chương <input type="number" name="chapter_to" value="1" min="0" required></label>
     <button type="submit" {% if job.running %}disabled{% endif %}>AI rewrite</button>

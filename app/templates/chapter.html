@@ -8,6 +8,24 @@
 <p class="muted">Prompt/profile: <code>{{ meta.profile }}</code> · Model: <code>{{ meta.model or "-" }}</code></p>
 {% endif %}
 
+{% if meta and meta.before_rewrite %}
+<details>
+    <summary>Chương này đã được AI rewrite — xem/khôi phục bản trước khi rewrite</summary>
+    <div class="cols">
+        <div>
+            <h4>Bản trước khi rewrite</h4>
+            <textarea readonly>{{ meta.before_rewrite }}</textarea>
+        </div>
+        <div>
+            <form method="post" action="{% if slug %}/ebooks/{{ slug }}/chapters/{{ ch.index }}{% else %}/chapters/{{ ch.index }}{% endif %}">
+                <input type="hidden" name="translated" value="{{ meta.before_rewrite }}">
+                <p><button type="submit">Khôi phục bản này (ghi đè bản dịch hiện tại)</button></p>
+            </form>
+        </div>
+    </div>
+</details>
+{% endif %}
+
 <div class="cols">
     <div>
         <h3>Gốc (Trung)</h3>
@@ -21,4 +39,21 @@
         </form>
     </div>
 </div>
+
+<div class="section-head">
+    <h3>Thêm nhanh vào Glossary</h3>
+    <p class="muted">Thấy tên riêng/thuật ngữ cần thống nhất khi đọc bản dịch? Thêm ngay tại đây, không cần qua trang Glossary.</p>
+</div>
+<form method="post" action="/ebooks/{{ slug }}/glossary/quick-add" class="form-row">
+    <input type="hidden" name="chapter_index" value="{{ ch.index }}">
+    <label>Hán <input type="text" name="source" placeholder="庄国" required></label>
+    <label>Việt <input type="text" name="suggested" placeholder="Trang Quốc" required></label>
+    <label>File đích
+        <select name="target_file">
+            <option value="names.txt">names.txt (tên riêng)</option>
+            <option value="vietphrase.txt" selected>vietphrase.txt (thuật ngữ)</option>
+        </select>
+    </label>
+    <button type="submit">Thêm vào Glossary</button>
+</form>
 {% endblock %}

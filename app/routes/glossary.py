@@ -13,6 +13,24 @@ from .. import deps
 router = APIRouter()
 
 _MAX_SUGGEST_CHAPTERS = 5
+_GLOSSARY_FILES = ("names.txt", "vietphrase.txt")
+
+
+def _append_glossary_entry(storage: Storage, target_file: str, source: str, suggested: str) -> bool:
+    """Thêm 1 dòng `source = suggested` vào file glossary, bỏ qua nếu thiếu dữ liệu
+    hoặc mục đã tồn tại với đúng giá trị đó. Trả True nếu có ghi thật."""
+    source, suggested = source.strip(), suggested.strip()
+    if not source or not suggested or target_file not in _GLOSSARY_FILES:
+        return False
+    if storage.read_glossary_file(target_file).get(source) == suggested:
+        return False
+
+    path = storage.glossary_path(target_file)
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    if existing and not existing.endswith("\n"):
+        existing += "\n"
+    storage.write_glossary_file(target_file, f"{existing}{source} = {suggested}\n")
+    return True
 
 
 @router.get("/ebooks/{slug}/glossary")
@@ -95,27 +113,35 @@ async def ebook_glossary_apply(slug: str, request: Request):
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     form = await request.form()
-    by_file: dict[str, list[str]] = {"names.txt": [], "vietphrase.txt": []}
     i = 0
     while f"source_{i}" in form:
         if f"selected_{i}" in form:
-            source = form.get(f"source_{i}", "")
-            suggested = form.get(f"suggested_{i}", "")
-            target_file = form.get(f"target_file_{i}", "")
-            if target_file in by_file and source and suggested:
-                by_file[target_file].append(f"{source} = {suggested}")
+            _append_glossary_entry(
+                storage,
+                form.get(f"target_file_{i}", ""),
+                form.get(f"source_{i}", ""),
+                form.get(f"suggested_{i}", ""),
+            )
         i += 1
 
-    for name, lines in by_file.items():
-        if not lines:
-            continue
-        path = storage.glossary_path(name)
-        existing = path.read_text(encoding="utf-8") if path.exists() else ""
-        if existing and not existing.endswith("\n"):
-            existing += "\n"
-        storage.write_glossary_file(name, existing + "\n".join(lines) + "\n")
-
     return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)
+
+
+@router.post("/ebooks/{slug}/glossary/quick-add")
+def ebook_glossary_quick_add(
+    slug: str,
+    chapter_index: int = Form(...),
+    source: str = Form(""),
+    suggested: str = Form(""),
+    target_file: str = Form("vietphrase.txt"),
+):
+    """Thêm nhanh 1 mục glossary ngay từ trang chương — dùng khi đang đọc bản
+    dịch và phát hiện thuật ngữ/tên riêng cần thống nhất, không cần qua trang
+    Glossary riêng."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    _append_glossary_entry(storage, target_file, source, suggested)
+    return RedirectResponse(url=f"/ebooks/{slug}/chapters/{chapter_index}", status_code=303)
 
 
 @router.post("/ebooks/{slug}/glossary/rewrite")

@@ -6,10 +6,14 @@ import unicodedata
 from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
-from novel2epub.config import LibraryEntry, load_config
+from novel2epub.config import CrawlConfig, LibraryEntry, load_config
 from novel2epub.config_writer import save_library, scaffold_config_file
+from novel2epub.crawler import make_crawler
+from novel2epub.pipeline import _clean_title
+from novel2epub.sources import detect_preset
+from novel2epub.translator import RateLimited, make_translator
 
 from .. import deps
 
@@ -20,6 +24,45 @@ def slugify(value: str) -> str:
     value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
     value = re.sub(r"[^a-zA-Z0-9]+", "-", value).strip("-").lower()
     return value or "novel"
+
+
+def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
+    """Crawl TOC URL và trả về metadata detect được + slug gợi ý.
+    Tự động detect preset nếu chưa có.
+    """
+    all_presets = deps.presets()
+    preset_name = preset_name or detect_preset(toc_url, all_presets) or ""
+    p = all_presets.get(preset_name)
+    overrides = p.crawl_overrides() if p else {}
+    overrides.pop("chapter_link_pattern", None)
+    crawl_cfg = CrawlConfig(toc_url=toc_url, **overrides)
+
+    crawler = make_crawler(crawl_cfg)
+    try:
+        toc = crawler.fetch_toc()
+    finally:
+        crawler.close()
+
+    name = toc.title or ""
+    author = toc.author or ""
+
+    # Dịch title nếu có AI CLI
+    if name:
+        try:
+            global_cfg = load_config(deps.CONFIG_PATH)
+            if global_cfg.translate.type.lower() != "none":
+                translator = RateLimited(
+                    make_translator(global_cfg.translate),
+                    global_cfg.translate.delay_seconds,
+                )
+                title_vi, _note = translator.translate_title(name, kind="tên truyện")
+                if title_vi:
+                    name = _clean_title(title_vi)
+        except Exception:
+            pass
+
+    slug = slugify(name or slugify(toc_url))
+    return {"name": name, "author": author, "slug": slug, "preset": preset_name}
 
 
 @router.get("/library")
@@ -48,20 +91,45 @@ def library_page(request: Request):
     )
 
 
+@router.post("/library/ebooks/fetch-meta")
+def fetch_meta_api(
+    toc_url: str = Form(""),
+    preset: str = Form(""),
+):
+    """API: detect metadata từ URL + preset, trả JSON."""
+    if not toc_url:
+        return JSONResponse({"error": "Thiếu toc_url"}, status_code=400)
+    try:
+        data = _fetch_meta(toc_url, preset)
+        return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
 @router.post("/library/ebooks")
 def create_ebook(
     slug: str = Form(""),
     name: str = Form(""),
+    author: str = Form(""),
     toc_url: str = Form(""),
     engine: str = Form("http"),
     preset: str = Form(""),
 ):
+    # Tự động detect nếu chưa có name nhưng có toc_url
+    if not name and toc_url:
+        try:
+            fetched = _fetch_meta(toc_url, preset)
+            name = fetched.get("name", "")
+            author = author or fetched.get("author", "")
+            slug = slug or fetched.get("slug", "")
+        except Exception:
+            pass  # fallback: dùng slug từ name trống
+
     slug = slugify(slug or name)
     lib = deps.library()
     if slug in lib.ebooks:
         raise HTTPException(status_code=409, detail=f"Ebook '{slug}' đã tồn tại.")
 
-    # Đường dẫn config tương đối so với library.yaml (deps.ebook_config_path resolve).
     rel_config = f"configs/{slug}.yaml"
     dest = deps.resolve_path(Path(deps.LIBRARY_PATH).resolve().parent, rel_config)
 
@@ -75,6 +143,7 @@ def create_ebook(
         dest,
         slug=slug,
         title=name,
+        author=author,
         toc_url=toc_url,
         engine=engine,
         preset=preset_overrides,

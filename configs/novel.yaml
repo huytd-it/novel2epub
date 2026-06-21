@@ -1,0 +1,172 @@
+# ============================================================
+# Cấu hình novel2epub — copy thành config.yaml rồi chỉnh sửa
+# ============================================================
+
+novel:
+  # Tên hiển thị trên ebook (tiếng Việt). Nếu để trống sẽ lấy từ trang nguồn.
+  title: "Tên truyện tiếng Việt"
+  author: "Tác giả"
+  language: "vi"
+  # slug dùng làm tên thư mục lưu dữ liệu (không dấu, không khoảng trắng)
+  slug: "novel"
+
+# ----------------------- CRAWL -----------------------
+crawl:
+  # engine:
+  #   http      -> requests + BeautifulSoup, KHÔNG cần API key (mặc định, free).
+  #                Hợp với phần lớn site truyện chữ Trung HTML tĩnh.
+  #   crawl4ai  -> trình duyệt thật (Playwright), render JS + vượt bot detection
+  #                (magic mode). Dùng khi engine "http" bị chặn/redirect verify.
+  #                Cần: pip install crawl4ai && crawl4ai-setup
+  #   firecrawl -> Firecrawl trả Markdown sạch (cần api_key hoặc self-host).
+  engine: "crawl4ai"
+
+  # URL trang mục lục (table of contents) chứa danh sách link các chương
+  toc_url: "https://sto9.com/book/3352/index.html"
+
+  # Regex lọc link chương từ trang mục lục (khớp trên URL đầy đủ).
+  # Ví dụ chương có dạng .../book/12345/67890.html
+  chapter_link_pattern: ".*"
+
+  # Giới hạn số chương khi crawl nội dung mặc định (0 = tất cả). `toc`/fetch-toc
+  # vẫn luôn lưu toàn bộ danh sách chapter tìm được để bạn sort/search/filter.
+  max_chapters: 3
+
+  # Các regex (mỗi dòng 1 cái) để xóa rác trong nội dung chương đã crawl
+  # (quảng cáo, dòng "đọc tiếp tại...", v.v.). Tùy chọn.
+  strip_patterns:
+    - "^请记住本书首发域名.*$"
+    - "^天才一秒记住.*$"
+
+  # Độ trễ giữa các request (giây) để tránh bị chặn.
+  delay_seconds: 1.0
+
+  # ----- chỉ dùng cho engine = "http" -----
+  # CSS selector vùng nội dung chương. Nên đặt cho chính xác. Để trống thì
+  # crawler tự thử các selector phổ biến (#content, #chaptercontent, .content...).
+  content_selector: ""
+  # CSS selector vùng chứa danh sách link chương ở trang mục lục (tùy chọn,
+  # giúp loại link rác ở header/footer). Vd "#list", ".listmain".
+  toc_selector: "#allchapter"
+  # Bảng mã trang. Để trống = tự đoán. Nhiều site Trung dùng "gbk"/"gb2312".
+  encoding: ""
+
+  # ----- Metadata truyện (title, tác giả, mô tả, ảnh bìa) -----
+  # Để trống thì crawler tự lấy từ thẻ OG/meta chuẩn của trang mục lục:
+  #   title       <- og:novel:book_name / og:title / <title>
+  #   author      <- og:novel:author / meta[name=author]
+  #   description <- og:description / meta[name=description]
+  #   cover       <- og:image
+  # Chỉ đặt selector khi trang KHÔNG có thẻ OG (CSS selector trong trang mục lục).
+  title_selector: ""     # vd "#info h1"
+  author_selector: ""    # vd "#info p:nth-of-type(1)"
+  desc_selector: ""      # vd "#intro"
+  cover_selector: ""     # vd "#fmimg img" (lấy src của <img>)
+
+  # ----- chỉ dùng cho engine = "crawl4ai" -----
+  # Chạy trình duyệt ẩn (headless). Đặt false để mở cửa sổ thật khi debug.
+  headless: true
+  # Vượt bot detection tốt hơn (Crawl4AI magic mode). Nên để true.
+  magic: true
+  # JS tùy chọn để chờ/điều khiển trang (vd cuộn lazy-load). Để trống nếu không cần.
+  js_code: ""
+
+  # ----- chỉ dùng cho engine = "firecrawl" -----
+  # API key Firecrawl (hoặc đặt biến môi trường FIRECRAWL_API_KEY).
+  api_key: ""
+  # api_url: "http://localhost:3002"   # bỏ comment nếu self-host Firecrawl
+
+# ----------------------- DỊCH -----------------------
+  chapter_title_selector: ""
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+translate:
+  # type: cli | google | none
+  #   cli    -> gọi một AI CLI bất kỳ (opencode, llm, ollama, claude...)
+  #   google -> Google Translate miễn phí (deep-translator)
+  #   none   -> không dịch, giữ nguyên tiếng Trung (dùng để test crawl/build)
+  type: "cli"
+
+  # profile/genre dùng để chọn prompt mặc định phù hợp từng truyện.
+  profile: "traditional_cn_novel"
+  genre: "tien_hiep"
+  source_language: "zh-CN"
+  target_language: "vi"
+
+  # Style cho prompt dịch.
+  style:
+    tone: "mượt, tự nhiên, có chất cổ trang"
+    pronoun_policy: "contextual"
+    keep_paragraphs: true
+    title_mode: "creative"
+    han_viet_level: "balanced"
+
+  # Bảng thuật ngữ giữ nhất quán (tên riêng, công pháp...). Tùy chọn.
+  # Áp dụng cả trong prompt cho LLM lẫn thay thế literal sau khi dịch.
+  glossary:
+    # "陆压": "Lục Áp"
+    # "金丹": "Kim Đan"
+
+  # Glossary file theo ebook, đường dẫn có thể tương đối so với config.
+  glossary_files:
+    names: "data/ten-truyen/glossary/names.txt"
+    vietphrase: "data/ten-truyen/glossary/vietphrase.txt"
+
+  retry:
+    attempts: 1
+    delay_seconds: 3
+
+  chunk:
+    max_chars: 0
+    overlap_paragraphs: 0
+
+  cli:
+    # Lệnh CLI. Sẽ được tách bằng shlex. Ví dụ:
+    #   opencode run
+    #   llm -m gpt-4o-mini
+    #   ollama run qwen2.5
+    command: "opencode run"
+
+    # Model tùy chọn, truyền qua --model cho CLI hỗ trợ flag này (opencode).
+    # Xem model opencode hiện có bằng: opencode models
+    model: ""
+
+    # stdin -> prompt đưa vào qua stdin (khuyên dùng cho văn bản dài)
+    # arg   -> prompt nối vào cuối lệnh như 1 đối số
+    mode: "stdin"
+
+    # Mẫu prompt. {text} là nội dung cần dịch, {glossary} là bảng thuật ngữ.
+    # Prompt dưới đây mã hóa các nguyên tắc "edit" truyền thống của giới dịch
+    # ngôn tình/tiên hiệp Việt (Hán Việt, ngôi xưng, đảo trật tự câu...).
+    prompt_template: |
+      Bạn là dịch giả kỳ cựu chuyên dịch tiểu thuyết mạng Trung Quốc (tiên hiệp,
+      huyền huyễn, ngôn tình, đô thị) sang tiếng Việt cho độc giả Việt.
+      Dịch đoạn dưới đây theo các nguyên tắc sau:
+
+      1. TÊN RIÊNG (nhân vật, công pháp, chiêu thức, linh thú, địa danh, pháp bảo)
+         luôn để dạng Hán Việt, viết hoa; KHÔNG dịch nghĩa, KHÔNG phiên âm bính âm.
+      2. NGÔI XƯNG: không bê nguyên "ta/ngươi". Chọn ngôi xưng tiếng Việt hợp ngữ
+         cảnh và quan hệ nhân vật (cha/mẹ/thúc/bá/cô cô; huynh/đệ/tỷ/muội;
+         chàng/nàng; ông ấy/bà ấy; con/cháu; ngài/người với bậc tôn kính...).
+      3. TRẬT TỰ CÂU theo ngữ pháp tiếng Việt: đưa trạng ngữ lên đầu câu, bảo đảm
+         câu đủ chủ - vị, đảo lại thứ tự từ cho tự nhiên (không giữ nguyên trật tự Hán).
+      4. Văn phong mượt mà, đúng giọng tiểu thuyết; dùng từ Hán Việt vừa đủ — không
+         quá nặng khiến khó hiểu, không quá thuần Việt làm mất chất cổ trang.
+      5. Thơ từ, thành ngữ: dịch thoát ý cho dễ hiểu, giữ ý nghĩa gốc.
+      6. Giữ nguyên cách xuống dòng/ngắt đoạn của bản gốc.
+
+      CHỈ trả về bản dịch tiếng Việt. KHÔNG thêm lời mở đầu, giải thích hay ghi chú.
+      {glossary}
+      --- Nội dung cần dịch ---
+      {text}
+
+    timeout_seconds: 300
+
+  # Độ trễ giữa các lần gọi dịch (giây).
+  delay_seconds: 0.5
+
+# ----------------------- OUTPUT -----------------------
+output:
+  # Thư mục gốc lưu cache (raw + bản dịch).
+  data_dir: "data"
+  # File epub đầu ra. Nếu để trống: "<slug>.epub"
+  epub_path: ""

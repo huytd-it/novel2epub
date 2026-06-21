@@ -30,31 +30,133 @@
 
 <div class="section-head">
     <h3>Thêm ebook mới</h3>
-    <p class="muted">Nhập tối thiểu tên + URL mục lục. Có thể chọn một <a href="/sources">site preset</a> để điền sẵn selector/pattern theo website.</p>
+    <p class="muted">Nhập URL mục lục → bấm <strong>Lấy thông tin</strong> để tự detect preset, tên, tác giả. Hoặc chọn <a href="/sources">site preset</a> thủ công.</p>
 </div>
-<form method="post" action="/library/ebooks">
-    <p><label>Tên truyện <input type="text" name="name" required></label></p>
-    <p><label>Slug (để trống = tự sinh từ tên) <input type="text" name="slug" placeholder="ten-truyen"></label></p>
-    <p><label>URL mục lục (toc_url) <input type="text" name="toc_url" size="60"></label></p>
-    <p>
-        <label>Engine
-            <select name="engine">
-                <option value="http">http</option>
-                <option value="crawl4ai">crawl4ai</option>
-                <option value="firecrawl">firecrawl</option>
-            </select>
-        </label>
-    </p>
-    <p>
-        <label>Site preset
-            <select name="preset">
-                <option value="">— không dùng —</option>
-                {% for name in presets.keys() %}
-                <option value="{{ name }}">{{ name }}</option>
-                {% endfor %}
-            </select>
-        </label>
-    </p>
-    <p><button type="submit">Tạo ebook</button></p>
+<form method="post" action="/library/ebooks" id="create-form">
+    <fieldset>
+        <legend>Thông tin cơ bản</legend>
+        <div class="form-row">
+            <label>Tên truyện <input type="text" name="name" id="name" placeholder="để trống + Lấy thông tin"></label>
+            <label>Tác giả <input type="text" name="author" id="author" placeholder="detect từ URL"></label>
+        </div>
+        <div class="form-row">
+            <label>Slug <input type="text" name="slug" id="slug" placeholder="tự sinh từ tên"></label>
+            <label>URL mục lục <input type="text" name="toc_url" id="toc_url" size="50" required placeholder="https://..."></label>
+        </div>
+    </fieldset>
+    <fieldset>
+        <legend>Crawl engine &amp; preset</legend>
+        <div class="form-row">
+            <label>Engine
+                <select name="engine" id="engine">
+                    <option value="http">http (requests + BS4)</option>
+                    <option value="crawl4ai">crawl4ai (trình duyệt, JS)</option>
+                    <option value="firecrawl">firecrawl (API)</option>
+                </select>
+            </label>
+            <label>Site preset
+                <select name="preset" id="preset">
+                    <option value="">— không dùng —</option>
+                    {% for name in presets.keys() %}
+                    <option value="{{ name }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </div>
+    </fieldset>
+    <div class="form-row">
+        <button type="button" id="fetch-btn">🔍 Lấy thông tin</button>
+        <button type="submit">💾 Tạo ebook</button>
+        <span id="fetch-status" class="muted"></span>
+    </div>
 </form>
+
+<script>
+const PRESET_ENGINES = {
+    {% for name, p in presets.items() %}
+    "{{ name }}": "{{ p.engine }}",
+    {% endfor %}
+};
+
+function slugify(value) {
+    return value
+        .normalize("NFKD")
+        .replace(/[^\x00-\x7F]/g, "")
+        .replace(/[^a-zA-Z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .toLowerCase() || "novel";
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const nameEl = document.getElementById("name");
+    const slugEl = document.getElementById("slug");
+    const presetEl = document.getElementById("preset");
+    const engineEl = document.getElementById("engine");
+    const tocUrlEl = document.getElementById("toc_url");
+    const fetchBtn = document.getElementById("fetch-btn");
+    const fetchStatus = document.getElementById("fetch-status");
+    const authorEl = document.getElementById("author");
+
+    // Auto‑generate slug preview from name
+    nameEl.addEventListener("input", function () {
+        if (!slugEl.dataset.userEdited) {
+            slugEl.value = slugify(nameEl.value);
+        }
+    });
+    slugEl.addEventListener("input", function () {
+        slugEl.dataset.userEdited = slugEl.value !== slugify(nameEl.value);
+    });
+
+    // Auto‑fill engine when a preset is selected
+    presetEl.addEventListener("change", function () {
+        const engine = PRESET_ENGINES[presetEl.value];
+        if (engine) {
+            engineEl.value = engine;
+        }
+    });
+
+    // Fetch metadata from URL + preset
+    fetchBtn.addEventListener("click", async function () {
+        const url = tocUrlEl.value.trim();
+        if (!url) {
+            fetchStatus.textContent = "⚠️ Nhập URL mục lục trước.";
+            return;
+        }
+        fetchBtn.disabled = true;
+        fetchStatus.textContent = "⏳ Đang lấy thông tin...";
+
+        try {
+            const formData = new FormData();
+            formData.append("toc_url", url);
+            formData.append("preset", presetEl.value);
+
+            const res = await fetch("/library/ebooks/fetch-meta", {
+                method: "POST",
+                body: formData,
+            });
+            const data = await res.json();
+
+            if (data.error) {
+                fetchStatus.textContent = "⚠️ " + data.error;
+                return;
+            }
+
+            if (data.name) nameEl.value = data.name;
+            if (data.author) authorEl.value = data.author;
+            if (data.slug && !slugEl.dataset.userEdited) slugEl.value = data.slug;
+            if (data.preset && presetEl.value !== data.preset) {
+                presetEl.value = data.preset;
+                // auto‑fill engine for the detected preset
+                const engine = PRESET_ENGINES[data.preset];
+                if (engine) engineEl.value = engine;
+            }
+            fetchStatus.textContent = "✅ " + (data.name || "Đã lấy thông tin");
+        } catch (e) {
+            fetchStatus.textContent = "⚠️ Lỗi: " + e.message;
+        } finally {
+            fetchBtn.disabled = false;
+        }
+    });
+});
+</script>
 {% endblock %}

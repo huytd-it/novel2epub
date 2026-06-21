@@ -29,6 +29,7 @@ def _yaml() -> YAML:
 class SourcePreset:
     name: str
     engine: str = "http"
+    domains: str = ""
     chapter_link_pattern: str = r".*"
     content_selector: str = ""
     toc_selector: str = ""
@@ -45,9 +46,10 @@ class SourcePreset:
     delay_seconds: float = 1.0
 
     def crawl_overrides(self) -> dict[str, Any]:
-        """Dict áp lên nhánh `crawl` của config (bỏ `name`)."""
+        """Dict áp lên nhánh `crawl` của config (bỏ `name`, `domains`)."""
         data = asdict(self)
         data.pop("name", None)
+        data.pop("domains", None)
         return data
 
 
@@ -76,6 +78,30 @@ def load_presets(path: str | Path) -> dict[str, SourcePreset]:
         data["name"] = name
         presets[name] = SourcePreset(**data)
     return presets
+
+
+from urllib.parse import urlparse
+
+
+def detect_preset(url: str, presets: dict[str, SourcePreset]) -> str | None:
+    """Tìm preset khớp với URL dựa trên trường `domains`.
+    Ưu tiên pattern dài hơn (specific hơn).
+    """
+    if not url:
+        return None
+    hostname = urlparse(url).hostname or ""
+    candidates: list[tuple[int, str]] = []
+    for name, p in presets.items():
+        if not p.domains:
+            continue
+        for d in p.domains.split(","):
+            d = d.strip()
+            if d and d in hostname:
+                candidates.append((len(d), name))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: (-x[0], x[1]))
+    return candidates[0][1]
 
 
 def save_presets(path: str | Path, presets: dict[str, SourcePreset]) -> None:

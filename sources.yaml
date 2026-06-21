@@ -1,0 +1,118 @@
+# ============================================================
+# Source presets — site‑specific crawl defaults.
+#
+# Cách dùng:
+#   1. Đặt tên preset vào cấu hình ebook:
+#        crawl:
+#          source: sto9        # → load các field từ sources.yaml
+#          toc_url: "..."
+#          chapter_link_pattern: "..."
+#          # Các field khác nếu muốn ghi đè
+#   2. Mỗi preset ghi đè được bằng cách khai báo trực tiếp
+#      trong nhánh `crawl` của ebook config.
+# ============================================================
+sources:
+
+  # ====== SITE FAMILY: 笔趣阁 / biquge ======
+  # Hàng trăm site clone từ mã nguồn biquge (biquge, biqunet, biquwo, 69shu…).
+  # HTML tĩnh, nội dung trong #content hoặc #chaptercontent.
+  biquge:
+    domains: "biquge,biqunet,biquwo,69shu,shuhaige"
+    engine: http
+    toc_selector: "#list"
+    content_selector: "#content"
+    chapter_title_selector: ".bookname h1"
+    delay_seconds: 1.0
+
+  # ====== 思兔 (sto9) ======
+  # https://sto9.com
+  # Có JS popup, crawl4ai khuyến nghị. TOC list trong #allchapter.
+  sto9:
+    domains: "sto9.com"
+    engine: crawl4ai
+    toc_selector: "#allchapter"
+    content_selector: ""
+    chapter_title_selector: ""
+    headless: true
+    magic: true
+    delay_seconds: 1.0
+
+  # ====== 爱下电子书 (aixdzs) ======
+  # https://www.aixdzs.com
+  # HTML tĩnh, sạch. Nội dung chapter trong .content.
+  aixdzs:
+    domains: "aixdzs.com"
+    engine: http
+    toc_selector: "#i-chapter"
+    content_selector: ".content"
+    chapter_title_selector: ""
+    encoding: utf-8
+    delay_seconds: 1.0
+
+  # ====== 起点中文网 (qidian) ======
+  # https://www.qidian.com
+  # JS nặng, cần crawl4ai. Bản free cho chương ~5 ngày đầu; VIP cần token.
+  qidian:
+    domains: "qidian.com"
+    engine: crawl4ai
+    toc_selector: ""
+    content_selector: ".read-content"
+    chapter_title_selector: ""
+    headless: true
+    magic: true
+    delay_seconds: 2.0
+
+  # ====== 69书吧 (69shuba) ======
+  # https://www.69shuba.com
+  # JS load chapter list động; cần crawl4ai.
+  69shuba:
+    domains: "69shuba.com,69shu.com"
+    engine: crawl4ai
+    toc_selector: ""
+    content_selector: ""
+    chapter_title_selector: ""
+    headless: true
+    magic: true
+    delay_seconds: 1.5
+
+  # ====== 书旗小说 (shuqi) ======
+  # https://www.shuqi.com
+  # SPA (React), hoàn toàn JS-render.
+  shuqi:
+    domains: "shuqi.com"
+    engine: crawl4ai
+    toc_selector: ""
+    content_selector: ""
+    chapter_title_selector: ""
+    headless: true
+    magic: true
+    delay_seconds: 1.5
+
+  # ====== QQ阅读 ======
+  # https://mbooks.read.qq.com
+  # Trang mobile, JS-render.
+  qqread:
+    domains: "read.qq.com,book.qq.com"
+    engine: crawl4ai
+    toc_selector: ""
+    content_selector: ""
+    chapter_title_selector: ""
+    headless: true
+    magic: true
+    delay_seconds: 1.5
+
+  # ====== 百度百科 (metadata only) ======
+  # Chỉ fetch metadata, không crawl chapter nội dung.
+  baike:
+    domains: "baike.baidu.com"
+    engine: crawl4ai
+    toc_selector: ""
+    content_selector: ".para"
+    chapter_title_selector: ""
+    headless: true
+    magic: true
+    title_selector: ".lemmaTitleh1"
+    author_selector: ""
+    desc_selector: ".para"
+    cover_selector: ".summary-pic img"
+    delay_seconds: 0.5

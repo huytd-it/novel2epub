@@ -364,7 +364,7 @@ class Crawl4AICrawler:
     def _run_cfg(self, css_selector: str | None):
         from crawl4ai import CacheMode, CrawlerRunConfig
 
-        kwargs: dict = {"cache_mode": CacheMode.BYPASS}
+        kwargs: dict = {"cache_mode": CacheMode.BYPASS, "magic": self.cfg.magic}
         if css_selector:
             kwargs["css_selector"] = css_selector
         if self.cfg.js_code:
@@ -373,7 +373,7 @@ class Crawl4AICrawler:
 
     def _arun(self, url: str, css_selector: str | None = None):
         cfg = self._run_cfg(css_selector)
-        coro = self._crawler.arun(url=url, config=cfg, magic=self.cfg.magic)
+        coro = self._crawler.arun(url=url, config=cfg)
         return self._loop.run_until_complete(coro)
 
     @staticmethod

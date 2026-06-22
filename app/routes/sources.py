@@ -11,6 +11,24 @@ from .. import deps
 router = APIRouter()
 
 
+def _preset_usage(presets, library):
+    """Map preset name -> list of ebook slugs whose resolved CrawlConfig matches
+    tất cả cặp key/value trong preset.crawl_overrides(). Chỉ đọc, không ghi."""
+    usage = {name: [] for name in presets}
+    if not library.ebooks or not presets:
+        return usage
+    for slug in library.ebooks:
+        try:
+            crawl = deps.resolved_cfg(slug).crawl
+        except Exception:
+            continue
+        for name, preset in presets.items():
+            overrides = preset.crawl_overrides()
+            if all(getattr(crawl, k, None) == v for k, v in overrides.items()):
+                usage[name].append(slug)
+    return usage
+
+
 @router.get("/sources")
 def sources_page(request: Request, edit: str = ""):
     presets = deps.presets()
@@ -21,6 +39,7 @@ def sources_page(request: Request, edit: str = ""):
             "sources_path": deps.SOURCES_PATH,
             "presets": presets,
             "edit": presets.get(edit),
+            "usage": _preset_usage(presets, deps.library()),
             "job": request.app.state.job.status(),
         },
     )

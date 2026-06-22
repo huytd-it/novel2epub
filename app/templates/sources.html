@@ -1,65 +1,125 @@
 {% extends "base.html" %}
 {% block title %}Nguồn — novel2epub{% endblock %}
 {% block content %}
-<h2>Thư viện nguồn (site preset)</h2>
-<p class="muted">Preset gom selector/pattern theo từng website để dùng lại khi thêm ebook hoặc cập nhật nguồn. Lưu trong <code>{{ sources_path }}</code>. Không chứa <code>toc_url</code> (đặc thù từng truyện).</p>
+<div class="section-head">
+    <h2>Thư viện nguồn (site preset)</h2>
+</div>
+<p class="muted">Preset gom selector/pattern theo từng website để dùng lại khi thêm ebook hoặc cập nhật nguồn. Lưu trong <code>{{ sources_path }}</code>. Không chứa <code>toc_url</code> (đặc thù từng truyện). Engine: <strong>http</strong> = requests+BS4, <strong>crawl4ai</strong> = trình duyệt/JS, <strong>firecrawl</strong> = API Markdown.</p>
 
 {% if presets %}
-<table>
-    <tr><th>Tên</th><th>Engine</th><th>content_selector</th><th>pattern</th><th></th></tr>
-    {% for name, p in presets.items() %}
-    <tr>
-        <td>{{ name }}</td>
-        <td>{{ p.engine }}</td>
-        <td><code>{{ p.content_selector }}</code></td>
-        <td><code>{{ p.chapter_link_pattern }}</code></td>
-        <td>
-            <a href="/sources?edit={{ name }}">Sửa</a>
-            <form method="post" action="/sources/{{ name }}/delete" style="display:inline" onsubmit="return confirm('Xóa preset {{ name }}?');">
-                <button type="submit">Xóa</button>
-            </form>
-        </td>
-    </tr>
-    {% endfor %}
-</table>
+<div class="table-wrap">
+    <table class="data-table">
+        <tr>
+            <th>Tên</th>
+            <th>Engine</th>
+            <th>content_selector</th>
+            <th>pattern</th>
+            <th>Đang dùng bởi</th>
+            <th></th>
+        </tr>
+        {% for name, p in presets.items() %}
+        <tr>
+            <td>{{ name }}</td>
+            <td>
+                {% if p.engine == "http" %}<span class="badge ok">http</span>
+                {% elif p.engine == "crawl4ai" %}<span class="badge run">crawl4ai</span>
+                {% else %}<span class="badge">{{ p.engine }}</span>{% endif %}
+            </td>
+            <td><code>{{ p.content_selector }}</code></td>
+            <td><code>{{ p.chapter_link_pattern }}</code></td>
+            <td>
+                {% set used = usage.get(name, []) %}
+                {% if used %}
+                {% for slug in used %}<a href="/ebooks/{{ slug }}">{{ slug }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+                {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td>
+                <div class="row-actions">
+                    <a class="button" href="/sources?edit={{ name }}">Sửa</a>
+                    <form method="post" action="/sources/{{ name }}/delete" style="display:inline" onsubmit="return confirm('Xóa preset {{ name }}?');">
+                        <button type="submit">Xóa</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
 {% else %}
-<p class="muted">Chưa có preset nào.</p>
+<p class="muted">Chưa có preset nào — cuộn xuống để thêm preset mới.</p>
 {% endif %}
 
 <hr>
 
 <div class="section-head"><h3>{% if edit %}Sửa preset: {{ edit.name }}{% else %}Thêm preset{% endif %}</h3></div>
 <form method="post" action="/sources">
-    <p><label>Tên (trùng tên = ghi đè) <input type="text" name="name" value="{{ edit.name if edit else '' }}" {% if not edit %}required{% endif %}></label></p>
-    <p>
-        <label>Engine
-            <select name="engine">
-                {% for opt in ["http", "crawl4ai", "firecrawl"] %}
-                <option value="{{ opt }}" {% if edit and edit.engine == opt %}selected{% endif %}>{{ opt }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ edit.delay_seconds if edit else 1.0 }}" min="0"></label>
-        <label>encoding <input type="text" name="encoding" value="{{ edit.encoding if edit else '' }}" size="8"></label>
-    </p>
-    <p><label>chapter_link_pattern <input type="text" name="chapter_link_pattern" value="{{ edit.chapter_link_pattern if edit else '.*' }}" size="50"></label></p>
+    <fieldset>
+        <legend>Thông tin cơ bản</legend>
+        <div class="form-row">
+            <label>Tên (trùng tên = ghi đè) <input type="text" name="name" value="{{ edit.name if edit else '' }}" {% if not edit %}required{% endif %}></label>
+            <label>Engine
+                <select name="engine" id="engine-select">
+                    {% for opt in ["http", "crawl4ai", "firecrawl"] %}
+                    <option value="{{ opt }}" {% if edit and edit.engine == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ edit.delay_seconds if edit else 1.0 }}" min="0"></label>
+            <label>encoding <input type="text" name="encoding" value="{{ edit.encoding if edit else '' }}" size="8"></label>
+        </div>
+        <div class="form-row">
+            <label>chapter_link_pattern <input type="text" name="chapter_link_pattern" value="{{ edit.chapter_link_pattern if edit else '.*' }}" size="50"></label>
+        </div>
+    </fieldset>
+
     <fieldset>
         <legend>Selector</legend>
-        <p><label>content_selector <input type="text" name="content_selector" value="{{ edit.content_selector if edit else '' }}" size="30"></label>
-           <label>toc_selector <input type="text" name="toc_selector" value="{{ edit.toc_selector if edit else '' }}" size="30"></label>
-           <label>chapter_title_selector <input type="text" name="chapter_title_selector" value="{{ edit.chapter_title_selector if edit else '' }}" size="20"></label></p>
-        <p><label>title_selector <input type="text" name="title_selector" value="{{ edit.title_selector if edit else '' }}" size="20"></label>
-           <label>author_selector <input type="text" name="author_selector" value="{{ edit.author_selector if edit else '' }}" size="20"></label>
-           <label>desc_selector <input type="text" name="desc_selector" value="{{ edit.desc_selector if edit else '' }}" size="20"></label>
-           <label>cover_selector <input type="text" name="cover_selector" value="{{ edit.cover_selector if edit else '' }}" size="20"></label></p>
+        <div class="form-row">
+            <label>content_selector <input type="text" name="content_selector" value="{{ edit.content_selector if edit else '' }}" size="30"></label>
+            <label>toc_selector <input type="text" name="toc_selector" value="{{ edit.toc_selector if edit else '' }}" size="30"></label>
+            <label>chapter_title_selector <input type="text" name="chapter_title_selector" value="{{ edit.chapter_title_selector if edit else '' }}" size="20"></label>
+        </div>
+        <div class="form-row">
+            <label>title_selector <input type="text" name="title_selector" value="{{ edit.title_selector if edit else '' }}" size="20"></label>
+            <label>author_selector <input type="text" name="author_selector" value="{{ edit.author_selector if edit else '' }}" size="20"></label>
+            <label>desc_selector <input type="text" name="desc_selector" value="{{ edit.desc_selector if edit else '' }}" size="20"></label>
+            <label>cover_selector <input type="text" name="cover_selector" value="{{ edit.cover_selector if edit else '' }}" size="20"></label>
+        </div>
     </fieldset>
-    <fieldset>
+
+    {% set is_crawl4ai = edit and edit.engine == "crawl4ai" %}
+    <fieldset id="crawl4ai-options"{% if not is_crawl4ai %} style="display:none"{% endif %}>
         <legend>crawl4ai</legend>
-        <p><label class="check"><input type="checkbox" name="headless" value="true" {% if not edit or edit.headless %}checked{% endif %}> headless</label>
-           <label class="check"><input type="checkbox" name="magic" value="true" {% if not edit or edit.magic %}checked{% endif %}> magic</label></p>
-        <p><label>js_code <input type="text" name="js_code" value="{{ edit.js_code if edit else '' }}" size="50"></label></p>
+        <div class="form-row">
+            <label class="check"><input type="checkbox" name="headless" value="true" {% if not edit or edit.headless %}checked{% endif %}> headless</label>
+            <label class="check"><input type="checkbox" name="magic" value="true" {% if not edit or edit.magic %}checked{% endif %}> magic</label>
+            <label>js_code <input type="text" name="js_code" value="{{ edit.js_code if edit else '' }}" size="50"></label>
+        </div>
     </fieldset>
-    <p><label>user_agent (để trống = mặc định) <input type="text" name="user_agent" value="{{ edit.user_agent if edit else '' }}" size="70"></label></p>
-    <p><button type="submit">{% if edit %}Cập nhật{% else %}Thêm{% endif %} preset</button></p>
+
+    <fieldset>
+        <legend>Network</legend>
+        <div class="form-row">
+            <label>user_agent (để trống = mặc định) <input type="text" name="user_agent" value="{{ edit.user_agent if edit else '' }}" size="70"></label>
+        </div>
+        <div class="form-row">
+            <button type="submit">{% if edit %}Cập nhật{% else %}Thêm{% endif %} preset</button>
+        </div>
+    </fieldset>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const engineSelect = document.getElementById("engine-select");
+    const crawl4ai = document.getElementById("crawl4ai-options");
+    if (!engineSelect || !crawl4ai) return;
+    function syncCrawl4ai() {
+        crawl4ai.style.display = engineSelect.value === "crawl4ai" ? "" : "none";
+    }
+    engineSelect.addEventListener("change", syncCrawl4ai);
+    syncCrawl4ai();
+});
+</script>
 {% endblock %}

@@ -71,6 +71,13 @@ crawl:
   # JS tùy chọn để chờ/điều khiển trang (vd cuộn lazy-load). Để trống nếu không cần.
   js_code: ""
 
+  # ----- AI fallback crawl (thử nghiệm, cần translate.preset: go) -----
+  # Khi content_selector không trích được nội dung (trả rỗng), có thể gửi
+  # HTML thô cho AI CLI (opencode run) để trích xuất chương. Mặc định: false.
+  # ai_fallback: true
+  # Số ký tự HTML tối đa gửi cho AI (tránh vượt context window).
+  # ai_fallback_max_html: 32000
+
   # ----- chỉ dùng cho engine = "firecrawl" -----
   # API key Firecrawl (hoặc đặt biến môi trường FIRECRAWL_API_KEY).
   api_key: ""
@@ -78,6 +85,11 @@ crawl:
 
 # ----------------------- DỊCH -----------------------
 translate:
+  # Cách nhanh nhất: dùng preset cho OpenCode Go (gói $5-10/tháng).
+  # preset tự đặt cli.command = "opencode run", model rẻ (deepseek-v4-flash),
+  # và prompt tối ưu cho các model open-weight. Ghi đè được từng field.
+  # preset: go
+  #
   # type: cli | google | none
   #   cli    -> gọi một AI CLI bất kỳ (opencode, llm, ollama, claude...)
   #   google -> Google Translate miễn phí (deep-translator)

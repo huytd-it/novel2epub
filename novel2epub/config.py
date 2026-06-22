@@ -51,6 +51,15 @@ class CrawlConfig:
     # Vượt bot detection tốt hơn (Crawl4AI undetected/magic mode).
     magic: bool = True
 
+    # ----- AI fallback crawl (experimental, cần translate.preset: go) -----
+    # Khi selector không trích được nội dung, gửi HTML thô cho AI CLI
+    # (opencode run) để trích xuất chương bằng LLM.
+    ai_fallback: bool = False
+    # Giới hạn ký tự HTML gửi cho AI (tránh vượt context window).
+    ai_fallback_max_html: int = 32000
+    # CLI config cho AI fallback (do pipeline gán khi tạo crawler).
+    _cli_fallback: Any = None  # CliTranslatorConfig | None
+
 
 @dataclass
 class GlossaryFilesConfig:
@@ -133,6 +142,7 @@ class CliTranslatorConfig:
 @dataclass
 class TranslateConfig:
     type: str = "cli"  # cli | google | none
+    preset: str = ""
     profile: str = "traditional_cn_novel"
     source_language: str = "zh-CN"
     target_language: str = "vi"
@@ -235,6 +245,7 @@ def load_config(path: str | Path) -> Config:
     crawl = CrawlConfig(**crawl_raw)
 
     translate_raw = dict(raw.get("translate") or {})
+    preset_name = translate_raw.get("preset", "")
     cli_raw = translate_raw.pop("cli", None) or {}
     style = _build_style(translate_raw)
     glossary_files_raw = _as_dict(translate_raw.pop("glossary_files", None))
@@ -263,8 +274,25 @@ def load_config(path: str | Path) -> Config:
             names_path = str(glossary_dir / "names.txt")
         if not vietphrase_path:
             vietphrase_path = str(glossary_dir / "vietphrase.txt")
+    if preset_name:
+        from . import presets as _presets
+
+        preset_overrides = _presets.load(preset_name)
+        merged = dict(preset_overrides)
+        merged.update({k: v for k, v in cli_raw.items() if v != "" and v is not None})
+        cli_raw = merged
+        tr_type = translate_raw.get("type", "cli")
+        if tr_type and tr_type != "cli":
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning(
+                "translate.preset=%r overrides translate.type=%r to 'cli'",
+                preset_name, tr_type,
+            )
+
     translate = TranslateConfig(
-        type=translate_raw.get("type", "cli"),
+        type="cli" if preset_name else translate_raw.get("type", "cli"),
+        preset=preset_name,
         profile=translate_raw.get("profile", "traditional_cn_novel"),
         source_language=translate_raw.get("source_language", "zh-CN"),
         target_language=translate_raw.get("target_language", "vi"),

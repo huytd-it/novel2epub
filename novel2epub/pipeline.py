@@ -288,6 +288,8 @@ def step_crawl_selected(
         gián đoạn cả job.
     """
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    if cfg.crawl.ai_fallback:
+        cfg.crawl._cli_fallback = cfg.translate.cli
     crawler = make_crawler(cfg.crawl)
     try:
         manifest = _refresh_manifest(cfg, storage, crawler, log)
@@ -338,6 +340,8 @@ def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False) -> 
     crawl, hoặc làm mới ảnh bìa/mô tả.
     """
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    if cfg.crawl.ai_fallback:
+        cfg.crawl._cli_fallback = cfg.translate.cli
     crawler = make_crawler(cfg.crawl)
     try:
         manifest = _refresh_manifest(cfg, storage, crawler, log, force_meta=force)

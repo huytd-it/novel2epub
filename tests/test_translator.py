@@ -116,3 +116,89 @@ def test_parse_title_response_fallback_when_no_format():
     title, note = _parse_title_response(raw)
     assert title == "Tên truyện không theo format"
     assert note == ""
+
+
+def test_go_preset_chapter_translation_uses_opencode(monkeypatch):
+    from novel2epub.translator import CLITranslator, make_translator
+
+    cfg = TranslateConfig(
+        type="cli",
+        preset="go",
+        cli=CliTranslatorConfig(
+            command="opencode run",
+            model="opencode-go/deepseek-v4-flash",
+            prompt_template="",
+            title_prompt_template="",
+            mode="stdin",
+            timeout_seconds=300,
+        ),
+    )
+    captured = {}
+
+    def _mock_run_cli(cli, prompt, argv=None):
+        captured["command"] = cli.command
+        captured["model"] = cli.model
+        return "Bản dịch tiếng Việt."
+
+    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    translator = make_translator(cfg)
+    result = translator.translate("你好世界")
+    assert result == "Bản dịch tiếng Việt."
+    assert captured["command"] == "opencode run"
+    assert captured["model"] == "opencode-go/deepseek-v4-flash"
+
+
+def test_go_preset_title_translation_uses_opencode(monkeypatch):
+    from novel2epub.translator import make_translator
+
+    cfg = TranslateConfig(
+        type="cli",
+        preset="go",
+        cli=CliTranslatorConfig(
+            command="opencode run",
+            model="opencode-go/deepseek-v4-flash",
+            prompt_template="",
+            title_prompt_template="",
+            mode="stdin",
+            timeout_seconds=300,
+        ),
+    )
+    captured = {}
+
+    def _mock_run_cli(cli, prompt, argv=None):
+        captured["command"] = cli.command
+        captured["prompt"] = prompt
+        return "TIÊU ĐỀ: Chương Một\nGIẢI THÍCH: "
+
+    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    translator = make_translator(cfg)
+    title, note = translator.translate_title("第一章", kind="tên chương")
+    assert title == "Chương Một"
+    assert captured["command"] == "opencode run"
+
+
+def test_go_preset_error_guides_auth(monkeypatch):
+    from novel2epub.translator import make_translator
+
+    cfg = TranslateConfig(
+        type="cli",
+        preset="go",
+        cli=CliTranslatorConfig(
+            command="opencode run",
+            model="opencode-go/deepseek-v4-flash",
+            prompt_template="{text}",
+            title_prompt_template="",
+            mode="stdin",
+            timeout_seconds=300,
+        ),
+    )
+
+    def _mock_run_cli(cli, prompt, argv=None):
+        raise FileNotFoundError("opencode not found")
+
+    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    translator = make_translator(cfg)
+    with pytest.raises(RuntimeError) as exc:
+        translator.translate("test")
+    msg = str(exc.value)
+    assert "opencode" in msg.lower() or "opencode" in msg

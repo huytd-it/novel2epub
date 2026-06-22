@@ -159,9 +159,12 @@ class CLITranslator:
             try:
                 return cli_runner.run_cli(self.cli, prompt, argv=self._argv)
             except FileNotFoundError as e:
+                hint = ""
+                if "opencode" in self._argv[0]:
+                    hint = " Cài đặt: https://opencode.ai/docs/go/ — chạy 'opencode auth' sau khi đăng ký."
                 raise RuntimeError(
-                    f"Không tìm thấy lệnh CLI: {self._argv[0]!r}. "
-                    "Kiểm tra translate.cli.command trong config."
+                    f"Không tìm thấy lệnh CLI: {self._argv[0]!r}."
+                    f"{hint}"
                 ) from e
             except subprocess.TimeoutExpired:
                 last_error = RuntimeError(f"CLI dịch quá thời gian ({self.cli.timeout_seconds}s).")

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 from urllib.parse import urljoin
 
-from .config import CrawlConfig
+from .config import CliTranslatorConfig, CrawlConfig
 from .storage import Chapter
 from .toc import mark_duplicate_chapters, missing_metadata
 
@@ -191,6 +191,8 @@ class HttpCrawler:
 
     def __init__(self, cfg: CrawlConfig):
         self.cfg = cfg
+        self._fallback_cli: CliTranslatorConfig | None = None
+        self._last_response_text: str = ""
         try:
             import requests  # noqa: F401
             from bs4 import BeautifulSoup  # noqa: F401
@@ -214,6 +216,7 @@ class HttpCrawler:
             resp.encoding = self.cfg.encoding
         elif not resp.encoding or resp.encoding.lower() == "iso-8859-1":
             resp.encoding = resp.apparent_encoding
+        self._last_response_text = resp.text
         return BeautifulSoup(resp.text, "html.parser")
 
     # ---------- metadata ----------
@@ -293,11 +296,16 @@ class HttpCrawler:
     # ---------- nội dung chương ----------
     def fetch_chapter(self, ch: Chapter) -> str:
         soup = self._get_soup(ch.url)
+        text = self._extract_text(soup)
+        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+            return text
+        return self._ai_fallback_extract(ch.url)
+
+    def _extract_text(self, soup) -> str:
         node = None
         if self.cfg.content_selector:
             node = soup.select_one(self.cfg.content_selector)
         if node is None:
-            # Fallback: thử vài id/class phổ biến của truyện Trung.
             for sel in ("#content", "#chaptercontent", ".content", ".read-content",
                         "#booktext", "#TextContent", ".showtxt"):
                 node = soup.select_one(sel)
@@ -306,11 +314,9 @@ class HttpCrawler:
         if node is None:
             return ""
 
-        # Bỏ script/style và các thẻ điều hướng.
         for tag in node(["script", "style", "a", "ins"]):
             tag.decompose()
 
-        # <br> -> xuống dòng; mỗi <p> là một đoạn.
         for br in node.find_all("br"):
             br.replace_with("\n")
         paras = [p.get_text(strip=True) for p in node.find_all("p")]
@@ -319,6 +325,20 @@ class HttpCrawler:
         else:
             text = node.get_text("\n", strip=True)
         return self._clean(text)
+
+    def _ai_fallback_extract(self, url: str) -> str:
+        from . import cli_runner
+        from .presets.go import GO_EXTRACT_PROMPT
+
+        html = self._last_response_text
+        if not html:
+            return ""
+        html = html[:self.cfg.ai_fallback_max_html]
+        prompt = GO_EXTRACT_PROMPT.format(html=html)
+        try:
+            return cli_runner.run_cli(self.cfg._cli_fallback, prompt)
+        except Exception:
+            return ""
 
     def _clean(self, text: str) -> str:
         if not text:
@@ -347,6 +367,7 @@ class Crawl4AICrawler:
 
     def __init__(self, cfg: CrawlConfig):
         self.cfg = cfg
+        self._last_result = None
         try:
             from crawl4ai import AsyncWebCrawler, BrowserConfig
         except ImportError as e:  # pragma: no cover
@@ -426,8 +447,25 @@ class Crawl4AICrawler:
 
     # ---------- nội dung chương ----------
     def fetch_chapter(self, ch: Chapter) -> str:
-        result = self._arun(ch.url, css_selector=self.cfg.content_selector or None)
-        return self._clean(self._markdown(result))
+        self._last_result = self._arun(ch.url, css_selector=self.cfg.content_selector or None)
+        text = self._clean(self._markdown(self._last_result))
+        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+            return text
+        return self._ai_fallback_extract(ch.url)
+
+    def _ai_fallback_extract(self, url: str) -> str:
+        from . import cli_runner
+        from .presets.go import GO_EXTRACT_PROMPT
+
+        raw = getattr(self._last_result, "raw_html", "") or ""
+        if not raw:
+            return ""
+        raw = raw[:self.cfg.ai_fallback_max_html]
+        prompt = GO_EXTRACT_PROMPT.format(html=raw)
+        try:
+            return cli_runner.run_cli(self.cfg._cli_fallback, prompt)
+        except Exception:
+            return ""
 
     def _clean(self, markdown: str) -> str:
         if not markdown:

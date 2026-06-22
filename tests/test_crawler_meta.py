@@ -59,3 +59,92 @@ def test_meta_get_picks_first_nonempty_and_handles_list():
     assert _meta_get({"a": "", "b": "x"}, "a", "b") == "x"
     assert _meta_get({"og:image": ["http://x/1.jpg", "http://x/2.jpg"]}, "og:image") == "http://x/1.jpg"
     assert _meta_get(None, "a") == ""
+
+
+def _make_fake_response(html_text: str):
+    class FakeResponse:
+        status_code = 200
+        text = html_text
+        encoding = "utf-8"
+
+        def raise_for_status(self):
+            pass
+
+    return FakeResponse()
+
+
+def test_ai_fallback_triggers_when_content_empty(monkeypatch):
+    from novel2epub import cli_runner
+    from novel2epub.config import CliTranslatorConfig
+    from novel2epub.storage import Chapter
+
+    html = "<html><body><p>Chương một nội dung.</p></body></html>"
+    cfg = CrawlConfig(
+        toc_url="http://site.com/",
+        content_selector=".nonexistent",
+        ai_fallback=True,
+        ai_fallback_max_html=500,
+        _cli_fallback=CliTranslatorConfig(command="test-run", mode="stdin"),
+    )
+    c = HttpCrawler(cfg)
+
+    monkeypatch.setattr(c._session, "get", lambda url, **kw: _make_fake_response(html))
+
+    calls = []
+
+    def _mock_run(cli, prompt, argv=None):
+        calls.append({"cli": cli, "prompt": prompt})
+        return "Nội dung chapter đã trích xuất."
+
+    monkeypatch.setattr(cli_runner, "run_cli", _mock_run)
+    ch = Chapter(index=1, url="http://site.com/ch1", title_zh="Chương 1")
+    result = c.fetch_chapter(ch)
+    assert result == "Nội dung chapter đã trích xuất."
+    assert len(calls) == 1
+
+
+def test_ai_fallback_skipped_when_cli_not_configured(monkeypatch):
+    from novel2epub.storage import Chapter
+
+    html = "<html><body><p>nội dung</p></body></html>"
+    cfg = CrawlConfig(
+        toc_url="http://site.com/",
+        content_selector=".nonexistent",
+        ai_fallback=True,
+        _cli_fallback=None,
+    )
+    c = HttpCrawler(cfg)
+    monkeypatch.setattr(c._session, "get", lambda url, **kw: _make_fake_response(html))
+
+    ch = Chapter(index=1, url="http://site.com/ch1", title_zh="Chương 1")
+    result = c.fetch_chapter(ch)
+    assert result == ""
+
+
+def test_ai_fallback_skipped_when_primary_succeeds(monkeypatch):
+    from novel2epub import cli_runner
+    from novel2epub.config import CliTranslatorConfig
+    from novel2epub.storage import Chapter
+
+    html = "<html><body><div id='content'><p>Nội dung chính.</p></div></body></html>"
+    cfg = CrawlConfig(
+        toc_url="http://site.com/",
+        content_selector="#content",
+        ai_fallback=True,
+        ai_fallback_max_html=5000,
+        _cli_fallback=CliTranslatorConfig(command="test-run", mode="stdin"),
+    )
+    c = HttpCrawler(cfg)
+    monkeypatch.setattr(c._session, "get", lambda url, **kw: _make_fake_response(html))
+
+    calls = []
+
+    def _mock_run(cli, prompt, argv=None):
+        calls.append(prompt)
+        return ""
+
+    monkeypatch.setattr(cli_runner, "run_cli", _mock_run)
+    ch = Chapter(index=1, url="http://site.com/ch1", title_zh="Chương 1")
+    result = c.fetch_chapter(ch)
+    assert result == "Nội dung chính."
+    assert len(calls) == 0  # fallback NOT called

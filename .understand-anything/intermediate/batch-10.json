@@ -1,0 +1,165 @@
+{
+  "batchIndex": 10,
+  "nodes": [
+    {
+      "id": "file:.specify/extensions.yml",
+      "label": "extensions.yml",
+      "type": "file",
+      "filePath": ".specify/extensions.yml",
+      "language": "yaml",
+      "category": "config",
+      "metrics": {
+        "totalLines": 23,
+        "nonEmptyLines": 23,
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 3
+      },
+      "sections": [
+        { "heading": "installed", "level": 1, "line": 1 },
+        { "heading": "settings", "level": 1, "line": 3 },
+        { "heading": "hooks", "level": 1, "line": 5 }
+      ],
+      "description": "SpecKit extensions manifest declaring installed extensions (agent-context) and lifecycle hook triggers (after_specify, after_plan) that run speckit.agent-context.update to refresh agent context files after specification and planning phases."
+    },
+    {
+      "id": "file:.specify/feature.json",
+      "label": "feature.json",
+      "type": "file",
+      "filePath": ".specify/feature.json",
+      "language": "json",
+      "category": "config",
+      "metrics": {
+        "totalLines": 3,
+        "nonEmptyLines": 3,
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 1
+      },
+      "sections": [
+        { "heading": "feature_directory", "level": 1, "line": 2 }
+      ],
+      "description": "Current feature pointer directing SpecKit to specs/002-opencode-go-preset as the active feature directory for specification and implementation workflows."
+    },
+    {
+      "id": "file:.specify/init-options.json",
+      "label": "init-options.json",
+      "type": "file",
+      "filePath": ".specify/init-options.json",
+      "language": "json",
+      "category": "config",
+      "metrics": {
+        "totalLines": 8,
+        "nonEmptyLines": 8,
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      },
+      "sections": [
+        { "heading": "ai", "level": 1, "line": 2 },
+        { "heading": "feature_numbering", "level": 1, "line": 3 },
+        { "heading": "here", "level": 1, "line": 4 },
+        { "heading": "integration", "level": 1, "line": 5 },
+        { "heading": "script", "level": 1, "line": 6 },
+        { "heading": "speckit_version", "level": 1, "line": 7 }
+      ],
+      "description": "SpecKit initialization options v0.10.2: AI backend set to opencode, sequential feature numbering, PowerShell scripting, integrated with opencode CLI."
+    },
+    {
+      "id": "file:.specify/integration.json",
+      "label": "integration.json",
+      "type": "file",
+      "filePath": ".specify/integration.json",
+      "language": "json",
+      "category": "config",
+      "metrics": {
+        "totalLines": 15,
+        "nonEmptyLines": 15,
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      },
+      "sections": [
+        { "heading": "version", "level": 1, "line": 2 },
+        { "heading": "integration_state_schema", "level": 1, "line": 3 },
+        { "heading": "installed_integrations", "level": 1, "line": 4 },
+        { "heading": "integration_settings", "level": 1, "line": 7 },
+        { "heading": "integration", "level": 1, "line": 13 },
+        { "heading": "default_integration", "level": 1, "line": 14 }
+      ],
+      "description": "SpecKit integration state schema v1: opencode is the active and default integration, configured with PowerShell script invocation using dot-separated subcommands."
+    },
+    {
+      "id": "dir:.specify",
+      "label": ".specify/",
+      "type": "directory",
+      "filePath": ".specify",
+      "description": "SpecKit configuration root directory housing project-level workflow settings, integration state, feature tracking, and extension hooks."
+    },
+    {
+      "id": "dir:specs/002-opencode-go-preset",
+      "label": "002-opencode-go-preset/",
+      "type": "directory",
+      "filePath": "specs/002-opencode-go-preset",
+      "description": "Active feature specification directory for the opencode-go-preset feature, referenced by .specify/feature.json."
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:.specify/feature.json",
+      "target": "dir:specs/002-opencode-go-preset",
+      "type": "references",
+      "label": "points to active feature directory"
+    },
+    {
+      "source": "file:.specify/extensions.yml",
+      "target": "file:.specify/init-options.json",
+      "type": "related_to",
+      "label": "extensions execute via same integration (opencode)"
+    },
+    {
+      "source": "file:.specify/integration.json",
+      "target": "file:.specify/init-options.json",
+      "type": "configures",
+      "label": "integration settings shared with init options"
+    },
+    {
+      "source": "file:.specify/extensions.yml",
+      "target": "dir:.specify",
+      "type": "contained_in",
+      "label": "part of SpecKit config"
+    },
+    {
+      "source": "file:.specify/feature.json",
+      "target": "dir:.specify",
+      "type": "contained_in",
+      "label": "part of SpecKit config"
+    },
+    {
+      "source": "file:.specify/init-options.json",
+      "target": "dir:.specify",
+      "type": "contained_in",
+      "label": "part of SpecKit config"
+    },
+    {
+      "source": "file:.specify/integration.json",
+      "target": "dir:.specify",
+      "type": "contained_in",
+      "label": "part of SpecKit config"
+    },
+    {
+      "source": "file:.specify/integration.json",
+      "target": "dir:.",
+      "type": "configures",
+      "label": "declares opencode as project integration with PowerShell scripting"
+    }
+  ]
+}

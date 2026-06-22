@@ -1,0 +1,841 @@
+{
+  "nodes": [
+    {
+      "id": "document:.claude/skills/openspec-apply-change/SKILL.md",
+      "type": "document",
+      "name": "openspec-apply-change (Claude Code)",
+      "filePath": ".claude/skills/openspec-apply-change/SKILL.md",
+      "summary": "AI skill: Implement tasks from an OpenSpec change. Covers task discovery, implementation workflow, and post-execution hooks for the Claude Code agent.",
+      "tags": ["skill", "openspec", "claude", "implementation"],
+      "languageNotes": "Markdown with YAML frontmatter. Defines agent behavior for the Claude Code environment via openspec CLI integration.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/skills/openspec-archive-change/SKILL.md",
+      "type": "document",
+      "name": "openspec-archive-change (Claude Code)",
+      "filePath": ".claude/skills/openspec-archive-change/SKILL.md",
+      "summary": "AI skill: Archive a completed OpenSpec change. Finalizes and archives changes after implementation is complete.",
+      "tags": ["skill", "openspec", "claude", "archiving"],
+      "languageNotes": "Markdown with YAML frontmatter. Provides step-by-step archiving workflow for the Claude Code agent.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/skills/openspec-explore/SKILL.md",
+      "type": "document",
+      "name": "openspec-explore (Claude Code)",
+      "filePath": ".claude/skills/openspec-explore/SKILL.md",
+      "summary": "AI skill: Explore mode for OpenSpec — a thinking partner for exploring ideas, investigating problems, and clarifying requirements. Read-only stance with no implementation.",
+      "tags": ["skill", "openspec", "claude", "exploration", "thinking"],
+      "languageNotes": "Markdown with YAML frontmatter. Largest OpenSpec skill file with 10 sections covering stance, discovery, and guardrails. Defines the explore mode as a stancenot a workflow.",
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.claude/skills/openspec-propose/SKILL.md",
+      "type": "document",
+      "name": "openspec-propose (Claude Code)",
+      "filePath": ".claude/skills/openspec-propose/SKILL.md",
+      "summary": "AI skill: Propose a new OpenSpec change with all artifacts generated in one step — design, specs, and tasks ready for implementation.",
+      "tags": ["skill", "openspec", "claude", "proposal"],
+      "languageNotes": "Markdown with YAML frontmatter. Enables rapid change proposal generation for the Claude Code agent.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/skills/openspec-sync-specs/SKILL.md",
+      "type": "document",
+      "name": "openspec-sync-specs (Claude Code)",
+      "filePath": ".claude/skills/openspec-sync-specs/SKILL.md",
+      "summary": "AI skill: Sync delta specs from an OpenSpec change to main specs without archiving the change. Updates main specs with changes from delta specs.",
+      "tags": ["skill", "openspec", "claude", "spec-sync"],
+      "languageNotes": "Markdown with YAML frontmatter. Handles spec synchronization workflow between delta and main specs.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/skills/speckit-agent-context-update/SKILL.md",
+      "type": "document",
+      "name": "speckit-agent-context-update (Claude Code)",
+      "filePath": ".claude/skills/speckit-agent-context-update/SKILL.md",
+      "summary": "AI skill: Refresh the managed Spec Kit section in the coding agent context file, ensuring project context stays current.",
+      "tags": ["skill", "speckit", "claude", "context"],
+      "languageNotes": "Markdown with YAML frontmatter. Small file (31 lines) defining context update behavior for the Claude Code agent.",
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.claude/skills/speckit-analyze/SKILL.md",
+      "type": "document",
+      "name": "speckit-analyze (Claude Code)",
+      "filePath": ".claude/skills/speckit-analyze/SKILL.md",
+      "summary": "AI skill: Perform cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation. Non-destructive analysis.",
+      "tags": ["skill", "speckit", "claude", "analysis"],
+      "languageNotes": "Markdown with YAML frontmatter. 260 lines with 25 sections covering 9 detection passes and severity assignment.",
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.claude/skills/speckit-checklist/SKILL.md",
+      "type": "document",
+      "name": "speckit-checklist (Claude Code)",
+      "filePath": ".claude/skills/speckit-checklist/SKILL.md",
+      "summary": "AI skill: Generate a custom checklist for the current feature based on user requirements. Described as 'Unit Tests for English'.",
+      "tags": ["skill", "speckit", "claude", "checklist", "quality"],
+      "languageNotes": "Markdown with YAML frontmatter. 374 lines with 7 sections including anti-examples of what NOT to do.",
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.claude/skills/speckit-clarify/SKILL.md",
+      "type": "document",
+      "name": "speckit-clarify (Claude Code)",
+      "filePath": ".claude/skills/speckit-clarify/SKILL.md",
+      "summary": "AI skill: Identify underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding answers back into the spec.",
+      "tags": ["skill", "speckit", "claude", "clarification", "requirements"],
+      "languageNotes": "Markdown with YAML frontmatter. 286 lines with 6 sections including mandatory post-execution hooks.",
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.claude/skills/speckit-constitution/SKILL.md",
+      "type": "document",
+      "name": "speckit-constitution (Claude Code)",
+      "filePath": ".claude/skills/speckit-constitution/SKILL.md",
+      "summary": "AI skill: Create or update the project constitution from interactive or provided principle inputs, ensuring all dependent templates stay in sync.",
+      "tags": ["skill", "speckit", "claude", "constitution", "governance"],
+      "languageNotes": "Markdown with YAML frontmatter. 157 lines defining project constitution creation and template synchronization.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/skills/speckit-implement/SKILL.md",
+      "type": "document",
+      "name": "speckit-implement (Claude Code)",
+      "filePath": ".claude/skills/speckit-implement/SKILL.md",
+      "summary": "AI skill: Execute the implementation plan by processing and executing all tasks defined in tasks.md with mandatory post-execution hooks.",
+      "tags": ["skill", "speckit", "claude", "implementation"],
+      "languageNotes": "Markdown with YAML frontmatter. 224 lines with task-by-task implementation workflow and completion reporting.",
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.claude/skills/speckit-plan/SKILL.md",
+      "type": "document",
+      "name": "speckit-plan (Claude Code)",
+      "filePath": ".claude/skills/speckit-plan/SKILL.md",
+      "summary": "AI skill: Execute the implementation planning workflow using the plan template to generate design artifacts across Phase 0 (Research) and Phase 1 (Design & Contracts).",
+      "tags": ["skill", "speckit", "claude", "planning"],
+      "languageNotes": "Markdown with YAML frontmatter. 171 lines with 10 sections covering two-phase planning workflow.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/skills/speckit-specify/SKILL.md",
+      "type": "document",
+      "name": "speckit-specify (Claude Code)",
+      "filePath": ".claude/skills/speckit-specify/SKILL.md",
+      "summary": "AI skill: Create or update the feature specification from a natural language feature description, with section requirements and success criteria guidelines.",
+      "tags": ["skill", "speckit", "claude", "specification"],
+      "languageNotes": "Markdown with YAML frontmatter. 346 lines with 10 sections — the second-largest SpecKit skill. Includes AI generation guidance.",
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.claude/skills/speckit-tasks/SKILL.md",
+      "type": "document",
+      "name": "speckit-tasks (Claude Code)",
+      "filePath": ".claude/skills/speckit-tasks/SKILL.md",
+      "summary": "AI skill: Generate an actionable, dependency-ordered tasks.md for the feature based on available design artifacts. Includes checklist format and phase structure rules.",
+      "tags": ["skill", "speckit", "claude", "task-generation"],
+      "languageNotes": "Markdown with YAML frontmatter. 215 lines with 10 sections covering task generation rules and organization.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/skills/speckit-taskstoissues/SKILL.md",
+      "type": "document",
+      "name": "speckit-taskstoissues (Claude Code)",
+      "filePath": ".claude/skills/speckit-taskstoissues/SKILL.md",
+      "summary": "AI skill: Convert existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts.",
+      "tags": ["skill", "speckit", "claude", "github-issues"],
+      "languageNotes": "Markdown with YAML frontmatter. 107 lines with GitHub issue export workflow.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.github/copilot-instructions.md",
+      "type": "document",
+      "name": "copilot-instructions",
+      "filePath": ".github/copilot-instructions.md",
+      "summary": "GitHub Copilot instructions pointing to Speckit context. Directs Copilot to read the current plan for project structure, shell commands, and technology context.",
+      "tags": ["instructions", "copilot", "speckit", "context"],
+      "languageNotes": "Small Markdown file (4 lines) with HTML comment markers for Speckit START/END blocks.",
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/skills/openspec-apply-change/SKILL.md",
+      "type": "document",
+      "name": "openspec-apply-change (GitHub Copilot)",
+      "filePath": ".github/skills/openspec-apply-change/SKILL.md",
+      "summary": "AI skill: Implement tasks from an OpenSpec change. Identical to the Claude Code version, deployed for GitHub Copilot agent environment.",
+      "tags": ["skill", "openspec", "github-copilot", "implementation"],
+      "languageNotes": "Markdown with YAML frontmatter. Duplicate of the Claude Code skill file for GitHub Copilot compatibility.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.github/skills/openspec-archive-change/SKILL.md",
+      "type": "document",
+      "name": "openspec-archive-change (GitHub Copilot)",
+      "filePath": ".github/skills/openspec-archive-change/SKILL.md",
+      "summary": "AI skill: Archive a completed OpenSpec change. Duplicate of the Claude Code version for GitHub Copilot.",
+      "tags": ["skill", "openspec", "github-copilot", "archiving"],
+      "languageNotes": "Markdown with YAML frontmatter. Duplicate of the Claude Code skill file.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.github/skills/openspec-explore/SKILL.md",
+      "type": "document",
+      "name": "openspec-explore (GitHub Copilot)",
+      "filePath": ".github/skills/openspec-explore/SKILL.md",
+      "summary": "AI skill: Explore mode for OpenSpec. Duplicate of the Claude Code version for GitHub Copilot agent. Read-only thinking partner stance.",
+      "tags": ["skill", "openspec", "github-copilot", "exploration"],
+      "languageNotes": "Markdown with YAML frontmatter. Identical 10-section structure as the Claude Code version.",
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.github/skills/openspec-propose/SKILL.md",
+      "type": "document",
+      "name": "openspec-propose (GitHub Copilot)",
+      "filePath": ".github/skills/openspec-propose/SKILL.md",
+      "summary": "AI skill: Propose a new OpenSpec change. Duplicate of the Claude Code version for GitHub Copilot agent.",
+      "tags": ["skill", "openspec", "github-copilot", "proposal"],
+      "languageNotes": "Markdown with YAML frontmatter. Duplicate of the Claude Code skill file.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.github/skills/openspec-sync-specs/SKILL.md",
+      "type": "document",
+      "name": "openspec-sync-specs (GitHub Copilot)",
+      "filePath": ".github/skills/openspec-sync-specs/SKILL.md",
+      "summary": "AI skill: Sync delta specs. Duplicate of the Claude Code version for GitHub Copilot agent.",
+      "tags": ["skill", "openspec", "github-copilot", "spec-sync"],
+      "languageNotes": "Markdown with YAML frontmatter. Duplicate of the Claude Code skill file.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.opencode/skills/openspec-apply-change/SKILL.md",
+      "type": "document",
+      "name": "openspec-apply-change (OpenCode)",
+      "filePath": ".opencode/skills/openspec-apply-change/SKILL.md",
+      "summary": "AI skill: Implement tasks from an OpenSpec change. Duplicate deployed for OpenCode agent environment.",
+      "tags": ["skill", "openspec", "opencode", "implementation"],
+      "languageNotes": "Markdown with YAML frontmatter. Duplicate of the Claude Code skill file for OpenCode compatibility.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.opencode/skills/openspec-archive-change/SKILL.md",
+      "type": "document",
+      "name": "openspec-archive-change (OpenCode)",
+      "filePath": ".opencode/skills/openspec-archive-change/SKILL.md",
+      "summary": "AI skill: Archive a completed OpenSpec change. Duplicate for OpenCode agent environment.",
+      "tags": ["skill", "openspec", "opencode", "archiving"],
+      "languageNotes": "Markdown with YAML frontmatter. Duplicate of the Claude Code skill file.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.opencode/skills/openspec-explore/SKILL.md",
+      "type": "document",
+      "name": "openspec-explore (OpenCode)",
+      "filePath": ".opencode/skills/openspec-explore/SKILL.md",
+      "summary": "AI skill: Explore mode for OpenSpec. Duplicate for OpenCode agent environment.",
+      "tags": ["skill", "openspec", "opencode", "exploration"],
+      "languageNotes": "Markdown with YAML frontmatter. Identical 10-section structure as the Claude Code version.",
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.opencode/skills/openspec-propose/SKILL.md",
+      "type": "document",
+      "name": "openspec-propose (OpenCode)",
+      "filePath": ".opencode/skills/openspec-propose/SKILL.md",
+      "summary": "AI skill: Propose a new OpenSpec change. Duplicate for OpenCode agent environment.",
+      "tags": ["skill", "openspec", "opencode", "proposal"],
+      "languageNotes": "Markdown with YAML frontmatter. Duplicate of the Claude Code skill file.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "concept:openspec-workflow",
+      "type": "concept",
+      "name": "OpenSpec Workflow",
+      "summary": "An AI-driven spec-driven development workflow consisting of 5 phases: explore (investigate/think), propose (create change proposal with design/specs/tasks), apply (implement tasks), sync-specs (update main specs from delta), and archive (finalize completed changes). Requires openspec CLI.",
+      "tags": ["openspec", "workflow", "spec-driven", "ai-agent"],
+      "languageNotes": "The OpenSpec workflow is deployed across three AI agent environments: Claude Code (.claude/skills/), GitHub Copilot (.github/skills/), and OpenCode (.opencode/skills/). Each skill file is an identical Markdown document with YAML frontmatter.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "concept:openspec-apply-change",
+      "type": "concept",
+      "name": "OpenSpec Apply Change",
+      "summary": "Implements tasks from an OpenSpec change proposal. Discovers tasks, executes them in dependency order, and reports completion status with post-execution hooks.",
+      "tags": ["openspec", "implementation", "task-execution"],
+      "languageNotes": "Part of the OpenSpec workflow. Available in 3 AI agent environments.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "concept:openspec-archive-change",
+      "type": "concept",
+      "name": "OpenSpec Archive Change",
+      "summary": "Finalizes and archives a completed OpenSpec change, moving it from active to archived state with all artifacts preserved.",
+      "tags": ["openspec", "archiving", "change-management"],
+      "languageNotes": "Part of the OpenSpec workflow. Available in 3 AI agent environments.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "concept:openspec-explore",
+      "type": "concept",
+      "name": "OpenSpec Explore",
+      "summary": "A thinking partner mode for exploring ideas, investigating problems, and clarifying requirements. Read-only stance — no implementation allowed. May create OpenSpec artifacts (proposals, designs, specs) as captured thinking.",
+      "tags": ["openspec", "exploration", "thinking", "ideation"],
+      "languageNotes": "Part of the OpenSpec workflow. Largest skill file (287 lines). Available in 3 AI agent environments.",
+      "complexity": "complex"
+    },
+    {
+      "id": "concept:openspec-propose",
+      "type": "concept",
+      "name": "OpenSpec Propose",
+      "summary": "Generates a complete change proposal in one step — design document, feature specs, and implementation tasks — from a natural language description of what to build.",
+      "tags": ["openspec", "proposal", "design", "scaffolding"],
+      "languageNotes": "Part of the OpenSpec workflow. Available in 3 AI agent environments.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "concept:openspec-sync-specs",
+      "type": "concept",
+      "name": "OpenSpec Sync Specs",
+      "summary": "Synchronizes delta specs from an OpenSpec change into the main specification files without archiving the change. Allows iterative spec updates during implementation.",
+      "tags": ["openspec", "spec-sync", "delta-specs"],
+      "languageNotes": "Part of the OpenSpec workflow. Available in 3 AI agent environments.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "concept:speckit-workflow",
+      "type": "concept",
+      "name": "SpecKit Workflow",
+      "summary": "A structured specification and implementation workflow (Spec Kit) consisting of 10 phases: constitution (project governance), specify (feature spec), clarify (identify gaps), plan (design artifacts), tasks (dependency-ordered task list), taskstoissues (GitHub issue export), analyze (cross-artifact quality check), checklist (quality checklist), implement (execute tasks), and agent-context-update (refresh coding agent context). Requires spec-kit project structure with .specify/ directory.",
+      "tags": ["speckit", "workflow", "spec-driven", "implementation"],
+      "languageNotes": "All Speckit skills are authored by github-spec-kit and deployed in the Claude Code environment (.claude/skills/). They form a complete specification-to-implementation pipeline.",
+      "complexity": "complex"
+    },
+    {
+      "id": "concept:speckit-agent-context-update",
+      "type": "concept",
+      "name": "SpecKit Agent Context Update",
+      "summary": "Refreshes the managed Spec Kit section in the coding agent's context file to keep project structure and technology information current for the AI agent.",
+      "tags": ["speckit", "context", "agent-config"],
+      "languageNotes": "Part of the SpecKit workflow. Smallest skill file (31 lines).",
+      "complexity": "simple"
+    },
+    {
+      "id": "concept:speckit-analyze",
+      "type": "concept",
+      "name": "SpecKit Analyze",
+      "summary": "Performs non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md. Runs 9 detection passes: duplication, ambiguity, underspecification, constitution alignment, coverage gaps, inconsistency, plus severity assignment and remediation suggestions.",
+      "tags": ["speckit", "analysis", "quality", "consistency"],
+      "languageNotes": "Part of the SpecKit workflow. 260 lines with 25 sections covering comprehensive analysis.",
+      "complexity": "complex"
+    },
+    {
+      "id": "concept:speckit-checklist",
+      "type": "concept",
+      "name": "SpecKit Checklist",
+      "summary": "Generates a custom quality checklist for the current feature based on user requirements. Described as 'Unit Tests for English' — validates specification completeness through structured checklist items.",
+      "tags": ["speckit", "checklist", "quality", "validation"],
+      "languageNotes": "Part of the SpecKit workflow. Largest SpecKit skill (374 lines) with anti-example guidance.",
+      "complexity": "complex"
+    },
+    {
+      "id": "concept:speckit-clarify",
+      "type": "concept",
+      "name": "SpecKit Clarify",
+      "summary": "Identifies underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding the answers back into the specification.",
+      "tags": ["speckit", "clarification", "requirements", "spec-quality"],
+      "languageNotes": "Part of the SpecKit workflow. Includes mandatory post-execution hooks for spec updates.",
+      "complexity": "complex"
+    },
+    {
+      "id": "concept:speckit-constitution",
+      "type": "concept",
+      "name": "SpecKit Constitution",
+      "summary": "Creates or updates the project constitution from interactive or provided principle inputs, ensuring all dependent templates stay in sync with governance rules.",
+      "tags": ["speckit", "constitution", "governance", "principles"],
+      "languageNotes": "Part of the SpecKit workflow. Defines project-level governance and template synchronization.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "concept:speckit-implement",
+      "type": "concept",
+      "name": "SpecKit Implement",
+      "summary": "Executes the implementation plan by processing all tasks defined in tasks.md in dependency order. Includes mandatory post-execution hooks and completion reporting.",
+      "tags": ["speckit", "implementation", "task-execution"],
+      "languageNotes": "Part of the SpecKit workflow. The execution phase of the specification pipeline.",
+      "complexity": "complex"
+    },
+    {
+      "id": "concept:speckit-plan",
+      "type": "concept",
+      "name": "SpecKit Plan",
+      "summary": "Executes the implementation planning workflow using the plan template. Two phases: Phase 0 (Outline & Research) and Phase 1 (Design & Contracts), generating design artifacts.",
+      "tags": ["speckit", "planning", "design", "architecture"],
+      "languageNotes": "Part of the SpecKit workflow. Bridges specification and implementation through structured planning.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "concept:speckit-specify",
+      "type": "concept",
+      "name": "SpecKit Specify",
+      "summary": "Creates or updates the feature specification from a natural language feature description. Includes section requirements, AI generation guidance, and success criteria guidelines.",
+      "tags": ["speckit", "specification", "requirements"],
+      "languageNotes": "Part of the SpecKit workflow. Second-largest SpecKit skill (346 lines) with detailed AI generation rules.",
+      "complexity": "complex"
+    },
+    {
+      "id": "concept:speckit-tasks",
+      "type": "concept",
+      "name": "SpecKit Tasks",
+      "summary": "Generates an actionable, dependency-ordered tasks.md for the feature based on available design artifacts. Includes checklist format requirements and phase structure rules.",
+      "tags": ["speckit", "task-generation", "dependency-ordering"],
+      "languageNotes": "Part of the SpecKit workflow. Transforms specifications into implementable task lists.",
+      "complexity": "moderate"
+    },
+    {
+      "id": "concept:speckit-taskstoissues",
+      "type": "concept",
+      "name": "SpecKit Tasks to Issues",
+      "summary": "Converts existing tasks from tasks.md into actionable, dependency-ordered GitHub issues with proper labels and cross-references.",
+      "tags": ["speckit", "github-issues", "task-export"],
+      "languageNotes": "Part of the SpecKit workflow. Bridges task management and GitHub issue tracking.",
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "concept:openspec-workflow",
+      "target": "concept:openspec-explore",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "OpenSpec workflow phase 1: explore and investigate"
+    },
+    {
+      "source": "concept:openspec-workflow",
+      "target": "concept:openspec-propose",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "OpenSpec workflow phase 2: propose changes"
+    },
+    {
+      "source": "concept:openspec-workflow",
+      "target": "concept:openspec-apply-change",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "OpenSpec workflow phase 3: implement tasks"
+    },
+    {
+      "source": "concept:openspec-workflow",
+      "target": "concept:openspec-sync-specs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "OpenSpec workflow phase 4: sync delta specs to main"
+    },
+    {
+      "source": "concept:openspec-workflow",
+      "target": "concept:openspec-archive-change",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "OpenSpec workflow phase 5: archive completed change"
+    },
+    {
+      "source": "concept:speckit-workflow",
+      "target": "concept:speckit-constitution",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "SpecKit phase: create/update project constitution"
+    },
+    {
+      "source": "concept:speckit-workflow",
+      "target": "concept:speckit-specify",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "SpecKit phase: create feature specification"
+    },
+    {
+      "source": "concept:speckit-workflow",
+      "target": "concept:speckit-clarify",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "SpecKit phase: clarify underspecified areas"
+    },
+    {
+      "source": "concept:speckit-workflow",
+      "target": "concept:speckit-plan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "SpecKit phase: plan implementation and create design artifacts"
+    },
+    {
+      "source": "concept:speckit-workflow",
+      "target": "concept:speckit-tasks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "SpecKit phase: generate dependency-ordered tasks"
+    },
+    {
+      "source": "concept:speckit-workflow",
+      "target": "concept:speckit-taskstoissues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "SpecKit phase: convert tasks to GitHub issues"
+    },
+    {
+      "source": "concept:speckit-workflow",
+      "target": "concept:speckit-analyze",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "SpecKit phase: cross-artifact quality analysis"
+    },
+    {
+      "source": "concept:speckit-workflow",
+      "target": "concept:speckit-checklist",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "SpecKit phase: generate quality checklist"
+    },
+    {
+      "source": "concept:speckit-workflow",
+      "target": "concept:speckit-implement",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "SpecKit phase: execute implementation tasks"
+    },
+    {
+      "source": "concept:speckit-workflow",
+      "target": "concept:speckit-agent-context-update",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0,
+      "description": "SpecKit phase: refresh agent context file"
+    },
+    {
+      "source": "concept:openspec-workflow",
+      "target": "concept:speckit-workflow",
+      "type": "related",
+      "direction": "bidirectional",
+      "weight": 0.5,
+      "description": "OpenSpec and SpecKit are complementary spec-driven development workflows used together in this project"
+    },
+    {
+      "source": "document:.claude/skills/openspec-apply-change/SKILL.md",
+      "target": "concept:openspec-apply-change",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the apply-change workflow"
+    },
+    {
+      "source": "document:.github/skills/openspec-apply-change/SKILL.md",
+      "target": "concept:openspec-apply-change",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "GitHub Copilot skill file documenting the apply-change workflow"
+    },
+    {
+      "source": "document:.opencode/skills/openspec-apply-change/SKILL.md",
+      "target": "concept:openspec-apply-change",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "OpenCode skill file documenting the apply-change workflow"
+    },
+    {
+      "source": "document:.claude/skills/openspec-archive-change/SKILL.md",
+      "target": "concept:openspec-archive-change",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the archive-change workflow"
+    },
+    {
+      "source": "document:.github/skills/openspec-archive-change/SKILL.md",
+      "target": "concept:openspec-archive-change",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "GitHub Copilot skill file documenting the archive-change workflow"
+    },
+    {
+      "source": "document:.opencode/skills/openspec-archive-change/SKILL.md",
+      "target": "concept:openspec-archive-change",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "OpenCode skill file documenting the archive-change workflow"
+    },
+    {
+      "source": "document:.claude/skills/openspec-explore/SKILL.md",
+      "target": "concept:openspec-explore",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the explore mode"
+    },
+    {
+      "source": "document:.github/skills/openspec-explore/SKILL.md",
+      "target": "concept:openspec-explore",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "GitHub Copilot skill file documenting the explore mode"
+    },
+    {
+      "source": "document:.opencode/skills/openspec-explore/SKILL.md",
+      "target": "concept:openspec-explore",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "OpenCode skill file documenting the explore mode"
+    },
+    {
+      "source": "document:.claude/skills/openspec-propose/SKILL.md",
+      "target": "concept:openspec-propose",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the propose workflow"
+    },
+    {
+      "source": "document:.github/skills/openspec-propose/SKILL.md",
+      "target": "concept:openspec-propose",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "GitHub Copilot skill file documenting the propose workflow"
+    },
+    {
+      "source": "document:.opencode/skills/openspec-propose/SKILL.md",
+      "target": "concept:openspec-propose",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "OpenCode skill file documenting the propose workflow"
+    },
+    {
+      "source": "document:.claude/skills/openspec-sync-specs/SKILL.md",
+      "target": "concept:openspec-sync-specs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the sync-specs workflow"
+    },
+    {
+      "source": "document:.github/skills/openspec-sync-specs/SKILL.md",
+      "target": "concept:openspec-sync-specs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "GitHub Copilot skill file documenting the sync-specs workflow"
+    },
+    {
+      "source": "document:.claude/skills/speckit-agent-context-update/SKILL.md",
+      "target": "concept:speckit-agent-context-update",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the agent-context-update workflow"
+    },
+    {
+      "source": "document:.claude/skills/speckit-analyze/SKILL.md",
+      "target": "concept:speckit-analyze",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the analyze workflow"
+    },
+    {
+      "source": "document:.claude/skills/speckit-checklist/SKILL.md",
+      "target": "concept:speckit-checklist",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the checklist generation workflow"
+    },
+    {
+      "source": "document:.claude/skills/speckit-clarify/SKILL.md",
+      "target": "concept:speckit-clarify",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the clarify workflow"
+    },
+    {
+      "source": "document:.claude/skills/speckit-constitution/SKILL.md",
+      "target": "concept:speckit-constitution",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the constitution workflow"
+    },
+    {
+      "source": "document:.claude/skills/speckit-implement/SKILL.md",
+      "target": "concept:speckit-implement",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the implement workflow"
+    },
+    {
+      "source": "document:.claude/skills/speckit-plan/SKILL.md",
+      "target": "concept:speckit-plan",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the plan workflow"
+    },
+    {
+      "source": "document:.claude/skills/speckit-specify/SKILL.md",
+      "target": "concept:speckit-specify",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the specify workflow"
+    },
+    {
+      "source": "document:.claude/skills/speckit-tasks/SKILL.md",
+      "target": "concept:speckit-tasks",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the task generation workflow"
+    },
+    {
+      "source": "document:.claude/skills/speckit-taskstoissues/SKILL.md",
+      "target": "concept:speckit-taskstoissues",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "Claude Code skill file documenting the tasks-to-issues workflow"
+    },
+    {
+      "source": "document:.github/copilot-instructions.md",
+      "target": "concept:speckit-workflow",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "description": "GitHub Copilot instructions referencing Speckit context"
+    },
+    {
+      "source": "document:.claude/skills/openspec-apply-change/SKILL.md",
+      "target": "document:.github/skills/openspec-apply-change/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files — Claude Code and GitHub Copilot variants of openspec-apply-change"
+    },
+    {
+      "source": "document:.claude/skills/openspec-apply-change/SKILL.md",
+      "target": "document:.opencode/skills/openspec-apply-change/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files — Claude Code and OpenCode variants of openspec-apply-change"
+    },
+    {
+      "source": "document:.github/skills/openspec-apply-change/SKILL.md",
+      "target": "document:.opencode/skills/openspec-apply-change/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files — GitHub Copilot and OpenCode variants of openspec-apply-change"
+    },
+    {
+      "source": "document:.claude/skills/openspec-archive-change/SKILL.md",
+      "target": "document:.github/skills/openspec-archive-change/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files — Claude Code and GitHub Copilot variants of openspec-archive-change"
+    },
+    {
+      "source": "document:.claude/skills/openspec-archive-change/SKILL.md",
+      "target": "document:.opencode/skills/openspec-archive-change/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files — Claude Code and OpenCode variants of openspec-archive-change"
+    },
+    {
+      "source": "document:.github/skills/openspec-archive-change/SKILL.md",
+      "target": "document:.opencode/skills/openspec-archive-change/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files — GitHub Copilot and OpenCode variants of openspec-archive-change"
+    },
+    {
+      "source": "document:.claude/skills/openspec-explore/SKILL.md",
+      "target": "document:.github/skills/openspec-explore/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files (287 lines, 10 sections each) — Claude Code and GitHub Copilot variants"
+    },
+    {
+      "source": "document:.claude/skills/openspec-explore/SKILL.md",
+      "target": "document:.opencode/skills/openspec-explore/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files (287 lines, 10 sections each) — Claude Code and OpenCode variants"
+    },
+    {
+      "source": "document:.github/skills/openspec-explore/SKILL.md",
+      "target": "document:.opencode/skills/openspec-explore/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files (287 lines, 10 sections each) — GitHub Copilot and OpenCode variants"
+    },
+    {
+      "source": "document:.claude/skills/openspec-propose/SKILL.md",
+      "target": "document:.github/skills/openspec-propose/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files — Claude Code and GitHub Copilot variants of openspec-propose"
+    },
+    {
+      "source": "document:.claude/skills/openspec-propose/SKILL.md",
+      "target": "document:.opencode/skills/openspec-propose/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files — Claude Code and OpenCode variants of openspec-propose"
+    },
+    {
+      "source": "document:.github/skills/openspec-propose/SKILL.md",
+      "target": "document:.opencode/skills/openspec-propose/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files — GitHub Copilot and OpenCode variants of openspec-propose"
+    },
+    {
+      "source": "document:.claude/skills/openspec-sync-specs/SKILL.md",
+      "target": "document:.github/skills/openspec-sync-specs/SKILL.md",
+      "type": "similar_to",
+      "direction": "bidirectional",
+      "weight": 0.9,
+      "description": "Identical skill files — Claude Code and GitHub Copilot variants of openspec-sync-specs"
+    }
+  ]
+}

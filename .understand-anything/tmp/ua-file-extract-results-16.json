@@ -1,0 +1,71 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 8,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "app/templates/base.html",
+      "language": "html",
+      "fileCategory": "markup",
+      "totalLines": 23,
+      "nonEmptyLines": 23,
+      "metrics": {}
+    },
+    {
+      "path": "app/templates/chapter.html",
+      "language": "html",
+      "fileCategory": "markup",
+      "totalLines": 420,
+      "nonEmptyLines": 387,
+      "metrics": {}
+    },
+    {
+      "path": "app/templates/ebook.html",
+      "language": "html",
+      "fileCategory": "markup",
+      "totalLines": 343,
+      "nonEmptyLines": 312,
+      "metrics": {}
+    },
+    {
+      "path": "app/templates/glossary.html",
+      "language": "html",
+      "fileCategory": "markup",
+      "totalLines": 227,
+      "nonEmptyLines": 199,
+      "metrics": {}
+    },
+    {
+      "path": "app/templates/index.html",
+      "language": "html",
+      "fileCategory": "markup",
+      "totalLines": 108,
+      "nonEmptyLines": 98,
+      "metrics": {}
+    },
+    {
+      "path": "app/templates/library.html",
+      "language": "html",
+      "fileCategory": "markup",
+      "totalLines": 184,
+      "nonEmptyLines": 169,
+      "metrics": {}
+    },
+    {
+      "path": "app/templates/settings.html",
+      "language": "html",
+      "fileCategory": "markup",
+      "totalLines": 112,
+      "nonEmptyLines": 107,
+      "metrics": {}
+    },
+    {
+      "path": "app/templates/sources.html",
+      "language": "html",
+      "fileCategory": "markup",
+      "totalLines": 125,
+      "nonEmptyLines": 118,
+      "metrics": {}
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 4,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": ".specify/extensions.yml",
+      "language": "yaml",
+      "fileCategory": "config",
+      "totalLines": 23,
+      "nonEmptyLines": 23,
+      "sections": [
+        {
+          "heading": "installed",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "settings",
+          "level": 1,
+          "line": 3
+        },
+        {
+          "heading": "hooks",
+          "level": 1,
+          "line": 5
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 3
+      }
+    },
+    {
+      "path": ".specify/feature.json",
+      "language": "json",
+      "fileCategory": "config",
+      "totalLines": 3,
+      "nonEmptyLines": 3,
+      "sections": [
+        {
+          "heading": "feature_directory",
+          "level": 1,
+          "line": 2
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 1
+      }
+    },
+    {
+      "path": ".specify/init-options.json",
+      "language": "json",
+      "fileCategory": "config",
+      "totalLines": 8,
+      "nonEmptyLines": 8,
+      "sections": [
+        {
+          "heading": "ai",
+          "level": 1,
+          "line": 2
+        },
+        {
+          "heading": "feature_numbering",
+          "level": 1,
+          "line": 3
+        },
+        {
+          "heading": "here",
+          "level": 1,
+          "line": 4
+        },
+        {
+          "heading": "integration",
+          "level": 1,
+          "line": 5
+        },
+        {
+          "heading": "script",
+          "level": 1,
+          "line": 6
+        },
+        {
+          "heading": "speckit_version",
+          "level": 1,
+          "line": 7
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    },
+    {
+      "path": ".specify/integration.json",
+      "language": "json",
+      "fileCategory": "config",
+      "totalLines": 15,
+      "nonEmptyLines": 15,
+      "sections": [
+        {
+          "heading": "version",
+          "level": 1,
+          "line": 2
+        },
+        {
+          "heading": "integration_state_schema",
+          "level": 1,
+          "line": 3
+        },
+        {
+          "heading": "installed_integrations",
+          "level": 1,
+          "line": 4
+        },
+        {
+          "heading": "integration_settings",
+          "level": 1,
+          "line": 7
+        },
+        {
+          "heading": "integration",
+          "level": 1,
+          "line": 13
+        },
+        {
+          "heading": "default_integration",
+          "level": 1,
+          "line": 14
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    }
+  ]
+}

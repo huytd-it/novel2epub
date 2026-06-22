@@ -1,0 +1,585 @@
+{
+  "nodes": [
+    {
+      "id": "app/templates/base.html",
+      "type": "template",
+      "label": "base.html",
+      "properties": {
+        "name": "base.html",
+        "language": "html",
+        "template_engine": "jinja2",
+        "category": "markup",
+        "lines": 23,
+        "purpose": "Root layout template — defines HTML shell with header nav, main content area, and scripts block. Extended by all other templates.",
+        "blocks": ["title", "head", "content", "scripts"],
+        "extends": null,
+        "routes_used": ["/", "/library", "/sources"],
+        "assets_referenced": ["/static/style.css"]
+      }
+    },
+    {
+      "id": "app/templates/chapter.html",
+      "type": "template",
+      "label": "chapter.html",
+      "properties": {
+        "name": "chapter.html",
+        "language": "html",
+        "template_engine": "jinja2",
+        "category": "markup",
+        "lines": 420,
+        "purpose": "Chapter review/edit page — side-by-side Chinese raw vs Vietnamese translation editor, AI review panel, AI rewrite diff, glossary quick-view sidebar with term highlighting, chapter-level crawl/translate actions, and async job polling.",
+        "blocks": ["title", "content", "scripts"],
+        "extends": "app/templates/base.html",
+        "routes_used": [
+          "/ebooks/{slug}",
+          "/ebooks/{slug}/chapters/{ch.index}/action",
+          "/ebooks/{slug}/glossary",
+          "/ebooks/{slug}/glossary/quick-add",
+          "/ebooks/{slug}/chapters/{ch.index}/ai/review",
+          "/ebooks/{slug}/chapters/{ch.index}/ai/review/dismiss",
+          "/ebooks/{slug}/chapters/{ch.index}/ai/rewrite",
+          "/ebooks/{slug}/chapters/{ch.index}/ai/rewrite/apply",
+          "/ebooks/{slug}/chapters/{ch.index}/ai/rewrite/discard",
+          "/ebooks/{slug}/chapters/{ch.index}/ai/suggest",
+          "/ebooks/{slug}/chapters/{ch.index}/ai/suggest/apply"
+        ],
+        "apis_consumed": ["GET /api/status"],
+        "data_dependencies": ["ch", "slug", "raw", "translated", "meta", "glossary_rows", "glossary_relevant_count", "CATEGORY_LABELS"],
+        "served_by": "app/routes/chapters.py",
+        "features": [
+          "Translation editor (textarea form POST)",
+          "AI review panel with issue severity/severity badges",
+          "AI rewrite diff viewer (line-level LCS)",
+          "Glossary quick-view with search filter",
+          "Glossary term highlighting in raw Chinese text",
+          "Inline quick-add glossary form",
+          "Chapter crawl/translate action triggers",
+          "Async job status polling via fetch API",
+          "Restore before-rewrite / before-find-replace snapshots"
+        ]
+      }
+    },
+    {
+      "id": "app/templates/ebook.html",
+      "type": "template",
+      "label": "ebook.html",
+      "properties": {
+        "name": "ebook.html",
+        "language": "html",
+        "template_engine": "jinja2",
+        "category": "markup",
+        "lines": 343,
+        "purpose": "Ebook dashboard — metadata card with cover, chapter table with server-side filter/sort/search pagination, bulk crawl/translate actions with checkboxes and range targeting, and async TOC reload without page refresh.",
+        "blocks": ["title", "content", "scripts"],
+        "extends": "app/templates/base.html",
+        "routes_used": [
+          "/",
+          "/ebooks/{slug}",
+          "/ebooks/{slug}/jobs/crawl",
+          "/ebooks/{slug}/jobs/translate",
+          "/ebooks/{slug}/jobs/translate-meta",
+          "/ebooks/{slug}/jobs/build",
+          "/ebooks/{slug}/jobs/run",
+          "/ebooks/{slug}/jobs/fetch-toc",
+          "/ebooks/{slug}/jobs/chapter-action",
+          "/ebooks/{slug}/download",
+          "/ebooks/{slug}/glossary",
+          "/ebooks/{slug}/settings",
+          "/ebooks/{slug}/chapters/{ch.index}",
+          "/ebooks/{slug}/chapters/{ch.index}/action"
+        ],
+        "apis_consumed": ["GET /api/status"],
+        "data_dependencies": ["cfg", "manifest", "slug", "chapters", "controls", "job", "config_path", "epub_path", "epub_exists"],
+        "served_by": "app/routes/ebooks.py",
+        "features": [
+          "Metadata card with cover image, title, author, description",
+          "Chapter TOC list with server-side sort/search/filter controls",
+          "Filter by: raw presence, translation presence, missing fields",
+          "Sort by: source order, title, raw status, translated status",
+          "Bulk crawl/translate with checkbox selection and numeric range targeting",
+          "Async TOC region reload via fetch (no page refresh)",
+          "Job status polling with auto-reload on job completion",
+          "Debounced search input for TOC filtering",
+          "Cover image serving endpoint"
+        ]
+      }
+    },
+    {
+      "id": "app/templates/glossary.html",
+      "type": "template",
+      "label": "glossary.html",
+      "properties": {
+        "name": "glossary.html",
+        "language": "html",
+        "template_engine": "jinja2",
+        "category": "markup",
+        "lines": 227,
+        "purpose": "Glossary management — edit names.txt and vietphrase.txt side-by-side, AI glossary suggestion with range-based chapter analysis, AI translation evaluation with score/report, literal find-and-replace across all translated chapters, and AI chapter rewrite.",
+        "blocks": ["title", "content", "scripts"],
+        "extends": "app/templates/base.html",
+        "routes_used": [
+          "/ebooks/{slug}",
+          "/ebooks/{slug}/glossary",
+          "/ebooks/{slug}/glossary/suggest",
+          "/ebooks/{slug}/glossary/apply",
+          "/ebooks/{slug}/glossary/evaluate",
+          "/ebooks/{slug}/glossary/find-replace",
+          "/ebooks/{slug}/glossary/rewrite"
+        ],
+        "apis_consumed": ["GET /api/status"],
+        "data_dependencies": ["slug", "names", "vietphrase", "suggestions", "report", "suggest_error", "evaluate_error", "job", "chapter_from", "chapter_to", "eval_chapter_from", "eval_chapter_to"],
+        "served_by": "app/routes/glossary.py",
+        "features": [
+          "Dual textarea editor for names.txt (proper nouns) and vietphrase.txt (terms)",
+          "AI glossary suggestion: analyze small chapter range (max 5) for new terms",
+          "AI translation evaluation: score/report on consistency, accuracy, style",
+          "Literal find-and-replace across all translated chapters",
+          "AI chapter rewrite: batch edit translation with glossary + style rules",
+          "Range-based chapter targeting for suggest, evaluate, rewrite",
+          "Checkbox-based suggestion selection for bulk apply",
+          "Async job status polling (no page reload for ongoing glossary edits)"
+        ]
+      }
+    },
+    {
+      "id": "app/templates/index.html",
+      "type": "template",
+      "label": "index.html",
+      "properties": {
+        "name": "index.html",
+        "language": "html",
+        "template_engine": "jinja2",
+        "category": "markup",
+        "lines": 108,
+        "purpose": "Homepage — library overview showing all ebooks with slug, name, author, chapter counts (total/raw/translated), EPUB availability, and global job status with async polling and auto-refresh of library region on job completion.",
+        "blocks": ["title", "content", "scripts"],
+        "extends": "app/templates/base.html",
+        "routes_used": ["/", "/library", "/ebooks/{slug}", "/ebooks/{slug}/settings"],
+        "apis_consumed": ["GET /api/status", "GET / (X-Requested-With: fetch)"],
+        "data_dependencies": ["ebooks", "job", "library_path", "config_path"],
+        "served_by": "app/routes/ebooks.py",
+        "features": [
+          "Ebook library table: slug, name, author, chapter counts, EPUB badge",
+          "Links to ebook dashboard and settings",
+          "Global job status badge (running/idle/error) with log",
+          "Async job polling every 1.5s",
+          "Auto-refresh library region via fetch on job completion",
+          "No-reload UI updates"
+        ]
+      }
+    },
+    {
+      "id": "app/templates/library.html",
+      "type": "template",
+      "label": "library.html",
+      "properties": {
+        "name": "library.html",
+        "language": "html",
+        "template_engine": "jinja2",
+        "category": "markup",
+        "lines": 184,
+        "purpose": "Library management — list existing ebooks with slug/name/config paths, remove ebooks (optionally delete config file), and create new ebooks with URL auto-detect (fetch TOC metadata, auto-fill name/author/slug, suggest site preset).",
+        "blocks": ["title", "content", "scripts"],
+        "extends": "app/templates/base.html",
+        "routes_used": [
+          "/ebooks/{slug}",
+          "/ebooks/{slug}/settings",
+          "/library/ebooks",
+          "/library/ebooks/fetch-meta",
+          "/library/ebooks/{slug}/delete",
+          "/sources",
+          "/preset-builder"
+        ],
+        "apis_consumed": [],
+        "data_dependencies": ["ebooks", "library_path", "presets"],
+        "served_by": "app/routes/library.py",
+        "features": [
+          "Ebook list with config path and existence status",
+          "Remove ebook with optional config file deletion",
+          "Create ebook form with fields: name, author, slug, TOC URL, engine, preset",
+          "Auto-slugify from name",
+          "Auto-fill engine when preset selected",
+          "Fetch metadata button: POSTs TOC URL, receives auto-detected name/author/slug/preset",
+          "Supports both http and crawl4ai engines",
+          "Site preset dropdown populated from presets dict"
+        ]
+      }
+    },
+    {
+      "id": "app/templates/settings.html",
+      "type": "template",
+      "label": "settings.html",
+      "properties": {
+        "name": "settings.html",
+        "language": "html",
+        "template_engine": "jinja2",
+        "category": "markup",
+        "lines": 112,
+        "purpose": "Ebook settings editor — three config sections (novel metadata, crawl source, AI translation) each posting to separate endpoints. Preserves YAML comments via config_writer. Supports preset selection with one-click apply for source config.",
+        "blocks": ["title", "content", "scripts"],
+        "extends": "app/templates/base.html",
+        "routes_used": [
+          "/ebooks/{slug}",
+          "/ebooks/{slug}/settings/novel",
+          "/ebooks/{slug}/settings/source",
+          "/ebooks/{slug}/settings/source/apply-preset",
+          "/ebooks/{slug}/settings/ai",
+          "/sources"
+        ],
+        "apis_consumed": [],
+        "data_dependencies": ["slug", "cfg", "config_path", "presets"],
+        "served_by": "app/routes/settings.py",
+        "features": [
+          "Novel section: title, author, language fields",
+          "Source section: engine selector, TOC URL, chapter link regex, max chapters, delay, encoding",
+          "Source selectors: content, toc, chapter title, title, author, desc, cover",
+          "crawl4ai options: headless, magic, js_code",
+          "AI CLI section: type (cli/google/none), command, model, mode (stdin/arg), timeout",
+          "AI prompt templates: translate and title prompt textareas",
+          "Style section: tone, pronoun_policy, title_mode, han_viet_level, keep_paragraphs",
+          "Retry/chunk/rate: attempts, delay, chunk size, overlap, rate delay",
+          "One-click preset apply (fills source config from sources.yaml)"
+        ]
+      }
+    },
+    {
+      "id": "app/templates/sources.html",
+      "type": "template",
+      "label": "sources.html",
+      "properties": {
+        "name": "sources.html",
+        "language": "html",
+        "template_engine": "jinja2",
+        "category": "markup",
+        "lines": 125,
+        "purpose": "Source preset library — lists all site-specific crawl presets (engine, selectors, patterns), shows which ebooks use each preset, and provides a full CRUD form to create/edit presets with dynamic crawl4ai option visibility.",
+        "blocks": ["title", "content", "scripts"],
+        "extends": "app/templates/base.html",
+        "routes_used": [
+          "/sources",
+          "/sources?edit={name}",
+          "/sources/{name}/delete",
+          "/preset-builder",
+          "/ebooks/{slug}"
+        ],
+        "apis_consumed": [],
+        "data_dependencies": ["presets", "sources_path", "usage", "edit"],
+        "served_by": "app/routes/sources.py",
+        "features": [
+          "Preset listing table: name, engine badge, content_selector, chapter_link_pattern",
+          "Usage column: links to ebooks currently using each preset",
+          "Edit button: loads preset into form via query parameter",
+          "Delete with confirmation dialog",
+          "Create form with fields: name, engine, delay, encoding, chapter_link_pattern",
+          "Selector fields: content, toc, chapter_title, title, author, desc, cover",
+          "crawl4ai options: headless, magic, js_code (shown/hidden by JS based on engine)",
+          "Network field: user_agent",
+          "Link to /preset-builder for URL-based preset auto-detection",
+          "Dynamic JS to toggle crawl4ai options on engine change"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "app/templates/chapter.html",
+      "target": "app/templates/base.html",
+      "type": "extends",
+      "properties": { "mechanism": "jinja2 {% extends %}" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "app/templates/base.html",
+      "type": "extends",
+      "properties": { "mechanism": "jinja2 {% extends %}" }
+    },
+    {
+      "source": "app/templates/glossary.html",
+      "target": "app/templates/base.html",
+      "type": "extends",
+      "properties": { "mechanism": "jinja2 {% extends %}" }
+    },
+    {
+      "source": "app/templates/index.html",
+      "target": "app/templates/base.html",
+      "type": "extends",
+      "properties": { "mechanism": "jinja2 {% extends %}" }
+    },
+    {
+      "source": "app/templates/library.html",
+      "target": "app/templates/base.html",
+      "type": "extends",
+      "properties": { "mechanism": "jinja2 {% extends %}" }
+    },
+    {
+      "source": "app/templates/settings.html",
+      "target": "app/templates/base.html",
+      "type": "extends",
+      "properties": { "mechanism": "jinja2 {% extends %}" }
+    },
+    {
+      "source": "app/templates/sources.html",
+      "target": "app/templates/base.html",
+      "type": "extends",
+      "properties": { "mechanism": "jinja2 {% extends %}" }
+    },
+    {
+      "source": "app/templates/base.html",
+      "target": "app/static/style.css",
+      "type": "references_asset",
+      "properties": { "mechanism": "link rel=stylesheet" }
+    },
+    {
+      "source": "app/templates/chapter.html",
+      "target": "app/routes/chapters.py",
+      "type": "served_by",
+      "properties": { "role": "FastAPI route handler renders this template" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "app/routes/ebooks.py",
+      "type": "served_by",
+      "properties": { "role": "FastAPI route handler renders this template" }
+    },
+    {
+      "source": "app/templates/glossary.html",
+      "target": "app/routes/glossary.py",
+      "type": "served_by",
+      "properties": { "role": "FastAPI route handler renders this template" }
+    },
+    {
+      "source": "app/templates/index.html",
+      "target": "app/routes/ebooks.py",
+      "type": "served_by",
+      "properties": { "role": "FastAPI route handler renders this template as root /" }
+    },
+    {
+      "source": "app/templates/library.html",
+      "target": "app/routes/library.py",
+      "type": "served_by",
+      "properties": { "role": "FastAPI route handler renders this template" }
+    },
+    {
+      "source": "app/templates/settings.html",
+      "target": "app/routes/settings.py",
+      "type": "served_by",
+      "properties": { "role": "FastAPI route handler renders this template" }
+    },
+    {
+      "source": "app/templates/sources.html",
+      "target": "app/routes/sources.py",
+      "type": "served_by",
+      "properties": { "role": "FastAPI route handler renders this template" }
+    },
+    {
+      "source": "app/templates/chapter.html",
+      "target": "app/routes/ebooks.py",
+      "type": "links_to",
+      "properties": { "route": "/ebooks/{slug}" }
+    },
+    {
+      "source": "app/templates/chapter.html",
+      "target": "app/routes/glossary.py",
+      "type": "links_to",
+      "properties": { "route": "/ebooks/{slug}/glossary" }
+    },
+    {
+      "source": "app/templates/chapter.html",
+      "target": "app/routes/jobs.py",
+      "type": "calls_api",
+      "properties": { "endpoint": "GET /api/status", "purpose": "Job status polling every 1.5s" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "app/routes/jobs.py",
+      "type": "calls_api",
+      "properties": { "endpoint": "GET /api/status", "purpose": "Job status polling every 1.5s" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "app/routes/glossary.py",
+      "type": "links_to",
+      "properties": { "route": "/ebooks/{slug}/glossary" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "app/routes/chapters.py",
+      "type": "links_to",
+      "properties": { "route": "/ebooks/{slug}/chapters/{ch.index}" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "app/routes/settings.py",
+      "type": "links_to",
+      "properties": { "route": "/ebooks/{slug}/settings" }
+    },
+    {
+      "source": "app/templates/glossary.html",
+      "target": "app/routes/jobs.py",
+      "type": "calls_api",
+      "properties": { "endpoint": "GET /api/status", "purpose": "Job status polling every 1.5s" }
+    },
+    {
+      "source": "app/templates/glossary.html",
+      "target": "app/routes/ebooks.py",
+      "type": "links_to",
+      "properties": { "route": "/ebooks/{slug}" }
+    },
+    {
+      "source": "app/templates/index.html",
+      "target": "app/routes/jobs.py",
+      "type": "calls_api",
+      "properties": { "endpoint": "GET /api/status", "purpose": "Global job status polling every 1.5s" }
+    },
+    {
+      "source": "app/templates/index.html",
+      "target": "app/routes/library.py",
+      "type": "links_to",
+      "properties": { "route": "/library" }
+    },
+    {
+      "source": "app/templates/library.html",
+      "target": "app/routes/library.py",
+      "type": "calls_api",
+      "properties": { "endpoint": "POST /library/ebooks/fetch-meta", "purpose": "Auto-detect novel metadata from TOC URL" }
+    },
+    {
+      "source": "app/templates/library.html",
+      "target": "app/routes/sources.py",
+      "type": "links_to",
+      "properties": { "route": "/sources" }
+    },
+    {
+      "source": "app/templates/library.html",
+      "target": "app/routes/preset_builder.py",
+      "type": "links_to",
+      "properties": { "route": "/preset-builder" }
+    },
+    {
+      "source": "app/templates/settings.html",
+      "target": "app/routes/settings.py",
+      "type": "links_to",
+      "properties": { "route": "Multiple: /ebooks/{slug}/settings/novel, /settings/source, /settings/ai" }
+    },
+    {
+      "source": "app/templates/settings.html",
+      "target": "app/routes/sources.py",
+      "type": "links_to",
+      "properties": { "route": "/sources" }
+    },
+    {
+      "source": "app/templates/settings.html",
+      "target": "config.yaml",
+      "type": "depends_on",
+      "properties": { "mechanism": "cfg object passed from config.py", "role": "Read/write novel configuration" }
+    },
+    {
+      "source": "app/templates/settings.html",
+      "target": "sources.yaml",
+      "type": "depends_on",
+      "properties": { "mechanism": "presets dict from sources.py", "role": "Source preset list for apply-preset dropdown" }
+    },
+    {
+      "source": "app/templates/sources.html",
+      "target": "sources.yaml",
+      "type": "depends_on",
+      "properties": { "mechanism": "presets dict from sources.py", "role": "Source presets CRUD" }
+    },
+    {
+      "source": "app/templates/sources.html",
+      "target": "app/routes/preset_builder.py",
+      "type": "links_to",
+      "properties": { "route": "/preset-builder" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "config.yaml",
+      "type": "depends_on",
+      "properties": { "mechanism": "cfg object passed from config.py", "role": "Display config: engine, translate type, model" }
+    },
+    {
+      "source": "app/templates/index.html",
+      "target": "library.yaml",
+      "type": "depends_on",
+      "properties": { "mechanism": "library_path variable", "role": "Multi-ebook library manifest" }
+    },
+    {
+      "source": "app/templates/library.html",
+      "target": "library.yaml",
+      "type": "depends_on",
+      "properties": { "mechanism": "library_path variable", "role": "Multi-ebook library manifest" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "app/templates/chapter.html",
+      "type": "links_to",
+      "properties": { "route": "/ebooks/{slug}/chapters/{ch.index}", "purpose": "Chapter detail/edit page" }
+    },
+    {
+      "source": "app/templates/chapter.html",
+      "target": "docs/rule.md",
+      "type": "references_doc",
+      "properties": { "purpose": "Editing checklist references rule.md section III" }
+    },
+    {
+      "source": "app/templates/chapter.html",
+      "target": "novel2epub/glossary_ai.py",
+      "type": "consumes_output_from",
+      "properties": { "purpose": "AI review report and AI suggestions displayed in panels" }
+    },
+    {
+      "source": "app/templates/chapter.html",
+      "target": "novel2epub/footnotes.py",
+      "type": "consumes_output_from",
+      "properties": { "purpose": "Glossary entries with notes become footnotes on EPUB build" }
+    },
+    {
+      "source": "app/templates/glossary.html",
+      "target": "novel2epub/glossary_ai.py",
+      "type": "consumes_output_from",
+      "properties": { "purpose": "AI glossary suggestions and translation evaluation reports" }
+    },
+    {
+      "source": "app/templates/glossary.html",
+      "target": "novel2epub/storage.py",
+      "type": "depends_on",
+      "properties": { "mechanism": "Chapter storage read/write", "role": "Glossary form saves to names.txt and vietphrase.txt via storage layer" }
+    },
+    {
+      "source": "app/templates/sources.html",
+      "target": "novel2epub/sources.py",
+      "type": "consumes_output_from",
+      "properties": { "purpose": "Preset list from sources.yaml loaded via sources.load_presets()" }
+    },
+    {
+      "source": "app/templates/settings.html",
+      "target": "novel2epub/config_writer.py",
+      "type": "depends_on",
+      "properties": { "mechanism": "Round-trip YAML writes preserving comments", "role": "Settings form submissions write config.yaml" }
+    },
+    {
+      "source": "app/templates/settings.html",
+      "target": "novel2epub/config.py",
+      "type": "depends_on",
+      "properties": { "mechanism": "cfg dataclass passed to template", "role": "Display current config values" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "novel2epub/storage.py",
+      "type": "depends_on",
+      "properties": { "mechanism": "manifest object from storage", "role": "Display chapter counts and metadata" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "novel2epub/epub_builder.py",
+      "type": "consumes_output_from",
+      "properties": { "mechanism": "epub_exists / epub_path from build output", "role": "Conditional EPUB download link" }
+    },
+    {
+      "source": "app/templates/ebook.html",
+      "target": "novel2epub/toc.py",
+      "type": "depends_on",
+      "properties": { "mechanism": "Chapter sort/filter/range logic", "role": "Server-side TOC filtering and sorting" }
+    }
+  ]
+}

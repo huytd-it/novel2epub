@@ -1,0 +1,265 @@
+{
+  "nodes": [
+    {
+      "id": "file:.opencode/commands/opsx-apply.md",
+      "type": "file",
+      "name": "opsx-apply.md",
+      "filePath": ".opencode/commands/opsx-apply.md",
+      "summary": "OpenCode command definition for opsx-apply: implements tasks from an OpenSpec change by processing the implementation workflow and executing code changes.",
+      "tags": ["opencode", "openspec", "command", "workflow", "implementation"],
+      "complexity": "simple",
+      "languageNotes": "Markdown command template with 112 non-empty lines defining the agent's behavior, context requirements, and execution steps for applying OpenSpec changes."
+    },
+    {
+      "id": "file:.opencode/commands/opsx-archive.md",
+      "type": "file",
+      "name": "opsx-archive.md",
+      "filePath": ".opencode/commands/opsx-archive.md",
+      "summary": "OpenCode command definition for opsx-archive: archives a completed OpenSpec change after implementation, finalizing and moving the change artifacts.",
+      "tags": ["opencode", "openspec", "command", "workflow", "archival"],
+      "complexity": "simple",
+      "languageNotes": "Markdown command template with 109 non-empty lines defining the archival workflow for completed OpenSpec changes."
+    },
+    {
+      "id": "file:.opencode/commands/opsx-explore.md",
+      "type": "file",
+      "name": "opsx-explore.md",
+      "filePath": ".opencode/commands/opsx-explore.md",
+      "summary": "OpenCode command definition for opsx-explore: enter explore mode as a thinking partner for investigating problems, clarifying requirements, and brainstorming before or during a change.",
+      "tags": ["opencode", "openspec", "command", "exploration", "planning"],
+      "complexity": "moderate",
+      "languageNotes": "Markdown command template with 125 non-empty lines and 9 headed sections covering stance, OpenSpec awareness, context checking, and guardrails for the exploration workflow."
+    },
+    {
+      "id": "file:.opencode/commands/opsx-propose.md",
+      "type": "file",
+      "name": "opsx-propose.md",
+      "filePath": ".opencode/commands/opsx-propose.md",
+      "summary": "OpenCode command definition for opsx-propose: quickly propose a new OpenSpec change with all artifacts (design, specs, tasks) generated in a single step.",
+      "tags": ["opencode", "openspec", "command", "proposal", "bootstrapping"],
+      "complexity": "simple",
+      "languageNotes": "Markdown command template with 80 non-empty lines defining the one-step proposal creation process for new OpenSpec changes."
+    },
+    {
+      "id": "file:.opencode/commands/opsx-sync.md",
+      "type": "file",
+      "name": "opsx-sync.md",
+      "filePath": ".opencode/commands/opsx-sync.md",
+      "summary": "OpenCode command definition for opsx-sync: syncs delta specs from an OpenSpec change to the main specs without archiving the change itself.",
+      "tags": ["opencode", "openspec", "command", "synchronization", "spec-management"],
+      "complexity": "simple",
+      "languageNotes": "Markdown command template with 94 non-empty lines defining the delta-to-main spec synchronization workflow."
+    },
+    {
+      "id": "file:.opencode/commands/speckit.analyze.md",
+      "type": "file",
+      "name": "speckit.analyze.md",
+      "filePath": ".opencode/commands/speckit.analyze.md",
+      "summary": "Speckit analyze command: performs non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation.",
+      "tags": ["speckit", "analysis", "quality", "cross-artifact", "consistency"],
+      "complexity": "complex",
+      "languageNotes": "Markdown command template with 172 non-empty lines and 25 headed sections covering initialization, artifact loading, semantic model building, 6 detection passes (duplication, ambiguity, underspecification, constitution alignment, coverage gaps, inconsistency), severity assignment, and remediation."
+    },
+    {
+      "id": "file:.opencode/commands/speckit.checklist.md",
+      "type": "file",
+      "name": "speckit.checklist.md",
+      "filePath": ".opencode/commands/speckit.checklist.md",
+      "summary": "Speckit checklist command: generates custom checklists ('unit tests for English') based on user requirements for feature validation.",
+      "tags": ["speckit", "checklist", "quality", "validation", "requirements"],
+      "complexity": "complex",
+      "languageNotes": "Markdown command template with 287 non-empty lines and 7 headed sections including pre-execution checks, execution steps, example checklist types, anti-examples, and post-execution checks."
+    },
+    {
+      "id": "file:.opencode/commands/speckit.clarify.md",
+      "type": "file",
+      "name": "speckit.clarify.md",
+      "filePath": ".opencode/commands/speckit.clarify.md",
+      "summary": "Speckit clarify command: identifies underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding answers back into the spec.",
+      "tags": ["speckit", "clarification", "requirements", "specification", "ambiguity-resolution"],
+      "complexity": "complex",
+      "languageNotes": "Markdown command template with 231 non-empty lines and 6 headed sections covering pre-execution checks, clarification outline, mandatory post-execution hooks, and completion reporting."
+    },
+    {
+      "id": "file:.opencode/commands/speckit.constitution.md",
+      "type": "file",
+      "name": "speckit.constitution.md",
+      "filePath": ".opencode/commands/speckit.constitution.md",
+      "summary": "Speckit constitution command: creates or updates the project constitution from interactive or provided principle inputs, keeping all dependent templates in sync.",
+      "tags": ["speckit", "constitution", "governance", "principles", "project-setup"],
+      "complexity": "moderate",
+      "languageNotes": "Markdown command template with 119 non-empty lines and 4 headed sections for defining and maintaining project constitutional principles."
+    },
+    {
+      "id": "file:.opencode/commands/speckit.implement.md",
+      "type": "file",
+      "name": "speckit.implement.md",
+      "filePath": ".opencode/commands/speckit.implement.md",
+      "summary": "Speckit implement command: executes the implementation plan by processing and executing all tasks defined in tasks.md for the current feature.",
+      "tags": ["speckit", "implementation", "execution", "task-processing", "build"],
+      "complexity": "complex",
+      "languageNotes": "Markdown command template with 173 non-empty lines and 6 headed sections covering pre-execution checks, task execution outline, mandatory post-execution hooks, and completion reporting."
+    },
+    {
+      "id": "file:.opencode/commands/speckit.plan.md",
+      "type": "file",
+      "name": "speckit.plan.md",
+      "filePath": ".opencode/commands/speckit.plan.md",
+      "summary": "Speckit plan command: executes the implementation planning workflow to generate design artifacts (plan.md) including phases for research, design, and contracts.",
+      "tags": ["speckit", "planning", "design", "architecture", "contracts"],
+      "complexity": "complex",
+      "languageNotes": "Markdown command template with 129 non-empty lines and 10 headed sections covering two phases (Phase 0: Outline & Research, Phase 1: Design & Contracts) with post-execution hooks."
+    },
+    {
+      "id": "file:.opencode/commands/speckit.specify.md",
+      "type": "file",
+      "name": "speckit.specify.md",
+      "filePath": ".opencode/commands/speckit.specify.md",
+      "summary": "Speckit specify command: creates or updates the feature specification from a natural language feature description with section requirements and success criteria guidelines.",
+      "tags": ["speckit", "specification", "requirements", "feature-description", "documentation"],
+      "complexity": "complex",
+      "languageNotes": "Markdown command template with 266 non-empty lines and 10 headed sections covering specification writing guidelines, section requirements, AI generation rules, and success criteria formulation."
+    },
+    {
+      "id": "file:.opencode/commands/speckit.tasks.md",
+      "type": "file",
+      "name": "speckit.tasks.md",
+      "filePath": ".opencode/commands/speckit.tasks.md",
+      "summary": "Speckit tasks command: generates actionable, dependency-ordered tasks.md for the feature based on available design artifacts with checklist format and phase structure.",
+      "tags": ["speckit", "tasks", "task-generation", "dependency-ordering", "planning"],
+      "complexity": "complex",
+      "languageNotes": "Markdown command template with 170 non-empty lines and 10 headed sections covering task generation rules, required checklist format, task organization, and phase structure guidelines."
+    },
+    {
+      "id": "file:.opencode/commands/speckit.taskstoissues.md",
+      "type": "file",
+      "name": "speckit.taskstoissues.md",
+      "filePath": ".opencode/commands/speckit.taskstoissues.md",
+      "summary": "Speckit taskstoissues command: converts existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts.",
+      "tags": ["speckit", "github-integration", "issues", "task-conversion", "devops"],
+      "complexity": "moderate",
+      "languageNotes": "Markdown command template with 77 non-empty lines and 4 headed sections covering GitHub issue conversion with pre-execution and post-execution checks."
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:.opencode/commands/speckit.analyze.md",
+      "target": "file:.opencode/commands/speckit.specify.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.analyze.md",
+      "target": "file:.opencode/commands/speckit.plan.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.analyze.md",
+      "target": "file:.opencode/commands/speckit.tasks.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.specify.md",
+      "target": "file:.opencode/commands/speckit.clarify.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.specify.md",
+      "target": "file:.opencode/commands/speckit.plan.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.plan.md",
+      "target": "file:.opencode/commands/speckit.tasks.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.tasks.md",
+      "target": "file:.opencode/commands/speckit.implement.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.tasks.md",
+      "target": "file:.opencode/commands/speckit.taskstoissues.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.plan.md",
+      "target": "file:.opencode/commands/speckit.implement.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.checklist.md",
+      "target": "file:.opencode/commands/speckit.specify.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.checklist.md",
+      "target": "file:.opencode/commands/speckit.tasks.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.constitution.md",
+      "target": "file:.opencode/commands/speckit.specify.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/speckit.constitution.md",
+      "target": "file:.opencode/commands/speckit.analyze.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/opsx-propose.md",
+      "target": "file:.opencode/commands/opsx-apply.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/opsx-propose.md",
+      "target": "file:.opencode/commands/opsx-explore.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/opsx-apply.md",
+      "target": "file:.opencode/commands/opsx-archive.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:.opencode/commands/opsx-apply.md",
+      "target": "file:.opencode/commands/opsx-sync.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    }
+  ]
+}

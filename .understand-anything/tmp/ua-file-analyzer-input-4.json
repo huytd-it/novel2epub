@@ -1,0 +1,56 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            "novel2epub/__init__.py":  [
+
+                                                       ],
+                            "novel2epub/epub_builder.py":  [
+                                                               "novel2epub/footnotes.py",
+                                                               "novel2epub/storage.py"
+                                                           ],
+                            "novel2epub/footnotes.py":  [
+
+                                                        ],
+                            "tests/test_epub_builder.py":  [
+                                                               "novel2epub/__init__.py",
+                                                               "novel2epub/epub_builder.py",
+                                                               "novel2epub/footnotes.py"
+                                                           ],
+                            "tests/test_footnotes.py":  [
+                                                            "novel2epub/__init__.py",
+                                                            "novel2epub/footnotes.py"
+                                                        ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  "novel2epub/__init__.py",
+                           "language":  "python",
+                           "sizeLines":  3,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "novel2epub/epub_builder.py",
+                           "language":  "python",
+                           "sizeLines":  146,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "novel2epub/footnotes.py",
+                           "language":  "python",
+                           "sizeLines":  90,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_epub_builder.py",
+                           "language":  "python",
+                           "sizeLines":  37,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_footnotes.py",
+                           "language":  "python",
+                           "sizeLines":  54,
+                           "fileCategory":  "code"
+                       }
+                   ]
+}

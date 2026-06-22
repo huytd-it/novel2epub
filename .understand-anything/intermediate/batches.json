@@ -1,0 +1,3856 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "louvain",
+  "totalFiles": 200,
+  "totalBatches": 25,
+  "exportsByPath": {
+    ".specify/extensions/.registry": [],
+    ".understand-anything/.understandignore": [],
+    "app/__init__.py": [],
+    "app/deps.py": [
+      "cfg",
+      "library",
+      "presets",
+      "resolve_path",
+      "ebook_config_path",
+      "ebook_cfg",
+      "resolved_cfg"
+    ],
+    "app/job.py": [
+      "JobRunner"
+    ],
+    "app/main.py": [],
+    "app/routes/__init__.py": [],
+    "app/routes/chapters.py": [
+      "_chapter_glossary",
+      "_chapter_context",
+      "chapter_detail",
+      "ebook_chapter_detail",
+      "chapter_save",
+      "ebook_chapter_save",
+      "ebook_chapter_action",
+      "_load_chapter_or_404",
+      "ebook_chapter_ai_rewrite_apply",
+      "ebook_chapter_ai_rewrite_discard",
+      "ebook_chapter_ai_review_dismiss",
+      "ebook_chapter_ai_suggest_apply",
+      "ebook_chapter_ai"
+    ],
+    "app/routes/ebooks.py": [
+      "_chapter_rows",
+      "index",
+      "ebook_home"
+    ],
+    "app/routes/glossary.py": [
+      "_append_glossary_entry",
+      "ebook_glossary",
+      "ebook_glossary_save",
+      "ebook_glossary_suggest",
+      "ebook_glossary_evaluate",
+      "ebook_glossary_apply",
+      "ebook_glossary_quick_add",
+      "ebook_glossary_find_replace",
+      "ebook_glossary_rewrite"
+    ],
+    "app/routes/jobs.py": [
+      "_parse_optional_int",
+      "start_job",
+      "start_ebook_crawl_range",
+      "start_ebook_chapter_action",
+      "start_ebook_job",
+      "api_status",
+      "download",
+      "ebook_cover",
+      "ebook_download"
+    ],
+    "app/routes/library.py": [
+      "slugify",
+      "_fetch_meta",
+      "library_page",
+      "fetch_meta_api",
+      "create_ebook",
+      "delete_ebook"
+    ],
+    "app/routes/preset_builder.py": [
+      "_build_overrides",
+      "preset_builder_page",
+      "preset_builder_preview",
+      "preset_builder_save",
+      "preset_builder_toc_preview_api",
+      "suggest_preset_url"
+    ],
+    "app/routes/settings.py": [
+      "settings_page",
+      "save_novel",
+      "save_source",
+      "apply_preset",
+      "save_ai"
+    ],
+    "app/routes/sources.py": [
+      "_preset_usage",
+      "sources_page",
+      "save_source_preset",
+      "delete_source_preset"
+    ],
+    "novel2epub/__init__.py": [],
+    "novel2epub/__main__.py": [],
+    "novel2epub/cli_runner.py": [
+      "resolve_command",
+      "build_argv",
+      "run_cli"
+    ],
+    "novel2epub/cli.py": [
+      "_force_utf8",
+      "_resolve_config_path",
+      "_selected_indexes_from_args",
+      "_print_chapters",
+      "main",
+      "_cmd_preset_build",
+      "_cmd_toc_preview"
+    ],
+    "novel2epub/config_writer.py": [
+      "_yaml",
+      "_load",
+      "_coerce",
+      "_deep_merge",
+      "update_config_file",
+      "scaffold_config_file",
+      "save_library"
+    ],
+    "novel2epub/config.py": [
+      "CrawlConfig",
+      "GlossaryFilesConfig",
+      "TranslationStyleConfig",
+      "TranslationRetryConfig",
+      "TranslationChunkConfig",
+      "CliTranslatorConfig",
+      "TranslateConfig",
+      "NovelConfig",
+      "OutputConfig",
+      "Config",
+      "LibraryEntry",
+      "LibraryConfig",
+      "_as_dict",
+      "load_library",
+      "_build_style",
+      "load_config"
+    ],
+    "novel2epub/crawler.py": [
+      "TocResult",
+      "Crawler",
+      "_dedupe_keep_last",
+      "_get",
+      "fetch_chapter_paginated",
+      "_next_page_url_from_html",
+      "_make_css_resolver",
+      "_next_page_url_from_pattern",
+      "_extract_href",
+      "_meta_get",
+      "HttpCrawler",
+      "Crawl4AICrawler",
+      "make_crawler"
+    ],
+    "novel2epub/epub_builder.py": [
+      "_markers_to_html",
+      "_md_to_xhtml_body",
+      "_render_footnotes",
+      "build_epub"
+    ],
+    "novel2epub/footnotes.py": [
+      "make_marker",
+      "_is_word_char",
+      "_find_first_unclaimed",
+      "annotate"
+    ],
+    "novel2epub/glossary_ai.py": [
+      "_parse_suggestions",
+      "suggest_glossary",
+      "rewrite_chapter",
+      "_parse_evaluation",
+      "evaluate_translation",
+      "format_evaluation_text"
+    ],
+    "novel2epub/pipeline.py": [
+      "_print",
+      "_now_iso",
+      "_run_with_heartbeat",
+      "_log_chapter_done",
+      "_clean_title",
+      "_strip_repeated_title",
+      "_chapter_range",
+      "_chapter_selection",
+      "_apply_default_crawl_limit",
+      "_build_meta",
+      "_quality_warnings",
+      "_refresh_manifest",
+      "_download_cover",
+      "_cover_ext",
+      "_fetch_chapter_with_retry",
+      "step_crawl",
+      "step_crawl_selected",
+      "step_fetch_toc",
+      "_translate_meta_inplace",
+      "step_translate_meta",
+      "step_translate",
+      "step_translate_selected",
+      "step_rewrite_chapters",
+      "step_find_replace",
+      "step_evaluate_translation",
+      "_require_chapter",
+      "_update_chapter_meta",
+      "step_review_chapter",
+      "step_suggest_chapter",
+      "step_rewrite_preview",
+      "step_build",
+      "run_all"
+    ],
+    "novel2epub/preset_builder.py": [
+      "PresetBuilderResult",
+      "select_engine_heuristic",
+      "_hostname",
+      "_preset_name_from_host",
+      "_domains_from_host",
+      "build_ai_suggestion_prompt",
+      "parse_ai_suggestion",
+      "_count_pattern_links",
+      "validate_pattern",
+      "_refine_feedback",
+      "refine_pattern_with_ai",
+      "_fallback_refine",
+      "_bool",
+      "_float",
+      "_int",
+      "_build_source_preset",
+      "_get_cli_config",
+      "build_preset",
+      "preview_toc",
+      "save_preset",
+      "remove_preset"
+    ],
+    "novel2epub/presets/__init__.py": [
+      "available",
+      "load"
+    ],
+    "novel2epub/presets/go.py": [
+      "load_preset"
+    ],
+    "novel2epub/sources.py": [
+      "_yaml",
+      "SourcePreset",
+      "_coerce",
+      "load_presets",
+      "detect_preset",
+      "save_presets"
+    ],
+    "novel2epub/storage.py": [
+      "parse_glossary_line",
+      "Chapter",
+      "Manifest",
+      "Storage"
+    ],
+    "novel2epub/toc.py": [
+      "ChapterRow",
+      "missing_metadata",
+      "chapter_missing",
+      "mark_duplicate_chapters",
+      "chapter_rows",
+      "_matches_filter",
+      "apply_chapter_query",
+      "select_visible_range",
+      "parse_filter",
+      "parse_range"
+    ],
+    "novel2epub/translator.py": [
+      "_clean_output",
+      "_parse_title_response",
+      "_format_glossary",
+      "_apply_glossary",
+      "_merge_glossaries",
+      "load_glossary_dict",
+      "Translator",
+      "NoopTranslator",
+      "CLITranslator",
+      "GoogleTranslator",
+      "make_translator",
+      "RateLimited"
+    ],
+    "tests/__init__.py": [],
+    "tests/test_chapter_pagination.py": [
+      "_soup",
+      "_page",
+      "_make_http_crawler",
+      "_FakeResp",
+      "_patch_http_session",
+      "test_single_page_no_pagination",
+      "test_three_page_chapter_follows_selector",
+      "test_url_pattern_fallback_substitutes_group",
+      "test_url_pattern_returns_none_when_no_match",
+      "test_url_pattern_stops_when_pattern_no_longer_matches",
+      "test_url_pattern_stops_when_pattern_no_longer_matches",
+      "test_duplicate_content_stops_pagination",
+      "test_max_pages_caps_pagination",
+      "test_repeated_title_is_stripped_from_subpage",
+      "test_http_crawler_follows_three_pages",
+      "test_http_crawler_single_page_when_no_pagination_config",
+      "test_http_crawler_pagination_with_url_pattern"
+    ],
+    "tests/test_config_writer.py": [
+      "test_update_preserves_comments_and_only_changes_target",
+      "test_scaffold_creates_config_from_example",
+      "test_save_library_round_trip",
+      "test_sources_round_trip"
+    ],
+    "tests/test_config.py": [
+      "_write_config",
+      "test_glossary_files_default_to_data_dir_glossary_folder",
+      "test_glossary_files_explicit_path_is_respected",
+      "test_no_preset_backward_compat",
+      "test_go_preset_resolution",
+      "test_go_preset_override",
+      "test_unknown_preset_raises",
+      "test_crawl_config_pagination_defaults",
+      "test_crawl_config_pagination_fields_round_trip",
+      "test_crawl_config_rejects_pattern_with_zero_capturing_groups",
+      "test_crawl_config_rejects_pattern_with_two_capturing_groups",
+      "test_crawl_config_rejects_invalid_regex"
+    ],
+    "tests/test_crawler_meta.py": [
+      "_crawler",
+      "test_extract_meta_from_og_tags",
+      "test_extract_meta_selector_overrides_and_title_fallback",
+      "test_extract_meta_falls_back_to_html_title",
+      "test_meta_get_picks_first_nonempty_and_handles_list",
+      "_make_fake_response",
+      "test_ai_fallback_triggers_when_content_empty",
+      "test_ai_fallback_skipped_when_cli_not_configured",
+      "test_ai_fallback_skipped_when_primary_succeeds"
+    ],
+    "tests/test_epub_builder.py": [
+      "test_md_to_xhtml_renders_footnote_marker_as_sup",
+      "test_render_footnotes_builds_ordered_list_with_backlinks",
+      "test_render_footnotes_empty_returns_empty",
+      "test_render_footnotes_escapes_html"
+    ],
+    "tests/test_footnotes.py": [
+      "_strip_marks",
+      "test_annotate_numbers_by_first_occurrence_order",
+      "test_annotate_skips_terms_not_present",
+      "test_annotate_prefers_longer_term",
+      "test_annotate_no_notes_returns_unchanged"
+    ],
+    "tests/test_glossary_ai.py": [
+      "test_parse_plain_json_array",
+      "test_parse_json_wrapped_in_code_fence",
+      "test_parse_json_embedded_in_explanation_text",
+      "test_invalid_type_and_target_file_fall_back_to_defaults",
+      "test_missing_source_or_suggested_is_dropped",
+      "test_non_list_json_returns_empty",
+      "test_unparseable_text_returns_empty",
+      "test_empty_array_returns_empty",
+      "test_parse_evaluation_valid_object",
+      "test_parse_evaluation_embedded_in_text_uses_fallback_regex",
+      "test_parse_evaluation_invalid_category_and_severity_fall_back",
+      "test_parse_evaluation_non_numeric_score_becomes_none",
+      "test_parse_evaluation_garbage_returns_empty_report",
+      "test_format_evaluation_text_no_issues",
+      "test_format_evaluation_text_lists_issues"
+    ],
+    "tests/test_pipeline_ai_chapter.py": [
+      "_cfg",
+      "_seed",
+      "test_review_chapter_writes_report_to_meta",
+      "test_review_chapter_without_translation_is_noop",
+      "test_suggest_chapter_writes_suggestions_to_meta",
+      "test_rewrite_preview_does_not_overwrite_translation",
+      "test_rewrite_preview_empty_result_skips",
+      "test_require_chapter_raises_on_missing_index"
+    ],
+    "tests/test_pipeline_meta.py": [
+      "_cfg",
+      "_FakeCrawler",
+      "_UpperTranslator",
+      "test_step_fetch_toc_saves_metadata_no_content",
+      "test_step_translate_meta_fills_vi",
+      "test_step_translate_meta_noop_skips",
+      "test_translate_meta_inplace_respects_force",
+      "_FlakyTranslator",
+      "test_translate_selected_reports_per_chapter_error_and_continues",
+      "test_translate_selected_fails_fast_on_first_chapter",
+      "test_step_find_replace_replaces_and_backs_up",
+      "test_step_find_replace_empty_find_is_noop",
+      "test_step_build_inserts_glossary_footnotes",
+      "test_build_epub_uses_vi_meta_and_cover"
+    ],
+    "tests/test_refactor_toc.py": [
+      "_cfg",
+      "_FakeCrawler",
+      "_FakeTranslator",
+      "test_mark_duplicate_chapters_and_visible_range",
+      "test_http_crawler_toc_has_source_missing_and_chapters",
+      "test_fetch_toc_ignores_max_chapters_limit",
+      "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+      "test_fetch_toc_preserves_curated_metadata_without_force",
+      "test_selected_crawl_and_translate_respect_force",
+      "test_cli_chapters_lists_filtered_rows",
+      "test_cli_toc_command_fetches_manifest",
+      "test_ebook_route_applies_query_controls",
+      "test_chapter_action_routes_start_custom_job",
+      "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+      "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows"
+    ],
+    "tests/test_routes_glossary.py": [
+      "test_append_new_entry_writes_line",
+      "test_append_skips_when_already_present_with_same_value",
+      "test_append_updates_when_value_differs",
+      "test_append_rejects_blank_or_invalid_target"
+    ],
+    "tests/test_sources_ui.py": [
+      "_cfg",
+      "_fake_job",
+      "test_sources_table_shows_usage_and_data_table",
+      "test_sources_empty_state_renders_muted_message_no_table",
+      "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit"
+    ],
+    "tests/test_storage.py": [
+      "test_parse_glossary_line_variants",
+      "test_read_glossary_file_strips_note",
+      "test_read_glossary_notes_merges_only_entries_with_note",
+      "test_read_glossary_file_parses_lines_and_skips_invalid",
+      "test_read_glossary_file_missing_returns_empty",
+      "test_write_then_read_roundtrip",
+      "test_manifest_roundtrip_keeps_metadata",
+      "test_old_manifest_without_metadata_loads",
+      "test_cover_helpers"
+    ],
+    "tests/test_translator.py": [
+      "_fake_completed",
+      "test_run_cli_raises_on_nonzero_with_stderr",
+      "test_run_cli_raises_when_exit0_but_empty_output",
+      "test_run_cli_returns_stdout_on_success",
+      "test_clean_output_strips_code_fence",
+      "test_clean_output_strips_preamble_line",
+      "test_clean_output_passthrough_plain_text",
+      "test_apply_glossary_replaces_all_occurrences",
+      "test_load_glossary_dict_merges_inline_and_files",
+      "test_load_glossary_dict_strips_note",
+      "test_load_glossary_dict_ignores_missing_files",
+      "test_parse_title_response_standard_format",
+      "test_parse_title_response_with_note",
+      "test_parse_title_response_missing_note_line",
+      "test_parse_title_response_fallback_when_no_format",
+      "test_go_preset_chapter_translation_uses_opencode",
+      "test_go_preset_title_translation_uses_opencode",
+      "test_go_preset_error_guides_auth"
+    ]
+  },
+  "batches": [
+    {
+      "batchIndex": 1,
+      "files": [
+        {
+          "path": "app/job.py",
+          "language": "python",
+          "sizeLines": 114,
+          "fileCategory": "code"
+        },
+        {
+          "path": "app/routes/library.py",
+          "language": "python",
+          "sizeLines": 168,
+          "fileCategory": "code"
+        },
+        {
+          "path": "app/routes/preset_builder.py",
+          "language": "python",
+          "sizeLines": 215,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/config.py",
+          "language": "python",
+          "sizeLines": 348,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/config_writer.py",
+          "language": "python",
+          "sizeLines": 120,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/crawler.py",
+          "language": "python",
+          "sizeLines": 656,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/preset_builder.py",
+          "language": "python",
+          "sizeLines": 453,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/sources.py",
+          "language": "python",
+          "sizeLines": 132,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_chapter_pagination.py",
+          "language": "python",
+          "sizeLines": 538,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_config.py",
+          "language": "python",
+          "sizeLines": 141,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_config_writer.py",
+          "language": "python",
+          "sizeLines": 73,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_crawler_meta.py",
+          "language": "python",
+          "sizeLines": 150,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_pipeline_meta.py",
+          "language": "python",
+          "sizeLines": 246,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_sources_ui.py",
+          "language": "python",
+          "sizeLines": 102,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "app/job.py": [
+          "novel2epub/config.py",
+          "novel2epub/pipeline.py"
+        ],
+        "app/routes/library.py": [
+          "app/deps.py",
+          "novel2epub/config_writer.py",
+          "novel2epub/config.py",
+          "novel2epub/crawler.py",
+          "novel2epub/pipeline.py",
+          "novel2epub/sources.py",
+          "novel2epub/translator.py"
+        ],
+        "app/routes/preset_builder.py": [
+          "app/deps.py",
+          "novel2epub/preset_builder.py",
+          "novel2epub/sources.py"
+        ],
+        "novel2epub/config.py": [],
+        "novel2epub/config_writer.py": [
+          "novel2epub/config.py"
+        ],
+        "novel2epub/crawler.py": [
+          "novel2epub/config.py",
+          "novel2epub/storage.py",
+          "novel2epub/toc.py"
+        ],
+        "novel2epub/preset_builder.py": [
+          "novel2epub/config.py",
+          "novel2epub/crawler.py",
+          "novel2epub/sources.py"
+        ],
+        "novel2epub/sources.py": [
+          "novel2epub/config.py"
+        ],
+        "tests/test_chapter_pagination.py": [
+          "novel2epub/config.py",
+          "novel2epub/crawler.py",
+          "novel2epub/storage.py"
+        ],
+        "tests/test_config.py": [
+          "novel2epub/config.py"
+        ],
+        "tests/test_config_writer.py": [
+          "novel2epub/config_writer.py",
+          "novel2epub/config.py",
+          "novel2epub/sources.py"
+        ],
+        "tests/test_crawler_meta.py": [
+          "novel2epub/config.py",
+          "novel2epub/crawler.py"
+        ],
+        "tests/test_pipeline_meta.py": [
+          "novel2epub/__init__.py",
+          "novel2epub/config.py",
+          "novel2epub/crawler.py",
+          "novel2epub/pipeline.py",
+          "novel2epub/storage.py"
+        ],
+        "tests/test_sources_ui.py": [
+          "novel2epub/config.py",
+          "novel2epub/sources.py"
+        ]
+      },
+      "neighborMap": {
+        "app/job.py": [
+          {
+            "path": "novel2epub/pipeline.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_print",
+              "_now_iso",
+              "_run_with_heartbeat",
+              "_log_chapter_done",
+              "_clean_title",
+              "_strip_repeated_title",
+              "_chapter_range",
+              "_chapter_selection",
+              "_apply_default_crawl_limit",
+              "_build_meta",
+              "_quality_warnings",
+              "_refresh_manifest",
+              "_download_cover",
+              "_cover_ext",
+              "_fetch_chapter_with_retry",
+              "step_crawl",
+              "step_crawl_selected",
+              "step_fetch_toc",
+              "_translate_meta_inplace",
+              "step_translate_meta",
+              "step_translate",
+              "step_translate_selected",
+              "step_rewrite_chapters",
+              "step_find_replace",
+              "step_evaluate_translation",
+              "_require_chapter",
+              "_update_chapter_meta",
+              "step_review_chapter",
+              "step_suggest_chapter",
+              "step_rewrite_preview",
+              "step_build",
+              "run_all"
+            ]
+          },
+          {
+            "path": "app/main.py",
+            "batchIndex": 2,
+            "symbols": []
+          }
+        ],
+        "app/routes/library.py": [
+          {
+            "path": "app/deps.py",
+            "batchIndex": 2,
+            "symbols": [
+              "cfg",
+              "library",
+              "presets",
+              "resolve_path",
+              "ebook_config_path",
+              "ebook_cfg",
+              "resolved_cfg"
+            ]
+          },
+          {
+            "path": "novel2epub/pipeline.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_print",
+              "_now_iso",
+              "_run_with_heartbeat",
+              "_log_chapter_done",
+              "_clean_title",
+              "_strip_repeated_title",
+              "_chapter_range",
+              "_chapter_selection",
+              "_apply_default_crawl_limit",
+              "_build_meta",
+              "_quality_warnings",
+              "_refresh_manifest",
+              "_download_cover",
+              "_cover_ext",
+              "_fetch_chapter_with_retry",
+              "step_crawl",
+              "step_crawl_selected",
+              "step_fetch_toc",
+              "_translate_meta_inplace",
+              "step_translate_meta",
+              "step_translate",
+              "step_translate_selected",
+              "step_rewrite_chapters",
+              "step_find_replace",
+              "step_evaluate_translation",
+              "_require_chapter",
+              "_update_chapter_meta",
+              "step_review_chapter",
+              "step_suggest_chapter",
+              "step_rewrite_preview",
+              "step_build",
+              "run_all"
+            ]
+          },
+          {
+            "path": "novel2epub/translator.py",
+            "batchIndex": 5,
+            "symbols": [
+              "_clean_output",
+              "_parse_title_response",
+              "_format_glossary",
+              "_apply_glossary",
+              "_merge_glossaries",
+              "load_glossary_dict",
+              "Translator",
+              "NoopTranslator",
+              "CLITranslator",
+              "GoogleTranslator",
+              "make_translator",
+              "RateLimited"
+            ]
+          },
+          {
+            "path": "app/main.py",
+            "batchIndex": 2,
+            "symbols": []
+          }
+        ],
+        "app/routes/preset_builder.py": [
+          {
+            "path": "app/deps.py",
+            "batchIndex": 2,
+            "symbols": [
+              "cfg",
+              "library",
+              "presets",
+              "resolve_path",
+              "ebook_config_path",
+              "ebook_cfg",
+              "resolved_cfg"
+            ]
+          }
+        ],
+        "novel2epub/config.py": [
+          {
+            "path": "app/deps.py",
+            "batchIndex": 2,
+            "symbols": [
+              "cfg",
+              "library",
+              "presets",
+              "resolve_path",
+              "ebook_config_path",
+              "ebook_cfg",
+              "resolved_cfg"
+            ]
+          },
+          {
+            "path": "app/routes/ebooks.py",
+            "batchIndex": 2,
+            "symbols": [
+              "_chapter_rows",
+              "index",
+              "ebook_home"
+            ]
+          },
+          {
+            "path": "novel2epub/cli_runner.py",
+            "batchIndex": 5,
+            "symbols": [
+              "resolve_command",
+              "build_argv",
+              "run_cli"
+            ]
+          },
+          {
+            "path": "novel2epub/cli.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_force_utf8",
+              "_resolve_config_path",
+              "_selected_indexes_from_args",
+              "_print_chapters",
+              "main",
+              "_cmd_preset_build",
+              "_cmd_toc_preview"
+            ]
+          },
+          {
+            "path": "novel2epub/glossary_ai.py",
+            "batchIndex": 5,
+            "symbols": [
+              "_parse_suggestions",
+              "suggest_glossary",
+              "rewrite_chapter",
+              "_parse_evaluation",
+              "evaluate_translation",
+              "format_evaluation_text"
+            ]
+          },
+          {
+            "path": "novel2epub/pipeline.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_print",
+              "_now_iso",
+              "_run_with_heartbeat",
+              "_log_chapter_done",
+              "_clean_title",
+              "_strip_repeated_title",
+              "_chapter_range",
+              "_chapter_selection",
+              "_apply_default_crawl_limit",
+              "_build_meta",
+              "_quality_warnings",
+              "_refresh_manifest",
+              "_download_cover",
+              "_cover_ext",
+              "_fetch_chapter_with_retry",
+              "step_crawl",
+              "step_crawl_selected",
+              "step_fetch_toc",
+              "_translate_meta_inplace",
+              "step_translate_meta",
+              "step_translate",
+              "step_translate_selected",
+              "step_rewrite_chapters",
+              "step_find_replace",
+              "step_evaluate_translation",
+              "_require_chapter",
+              "_update_chapter_meta",
+              "step_review_chapter",
+              "step_suggest_chapter",
+              "step_rewrite_preview",
+              "step_build",
+              "run_all"
+            ]
+          },
+          {
+            "path": "novel2epub/translator.py",
+            "batchIndex": 5,
+            "symbols": [
+              "_clean_output",
+              "_parse_title_response",
+              "_format_glossary",
+              "_apply_glossary",
+              "_merge_glossaries",
+              "load_glossary_dict",
+              "Translator",
+              "NoopTranslator",
+              "CLITranslator",
+              "GoogleTranslator",
+              "make_translator",
+              "RateLimited"
+            ]
+          },
+          {
+            "path": "tests/test_pipeline_ai_chapter.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_cfg",
+              "_seed",
+              "test_review_chapter_writes_report_to_meta",
+              "test_review_chapter_without_translation_is_noop",
+              "test_suggest_chapter_writes_suggestions_to_meta",
+              "test_rewrite_preview_does_not_overwrite_translation",
+              "test_rewrite_preview_empty_result_skips",
+              "test_require_chapter_raises_on_missing_index"
+            ]
+          },
+          {
+            "path": "tests/test_refactor_toc.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_cfg",
+              "_FakeCrawler",
+              "_FakeTranslator",
+              "test_mark_duplicate_chapters_and_visible_range",
+              "test_http_crawler_toc_has_source_missing_and_chapters",
+              "test_fetch_toc_ignores_max_chapters_limit",
+              "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+              "test_fetch_toc_preserves_curated_metadata_without_force",
+              "test_selected_crawl_and_translate_respect_force",
+              "test_cli_chapters_lists_filtered_rows",
+              "test_cli_toc_command_fetches_manifest",
+              "test_ebook_route_applies_query_controls",
+              "test_chapter_action_routes_start_custom_job",
+              "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+              "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows"
+            ]
+          },
+          {
+            "path": "tests/test_translator.py",
+            "batchIndex": 5,
+            "symbols": [
+              "_fake_completed",
+              "test_run_cli_raises_on_nonzero_with_stderr",
+              "test_run_cli_raises_when_exit0_but_empty_output",
+              "test_run_cli_returns_stdout_on_success",
+              "test_clean_output_strips_code_fence",
+              "test_clean_output_strips_preamble_line",
+              "test_clean_output_passthrough_plain_text",
+              "test_apply_glossary_replaces_all_occurrences",
+              "test_load_glossary_dict_merges_inline_and_files",
+              "test_load_glossary_dict_strips_note",
+              "test_load_glossary_dict_ignores_missing_files",
+              "test_parse_title_response_standard_format",
+              "test_parse_title_response_with_note",
+              "test_parse_title_response_missing_note_line",
+              "test_parse_title_response_fallback_when_no_format",
+              "test_go_preset_chapter_translation_uses_opencode",
+              "test_go_preset_title_translation_uses_opencode",
+              "test_go_preset_error_guides_auth"
+            ]
+          }
+        ],
+        "novel2epub/config_writer.py": [
+          {
+            "path": "app/routes/settings.py",
+            "batchIndex": 2,
+            "symbols": [
+              "settings_page",
+              "save_novel",
+              "save_source",
+              "apply_preset",
+              "save_ai"
+            ]
+          }
+        ],
+        "novel2epub/crawler.py": [
+          {
+            "path": "novel2epub/storage.py",
+            "batchIndex": 3,
+            "symbols": [
+              "parse_glossary_line",
+              "Chapter",
+              "Manifest",
+              "Storage"
+            ]
+          },
+          {
+            "path": "novel2epub/toc.py",
+            "batchIndex": 3,
+            "symbols": [
+              "ChapterRow",
+              "missing_metadata",
+              "chapter_missing",
+              "mark_duplicate_chapters",
+              "chapter_rows",
+              "_matches_filter",
+              "apply_chapter_query",
+              "select_visible_range",
+              "parse_filter",
+              "parse_range"
+            ]
+          },
+          {
+            "path": "novel2epub/pipeline.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_print",
+              "_now_iso",
+              "_run_with_heartbeat",
+              "_log_chapter_done",
+              "_clean_title",
+              "_strip_repeated_title",
+              "_chapter_range",
+              "_chapter_selection",
+              "_apply_default_crawl_limit",
+              "_build_meta",
+              "_quality_warnings",
+              "_refresh_manifest",
+              "_download_cover",
+              "_cover_ext",
+              "_fetch_chapter_with_retry",
+              "step_crawl",
+              "step_crawl_selected",
+              "step_fetch_toc",
+              "_translate_meta_inplace",
+              "step_translate_meta",
+              "step_translate",
+              "step_translate_selected",
+              "step_rewrite_chapters",
+              "step_find_replace",
+              "step_evaluate_translation",
+              "_require_chapter",
+              "_update_chapter_meta",
+              "step_review_chapter",
+              "step_suggest_chapter",
+              "step_rewrite_preview",
+              "step_build",
+              "run_all"
+            ]
+          },
+          {
+            "path": "tests/test_refactor_toc.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_cfg",
+              "_FakeCrawler",
+              "_FakeTranslator",
+              "test_mark_duplicate_chapters_and_visible_range",
+              "test_http_crawler_toc_has_source_missing_and_chapters",
+              "test_fetch_toc_ignores_max_chapters_limit",
+              "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+              "test_fetch_toc_preserves_curated_metadata_without_force",
+              "test_selected_crawl_and_translate_respect_force",
+              "test_cli_chapters_lists_filtered_rows",
+              "test_cli_toc_command_fetches_manifest",
+              "test_ebook_route_applies_query_controls",
+              "test_chapter_action_routes_start_custom_job",
+              "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+              "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows"
+            ]
+          }
+        ],
+        "novel2epub/preset_builder.py": [
+          {
+            "path": "novel2epub/cli.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_force_utf8",
+              "_resolve_config_path",
+              "_selected_indexes_from_args",
+              "_print_chapters",
+              "main",
+              "_cmd_preset_build",
+              "_cmd_toc_preview"
+            ]
+          }
+        ],
+        "novel2epub/sources.py": [
+          {
+            "path": "app/deps.py",
+            "batchIndex": 2,
+            "symbols": [
+              "cfg",
+              "library",
+              "presets",
+              "resolve_path",
+              "ebook_config_path",
+              "ebook_cfg",
+              "resolved_cfg"
+            ]
+          },
+          {
+            "path": "app/routes/sources.py",
+            "batchIndex": 2,
+            "symbols": [
+              "_preset_usage",
+              "sources_page",
+              "save_source_preset",
+              "delete_source_preset"
+            ]
+          }
+        ],
+        "tests/test_chapter_pagination.py": [
+          {
+            "path": "novel2epub/storage.py",
+            "batchIndex": 3,
+            "symbols": [
+              "parse_glossary_line",
+              "Chapter",
+              "Manifest",
+              "Storage"
+            ]
+          }
+        ],
+        "tests/test_pipeline_meta.py": [
+          {
+            "path": "novel2epub/__init__.py",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "novel2epub/pipeline.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_print",
+              "_now_iso",
+              "_run_with_heartbeat",
+              "_log_chapter_done",
+              "_clean_title",
+              "_strip_repeated_title",
+              "_chapter_range",
+              "_chapter_selection",
+              "_apply_default_crawl_limit",
+              "_build_meta",
+              "_quality_warnings",
+              "_refresh_manifest",
+              "_download_cover",
+              "_cover_ext",
+              "_fetch_chapter_with_retry",
+              "step_crawl",
+              "step_crawl_selected",
+              "step_fetch_toc",
+              "_translate_meta_inplace",
+              "step_translate_meta",
+              "step_translate",
+              "step_translate_selected",
+              "step_rewrite_chapters",
+              "step_find_replace",
+              "step_evaluate_translation",
+              "_require_chapter",
+              "_update_chapter_meta",
+              "step_review_chapter",
+              "step_suggest_chapter",
+              "step_rewrite_preview",
+              "step_build",
+              "run_all"
+            ]
+          },
+          {
+            "path": "novel2epub/storage.py",
+            "batchIndex": 3,
+            "symbols": [
+              "parse_glossary_line",
+              "Chapter",
+              "Manifest",
+              "Storage"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 2,
+      "files": [
+        {
+          "path": "app/deps.py",
+          "language": "python",
+          "sizeLines": 67,
+          "fileCategory": "code"
+        },
+        {
+          "path": "app/main.py",
+          "language": "python",
+          "sizeLines": 25,
+          "fileCategory": "code"
+        },
+        {
+          "path": "app/routes/__init__.py",
+          "language": "python",
+          "sizeLines": 0,
+          "fileCategory": "code"
+        },
+        {
+          "path": "app/routes/chapters.py",
+          "language": "python",
+          "sizeLines": 252,
+          "fileCategory": "code"
+        },
+        {
+          "path": "app/routes/ebooks.py",
+          "language": "python",
+          "sizeLines": 128,
+          "fileCategory": "code"
+        },
+        {
+          "path": "app/routes/glossary.py",
+          "language": "python",
+          "sizeLines": 239,
+          "fileCategory": "code"
+        },
+        {
+          "path": "app/routes/settings.py",
+          "language": "python",
+          "sizeLines": 152,
+          "fileCategory": "code"
+        },
+        {
+          "path": "app/routes/sources.py",
+          "language": "python",
+          "sizeLines": 99,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_routes_glossary.py",
+          "language": "python",
+          "sizeLines": 45,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "app/deps.py": [
+          "novel2epub/config.py",
+          "novel2epub/sources.py"
+        ],
+        "app/main.py": [
+          "app/deps.py",
+          "app/job.py",
+          "app/routes/__init__.py",
+          "app/routes/chapters.py",
+          "app/routes/ebooks.py",
+          "app/routes/glossary.py",
+          "app/routes/jobs.py",
+          "app/routes/library.py",
+          "app/routes/settings.py",
+          "app/routes/sources.py"
+        ],
+        "app/routes/__init__.py": [],
+        "app/routes/chapters.py": [
+          "app/deps.py",
+          "app/routes/glossary.py",
+          "novel2epub/pipeline.py",
+          "novel2epub/storage.py"
+        ],
+        "app/routes/ebooks.py": [
+          "app/deps.py",
+          "novel2epub/config.py",
+          "novel2epub/storage.py",
+          "novel2epub/toc.py"
+        ],
+        "app/routes/glossary.py": [
+          "app/deps.py",
+          "novel2epub/__init__.py",
+          "novel2epub/glossary_ai.py",
+          "novel2epub/pipeline.py",
+          "novel2epub/storage.py"
+        ],
+        "app/routes/settings.py": [
+          "app/deps.py",
+          "novel2epub/config_writer.py"
+        ],
+        "app/routes/sources.py": [
+          "app/deps.py",
+          "novel2epub/sources.py"
+        ],
+        "tests/test_routes_glossary.py": [
+          "app/routes/glossary.py",
+          "novel2epub/storage.py"
+        ]
+      },
+      "neighborMap": {
+        "app/deps.py": [
+          {
+            "path": "novel2epub/config.py",
+            "batchIndex": 1,
+            "symbols": [
+              "CrawlConfig",
+              "GlossaryFilesConfig",
+              "TranslationStyleConfig",
+              "TranslationRetryConfig",
+              "TranslationChunkConfig",
+              "CliTranslatorConfig",
+              "TranslateConfig",
+              "NovelConfig",
+              "OutputConfig",
+              "Config",
+              "LibraryEntry",
+              "LibraryConfig",
+              "_as_dict",
+              "load_library",
+              "_build_style",
+              "load_config"
+            ]
+          },
+          {
+            "path": "novel2epub/sources.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_yaml",
+              "SourcePreset",
+              "_coerce",
+              "load_presets",
+              "detect_preset",
+              "save_presets"
+            ]
+          },
+          {
+            "path": "app/routes/jobs.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_parse_optional_int",
+              "start_job",
+              "start_ebook_crawl_range",
+              "start_ebook_chapter_action",
+              "start_ebook_job",
+              "api_status",
+              "download",
+              "ebook_cover",
+              "ebook_download"
+            ]
+          },
+          {
+            "path": "app/routes/library.py",
+            "batchIndex": 1,
+            "symbols": [
+              "slugify",
+              "_fetch_meta",
+              "library_page",
+              "fetch_meta_api",
+              "create_ebook",
+              "delete_ebook"
+            ]
+          },
+          {
+            "path": "app/routes/preset_builder.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_build_overrides",
+              "preset_builder_page",
+              "preset_builder_preview",
+              "preset_builder_save",
+              "preset_builder_toc_preview_api",
+              "suggest_preset_url"
+            ]
+          }
+        ],
+        "app/main.py": [
+          {
+            "path": "app/job.py",
+            "batchIndex": 1,
+            "symbols": [
+              "JobRunner"
+            ]
+          },
+          {
+            "path": "app/routes/jobs.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_parse_optional_int",
+              "start_job",
+              "start_ebook_crawl_range",
+              "start_ebook_chapter_action",
+              "start_ebook_job",
+              "api_status",
+              "download",
+              "ebook_cover",
+              "ebook_download"
+            ]
+          },
+          {
+            "path": "app/routes/library.py",
+            "batchIndex": 1,
+            "symbols": [
+              "slugify",
+              "_fetch_meta",
+              "library_page",
+              "fetch_meta_api",
+              "create_ebook",
+              "delete_ebook"
+            ]
+          }
+        ],
+        "app/routes/chapters.py": [
+          {
+            "path": "novel2epub/pipeline.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_print",
+              "_now_iso",
+              "_run_with_heartbeat",
+              "_log_chapter_done",
+              "_clean_title",
+              "_strip_repeated_title",
+              "_chapter_range",
+              "_chapter_selection",
+              "_apply_default_crawl_limit",
+              "_build_meta",
+              "_quality_warnings",
+              "_refresh_manifest",
+              "_download_cover",
+              "_cover_ext",
+              "_fetch_chapter_with_retry",
+              "step_crawl",
+              "step_crawl_selected",
+              "step_fetch_toc",
+              "_translate_meta_inplace",
+              "step_translate_meta",
+              "step_translate",
+              "step_translate_selected",
+              "step_rewrite_chapters",
+              "step_find_replace",
+              "step_evaluate_translation",
+              "_require_chapter",
+              "_update_chapter_meta",
+              "step_review_chapter",
+              "step_suggest_chapter",
+              "step_rewrite_preview",
+              "step_build",
+              "run_all"
+            ]
+          },
+          {
+            "path": "novel2epub/storage.py",
+            "batchIndex": 3,
+            "symbols": [
+              "parse_glossary_line",
+              "Chapter",
+              "Manifest",
+              "Storage"
+            ]
+          }
+        ],
+        "app/routes/ebooks.py": [
+          {
+            "path": "novel2epub/config.py",
+            "batchIndex": 1,
+            "symbols": [
+              "CrawlConfig",
+              "GlossaryFilesConfig",
+              "TranslationStyleConfig",
+              "TranslationRetryConfig",
+              "TranslationChunkConfig",
+              "CliTranslatorConfig",
+              "TranslateConfig",
+              "NovelConfig",
+              "OutputConfig",
+              "Config",
+              "LibraryEntry",
+              "LibraryConfig",
+              "_as_dict",
+              "load_library",
+              "_build_style",
+              "load_config"
+            ]
+          },
+          {
+            "path": "novel2epub/storage.py",
+            "batchIndex": 3,
+            "symbols": [
+              "parse_glossary_line",
+              "Chapter",
+              "Manifest",
+              "Storage"
+            ]
+          },
+          {
+            "path": "novel2epub/toc.py",
+            "batchIndex": 3,
+            "symbols": [
+              "ChapterRow",
+              "missing_metadata",
+              "chapter_missing",
+              "mark_duplicate_chapters",
+              "chapter_rows",
+              "_matches_filter",
+              "apply_chapter_query",
+              "select_visible_range",
+              "parse_filter",
+              "parse_range"
+            ]
+          }
+        ],
+        "app/routes/glossary.py": [
+          {
+            "path": "novel2epub/__init__.py",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "novel2epub/glossary_ai.py",
+            "batchIndex": 5,
+            "symbols": [
+              "_parse_suggestions",
+              "suggest_glossary",
+              "rewrite_chapter",
+              "_parse_evaluation",
+              "evaluate_translation",
+              "format_evaluation_text"
+            ]
+          },
+          {
+            "path": "novel2epub/pipeline.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_print",
+              "_now_iso",
+              "_run_with_heartbeat",
+              "_log_chapter_done",
+              "_clean_title",
+              "_strip_repeated_title",
+              "_chapter_range",
+              "_chapter_selection",
+              "_apply_default_crawl_limit",
+              "_build_meta",
+              "_quality_warnings",
+              "_refresh_manifest",
+              "_download_cover",
+              "_cover_ext",
+              "_fetch_chapter_with_retry",
+              "step_crawl",
+              "step_crawl_selected",
+              "step_fetch_toc",
+              "_translate_meta_inplace",
+              "step_translate_meta",
+              "step_translate",
+              "step_translate_selected",
+              "step_rewrite_chapters",
+              "step_find_replace",
+              "step_evaluate_translation",
+              "_require_chapter",
+              "_update_chapter_meta",
+              "step_review_chapter",
+              "step_suggest_chapter",
+              "step_rewrite_preview",
+              "step_build",
+              "run_all"
+            ]
+          },
+          {
+            "path": "novel2epub/storage.py",
+            "batchIndex": 3,
+            "symbols": [
+              "parse_glossary_line",
+              "Chapter",
+              "Manifest",
+              "Storage"
+            ]
+          }
+        ],
+        "app/routes/settings.py": [
+          {
+            "path": "novel2epub/config_writer.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_yaml",
+              "_load",
+              "_coerce",
+              "_deep_merge",
+              "update_config_file",
+              "scaffold_config_file",
+              "save_library"
+            ]
+          }
+        ],
+        "app/routes/sources.py": [
+          {
+            "path": "novel2epub/sources.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_yaml",
+              "SourcePreset",
+              "_coerce",
+              "load_presets",
+              "detect_preset",
+              "save_presets"
+            ]
+          }
+        ],
+        "tests/test_routes_glossary.py": [
+          {
+            "path": "novel2epub/storage.py",
+            "batchIndex": 3,
+            "symbols": [
+              "parse_glossary_line",
+              "Chapter",
+              "Manifest",
+              "Storage"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 3,
+      "files": [
+        {
+          "path": "app/routes/jobs.py",
+          "language": "python",
+          "sizeLines": 184,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/__main__.py",
+          "language": "python",
+          "sizeLines": 4,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/cli.py",
+          "language": "python",
+          "sizeLines": 331,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/pipeline.py",
+          "language": "python",
+          "sizeLines": 814,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/storage.py",
+          "language": "python",
+          "sizeLines": 250,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/toc.py",
+          "language": "python",
+          "sizeLines": 154,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_pipeline_ai_chapter.py",
+          "language": "python",
+          "sizeLines": 99,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_refactor_toc.py",
+          "language": "python",
+          "sizeLines": 312,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_storage.py",
+          "language": "python",
+          "sizeLines": 135,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "app/routes/jobs.py": [
+          "app/deps.py",
+          "novel2epub/pipeline.py",
+          "novel2epub/storage.py",
+          "novel2epub/toc.py"
+        ],
+        "novel2epub/__main__.py": [
+          "novel2epub/cli.py"
+        ],
+        "novel2epub/cli.py": [
+          "novel2epub/config.py",
+          "novel2epub/pipeline.py",
+          "novel2epub/preset_builder.py",
+          "novel2epub/storage.py",
+          "novel2epub/toc.py"
+        ],
+        "novel2epub/pipeline.py": [
+          "novel2epub/config.py",
+          "novel2epub/crawler.py",
+          "novel2epub/epub_builder.py",
+          "novel2epub/storage.py",
+          "novel2epub/toc.py",
+          "novel2epub/translator.py"
+        ],
+        "novel2epub/storage.py": [],
+        "novel2epub/toc.py": [
+          "novel2epub/storage.py"
+        ],
+        "tests/test_pipeline_ai_chapter.py": [
+          "novel2epub/__init__.py",
+          "novel2epub/config.py",
+          "novel2epub/glossary_ai.py",
+          "novel2epub/pipeline.py",
+          "novel2epub/storage.py"
+        ],
+        "tests/test_refactor_toc.py": [
+          "novel2epub/__init__.py",
+          "novel2epub/cli.py",
+          "novel2epub/config.py",
+          "novel2epub/crawler.py",
+          "novel2epub/pipeline.py",
+          "novel2epub/storage.py",
+          "novel2epub/toc.py"
+        ],
+        "tests/test_storage.py": [
+          "novel2epub/storage.py"
+        ]
+      },
+      "neighborMap": {
+        "app/routes/jobs.py": [
+          {
+            "path": "app/deps.py",
+            "batchIndex": 2,
+            "symbols": [
+              "cfg",
+              "library",
+              "presets",
+              "resolve_path",
+              "ebook_config_path",
+              "ebook_cfg",
+              "resolved_cfg"
+            ]
+          },
+          {
+            "path": "app/main.py",
+            "batchIndex": 2,
+            "symbols": []
+          }
+        ],
+        "novel2epub/cli.py": [
+          {
+            "path": "novel2epub/config.py",
+            "batchIndex": 1,
+            "symbols": [
+              "CrawlConfig",
+              "GlossaryFilesConfig",
+              "TranslationStyleConfig",
+              "TranslationRetryConfig",
+              "TranslationChunkConfig",
+              "CliTranslatorConfig",
+              "TranslateConfig",
+              "NovelConfig",
+              "OutputConfig",
+              "Config",
+              "LibraryEntry",
+              "LibraryConfig",
+              "_as_dict",
+              "load_library",
+              "_build_style",
+              "load_config"
+            ]
+          },
+          {
+            "path": "novel2epub/preset_builder.py",
+            "batchIndex": 1,
+            "symbols": [
+              "PresetBuilderResult",
+              "select_engine_heuristic",
+              "_hostname",
+              "_preset_name_from_host",
+              "_domains_from_host",
+              "build_ai_suggestion_prompt",
+              "parse_ai_suggestion",
+              "_count_pattern_links",
+              "validate_pattern",
+              "_refine_feedback",
+              "refine_pattern_with_ai",
+              "_fallback_refine",
+              "_bool",
+              "_float",
+              "_int",
+              "_build_source_preset",
+              "_get_cli_config",
+              "build_preset",
+              "preview_toc",
+              "save_preset",
+              "remove_preset"
+            ]
+          }
+        ],
+        "novel2epub/pipeline.py": [
+          {
+            "path": "novel2epub/config.py",
+            "batchIndex": 1,
+            "symbols": [
+              "CrawlConfig",
+              "GlossaryFilesConfig",
+              "TranslationStyleConfig",
+              "TranslationRetryConfig",
+              "TranslationChunkConfig",
+              "CliTranslatorConfig",
+              "TranslateConfig",
+              "NovelConfig",
+              "OutputConfig",
+              "Config",
+              "LibraryEntry",
+              "LibraryConfig",
+              "_as_dict",
+              "load_library",
+              "_build_style",
+              "load_config"
+            ]
+          },
+          {
+            "path": "novel2epub/crawler.py",
+            "batchIndex": 1,
+            "symbols": [
+              "TocResult",
+              "Crawler",
+              "_dedupe_keep_last",
+              "_get",
+              "fetch_chapter_paginated",
+              "_next_page_url_from_html",
+              "_make_css_resolver",
+              "_next_page_url_from_pattern",
+              "_extract_href",
+              "_meta_get",
+              "HttpCrawler",
+              "Crawl4AICrawler",
+              "make_crawler"
+            ]
+          },
+          {
+            "path": "novel2epub/epub_builder.py",
+            "batchIndex": 4,
+            "symbols": [
+              "_markers_to_html",
+              "_md_to_xhtml_body",
+              "_render_footnotes",
+              "build_epub"
+            ]
+          },
+          {
+            "path": "novel2epub/translator.py",
+            "batchIndex": 5,
+            "symbols": [
+              "_clean_output",
+              "_parse_title_response",
+              "_format_glossary",
+              "_apply_glossary",
+              "_merge_glossaries",
+              "load_glossary_dict",
+              "Translator",
+              "NoopTranslator",
+              "CLITranslator",
+              "GoogleTranslator",
+              "make_translator",
+              "RateLimited"
+            ]
+          },
+          {
+            "path": "app/job.py",
+            "batchIndex": 1,
+            "symbols": [
+              "JobRunner"
+            ]
+          },
+          {
+            "path": "app/routes/chapters.py",
+            "batchIndex": 2,
+            "symbols": [
+              "_chapter_glossary",
+              "_chapter_context",
+              "chapter_detail",
+              "ebook_chapter_detail",
+              "chapter_save",
+              "ebook_chapter_save",
+              "ebook_chapter_action",
+              "_load_chapter_or_404",
+              "ebook_chapter_ai_rewrite_apply",
+              "ebook_chapter_ai_rewrite_discard",
+              "ebook_chapter_ai_review_dismiss",
+              "ebook_chapter_ai_suggest_apply",
+              "ebook_chapter_ai"
+            ]
+          },
+          {
+            "path": "app/routes/glossary.py",
+            "batchIndex": 2,
+            "symbols": [
+              "_append_glossary_entry",
+              "ebook_glossary",
+              "ebook_glossary_save",
+              "ebook_glossary_suggest",
+              "ebook_glossary_evaluate",
+              "ebook_glossary_apply",
+              "ebook_glossary_quick_add",
+              "ebook_glossary_find_replace",
+              "ebook_glossary_rewrite"
+            ]
+          },
+          {
+            "path": "app/routes/library.py",
+            "batchIndex": 1,
+            "symbols": [
+              "slugify",
+              "_fetch_meta",
+              "library_page",
+              "fetch_meta_api",
+              "create_ebook",
+              "delete_ebook"
+            ]
+          },
+          {
+            "path": "tests/test_pipeline_meta.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_cfg",
+              "_FakeCrawler",
+              "_UpperTranslator",
+              "test_step_fetch_toc_saves_metadata_no_content",
+              "test_step_translate_meta_fills_vi",
+              "test_step_translate_meta_noop_skips",
+              "test_translate_meta_inplace_respects_force",
+              "_FlakyTranslator",
+              "test_translate_selected_reports_per_chapter_error_and_continues",
+              "test_translate_selected_fails_fast_on_first_chapter",
+              "test_step_find_replace_replaces_and_backs_up",
+              "test_step_find_replace_empty_find_is_noop",
+              "test_step_build_inserts_glossary_footnotes",
+              "test_build_epub_uses_vi_meta_and_cover"
+            ]
+          }
+        ],
+        "novel2epub/storage.py": [
+          {
+            "path": "app/routes/chapters.py",
+            "batchIndex": 2,
+            "symbols": [
+              "_chapter_glossary",
+              "_chapter_context",
+              "chapter_detail",
+              "ebook_chapter_detail",
+              "chapter_save",
+              "ebook_chapter_save",
+              "ebook_chapter_action",
+              "_load_chapter_or_404",
+              "ebook_chapter_ai_rewrite_apply",
+              "ebook_chapter_ai_rewrite_discard",
+              "ebook_chapter_ai_review_dismiss",
+              "ebook_chapter_ai_suggest_apply",
+              "ebook_chapter_ai"
+            ]
+          },
+          {
+            "path": "app/routes/ebooks.py",
+            "batchIndex": 2,
+            "symbols": [
+              "_chapter_rows",
+              "index",
+              "ebook_home"
+            ]
+          },
+          {
+            "path": "app/routes/glossary.py",
+            "batchIndex": 2,
+            "symbols": [
+              "_append_glossary_entry",
+              "ebook_glossary",
+              "ebook_glossary_save",
+              "ebook_glossary_suggest",
+              "ebook_glossary_evaluate",
+              "ebook_glossary_apply",
+              "ebook_glossary_quick_add",
+              "ebook_glossary_find_replace",
+              "ebook_glossary_rewrite"
+            ]
+          },
+          {
+            "path": "novel2epub/crawler.py",
+            "batchIndex": 1,
+            "symbols": [
+              "TocResult",
+              "Crawler",
+              "_dedupe_keep_last",
+              "_get",
+              "fetch_chapter_paginated",
+              "_next_page_url_from_html",
+              "_make_css_resolver",
+              "_next_page_url_from_pattern",
+              "_extract_href",
+              "_meta_get",
+              "HttpCrawler",
+              "Crawl4AICrawler",
+              "make_crawler"
+            ]
+          },
+          {
+            "path": "novel2epub/epub_builder.py",
+            "batchIndex": 4,
+            "symbols": [
+              "_markers_to_html",
+              "_md_to_xhtml_body",
+              "_render_footnotes",
+              "build_epub"
+            ]
+          },
+          {
+            "path": "novel2epub/translator.py",
+            "batchIndex": 5,
+            "symbols": [
+              "_clean_output",
+              "_parse_title_response",
+              "_format_glossary",
+              "_apply_glossary",
+              "_merge_glossaries",
+              "load_glossary_dict",
+              "Translator",
+              "NoopTranslator",
+              "CLITranslator",
+              "GoogleTranslator",
+              "make_translator",
+              "RateLimited"
+            ]
+          },
+          {
+            "path": "tests/test_chapter_pagination.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_soup",
+              "_page",
+              "_make_http_crawler",
+              "_FakeResp",
+              "_patch_http_session",
+              "test_single_page_no_pagination",
+              "test_three_page_chapter_follows_selector",
+              "test_url_pattern_fallback_substitutes_group",
+              "test_url_pattern_returns_none_when_no_match",
+              "test_url_pattern_stops_when_pattern_no_longer_matches",
+              "test_url_pattern_stops_when_pattern_no_longer_matches",
+              "test_duplicate_content_stops_pagination",
+              "test_max_pages_caps_pagination",
+              "test_repeated_title_is_stripped_from_subpage",
+              "test_http_crawler_follows_three_pages",
+              "test_http_crawler_single_page_when_no_pagination_config",
+              "test_http_crawler_pagination_with_url_pattern"
+            ]
+          },
+          {
+            "path": "tests/test_pipeline_meta.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_cfg",
+              "_FakeCrawler",
+              "_UpperTranslator",
+              "test_step_fetch_toc_saves_metadata_no_content",
+              "test_step_translate_meta_fills_vi",
+              "test_step_translate_meta_noop_skips",
+              "test_translate_meta_inplace_respects_force",
+              "_FlakyTranslator",
+              "test_translate_selected_reports_per_chapter_error_and_continues",
+              "test_translate_selected_fails_fast_on_first_chapter",
+              "test_step_find_replace_replaces_and_backs_up",
+              "test_step_find_replace_empty_find_is_noop",
+              "test_step_build_inserts_glossary_footnotes",
+              "test_build_epub_uses_vi_meta_and_cover"
+            ]
+          },
+          {
+            "path": "tests/test_routes_glossary.py",
+            "batchIndex": 2,
+            "symbols": [
+              "test_append_new_entry_writes_line",
+              "test_append_skips_when_already_present_with_same_value",
+              "test_append_updates_when_value_differs",
+              "test_append_rejects_blank_or_invalid_target"
+            ]
+          }
+        ],
+        "novel2epub/toc.py": [
+          {
+            "path": "app/routes/ebooks.py",
+            "batchIndex": 2,
+            "symbols": [
+              "_chapter_rows",
+              "index",
+              "ebook_home"
+            ]
+          },
+          {
+            "path": "novel2epub/crawler.py",
+            "batchIndex": 1,
+            "symbols": [
+              "TocResult",
+              "Crawler",
+              "_dedupe_keep_last",
+              "_get",
+              "fetch_chapter_paginated",
+              "_next_page_url_from_html",
+              "_make_css_resolver",
+              "_next_page_url_from_pattern",
+              "_extract_href",
+              "_meta_get",
+              "HttpCrawler",
+              "Crawl4AICrawler",
+              "make_crawler"
+            ]
+          }
+        ],
+        "tests/test_pipeline_ai_chapter.py": [
+          {
+            "path": "novel2epub/__init__.py",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "novel2epub/config.py",
+            "batchIndex": 1,
+            "symbols": [
+              "CrawlConfig",
+              "GlossaryFilesConfig",
+              "TranslationStyleConfig",
+              "TranslationRetryConfig",
+              "TranslationChunkConfig",
+              "CliTranslatorConfig",
+              "TranslateConfig",
+              "NovelConfig",
+              "OutputConfig",
+              "Config",
+              "LibraryEntry",
+              "LibraryConfig",
+              "_as_dict",
+              "load_library",
+              "_build_style",
+              "load_config"
+            ]
+          },
+          {
+            "path": "novel2epub/glossary_ai.py",
+            "batchIndex": 5,
+            "symbols": [
+              "_parse_suggestions",
+              "suggest_glossary",
+              "rewrite_chapter",
+              "_parse_evaluation",
+              "evaluate_translation",
+              "format_evaluation_text"
+            ]
+          }
+        ],
+        "tests/test_refactor_toc.py": [
+          {
+            "path": "novel2epub/__init__.py",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "novel2epub/config.py",
+            "batchIndex": 1,
+            "symbols": [
+              "CrawlConfig",
+              "GlossaryFilesConfig",
+              "TranslationStyleConfig",
+              "TranslationRetryConfig",
+              "TranslationChunkConfig",
+              "CliTranslatorConfig",
+              "TranslateConfig",
+              "NovelConfig",
+              "OutputConfig",
+              "Config",
+              "LibraryEntry",
+              "LibraryConfig",
+              "_as_dict",
+              "load_library",
+              "_build_style",
+              "load_config"
+            ]
+          },
+          {
+            "path": "novel2epub/crawler.py",
+            "batchIndex": 1,
+            "symbols": [
+              "TocResult",
+              "Crawler",
+              "_dedupe_keep_last",
+              "_get",
+              "fetch_chapter_paginated",
+              "_next_page_url_from_html",
+              "_make_css_resolver",
+              "_next_page_url_from_pattern",
+              "_extract_href",
+              "_meta_get",
+              "HttpCrawler",
+              "Crawl4AICrawler",
+              "make_crawler"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 4,
+      "files": [
+        {
+          "path": "novel2epub/__init__.py",
+          "language": "python",
+          "sizeLines": 3,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/epub_builder.py",
+          "language": "python",
+          "sizeLines": 146,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/footnotes.py",
+          "language": "python",
+          "sizeLines": 90,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_epub_builder.py",
+          "language": "python",
+          "sizeLines": 37,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_footnotes.py",
+          "language": "python",
+          "sizeLines": 54,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "novel2epub/__init__.py": [],
+        "novel2epub/epub_builder.py": [
+          "novel2epub/footnotes.py",
+          "novel2epub/storage.py"
+        ],
+        "novel2epub/footnotes.py": [],
+        "tests/test_epub_builder.py": [
+          "novel2epub/__init__.py",
+          "novel2epub/epub_builder.py",
+          "novel2epub/footnotes.py"
+        ],
+        "tests/test_footnotes.py": [
+          "novel2epub/__init__.py",
+          "novel2epub/footnotes.py"
+        ]
+      },
+      "neighborMap": {
+        "novel2epub/__init__.py": [
+          {
+            "path": "app/routes/glossary.py",
+            "batchIndex": 2,
+            "symbols": [
+              "_append_glossary_entry",
+              "ebook_glossary",
+              "ebook_glossary_save",
+              "ebook_glossary_suggest",
+              "ebook_glossary_evaluate",
+              "ebook_glossary_apply",
+              "ebook_glossary_quick_add",
+              "ebook_glossary_find_replace",
+              "ebook_glossary_rewrite"
+            ]
+          },
+          {
+            "path": "tests/test_pipeline_ai_chapter.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_cfg",
+              "_seed",
+              "test_review_chapter_writes_report_to_meta",
+              "test_review_chapter_without_translation_is_noop",
+              "test_suggest_chapter_writes_suggestions_to_meta",
+              "test_rewrite_preview_does_not_overwrite_translation",
+              "test_rewrite_preview_empty_result_skips",
+              "test_require_chapter_raises_on_missing_index"
+            ]
+          },
+          {
+            "path": "tests/test_pipeline_meta.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_cfg",
+              "_FakeCrawler",
+              "_UpperTranslator",
+              "test_step_fetch_toc_saves_metadata_no_content",
+              "test_step_translate_meta_fills_vi",
+              "test_step_translate_meta_noop_skips",
+              "test_translate_meta_inplace_respects_force",
+              "_FlakyTranslator",
+              "test_translate_selected_reports_per_chapter_error_and_continues",
+              "test_translate_selected_fails_fast_on_first_chapter",
+              "test_step_find_replace_replaces_and_backs_up",
+              "test_step_find_replace_empty_find_is_noop",
+              "test_step_build_inserts_glossary_footnotes",
+              "test_build_epub_uses_vi_meta_and_cover"
+            ]
+          },
+          {
+            "path": "tests/test_refactor_toc.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_cfg",
+              "_FakeCrawler",
+              "_FakeTranslator",
+              "test_mark_duplicate_chapters_and_visible_range",
+              "test_http_crawler_toc_has_source_missing_and_chapters",
+              "test_fetch_toc_ignores_max_chapters_limit",
+              "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+              "test_fetch_toc_preserves_curated_metadata_without_force",
+              "test_selected_crawl_and_translate_respect_force",
+              "test_cli_chapters_lists_filtered_rows",
+              "test_cli_toc_command_fetches_manifest",
+              "test_ebook_route_applies_query_controls",
+              "test_chapter_action_routes_start_custom_job",
+              "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+              "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows"
+            ]
+          },
+          {
+            "path": "tests/test_translator.py",
+            "batchIndex": 5,
+            "symbols": [
+              "_fake_completed",
+              "test_run_cli_raises_on_nonzero_with_stderr",
+              "test_run_cli_raises_when_exit0_but_empty_output",
+              "test_run_cli_returns_stdout_on_success",
+              "test_clean_output_strips_code_fence",
+              "test_clean_output_strips_preamble_line",
+              "test_clean_output_passthrough_plain_text",
+              "test_apply_glossary_replaces_all_occurrences",
+              "test_load_glossary_dict_merges_inline_and_files",
+              "test_load_glossary_dict_strips_note",
+              "test_load_glossary_dict_ignores_missing_files",
+              "test_parse_title_response_standard_format",
+              "test_parse_title_response_with_note",
+              "test_parse_title_response_missing_note_line",
+              "test_parse_title_response_fallback_when_no_format",
+              "test_go_preset_chapter_translation_uses_opencode",
+              "test_go_preset_title_translation_uses_opencode",
+              "test_go_preset_error_guides_auth"
+            ]
+          }
+        ],
+        "novel2epub/epub_builder.py": [
+          {
+            "path": "novel2epub/storage.py",
+            "batchIndex": 3,
+            "symbols": [
+              "parse_glossary_line",
+              "Chapter",
+              "Manifest",
+              "Storage"
+            ]
+          },
+          {
+            "path": "novel2epub/pipeline.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_print",
+              "_now_iso",
+              "_run_with_heartbeat",
+              "_log_chapter_done",
+              "_clean_title",
+              "_strip_repeated_title",
+              "_chapter_range",
+              "_chapter_selection",
+              "_apply_default_crawl_limit",
+              "_build_meta",
+              "_quality_warnings",
+              "_refresh_manifest",
+              "_download_cover",
+              "_cover_ext",
+              "_fetch_chapter_with_retry",
+              "step_crawl",
+              "step_crawl_selected",
+              "step_fetch_toc",
+              "_translate_meta_inplace",
+              "step_translate_meta",
+              "step_translate",
+              "step_translate_selected",
+              "step_rewrite_chapters",
+              "step_find_replace",
+              "step_evaluate_translation",
+              "_require_chapter",
+              "_update_chapter_meta",
+              "step_review_chapter",
+              "step_suggest_chapter",
+              "step_rewrite_preview",
+              "step_build",
+              "run_all"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 5,
+      "files": [
+        {
+          "path": "novel2epub/cli_runner.py",
+          "language": "python",
+          "sizeLines": 74,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/glossary_ai.py",
+          "language": "python",
+          "sizeLines": 280,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/translator.py",
+          "language": "python",
+          "sizeLines": 257,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_glossary_ai.py",
+          "language": "python",
+          "sizeLines": 121,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_translator.py",
+          "language": "python",
+          "sizeLines": 204,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "novel2epub/cli_runner.py": [
+          "novel2epub/config.py"
+        ],
+        "novel2epub/glossary_ai.py": [
+          "novel2epub/cli_runner.py",
+          "novel2epub/config.py",
+          "novel2epub/translator.py"
+        ],
+        "novel2epub/translator.py": [
+          "novel2epub/cli_runner.py",
+          "novel2epub/config.py",
+          "novel2epub/storage.py"
+        ],
+        "tests/test_glossary_ai.py": [
+          "novel2epub/glossary_ai.py"
+        ],
+        "tests/test_translator.py": [
+          "novel2epub/__init__.py",
+          "novel2epub/cli_runner.py",
+          "novel2epub/config.py",
+          "novel2epub/translator.py"
+        ]
+      },
+      "neighborMap": {
+        "novel2epub/cli_runner.py": [
+          {
+            "path": "novel2epub/config.py",
+            "batchIndex": 1,
+            "symbols": [
+              "CrawlConfig",
+              "GlossaryFilesConfig",
+              "TranslationStyleConfig",
+              "TranslationRetryConfig",
+              "TranslationChunkConfig",
+              "CliTranslatorConfig",
+              "TranslateConfig",
+              "NovelConfig",
+              "OutputConfig",
+              "Config",
+              "LibraryEntry",
+              "LibraryConfig",
+              "_as_dict",
+              "load_library",
+              "_build_style",
+              "load_config"
+            ]
+          }
+        ],
+        "novel2epub/glossary_ai.py": [
+          {
+            "path": "novel2epub/config.py",
+            "batchIndex": 1,
+            "symbols": [
+              "CrawlConfig",
+              "GlossaryFilesConfig",
+              "TranslationStyleConfig",
+              "TranslationRetryConfig",
+              "TranslationChunkConfig",
+              "CliTranslatorConfig",
+              "TranslateConfig",
+              "NovelConfig",
+              "OutputConfig",
+              "Config",
+              "LibraryEntry",
+              "LibraryConfig",
+              "_as_dict",
+              "load_library",
+              "_build_style",
+              "load_config"
+            ]
+          },
+          {
+            "path": "app/routes/glossary.py",
+            "batchIndex": 2,
+            "symbols": [
+              "_append_glossary_entry",
+              "ebook_glossary",
+              "ebook_glossary_save",
+              "ebook_glossary_suggest",
+              "ebook_glossary_evaluate",
+              "ebook_glossary_apply",
+              "ebook_glossary_quick_add",
+              "ebook_glossary_find_replace",
+              "ebook_glossary_rewrite"
+            ]
+          },
+          {
+            "path": "tests/test_pipeline_ai_chapter.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_cfg",
+              "_seed",
+              "test_review_chapter_writes_report_to_meta",
+              "test_review_chapter_without_translation_is_noop",
+              "test_suggest_chapter_writes_suggestions_to_meta",
+              "test_rewrite_preview_does_not_overwrite_translation",
+              "test_rewrite_preview_empty_result_skips",
+              "test_require_chapter_raises_on_missing_index"
+            ]
+          }
+        ],
+        "novel2epub/translator.py": [
+          {
+            "path": "novel2epub/config.py",
+            "batchIndex": 1,
+            "symbols": [
+              "CrawlConfig",
+              "GlossaryFilesConfig",
+              "TranslationStyleConfig",
+              "TranslationRetryConfig",
+              "TranslationChunkConfig",
+              "CliTranslatorConfig",
+              "TranslateConfig",
+              "NovelConfig",
+              "OutputConfig",
+              "Config",
+              "LibraryEntry",
+              "LibraryConfig",
+              "_as_dict",
+              "load_library",
+              "_build_style",
+              "load_config"
+            ]
+          },
+          {
+            "path": "novel2epub/storage.py",
+            "batchIndex": 3,
+            "symbols": [
+              "parse_glossary_line",
+              "Chapter",
+              "Manifest",
+              "Storage"
+            ]
+          },
+          {
+            "path": "app/routes/library.py",
+            "batchIndex": 1,
+            "symbols": [
+              "slugify",
+              "_fetch_meta",
+              "library_page",
+              "fetch_meta_api",
+              "create_ebook",
+              "delete_ebook"
+            ]
+          },
+          {
+            "path": "novel2epub/pipeline.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_print",
+              "_now_iso",
+              "_run_with_heartbeat",
+              "_log_chapter_done",
+              "_clean_title",
+              "_strip_repeated_title",
+              "_chapter_range",
+              "_chapter_selection",
+              "_apply_default_crawl_limit",
+              "_build_meta",
+              "_quality_warnings",
+              "_refresh_manifest",
+              "_download_cover",
+              "_cover_ext",
+              "_fetch_chapter_with_retry",
+              "step_crawl",
+              "step_crawl_selected",
+              "step_fetch_toc",
+              "_translate_meta_inplace",
+              "step_translate_meta",
+              "step_translate",
+              "step_translate_selected",
+              "step_rewrite_chapters",
+              "step_find_replace",
+              "step_evaluate_translation",
+              "_require_chapter",
+              "_update_chapter_meta",
+              "step_review_chapter",
+              "step_suggest_chapter",
+              "step_rewrite_preview",
+              "step_build",
+              "run_all"
+            ]
+          }
+        ],
+        "tests/test_translator.py": [
+          {
+            "path": "novel2epub/__init__.py",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "novel2epub/config.py",
+            "batchIndex": 1,
+            "symbols": [
+              "CrawlConfig",
+              "GlossaryFilesConfig",
+              "TranslationStyleConfig",
+              "TranslationRetryConfig",
+              "TranslationChunkConfig",
+              "CliTranslatorConfig",
+              "TranslateConfig",
+              "NovelConfig",
+              "OutputConfig",
+              "Config",
+              "LibraryEntry",
+              "LibraryConfig",
+              "_as_dict",
+              "load_library",
+              "_build_style",
+              "load_config"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 6,
+      "files": [
+        {
+          "path": ".claude/commands/opsx/apply.md",
+          "language": "markdown",
+          "sizeLines": 155,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/commands/opsx/archive.md",
+          "language": "markdown",
+          "sizeLines": 160,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/commands/opsx/explore.md",
+          "language": "markdown",
+          "sizeLines": 172,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/commands/opsx/propose.md",
+          "language": "markdown",
+          "sizeLines": 107,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/commands/opsx/sync.md",
+          "language": "markdown",
+          "sizeLines": 143,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        ".claude/commands/opsx/apply.md": [],
+        ".claude/commands/opsx/archive.md": [],
+        ".claude/commands/opsx/explore.md": [],
+        ".claude/commands/opsx/propose.md": [],
+        ".claude/commands/opsx/sync.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 7,
+      "files": [
+        {
+          "path": ".github/agents/speckit.agent-context.update.agent.md",
+          "language": "markdown",
+          "sizeLines": 28,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/agents/speckit.analyze.agent.md",
+          "language": "markdown",
+          "sizeLines": 249,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/agents/speckit.checklist.agent.md",
+          "language": "markdown",
+          "sizeLines": 363,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/agents/speckit.clarify.agent.md",
+          "language": "markdown",
+          "sizeLines": 279,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/agents/speckit.constitution.agent.md",
+          "language": "markdown",
+          "sizeLines": 150,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/agents/speckit.implement.agent.md",
+          "language": "markdown",
+          "sizeLines": 213,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/agents/speckit.plan.agent.md",
+          "language": "markdown",
+          "sizeLines": 168,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/agents/speckit.specify.agent.md",
+          "language": "markdown",
+          "sizeLines": 343,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/agents/speckit.tasks.agent.md",
+          "language": "markdown",
+          "sizeLines": 213,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/agents/speckit.taskstoissues.agent.md",
+          "language": "markdown",
+          "sizeLines": 97,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        ".github/agents/speckit.agent-context.update.agent.md": [],
+        ".github/agents/speckit.analyze.agent.md": [],
+        ".github/agents/speckit.checklist.agent.md": [],
+        ".github/agents/speckit.clarify.agent.md": [],
+        ".github/agents/speckit.constitution.agent.md": [],
+        ".github/agents/speckit.implement.agent.md": [],
+        ".github/agents/speckit.plan.agent.md": [],
+        ".github/agents/speckit.specify.agent.md": [],
+        ".github/agents/speckit.tasks.agent.md": [],
+        ".github/agents/speckit.taskstoissues.agent.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 8,
+      "files": [
+        {
+          "path": ".github/prompts/opsx-apply.prompt.md",
+          "language": "markdown",
+          "sizeLines": 152,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/opsx-archive.prompt.md",
+          "language": "markdown",
+          "sizeLines": 157,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/opsx-explore.prompt.md",
+          "language": "markdown",
+          "sizeLines": 169,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/opsx-propose.prompt.md",
+          "language": "markdown",
+          "sizeLines": 104,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/opsx-sync.prompt.md",
+          "language": "markdown",
+          "sizeLines": 140,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/speckit.agent-context.update.prompt.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/speckit.analyze.prompt.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/speckit.checklist.prompt.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/speckit.clarify.prompt.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/speckit.constitution.prompt.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/speckit.implement.prompt.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/speckit.plan.prompt.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/speckit.specify.prompt.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/speckit.tasks.prompt.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/prompts/speckit.taskstoissues.prompt.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        ".github/prompts/opsx-apply.prompt.md": [],
+        ".github/prompts/opsx-archive.prompt.md": [],
+        ".github/prompts/opsx-explore.prompt.md": [],
+        ".github/prompts/opsx-propose.prompt.md": [],
+        ".github/prompts/opsx-sync.prompt.md": [],
+        ".github/prompts/speckit.agent-context.update.prompt.md": [],
+        ".github/prompts/speckit.analyze.prompt.md": [],
+        ".github/prompts/speckit.checklist.prompt.md": [],
+        ".github/prompts/speckit.clarify.prompt.md": [],
+        ".github/prompts/speckit.constitution.prompt.md": [],
+        ".github/prompts/speckit.implement.prompt.md": [],
+        ".github/prompts/speckit.plan.prompt.md": [],
+        ".github/prompts/speckit.specify.prompt.md": [],
+        ".github/prompts/speckit.tasks.prompt.md": [],
+        ".github/prompts/speckit.taskstoissues.prompt.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 9,
+      "files": [
+        {
+          "path": ".opencode/commands/opsx-apply.md",
+          "language": "markdown",
+          "sizeLines": 152,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/opsx-archive.md",
+          "language": "markdown",
+          "sizeLines": 157,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/opsx-explore.md",
+          "language": "markdown",
+          "sizeLines": 169,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/opsx-propose.md",
+          "language": "markdown",
+          "sizeLines": 104,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/opsx-sync.md",
+          "language": "markdown",
+          "sizeLines": 140,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/speckit.analyze.md",
+          "language": "markdown",
+          "sizeLines": 249,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/speckit.checklist.md",
+          "language": "markdown",
+          "sizeLines": 363,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/speckit.clarify.md",
+          "language": "markdown",
+          "sizeLines": 279,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/speckit.constitution.md",
+          "language": "markdown",
+          "sizeLines": 150,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/speckit.implement.md",
+          "language": "markdown",
+          "sizeLines": 213,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/speckit.plan.md",
+          "language": "markdown",
+          "sizeLines": 168,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/speckit.specify.md",
+          "language": "markdown",
+          "sizeLines": 343,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/speckit.tasks.md",
+          "language": "markdown",
+          "sizeLines": 213,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/commands/speckit.taskstoissues.md",
+          "language": "markdown",
+          "sizeLines": 97,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        ".opencode/commands/opsx-apply.md": [],
+        ".opencode/commands/opsx-archive.md": [],
+        ".opencode/commands/opsx-explore.md": [],
+        ".opencode/commands/opsx-propose.md": [],
+        ".opencode/commands/opsx-sync.md": [],
+        ".opencode/commands/speckit.analyze.md": [],
+        ".opencode/commands/speckit.checklist.md": [],
+        ".opencode/commands/speckit.clarify.md": [],
+        ".opencode/commands/speckit.constitution.md": [],
+        ".opencode/commands/speckit.implement.md": [],
+        ".opencode/commands/speckit.plan.md": [],
+        ".opencode/commands/speckit.specify.md": [],
+        ".opencode/commands/speckit.tasks.md": [],
+        ".opencode/commands/speckit.taskstoissues.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 10,
+      "files": [
+        {
+          "path": ".specify/extensions.yml",
+          "language": "yaml",
+          "sizeLines": 23,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/feature.json",
+          "language": "json",
+          "sizeLines": 3,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/init-options.json",
+          "language": "json",
+          "sizeLines": 7,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/integration.json",
+          "language": "json",
+          "sizeLines": 15,
+          "fileCategory": "config"
+        }
+      ],
+      "batchImportData": {
+        ".specify/extensions.yml": [],
+        ".specify/feature.json": [],
+        ".specify/init-options.json": [],
+        ".specify/integration.json": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 11,
+      "files": [
+        {
+          "path": ".specify/extensions/agent-context/README.md",
+          "language": "markdown",
+          "sizeLines": 57,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/agent-context/agent-context-config.yml",
+          "language": "yaml",
+          "sizeLines": 4,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/extensions/agent-context/extension.yml",
+          "language": "yaml",
+          "sizeLines": 34,
+          "fileCategory": "config"
+        }
+      ],
+      "batchImportData": {
+        ".specify/extensions/agent-context/README.md": [],
+        ".specify/extensions/agent-context/agent-context-config.yml": [],
+        ".specify/extensions/agent-context/extension.yml": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 12,
+      "files": [
+        {
+          "path": ".specify/integrations/claude.manifest.json",
+          "language": "json",
+          "sizeLines": 16,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/integrations/copilot.manifest.json",
+          "language": "json",
+          "sizeLines": 26,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/integrations/opencode.manifest.json",
+          "language": "json",
+          "sizeLines": 16,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/integrations/speckit.manifest.json",
+          "language": "json",
+          "sizeLines": 17,
+          "fileCategory": "config"
+        }
+      ],
+      "batchImportData": {
+        ".specify/integrations/claude.manifest.json": [],
+        ".specify/integrations/copilot.manifest.json": [],
+        ".specify/integrations/opencode.manifest.json": [],
+        ".specify/integrations/speckit.manifest.json": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 13,
+      "files": [
+        {
+          "path": ".specify/scripts/powershell/check-prerequisites.ps1",
+          "language": "powershell",
+          "sizeLines": 147,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/scripts/powershell/common.ps1",
+          "language": "powershell",
+          "sizeLines": 516,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/scripts/powershell/create-new-feature.ps1",
+          "language": "powershell",
+          "sizeLines": 237,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/scripts/powershell/setup-plan.ps1",
+          "language": "powershell",
+          "sizeLines": 64,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/scripts/powershell/setup-tasks.ps1",
+          "language": "powershell",
+          "sizeLines": 69,
+          "fileCategory": "script"
+        }
+      ],
+      "batchImportData": {
+        ".specify/scripts/powershell/check-prerequisites.ps1": [],
+        ".specify/scripts/powershell/common.ps1": [],
+        ".specify/scripts/powershell/create-new-feature.ps1": [],
+        ".specify/scripts/powershell/setup-plan.ps1": [],
+        ".specify/scripts/powershell/setup-tasks.ps1": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 14,
+      "files": [
+        {
+          "path": ".specify/templates/checklist-template.md",
+          "language": "markdown",
+          "sizeLines": 40,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/templates/constitution-template.md",
+          "language": "markdown",
+          "sizeLines": 50,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/templates/plan-template.md",
+          "language": "markdown",
+          "sizeLines": 123,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/templates/spec-template.md",
+          "language": "markdown",
+          "sizeLines": 149,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/templates/tasks-template.md",
+          "language": "markdown",
+          "sizeLines": 258,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        ".specify/templates/checklist-template.md": [],
+        ".specify/templates/constitution-template.md": [],
+        ".specify/templates/plan-template.md": [],
+        ".specify/templates/spec-template.md": [],
+        ".specify/templates/tasks-template.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 15,
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "language": "markdown",
+          "sizeLines": 148,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "CLAUDE.md",
+          "language": "markdown",
+          "sizeLines": 49,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "README.md",
+          "language": "markdown",
+          "sizeLines": 204,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "config.example.yaml",
+          "language": "yaml",
+          "sizeLines": 182,
+          "fileCategory": "config"
+        },
+        {
+          "path": "requirements.txt",
+          "language": "txt",
+          "sizeLines": 10,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "sources.yaml",
+          "language": "yaml",
+          "sizeLines": 134,
+          "fileCategory": "config"
+        }
+      ],
+      "batchImportData": {
+        "AGENTS.md": [],
+        "CLAUDE.md": [],
+        "README.md": [],
+        "config.example.yaml": [],
+        "requirements.txt": [],
+        "sources.yaml": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 16,
+      "files": [
+        {
+          "path": "app/templates/base.html",
+          "language": "html",
+          "sizeLines": 23,
+          "fileCategory": "markup"
+        },
+        {
+          "path": "app/templates/chapter.html",
+          "language": "html",
+          "sizeLines": 420,
+          "fileCategory": "markup"
+        },
+        {
+          "path": "app/templates/ebook.html",
+          "language": "html",
+          "sizeLines": 343,
+          "fileCategory": "markup"
+        },
+        {
+          "path": "app/templates/glossary.html",
+          "language": "html",
+          "sizeLines": 227,
+          "fileCategory": "markup"
+        },
+        {
+          "path": "app/templates/index.html",
+          "language": "html",
+          "sizeLines": 108,
+          "fileCategory": "markup"
+        },
+        {
+          "path": "app/templates/library.html",
+          "language": "html",
+          "sizeLines": 162,
+          "fileCategory": "markup"
+        },
+        {
+          "path": "app/templates/settings.html",
+          "language": "html",
+          "sizeLines": 114,
+          "fileCategory": "markup"
+        },
+        {
+          "path": "app/templates/sources.html",
+          "language": "html",
+          "sizeLines": 124,
+          "fileCategory": "markup"
+        }
+      ],
+      "batchImportData": {
+        "app/templates/base.html": [],
+        "app/templates/chapter.html": [],
+        "app/templates/ebook.html": [],
+        "app/templates/glossary.html": [],
+        "app/templates/index.html": [],
+        "app/templates/library.html": [],
+        "app/templates/settings.html": [],
+        "app/templates/sources.html": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 17,
+      "files": [
+        {
+          "path": "docs/rule.md",
+          "language": "markdown",
+          "sizeLines": 184,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "docs/source.md",
+          "language": "markdown",
+          "sizeLines": 128,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "docs/tool.md",
+          "language": "markdown",
+          "sizeLines": 93,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "docs/rule.md": [],
+        "docs/source.md": [],
+        "docs/tool.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 18,
+      "files": [
+        {
+          "path": "openspec/changes/ai-source-preset-builder/.openspec.yaml",
+          "language": "yaml",
+          "sizeLines": 2,
+          "fileCategory": "config"
+        },
+        {
+          "path": "openspec/changes/ai-source-preset-builder/design.md",
+          "language": "markdown",
+          "sizeLines": 81,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/changes/ai-source-preset-builder/proposal.md",
+          "language": "markdown",
+          "sizeLines": 43,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/changes/ai-source-preset-builder/tasks.md",
+          "language": "markdown",
+          "sizeLines": 66,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "openspec/changes/ai-source-preset-builder/.openspec.yaml": [],
+        "openspec/changes/ai-source-preset-builder/design.md": [],
+        "openspec/changes/ai-source-preset-builder/proposal.md": [],
+        "openspec/changes/ai-source-preset-builder/tasks.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 19,
+      "files": [
+        {
+          "path": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/.openspec.yaml",
+          "language": "yaml",
+          "sizeLines": 2,
+          "fileCategory": "config"
+        },
+        {
+          "path": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+          "language": "markdown",
+          "sizeLines": 204,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+          "language": "markdown",
+          "sizeLines": 68,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+          "language": "markdown",
+          "sizeLines": 79,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/.openspec.yaml": [],
+        "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md": [],
+        "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md": [],
+        "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 20,
+      "files": [
+        {
+          "path": "openspec/changes/improve-sources-ui/.openspec.yaml",
+          "language": "yaml",
+          "sizeLines": 2,
+          "fileCategory": "config"
+        },
+        {
+          "path": "openspec/changes/improve-sources-ui/README.md",
+          "language": "markdown",
+          "sizeLines": 3,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/changes/improve-sources-ui/design.md",
+          "language": "markdown",
+          "sizeLines": 48,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/changes/improve-sources-ui/proposal.md",
+          "language": "markdown",
+          "sizeLines": 28,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/changes/improve-sources-ui/tasks.md",
+          "language": "markdown",
+          "sizeLines": 32,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "openspec/changes/improve-sources-ui/.openspec.yaml": [],
+        "openspec/changes/improve-sources-ui/README.md": [],
+        "openspec/changes/improve-sources-ui/design.md": [],
+        "openspec/changes/improve-sources-ui/proposal.md": [],
+        "openspec/changes/improve-sources-ui/tasks.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 21,
+      "files": [
+        {
+          "path": "specs/001-refactor-toc/data-model.md",
+          "language": "markdown",
+          "sizeLines": 119,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-refactor-toc/plan.md",
+          "language": "markdown",
+          "sizeLines": 116,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-refactor-toc/quickstart.md",
+          "language": "markdown",
+          "sizeLines": 135,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-refactor-toc/research.md",
+          "language": "markdown",
+          "sizeLines": 85,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-refactor-toc/spec.md",
+          "language": "markdown",
+          "sizeLines": 199,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-refactor-toc/tasks.md",
+          "language": "markdown",
+          "sizeLines": 231,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "specs/001-refactor-toc/data-model.md": [],
+        "specs/001-refactor-toc/plan.md": [],
+        "specs/001-refactor-toc/quickstart.md": [],
+        "specs/001-refactor-toc/research.md": [],
+        "specs/001-refactor-toc/spec.md": [],
+        "specs/001-refactor-toc/tasks.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 22,
+      "files": [
+        {
+          "path": "specs/002-opencode-go-preset/data-model.md",
+          "language": "markdown",
+          "sizeLines": 62,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-opencode-go-preset/plan.md",
+          "language": "markdown",
+          "sizeLines": 76,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-opencode-go-preset/quickstart.md",
+          "language": "markdown",
+          "sizeLines": 124,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-opencode-go-preset/research.md",
+          "language": "markdown",
+          "sizeLines": 78,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-opencode-go-preset/spec.md",
+          "language": "markdown",
+          "sizeLines": 104,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-opencode-go-preset/tasks.md",
+          "language": "markdown",
+          "sizeLines": 178,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "specs/002-opencode-go-preset/data-model.md": [],
+        "specs/002-opencode-go-preset/plan.md": [],
+        "specs/002-opencode-go-preset/quickstart.md": [],
+        "specs/002-opencode-go-preset/research.md": [],
+        "specs/002-opencode-go-preset/spec.md": [],
+        "specs/002-opencode-go-preset/tasks.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 23,
+      "files": [
+        {
+          "path": ".claude/skills/openspec-apply-change/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 159,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/openspec-archive-change/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 117,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/openspec-explore/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 287,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/openspec-propose/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 111,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/openspec-sync-specs/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 147,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-agent-context-update/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 30,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-analyze/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 260,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-checklist/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 374,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-clarify/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 286,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-constitution/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 157,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-implement/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 224,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-plan/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 171,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-specify/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 346,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-tasks/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 215,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-taskstoissues/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 107,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/copilot-instructions.md",
+          "language": "markdown",
+          "sizeLines": 4,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/skills/openspec-apply-change/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 159,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/skills/openspec-archive-change/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 117,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/skills/openspec-explore/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 287,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/skills/openspec-propose/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 111,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".github/skills/openspec-sync-specs/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 147,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/skills/openspec-apply-change/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 159,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/skills/openspec-archive-change/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 117,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/skills/openspec-explore/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 287,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".opencode/skills/openspec-propose/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 111,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        ".claude/skills/openspec-apply-change/SKILL.md": [],
+        ".claude/skills/openspec-archive-change/SKILL.md": [],
+        ".claude/skills/openspec-explore/SKILL.md": [],
+        ".claude/skills/openspec-propose/SKILL.md": [],
+        ".claude/skills/openspec-sync-specs/SKILL.md": [],
+        ".claude/skills/speckit-agent-context-update/SKILL.md": [],
+        ".claude/skills/speckit-analyze/SKILL.md": [],
+        ".claude/skills/speckit-checklist/SKILL.md": [],
+        ".claude/skills/speckit-clarify/SKILL.md": [],
+        ".claude/skills/speckit-constitution/SKILL.md": [],
+        ".claude/skills/speckit-implement/SKILL.md": [],
+        ".claude/skills/speckit-plan/SKILL.md": [],
+        ".claude/skills/speckit-specify/SKILL.md": [],
+        ".claude/skills/speckit-tasks/SKILL.md": [],
+        ".claude/skills/speckit-taskstoissues/SKILL.md": [],
+        ".github/copilot-instructions.md": [],
+        ".github/skills/openspec-apply-change/SKILL.md": [],
+        ".github/skills/openspec-archive-change/SKILL.md": [],
+        ".github/skills/openspec-explore/SKILL.md": [],
+        ".github/skills/openspec-propose/SKILL.md": [],
+        ".github/skills/openspec-sync-specs/SKILL.md": [],
+        ".opencode/skills/openspec-apply-change/SKILL.md": [],
+        ".opencode/skills/openspec-archive-change/SKILL.md": [],
+        ".opencode/skills/openspec-explore/SKILL.md": [],
+        ".opencode/skills/openspec-propose/SKILL.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 24,
+      "files": [
+        {
+          "path": ".opencode/skills/openspec-sync-specs/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 147,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/.registry",
+          "language": "unknown",
+          "sizeLines": 21,
+          "fileCategory": "code"
+        },
+        {
+          "path": ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+          "language": "markdown",
+          "sizeLines": 26,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+          "language": "shell",
+          "sizeLines": 200,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
+          "language": "powershell",
+          "sizeLines": 237,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/memory/constitution.md",
+          "language": "markdown",
+          "sizeLines": 100,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/workflows/speckit/workflow.yml",
+          "language": "yaml",
+          "sizeLines": 77,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/workflows/workflow-registry.json",
+          "language": "json",
+          "sizeLines": 12,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".understand-anything/.understandignore",
+          "language": "unknown",
+          "sizeLines": 50,
+          "fileCategory": "code"
+        },
+        {
+          "path": ".understand-anything/config.json",
+          "language": "json",
+          "sizeLines": 3,
+          "fileCategory": "config"
+        },
+        {
+          "path": "app/__init__.py",
+          "language": "python",
+          "sizeLines": 1,
+          "fileCategory": "code"
+        },
+        {
+          "path": "app/static/style.css",
+          "language": "css",
+          "sizeLines": 131,
+          "fileCategory": "markup"
+        },
+        {
+          "path": "configs/novel.yaml",
+          "language": "yaml",
+          "sizeLines": 172,
+          "fileCategory": "config"
+        },
+        {
+          "path": "novel2epub/presets/__init__.py",
+          "language": "python",
+          "sizeLines": 28,
+          "fileCategory": "code"
+        },
+        {
+          "path": "novel2epub/presets/go.py",
+          "language": "python",
+          "sizeLines": 56,
+          "fileCategory": "code"
+        },
+        {
+          "path": "openspec/changes/ai-source-preset-builder/specs/firecrawl-removal/spec.md",
+          "language": "markdown",
+          "sizeLines": 56,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/changes/ai-source-preset-builder/specs/preset-builder/spec.md",
+          "language": "markdown",
+          "sizeLines": 101,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/specs/chapter-pagination/spec.md",
+          "language": "markdown",
+          "sizeLines": 147,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/changes/improve-sources-ui/specs/sources-ui/spec.md",
+          "language": "markdown",
+          "sizeLines": 78,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "openspec/specs/chapter-pagination/spec.md",
+          "language": "markdown",
+          "sizeLines": 155,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-refactor-toc/checklists/requirements.md",
+          "language": "markdown",
+          "sizeLines": 34,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-refactor-toc/contracts/cli.md",
+          "language": "markdown",
+          "sizeLines": 96,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-refactor-toc/contracts/web-ui.md",
+          "language": "markdown",
+          "sizeLines": 90,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-opencode-go-preset/checklists/requirements.md",
+          "language": "markdown",
+          "sizeLines": 34,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-opencode-go-preset/contracts/cli.md",
+          "language": "markdown",
+          "sizeLines": 74,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        ".opencode/skills/openspec-sync-specs/SKILL.md": [],
+        ".specify/extensions/.registry": [],
+        ".specify/extensions/agent-context/commands/speckit.agent-context.update.md": [],
+        ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh": [],
+        ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1": [],
+        ".specify/memory/constitution.md": [],
+        ".specify/workflows/speckit/workflow.yml": [],
+        ".specify/workflows/workflow-registry.json": [],
+        ".understand-anything/.understandignore": [],
+        ".understand-anything/config.json": [],
+        "app/__init__.py": [],
+        "app/static/style.css": [],
+        "configs/novel.yaml": [],
+        "novel2epub/presets/__init__.py": [],
+        "novel2epub/presets/go.py": [],
+        "openspec/changes/ai-source-preset-builder/specs/firecrawl-removal/spec.md": [],
+        "openspec/changes/ai-source-preset-builder/specs/preset-builder/spec.md": [],
+        "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/specs/chapter-pagination/spec.md": [],
+        "openspec/changes/improve-sources-ui/specs/sources-ui/spec.md": [],
+        "openspec/specs/chapter-pagination/spec.md": [],
+        "specs/001-refactor-toc/checklists/requirements.md": [],
+        "specs/001-refactor-toc/contracts/cli.md": [],
+        "specs/001-refactor-toc/contracts/web-ui.md": [],
+        "specs/002-opencode-go-preset/checklists/requirements.md": [],
+        "specs/002-opencode-go-preset/contracts/cli.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 25,
+      "files": [
+        {
+          "path": "tests/__init__.py",
+          "language": "python",
+          "sizeLines": 0,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "tests/__init__.py": []
+      },
+      "neighborMap": {}
+    }
+  ]
+}

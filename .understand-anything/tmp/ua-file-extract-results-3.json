@@ -1,0 +1,6231 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 9,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "app/routes/jobs.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 184,
+      "nonEmptyLines": 153,
+      "functions": [
+        {
+          "name": "_parse_optional_int",
+          "startLine": 20,
+          "endLine": 27,
+          "params": [
+            "value"
+          ]
+        },
+        {
+          "name": "start_job",
+          "startLine": 31,
+          "endLine": 36,
+          "params": [
+            "request",
+            "step"
+          ]
+        },
+        {
+          "name": "start_ebook_crawl_range",
+          "startLine": 40,
+          "endLine": 80,
+          "params": [
+            "request",
+            "slug",
+            "start",
+            "end",
+            "force",
+            "retries",
+            "engine",
+            "delay"
+          ]
+        },
+        {
+          "name": "start_ebook_chapter_action",
+          "startLine": 84,
+          "endLine": 133,
+          "params": [
+            "request",
+            "slug",
+            "action",
+            "sort",
+            "direction",
+            "search",
+            "filter_raw",
+            "filter_translated",
+            "filter_missing",
+            "range_start",
+            "range_end",
+            "checked_indexes",
+            "targeting_mode",
+            "override"
+          ]
+        },
+        {
+          "name": "start_ebook_job",
+          "startLine": 137,
+          "endLine": 150,
+          "params": [
+            "request",
+            "slug",
+            "step",
+            "force"
+          ]
+        },
+        {
+          "name": "api_status",
+          "startLine": 154,
+          "endLine": 155,
+          "params": [
+            "request"
+          ]
+        },
+        {
+          "name": "download",
+          "startLine": 159,
+          "endLine": 164,
+          "params": []
+        },
+        {
+          "name": "ebook_cover",
+          "startLine": 168,
+          "endLine": 175,
+          "params": [
+            "slug"
+          ]
+        },
+        {
+          "name": "ebook_download",
+          "startLine": 179,
+          "endLine": 184,
+          "params": [
+            "slug"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_parse_optional_int",
+          "line": 20,
+          "isDefault": false
+        },
+        {
+          "name": "start_job",
+          "line": 30,
+          "isDefault": false
+        },
+        {
+          "name": "start_ebook_crawl_range",
+          "line": 39,
+          "isDefault": false
+        },
+        {
+          "name": "start_ebook_chapter_action",
+          "line": 83,
+          "isDefault": false
+        },
+        {
+          "name": "start_ebook_job",
+          "line": 136,
+          "isDefault": false
+        },
+        {
+          "name": "api_status",
+          "line": 153,
+          "isDefault": false
+        },
+        {
+          "name": "download",
+          "line": 158,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_cover",
+          "line": 167,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_download",
+          "line": 178,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_parse_optional_int",
+          "callee": "(value or \"\").strip",
+          "lineNumber": 21
+        },
+        {
+          "caller": "_parse_optional_int",
+          "callee": "int",
+          "lineNumber": 25
+        },
+        {
+          "caller": "start_job",
+          "callee": "deps.cfg",
+          "lineNumber": 32
+        },
+        {
+          "caller": "start_job",
+          "callee": "request.app.state.job.start",
+          "lineNumber": 33
+        },
+        {
+          "caller": "start_job",
+          "callee": "HTTPException",
+          "lineNumber": 35
+        },
+        {
+          "caller": "start_job",
+          "callee": "RedirectResponse",
+          "lineNumber": 36
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "Form",
+          "lineNumber": 43
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "Form",
+          "lineNumber": 44
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "Form",
+          "lineNumber": 45
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "Form",
+          "lineNumber": 46
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "Form",
+          "lineNumber": 47
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "Form",
+          "lineNumber": 48
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 51
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "(delay or \"\").strip",
+          "lineNumber": 56
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "max",
+          "lineNumber": 59
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "float",
+          "lineNumber": 59
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "_parse_optional_int",
+          "lineNumber": 63
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "_parse_optional_int",
+          "lineNumber": 64
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "max",
+          "lineNumber": 65
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "min",
+          "lineNumber": 65
+        },
+        {
+          "caller": "_target",
+          "callee": "step_crawl_selected",
+          "lineNumber": 68
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "request.app.state.job.start_custom",
+          "lineNumber": 77
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "HTTPException",
+          "lineNumber": 79
+        },
+        {
+          "caller": "start_ebook_crawl_range",
+          "callee": "RedirectResponse",
+          "lineNumber": 80
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 87
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 88
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 89
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 90
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 91
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 92
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 93
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 94
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 95
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 96
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 97
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 98
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 100
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "Storage",
+          "lineNumber": 101
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "storage.load_manifest",
+          "lineNumber": 102
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "HTTPException",
+          "lineNumber": 104
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "apply_chapter_query",
+          "lineNumber": 105
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "chapter_rows",
+          "lineNumber": 106
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "select_visible_range",
+          "lineNumber": 118
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "_parse_optional_int",
+          "lineNumber": 118
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "_parse_optional_int",
+          "lineNumber": 118
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "HTTPException",
+          "lineNumber": 120
+        },
+        {
+          "caller": "_target",
+          "callee": "step_crawl_selected",
+          "lineNumber": 124
+        },
+        {
+          "caller": "_target",
+          "callee": "step_translate_selected",
+          "lineNumber": 126
+        },
+        {
+          "caller": "_target",
+          "callee": "ValueError",
+          "lineNumber": 128
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "request.app.state.job.start_custom",
+          "lineNumber": 130
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "HTTPException",
+          "lineNumber": 132
+        },
+        {
+          "caller": "start_ebook_chapter_action",
+          "callee": "RedirectResponse",
+          "lineNumber": 133
+        },
+        {
+          "caller": "start_ebook_job",
+          "callee": "Form",
+          "lineNumber": 137
+        },
+        {
+          "caller": "start_ebook_job",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 138
+        },
+        {
+          "caller": "_target",
+          "callee": "step_fetch_toc",
+          "lineNumber": 143
+        },
+        {
+          "caller": "start_ebook_job",
+          "callee": "request.app.state.job.start_custom",
+          "lineNumber": 145
+        },
+        {
+          "caller": "start_ebook_job",
+          "callee": "request.app.state.job.start",
+          "lineNumber": 147
+        },
+        {
+          "caller": "start_ebook_job",
+          "callee": "HTTPException",
+          "lineNumber": 149
+        },
+        {
+          "caller": "start_ebook_job",
+          "callee": "RedirectResponse",
+          "lineNumber": 150
+        },
+        {
+          "caller": "api_status",
+          "callee": "request.app.state.job.status",
+          "lineNumber": 155
+        },
+        {
+          "caller": "download",
+          "callee": "deps.cfg",
+          "lineNumber": 160
+        },
+        {
+          "caller": "download",
+          "callee": "Path",
+          "lineNumber": 161
+        },
+        {
+          "caller": "download",
+          "callee": "path.exists",
+          "lineNumber": 162
+        },
+        {
+          "caller": "download",
+          "callee": "HTTPException",
+          "lineNumber": 163
+        },
+        {
+          "caller": "download",
+          "callee": "FileResponse",
+          "lineNumber": 164
+        },
+        {
+          "caller": "ebook_cover",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 169
+        },
+        {
+          "caller": "ebook_cover",
+          "callee": "Storage",
+          "lineNumber": 170
+        },
+        {
+          "caller": "ebook_cover",
+          "callee": "storage.load_manifest",
+          "lineNumber": 171
+        },
+        {
+          "caller": "ebook_cover",
+          "callee": "storage.cover_fs_path",
+          "lineNumber": 172
+        },
+        {
+          "caller": "ebook_cover",
+          "callee": "HTTPException",
+          "lineNumber": 174
+        },
+        {
+          "caller": "ebook_cover",
+          "callee": "FileResponse",
+          "lineNumber": 175
+        },
+        {
+          "caller": "ebook_download",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 180
+        },
+        {
+          "caller": "ebook_download",
+          "callee": "Path",
+          "lineNumber": 181
+        },
+        {
+          "caller": "ebook_download",
+          "callee": "path.exists",
+          "lineNumber": 182
+        },
+        {
+          "caller": "ebook_download",
+          "callee": "HTTPException",
+          "lineNumber": 183
+        },
+        {
+          "caller": "ebook_download",
+          "callee": "FileResponse",
+          "lineNumber": 184
+        }
+      ],
+      "metrics": {
+        "importCount": 4,
+        "exportCount": 9,
+        "functionCount": 9,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "novel2epub/__main__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 4,
+      "nonEmptyLines": 3,
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "novel2epub/cli.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 331,
+      "nonEmptyLines": 293,
+      "functions": [
+        {
+          "name": "_force_utf8",
+          "startLine": 31,
+          "endLine": 39,
+          "params": []
+        },
+        {
+          "name": "_resolve_config_path",
+          "startLine": 42,
+          "endLine": 54,
+          "params": [
+            "config_path",
+            "library_path",
+            "ebook_slug"
+          ]
+        },
+        {
+          "name": "_selected_indexes_from_args",
+          "startLine": 57,
+          "endLine": 75,
+          "params": [
+            "cfg",
+            "args"
+          ]
+        },
+        {
+          "name": "_print_chapters",
+          "startLine": 78,
+          "endLine": 95,
+          "params": [
+            "cfg",
+            "args"
+          ]
+        },
+        {
+          "name": "main",
+          "startLine": 98,
+          "endLine": 239,
+          "params": [
+            "argv"
+          ]
+        },
+        {
+          "name": "_cmd_preset_build",
+          "startLine": 242,
+          "endLine": 299,
+          "params": [
+            "args"
+          ]
+        },
+        {
+          "name": "_cmd_toc_preview",
+          "startLine": 302,
+          "endLine": 327,
+          "params": [
+            "args"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_force_utf8",
+          "line": 31,
+          "isDefault": false
+        },
+        {
+          "name": "_resolve_config_path",
+          "line": 42,
+          "isDefault": false
+        },
+        {
+          "name": "_selected_indexes_from_args",
+          "line": 57,
+          "isDefault": false
+        },
+        {
+          "name": "_print_chapters",
+          "line": 78,
+          "isDefault": false
+        },
+        {
+          "name": "main",
+          "line": 98,
+          "isDefault": false
+        },
+        {
+          "name": "_cmd_preset_build",
+          "line": 242,
+          "isDefault": false
+        },
+        {
+          "name": "_cmd_toc_preview",
+          "line": 302,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_force_utf8",
+          "callee": "getattr",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_force_utf8",
+          "callee": "reconfigure",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_resolve_config_path",
+          "callee": "load_library",
+          "lineNumber": 45
+        },
+        {
+          "caller": "_resolve_config_path",
+          "callee": "library.ebooks.get",
+          "lineNumber": 46
+        },
+        {
+          "caller": "_resolve_config_path",
+          "callee": "KeyError",
+          "lineNumber": 48
+        },
+        {
+          "caller": "_resolve_config_path",
+          "callee": "Path",
+          "lineNumber": 51
+        },
+        {
+          "caller": "_resolve_config_path",
+          "callee": "p.is_absolute",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_resolve_config_path",
+          "callee": "str",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_resolve_config_path",
+          "callee": "(Path(library_path).resolve().parent / p).resolve",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_resolve_config_path",
+          "callee": "Path(library_path).resolve",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_resolve_config_path",
+          "callee": "Path",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "getattr",
+          "lineNumber": 58
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "getattr",
+          "lineNumber": 58
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "getattr",
+          "lineNumber": 58
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "getattr",
+          "lineNumber": 58
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "getattr",
+          "lineNumber": 58
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "Storage",
+          "lineNumber": 60
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "storage.load_manifest",
+          "lineNumber": 61
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "RuntimeError",
+          "lineNumber": 63
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "parse_filter",
+          "lineNumber": 64
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "getattr",
+          "lineNumber": 64
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "apply_chapter_query",
+          "lineNumber": 65
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "chapter_rows",
+          "lineNumber": 66
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "getattr",
+          "lineNumber": 67
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "getattr",
+          "lineNumber": 68
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "getattr",
+          "lineNumber": 69
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "parse_range",
+          "lineNumber": 74
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "getattr",
+          "lineNumber": 74
+        },
+        {
+          "caller": "_selected_indexes_from_args",
+          "callee": "select_visible_range",
+          "lineNumber": 75
+        },
+        {
+          "caller": "_print_chapters",
+          "callee": "Storage",
+          "lineNumber": 79
+        },
+        {
+          "caller": "_print_chapters",
+          "callee": "storage.load_manifest",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_print_chapters",
+          "callee": "RuntimeError",
+          "lineNumber": 82
+        },
+        {
+          "caller": "_print_chapters",
+          "callee": "parse_filter",
+          "lineNumber": 83
+        },
+        {
+          "caller": "_print_chapters",
+          "callee": "apply_chapter_query",
+          "lineNumber": 84
+        },
+        {
+          "caller": "_print_chapters",
+          "callee": "chapter_rows",
+          "lineNumber": 85
+        },
+        {
+          "caller": "_print_chapters",
+          "callee": "\",\".join",
+          "lineNumber": 94
+        },
+        {
+          "caller": "_print_chapters",
+          "callee": "print",
+          "lineNumber": 95
+        },
+        {
+          "caller": "main",
+          "callee": "_force_utf8",
+          "lineNumber": 99
+        },
+        {
+          "caller": "main",
+          "callee": "argparse.ArgumentParser",
+          "lineNumber": 100
+        },
+        {
+          "caller": "main",
+          "callee": "parser.add_argument",
+          "lineNumber": 104
+        },
+        {
+          "caller": "main",
+          "callee": "parser.add_argument",
+          "lineNumber": 105
+        },
+        {
+          "caller": "main",
+          "callee": "parser.add_argument",
+          "lineNumber": 106
+        },
+        {
+          "caller": "main",
+          "callee": "parser.add_subparsers",
+          "lineNumber": 107
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 108
+        },
+        {
+          "caller": "main",
+          "callee": "crawl_parser.add_argument",
+          "lineNumber": 109
+        },
+        {
+          "caller": "main",
+          "callee": "crawl_parser.add_argument",
+          "lineNumber": 110
+        },
+        {
+          "caller": "main",
+          "callee": "crawl_parser.add_argument",
+          "lineNumber": 111
+        },
+        {
+          "caller": "main",
+          "callee": "crawl_parser.add_argument",
+          "lineNumber": 112
+        },
+        {
+          "caller": "main",
+          "callee": "crawl_parser.add_argument",
+          "lineNumber": 113
+        },
+        {
+          "caller": "main",
+          "callee": "crawl_parser.add_argument",
+          "lineNumber": 114
+        },
+        {
+          "caller": "main",
+          "callee": "crawl_parser.add_argument",
+          "lineNumber": 115
+        },
+        {
+          "caller": "main",
+          "callee": "crawl_parser.add_argument",
+          "lineNumber": 116
+        },
+        {
+          "caller": "main",
+          "callee": "crawl_parser.add_argument",
+          "lineNumber": 117
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 118
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 119
+        },
+        {
+          "caller": "main",
+          "callee": "meta_parser.add_argument",
+          "lineNumber": 120
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 121
+        },
+        {
+          "caller": "main",
+          "callee": "toc_parser.add_argument",
+          "lineNumber": 122
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 123
+        },
+        {
+          "caller": "main",
+          "callee": "chapters_parser.add_argument",
+          "lineNumber": 124
+        },
+        {
+          "caller": "main",
+          "callee": "chapters_parser.add_argument",
+          "lineNumber": 125
+        },
+        {
+          "caller": "main",
+          "callee": "chapters_parser.add_argument",
+          "lineNumber": 126
+        },
+        {
+          "caller": "main",
+          "callee": "chapters_parser.add_argument",
+          "lineNumber": 127
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 128
+        },
+        {
+          "caller": "main",
+          "callee": "evaluate_parser.add_argument",
+          "lineNumber": 129
+        },
+        {
+          "caller": "main",
+          "callee": "evaluate_parser.add_argument",
+          "lineNumber": 130
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 131
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 132
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 133
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 135
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 136
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 137
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 138
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 139
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 140
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 141
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 142
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 143
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 144
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 145
+        },
+        {
+          "caller": "main",
+          "callee": "preset_build_parser.add_argument",
+          "lineNumber": 146
+        },
+        {
+          "caller": "main",
+          "callee": "sub.add_parser",
+          "lineNumber": 148
+        },
+        {
+          "caller": "main",
+          "callee": "toc_preview_parser.add_argument",
+          "lineNumber": 149
+        },
+        {
+          "caller": "main",
+          "callee": "toc_preview_parser.add_argument",
+          "lineNumber": 150
+        },
+        {
+          "caller": "main",
+          "callee": "translate_parser.add_argument",
+          "lineNumber": 153
+        },
+        {
+          "caller": "main",
+          "callee": "translate_parser.add_argument",
+          "lineNumber": 154
+        },
+        {
+          "caller": "main",
+          "callee": "translate_parser.add_argument",
+          "lineNumber": 155
+        },
+        {
+          "caller": "main",
+          "callee": "translate_parser.add_argument",
+          "lineNumber": 156
+        },
+        {
+          "caller": "main",
+          "callee": "translate_parser.add_argument",
+          "lineNumber": 157
+        },
+        {
+          "caller": "main",
+          "callee": "translate_parser.add_argument",
+          "lineNumber": 158
+        },
+        {
+          "caller": "main",
+          "callee": "translate_parser.add_argument",
+          "lineNumber": 159
+        },
+        {
+          "caller": "main",
+          "callee": "translate_parser.add_argument",
+          "lineNumber": 160
+        },
+        {
+          "caller": "main",
+          "callee": "translate_parser.add_argument",
+          "lineNumber": 161
+        },
+        {
+          "caller": "main",
+          "callee": "translate_parser.add_argument",
+          "lineNumber": 162
+        },
+        {
+          "caller": "main",
+          "callee": "parser.parse_args",
+          "lineNumber": 164
+        },
+        {
+          "caller": "main",
+          "callee": "load_library",
+          "lineNumber": 167
+        },
+        {
+          "caller": "main",
+          "callee": "print",
+          "lineNumber": 169
+        },
+        {
+          "caller": "main",
+          "callee": "library.ebooks.items",
+          "lineNumber": 171
+        },
+        {
+          "caller": "main",
+          "callee": "print",
+          "lineNumber": 172
+        },
+        {
+          "caller": "main",
+          "callee": "_resolve_config_path",
+          "lineNumber": 178
+        },
+        {
+          "caller": "main",
+          "callee": "print",
+          "lineNumber": 180
+        },
+        {
+          "caller": "main",
+          "callee": "load_config",
+          "lineNumber": 184
+        },
+        {
+          "caller": "main",
+          "callee": "print",
+          "lineNumber": 186
+        },
+        {
+          "caller": "main",
+          "callee": "print",
+          "lineNumber": 187
+        },
+        {
+          "caller": "main",
+          "callee": "_selected_indexes_from_args",
+          "lineNumber": 193
+        },
+        {
+          "caller": "main",
+          "callee": "step_crawl_selected",
+          "lineNumber": 195
+        },
+        {
+          "caller": "main",
+          "callee": "step_crawl",
+          "lineNumber": 204
+        },
+        {
+          "caller": "main",
+          "callee": "_selected_indexes_from_args",
+          "lineNumber": 206
+        },
+        {
+          "caller": "main",
+          "callee": "step_translate_selected",
+          "lineNumber": 208
+        },
+        {
+          "caller": "main",
+          "callee": "step_translate",
+          "lineNumber": 218
+        },
+        {
+          "caller": "main",
+          "callee": "step_translate_meta",
+          "lineNumber": 220
+        },
+        {
+          "caller": "main",
+          "callee": "step_fetch_toc",
+          "lineNumber": 222
+        },
+        {
+          "caller": "main",
+          "callee": "_print_chapters",
+          "lineNumber": 224
+        },
+        {
+          "caller": "main",
+          "callee": "step_evaluate_translation",
+          "lineNumber": 226
+        },
+        {
+          "caller": "main",
+          "callee": "step_build",
+          "lineNumber": 228
+        },
+        {
+          "caller": "main",
+          "callee": "run_all",
+          "lineNumber": 230
+        },
+        {
+          "caller": "main",
+          "callee": "_cmd_preset_build",
+          "lineNumber": 232
+        },
+        {
+          "caller": "main",
+          "callee": "_cmd_toc_preview",
+          "lineNumber": 234
+        },
+        {
+          "caller": "main",
+          "callee": "print",
+          "lineNumber": 236
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "build_preset",
+          "lineNumber": 251
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 262
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 265
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 266
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 267
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "result.validation.get",
+          "lineNumber": 267
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "result.validation.get",
+          "lineNumber": 267
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 268
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 269
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 270
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 272
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "', '.join",
+          "lineNumber": 272
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 276
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 279
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "len",
+          "lineNumber": 279
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 280
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 281
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 284
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "len",
+          "lineNumber": 285
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 286
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "len",
+          "lineNumber": 286
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "input",
+          "lineNumber": 291
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "answer.strip().lower",
+          "lineNumber": 292
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "answer.strip",
+          "lineNumber": 292
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "save_preset",
+          "lineNumber": 295
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 296
+        },
+        {
+          "caller": "_cmd_preset_build",
+          "callee": "print",
+          "lineNumber": 298
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "preview_toc",
+          "lineNumber": 303
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "print",
+          "lineNumber": 305
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "print",
+          "lineNumber": 309
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "print",
+          "lineNumber": 312
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "print",
+          "lineNumber": 313
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "print",
+          "lineNumber": 314
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "len",
+          "lineNumber": 314
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "print",
+          "lineNumber": 316
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "print",
+          "lineNumber": 320
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "print",
+          "lineNumber": 322
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "len",
+          "lineNumber": 323
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "print",
+          "lineNumber": 324
+        },
+        {
+          "caller": "_cmd_toc_preview",
+          "callee": "print",
+          "lineNumber": 326
+        }
+      ],
+      "metrics": {
+        "importCount": 5,
+        "exportCount": 7,
+        "functionCount": 7,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "novel2epub/pipeline.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 814,
+      "nonEmptyLines": 696,
+      "functions": [
+        {
+          "name": "_print",
+          "startLine": 25,
+          "endLine": 26,
+          "params": [
+            "msg"
+          ]
+        },
+        {
+          "name": "_now_iso",
+          "startLine": 29,
+          "endLine": 30,
+          "params": []
+        },
+        {
+          "name": "_run_with_heartbeat",
+          "startLine": 33,
+          "endLine": 59,
+          "params": [
+            "log",
+            "prefix",
+            "fn",
+            "interval"
+          ]
+        },
+        {
+          "name": "_log_chapter_done",
+          "startLine": 62,
+          "endLine": 67,
+          "params": [
+            "log",
+            "prefix",
+            "title",
+            "elapsed",
+            "translated",
+            "warnings"
+          ]
+        },
+        {
+          "name": "_clean_title",
+          "startLine": 70,
+          "endLine": 81,
+          "params": [
+            "vi"
+          ]
+        },
+        {
+          "name": "_strip_repeated_title",
+          "startLine": 84,
+          "endLine": 103,
+          "params": [
+            "content",
+            "ch"
+          ]
+        },
+        {
+          "name": "_chapter_range",
+          "startLine": 106,
+          "endLine": 114,
+          "params": [
+            "chapters",
+            "chapter",
+            "start",
+            "end"
+          ]
+        },
+        {
+          "name": "_chapter_selection",
+          "startLine": 117,
+          "endLine": 127,
+          "params": [
+            "chapters",
+            "chapter",
+            "start",
+            "end",
+            "selected_indexes"
+          ]
+        },
+        {
+          "name": "_apply_default_crawl_limit",
+          "startLine": 130,
+          "endLine": 137,
+          "params": [
+            "cfg",
+            "selected",
+            "start",
+            "end",
+            "selected_indexes"
+          ]
+        },
+        {
+          "name": "_build_meta",
+          "startLine": 140,
+          "endLine": 152,
+          "params": [
+            "cfg",
+            "ch",
+            "translated",
+            "warnings"
+          ]
+        },
+        {
+          "name": "_quality_warnings",
+          "startLine": 155,
+          "endLine": 164,
+          "params": [
+            "raw",
+            "translated"
+          ]
+        },
+        {
+          "name": "_refresh_manifest",
+          "startLine": 167,
+          "endLine": 218,
+          "params": [
+            "cfg",
+            "storage",
+            "crawler",
+            "log",
+            "force_meta"
+          ]
+        },
+        {
+          "name": "_download_cover",
+          "startLine": 221,
+          "endLine": 234,
+          "params": [
+            "storage",
+            "manifest",
+            "log"
+          ]
+        },
+        {
+          "name": "_cover_ext",
+          "startLine": 237,
+          "endLine": 247,
+          "params": [
+            "url",
+            "content_type"
+          ]
+        },
+        {
+          "name": "_fetch_chapter_with_retry",
+          "startLine": 250,
+          "endLine": 264,
+          "params": [
+            "crawler",
+            "ch",
+            "retries",
+            "retry_delay",
+            "log"
+          ]
+        },
+        {
+          "name": "step_crawl",
+          "startLine": 267,
+          "endLine": 268,
+          "params": [
+            "cfg",
+            "log"
+          ]
+        },
+        {
+          "name": "step_crawl_selected",
+          "startLine": 271,
+          "endLine": 333,
+          "params": [
+            "cfg",
+            "log",
+            "start",
+            "end",
+            "force",
+            "retries",
+            "retry_delay",
+            "selected_indexes"
+          ]
+        },
+        {
+          "name": "step_fetch_toc",
+          "startLine": 336,
+          "endLine": 351,
+          "params": [
+            "cfg",
+            "log",
+            "force"
+          ]
+        },
+        {
+          "name": "_translate_meta_inplace",
+          "startLine": 354,
+          "endLine": 377,
+          "params": [
+            "manifest",
+            "translator",
+            "is_noop",
+            "log",
+            "force"
+          ]
+        },
+        {
+          "name": "step_translate_meta",
+          "startLine": 380,
+          "endLine": 398,
+          "params": [
+            "cfg",
+            "log",
+            "force"
+          ]
+        },
+        {
+          "name": "step_translate",
+          "startLine": 401,
+          "endLine": 459,
+          "params": [
+            "cfg",
+            "log"
+          ]
+        },
+        {
+          "name": "step_translate_selected",
+          "startLine": 462,
+          "endLine": 536,
+          "params": [
+            "cfg",
+            "log",
+            "chapter",
+            "start",
+            "end",
+            "force",
+            "missing",
+            "selected_indexes"
+          ]
+        },
+        {
+          "name": "step_rewrite_chapters",
+          "startLine": 539,
+          "endLine": 584,
+          "params": [
+            "cfg",
+            "log",
+            "start",
+            "end"
+          ]
+        },
+        {
+          "name": "step_find_replace",
+          "startLine": 587,
+          "endLine": 638,
+          "params": [
+            "cfg",
+            "log",
+            "find",
+            "replace",
+            "start",
+            "end",
+            "also_raw"
+          ]
+        },
+        {
+          "name": "step_evaluate_translation",
+          "startLine": 641,
+          "endLine": 673,
+          "params": [
+            "cfg",
+            "log",
+            "start",
+            "end"
+          ]
+        },
+        {
+          "name": "_require_chapter",
+          "startLine": 686,
+          "endLine": 694,
+          "params": [
+            "cfg",
+            "index"
+          ]
+        },
+        {
+          "name": "_update_chapter_meta",
+          "startLine": 697,
+          "endLine": 708,
+          "params": [
+            "storage",
+            "ch",
+            "**changes"
+          ]
+        },
+        {
+          "name": "step_review_chapter",
+          "startLine": 711,
+          "endLine": 728,
+          "params": [
+            "cfg",
+            "log",
+            "index"
+          ]
+        },
+        {
+          "name": "step_suggest_chapter",
+          "startLine": 731,
+          "endLine": 743,
+          "params": [
+            "cfg",
+            "log",
+            "index"
+          ]
+        },
+        {
+          "name": "step_rewrite_preview",
+          "startLine": 746,
+          "endLine": 766,
+          "params": [
+            "cfg",
+            "log",
+            "index"
+          ]
+        },
+        {
+          "name": "step_build",
+          "startLine": 769,
+          "endLine": 808,
+          "params": [
+            "cfg",
+            "log"
+          ]
+        },
+        {
+          "name": "run_all",
+          "startLine": 811,
+          "endLine": 814,
+          "params": [
+            "cfg",
+            "log"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_print",
+          "line": 25,
+          "isDefault": false
+        },
+        {
+          "name": "_now_iso",
+          "line": 29,
+          "isDefault": false
+        },
+        {
+          "name": "_run_with_heartbeat",
+          "line": 33,
+          "isDefault": false
+        },
+        {
+          "name": "_log_chapter_done",
+          "line": 62,
+          "isDefault": false
+        },
+        {
+          "name": "_clean_title",
+          "line": 70,
+          "isDefault": false
+        },
+        {
+          "name": "_strip_repeated_title",
+          "line": 84,
+          "isDefault": false
+        },
+        {
+          "name": "_chapter_range",
+          "line": 106,
+          "isDefault": false
+        },
+        {
+          "name": "_chapter_selection",
+          "line": 117,
+          "isDefault": false
+        },
+        {
+          "name": "_apply_default_crawl_limit",
+          "line": 130,
+          "isDefault": false
+        },
+        {
+          "name": "_build_meta",
+          "line": 140,
+          "isDefault": false
+        },
+        {
+          "name": "_quality_warnings",
+          "line": 155,
+          "isDefault": false
+        },
+        {
+          "name": "_refresh_manifest",
+          "line": 167,
+          "isDefault": false
+        },
+        {
+          "name": "_download_cover",
+          "line": 221,
+          "isDefault": false
+        },
+        {
+          "name": "_cover_ext",
+          "line": 237,
+          "isDefault": false
+        },
+        {
+          "name": "_fetch_chapter_with_retry",
+          "line": 250,
+          "isDefault": false
+        },
+        {
+          "name": "step_crawl",
+          "line": 267,
+          "isDefault": false
+        },
+        {
+          "name": "step_crawl_selected",
+          "line": 271,
+          "isDefault": false
+        },
+        {
+          "name": "step_fetch_toc",
+          "line": 336,
+          "isDefault": false
+        },
+        {
+          "name": "_translate_meta_inplace",
+          "line": 354,
+          "isDefault": false
+        },
+        {
+          "name": "step_translate_meta",
+          "line": 380,
+          "isDefault": false
+        },
+        {
+          "name": "step_translate",
+          "line": 401,
+          "isDefault": false
+        },
+        {
+          "name": "step_translate_selected",
+          "line": 462,
+          "isDefault": false
+        },
+        {
+          "name": "step_rewrite_chapters",
+          "line": 539,
+          "isDefault": false
+        },
+        {
+          "name": "step_find_replace",
+          "line": 587,
+          "isDefault": false
+        },
+        {
+          "name": "step_evaluate_translation",
+          "line": 641,
+          "isDefault": false
+        },
+        {
+          "name": "_require_chapter",
+          "line": 686,
+          "isDefault": false
+        },
+        {
+          "name": "_update_chapter_meta",
+          "line": 697,
+          "isDefault": false
+        },
+        {
+          "name": "step_review_chapter",
+          "line": 711,
+          "isDefault": false
+        },
+        {
+          "name": "step_suggest_chapter",
+          "line": 731,
+          "isDefault": false
+        },
+        {
+          "name": "step_rewrite_preview",
+          "line": 746,
+          "isDefault": false
+        },
+        {
+          "name": "step_build",
+          "line": 769,
+          "isDefault": false
+        },
+        {
+          "name": "run_all",
+          "line": 811,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_print",
+          "callee": "print",
+          "lineNumber": 26
+        },
+        {
+          "caller": "_now_iso",
+          "callee": "datetime.now(timezone.utc).isoformat",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_now_iso",
+          "callee": "datetime.now",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_worker",
+          "callee": "fn",
+          "lineNumber": 45
+        },
+        {
+          "caller": "_run_with_heartbeat",
+          "callee": "threading.Thread",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_run_with_heartbeat",
+          "callee": "time.monotonic",
+          "lineNumber": 50
+        },
+        {
+          "caller": "_run_with_heartbeat",
+          "callee": "worker.start",
+          "lineNumber": 51
+        },
+        {
+          "caller": "_run_with_heartbeat",
+          "callee": "worker.join",
+          "lineNumber": 53
+        },
+        {
+          "caller": "_run_with_heartbeat",
+          "callee": "worker.is_alive",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_run_with_heartbeat",
+          "callee": "log",
+          "lineNumber": 56
+        },
+        {
+          "caller": "_run_with_heartbeat",
+          "callee": "time.monotonic",
+          "lineNumber": 56
+        },
+        {
+          "caller": "_run_with_heartbeat",
+          "callee": "result.get",
+          "lineNumber": 59
+        },
+        {
+          "caller": "_log_chapter_done",
+          "callee": "len",
+          "lineNumber": 64
+        },
+        {
+          "caller": "_log_chapter_done",
+          "callee": "'; '.join",
+          "lineNumber": 66
+        },
+        {
+          "caller": "_log_chapter_done",
+          "callee": "log",
+          "lineNumber": 67
+        },
+        {
+          "caller": "_clean_title",
+          "callee": "vi.strip",
+          "lineNumber": 76
+        },
+        {
+          "caller": "_clean_title",
+          "callee": "re.sub",
+          "lineNumber": 77
+        },
+        {
+          "caller": "_clean_title",
+          "callee": "re.sub",
+          "lineNumber": 78
+        },
+        {
+          "caller": "_clean_title",
+          "callee": "re.sub",
+          "lineNumber": 79
+        },
+        {
+          "caller": "_clean_title",
+          "callee": "vi.replace(\"楔子\", \"Mở đầu\").replace",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_clean_title",
+          "callee": "vi.replace",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_clean_title",
+          "callee": "vi.strip",
+          "lineNumber": 81
+        },
+        {
+          "caller": "_strip_repeated_title",
+          "callee": "re.sub",
+          "lineNumber": 93
+        },
+        {
+          "caller": "_strip_repeated_title",
+          "callee": "norm",
+          "lineNumber": 94
+        },
+        {
+          "caller": "_strip_repeated_title",
+          "callee": "content.splitlines",
+          "lineNumber": 95
+        },
+        {
+          "caller": "_strip_repeated_title",
+          "callee": "enumerate",
+          "lineNumber": 96
+        },
+        {
+          "caller": "_strip_repeated_title",
+          "callee": "line.strip",
+          "lineNumber": 97
+        },
+        {
+          "caller": "_strip_repeated_title",
+          "callee": "norm",
+          "lineNumber": 99
+        },
+        {
+          "caller": "_strip_repeated_title",
+          "callee": "norm(line).startswith",
+          "lineNumber": 99
+        },
+        {
+          "caller": "_strip_repeated_title",
+          "callee": "norm",
+          "lineNumber": 99
+        },
+        {
+          "caller": "_strip_repeated_title",
+          "callee": "\"\\n\".join(lines).lstrip",
+          "lineNumber": 101
+        },
+        {
+          "caller": "_strip_repeated_title",
+          "callee": "\"\\n\".join",
+          "lineNumber": 101
+        },
+        {
+          "caller": "_chapter_selection",
+          "callee": "set",
+          "lineNumber": 125
+        },
+        {
+          "caller": "_chapter_selection",
+          "callee": "_chapter_range",
+          "lineNumber": 127
+        },
+        {
+          "caller": "_build_meta",
+          "callee": "datetime.now(timezone.utc).isoformat",
+          "lineNumber": 149
+        },
+        {
+          "caller": "_build_meta",
+          "callee": "datetime.now",
+          "lineNumber": 149
+        },
+        {
+          "caller": "_build_meta",
+          "callee": "len",
+          "lineNumber": 151
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "sum",
+          "lineNumber": 157
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "warnings.append",
+          "lineNumber": 159
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "len",
+          "lineNumber": 160
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "translated.strip",
+          "lineNumber": 160
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "max",
+          "lineNumber": 160
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "len",
+          "lineNumber": 160
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "raw.strip",
+          "lineNumber": 160
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "raw.strip",
+          "lineNumber": 160
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "warnings.append",
+          "lineNumber": 161
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "re.search",
+          "lineNumber": 162
+        },
+        {
+          "caller": "_quality_warnings",
+          "callee": "warnings.append",
+          "lineNumber": 163
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "storage.load_manifest",
+          "lineNumber": 173
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "log",
+          "lineNumber": 175
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "crawler.fetch_toc",
+          "lineNumber": 176
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "Manifest",
+          "lineNumber": 179
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "old_chapters_by_url.get",
+          "lineNumber": 205
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "merged_chapters.append",
+          "lineNumber": 208
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "mark_duplicate_chapters",
+          "lineNumber": 209
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "_download_cover",
+          "lineNumber": 211
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "storage.save_manifest",
+          "lineNumber": 212
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "log",
+          "lineNumber": 213
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "len",
+          "lineNumber": 213
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "RuntimeError",
+          "lineNumber": 216
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "log",
+          "lineNumber": 217
+        },
+        {
+          "caller": "_refresh_manifest",
+          "callee": "len",
+          "lineNumber": 217
+        },
+        {
+          "caller": "_download_cover",
+          "callee": "requests.get",
+          "lineNumber": 228
+        },
+        {
+          "caller": "_download_cover",
+          "callee": "resp.raise_for_status",
+          "lineNumber": 229
+        },
+        {
+          "caller": "_download_cover",
+          "callee": "_cover_ext",
+          "lineNumber": 230
+        },
+        {
+          "caller": "_download_cover",
+          "callee": "resp.headers.get",
+          "lineNumber": 230
+        },
+        {
+          "caller": "_download_cover",
+          "callee": "storage.write_cover",
+          "lineNumber": 231
+        },
+        {
+          "caller": "_download_cover",
+          "callee": "log",
+          "lineNumber": 232
+        },
+        {
+          "caller": "_download_cover",
+          "callee": "log",
+          "lineNumber": 234
+        },
+        {
+          "caller": "_cover_ext",
+          "callee": "(content_type or \"\").lower",
+          "lineNumber": 239
+        },
+        {
+          "caller": "_cover_ext",
+          "callee": "re.search",
+          "lineNumber": 243
+        },
+        {
+          "caller": "_cover_ext",
+          "callee": "m.group(1).lower",
+          "lineNumber": 245
+        },
+        {
+          "caller": "_cover_ext",
+          "callee": "m.group",
+          "lineNumber": 245
+        },
+        {
+          "caller": "_fetch_chapter_with_retry",
+          "callee": "max",
+          "lineNumber": 253
+        },
+        {
+          "caller": "_fetch_chapter_with_retry",
+          "callee": "range",
+          "lineNumber": 255
+        },
+        {
+          "caller": "_fetch_chapter_with_retry",
+          "callee": "_strip_repeated_title",
+          "lineNumber": 257
+        },
+        {
+          "caller": "_fetch_chapter_with_retry",
+          "callee": "crawler.fetch_chapter",
+          "lineNumber": 257
+        },
+        {
+          "caller": "_fetch_chapter_with_retry",
+          "callee": "log",
+          "lineNumber": 260
+        },
+        {
+          "caller": "_fetch_chapter_with_retry",
+          "callee": "time.sleep",
+          "lineNumber": 262
+        },
+        {
+          "caller": "_fetch_chapter_with_retry",
+          "callee": "log",
+          "lineNumber": 263
+        },
+        {
+          "caller": "step_crawl",
+          "callee": "step_crawl_selected",
+          "lineNumber": 268
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "Storage",
+          "lineNumber": 290
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "make_crawler",
+          "lineNumber": 293
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "_refresh_manifest",
+          "lineNumber": 295
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "_chapter_selection",
+          "lineNumber": 297
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "_apply_default_crawl_limit",
+          "lineNumber": 298
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "log",
+          "lineNumber": 300
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "len",
+          "lineNumber": 300
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "len",
+          "lineNumber": 301
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "len",
+          "lineNumber": 303
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "enumerate",
+          "lineNumber": 308
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "storage.has_raw",
+          "lineNumber": 309
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "storage.has_raw",
+          "lineNumber": 313
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "log",
+          "lineNumber": 314
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "_fetch_chapter_with_retry",
+          "lineNumber": 315
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "content.strip",
+          "lineNumber": 320
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "log",
+          "lineNumber": 321
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "storage.write_raw",
+          "lineNumber": 322
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "crawler.sleep",
+          "lineNumber": 327
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "storage.save_manifest",
+          "lineNumber": 328
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "crawler.close",
+          "lineNumber": 330
+        },
+        {
+          "caller": "step_crawl_selected",
+          "callee": "log",
+          "lineNumber": 332
+        },
+        {
+          "caller": "step_fetch_toc",
+          "callee": "Storage",
+          "lineNumber": 342
+        },
+        {
+          "caller": "step_fetch_toc",
+          "callee": "make_crawler",
+          "lineNumber": 345
+        },
+        {
+          "caller": "step_fetch_toc",
+          "callee": "_refresh_manifest",
+          "lineNumber": 347
+        },
+        {
+          "caller": "step_fetch_toc",
+          "callee": "crawler.close",
+          "lineNumber": 349
+        },
+        {
+          "caller": "step_fetch_toc",
+          "callee": "log",
+          "lineNumber": 350
+        },
+        {
+          "caller": "_translate_meta_inplace",
+          "callee": "translator.translate_title",
+          "lineNumber": 362
+        },
+        {
+          "caller": "_translate_meta_inplace",
+          "callee": "_clean_title",
+          "lineNumber": 363
+        },
+        {
+          "caller": "_translate_meta_inplace",
+          "callee": "log",
+          "lineNumber": 365
+        },
+        {
+          "caller": "_translate_meta_inplace",
+          "callee": "log",
+          "lineNumber": 367
+        },
+        {
+          "caller": "_translate_meta_inplace",
+          "callee": "translator.translate(manifest.author).strip",
+          "lineNumber": 370
+        },
+        {
+          "caller": "_translate_meta_inplace",
+          "callee": "translator.translate",
+          "lineNumber": 370
+        },
+        {
+          "caller": "_translate_meta_inplace",
+          "callee": "log",
+          "lineNumber": 371
+        },
+        {
+          "caller": "_translate_meta_inplace",
+          "callee": "translator.translate(manifest.description).strip",
+          "lineNumber": 374
+        },
+        {
+          "caller": "_translate_meta_inplace",
+          "callee": "translator.translate",
+          "lineNumber": 374
+        },
+        {
+          "caller": "_translate_meta_inplace",
+          "callee": "log",
+          "lineNumber": 375
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "Storage",
+          "lineNumber": 382
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "storage.load_manifest",
+          "lineNumber": 383
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "RuntimeError",
+          "lineNumber": 385
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "cfg.translate.type.lower",
+          "lineNumber": 387
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "log",
+          "lineNumber": 389
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "RateLimited",
+          "lineNumber": 392
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "make_translator",
+          "lineNumber": 392
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "_translate_meta_inplace",
+          "lineNumber": 393
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "storage.save_manifest",
+          "lineNumber": 394
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "log",
+          "lineNumber": 395
+        },
+        {
+          "caller": "step_translate_meta",
+          "callee": "log",
+          "lineNumber": 397
+        },
+        {
+          "caller": "step_translate",
+          "callee": "Storage",
+          "lineNumber": 402
+        },
+        {
+          "caller": "step_translate",
+          "callee": "storage.load_manifest",
+          "lineNumber": 403
+        },
+        {
+          "caller": "step_translate",
+          "callee": "RuntimeError",
+          "lineNumber": 405
+        },
+        {
+          "caller": "step_translate",
+          "callee": "RateLimited",
+          "lineNumber": 407
+        },
+        {
+          "caller": "step_translate",
+          "callee": "make_translator",
+          "lineNumber": 407
+        },
+        {
+          "caller": "step_translate",
+          "callee": "cfg.translate.type.lower",
+          "lineNumber": 408
+        },
+        {
+          "caller": "step_translate",
+          "callee": "_translate_meta_inplace",
+          "lineNumber": 411
+        },
+        {
+          "caller": "step_translate",
+          "callee": "len",
+          "lineNumber": 413
+        },
+        {
+          "caller": "step_translate",
+          "callee": "sum",
+          "lineNumber": 414
+        },
+        {
+          "caller": "step_translate",
+          "callee": "storage.has_raw",
+          "lineNumber": 414
+        },
+        {
+          "caller": "step_translate",
+          "callee": "storage.has_translated",
+          "lineNumber": 414
+        },
+        {
+          "caller": "step_translate",
+          "callee": "log",
+          "lineNumber": 415
+        },
+        {
+          "caller": "step_translate",
+          "callee": "enumerate",
+          "lineNumber": 418
+        },
+        {
+          "caller": "step_translate",
+          "callee": "storage.has_raw",
+          "lineNumber": 419
+        },
+        {
+          "caller": "step_translate",
+          "callee": "log",
+          "lineNumber": 420
+        },
+        {
+          "caller": "step_translate",
+          "callee": "storage.has_translated",
+          "lineNumber": 422
+        },
+        {
+          "caller": "step_translate",
+          "callee": "storage.read_raw",
+          "lineNumber": 425
+        },
+        {
+          "caller": "step_translate",
+          "callee": "log",
+          "lineNumber": 426
+        },
+        {
+          "caller": "step_translate",
+          "callee": "len",
+          "lineNumber": 426
+        },
+        {
+          "caller": "step_translate",
+          "callee": "time.monotonic",
+          "lineNumber": 427
+        },
+        {
+          "caller": "step_translate",
+          "callee": "translator.translate_title",
+          "lineNumber": 432
+        },
+        {
+          "caller": "step_translate",
+          "callee": "_clean_title",
+          "lineNumber": 433
+        },
+        {
+          "caller": "step_translate",
+          "callee": "_run_with_heartbeat",
+          "lineNumber": 436
+        },
+        {
+          "caller": "step_translate",
+          "callee": "translator.translate",
+          "lineNumber": 436
+        },
+        {
+          "caller": "step_translate",
+          "callee": "log",
+          "lineNumber": 440
+        },
+        {
+          "caller": "step_translate",
+          "callee": "storage.save_manifest",
+          "lineNumber": 445
+        },
+        {
+          "caller": "step_translate",
+          "callee": "RuntimeError",
+          "lineNumber": 446
+        },
+        {
+          "caller": "step_translate",
+          "callee": "time.monotonic",
+          "lineNumber": 449
+        },
+        {
+          "caller": "step_translate",
+          "callee": "storage.write_translated",
+          "lineNumber": 450
+        },
+        {
+          "caller": "step_translate",
+          "callee": "_quality_warnings",
+          "lineNumber": 451
+        },
+        {
+          "caller": "step_translate",
+          "callee": "storage.write_meta",
+          "lineNumber": 452
+        },
+        {
+          "caller": "step_translate",
+          "callee": "_build_meta",
+          "lineNumber": 452
+        },
+        {
+          "caller": "step_translate",
+          "callee": "_log_chapter_done",
+          "lineNumber": 454
+        },
+        {
+          "caller": "step_translate",
+          "callee": "storage.save_manifest",
+          "lineNumber": 457
+        },
+        {
+          "caller": "step_translate",
+          "callee": "log",
+          "lineNumber": 458
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "Storage",
+          "lineNumber": 473
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "storage.load_manifest",
+          "lineNumber": 474
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "RuntimeError",
+          "lineNumber": 476
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "RateLimited",
+          "lineNumber": 478
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "make_translator",
+          "lineNumber": 478
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "cfg.translate.type.lower",
+          "lineNumber": 479
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "_chapter_selection",
+          "lineNumber": 480
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "len",
+          "lineNumber": 481
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "log",
+          "lineNumber": 482
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "enumerate",
+          "lineNumber": 488
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "storage.has_raw",
+          "lineNumber": 489
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "log",
+          "lineNumber": 490
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "storage.has_translated",
+          "lineNumber": 494
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "storage.read_raw",
+          "lineNumber": 503
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "log",
+          "lineNumber": 504
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "len",
+          "lineNumber": 504
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "time.monotonic",
+          "lineNumber": 505
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "translator.translate_title",
+          "lineNumber": 508
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "_clean_title",
+          "lineNumber": 509
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "_run_with_heartbeat",
+          "lineNumber": 512
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "translator.translate",
+          "lineNumber": 512
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "log",
+          "lineNumber": 516
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "storage.save_manifest",
+          "lineNumber": 521
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "RuntimeError",
+          "lineNumber": 522
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "time.monotonic",
+          "lineNumber": 524
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "storage.write_translated",
+          "lineNumber": 525
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "_quality_warnings",
+          "lineNumber": 526
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "storage.write_meta",
+          "lineNumber": 527
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "_build_meta",
+          "lineNumber": 527
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "_log_chapter_done",
+          "lineNumber": 530
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "storage.save_manifest",
+          "lineNumber": 534
+        },
+        {
+          "caller": "step_translate_selected",
+          "callee": "log",
+          "lineNumber": 535
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "Storage",
+          "lineNumber": 553
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "storage.load_manifest",
+          "lineNumber": 554
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "RuntimeError",
+          "lineNumber": 556
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "glossary_ai.load_glossary",
+          "lineNumber": 558
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "_chapter_range",
+          "lineNumber": 559
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "storage.has_translated",
+          "lineNumber": 560
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "len",
+          "lineNumber": 561
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "log",
+          "lineNumber": 563
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "enumerate",
+          "lineNumber": 566
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "log",
+          "lineNumber": 567
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "storage.read_raw",
+          "lineNumber": 568
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "storage.has_raw",
+          "lineNumber": 568
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "storage.read_translated",
+          "lineNumber": 569
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "glossary_ai.rewrite_chapter",
+          "lineNumber": 571
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "log",
+          "lineNumber": 573
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "rewritten.strip",
+          "lineNumber": 575
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "log",
+          "lineNumber": 576
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "storage.read_meta",
+          "lineNumber": 578
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "storage.has_meta",
+          "lineNumber": 578
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "storage.write_meta",
+          "lineNumber": 580
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "storage.write_translated",
+          "lineNumber": 581
+        },
+        {
+          "caller": "step_rewrite_chapters",
+          "callee": "log",
+          "lineNumber": 583
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "Storage",
+          "lineNumber": 602
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "storage.load_manifest",
+          "lineNumber": 603
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "RuntimeError",
+          "lineNumber": 605
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "log",
+          "lineNumber": 608
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "_chapter_range",
+          "lineNumber": 611
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "storage.has_translated",
+          "lineNumber": 615
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "storage.read_translated",
+          "lineNumber": 616
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "content.count",
+          "lineNumber": 617
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "storage.read_meta",
+          "lineNumber": 619
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "storage.has_meta",
+          "lineNumber": 619
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "storage.write_meta",
+          "lineNumber": 621
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "storage.write_translated",
+          "lineNumber": 622
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "content.replace",
+          "lineNumber": 622
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "log",
+          "lineNumber": 625
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "storage.has_raw",
+          "lineNumber": 626
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "storage.read_raw",
+          "lineNumber": 627
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "raw.count",
+          "lineNumber": 628
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "storage.write_raw",
+          "lineNumber": 630
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "raw.replace",
+          "lineNumber": 630
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "log",
+          "lineNumber": 632
+        },
+        {
+          "caller": "step_find_replace",
+          "callee": "log",
+          "lineNumber": 634
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "Storage",
+          "lineNumber": 654
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "storage.load_manifest",
+          "lineNumber": 655
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "RuntimeError",
+          "lineNumber": 657
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "glossary_ai.load_glossary",
+          "lineNumber": 659
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "_chapter_range",
+          "lineNumber": 660
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "storage.has_translated",
+          "lineNumber": 661
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "log",
+          "lineNumber": 663
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "dict",
+          "lineNumber": 664
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "storage.read_raw",
+          "lineNumber": 667
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "storage.has_raw",
+          "lineNumber": 667
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "storage.read_translated",
+          "lineNumber": 667
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "log",
+          "lineNumber": 670
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "len",
+          "lineNumber": 670
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "glossary_ai.evaluate_translation",
+          "lineNumber": 671
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "log",
+          "lineNumber": 672
+        },
+        {
+          "caller": "step_evaluate_translation",
+          "callee": "glossary_ai.format_evaluation_text",
+          "lineNumber": 672
+        },
+        {
+          "caller": "_require_chapter",
+          "callee": "Storage",
+          "lineNumber": 687
+        },
+        {
+          "caller": "_require_chapter",
+          "callee": "storage.load_manifest",
+          "lineNumber": 688
+        },
+        {
+          "caller": "_require_chapter",
+          "callee": "RuntimeError",
+          "lineNumber": 690
+        },
+        {
+          "caller": "_require_chapter",
+          "callee": "next",
+          "lineNumber": 691
+        },
+        {
+          "caller": "_require_chapter",
+          "callee": "RuntimeError",
+          "lineNumber": 693
+        },
+        {
+          "caller": "_update_chapter_meta",
+          "callee": "storage.read_meta",
+          "lineNumber": 701
+        },
+        {
+          "caller": "_update_chapter_meta",
+          "callee": "storage.has_meta",
+          "lineNumber": 701
+        },
+        {
+          "caller": "_update_chapter_meta",
+          "callee": "changes.items",
+          "lineNumber": 702
+        },
+        {
+          "caller": "_update_chapter_meta",
+          "callee": "meta.pop",
+          "lineNumber": 704
+        },
+        {
+          "caller": "_update_chapter_meta",
+          "callee": "storage.write_meta",
+          "lineNumber": 707
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "_require_chapter",
+          "lineNumber": 715
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "storage.has_translated",
+          "lineNumber": 716
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "log",
+          "lineNumber": 717
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "dict",
+          "lineNumber": 718
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "storage.read_raw",
+          "lineNumber": 720
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "storage.has_raw",
+          "lineNumber": 720
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "storage.read_translated",
+          "lineNumber": 721
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "glossary_ai.load_glossary",
+          "lineNumber": 722
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "log",
+          "lineNumber": 723
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "glossary_ai.evaluate_translation",
+          "lineNumber": 724
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "_update_chapter_meta",
+          "lineNumber": 725
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "_now_iso",
+          "lineNumber": 725
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "log",
+          "lineNumber": 726
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "glossary_ai.format_evaluation_text",
+          "lineNumber": 726
+        },
+        {
+          "caller": "step_review_chapter",
+          "callee": "log",
+          "lineNumber": 727
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "_require_chapter",
+          "lineNumber": 735
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "storage.read_raw",
+          "lineNumber": 736
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "storage.has_raw",
+          "lineNumber": 736
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "storage.read_translated",
+          "lineNumber": 737
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "storage.has_translated",
+          "lineNumber": 737
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "glossary_ai.load_glossary",
+          "lineNumber": 738
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "log",
+          "lineNumber": 739
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "glossary_ai.suggest_glossary",
+          "lineNumber": 740
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "_update_chapter_meta",
+          "lineNumber": 741
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "log",
+          "lineNumber": 742
+        },
+        {
+          "caller": "step_suggest_chapter",
+          "callee": "len",
+          "lineNumber": 742
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "_require_chapter",
+          "lineNumber": 751
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "storage.has_translated",
+          "lineNumber": 752
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "log",
+          "lineNumber": 753
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "storage.read_raw",
+          "lineNumber": 756
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "storage.has_raw",
+          "lineNumber": 756
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "storage.read_translated",
+          "lineNumber": 757
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "glossary_ai.load_glossary",
+          "lineNumber": 758
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "log",
+          "lineNumber": 759
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "glossary_ai.rewrite_chapter",
+          "lineNumber": 760
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "rewritten.strip",
+          "lineNumber": 761
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "log",
+          "lineNumber": 762
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "_update_chapter_meta",
+          "lineNumber": 764
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "_now_iso",
+          "lineNumber": 764
+        },
+        {
+          "caller": "step_rewrite_preview",
+          "callee": "log",
+          "lineNumber": 765
+        },
+        {
+          "caller": "step_build",
+          "callee": "Storage",
+          "lineNumber": 770
+        },
+        {
+          "caller": "step_build",
+          "callee": "storage.load_manifest",
+          "lineNumber": 771
+        },
+        {
+          "caller": "step_build",
+          "callee": "RuntimeError",
+          "lineNumber": 773
+        },
+        {
+          "caller": "step_build",
+          "callee": "storage.read_glossary_notes",
+          "lineNumber": 777
+        },
+        {
+          "caller": "step_build",
+          "callee": "storage.has_translated",
+          "lineNumber": 781
+        },
+        {
+          "caller": "step_build",
+          "callee": "storage.read_translated",
+          "lineNumber": 782
+        },
+        {
+          "caller": "step_build",
+          "callee": "_footnotes.annotate",
+          "lineNumber": 785
+        },
+        {
+          "caller": "step_build",
+          "callee": "storage.has_raw",
+          "lineNumber": 788
+        },
+        {
+          "caller": "step_build",
+          "callee": "storage.read_raw",
+          "lineNumber": 789
+        },
+        {
+          "caller": "step_build",
+          "callee": "chapters_html.append",
+          "lineNumber": 793
+        },
+        {
+          "caller": "step_build",
+          "callee": "RuntimeError",
+          "lineNumber": 796
+        },
+        {
+          "caller": "step_build",
+          "callee": "storage.cover_fs_path",
+          "lineNumber": 798
+        },
+        {
+          "caller": "step_build",
+          "callee": "build_epub",
+          "lineNumber": 799
+        },
+        {
+          "caller": "step_build",
+          "callee": "log",
+          "lineNumber": 807
+        },
+        {
+          "caller": "step_build",
+          "callee": "len",
+          "lineNumber": 807
+        },
+        {
+          "caller": "step_build",
+          "callee": "str",
+          "lineNumber": 808
+        },
+        {
+          "caller": "run_all",
+          "callee": "step_crawl",
+          "lineNumber": 812
+        },
+        {
+          "caller": "run_all",
+          "callee": "step_translate",
+          "lineNumber": 813
+        },
+        {
+          "caller": "run_all",
+          "callee": "step_build",
+          "lineNumber": 814
+        }
+      ],
+      "metrics": {
+        "importCount": 6,
+        "exportCount": 32,
+        "functionCount": 32,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "novel2epub/storage.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 250,
+      "nonEmptyLines": 215,
+      "functions": [
+        {
+          "name": "parse_glossary_line",
+          "startLine": 16,
+          "endLine": 34,
+          "params": [
+            "line"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "Chapter",
+          "startLine": 38,
+          "endLine": 50,
+          "methods": [
+            "stem"
+          ],
+          "properties": [
+            "index",
+            "url",
+            "title_zh",
+            "title_vi",
+            "title_note",
+            "missing_fields",
+            "duplicate_of",
+            "last_action_status"
+          ]
+        },
+        {
+          "name": "Manifest",
+          "startLine": 54,
+          "endLine": 93,
+          "methods": [
+            "to_json"
+          ],
+          "properties": [
+            "slug",
+            "source_url",
+            "title",
+            "author",
+            "description",
+            "cover_url",
+            "cover_file",
+            "title_vi",
+            "title_note",
+            "author_vi",
+            "description_vi",
+            "metadata_missing",
+            "curated_fields",
+            "chapters"
+          ]
+        },
+        {
+          "name": "Storage",
+          "startLine": 96,
+          "endLine": 250,
+          "methods": [
+            "__init__",
+            "ensure_dirs",
+            "load_manifest",
+            "save_manifest",
+            "raw_path",
+            "translated_path",
+            "meta_path",
+            "has_raw",
+            "has_translated",
+            "write_raw",
+            "read_raw",
+            "write_translated",
+            "read_translated",
+            "has_meta",
+            "read_meta",
+            "write_meta",
+            "write_cover",
+            "cover_fs_path",
+            "glossary_path",
+            "read_glossary_file",
+            "read_glossary_notes",
+            "write_glossary_file"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "parse_glossary_line",
+          "line": 16,
+          "isDefault": false
+        },
+        {
+          "name": "Chapter",
+          "line": 37,
+          "isDefault": false
+        },
+        {
+          "name": "Manifest",
+          "line": 53,
+          "isDefault": false
+        },
+        {
+          "name": "Storage",
+          "line": 96,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "parse_glossary_line",
+          "callee": "line.strip",
+          "lineNumber": 22
+        },
+        {
+          "caller": "parse_glossary_line",
+          "callee": "line.startswith",
+          "lineNumber": 23
+        },
+        {
+          "caller": "parse_glossary_line",
+          "callee": "line.split",
+          "lineNumber": 25
+        },
+        {
+          "caller": "parse_glossary_line",
+          "callee": "source.strip",
+          "lineNumber": 26
+        },
+        {
+          "caller": "parse_glossary_line",
+          "callee": "rest.split",
+          "lineNumber": 28
+        },
+        {
+          "caller": "parse_glossary_line",
+          "callee": "target.strip",
+          "lineNumber": 29
+        },
+        {
+          "caller": "parse_glossary_line",
+          "callee": "note.strip",
+          "lineNumber": 29
+        },
+        {
+          "caller": "parse_glossary_line",
+          "callee": "rest.strip",
+          "lineNumber": 31
+        },
+        {
+          "caller": "to_json",
+          "callee": "json.dumps",
+          "lineNumber": 74
+        },
+        {
+          "caller": "to_json",
+          "callee": "asdict",
+          "lineNumber": 89
+        },
+        {
+          "caller": "__init__",
+          "callee": "Path",
+          "lineNumber": 98
+        },
+        {
+          "caller": "ensure_dirs",
+          "callee": "self.raw_dir.mkdir",
+          "lineNumber": 107
+        },
+        {
+          "caller": "ensure_dirs",
+          "callee": "self.translated_dir.mkdir",
+          "lineNumber": 108
+        },
+        {
+          "caller": "ensure_dirs",
+          "callee": "self.meta_dir.mkdir",
+          "lineNumber": 109
+        },
+        {
+          "caller": "ensure_dirs",
+          "callee": "self.glossary_dir.mkdir",
+          "lineNumber": 110
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "self.manifest_path.exists",
+          "lineNumber": 114
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "json.loads",
+          "lineNumber": 116
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "self.manifest_path.read_text",
+          "lineNumber": 116
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 118
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "chapters.append",
+          "lineNumber": 119
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "Chapter",
+          "lineNumber": 119
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "c.get",
+          "lineNumber": 120
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "c.get",
+          "lineNumber": 121
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "c.get",
+          "lineNumber": 122
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "c.get",
+          "lineNumber": 123
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "c.get",
+          "lineNumber": 124
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "list",
+          "lineNumber": 125
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "c.get",
+          "lineNumber": 125
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "c.get",
+          "lineNumber": 126
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "c.get",
+          "lineNumber": 127
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "Manifest",
+          "lineNumber": 129
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 130
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 131
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 132
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 133
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 134
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 135
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 136
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 137
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 138
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 139
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 140
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "list",
+          "lineNumber": 141
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 141
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "list",
+          "lineNumber": 142
+        },
+        {
+          "caller": "load_manifest",
+          "callee": "data.get",
+          "lineNumber": 142
+        },
+        {
+          "caller": "save_manifest",
+          "callee": "self.ensure_dirs",
+          "lineNumber": 147
+        },
+        {
+          "caller": "save_manifest",
+          "callee": "self.manifest_path.write_text",
+          "lineNumber": 148
+        },
+        {
+          "caller": "save_manifest",
+          "callee": "manifest.to_json",
+          "lineNumber": 148
+        },
+        {
+          "caller": "has_raw",
+          "callee": "self.raw_path",
+          "lineNumber": 161
+        },
+        {
+          "caller": "has_raw",
+          "callee": "p.exists",
+          "lineNumber": 162
+        },
+        {
+          "caller": "has_raw",
+          "callee": "p.stat",
+          "lineNumber": 162
+        },
+        {
+          "caller": "has_translated",
+          "callee": "self.translated_path",
+          "lineNumber": 165
+        },
+        {
+          "caller": "has_translated",
+          "callee": "p.exists",
+          "lineNumber": 166
+        },
+        {
+          "caller": "has_translated",
+          "callee": "p.stat",
+          "lineNumber": 166
+        },
+        {
+          "caller": "write_raw",
+          "callee": "self.ensure_dirs",
+          "lineNumber": 169
+        },
+        {
+          "caller": "write_raw",
+          "callee": "self.raw_path(ch).write_text",
+          "lineNumber": 170
+        },
+        {
+          "caller": "write_raw",
+          "callee": "self.raw_path",
+          "lineNumber": 170
+        },
+        {
+          "caller": "read_raw",
+          "callee": "self.raw_path(ch).read_text",
+          "lineNumber": 173
+        },
+        {
+          "caller": "read_raw",
+          "callee": "self.raw_path",
+          "lineNumber": 173
+        },
+        {
+          "caller": "write_translated",
+          "callee": "self.ensure_dirs",
+          "lineNumber": 176
+        },
+        {
+          "caller": "write_translated",
+          "callee": "self.translated_path(ch).write_text",
+          "lineNumber": 177
+        },
+        {
+          "caller": "write_translated",
+          "callee": "self.translated_path",
+          "lineNumber": 177
+        },
+        {
+          "caller": "read_translated",
+          "callee": "self.translated_path(ch).read_text",
+          "lineNumber": 180
+        },
+        {
+          "caller": "read_translated",
+          "callee": "self.translated_path",
+          "lineNumber": 180
+        },
+        {
+          "caller": "has_meta",
+          "callee": "self.meta_path(ch).exists",
+          "lineNumber": 183
+        },
+        {
+          "caller": "has_meta",
+          "callee": "self.meta_path",
+          "lineNumber": 183
+        },
+        {
+          "caller": "read_meta",
+          "callee": "self.meta_path",
+          "lineNumber": 186
+        },
+        {
+          "caller": "read_meta",
+          "callee": "path.exists",
+          "lineNumber": 187
+        },
+        {
+          "caller": "read_meta",
+          "callee": "json.loads",
+          "lineNumber": 189
+        },
+        {
+          "caller": "read_meta",
+          "callee": "path.read_text",
+          "lineNumber": 189
+        },
+        {
+          "caller": "write_meta",
+          "callee": "self.ensure_dirs",
+          "lineNumber": 192
+        },
+        {
+          "caller": "write_meta",
+          "callee": "self.meta_path(ch).write_text",
+          "lineNumber": 193
+        },
+        {
+          "caller": "write_meta",
+          "callee": "self.meta_path",
+          "lineNumber": 193
+        },
+        {
+          "caller": "write_meta",
+          "callee": "json.dumps",
+          "lineNumber": 194
+        },
+        {
+          "caller": "write_cover",
+          "callee": "self.ensure_dirs",
+          "lineNumber": 200
+        },
+        {
+          "caller": "write_cover",
+          "callee": "(ext or \"jpg\").lstrip(\".\").lower",
+          "lineNumber": 201
+        },
+        {
+          "caller": "write_cover",
+          "callee": "(ext or \"jpg\").lstrip",
+          "lineNumber": 201
+        },
+        {
+          "caller": "write_cover",
+          "callee": "(self.root / name).write_bytes",
+          "lineNumber": 203
+        },
+        {
+          "caller": "cover_fs_path",
+          "callee": "path.exists",
+          "lineNumber": 211
+        },
+        {
+          "caller": "read_glossary_file",
+          "callee": "self.glossary_path",
+          "lineNumber": 218
+        },
+        {
+          "caller": "read_glossary_file",
+          "callee": "path.exists",
+          "lineNumber": 219
+        },
+        {
+          "caller": "read_glossary_file",
+          "callee": "path.read_text(encoding=\"utf-8\").splitlines",
+          "lineNumber": 222
+        },
+        {
+          "caller": "read_glossary_file",
+          "callee": "path.read_text",
+          "lineNumber": 222
+        },
+        {
+          "caller": "read_glossary_file",
+          "callee": "parse_glossary_line",
+          "lineNumber": 223
+        },
+        {
+          "caller": "read_glossary_notes",
+          "callee": "self.glossary_path",
+          "lineNumber": 236
+        },
+        {
+          "caller": "read_glossary_notes",
+          "callee": "path.exists",
+          "lineNumber": 237
+        },
+        {
+          "caller": "read_glossary_notes",
+          "callee": "path.read_text(encoding=\"utf-8\").splitlines",
+          "lineNumber": 239
+        },
+        {
+          "caller": "read_glossary_notes",
+          "callee": "path.read_text",
+          "lineNumber": 239
+        },
+        {
+          "caller": "read_glossary_notes",
+          "callee": "parse_glossary_line",
+          "lineNumber": 240
+        },
+        {
+          "caller": "write_glossary_file",
+          "callee": "self.ensure_dirs",
+          "lineNumber": 249
+        },
+        {
+          "caller": "write_glossary_file",
+          "callee": "self.glossary_path(name).write_text",
+          "lineNumber": 250
+        },
+        {
+          "caller": "write_glossary_file",
+          "callee": "self.glossary_path",
+          "lineNumber": 250
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 4,
+        "functionCount": 1,
+        "classCount": 3
+      }
+    },
+    {
+      "path": "novel2epub/toc.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 154,
+      "nonEmptyLines": 131,
+      "functions": [
+        {
+          "name": "missing_metadata",
+          "startLine": 28,
+          "endLine": 36,
+          "params": [
+            "title",
+            "author",
+            "description"
+          ]
+        },
+        {
+          "name": "chapter_missing",
+          "startLine": 39,
+          "endLine": 45,
+          "params": [
+            "ch"
+          ]
+        },
+        {
+          "name": "mark_duplicate_chapters",
+          "startLine": 48,
+          "endLine": 60,
+          "params": [
+            "chapters"
+          ]
+        },
+        {
+          "name": "chapter_rows",
+          "startLine": 63,
+          "endLine": 78,
+          "params": [
+            "chapters",
+            "storage"
+          ]
+        },
+        {
+          "name": "_matches_filter",
+          "startLine": 81,
+          "endLine": 83,
+          "params": [
+            "value",
+            "flt"
+          ]
+        },
+        {
+          "name": "apply_chapter_query",
+          "startLine": 86,
+          "endLine": 117,
+          "params": [
+            "rows",
+            "sort",
+            "direction",
+            "search",
+            "filter_raw",
+            "filter_translated",
+            "filter_missing"
+          ]
+        },
+        {
+          "name": "select_visible_range",
+          "startLine": 120,
+          "endLine": 132,
+          "params": [
+            "rows",
+            "start",
+            "end"
+          ]
+        },
+        {
+          "name": "parse_filter",
+          "startLine": 135,
+          "endLine": 143,
+          "params": [
+            "values"
+          ]
+        },
+        {
+          "name": "parse_range",
+          "startLine": 146,
+          "endLine": 154,
+          "params": [
+            "value"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "ChapterRow",
+          "startLine": 11,
+          "endLine": 25,
+          "methods": [
+            "has_missing"
+          ],
+          "properties": [
+            "index",
+            "title_zh",
+            "title_vi",
+            "visible_title",
+            "url",
+            "has_raw",
+            "has_translated",
+            "missing_fields",
+            "duplicate_of",
+            "last_action_status"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "ChapterRow",
+          "line": 10,
+          "isDefault": false
+        },
+        {
+          "name": "missing_metadata",
+          "line": 28,
+          "isDefault": false
+        },
+        {
+          "name": "chapter_missing",
+          "line": 39,
+          "isDefault": false
+        },
+        {
+          "name": "mark_duplicate_chapters",
+          "line": 48,
+          "isDefault": false
+        },
+        {
+          "name": "chapter_rows",
+          "line": 63,
+          "isDefault": false
+        },
+        {
+          "name": "_matches_filter",
+          "line": 81,
+          "isDefault": false
+        },
+        {
+          "name": "apply_chapter_query",
+          "line": 86,
+          "isDefault": false
+        },
+        {
+          "name": "select_visible_range",
+          "line": 120,
+          "isDefault": false
+        },
+        {
+          "name": "parse_filter",
+          "line": 135,
+          "isDefault": false
+        },
+        {
+          "name": "parse_range",
+          "line": 146,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "has_missing",
+          "callee": "bool",
+          "lineNumber": 25
+        },
+        {
+          "caller": "missing_metadata",
+          "callee": "missing.append",
+          "lineNumber": 31
+        },
+        {
+          "caller": "missing_metadata",
+          "callee": "missing.append",
+          "lineNumber": 33
+        },
+        {
+          "caller": "missing_metadata",
+          "callee": "missing.append",
+          "lineNumber": 35
+        },
+        {
+          "caller": "chapter_missing",
+          "callee": "list",
+          "lineNumber": 40
+        },
+        {
+          "caller": "chapter_missing",
+          "callee": "missing.append",
+          "lineNumber": 42
+        },
+        {
+          "caller": "chapter_missing",
+          "callee": "missing.append",
+          "lineNumber": 44
+        },
+        {
+          "caller": "mark_duplicate_chapters",
+          "callee": "chapter_missing",
+          "lineNumber": 51
+        },
+        {
+          "caller": "mark_duplicate_chapters",
+          "callee": "seen.get",
+          "lineNumber": 53
+        },
+        {
+          "caller": "mark_duplicate_chapters",
+          "callee": "ch.missing_fields.append",
+          "lineNumber": 59
+        },
+        {
+          "caller": "chapter_rows",
+          "callee": "rows.append",
+          "lineNumber": 66
+        },
+        {
+          "caller": "chapter_rows",
+          "callee": "ChapterRow",
+          "lineNumber": 66
+        },
+        {
+          "caller": "chapter_rows",
+          "callee": "storage.has_raw",
+          "lineNumber": 72
+        },
+        {
+          "caller": "chapter_rows",
+          "callee": "storage.has_translated",
+          "lineNumber": 73
+        },
+        {
+          "caller": "chapter_rows",
+          "callee": "chapter_missing",
+          "lineNumber": 74
+        },
+        {
+          "caller": "_matches_filter",
+          "callee": "(flt or \"any\").lower",
+          "lineNumber": 82
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "(search or \"\").strip().lower",
+          "lineNumber": 96
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "(search or \"\").strip",
+          "lineNumber": 96
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "row.visible_title.lower",
+          "lineNumber": 99
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "row.url.lower",
+          "lineNumber": 99
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "_matches_filter",
+          "lineNumber": 101
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "_matches_filter",
+          "lineNumber": 103
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "_matches_filter",
+          "lineNumber": 105
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "out.append",
+          "lineNumber": 107
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "(sort or \"source\").lower",
+          "lineNumber": 108
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "r.visible_title.lower",
+          "lineNumber": 110
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "sorted",
+          "lineNumber": 117
+        },
+        {
+          "caller": "apply_chapter_query",
+          "callee": "(direction or \"asc\").lower",
+          "lineNumber": 117
+        },
+        {
+          "caller": "select_visible_range",
+          "callee": "indexes.index",
+          "lineNumber": 130
+        },
+        {
+          "caller": "select_visible_range",
+          "callee": "indexes.index",
+          "lineNumber": 130
+        },
+        {
+          "caller": "select_visible_range",
+          "callee": "sorted",
+          "lineNumber": 131
+        },
+        {
+          "caller": "parse_filter",
+          "callee": "item.split",
+          "lineNumber": 140
+        },
+        {
+          "caller": "parse_range",
+          "callee": "(value or \"\").strip",
+          "lineNumber": 147
+        },
+        {
+          "caller": "parse_range",
+          "callee": "int",
+          "lineNumber": 151
+        },
+        {
+          "caller": "parse_range",
+          "callee": "value.split",
+          "lineNumber": 153
+        },
+        {
+          "caller": "parse_range",
+          "callee": "int",
+          "lineNumber": 154
+        },
+        {
+          "caller": "parse_range",
+          "callee": "int",
+          "lineNumber": 154
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 10,
+        "functionCount": 9,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "tests/test_pipeline_ai_chapter.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 99,
+      "nonEmptyLines": 71,
+      "functions": [
+        {
+          "name": "_cfg",
+          "startLine": 19,
+          "endLine": 25,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "_seed",
+          "startLine": 28,
+          "endLine": 35,
+          "params": [
+            "tmp_path",
+            "translated"
+          ]
+        },
+        {
+          "name": "test_review_chapter_writes_report_to_meta",
+          "startLine": 38,
+          "endLine": 49,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_review_chapter_without_translation_is_noop",
+          "startLine": 52,
+          "endLine": 60,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_suggest_chapter_writes_suggestions_to_meta",
+          "startLine": 63,
+          "endLine": 71,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_rewrite_preview_does_not_overwrite_translation",
+          "startLine": 74,
+          "endLine": 83,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_rewrite_preview_empty_result_skips",
+          "startLine": 86,
+          "endLine": 93,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_require_chapter_raises_on_missing_index",
+          "startLine": 96,
+          "endLine": 99,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_cfg",
+          "line": 19,
+          "isDefault": false
+        },
+        {
+          "name": "_seed",
+          "line": 28,
+          "isDefault": false
+        },
+        {
+          "name": "test_review_chapter_writes_report_to_meta",
+          "line": 38,
+          "isDefault": false
+        },
+        {
+          "name": "test_review_chapter_without_translation_is_noop",
+          "line": 52,
+          "isDefault": false
+        },
+        {
+          "name": "test_suggest_chapter_writes_suggestions_to_meta",
+          "line": 63,
+          "isDefault": false
+        },
+        {
+          "name": "test_rewrite_preview_does_not_overwrite_translation",
+          "line": 74,
+          "isDefault": false
+        },
+        {
+          "name": "test_rewrite_preview_empty_result_skips",
+          "line": 86,
+          "isDefault": false
+        },
+        {
+          "name": "test_require_chapter_raises_on_missing_index",
+          "line": 96,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_cfg",
+          "callee": "Config",
+          "lineNumber": 20
+        },
+        {
+          "caller": "_cfg",
+          "callee": "NovelConfig",
+          "lineNumber": 21
+        },
+        {
+          "caller": "_cfg",
+          "callee": "CrawlConfig",
+          "lineNumber": 22
+        },
+        {
+          "caller": "_cfg",
+          "callee": "TranslateConfig",
+          "lineNumber": 23
+        },
+        {
+          "caller": "_cfg",
+          "callee": "OutputConfig",
+          "lineNumber": 24
+        },
+        {
+          "caller": "_cfg",
+          "callee": "str",
+          "lineNumber": 24
+        },
+        {
+          "caller": "_seed",
+          "callee": "Storage",
+          "lineNumber": 29
+        },
+        {
+          "caller": "_seed",
+          "callee": "Chapter",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_seed",
+          "callee": "storage.save_manifest",
+          "lineNumber": 31
+        },
+        {
+          "caller": "_seed",
+          "callee": "Manifest",
+          "lineNumber": 31
+        },
+        {
+          "caller": "_seed",
+          "callee": "storage.write_raw",
+          "lineNumber": 32
+        },
+        {
+          "caller": "_seed",
+          "callee": "storage.write_translated",
+          "lineNumber": 34
+        },
+        {
+          "caller": "test_review_chapter_writes_report_to_meta",
+          "callee": "_seed",
+          "lineNumber": 39
+        },
+        {
+          "caller": "test_review_chapter_writes_report_to_meta",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 41
+        },
+        {
+          "caller": "test_review_chapter_writes_report_to_meta",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 42
+        },
+        {
+          "caller": "test_review_chapter_writes_report_to_meta",
+          "callee": "pipeline.step_review_chapter",
+          "lineNumber": 44
+        },
+        {
+          "caller": "test_review_chapter_writes_report_to_meta",
+          "callee": "_cfg",
+          "lineNumber": 44
+        },
+        {
+          "caller": "test_review_chapter_writes_report_to_meta",
+          "callee": "storage.read_meta",
+          "lineNumber": 47
+        },
+        {
+          "caller": "test_review_chapter_without_translation_is_noop",
+          "callee": "_seed",
+          "lineNumber": 53
+        },
+        {
+          "caller": "test_review_chapter_without_translation_is_noop",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 55
+        },
+        {
+          "caller": "test_review_chapter_without_translation_is_noop",
+          "callee": "called.__setitem__",
+          "lineNumber": 55
+        },
+        {
+          "caller": "test_review_chapter_without_translation_is_noop",
+          "callee": "pipeline.step_review_chapter",
+          "lineNumber": 57
+        },
+        {
+          "caller": "test_review_chapter_without_translation_is_noop",
+          "callee": "_cfg",
+          "lineNumber": 57
+        },
+        {
+          "caller": "test_review_chapter_without_translation_is_noop",
+          "callee": "storage.read_meta",
+          "lineNumber": 60
+        },
+        {
+          "caller": "test_suggest_chapter_writes_suggestions_to_meta",
+          "callee": "_seed",
+          "lineNumber": 64
+        },
+        {
+          "caller": "test_suggest_chapter_writes_suggestions_to_meta",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 66
+        },
+        {
+          "caller": "test_suggest_chapter_writes_suggestions_to_meta",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 67
+        },
+        {
+          "caller": "test_suggest_chapter_writes_suggestions_to_meta",
+          "callee": "pipeline.step_suggest_chapter",
+          "lineNumber": 69
+        },
+        {
+          "caller": "test_suggest_chapter_writes_suggestions_to_meta",
+          "callee": "_cfg",
+          "lineNumber": 69
+        },
+        {
+          "caller": "test_suggest_chapter_writes_suggestions_to_meta",
+          "callee": "storage.read_meta",
+          "lineNumber": 71
+        },
+        {
+          "caller": "test_rewrite_preview_does_not_overwrite_translation",
+          "callee": "_seed",
+          "lineNumber": 75
+        },
+        {
+          "caller": "test_rewrite_preview_does_not_overwrite_translation",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 76
+        },
+        {
+          "caller": "test_rewrite_preview_does_not_overwrite_translation",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 77
+        },
+        {
+          "caller": "test_rewrite_preview_does_not_overwrite_translation",
+          "callee": "pipeline.step_rewrite_preview",
+          "lineNumber": 79
+        },
+        {
+          "caller": "test_rewrite_preview_does_not_overwrite_translation",
+          "callee": "_cfg",
+          "lineNumber": 79
+        },
+        {
+          "caller": "test_rewrite_preview_does_not_overwrite_translation",
+          "callee": "storage.read_translated",
+          "lineNumber": 82
+        },
+        {
+          "caller": "test_rewrite_preview_does_not_overwrite_translation",
+          "callee": "storage.read_meta",
+          "lineNumber": 83
+        },
+        {
+          "caller": "test_rewrite_preview_empty_result_skips",
+          "callee": "_seed",
+          "lineNumber": 87
+        },
+        {
+          "caller": "test_rewrite_preview_empty_result_skips",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 88
+        },
+        {
+          "caller": "test_rewrite_preview_empty_result_skips",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 89
+        },
+        {
+          "caller": "test_rewrite_preview_empty_result_skips",
+          "callee": "pipeline.step_rewrite_preview",
+          "lineNumber": 91
+        },
+        {
+          "caller": "test_rewrite_preview_empty_result_skips",
+          "callee": "_cfg",
+          "lineNumber": 91
+        },
+        {
+          "caller": "test_rewrite_preview_empty_result_skips",
+          "callee": "storage.read_meta",
+          "lineNumber": 93
+        },
+        {
+          "caller": "test_require_chapter_raises_on_missing_index",
+          "callee": "_seed",
+          "lineNumber": 97
+        },
+        {
+          "caller": "test_require_chapter_raises_on_missing_index",
+          "callee": "pytest.raises",
+          "lineNumber": 98
+        },
+        {
+          "caller": "test_require_chapter_raises_on_missing_index",
+          "callee": "pipeline.step_review_chapter",
+          "lineNumber": 99
+        },
+        {
+          "caller": "test_require_chapter_raises_on_missing_index",
+          "callee": "_cfg",
+          "lineNumber": 99
+        }
+      ],
+      "metrics": {
+        "importCount": 5,
+        "exportCount": 8,
+        "functionCount": 8,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_refactor_toc.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 312,
+      "nonEmptyLines": 248,
+      "functions": [
+        {
+          "name": "_cfg",
+          "startLine": 18,
+          "endLine": 24,
+          "params": [
+            "tmp_path",
+            "translate_type"
+          ]
+        },
+        {
+          "name": "test_mark_duplicate_chapters_and_visible_range",
+          "startLine": 53,
+          "endLine": 67,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_http_crawler_toc_has_source_missing_and_chapters",
+          "startLine": 70,
+          "endLine": 81,
+          "params": []
+        },
+        {
+          "name": "test_fetch_toc_ignores_max_chapters_limit",
+          "startLine": 84,
+          "endLine": 97,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "startLine": 100,
+          "endLine": 116,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "startLine": 119,
+          "endLine": 133,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_selected_crawl_and_translate_respect_force",
+          "startLine": 136,
+          "endLine": 155,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_cli_chapters_lists_filtered_rows",
+          "startLine": 158,
+          "endLine": 169,
+          "params": [
+            "tmp_path",
+            "capsys"
+          ]
+        },
+        {
+          "name": "test_cli_toc_command_fetches_manifest",
+          "startLine": 172,
+          "endLine": 182,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_ebook_route_applies_query_controls",
+          "startLine": 185,
+          "endLine": 210,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_chapter_action_routes_start_custom_job",
+          "startLine": 213,
+          "endLine": 242,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "startLine": 245,
+          "endLine": 268,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "startLine": 271,
+          "endLine": 312,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "_FakeCrawler",
+          "startLine": 27,
+          "endLine": 42,
+          "methods": [
+            "__init__",
+            "fetch_toc",
+            "fetch_chapter",
+            "sleep",
+            "close"
+          ],
+          "properties": []
+        },
+        {
+          "name": "_FakeTranslator",
+          "startLine": 45,
+          "endLine": 50,
+          "methods": [
+            "translate",
+            "translate_title"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "_cfg",
+          "line": 18,
+          "isDefault": false
+        },
+        {
+          "name": "_FakeCrawler",
+          "line": 27,
+          "isDefault": false
+        },
+        {
+          "name": "_FakeTranslator",
+          "line": 45,
+          "isDefault": false
+        },
+        {
+          "name": "test_mark_duplicate_chapters_and_visible_range",
+          "line": 53,
+          "isDefault": false
+        },
+        {
+          "name": "test_http_crawler_toc_has_source_missing_and_chapters",
+          "line": 70,
+          "isDefault": false
+        },
+        {
+          "name": "test_fetch_toc_ignores_max_chapters_limit",
+          "line": 84,
+          "isDefault": false
+        },
+        {
+          "name": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "line": 100,
+          "isDefault": false
+        },
+        {
+          "name": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "line": 119,
+          "isDefault": false
+        },
+        {
+          "name": "test_selected_crawl_and_translate_respect_force",
+          "line": 136,
+          "isDefault": false
+        },
+        {
+          "name": "test_cli_chapters_lists_filtered_rows",
+          "line": 158,
+          "isDefault": false
+        },
+        {
+          "name": "test_cli_toc_command_fetches_manifest",
+          "line": 172,
+          "isDefault": false
+        },
+        {
+          "name": "test_ebook_route_applies_query_controls",
+          "line": 185,
+          "isDefault": false
+        },
+        {
+          "name": "test_chapter_action_routes_start_custom_job",
+          "line": 213,
+          "isDefault": false
+        },
+        {
+          "name": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "line": 245,
+          "isDefault": false
+        },
+        {
+          "name": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "line": 271,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_cfg",
+          "callee": "Config",
+          "lineNumber": 19
+        },
+        {
+          "caller": "_cfg",
+          "callee": "NovelConfig",
+          "lineNumber": 20
+        },
+        {
+          "caller": "_cfg",
+          "callee": "CrawlConfig",
+          "lineNumber": 21
+        },
+        {
+          "caller": "_cfg",
+          "callee": "TranslateConfig",
+          "lineNumber": 22
+        },
+        {
+          "caller": "_cfg",
+          "callee": "OutputConfig",
+          "lineNumber": 23
+        },
+        {
+          "caller": "_cfg",
+          "callee": "str",
+          "lineNumber": 23
+        },
+        {
+          "caller": "test_mark_duplicate_chapters_and_visible_range",
+          "callee": "mark_duplicate_chapters",
+          "lineNumber": 54
+        },
+        {
+          "caller": "test_mark_duplicate_chapters_and_visible_range",
+          "callee": "Chapter",
+          "lineNumber": 55
+        },
+        {
+          "caller": "test_mark_duplicate_chapters_and_visible_range",
+          "callee": "Chapter",
+          "lineNumber": 56
+        },
+        {
+          "caller": "test_mark_duplicate_chapters_and_visible_range",
+          "callee": "Chapter",
+          "lineNumber": 57
+        },
+        {
+          "caller": "test_mark_duplicate_chapters_and_visible_range",
+          "callee": "Storage",
+          "lineNumber": 59
+        },
+        {
+          "caller": "test_mark_duplicate_chapters_and_visible_range",
+          "callee": "chapter_rows",
+          "lineNumber": 60
+        },
+        {
+          "caller": "test_mark_duplicate_chapters_and_visible_range",
+          "callee": "apply_chapter_query",
+          "lineNumber": 64
+        },
+        {
+          "caller": "test_mark_duplicate_chapters_and_visible_range",
+          "callee": "select_visible_range",
+          "lineNumber": 66
+        },
+        {
+          "caller": "test_mark_duplicate_chapters_and_visible_range",
+          "callee": "apply_chapter_query",
+          "lineNumber": 67
+        },
+        {
+          "caller": "test_http_crawler_toc_has_source_missing_and_chapters",
+          "callee": "HttpCrawler",
+          "lineNumber": 75
+        },
+        {
+          "caller": "test_http_crawler_toc_has_source_missing_and_chapters",
+          "callee": "CrawlConfig",
+          "lineNumber": 75
+        },
+        {
+          "caller": "test_http_crawler_toc_has_source_missing_and_chapters",
+          "callee": "BeautifulSoup",
+          "lineNumber": 76
+        },
+        {
+          "caller": "test_http_crawler_toc_has_source_missing_and_chapters",
+          "callee": "crawler.fetch_toc",
+          "lineNumber": 77
+        },
+        {
+          "caller": "test_fetch_toc_ignores_max_chapters_limit",
+          "callee": "_cfg",
+          "lineNumber": 85
+        },
+        {
+          "caller": "test_fetch_toc_ignores_max_chapters_limit",
+          "callee": "TocResult",
+          "lineNumber": 87
+        },
+        {
+          "caller": "test_fetch_toc_ignores_max_chapters_limit",
+          "callee": "Chapter",
+          "lineNumber": 88
+        },
+        {
+          "caller": "test_fetch_toc_ignores_max_chapters_limit",
+          "callee": "Chapter",
+          "lineNumber": 89
+        },
+        {
+          "caller": "test_fetch_toc_ignores_max_chapters_limit",
+          "callee": "Chapter",
+          "lineNumber": 90
+        },
+        {
+          "caller": "test_fetch_toc_ignores_max_chapters_limit",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 92
+        },
+        {
+          "caller": "test_fetch_toc_ignores_max_chapters_limit",
+          "callee": "_FakeCrawler",
+          "lineNumber": 92
+        },
+        {
+          "caller": "test_fetch_toc_ignores_max_chapters_limit",
+          "callee": "pipeline.step_fetch_toc",
+          "lineNumber": 94
+        },
+        {
+          "caller": "test_fetch_toc_ignores_max_chapters_limit",
+          "callee": "Storage(tmp_path, \"t\").load_manifest",
+          "lineNumber": 96
+        },
+        {
+          "caller": "test_fetch_toc_ignores_max_chapters_limit",
+          "callee": "Storage",
+          "lineNumber": 96
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "_cfg",
+          "lineNumber": 101
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "TocResult",
+          "lineNumber": 103
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "Chapter",
+          "lineNumber": 104
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "Chapter",
+          "lineNumber": 105
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "Chapter",
+          "lineNumber": 106
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 108
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "_FakeCrawler",
+          "lineNumber": 108
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "pipeline.step_crawl_selected",
+          "lineNumber": 110
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "Storage",
+          "lineNumber": 112
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "storage.load_manifest",
+          "lineNumber": 113
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "storage.has_raw",
+          "lineNumber": 115
+        },
+        {
+          "caller": "test_default_crawl_applies_max_chapters_without_truncating_manifest",
+          "callee": "storage.has_raw",
+          "lineNumber": 116
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "_cfg",
+          "lineNumber": 120
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "Storage",
+          "lineNumber": 121
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "storage.save_manifest",
+          "lineNumber": 122
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "Manifest",
+          "lineNumber": 122
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "Chapter",
+          "lineNumber": 122
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "TocResult",
+          "lineNumber": 123
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "Chapter",
+          "lineNumber": 123
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 124
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "_FakeCrawler",
+          "lineNumber": 124
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "pipeline.step_fetch_toc",
+          "lineNumber": 126
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "storage.load_manifest",
+          "lineNumber": 127
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "pipeline.step_fetch_toc",
+          "lineNumber": 132
+        },
+        {
+          "caller": "test_fetch_toc_preserves_curated_metadata_without_force",
+          "callee": "storage.load_manifest",
+          "lineNumber": 133
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "_cfg",
+          "lineNumber": 137
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "Manifest",
+          "lineNumber": 138
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "Chapter",
+          "lineNumber": 138
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "Storage",
+          "lineNumber": 139
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "storage.save_manifest",
+          "lineNumber": 140
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "storage.write_raw",
+          "lineNumber": 141
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "storage.write_translated",
+          "lineNumber": 142
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "TocResult",
+          "lineNumber": 143
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 144
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "_FakeCrawler",
+          "lineNumber": 144
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 145
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "_FakeTranslator",
+          "lineNumber": 145
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "pipeline.step_crawl_selected",
+          "lineNumber": 147
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "storage.read_raw",
+          "lineNumber": 148
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "pipeline.step_crawl_selected",
+          "lineNumber": 149
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "storage.read_raw",
+          "lineNumber": 150
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "pipeline.step_translate_selected",
+          "lineNumber": 152
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "storage.read_translated",
+          "lineNumber": 153
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "pipeline.step_translate_selected",
+          "lineNumber": 154
+        },
+        {
+          "caller": "test_selected_crawl_and_translate_respect_force",
+          "callee": "storage.read_translated",
+          "lineNumber": 155
+        },
+        {
+          "caller": "test_cli_chapters_lists_filtered_rows",
+          "callee": "cfg_path.write_text",
+          "lineNumber": 160
+        },
+        {
+          "caller": "test_cli_chapters_lists_filtered_rows",
+          "callee": "str(tmp_path).replace",
+          "lineNumber": 161
+        },
+        {
+          "caller": "test_cli_chapters_lists_filtered_rows",
+          "callee": "str",
+          "lineNumber": 161
+        },
+        {
+          "caller": "test_cli_chapters_lists_filtered_rows",
+          "callee": "Storage",
+          "lineNumber": 164
+        },
+        {
+          "caller": "test_cli_chapters_lists_filtered_rows",
+          "callee": "Chapter",
+          "lineNumber": 165
+        },
+        {
+          "caller": "test_cli_chapters_lists_filtered_rows",
+          "callee": "storage.save_manifest",
+          "lineNumber": 166
+        },
+        {
+          "caller": "test_cli_chapters_lists_filtered_rows",
+          "callee": "Manifest",
+          "lineNumber": 166
+        },
+        {
+          "caller": "test_cli_chapters_lists_filtered_rows",
+          "callee": "main",
+          "lineNumber": 167
+        },
+        {
+          "caller": "test_cli_chapters_lists_filtered_rows",
+          "callee": "str",
+          "lineNumber": 167
+        },
+        {
+          "caller": "test_cli_chapters_lists_filtered_rows",
+          "callee": "capsys.readouterr",
+          "lineNumber": 168
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "cfg_path.write_text",
+          "lineNumber": 174
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "str(tmp_path).replace",
+          "lineNumber": 175
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "str",
+          "lineNumber": 175
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "TocResult",
+          "lineNumber": 178
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "Chapter",
+          "lineNumber": 178
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 179
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "_FakeCrawler",
+          "lineNumber": 179
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "main",
+          "lineNumber": 181
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "str",
+          "lineNumber": 181
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "Storage(tmp_path, \"t\").load_manifest",
+          "lineNumber": 182
+        },
+        {
+          "caller": "test_cli_toc_command_fetches_manifest",
+          "callee": "Storage",
+          "lineNumber": 182
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "_cfg",
+          "lineNumber": 189
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "Storage",
+          "lineNumber": 190
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "storage.save_manifest",
+          "lineNumber": 191
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "Manifest",
+          "lineNumber": 191
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "Chapter",
+          "lineNumber": 192
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "Chapter",
+          "lineNumber": 193
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 195
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "type",
+          "lineNumber": 195
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 196
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "TestClient",
+          "lineNumber": 197
+        },
+        {
+          "caller": "test_ebook_route_applies_query_controls",
+          "callee": "client.get",
+          "lineNumber": 199
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "_cfg",
+          "lineNumber": 217
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "Storage",
+          "lineNumber": 218
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "storage.save_manifest",
+          "lineNumber": 219
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "Manifest",
+          "lineNumber": 219
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "Chapter",
+          "lineNumber": 219
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 220
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "type",
+          "lineNumber": 220
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 221
+        },
+        {
+          "caller": "start_custom",
+          "callee": "calls.append",
+          "lineNumber": 229
+        },
+        {
+          "caller": "start",
+          "callee": "calls.append",
+          "lineNumber": 233
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "Job",
+          "lineNumber": 236
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "TestClient",
+          "lineNumber": 237
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "client.post",
+          "lineNumber": 238
+        },
+        {
+          "caller": "test_chapter_action_routes_start_custom_job",
+          "callee": "client.post",
+          "lineNumber": 240
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "_cfg",
+          "lineNumber": 249
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "Storage",
+          "lineNumber": 250
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "Chapter",
+          "lineNumber": 251
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "storage.save_manifest",
+          "lineNumber": 252
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "Manifest",
+          "lineNumber": 252
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "storage.write_raw",
+          "lineNumber": 253
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "storage.write_translated",
+          "lineNumber": 254
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 255
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 256
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 257
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "type",
+          "lineNumber": 257
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 258
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "TestClient",
+          "lineNumber": 259
+        },
+        {
+          "caller": "test_chapter_detail_shows_quick_glossary_and_edit_rules",
+          "callee": "client.get",
+          "lineNumber": 261
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "_cfg",
+          "lineNumber": 276
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "Storage",
+          "lineNumber": 277
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "storage.save_manifest",
+          "lineNumber": 278
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "Manifest",
+          "lineNumber": 278
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "Chapter",
+          "lineNumber": 279
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "Chapter",
+          "lineNumber": 280
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 282
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "type",
+          "lineNumber": 282
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 283
+        },
+        {
+          "caller": "fake_crawl",
+          "callee": "selected_calls.append",
+          "lineNumber": 287
+        },
+        {
+          "caller": "fake_crawl",
+          "callee": "kwargs.get",
+          "lineNumber": 287
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 289
+        },
+        {
+          "caller": "start_custom",
+          "callee": "target",
+          "lineNumber": 296
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "Job",
+          "lineNumber": 299
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "TestClient",
+          "lineNumber": 300
+        },
+        {
+          "caller": "test_bulk_chapter_action_checked_mode_uses_visible_checked_rows",
+          "callee": "client.post",
+          "lineNumber": 301
+        }
+      ],
+      "metrics": {
+        "importCount": 7,
+        "exportCount": 15,
+        "functionCount": 13,
+        "classCount": 2
+      }
+    },
+    {
+      "path": "tests/test_storage.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 135,
+      "nonEmptyLines": 114,
+      "functions": [
+        {
+          "name": "test_parse_glossary_line_variants",
+          "startLine": 4,
+          "endLine": 23,
+          "params": []
+        },
+        {
+          "name": "test_read_glossary_file_strips_note",
+          "startLine": 26,
+          "endLine": 36,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_read_glossary_notes_merges_only_entries_with_note",
+          "startLine": 39,
+          "endLine": 48,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_read_glossary_file_parses_lines_and_skips_invalid",
+          "startLine": 51,
+          "endLine": 65,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_read_glossary_file_missing_returns_empty",
+          "startLine": 68,
+          "endLine": 70,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_write_then_read_roundtrip",
+          "startLine": 73,
+          "endLine": 76,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_manifest_roundtrip_keeps_metadata",
+          "startLine": 79,
+          "endLine": 111,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_old_manifest_without_metadata_loads",
+          "startLine": 114,
+          "endLine": 125,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_cover_helpers",
+          "startLine": 128,
+          "endLine": 135,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "test_parse_glossary_line_variants",
+          "line": 4,
+          "isDefault": false
+        },
+        {
+          "name": "test_read_glossary_file_strips_note",
+          "line": 26,
+          "isDefault": false
+        },
+        {
+          "name": "test_read_glossary_notes_merges_only_entries_with_note",
+          "line": 39,
+          "isDefault": false
+        },
+        {
+          "name": "test_read_glossary_file_parses_lines_and_skips_invalid",
+          "line": 51,
+          "isDefault": false
+        },
+        {
+          "name": "test_read_glossary_file_missing_returns_empty",
+          "line": 68,
+          "isDefault": false
+        },
+        {
+          "name": "test_write_then_read_roundtrip",
+          "line": 73,
+          "isDefault": false
+        },
+        {
+          "name": "test_manifest_roundtrip_keeps_metadata",
+          "line": 79,
+          "isDefault": false
+        },
+        {
+          "name": "test_old_manifest_without_metadata_loads",
+          "line": 114,
+          "isDefault": false
+        },
+        {
+          "name": "test_cover_helpers",
+          "line": 128,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "test_parse_glossary_line_variants",
+          "callee": "parse_glossary_line",
+          "lineNumber": 5
+        },
+        {
+          "caller": "test_parse_glossary_line_variants",
+          "callee": "parse_glossary_line",
+          "lineNumber": 6
+        },
+        {
+          "caller": "test_parse_glossary_line_variants",
+          "callee": "parse_glossary_line",
+          "lineNumber": 12
+        },
+        {
+          "caller": "test_parse_glossary_line_variants",
+          "callee": "parse_glossary_line",
+          "lineNumber": 18
+        },
+        {
+          "caller": "test_parse_glossary_line_variants",
+          "callee": "parse_glossary_line",
+          "lineNumber": 19
+        },
+        {
+          "caller": "test_parse_glossary_line_variants",
+          "callee": "parse_glossary_line",
+          "lineNumber": 20
+        },
+        {
+          "caller": "test_parse_glossary_line_variants",
+          "callee": "parse_glossary_line",
+          "lineNumber": 22
+        },
+        {
+          "caller": "test_parse_glossary_line_variants",
+          "callee": "parse_glossary_line",
+          "lineNumber": 23
+        },
+        {
+          "caller": "test_read_glossary_file_strips_note",
+          "callee": "Storage",
+          "lineNumber": 27
+        },
+        {
+          "caller": "test_read_glossary_file_strips_note",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 28
+        },
+        {
+          "caller": "test_read_glossary_file_strips_note",
+          "callee": "storage.read_glossary_file",
+          "lineNumber": 33
+        },
+        {
+          "caller": "test_read_glossary_notes_merges_only_entries_with_note",
+          "callee": "Storage",
+          "lineNumber": 40
+        },
+        {
+          "caller": "test_read_glossary_notes_merges_only_entries_with_note",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 41
+        },
+        {
+          "caller": "test_read_glossary_notes_merges_only_entries_with_note",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 42
+        },
+        {
+          "caller": "test_read_glossary_notes_merges_only_entries_with_note",
+          "callee": "storage.read_glossary_notes",
+          "lineNumber": 45
+        },
+        {
+          "caller": "test_read_glossary_file_parses_lines_and_skips_invalid",
+          "callee": "Storage",
+          "lineNumber": 52
+        },
+        {
+          "caller": "test_read_glossary_file_parses_lines_and_skips_invalid",
+          "callee": "storage.ensure_dirs",
+          "lineNumber": 53
+        },
+        {
+          "caller": "test_read_glossary_file_parses_lines_and_skips_invalid",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 54
+        },
+        {
+          "caller": "test_read_glossary_file_parses_lines_and_skips_invalid",
+          "callee": "storage.read_glossary_file",
+          "lineNumber": 63
+        },
+        {
+          "caller": "test_read_glossary_file_missing_returns_empty",
+          "callee": "Storage",
+          "lineNumber": 69
+        },
+        {
+          "caller": "test_read_glossary_file_missing_returns_empty",
+          "callee": "storage.read_glossary_file",
+          "lineNumber": 70
+        },
+        {
+          "caller": "test_write_then_read_roundtrip",
+          "callee": "Storage",
+          "lineNumber": 74
+        },
+        {
+          "caller": "test_write_then_read_roundtrip",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 75
+        },
+        {
+          "caller": "test_write_then_read_roundtrip",
+          "callee": "storage.read_glossary_file",
+          "lineNumber": 76
+        },
+        {
+          "caller": "test_manifest_roundtrip_keeps_metadata",
+          "callee": "Storage",
+          "lineNumber": 80
+        },
+        {
+          "caller": "test_manifest_roundtrip_keeps_metadata",
+          "callee": "Manifest",
+          "lineNumber": 81
+        },
+        {
+          "caller": "test_manifest_roundtrip_keeps_metadata",
+          "callee": "Chapter",
+          "lineNumber": 94
+        },
+        {
+          "caller": "test_manifest_roundtrip_keeps_metadata",
+          "callee": "storage.save_manifest",
+          "lineNumber": 96
+        },
+        {
+          "caller": "test_manifest_roundtrip_keeps_metadata",
+          "callee": "storage.load_manifest",
+          "lineNumber": 98
+        },
+        {
+          "caller": "test_old_manifest_without_metadata_loads",
+          "callee": "Storage",
+          "lineNumber": 115
+        },
+        {
+          "caller": "test_old_manifest_without_metadata_loads",
+          "callee": "storage.root.mkdir",
+          "lineNumber": 116
+        },
+        {
+          "caller": "test_old_manifest_without_metadata_loads",
+          "callee": "storage.manifest_path.write_text",
+          "lineNumber": 117
+        },
+        {
+          "caller": "test_old_manifest_without_metadata_loads",
+          "callee": "storage.load_manifest",
+          "lineNumber": 120
+        },
+        {
+          "caller": "test_cover_helpers",
+          "callee": "Storage",
+          "lineNumber": 129
+        },
+        {
+          "caller": "test_cover_helpers",
+          "callee": "storage.write_cover",
+          "lineNumber": 130
+        },
+        {
+          "caller": "test_cover_helpers",
+          "callee": "Manifest",
+          "lineNumber": 132
+        },
+        {
+          "caller": "test_cover_helpers",
+          "callee": "storage.cover_fs_path(manifest).read_bytes",
+          "lineNumber": 133
+        },
+        {
+          "caller": "test_cover_helpers",
+          "callee": "storage.cover_fs_path",
+          "lineNumber": 133
+        },
+        {
+          "caller": "test_cover_helpers",
+          "callee": "storage.cover_fs_path",
+          "lineNumber": 134
+        },
+        {
+          "caller": "test_cover_helpers",
+          "callee": "Manifest",
+          "lineNumber": 134
+        },
+        {
+          "caller": "test_cover_helpers",
+          "callee": "storage.cover_fs_path",
+          "lineNumber": 135
+        },
+        {
+          "caller": "test_cover_helpers",
+          "callee": "Manifest",
+          "lineNumber": 135
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 9,
+        "functionCount": 9,
+        "classCount": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "batchIndex": 18,
+  "nodes": [
+    {
+      "id": "config:openspec/changes/ai-source-preset-builder/.openspec.yaml",
+      "type": "config",
+      "name": ".openspec.yaml (ai-source-preset-builder)",
+      "filePath": "openspec/changes/ai-source-preset-builder/.openspec.yaml",
+      "summary": "OpenSpec change metadata declaring spec-driven schema and creation date 2026-06-22 for the AI source preset builder change.",
+      "tags": ["openspec", "config", "metadata", "change-manifest"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:openspec/changes/ai-source-preset-builder/design.md",
+      "type": "document",
+      "name": "design.md (AI Source Preset Builder Design)",
+      "filePath": "openspec/changes/ai-source-preset-builder/design.md",
+      "summary": "Architecture design document with 10 decisions (D1-D10) covering: new preset_builder module separation (D1), engine heuristic HTTP-first-then-crawl4ai (D2), single structured AI prompt (D3), pattern validation with [5,2000] bounds (D4), overrides as first-class request fields (D5), non-mutating toc-preview reuse (D6), firecrawl engine removal (D7), reuse of existing Web UI CSS conventions (D8), backward-compatible library._fetch_meta extension (D9), and configurable refinement budget default 3 rounds (D10). Includes risk analysis with 7 mitigations and 5-step migration plan.",
+      "tags": ["design", "architecture", "decisions", "openspec", "preset-builder", "firecrawl-removal"],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:openspec/changes/ai-source-preset-builder/proposal.md",
+      "type": "document",
+      "name": "proposal.md (AI Source Preset Builder Proposal)",
+      "filePath": "openspec/changes/ai-source-preset-builder/proposal.md",
+      "summary": "Change proposal defining why (manual preset creation bottleneck, firecrawl cost), what changes (new preset_builder module, CLI subcommands preset-build/toc-preview, Web UI routes, BREAKING firecrawl removal), new capabilities (preset-builder AI-driven generation/validation, firecrawl-removal), and impact analysis (code added/modified/removed across 10+ files, no new deps). Written in Vietnamese with technical English terms.",
+      "tags": ["proposal", "scope", "openspec", "feature", "breaking-change"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:openspec/changes/ai-source-preset-builder/tasks.md",
+      "type": "document",
+      "name": "tasks.md (AI Source Preset Builder Tasks)",
+      "filePath": "openspec/changes/ai-source-preset-builder/tasks.md",
+      "summary": "Implementation task list with 9 sections and 41 checkboxes (all marked complete): drop firecrawl from CrawlConfig (3 tasks), drop FirecrawlCrawler and shrink make_crawler (4 tasks), create preset_builder module with 8 sub-functions (8 tasks), add CLI subcommands preset-build/toc-preview (3 tasks), build Web UI routes and templates (5 tasks), cleanup engine options in UI selects (4 tasks), update docs and config files (4 tasks), write comprehensive test suite with 5 test files (5 tasks), and end-to-end smoke tests against real sites (4 tasks).",
+      "tags": ["tasks", "implementation", "checklist", "openspec", "completed"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "config:openspec/changes/ai-source-preset-builder/.openspec.yaml",
+      "target": "document:openspec/changes/ai-source-preset-builder/proposal.md",
+      "type": "declares",
+      "direction": "forward",
+      "weight": 0.7,
+      "label": ".openspec.yaml metadata declares this change; proposal.md is the primary scope document"
+    },
+    {
+      "source": "config:openspec/changes/ai-source-preset-builder/.openspec.yaml",
+      "target": "document:openspec/changes/ai-source-preset-builder/design.md",
+      "type": "declares",
+      "direction": "forward",
+      "weight": 0.7,
+      "label": ".openspec.yaml metadata declares this change; design.md provides the architectural specification"
+    },
+    {
+      "source": "config:openspec/changes/ai-source-preset-builder/.openspec.yaml",
+      "target": "document:openspec/changes/ai-source-preset-builder/tasks.md",
+      "type": "declares",
+      "direction": "forward",
+      "weight": 0.7,
+      "label": ".openspec.yaml metadata declares this change; tasks.md is the implementation checkpoint"
+    },
+    {
+      "source": "document:openspec/changes/ai-source-preset-builder/proposal.md",
+      "target": "document:openspec/changes/ai-source-preset-builder/design.md",
+      "type": "specifies",
+      "direction": "forward",
+      "weight": 0.8,
+      "label": "Proposal defines scope (why/what); design details 10 architectural decisions (D1-D10) for how"
+    },
+    {
+      "source": "document:openspec/changes/ai-source-preset-builder/proposal.md",
+      "target": "document:openspec/changes/ai-source-preset-builder/tasks.md",
+      "type": "decomposes_into",
+      "direction": "forward",
+      "weight": 0.9,
+      "label": "Proposal scope broken into 41 actionable tasks across 9 implementation sections"
+    },
+    {
+      "source": "document:openspec/changes/ai-source-preset-builder/design.md",
+      "target": "document:openspec/changes/ai-source-preset-builder/tasks.md",
+      "type": "drives",
+      "direction": "forward",
+      "weight": 0.85,
+      "label": "Design decisions D1-D10 drive task sections: D1→sec3 preset_builder module, D2→sec3 engine heuristic, D4→sec3 validate_pattern, D7→sec1-2 firecrawl removal, D8→sec5 Web UI, D9→sec5 library extension, D10→sec3 refinement budget"
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            "app/job.py":  [
+                                               "novel2epub/config.py",
+                                               "novel2epub/pipeline.py"
+                                           ],
+                            "app/routes/library.py":  [
+                                                          "app/deps.py",
+                                                          "novel2epub/config_writer.py",
+                                                          "novel2epub/config.py",
+                                                          "novel2epub/crawler.py",
+                                                          "novel2epub/pipeline.py",
+                                                          "novel2epub/sources.py",
+                                                          "novel2epub/translator.py"
+                                                      ],
+                            "app/routes/preset_builder.py":  [
+                                                                 "app/deps.py",
+                                                                 "novel2epub/preset_builder.py",
+                                                                 "novel2epub/sources.py"
+                                                             ],
+                            "novel2epub/config.py":  [
+
+                                                     ],
+                            "novel2epub/config_writer.py":  [
+                                                                "novel2epub/config.py"
+                                                            ],
+                            "novel2epub/crawler.py":  [
+                                                          "novel2epub/config.py",
+                                                          "novel2epub/storage.py",
+                                                          "novel2epub/toc.py"
+                                                      ],
+                            "novel2epub/preset_builder.py":  [
+                                                                 "novel2epub/config.py",
+                                                                 "novel2epub/crawler.py",
+                                                                 "novel2epub/sources.py"
+                                                             ],
+                            "novel2epub/sources.py":  [
+                                                          "novel2epub/config.py"
+                                                      ],
+                            "tests/test_chapter_pagination.py":  [
+                                                                     "novel2epub/config.py",
+                                                                     "novel2epub/crawler.py",
+                                                                     "novel2epub/storage.py"
+                                                                 ],
+                            "tests/test_config.py":  [
+                                                         "novel2epub/config.py"
+                                                     ],
+                            "tests/test_config_writer.py":  [
+                                                                "novel2epub/config_writer.py",
+                                                                "novel2epub/config.py",
+                                                                "novel2epub/sources.py"
+                                                            ],
+                            "tests/test_crawler_meta.py":  [
+                                                               "novel2epub/config.py",
+                                                               "novel2epub/crawler.py"
+                                                           ],
+                            "tests/test_pipeline_meta.py":  [
+                                                                "novel2epub/__init__.py",
+                                                                "novel2epub/config.py",
+                                                                "novel2epub/crawler.py",
+                                                                "novel2epub/pipeline.py",
+                                                                "novel2epub/storage.py"
+                                                            ],
+                            "tests/test_sources_ui.py":  [
+                                                             "novel2epub/config.py",
+                                                             "novel2epub/sources.py"
+                                                         ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  "app/job.py",
+                           "language":  "python",
+                           "sizeLines":  114,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "app/routes/library.py",
+                           "language":  "python",
+                           "sizeLines":  168,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "app/routes/preset_builder.py",
+                           "language":  "python",
+                           "sizeLines":  215,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "novel2epub/config.py",
+                           "language":  "python",
+                           "sizeLines":  348,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "novel2epub/config_writer.py",
+                           "language":  "python",
+                           "sizeLines":  120,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "novel2epub/crawler.py",
+                           "language":  "python",
+                           "sizeLines":  656,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "novel2epub/preset_builder.py",
+                           "language":  "python",
+                           "sizeLines":  453,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "novel2epub/sources.py",
+                           "language":  "python",
+                           "sizeLines":  132,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_chapter_pagination.py",
+                           "language":  "python",
+                           "sizeLines":  538,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_config.py",
+                           "language":  "python",
+                           "sizeLines":  141,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_config_writer.py",
+                           "language":  "python",
+                           "sizeLines":  73,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_crawler_meta.py",
+                           "language":  "python",
+                           "sizeLines":  150,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_pipeline_meta.py",
+                           "language":  "python",
+                           "sizeLines":  246,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_sources_ui.py",
+                           "language":  "python",
+                           "sizeLines":  102,
+                           "fileCategory":  "code"
+                       }
+                   ]
+}

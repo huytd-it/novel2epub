@@ -1,0 +1,137 @@
+{
+  "nodes": [
+    {
+      "id": "document:specs/002-opencode-go-preset/spec.md",
+      "type": "document",
+      "name": "spec.md",
+      "filePath": "specs/002-opencode-go-preset/spec.md",
+      "summary": "Feature specification for the OpenCode Go Translation & AI Preset. Defines 3 user stories (P1: chapter translation via Go, P2: Go for glossary/rewrite/eval, P3: AI fallback crawling), 9 functional requirements, 4 key entities (GoPreset, TranslateConfig, Config Loading, AI Fallback Crawl Config), 4 success criteria, and edge cases including missing CLI, usage limits, and malformed output.",
+      "tags": ["documentation", "specification", "feature", "opencode-go", "translation", "preset"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:specs/002-opencode-go-preset/plan.md",
+      "type": "document",
+      "name": "plan.md",
+      "filePath": "specs/002-opencode-go-preset/plan.md",
+      "summary": "Implementation plan for the OpenCode Go preset feature. Covers technical context (Python 3.10+, PyYAML, ruamel.yaml), constitution checks (all pass), project structure (novel2epub/presets/go.py, config.py extensions, crawler.py ai_fallback), and complexity tracking. Specifies preset definitions in a dedicated module rather than hardcoding in config.py.",
+      "tags": ["documentation", "plan", "implementation", "architecture", "opencode-go"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:specs/002-opencode-go-preset/research.md",
+      "type": "document",
+      "name": "research.md",
+      "filePath": "specs/002-opencode-go-preset/research.md",
+      "summary": "Phase 0 research resolving 6 unknowns: preset resolution via modular presets/ package, opencode run CLI interface with --model flag, default model selection (deepseek-v4-flash for cost efficiency), Go-optimized prompt templates (shorter, more explicit), AI fallback crawling architecture within HttpCrawler/Crawl4AICrawler, and preset field override rules (user wins over preset).",
+      "tags": ["documentation", "research", "design-decisions", "opencode-go", "cli", "prompts"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:specs/002-opencode-go-preset/data-model.md",
+      "type": "document",
+      "name": "data-model.md",
+      "filePath": "specs/002-opencode-go-preset/data-model.md",
+      "summary": "Data model for the Go preset feature. Defines GoPreset entity (name, cli.command, cli.model, prompt templates, timeout), TranslateConfig extension with optional preset field (validation: unknown preset raises ValueError, user fields override preset), CrawlConfig extension for P3 (ai_fallback, ai_fallback_max_html), preset resolution flow, and stateless/idempotent state transitions.",
+      "tags": ["documentation", "data-model", "entities", "configuration", "opencode-go"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:specs/002-opencode-go-preset/quickstart.md",
+      "type": "document",
+      "name": "quickstart.md",
+      "filePath": "specs/002-opencode-go-preset/quickstart.md",
+      "summary": "Quickstart validation guide with 6 tests: preset activation with minimal config, user field overrides preset, unknown preset raises error, end-to-end chapter title translation with mock CLI, end-to-end chapter translation with mock CLI, and AI fallback crawling (P3 optional). Includes manual validation steps for real end-to-end workflow.",
+      "tags": ["documentation", "quickstart", "testing", "validation", "opencode-go"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:specs/002-opencode-go-preset/tasks.md",
+      "type": "document",
+      "name": "tasks.md",
+      "filePath": "specs/002-opencode-go-preset/tasks.md",
+      "summary": "Task breakdown with 27 tasks across 6 phases: Phase 1 Setup (create presets/ package, go.py, Go-optimized prompts, config extensions), Phase 2 Foundational (wire preset into CLI, unit tests, backward compat), Phase 3 US1 MVP (integration tests, CLI validation, glossary injection, config.example update), Phase 4 US2 (glossary AI, rewrite, evaluation integration tests), Phase 5 US3 (ai_fallback in both crawlers, HTML extraction prompt), Phase 6 Polish (linting, manual validation). All tasks marked [x] as complete.",
+      "tags": ["documentation", "tasks", "implementation", "testing", "opencode-go"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "document:specs/002-opencode-go-preset/spec.md",
+      "target": "document:specs/002-opencode-go-preset/plan.md",
+      "type": "depends",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "document:specs/002-opencode-go-preset/spec.md",
+      "target": "document:specs/002-opencode-go-preset/research.md",
+      "type": "depends",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "document:specs/002-opencode-go-preset/spec.md",
+      "target": "document:specs/002-opencode-go-preset/data-model.md",
+      "type": "depends",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "document:specs/002-opencode-go-preset/spec.md",
+      "target": "document:specs/002-opencode-go-preset/quickstart.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:specs/002-opencode-go-preset/spec.md",
+      "target": "document:specs/002-opencode-go-preset/tasks.md",
+      "type": "depends",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "document:specs/002-opencode-go-preset/plan.md",
+      "target": "document:specs/002-opencode-go-preset/research.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:specs/002-opencode-go-preset/plan.md",
+      "target": "document:specs/002-opencode-go-preset/data-model.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:specs/002-opencode-go-preset/plan.md",
+      "target": "document:specs/002-opencode-go-preset/tasks.md",
+      "type": "depends",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "document:specs/002-opencode-go-preset/research.md",
+      "target": "document:specs/002-opencode-go-preset/data-model.md",
+      "type": "depends",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "document:specs/002-opencode-go-preset/data-model.md",
+      "target": "document:specs/002-opencode-go-preset/tasks.md",
+      "type": "depends",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "document:specs/002-opencode-go-preset/quickstart.md",
+      "target": "document:specs/002-opencode-go-preset/tasks.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    }
+  ]
+}

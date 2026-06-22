@@ -1,0 +1,62 @@
+[
+  {
+    "order": 1,
+    "title": "Project Overview",
+    "description": "Start here. README covers the full pipeline: TOC fetch -> crawl raw/*.md -> translate -> translated/*.md -> build .epub. Each step is cached on disk. You'll also find CLI commands, the Web UI, and tested source presets.",
+    "nodeIds": ["document:README.md"]
+  },
+  {
+    "order": 2,
+    "title": "Configuration & Data Models",
+    "description": "All config dataclasses live here: CrawlConfig, TranslateConfig, NovelConfig, and the root Config. The load_config() function parses config.yaml (see config.example.yaml for the template). This is where engine selection, translation presets, retry settings, and glossary paths are defined.",
+    "nodeIds": ["file:n4", "config:config.example.yaml"]
+  },
+  {
+    "order": 3,
+    "title": "Pipeline Orchestration",
+    "description": "The core engine. step_fetch_toc() refreshes the chapter manifest, step_crawl_selected() fetches raw chapters, step_translate() runs AI translation, and step_build() assembles the EPUB. Also includes step_rewrite_chapters(), step_evaluate_translation(), and step_find_replace() for post-processing. This is the file to trace any end-to-end flow.",
+    "nodeIds": ["file:novel2epub/pipeline.py"]
+  },
+  {
+    "order": 4,
+    "title": "Web Crawling Engines",
+    "description": "Two crawl backends: HttpCrawler (requests+BeautifulSoup for static HTML) and Crawl4AICrawler (Playwright-based browser automation for JS-rendered sites). The make_crawler() factory picks the right engine. Also handles multi-page chapter pagination with next_page_selector and URL pattern fallbacks.",
+    "nodeIds": ["file:n6"]
+  },
+  {
+    "order": 5,
+    "title": "AI Translation Backends",
+    "description": "Three translation backends: CLI (external AI tool like opencode via subprocess), Google (deep-translator), and noop (passthrough). The factory pattern selects the backend based on translate.type in config. The 'go' preset (presets/go.py) activates optimized prompts for novel-style Chinese-to-Vietnamese translation.",
+    "nodeIds": ["file:novel2epub/translator.py"]
+  },
+  {
+    "order": 6,
+    "title": "Storage & Chapter Management",
+    "description": "Disk-based storage layer. The Chapter and Manifest dataclasses model the data, while the Storage class manages directory structure, reads/writes raw/translated/meta files, handles glossary files (names.txt, vietphrase.txt), and cover images. The Manifest is serialized as JSON and kept in the data/ directory.",
+    "nodeIds": ["file:novel2epub/storage.py"]
+  },
+  {
+    "order": 7,
+    "title": "EPUB Packaging",
+    "description": "Assembles the final .epub using ebooklib. Reads translated chapters from disk, injects glossary footnotes via footnotes.py, sets metadata (title/author/cover in Vietnamese), and writes the EPUB file. This is the last step in the pipeline.",
+    "nodeIds": ["file:novel2epub/epub_builder.py"]
+  },
+  {
+    "order": 8,
+    "title": "Web UI Entry Point & Chapter Editing",
+    "description": "FastAPI app (app/main.py) mounts route modules for ebooks, chapters, glossary, jobs, settings, sources, and library. The chapters route (app/routes/chapters.py) is the most complex: it handles chapter viewing, editing, AI rewrite/suggest/review workflows, and glossary annotation — all triggered as background jobs via app/job.py.",
+    "nodeIds": ["file:app/main.py", "file:app/routes/chapters.py"]
+  },
+  {
+    "order": 9,
+    "title": "CLI Interface",
+    "description": "Argparse-based CLI with subcommands: crawl, translate, meta, toc, build, run, preset-build, and toc-preview. The main() function dispatches to pipeline steps. The _cmd_preset_build command interactively builds source presets using AI. Run with python -m novel2epub <command>.",
+    "nodeIds": ["file:novel2epub/cli.py"]
+  },
+  {
+    "order": 10,
+    "title": "Testing the Pipeline",
+    "description": "pytest suite. Key test files: test_pipeline_meta.py validates pipeline steps end-to-end with fake crawler/translator instances. test_config.py verifies config loading, preset resolution, and validation. test_chapter_pagination.py covers multi-page chapter crawling with selector and URL pattern strategies. Run with pytest tests/ -v.",
+    "nodeIds": ["file:n13", "file:n10", "file:n9"]
+  }
+]

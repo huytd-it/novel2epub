@@ -1,0 +1,7515 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 14,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "app/job.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 114,
+      "nonEmptyLines": 97,
+      "classes": [
+        {
+          "name": "JobRunner",
+          "startLine": 34,
+          "endLine": 114,
+          "methods": [
+            "__init__",
+            "status",
+            "start",
+            "start_custom",
+            "_run_custom",
+            "_log_line",
+            "_run"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "JobRunner",
+          "line": 34,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "__init__",
+          "callee": "threading.Lock",
+          "lineNumber": 38
+        },
+        {
+          "caller": "__init__",
+          "callee": "deque",
+          "lineNumber": 39
+        },
+        {
+          "caller": "status",
+          "callee": "list",
+          "lineNumber": 50
+        },
+        {
+          "caller": "start",
+          "callee": "_STEPS.get",
+          "lineNumber": 55
+        },
+        {
+          "caller": "start",
+          "callee": "ValueError",
+          "lineNumber": 57
+        },
+        {
+          "caller": "start",
+          "callee": "self._log.clear",
+          "lineNumber": 65
+        },
+        {
+          "caller": "start",
+          "callee": "threading.Thread",
+          "lineNumber": 67
+        },
+        {
+          "caller": "start",
+          "callee": "thread.start",
+          "lineNumber": 68
+        },
+        {
+          "caller": "start_custom",
+          "callee": "self._log.clear",
+          "lineNumber": 82
+        },
+        {
+          "caller": "start_custom",
+          "callee": "threading.Thread",
+          "lineNumber": 84
+        },
+        {
+          "caller": "start_custom",
+          "callee": "thread.start",
+          "lineNumber": 85
+        },
+        {
+          "caller": "_run_custom",
+          "callee": "target_fn",
+          "lineNumber": 90
+        },
+        {
+          "caller": "_run_custom",
+          "callee": "self._log_line",
+          "lineNumber": 92
+        },
+        {
+          "caller": "_run_custom",
+          "callee": "self._log_line",
+          "lineNumber": 93
+        },
+        {
+          "caller": "_run_custom",
+          "callee": "traceback.format_exc",
+          "lineNumber": 93
+        },
+        {
+          "caller": "_run_custom",
+          "callee": "str",
+          "lineNumber": 95
+        },
+        {
+          "caller": "_log_line",
+          "callee": "self._log.append",
+          "lineNumber": 102
+        },
+        {
+          "caller": "_run",
+          "callee": "fn",
+          "lineNumber": 106
+        },
+        {
+          "caller": "_run",
+          "callee": "self._log_line",
+          "lineNumber": 108
+        },
+        {
+          "caller": "_run",
+          "callee": "self._log_line",
+          "lineNumber": 109
+        },
+        {
+          "caller": "_run",
+          "callee": "traceback.format_exc",
+          "lineNumber": 109
+        },
+        {
+          "caller": "_run",
+          "callee": "str",
+          "lineNumber": 111
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 1,
+        "functionCount": 0,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "app/routes/library.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 178,
+      "nonEmptyLines": 152,
+      "functions": [
+        {
+          "name": "slugify",
+          "startLine": 23,
+          "endLine": 26,
+          "params": [
+            "value"
+          ]
+        },
+        {
+          "name": "_fetch_meta",
+          "startLine": 29,
+          "endLine": 75,
+          "params": [
+            "toc_url",
+            "preset_name"
+          ]
+        },
+        {
+          "name": "library_page",
+          "startLine": 79,
+          "endLine": 101,
+          "params": [
+            "request"
+          ]
+        },
+        {
+          "name": "fetch_meta_api",
+          "startLine": 105,
+          "endLine": 116,
+          "params": [
+            "toc_url",
+            "preset"
+          ]
+        },
+        {
+          "name": "create_ebook",
+          "startLine": 120,
+          "endLine": 164,
+          "params": [
+            "slug",
+            "name",
+            "author",
+            "toc_url",
+            "engine",
+            "preset"
+          ]
+        },
+        {
+          "name": "delete_ebook",
+          "startLine": 168,
+          "endLine": 178,
+          "params": [
+            "slug",
+            "delete_config"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "slugify",
+          "line": 23,
+          "isDefault": false
+        },
+        {
+          "name": "_fetch_meta",
+          "line": 29,
+          "isDefault": false
+        },
+        {
+          "name": "library_page",
+          "line": 78,
+          "isDefault": false
+        },
+        {
+          "name": "fetch_meta_api",
+          "line": 104,
+          "isDefault": false
+        },
+        {
+          "name": "create_ebook",
+          "line": 119,
+          "isDefault": false
+        },
+        {
+          "name": "delete_ebook",
+          "line": 167,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "slugify",
+          "callee": "unicodedata.normalize(\"NFKD\", value).encode(\"ascii\", \"ignore\").decode",
+          "lineNumber": 24
+        },
+        {
+          "caller": "slugify",
+          "callee": "unicodedata.normalize(\"NFKD\", value).encode",
+          "lineNumber": 24
+        },
+        {
+          "caller": "slugify",
+          "callee": "unicodedata.normalize",
+          "lineNumber": 24
+        },
+        {
+          "caller": "slugify",
+          "callee": "re.sub(r\"[^a-zA-Z0-9]+\", \"-\", value).strip(\"-\").lower",
+          "lineNumber": 25
+        },
+        {
+          "caller": "slugify",
+          "callee": "re.sub(r\"[^a-zA-Z0-9]+\", \"-\", value).strip",
+          "lineNumber": 25
+        },
+        {
+          "caller": "slugify",
+          "callee": "re.sub",
+          "lineNumber": 25
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "deps.presets",
+          "lineNumber": 33
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "detect_preset",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "all_presets.get",
+          "lineNumber": 35
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "p.crawl_overrides",
+          "lineNumber": 36
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "overrides.pop",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "CrawlConfig",
+          "lineNumber": 38
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "make_crawler",
+          "lineNumber": 40
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "crawler.fetch_toc",
+          "lineNumber": 42
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "crawler.close",
+          "lineNumber": 44
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "load_config",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "global_cfg.translate.type.lower",
+          "lineNumber": 53
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "RateLimited",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "make_translator",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "translator.translate_title",
+          "lineNumber": 58
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "_clean_title",
+          "lineNumber": 60
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "slugify",
+          "lineNumber": 64
+        },
+        {
+          "caller": "_fetch_meta",
+          "callee": "slugify",
+          "lineNumber": 64
+        },
+        {
+          "caller": "library_page",
+          "callee": "deps.library",
+          "lineNumber": 80
+        },
+        {
+          "caller": "library_page",
+          "callee": "lib.ebooks.items",
+          "lineNumber": 82
+        },
+        {
+          "caller": "library_page",
+          "callee": "deps.ebook_config_path",
+          "lineNumber": 83
+        },
+        {
+          "caller": "library_page",
+          "callee": "rows.append",
+          "lineNumber": 84
+        },
+        {
+          "caller": "library_page",
+          "callee": "Path(config_path).exists",
+          "lineNumber": 89
+        },
+        {
+          "caller": "library_page",
+          "callee": "Path",
+          "lineNumber": 89
+        },
+        {
+          "caller": "library_page",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 92
+        },
+        {
+          "caller": "library_page",
+          "callee": "deps.presets",
+          "lineNumber": 98
+        },
+        {
+          "caller": "library_page",
+          "callee": "request.app.state.job.status",
+          "lineNumber": 99
+        },
+        {
+          "caller": "fetch_meta_api",
+          "callee": "Form",
+          "lineNumber": 106
+        },
+        {
+          "caller": "fetch_meta_api",
+          "callee": "Form",
+          "lineNumber": 107
+        },
+        {
+          "caller": "fetch_meta_api",
+          "callee": "JSONResponse",
+          "lineNumber": 111
+        },
+        {
+          "caller": "fetch_meta_api",
+          "callee": "_fetch_meta",
+          "lineNumber": 113
+        },
+        {
+          "caller": "fetch_meta_api",
+          "callee": "JSONResponse",
+          "lineNumber": 114
+        },
+        {
+          "caller": "fetch_meta_api",
+          "callee": "JSONResponse",
+          "lineNumber": 116
+        },
+        {
+          "caller": "fetch_meta_api",
+          "callee": "str",
+          "lineNumber": 116
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "Form",
+          "lineNumber": 121
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "Form",
+          "lineNumber": 122
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "Form",
+          "lineNumber": 123
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "Form",
+          "lineNumber": 124
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "Form",
+          "lineNumber": 125
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "Form",
+          "lineNumber": 126
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "_fetch_meta",
+          "lineNumber": 131
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "fetched.get",
+          "lineNumber": 132
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "fetched.get",
+          "lineNumber": 133
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "fetched.get",
+          "lineNumber": 134
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "slugify",
+          "lineNumber": 138
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "deps.library",
+          "lineNumber": 139
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "HTTPException",
+          "lineNumber": 141
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "deps.resolve_path",
+          "lineNumber": 144
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "Path(deps.LIBRARY_PATH).resolve",
+          "lineNumber": 144
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "Path",
+          "lineNumber": 144
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "deps.presets().get",
+          "lineNumber": 148
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "deps.presets",
+          "lineNumber": 148
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "p.crawl_overrides",
+          "lineNumber": 150
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "scaffold_config_file",
+          "lineNumber": 152
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "LibraryEntry",
+          "lineNumber": 162
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "save_library",
+          "lineNumber": 163
+        },
+        {
+          "caller": "create_ebook",
+          "callee": "RedirectResponse",
+          "lineNumber": 164
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "Form",
+          "lineNumber": 168
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "deps.library",
+          "lineNumber": 169
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "lib.ebooks.pop",
+          "lineNumber": 170
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "HTTPException",
+          "lineNumber": 172
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "Path",
+          "lineNumber": 174
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "deps.resolve_path",
+          "lineNumber": 174
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "Path(deps.LIBRARY_PATH).resolve",
+          "lineNumber": 174
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "Path",
+          "lineNumber": 174
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "config_path.exists",
+          "lineNumber": 175
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "config_path.unlink",
+          "lineNumber": 176
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "save_library",
+          "lineNumber": 177
+        },
+        {
+          "caller": "delete_ebook",
+          "callee": "RedirectResponse",
+          "lineNumber": 178
+        }
+      ],
+      "metrics": {
+        "importCount": 7,
+        "exportCount": 6,
+        "functionCount": 6,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "app/routes/preset_builder.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 215,
+      "nonEmptyLines": 193,
+      "functions": [
+        {
+          "name": "_build_overrides",
+          "startLine": 18,
+          "endLine": 51,
+          "params": [
+            "encoding",
+            "js_code",
+            "engine",
+            "user_agent",
+            "delay_seconds",
+            "next_page_selector",
+            "next_page_url_pattern",
+            "max_pages_per_chapter"
+          ]
+        },
+        {
+          "name": "preset_builder_page",
+          "startLine": 55,
+          "endLine": 64,
+          "params": [
+            "request",
+            "toc_url"
+          ]
+        },
+        {
+          "name": "preset_builder_preview",
+          "startLine": 68,
+          "endLine": 147,
+          "params": [
+            "request",
+            "toc_url",
+            "novel_title",
+            "preset_name",
+            "encoding",
+            "js_code",
+            "engine",
+            "user_agent",
+            "delay_seconds",
+            "next_page_selector",
+            "next_page_url_pattern",
+            "max_pages_per_chapter",
+            "max_rounds",
+            "low",
+            "high",
+            "timeout"
+          ]
+        },
+        {
+          "name": "preset_builder_save",
+          "startLine": 151,
+          "endLine": 189,
+          "params": [
+            "request",
+            "preset_json"
+          ]
+        },
+        {
+          "name": "preset_builder_toc_preview_api",
+          "startLine": 193,
+          "endLine": 210,
+          "params": [
+            "toc_url",
+            "preset"
+          ]
+        },
+        {
+          "name": "suggest_preset_url",
+          "startLine": 213,
+          "endLine": 215,
+          "params": [
+            "toc_url"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_build_overrides",
+          "line": 18,
+          "isDefault": false
+        },
+        {
+          "name": "preset_builder_page",
+          "line": 54,
+          "isDefault": false
+        },
+        {
+          "name": "preset_builder_preview",
+          "line": 67,
+          "isDefault": false
+        },
+        {
+          "name": "preset_builder_save",
+          "line": 150,
+          "isDefault": false
+        },
+        {
+          "name": "preset_builder_toc_preview_api",
+          "line": 192,
+          "isDefault": false
+        },
+        {
+          "name": "suggest_preset_url",
+          "line": 213,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_build_overrides",
+          "callee": "float",
+          "lineNumber": 39
+        },
+        {
+          "caller": "_build_overrides",
+          "callee": "int",
+          "lineNumber": 48
+        },
+        {
+          "caller": "preset_builder_page",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 56
+        },
+        {
+          "caller": "preset_builder_page",
+          "callee": "request.app.state.job.status",
+          "lineNumber": 62
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 70
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 71
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 72
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 73
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 74
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 75
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 76
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 77
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 78
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 79
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 80
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 81
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 82
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 83
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "Form",
+          "lineNumber": 84
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "JSONResponse",
+          "lineNumber": 87
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "_build_overrides",
+          "lineNumber": 89
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "build_preset",
+          "lineNumber": 94
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "JSONResponse",
+          "lineNumber": 105
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "len",
+          "lineNumber": 136
+        },
+        {
+          "caller": "preset_builder_preview",
+          "callee": "JSONResponse",
+          "lineNumber": 147
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "Form",
+          "lineNumber": 153
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "JSONResponse",
+          "lineNumber": 156
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "json.loads",
+          "lineNumber": 158
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "JSONResponse",
+          "lineNumber": 160
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 162
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "JSONResponse",
+          "lineNumber": 164
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "SourcePreset",
+          "lineNumber": 166
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 168
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 169
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 170
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 171
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 172
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 173
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 174
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 175
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 176
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 177
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 178
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 179
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "bool",
+          "lineNumber": 180
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 180
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "bool",
+          "lineNumber": 181
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 181
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 182
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "float",
+          "lineNumber": 183
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 183
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 184
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 185
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "int",
+          "lineNumber": 186
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "data.get",
+          "lineNumber": 186
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "save_preset",
+          "lineNumber": 188
+        },
+        {
+          "caller": "preset_builder_save",
+          "callee": "RedirectResponse",
+          "lineNumber": 189
+        },
+        {
+          "caller": "preset_builder_toc_preview_api",
+          "callee": "Form",
+          "lineNumber": 194
+        },
+        {
+          "caller": "preset_builder_toc_preview_api",
+          "callee": "Form",
+          "lineNumber": 195
+        },
+        {
+          "caller": "preset_builder_toc_preview_api",
+          "callee": "JSONResponse",
+          "lineNumber": 198
+        },
+        {
+          "caller": "preset_builder_toc_preview_api",
+          "callee": "preview_toc",
+          "lineNumber": 199
+        },
+        {
+          "caller": "preset_builder_toc_preview_api",
+          "callee": "JSONResponse",
+          "lineNumber": 201
+        },
+        {
+          "caller": "preset_builder_toc_preview_api",
+          "callee": "JSONResponse",
+          "lineNumber": 202
+        },
+        {
+          "caller": "preset_builder_toc_preview_api",
+          "callee": "len",
+          "lineNumber": 205
+        },
+        {
+          "caller": "suggest_preset_url",
+          "callee": "urlencode",
+          "lineNumber": 215
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 6,
+        "functionCount": 6,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "novel2epub/config.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 348,
+      "nonEmptyLines": 288,
+      "functions": [
+        {
+          "name": "_as_dict",
+          "startLine": 225,
+          "endLine": 226,
+          "params": [
+            "value"
+          ]
+        },
+        {
+          "name": "load_library",
+          "startLine": 229,
+          "endLine": 245,
+          "params": [
+            "path"
+          ]
+        },
+        {
+          "name": "_build_style",
+          "startLine": 248,
+          "endLine": 256,
+          "params": [
+            "raw"
+          ]
+        },
+        {
+          "name": "load_config",
+          "startLine": 259,
+          "endLine": 348,
+          "params": [
+            "path"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "CrawlConfig",
+          "startLine": 14,
+          "endLine": 89,
+          "methods": [
+            "__post_init__"
+          ],
+          "properties": [
+            "toc_url",
+            "engine",
+            "chapter_link_pattern",
+            "max_chapters",
+            "strip_patterns",
+            "delay_seconds",
+            "next_page_selector",
+            "next_page_url_pattern",
+            "max_pages_per_chapter",
+            "content_selector",
+            "toc_selector",
+            "chapter_title_selector",
+            "title_selector",
+            "author_selector",
+            "desc_selector",
+            "cover_selector",
+            "encoding",
+            "user_agent",
+            "headless",
+            "js_code",
+            "magic",
+            "ai_fallback",
+            "ai_fallback_max_html",
+            "_cli_fallback"
+          ]
+        },
+        {
+          "name": "GlossaryFilesConfig",
+          "startLine": 93,
+          "endLine": 95,
+          "methods": [],
+          "properties": [
+            "names",
+            "vietphrase"
+          ]
+        },
+        {
+          "name": "TranslationStyleConfig",
+          "startLine": 99,
+          "endLine": 104,
+          "methods": [],
+          "properties": [
+            "tone",
+            "pronoun_policy",
+            "keep_paragraphs",
+            "title_mode",
+            "han_viet_level"
+          ]
+        },
+        {
+          "name": "TranslationRetryConfig",
+          "startLine": 108,
+          "endLine": 110,
+          "methods": [],
+          "properties": [
+            "attempts",
+            "delay_seconds"
+          ]
+        },
+        {
+          "name": "TranslationChunkConfig",
+          "startLine": 114,
+          "endLine": 116,
+          "methods": [],
+          "properties": [
+            "max_chars",
+            "overlap_paragraphs"
+          ]
+        },
+        {
+          "name": "CliTranslatorConfig",
+          "startLine": 161,
+          "endLine": 167,
+          "methods": [],
+          "properties": [
+            "command",
+            "model",
+            "mode",
+            "prompt_template",
+            "title_prompt_template",
+            "timeout_seconds"
+          ]
+        },
+        {
+          "name": "TranslateConfig",
+          "startLine": 171,
+          "endLine": 184,
+          "methods": [],
+          "properties": [
+            "type",
+            "preset",
+            "profile",
+            "source_language",
+            "target_language",
+            "genre",
+            "style",
+            "glossary",
+            "glossary_files",
+            "retry",
+            "chunk",
+            "cli",
+            "delay_seconds"
+          ]
+        },
+        {
+          "name": "NovelConfig",
+          "startLine": 188,
+          "endLine": 192,
+          "methods": [],
+          "properties": [
+            "title",
+            "author",
+            "language",
+            "slug"
+          ]
+        },
+        {
+          "name": "OutputConfig",
+          "startLine": 196,
+          "endLine": 198,
+          "methods": [],
+          "properties": [
+            "data_dir",
+            "epub_path"
+          ]
+        },
+        {
+          "name": "Config",
+          "startLine": 202,
+          "endLine": 210,
+          "methods": [
+            "epub_path"
+          ],
+          "properties": [
+            "novel",
+            "crawl",
+            "translate",
+            "output"
+          ]
+        },
+        {
+          "name": "LibraryEntry",
+          "startLine": 214,
+          "endLine": 217,
+          "methods": [],
+          "properties": [
+            "slug",
+            "name",
+            "config"
+          ]
+        },
+        {
+          "name": "LibraryConfig",
+          "startLine": 221,
+          "endLine": 222,
+          "methods": [],
+          "properties": [
+            "ebooks"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "CrawlConfig",
+          "line": 13,
+          "isDefault": false
+        },
+        {
+          "name": "GlossaryFilesConfig",
+          "line": 92,
+          "isDefault": false
+        },
+        {
+          "name": "TranslationStyleConfig",
+          "line": 98,
+          "isDefault": false
+        },
+        {
+          "name": "TranslationRetryConfig",
+          "line": 107,
+          "isDefault": false
+        },
+        {
+          "name": "TranslationChunkConfig",
+          "line": 113,
+          "isDefault": false
+        },
+        {
+          "name": "CliTranslatorConfig",
+          "line": 160,
+          "isDefault": false
+        },
+        {
+          "name": "TranslateConfig",
+          "line": 170,
+          "isDefault": false
+        },
+        {
+          "name": "NovelConfig",
+          "line": 187,
+          "isDefault": false
+        },
+        {
+          "name": "OutputConfig",
+          "line": 195,
+          "isDefault": false
+        },
+        {
+          "name": "Config",
+          "line": 201,
+          "isDefault": false
+        },
+        {
+          "name": "LibraryEntry",
+          "line": 213,
+          "isDefault": false
+        },
+        {
+          "name": "LibraryConfig",
+          "line": 220,
+          "isDefault": false
+        },
+        {
+          "name": "_as_dict",
+          "line": 225,
+          "isDefault": false
+        },
+        {
+          "name": "load_library",
+          "line": 229,
+          "isDefault": false
+        },
+        {
+          "name": "_build_style",
+          "line": 248,
+          "isDefault": false
+        },
+        {
+          "name": "load_config",
+          "line": 259,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "__post_init__",
+          "callee": "re.compile",
+          "lineNumber": 38
+        },
+        {
+          "caller": "__post_init__",
+          "callee": "ValueError",
+          "lineNumber": 40
+        },
+        {
+          "caller": "__post_init__",
+          "callee": "len",
+          "lineNumber": 44
+        },
+        {
+          "caller": "__post_init__",
+          "callee": "ValueError",
+          "lineNumber": 47
+        },
+        {
+          "caller": "_as_dict",
+          "callee": "dict",
+          "lineNumber": 226
+        },
+        {
+          "caller": "_as_dict",
+          "callee": "isinstance",
+          "lineNumber": 226
+        },
+        {
+          "caller": "load_library",
+          "callee": "Path",
+          "lineNumber": 230
+        },
+        {
+          "caller": "load_library",
+          "callee": "path.exists",
+          "lineNumber": 231
+        },
+        {
+          "caller": "load_library",
+          "callee": "LibraryConfig",
+          "lineNumber": 232
+        },
+        {
+          "caller": "load_library",
+          "callee": "yaml.safe_load",
+          "lineNumber": 234
+        },
+        {
+          "caller": "load_library",
+          "callee": "path.read_text",
+          "lineNumber": 234
+        },
+        {
+          "caller": "load_library",
+          "callee": "(raw.get(\"ebooks\") or {}).items",
+          "lineNumber": 236
+        },
+        {
+          "caller": "load_library",
+          "callee": "raw.get",
+          "lineNumber": 236
+        },
+        {
+          "caller": "load_library",
+          "callee": "_as_dict",
+          "lineNumber": 237
+        },
+        {
+          "caller": "load_library",
+          "callee": "isinstance",
+          "lineNumber": 238
+        },
+        {
+          "caller": "load_library",
+          "callee": "LibraryEntry",
+          "lineNumber": 240
+        },
+        {
+          "caller": "load_library",
+          "callee": "data.get",
+          "lineNumber": 242
+        },
+        {
+          "caller": "load_library",
+          "callee": "data.get",
+          "lineNumber": 243
+        },
+        {
+          "caller": "load_library",
+          "callee": "LibraryConfig",
+          "lineNumber": 245
+        },
+        {
+          "caller": "_build_style",
+          "callee": "_as_dict",
+          "lineNumber": 249
+        },
+        {
+          "caller": "_build_style",
+          "callee": "raw.get",
+          "lineNumber": 249
+        },
+        {
+          "caller": "_build_style",
+          "callee": "TranslationStyleConfig",
+          "lineNumber": 250
+        },
+        {
+          "caller": "_build_style",
+          "callee": "style.get",
+          "lineNumber": 251
+        },
+        {
+          "caller": "_build_style",
+          "callee": "style.get",
+          "lineNumber": 252
+        },
+        {
+          "caller": "_build_style",
+          "callee": "style.get",
+          "lineNumber": 253
+        },
+        {
+          "caller": "_build_style",
+          "callee": "style.get",
+          "lineNumber": 254
+        },
+        {
+          "caller": "_build_style",
+          "callee": "style.get",
+          "lineNumber": 255
+        },
+        {
+          "caller": "load_config",
+          "callee": "Path",
+          "lineNumber": 260
+        },
+        {
+          "caller": "load_config",
+          "callee": "path.exists",
+          "lineNumber": 261
+        },
+        {
+          "caller": "load_config",
+          "callee": "FileNotFoundError",
+          "lineNumber": 262
+        },
+        {
+          "caller": "load_config",
+          "callee": "yaml.safe_load",
+          "lineNumber": 264
+        },
+        {
+          "caller": "load_config",
+          "callee": "path.read_text",
+          "lineNumber": 264
+        },
+        {
+          "caller": "load_config",
+          "callee": "NovelConfig",
+          "lineNumber": 267
+        },
+        {
+          "caller": "load_config",
+          "callee": "raw.get",
+          "lineNumber": 267
+        },
+        {
+          "caller": "load_config",
+          "callee": "dict",
+          "lineNumber": 269
+        },
+        {
+          "caller": "load_config",
+          "callee": "raw.get",
+          "lineNumber": 269
+        },
+        {
+          "caller": "load_config",
+          "callee": "crawl_raw.pop",
+          "lineNumber": 271
+        },
+        {
+          "caller": "load_config",
+          "callee": "crawl_raw.pop",
+          "lineNumber": 272
+        },
+        {
+          "caller": "load_config",
+          "callee": "CrawlConfig",
+          "lineNumber": 273
+        },
+        {
+          "caller": "load_config",
+          "callee": "dict",
+          "lineNumber": 275
+        },
+        {
+          "caller": "load_config",
+          "callee": "raw.get",
+          "lineNumber": 275
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.get",
+          "lineNumber": 276
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.pop",
+          "lineNumber": 277
+        },
+        {
+          "caller": "load_config",
+          "callee": "_build_style",
+          "lineNumber": 278
+        },
+        {
+          "caller": "load_config",
+          "callee": "_as_dict",
+          "lineNumber": 279
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.pop",
+          "lineNumber": 279
+        },
+        {
+          "caller": "load_config",
+          "callee": "_as_dict",
+          "lineNumber": 280
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.pop",
+          "lineNumber": 280
+        },
+        {
+          "caller": "load_config",
+          "callee": "_as_dict",
+          "lineNumber": 281
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.pop",
+          "lineNumber": 281
+        },
+        {
+          "caller": "load_config",
+          "callee": "glossary_files_raw.get",
+          "lineNumber": 282
+        },
+        {
+          "caller": "load_config",
+          "callee": "glossary_files_raw.get",
+          "lineNumber": 283
+        },
+        {
+          "caller": "load_config",
+          "callee": "str",
+          "lineNumber": 285
+        },
+        {
+          "caller": "load_config",
+          "callee": "(base_dir / names_path).resolve",
+          "lineNumber": 285
+        },
+        {
+          "caller": "load_config",
+          "callee": "Path(names_path).is_absolute",
+          "lineNumber": 285
+        },
+        {
+          "caller": "load_config",
+          "callee": "Path",
+          "lineNumber": 285
+        },
+        {
+          "caller": "load_config",
+          "callee": "str",
+          "lineNumber": 288
+        },
+        {
+          "caller": "load_config",
+          "callee": "(base_dir / vietphrase_path).resolve",
+          "lineNumber": 288
+        },
+        {
+          "caller": "load_config",
+          "callee": "Path(vietphrase_path).is_absolute",
+          "lineNumber": 289
+        },
+        {
+          "caller": "load_config",
+          "callee": "Path",
+          "lineNumber": 289
+        },
+        {
+          "caller": "load_config",
+          "callee": "_as_dict",
+          "lineNumber": 295
+        },
+        {
+          "caller": "load_config",
+          "callee": "raw.get",
+          "lineNumber": 295
+        },
+        {
+          "caller": "load_config",
+          "callee": "_as_dict",
+          "lineNumber": 296
+        },
+        {
+          "caller": "load_config",
+          "callee": "raw.get",
+          "lineNumber": 296
+        },
+        {
+          "caller": "load_config",
+          "callee": "novel_raw.get",
+          "lineNumber": 297
+        },
+        {
+          "caller": "load_config",
+          "callee": "output_raw.get",
+          "lineNumber": 298
+        },
+        {
+          "caller": "load_config",
+          "callee": "Path",
+          "lineNumber": 299
+        },
+        {
+          "caller": "load_config",
+          "callee": "Path(data_dir).is_absolute",
+          "lineNumber": 299
+        },
+        {
+          "caller": "load_config",
+          "callee": "Path",
+          "lineNumber": 299
+        },
+        {
+          "caller": "load_config",
+          "callee": "(base_dir / data_dir).resolve",
+          "lineNumber": 299
+        },
+        {
+          "caller": "load_config",
+          "callee": "str",
+          "lineNumber": 302
+        },
+        {
+          "caller": "load_config",
+          "callee": "str",
+          "lineNumber": 304
+        },
+        {
+          "caller": "load_config",
+          "callee": "_presets.load",
+          "lineNumber": 308
+        },
+        {
+          "caller": "load_config",
+          "callee": "dict",
+          "lineNumber": 309
+        },
+        {
+          "caller": "load_config",
+          "callee": "merged.update",
+          "lineNumber": 310
+        },
+        {
+          "caller": "load_config",
+          "callee": "cli_raw.items",
+          "lineNumber": 310
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.get",
+          "lineNumber": 312
+        },
+        {
+          "caller": "load_config",
+          "callee": "_logging.getLogger(__name__).warning",
+          "lineNumber": 316
+        },
+        {
+          "caller": "load_config",
+          "callee": "_logging.getLogger",
+          "lineNumber": 316
+        },
+        {
+          "caller": "load_config",
+          "callee": "TranslateConfig",
+          "lineNumber": 321
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.get",
+          "lineNumber": 322
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.get",
+          "lineNumber": 324
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.get",
+          "lineNumber": 325
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.get",
+          "lineNumber": 326
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.get",
+          "lineNumber": 327
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.get",
+          "lineNumber": 329
+        },
+        {
+          "caller": "load_config",
+          "callee": "GlossaryFilesConfig",
+          "lineNumber": 330
+        },
+        {
+          "caller": "load_config",
+          "callee": "TranslationRetryConfig",
+          "lineNumber": 334
+        },
+        {
+          "caller": "load_config",
+          "callee": "int",
+          "lineNumber": 335
+        },
+        {
+          "caller": "load_config",
+          "callee": "retry_raw.get",
+          "lineNumber": 335
+        },
+        {
+          "caller": "load_config",
+          "callee": "float",
+          "lineNumber": 336
+        },
+        {
+          "caller": "load_config",
+          "callee": "retry_raw.get",
+          "lineNumber": 336
+        },
+        {
+          "caller": "load_config",
+          "callee": "TranslationChunkConfig",
+          "lineNumber": 338
+        },
+        {
+          "caller": "load_config",
+          "callee": "int",
+          "lineNumber": 339
+        },
+        {
+          "caller": "load_config",
+          "callee": "chunk_raw.get",
+          "lineNumber": 339
+        },
+        {
+          "caller": "load_config",
+          "callee": "int",
+          "lineNumber": 340
+        },
+        {
+          "caller": "load_config",
+          "callee": "chunk_raw.get",
+          "lineNumber": 340
+        },
+        {
+          "caller": "load_config",
+          "callee": "CliTranslatorConfig",
+          "lineNumber": 342
+        },
+        {
+          "caller": "load_config",
+          "callee": "translate_raw.get",
+          "lineNumber": 343
+        },
+        {
+          "caller": "load_config",
+          "callee": "OutputConfig",
+          "lineNumber": 346
+        },
+        {
+          "caller": "load_config",
+          "callee": "raw.get",
+          "lineNumber": 346
+        },
+        {
+          "caller": "load_config",
+          "callee": "Config",
+          "lineNumber": 348
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 16,
+        "functionCount": 4,
+        "classCount": 12
+      }
+    },
+    {
+      "path": "novel2epub/config_writer.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 120,
+      "nonEmptyLines": 99,
+      "functions": [
+        {
+          "name": "_yaml",
+          "startLine": 23,
+          "endLine": 28,
+          "params": []
+        },
+        {
+          "name": "_load",
+          "startLine": 31,
+          "endLine": 36,
+          "params": [
+            "path"
+          ]
+        },
+        {
+          "name": "_coerce",
+          "startLine": 39,
+          "endLine": 43,
+          "params": [
+            "value"
+          ]
+        },
+        {
+          "name": "_deep_merge",
+          "startLine": 46,
+          "endLine": 56,
+          "params": [
+            "target",
+            "updates"
+          ]
+        },
+        {
+          "name": "update_config_file",
+          "startLine": 59,
+          "endLine": 66,
+          "params": [
+            "path",
+            "updates"
+          ]
+        },
+        {
+          "name": "scaffold_config_file",
+          "startLine": 69,
+          "endLine": 102,
+          "params": [
+            "dest",
+            "slug",
+            "title",
+            "author",
+            "toc_url",
+            "engine",
+            "preset"
+          ]
+        },
+        {
+          "name": "save_library",
+          "startLine": 105,
+          "endLine": 120,
+          "params": [
+            "path",
+            "library"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_yaml",
+          "line": 23,
+          "isDefault": false
+        },
+        {
+          "name": "_load",
+          "line": 31,
+          "isDefault": false
+        },
+        {
+          "name": "_coerce",
+          "line": 39,
+          "isDefault": false
+        },
+        {
+          "name": "_deep_merge",
+          "line": 46,
+          "isDefault": false
+        },
+        {
+          "name": "update_config_file",
+          "line": 59,
+          "isDefault": false
+        },
+        {
+          "name": "scaffold_config_file",
+          "line": 69,
+          "isDefault": false
+        },
+        {
+          "name": "save_library",
+          "line": 105,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_yaml",
+          "callee": "YAML",
+          "lineNumber": 24
+        },
+        {
+          "caller": "_yaml",
+          "callee": "y.indent",
+          "lineNumber": 27
+        },
+        {
+          "caller": "_load",
+          "callee": "path.exists",
+          "lineNumber": 32
+        },
+        {
+          "caller": "_load",
+          "callee": "_yaml().load",
+          "lineNumber": 33
+        },
+        {
+          "caller": "_load",
+          "callee": "_yaml",
+          "lineNumber": 33
+        },
+        {
+          "caller": "_load",
+          "callee": "path.read_text",
+          "lineNumber": 33
+        },
+        {
+          "caller": "_load",
+          "callee": "isinstance",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_load",
+          "callee": "CommentedMap",
+          "lineNumber": 36
+        },
+        {
+          "caller": "_coerce",
+          "callee": "isinstance",
+          "lineNumber": 41
+        },
+        {
+          "caller": "_coerce",
+          "callee": "LiteralScalarString",
+          "lineNumber": 42
+        },
+        {
+          "caller": "_deep_merge",
+          "callee": "updates.items",
+          "lineNumber": 48
+        },
+        {
+          "caller": "_deep_merge",
+          "callee": "isinstance",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_deep_merge",
+          "callee": "target.get",
+          "lineNumber": 50
+        },
+        {
+          "caller": "_deep_merge",
+          "callee": "isinstance",
+          "lineNumber": 51
+        },
+        {
+          "caller": "_deep_merge",
+          "callee": "CommentedMap",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_deep_merge",
+          "callee": "_deep_merge",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_deep_merge",
+          "callee": "_coerce",
+          "lineNumber": 56
+        },
+        {
+          "caller": "update_config_file",
+          "callee": "Path",
+          "lineNumber": 61
+        },
+        {
+          "caller": "update_config_file",
+          "callee": "_load",
+          "lineNumber": 62
+        },
+        {
+          "caller": "update_config_file",
+          "callee": "_deep_merge",
+          "lineNumber": 63
+        },
+        {
+          "caller": "update_config_file",
+          "callee": "path.parent.mkdir",
+          "lineNumber": 64
+        },
+        {
+          "caller": "update_config_file",
+          "callee": "path.open",
+          "lineNumber": 65
+        },
+        {
+          "caller": "update_config_file",
+          "callee": "_yaml().dump",
+          "lineNumber": 66
+        },
+        {
+          "caller": "update_config_file",
+          "callee": "_yaml",
+          "lineNumber": 66
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "Path",
+          "lineNumber": 80
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "EXAMPLE_CONFIG.exists",
+          "lineNumber": 81
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "_yaml().load",
+          "lineNumber": 82
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "_yaml",
+          "lineNumber": 82
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "EXAMPLE_CONFIG.read_text",
+          "lineNumber": 82
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "CommentedMap",
+          "lineNumber": 84
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "updates[\"crawl\"].update",
+          "lineNumber": 97
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "preset.items",
+          "lineNumber": 97
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "_deep_merge",
+          "lineNumber": 99
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "dest.parent.mkdir",
+          "lineNumber": 100
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "dest.open",
+          "lineNumber": 101
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "_yaml().dump",
+          "lineNumber": 102
+        },
+        {
+          "caller": "scaffold_config_file",
+          "callee": "_yaml",
+          "lineNumber": 102
+        },
+        {
+          "caller": "save_library",
+          "callee": "Path",
+          "lineNumber": 107
+        },
+        {
+          "caller": "save_library",
+          "callee": "_load",
+          "lineNumber": 108
+        },
+        {
+          "caller": "save_library",
+          "callee": "CommentedMap",
+          "lineNumber": 109
+        },
+        {
+          "caller": "save_library",
+          "callee": "library.ebooks.items",
+          "lineNumber": 110
+        },
+        {
+          "caller": "save_library",
+          "callee": "CommentedMap",
+          "lineNumber": 111
+        },
+        {
+          "caller": "save_library",
+          "callee": "path.parent.mkdir",
+          "lineNumber": 118
+        },
+        {
+          "caller": "save_library",
+          "callee": "path.open",
+          "lineNumber": 119
+        },
+        {
+          "caller": "save_library",
+          "callee": "_yaml().dump",
+          "lineNumber": 120
+        },
+        {
+          "caller": "save_library",
+          "callee": "_yaml",
+          "lineNumber": 120
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 7,
+        "functionCount": 7,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "novel2epub/crawler.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 656,
+      "nonEmptyLines": 549,
+      "functions": [
+        {
+          "name": "_dedupe_keep_last",
+          "startLine": 45,
+          "endLine": 53,
+          "params": [
+            "pairs"
+          ]
+        },
+        {
+          "name": "_get",
+          "startLine": 56,
+          "endLine": 62,
+          "params": [
+            "obj",
+            "key",
+            "default"
+          ]
+        },
+        {
+          "name": "fetch_chapter_paginated",
+          "startLine": 65,
+          "endLine": 133,
+          "params": [
+            "cfg",
+            "ch",
+            "fetch_page",
+            "extract_text",
+            "next_page_url"
+          ]
+        },
+        {
+          "name": "_next_page_url_from_html",
+          "startLine": 136,
+          "endLine": 149,
+          "params": [
+            "current_url",
+            "page_obj",
+            "cfg"
+          ]
+        },
+        {
+          "name": "_make_css_resolver",
+          "startLine": 152,
+          "endLine": 168,
+          "params": [
+            "cfg"
+          ]
+        },
+        {
+          "name": "_next_page_url_from_pattern",
+          "startLine": 171,
+          "endLine": 206,
+          "params": [
+            "cfg"
+          ]
+        },
+        {
+          "name": "_extract_href",
+          "startLine": 209,
+          "endLine": 244,
+          "params": [
+            "page_obj",
+            "selector"
+          ]
+        },
+        {
+          "name": "_meta_get",
+          "startLine": 250,
+          "endLine": 263,
+          "params": [
+            "meta"
+          ]
+        },
+        {
+          "name": "make_crawler",
+          "startLine": 643,
+          "endLine": 656,
+          "params": [
+            "cfg"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "TocResult",
+          "startLine": 26,
+          "endLine": 35,
+          "methods": [],
+          "properties": [
+            "title",
+            "author",
+            "description",
+            "cover_url",
+            "source_url",
+            "metadata_missing",
+            "chapters"
+          ]
+        },
+        {
+          "name": "Crawler",
+          "startLine": 38,
+          "endLine": 42,
+          "methods": [
+            "fetch_toc",
+            "fetch_chapter",
+            "sleep",
+            "close"
+          ],
+          "properties": []
+        },
+        {
+          "name": "HttpCrawler",
+          "startLine": 266,
+          "endLine": 476,
+          "methods": [
+            "__init__",
+            "_get_soup",
+            "_meta_tag",
+            "_sel_text",
+            "_extract_meta",
+            "fetch_toc",
+            "fetch_chapter",
+            "_fetch_chapter_single",
+            "_extract_text",
+            "_ai_fallback_extract",
+            "_clean",
+            "sleep",
+            "close"
+          ],
+          "properties": []
+        },
+        {
+          "name": "Crawl4AICrawler",
+          "startLine": 479,
+          "endLine": 640,
+          "methods": [
+            "__init__",
+            "_run_cfg",
+            "_arun",
+            "_markdown",
+            "fetch_toc",
+            "fetch_chapter",
+            "_fetch_chapter_single",
+            "_ai_fallback_extract",
+            "_clean",
+            "sleep",
+            "close"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "TocResult",
+          "line": 25,
+          "isDefault": false
+        },
+        {
+          "name": "Crawler",
+          "line": 38,
+          "isDefault": false
+        },
+        {
+          "name": "_dedupe_keep_last",
+          "line": 45,
+          "isDefault": false
+        },
+        {
+          "name": "_get",
+          "line": 56,
+          "isDefault": false
+        },
+        {
+          "name": "fetch_chapter_paginated",
+          "line": 65,
+          "isDefault": false
+        },
+        {
+          "name": "_next_page_url_from_html",
+          "line": 136,
+          "isDefault": false
+        },
+        {
+          "name": "_make_css_resolver",
+          "line": 152,
+          "isDefault": false
+        },
+        {
+          "name": "_next_page_url_from_pattern",
+          "line": 171,
+          "isDefault": false
+        },
+        {
+          "name": "_extract_href",
+          "line": 209,
+          "isDefault": false
+        },
+        {
+          "name": "_meta_get",
+          "line": 250,
+          "isDefault": false
+        },
+        {
+          "name": "HttpCrawler",
+          "line": 266,
+          "isDefault": false
+        },
+        {
+          "name": "Crawl4AICrawler",
+          "line": 479,
+          "isDefault": false
+        },
+        {
+          "name": "make_crawler",
+          "line": 643,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_dedupe_keep_last",
+          "callee": "enumerate",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_dedupe_keep_last",
+          "callee": "enumerate",
+          "lineNumber": 53
+        },
+        {
+          "caller": "_get",
+          "callee": "isinstance",
+          "lineNumber": 60
+        },
+        {
+          "caller": "_get",
+          "callee": "obj.get",
+          "lineNumber": 61
+        },
+        {
+          "caller": "_get",
+          "callee": "getattr",
+          "lineNumber": 62
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "max",
+          "lineNumber": 88
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "int",
+          "lineNumber": 88
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "getattr",
+          "lineNumber": 88
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "fetch_page",
+          "lineNumber": 97
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "next_page_url",
+          "lineNumber": 101
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "(extract_text(current_page) or \"\").strip",
+          "lineNumber": 104
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "extract_text",
+          "lineNumber": 104
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "first_text.splitlines()[0].strip",
+          "lineNumber": 109
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "first_text.splitlines",
+          "lineNumber": 109
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "range",
+          "lineNumber": 111
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "seen_urls.add",
+          "lineNumber": 114
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "fetch_page",
+          "lineNumber": 117
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "next_page_url",
+          "lineNumber": 121
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "(extract_text(current_page) or \"\").strip",
+          "lineNumber": 124
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "extract_text",
+          "lineNumber": 124
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "new_text.splitlines",
+          "lineNumber": 128
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "lines[0].strip",
+          "lineNumber": 129
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "\"\\n\".join(lines[1:]).lstrip",
+          "lineNumber": 130
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "\"\\n\".join",
+          "lineNumber": 130
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "pages.append",
+          "lineNumber": 131
+        },
+        {
+          "caller": "fetch_chapter_paginated",
+          "callee": "\"\\n\\n\".join",
+          "lineNumber": 133
+        },
+        {
+          "caller": "_next_page_url_from_html",
+          "callee": "(cfg.next_page_selector or \"\").strip",
+          "lineNumber": 143
+        },
+        {
+          "caller": "_next_page_url_from_html",
+          "callee": "_extract_href",
+          "lineNumber": 146
+        },
+        {
+          "caller": "_next_page_url_from_html",
+          "callee": "href.startswith",
+          "lineNumber": 147
+        },
+        {
+          "caller": "_next_page_url_from_html",
+          "callee": "href.startswith",
+          "lineNumber": 147
+        },
+        {
+          "caller": "_next_page_url_from_html",
+          "callee": "urljoin",
+          "lineNumber": 149
+        },
+        {
+          "caller": "_next_page_url_from_html",
+          "callee": "href.strip",
+          "lineNumber": 149
+        },
+        {
+          "caller": "_make_css_resolver",
+          "callee": "(cfg.next_page_selector or \"\").strip",
+          "lineNumber": 158
+        },
+        {
+          "caller": "_resolve",
+          "callee": "_extract_href",
+          "lineNumber": 163
+        },
+        {
+          "caller": "_resolve",
+          "callee": "href.startswith",
+          "lineNumber": 164
+        },
+        {
+          "caller": "_resolve",
+          "callee": "href.startswith",
+          "lineNumber": 164
+        },
+        {
+          "caller": "_resolve",
+          "callee": "urljoin",
+          "lineNumber": 166
+        },
+        {
+          "caller": "_resolve",
+          "callee": "href.strip",
+          "lineNumber": 166
+        },
+        {
+          "caller": "_next_page_url_from_pattern",
+          "callee": "(cfg.next_page_url_pattern or \"\").strip",
+          "lineNumber": 184
+        },
+        {
+          "caller": "_next_page_url_from_pattern",
+          "callee": "re.compile",
+          "lineNumber": 187
+        },
+        {
+          "caller": "_resolver",
+          "callee": "pat.search",
+          "lineNumber": 191
+        },
+        {
+          "caller": "_resolver",
+          "callee": "m.group",
+          "lineNumber": 198
+        },
+        {
+          "caller": "_resolver",
+          "callee": "m.start",
+          "lineNumber": 200
+        },
+        {
+          "caller": "_resolver",
+          "callee": "m.start",
+          "lineNumber": 200
+        },
+        {
+          "caller": "_resolver",
+          "callee": "str",
+          "lineNumber": 201
+        },
+        {
+          "caller": "_resolver",
+          "callee": "m.end",
+          "lineNumber": 202
+        },
+        {
+          "caller": "_resolver",
+          "callee": "m.start",
+          "lineNumber": 202
+        },
+        {
+          "caller": "_resolver",
+          "callee": "m.start",
+          "lineNumber": 204
+        },
+        {
+          "caller": "_resolver",
+          "callee": "m.end",
+          "lineNumber": 204
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "getattr",
+          "lineNumber": 220
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "select_one",
+          "lineNumber": 222
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "node.get",
+          "lineNumber": 225
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "str(href).strip",
+          "lineNumber": 227
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "str",
+          "lineNumber": 227
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "getattr",
+          "lineNumber": 232
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "isinstance",
+          "lineNumber": 233
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "links.get",
+          "lineNumber": 234
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "list",
+          "lineNumber": 236
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "selector.lstrip(\".\").lstrip(\"#\").lower",
+          "lineNumber": 237
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "selector.lstrip(\".\").lstrip",
+          "lineNumber": 237
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "selector.lstrip",
+          "lineNumber": 237
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "(_get(link, \"href\", \"\") or \"\").strip",
+          "lineNumber": 239
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "_get",
+          "lineNumber": 239
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "href.startswith",
+          "lineNumber": 240
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "href.startswith",
+          "lineNumber": 240
+        },
+        {
+          "caller": "_extract_href",
+          "callee": "href.lower",
+          "lineNumber": 242
+        },
+        {
+          "caller": "_meta_get",
+          "callee": "isinstance",
+          "lineNumber": 255
+        },
+        {
+          "caller": "_meta_get",
+          "callee": "meta.get",
+          "lineNumber": 258
+        },
+        {
+          "caller": "_meta_get",
+          "callee": "isinstance",
+          "lineNumber": 259
+        },
+        {
+          "caller": "_meta_get",
+          "callee": "str(val).strip",
+          "lineNumber": 262
+        },
+        {
+          "caller": "_meta_get",
+          "callee": "str",
+          "lineNumber": 262
+        },
+        {
+          "caller": "__init__",
+          "callee": "ImportError",
+          "lineNumber": 281
+        },
+        {
+          "caller": "__init__",
+          "callee": "_requests.Session",
+          "lineNumber": 287
+        },
+        {
+          "caller": "__init__",
+          "callee": "self._session.headers.update",
+          "lineNumber": 288
+        },
+        {
+          "caller": "_get_soup",
+          "callee": "self._session.get",
+          "lineNumber": 293
+        },
+        {
+          "caller": "_get_soup",
+          "callee": "resp.raise_for_status",
+          "lineNumber": 294
+        },
+        {
+          "caller": "_get_soup",
+          "callee": "resp.encoding.lower",
+          "lineNumber": 298
+        },
+        {
+          "caller": "_get_soup",
+          "callee": "BeautifulSoup",
+          "lineNumber": 301
+        },
+        {
+          "caller": "_meta_tag",
+          "callee": "soup.find",
+          "lineNumber": 307
+        },
+        {
+          "caller": "_meta_tag",
+          "callee": "soup.find",
+          "lineNumber": 307
+        },
+        {
+          "caller": "_meta_tag",
+          "callee": "tag.get",
+          "lineNumber": 308
+        },
+        {
+          "caller": "_meta_tag",
+          "callee": "content.strip",
+          "lineNumber": 309
+        },
+        {
+          "caller": "_meta_tag",
+          "callee": "content.strip",
+          "lineNumber": 310
+        },
+        {
+          "caller": "_sel_text",
+          "callee": "soup.select_one",
+          "lineNumber": 316
+        },
+        {
+          "caller": "_sel_text",
+          "callee": "node.get_text",
+          "lineNumber": 317
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "self._sel_text",
+          "lineNumber": 322
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "self._meta_tag",
+          "lineNumber": 323
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "soup.title.string.strip",
+          "lineNumber": 325
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "self._sel_text",
+          "lineNumber": 327
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "self._meta_tag",
+          "lineNumber": 328
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "self._sel_text",
+          "lineNumber": 330
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "self._meta_tag",
+          "lineNumber": 331
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "soup.select_one",
+          "lineNumber": 335
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "img.get",
+          "lineNumber": 337
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "img.get",
+          "lineNumber": 337
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "urljoin",
+          "lineNumber": 338
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "src.strip",
+          "lineNumber": 338
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "self._meta_tag",
+          "lineNumber": 340
+        },
+        {
+          "caller": "_extract_meta",
+          "callee": "urljoin",
+          "lineNumber": 341
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "self._get_soup",
+          "lineNumber": 347
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "self._extract_meta",
+          "lineNumber": 348
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "soup.select_one",
+          "lineNumber": 352
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "re.compile",
+          "lineNumber": 356
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "scope.find_all",
+          "lineNumber": 358
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "urljoin",
+          "lineNumber": 359
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "a[\"href\"].strip",
+          "lineNumber": 359
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "pattern.search",
+          "lineNumber": 360
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "pairs.append",
+          "lineNumber": 361
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "a.get_text",
+          "lineNumber": 361
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "Chapter",
+          "lineNumber": 364
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "enumerate",
+          "lineNumber": 365
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "_dedupe_keep_last",
+          "lineNumber": 365
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "TocResult",
+          "lineNumber": 367
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "missing_metadata",
+          "lineNumber": 373
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "mark_duplicate_chapters",
+          "lineNumber": 374
+        },
+        {
+          "caller": "fetch_chapter",
+          "callee": "self._fetch_chapter_single",
+          "lineNumber": 380
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "self._get_soup",
+          "lineNumber": 383
+        },
+        {
+          "caller": "extract_text",
+          "callee": "self._extract_text",
+          "lineNumber": 386
+        },
+        {
+          "caller": "fetch_chapter",
+          "callee": "_make_css_resolver",
+          "lineNumber": 388
+        },
+        {
+          "caller": "fetch_chapter",
+          "callee": "_next_page_url_from_pattern",
+          "lineNumber": 389
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "css_resolver",
+          "lineNumber": 394
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "pattern_resolver",
+          "lineNumber": 399
+        },
+        {
+          "caller": "fetch_chapter",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 405
+        },
+        {
+          "caller": "fetch_chapter",
+          "callee": "self._ai_fallback_extract",
+          "lineNumber": 414
+        },
+        {
+          "caller": "_fetch_chapter_single",
+          "callee": "self._get_soup",
+          "lineNumber": 417
+        },
+        {
+          "caller": "_fetch_chapter_single",
+          "callee": "self._extract_text",
+          "lineNumber": 418
+        },
+        {
+          "caller": "_fetch_chapter_single",
+          "callee": "self._ai_fallback_extract",
+          "lineNumber": 421
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "soup.select_one",
+          "lineNumber": 426
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "soup.select_one",
+          "lineNumber": 430
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "node",
+          "lineNumber": 436
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "tag.decompose",
+          "lineNumber": 437
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "node.find_all",
+          "lineNumber": 439
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "br.replace_with",
+          "lineNumber": 440
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "p.get_text",
+          "lineNumber": 441
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "node.find_all",
+          "lineNumber": 441
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "\"\\n\\n\".join",
+          "lineNumber": 443
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "node.get_text",
+          "lineNumber": 445
+        },
+        {
+          "caller": "_extract_text",
+          "callee": "self._clean",
+          "lineNumber": 446
+        },
+        {
+          "caller": "_ai_fallback_extract",
+          "callee": "GO_EXTRACT_PROMPT.format",
+          "lineNumber": 456
+        },
+        {
+          "caller": "_ai_fallback_extract",
+          "callee": "cli_runner.run_cli",
+          "lineNumber": 458
+        },
+        {
+          "caller": "_clean",
+          "callee": "re.compile",
+          "lineNumber": 465
+        },
+        {
+          "caller": "_clean",
+          "callee": "text.splitlines",
+          "lineNumber": 466
+        },
+        {
+          "caller": "_clean",
+          "callee": "any",
+          "lineNumber": 467
+        },
+        {
+          "caller": "_clean",
+          "callee": "p.search",
+          "lineNumber": 467
+        },
+        {
+          "caller": "_clean",
+          "callee": "re.sub(r\"\\n{3,}\", \"\\n\\n\", \"\\n\".join(lines)).strip",
+          "lineNumber": 468
+        },
+        {
+          "caller": "_clean",
+          "callee": "re.sub",
+          "lineNumber": 468
+        },
+        {
+          "caller": "_clean",
+          "callee": "\"\\n\".join",
+          "lineNumber": 468
+        },
+        {
+          "caller": "sleep",
+          "callee": "time.sleep",
+          "lineNumber": 473
+        },
+        {
+          "caller": "__init__",
+          "callee": "ImportError",
+          "lineNumber": 493
+        },
+        {
+          "caller": "__init__",
+          "callee": "asyncio.new_event_loop",
+          "lineNumber": 499
+        },
+        {
+          "caller": "__init__",
+          "callee": "BrowserConfig",
+          "lineNumber": 500
+        },
+        {
+          "caller": "__init__",
+          "callee": "AsyncWebCrawler",
+          "lineNumber": 501
+        },
+        {
+          "caller": "__init__",
+          "callee": "self._loop.run_until_complete",
+          "lineNumber": 502
+        },
+        {
+          "caller": "__init__",
+          "callee": "self._crawler.__aenter__",
+          "lineNumber": 502
+        },
+        {
+          "caller": "_run_cfg",
+          "callee": "CrawlerRunConfig",
+          "lineNumber": 512
+        },
+        {
+          "caller": "_arun",
+          "callee": "self._run_cfg",
+          "lineNumber": 515
+        },
+        {
+          "caller": "_arun",
+          "callee": "self._crawler.arun",
+          "lineNumber": 516
+        },
+        {
+          "caller": "_arun",
+          "callee": "self._loop.run_until_complete",
+          "lineNumber": 517
+        },
+        {
+          "caller": "_markdown",
+          "callee": "getattr",
+          "lineNumber": 521
+        },
+        {
+          "caller": "_markdown",
+          "callee": "getattr",
+          "lineNumber": 523
+        },
+        {
+          "caller": "_markdown",
+          "callee": "isinstance",
+          "lineNumber": 523
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "self._arun",
+          "lineNumber": 527
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "getattr",
+          "lineNumber": 528
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "getattr",
+          "lineNumber": 530
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "links.get",
+          "lineNumber": 531
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "isinstance",
+          "lineNumber": 531
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "re.compile",
+          "lineNumber": 532
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "_get",
+          "lineNumber": 535
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "urljoin",
+          "lineNumber": 536
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "href.strip",
+          "lineNumber": 536
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "pattern.search",
+          "lineNumber": 537
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "(_get(link, \"text\", \"\") or \"\").strip",
+          "lineNumber": 538
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "_get",
+          "lineNumber": 538
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "pairs.append",
+          "lineNumber": 539
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "_MD_LINK.finditer",
+          "lineNumber": 542
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "self._markdown",
+          "lineNumber": 542
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "urljoin",
+          "lineNumber": 543
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "m.group(2).strip",
+          "lineNumber": 543
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "m.group",
+          "lineNumber": 543
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "pattern.search",
+          "lineNumber": 544
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "pairs.append",
+          "lineNumber": 545
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "m.group(1).strip",
+          "lineNumber": 545
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "m.group",
+          "lineNumber": 545
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "Chapter",
+          "lineNumber": 548
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "enumerate",
+          "lineNumber": 549
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "_dedupe_keep_last",
+          "lineNumber": 549
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "_meta_get",
+          "lineNumber": 551
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "urljoin",
+          "lineNumber": 553
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "_meta_get",
+          "lineNumber": 554
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "_meta_get",
+          "lineNumber": 555
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "_meta_get",
+          "lineNumber": 556
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "TocResult",
+          "lineNumber": 557
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "missing_metadata",
+          "lineNumber": 563
+        },
+        {
+          "caller": "fetch_toc",
+          "callee": "mark_duplicate_chapters",
+          "lineNumber": 564
+        },
+        {
+          "caller": "fetch_chapter",
+          "callee": "self._fetch_chapter_single",
+          "lineNumber": 570
+        },
+        {
+          "caller": "fetch_chapter",
+          "callee": "_make_css_resolver",
+          "lineNumber": 572
+        },
+        {
+          "caller": "fetch_chapter",
+          "callee": "_next_page_url_from_pattern",
+          "lineNumber": 573
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "self._arun",
+          "lineNumber": 576
+        },
+        {
+          "caller": "extract_text",
+          "callee": "self._clean",
+          "lineNumber": 579
+        },
+        {
+          "caller": "extract_text",
+          "callee": "self._markdown",
+          "lineNumber": 579
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "css_resolver",
+          "lineNumber": 583
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "pattern_resolver",
+          "lineNumber": 587
+        },
+        {
+          "caller": "fetch_chapter",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 590
+        },
+        {
+          "caller": "fetch_chapter",
+          "callee": "self._ai_fallback_extract",
+          "lineNumber": 599
+        },
+        {
+          "caller": "_fetch_chapter_single",
+          "callee": "self._arun",
+          "lineNumber": 602
+        },
+        {
+          "caller": "_fetch_chapter_single",
+          "callee": "self._clean",
+          "lineNumber": 603
+        },
+        {
+          "caller": "_fetch_chapter_single",
+          "callee": "self._markdown",
+          "lineNumber": 603
+        },
+        {
+          "caller": "_fetch_chapter_single",
+          "callee": "self._ai_fallback_extract",
+          "lineNumber": 606
+        },
+        {
+          "caller": "_ai_fallback_extract",
+          "callee": "getattr",
+          "lineNumber": 612
+        },
+        {
+          "caller": "_ai_fallback_extract",
+          "callee": "GO_EXTRACT_PROMPT.format",
+          "lineNumber": 616
+        },
+        {
+          "caller": "_ai_fallback_extract",
+          "callee": "cli_runner.run_cli",
+          "lineNumber": 618
+        },
+        {
+          "caller": "_clean",
+          "callee": "re.compile",
+          "lineNumber": 625
+        },
+        {
+          "caller": "_clean",
+          "callee": "markdown.splitlines",
+          "lineNumber": 626
+        },
+        {
+          "caller": "_clean",
+          "callee": "any",
+          "lineNumber": 627
+        },
+        {
+          "caller": "_clean",
+          "callee": "p.search",
+          "lineNumber": 627
+        },
+        {
+          "caller": "_clean",
+          "callee": "re.sub(r\"\\n{3,}\", \"\\n\\n\", \"\\n\".join(lines)).strip",
+          "lineNumber": 628
+        },
+        {
+          "caller": "_clean",
+          "callee": "re.sub",
+          "lineNumber": 628
+        },
+        {
+          "caller": "_clean",
+          "callee": "\"\\n\".join",
+          "lineNumber": 628
+        },
+        {
+          "caller": "sleep",
+          "callee": "time.sleep",
+          "lineNumber": 632
+        },
+        {
+          "caller": "close",
+          "callee": "self._loop.run_until_complete",
+          "lineNumber": 636
+        },
+        {
+          "caller": "close",
+          "callee": "self._crawler.__aexit__",
+          "lineNumber": 637
+        },
+        {
+          "caller": "close",
+          "callee": "self._loop.close",
+          "lineNumber": 640
+        },
+        {
+          "caller": "make_crawler",
+          "callee": "(cfg.engine or \"http\").lower",
+          "lineNumber": 644
+        },
+        {
+          "caller": "make_crawler",
+          "callee": "HttpCrawler",
+          "lineNumber": 646
+        },
+        {
+          "caller": "make_crawler",
+          "callee": "Crawl4AICrawler",
+          "lineNumber": 648
+        },
+        {
+          "caller": "make_crawler",
+          "callee": "ValueError",
+          "lineNumber": 650
+        },
+        {
+          "caller": "make_crawler",
+          "callee": "ValueError",
+          "lineNumber": 654
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 13,
+        "functionCount": 9,
+        "classCount": 4
+      }
+    },
+    {
+      "path": "novel2epub/preset_builder.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 453,
+      "nonEmptyLines": 389,
+      "functions": [
+        {
+          "name": "select_engine_heuristic",
+          "startLine": 51,
+          "endLine": 69,
+          "params": [
+            "soup",
+            "candidate_toc_selectors"
+          ]
+        },
+        {
+          "name": "_hostname",
+          "startLine": 72,
+          "endLine": 73,
+          "params": [
+            "url"
+          ]
+        },
+        {
+          "name": "_preset_name_from_host",
+          "startLine": 76,
+          "endLine": 81,
+          "params": [
+            "url"
+          ]
+        },
+        {
+          "name": "_domains_from_host",
+          "startLine": 84,
+          "endLine": 89,
+          "params": [
+            "url"
+          ]
+        },
+        {
+          "name": "build_ai_suggestion_prompt",
+          "startLine": 92,
+          "endLine": 122,
+          "params": [
+            "html",
+            "toc_url",
+            "novel_title"
+          ]
+        },
+        {
+          "name": "parse_ai_suggestion",
+          "startLine": 125,
+          "endLine": 138,
+          "params": [
+            "text"
+          ]
+        },
+        {
+          "name": "_count_pattern_links",
+          "startLine": 141,
+          "endLine": 165,
+          "params": [
+            "pattern",
+            "soup",
+            "toc_selector"
+          ]
+        },
+        {
+          "name": "validate_pattern",
+          "startLine": 168,
+          "endLine": 188,
+          "params": [
+            "pattern",
+            "soup",
+            "toc_selector",
+            "low",
+            "high"
+          ]
+        },
+        {
+          "name": "_refine_feedback",
+          "startLine": 191,
+          "endLine": 213,
+          "params": [
+            "pattern",
+            "validation",
+            "toc_url"
+          ]
+        },
+        {
+          "name": "refine_pattern_with_ai",
+          "startLine": 216,
+          "endLine": 246,
+          "params": [
+            "pattern",
+            "validation",
+            "ai_call",
+            "toc_url",
+            "max_rounds"
+          ]
+        },
+        {
+          "name": "_fallback_refine",
+          "startLine": 249,
+          "endLine": 258,
+          "params": [
+            "pattern",
+            "validation"
+          ]
+        },
+        {
+          "name": "_bool",
+          "startLine": 261,
+          "endLine": 266,
+          "params": [
+            "value"
+          ]
+        },
+        {
+          "name": "_float",
+          "startLine": 269,
+          "endLine": 273,
+          "params": [
+            "value",
+            "default"
+          ]
+        },
+        {
+          "name": "_int",
+          "startLine": 276,
+          "endLine": 280,
+          "params": [
+            "value",
+            "default"
+          ]
+        },
+        {
+          "name": "_build_source_preset",
+          "startLine": 283,
+          "endLine": 306,
+          "params": [
+            "name",
+            "data",
+            "url"
+          ]
+        },
+        {
+          "name": "_get_cli_config",
+          "startLine": 309,
+          "endLine": 314,
+          "params": []
+        },
+        {
+          "name": "build_preset",
+          "startLine": 317,
+          "endLine": 406,
+          "params": [
+            "toc_url",
+            "novel_title",
+            "overrides",
+            "preset_name",
+            "max_rounds",
+            "low",
+            "high",
+            "timeout_seconds"
+          ]
+        },
+        {
+          "name": "preview_toc",
+          "startLine": 409,
+          "endLine": 433,
+          "params": [
+            "toc_url",
+            "preset_name",
+            "presets_path"
+          ]
+        },
+        {
+          "name": "save_preset",
+          "startLine": 436,
+          "endLine": 443,
+          "params": [
+            "preset",
+            "presets_path"
+          ]
+        },
+        {
+          "name": "remove_preset",
+          "startLine": 446,
+          "endLine": 453,
+          "params": [
+            "name",
+            "presets_path"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "PresetBuilderResult",
+          "startLine": 39,
+          "endLine": 48,
+          "methods": [],
+          "properties": [
+            "preset",
+            "preview",
+            "engine",
+            "validation",
+            "rounds",
+            "overrides_applied",
+            "error"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "PresetBuilderResult",
+          "line": 38,
+          "isDefault": false
+        },
+        {
+          "name": "select_engine_heuristic",
+          "line": 51,
+          "isDefault": false
+        },
+        {
+          "name": "_hostname",
+          "line": 72,
+          "isDefault": false
+        },
+        {
+          "name": "_preset_name_from_host",
+          "line": 76,
+          "isDefault": false
+        },
+        {
+          "name": "_domains_from_host",
+          "line": 84,
+          "isDefault": false
+        },
+        {
+          "name": "build_ai_suggestion_prompt",
+          "line": 92,
+          "isDefault": false
+        },
+        {
+          "name": "parse_ai_suggestion",
+          "line": 125,
+          "isDefault": false
+        },
+        {
+          "name": "_count_pattern_links",
+          "line": 141,
+          "isDefault": false
+        },
+        {
+          "name": "validate_pattern",
+          "line": 168,
+          "isDefault": false
+        },
+        {
+          "name": "_refine_feedback",
+          "line": 191,
+          "isDefault": false
+        },
+        {
+          "name": "refine_pattern_with_ai",
+          "line": 216,
+          "isDefault": false
+        },
+        {
+          "name": "_fallback_refine",
+          "line": 249,
+          "isDefault": false
+        },
+        {
+          "name": "_bool",
+          "line": 261,
+          "isDefault": false
+        },
+        {
+          "name": "_float",
+          "line": 269,
+          "isDefault": false
+        },
+        {
+          "name": "_int",
+          "line": 276,
+          "isDefault": false
+        },
+        {
+          "name": "_build_source_preset",
+          "line": 283,
+          "isDefault": false
+        },
+        {
+          "name": "_get_cli_config",
+          "line": 309,
+          "isDefault": false
+        },
+        {
+          "name": "build_preset",
+          "line": 317,
+          "isDefault": false
+        },
+        {
+          "name": "preview_toc",
+          "line": 409,
+          "isDefault": false
+        },
+        {
+          "name": "save_preset",
+          "line": 436,
+          "isDefault": false
+        },
+        {
+          "name": "remove_preset",
+          "line": 446,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "select_engine_heuristic",
+          "callee": "soup.select_one",
+          "lineNumber": 60
+        },
+        {
+          "caller": "select_engine_heuristic",
+          "callee": "scope.find_all",
+          "lineNumber": 62
+        },
+        {
+          "caller": "select_engine_heuristic",
+          "callee": "len",
+          "lineNumber": 63
+        },
+        {
+          "caller": "select_engine_heuristic",
+          "callee": "soup.find",
+          "lineNumber": 66
+        },
+        {
+          "caller": "select_engine_heuristic",
+          "callee": "len",
+          "lineNumber": 67
+        },
+        {
+          "caller": "select_engine_heuristic",
+          "callee": "body.get_text",
+          "lineNumber": 67
+        },
+        {
+          "caller": "select_engine_heuristic",
+          "callee": "body.find_all",
+          "lineNumber": 67
+        },
+        {
+          "caller": "_hostname",
+          "callee": "(urlparse(url).hostname or \"unknown\").split",
+          "lineNumber": 73
+        },
+        {
+          "caller": "_hostname",
+          "callee": "urlparse",
+          "lineNumber": 73
+        },
+        {
+          "caller": "_preset_name_from_host",
+          "callee": "_hostname",
+          "lineNumber": 77
+        },
+        {
+          "caller": "_preset_name_from_host",
+          "callee": "re.sub",
+          "lineNumber": 79
+        },
+        {
+          "caller": "_preset_name_from_host",
+          "callee": "host.split",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_domains_from_host",
+          "callee": "_hostname",
+          "lineNumber": 85
+        },
+        {
+          "caller": "_domains_from_host",
+          "callee": "host.startswith",
+          "lineNumber": 87
+        },
+        {
+          "caller": "parse_ai_suggestion",
+          "callee": "text.strip",
+          "lineNumber": 127
+        },
+        {
+          "caller": "parse_ai_suggestion",
+          "callee": "text.startswith",
+          "lineNumber": 128
+        },
+        {
+          "caller": "parse_ai_suggestion",
+          "callee": "text.strip",
+          "lineNumber": 129
+        },
+        {
+          "caller": "parse_ai_suggestion",
+          "callee": "text.lower().startswith",
+          "lineNumber": 130
+        },
+        {
+          "caller": "parse_ai_suggestion",
+          "callee": "text.lower",
+          "lineNumber": 130
+        },
+        {
+          "caller": "parse_ai_suggestion",
+          "callee": "text[4:].strip",
+          "lineNumber": 131
+        },
+        {
+          "caller": "parse_ai_suggestion",
+          "callee": "json.loads",
+          "lineNumber": 133
+        },
+        {
+          "caller": "parse_ai_suggestion",
+          "callee": "ValueError",
+          "lineNumber": 135
+        },
+        {
+          "caller": "parse_ai_suggestion",
+          "callee": "isinstance",
+          "lineNumber": 136
+        },
+        {
+          "caller": "parse_ai_suggestion",
+          "callee": "ValueError",
+          "lineNumber": 137
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "soup.select_one",
+          "lineNumber": 145
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "re.compile",
+          "lineNumber": 149
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "ValueError",
+          "lineNumber": 151
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "scope.find_all",
+          "lineNumber": 154
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "a[\"href\"].strip",
+          "lineNumber": 155
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "pat.search",
+          "lineNumber": 156
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "urls.append",
+          "lineNumber": 157
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "set",
+          "lineNumber": 159
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "seen.add",
+          "lineNumber": 163
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "deduped.append",
+          "lineNumber": 164
+        },
+        {
+          "caller": "_count_pattern_links",
+          "callee": "len",
+          "lineNumber": 165
+        },
+        {
+          "caller": "validate_pattern",
+          "callee": "_count_pattern_links",
+          "lineNumber": 177
+        },
+        {
+          "caller": "_refine_feedback",
+          "callee": "validation.get",
+          "lineNumber": 198
+        },
+        {
+          "caller": "_refine_feedback",
+          "callee": "\"\\n\".join",
+          "lineNumber": 199
+        },
+        {
+          "caller": "refine_pattern_with_ai",
+          "callee": "range",
+          "lineNumber": 227
+        },
+        {
+          "caller": "refine_pattern_with_ai",
+          "callee": "_refine_feedback",
+          "lineNumber": 231
+        },
+        {
+          "caller": "refine_pattern_with_ai",
+          "callee": "ai_call",
+          "lineNumber": 232
+        },
+        {
+          "caller": "refine_pattern_with_ai",
+          "callee": "parse_ai_suggestion",
+          "lineNumber": 234
+        },
+        {
+          "caller": "refine_pattern_with_ai",
+          "callee": "_fallback_refine",
+          "lineNumber": 237
+        },
+        {
+          "caller": "refine_pattern_with_ai",
+          "callee": "data.get",
+          "lineNumber": 239
+        },
+        {
+          "caller": "_fallback_refine",
+          "callee": "pattern.rstrip",
+          "lineNumber": 255
+        },
+        {
+          "caller": "_fallback_refine",
+          "callee": "re.sub",
+          "lineNumber": 258
+        },
+        {
+          "caller": "_bool",
+          "callee": "isinstance",
+          "lineNumber": 262
+        },
+        {
+          "caller": "_bool",
+          "callee": "isinstance",
+          "lineNumber": 264
+        },
+        {
+          "caller": "_bool",
+          "callee": "value.lower",
+          "lineNumber": 265
+        },
+        {
+          "caller": "_bool",
+          "callee": "bool",
+          "lineNumber": 266
+        },
+        {
+          "caller": "_float",
+          "callee": "float",
+          "lineNumber": 271
+        },
+        {
+          "caller": "_int",
+          "callee": "int",
+          "lineNumber": 278
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "SourcePreset",
+          "lineNumber": 285
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get(\"engine\", \"http\").lower",
+          "lineNumber": 287
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 287
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "_domains_from_host",
+          "lineNumber": 288
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 289
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 290
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 291
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 292
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 293
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 294
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 295
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 296
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 297
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 298
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "_bool",
+          "lineNumber": 299
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 299
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "_bool",
+          "lineNumber": 300
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 300
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 301
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "_float",
+          "lineNumber": 302
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 302
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 303
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 304
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "_int",
+          "lineNumber": 305
+        },
+        {
+          "caller": "_build_source_preset",
+          "callee": "data.get",
+          "lineNumber": 305
+        },
+        {
+          "caller": "_get_cli_config",
+          "callee": "load_config",
+          "lineNumber": 311
+        },
+        {
+          "caller": "_get_cli_config",
+          "callee": "CliTranslatorConfig",
+          "lineNumber": 314
+        },
+        {
+          "caller": "build_preset",
+          "callee": "PresetBuilderResult",
+          "lineNumber": 329
+        },
+        {
+          "caller": "build_preset",
+          "callee": "CrawlConfig",
+          "lineNumber": 333
+        },
+        {
+          "caller": "build_preset",
+          "callee": "make_crawler",
+          "lineNumber": 334
+        },
+        {
+          "caller": "build_preset",
+          "callee": "http_crawler._get_soup",
+          "lineNumber": 336
+        },
+        {
+          "caller": "build_preset",
+          "callee": "http_crawler.close",
+          "lineNumber": 338
+        },
+        {
+          "caller": "build_preset",
+          "callee": "select_engine_heuristic",
+          "lineNumber": 341
+        },
+        {
+          "caller": "build_preset",
+          "callee": "_get_cli_config",
+          "lineNumber": 345
+        },
+        {
+          "caller": "build_preset",
+          "callee": "str",
+          "lineNumber": 347
+        },
+        {
+          "caller": "build_preset",
+          "callee": "getattr",
+          "lineNumber": 347
+        },
+        {
+          "caller": "build_preset",
+          "callee": "build_ai_suggestion_prompt",
+          "lineNumber": 348
+        },
+        {
+          "caller": "_ai_call",
+          "callee": "cli_runner.run_cli",
+          "lineNumber": 353
+        },
+        {
+          "caller": "build_preset",
+          "callee": "_ai_call",
+          "lineNumber": 355
+        },
+        {
+          "caller": "build_preset",
+          "callee": "parse_ai_suggestion",
+          "lineNumber": 356
+        },
+        {
+          "caller": "build_preset",
+          "callee": "data.get",
+          "lineNumber": 359
+        },
+        {
+          "caller": "build_preset",
+          "callee": "data.get",
+          "lineNumber": 360
+        },
+        {
+          "caller": "build_preset",
+          "callee": "validate_pattern",
+          "lineNumber": 361
+        },
+        {
+          "caller": "build_preset",
+          "callee": "refine_pattern_with_ai",
+          "lineNumber": 364
+        },
+        {
+          "caller": "build_preset",
+          "callee": "validate_pattern",
+          "lineNumber": 370
+        },
+        {
+          "caller": "build_preset",
+          "callee": "_preset_name_from_host",
+          "lineNumber": 380
+        },
+        {
+          "caller": "build_preset",
+          "callee": "_build_source_preset",
+          "lineNumber": 381
+        },
+        {
+          "caller": "build_preset",
+          "callee": "overrides.items",
+          "lineNumber": 383
+        },
+        {
+          "caller": "build_preset",
+          "callee": "hasattr",
+          "lineNumber": 384
+        },
+        {
+          "caller": "build_preset",
+          "callee": "setattr",
+          "lineNumber": 385
+        },
+        {
+          "caller": "build_preset",
+          "callee": "overrides_applied.append",
+          "lineNumber": 386
+        },
+        {
+          "caller": "build_preset",
+          "callee": "overrides.get",
+          "lineNumber": 391
+        },
+        {
+          "caller": "build_preset",
+          "callee": "CrawlConfig",
+          "lineNumber": 394
+        },
+        {
+          "caller": "build_preset",
+          "callee": "preset.crawl_overrides",
+          "lineNumber": 394
+        },
+        {
+          "caller": "build_preset",
+          "callee": "make_crawler",
+          "lineNumber": 395
+        },
+        {
+          "caller": "build_preset",
+          "callee": "crawler.fetch_toc",
+          "lineNumber": 397
+        },
+        {
+          "caller": "build_preset",
+          "callee": "crawler.close",
+          "lineNumber": 399
+        },
+        {
+          "caller": "build_preset",
+          "callee": "str",
+          "lineNumber": 405
+        },
+        {
+          "caller": "preview_toc",
+          "callee": "PresetBuilderResult",
+          "lineNumber": 415
+        },
+        {
+          "caller": "preview_toc",
+          "callee": "load_presets",
+          "lineNumber": 417
+        },
+        {
+          "caller": "preview_toc",
+          "callee": "presets.get",
+          "lineNumber": 418
+        },
+        {
+          "caller": "preview_toc",
+          "callee": "CrawlConfig",
+          "lineNumber": 422
+        },
+        {
+          "caller": "preview_toc",
+          "callee": "preset.crawl_overrides",
+          "lineNumber": 422
+        },
+        {
+          "caller": "preview_toc",
+          "callee": "make_crawler",
+          "lineNumber": 424
+        },
+        {
+          "caller": "preview_toc",
+          "callee": "crawler.fetch_toc",
+          "lineNumber": 426
+        },
+        {
+          "caller": "preview_toc",
+          "callee": "crawler.close",
+          "lineNumber": 428
+        },
+        {
+          "caller": "preview_toc",
+          "callee": "str",
+          "lineNumber": 432
+        },
+        {
+          "caller": "save_preset",
+          "callee": "load_presets",
+          "lineNumber": 441
+        },
+        {
+          "caller": "save_preset",
+          "callee": "save_presets",
+          "lineNumber": 443
+        },
+        {
+          "caller": "remove_preset",
+          "callee": "load_presets",
+          "lineNumber": 448
+        },
+        {
+          "caller": "remove_preset",
+          "callee": "save_presets",
+          "lineNumber": 452
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 21,
+        "functionCount": 20,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "novel2epub/sources.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 132,
+      "nonEmptyLines": 111,
+      "functions": [
+        {
+          "name": "_yaml",
+          "startLine": 20,
+          "endLine": 25,
+          "params": []
+        },
+        {
+          "name": "_coerce",
+          "startLine": 62,
+          "endLine": 75,
+          "params": [
+            "name",
+            "value"
+          ]
+        },
+        {
+          "name": "load_presets",
+          "startLine": 78,
+          "endLine": 88,
+          "params": [
+            "path"
+          ]
+        },
+        {
+          "name": "detect_preset",
+          "startLine": 94,
+          "endLine": 112,
+          "params": [
+            "url",
+            "presets"
+          ]
+        },
+        {
+          "name": "save_presets",
+          "startLine": 115,
+          "endLine": 132,
+          "params": [
+            "path",
+            "presets"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "SourcePreset",
+          "startLine": 29,
+          "endLine": 56,
+          "methods": [
+            "crawl_overrides"
+          ],
+          "properties": [
+            "name",
+            "engine",
+            "domains",
+            "chapter_link_pattern",
+            "content_selector",
+            "toc_selector",
+            "chapter_title_selector",
+            "title_selector",
+            "author_selector",
+            "desc_selector",
+            "cover_selector",
+            "encoding",
+            "user_agent",
+            "headless",
+            "magic",
+            "js_code",
+            "delay_seconds",
+            "next_page_selector",
+            "next_page_url_pattern",
+            "max_pages_per_chapter"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_yaml",
+          "line": 20,
+          "isDefault": false
+        },
+        {
+          "name": "SourcePreset",
+          "line": 28,
+          "isDefault": false
+        },
+        {
+          "name": "_coerce",
+          "line": 62,
+          "isDefault": false
+        },
+        {
+          "name": "load_presets",
+          "line": 78,
+          "isDefault": false
+        },
+        {
+          "name": "detect_preset",
+          "line": 94,
+          "isDefault": false
+        },
+        {
+          "name": "save_presets",
+          "line": 115,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_yaml",
+          "callee": "YAML",
+          "lineNumber": 21
+        },
+        {
+          "caller": "_yaml",
+          "callee": "y.indent",
+          "lineNumber": 24
+        },
+        {
+          "caller": "crawl_overrides",
+          "callee": "asdict",
+          "lineNumber": 53
+        },
+        {
+          "caller": "crawl_overrides",
+          "callee": "data.pop",
+          "lineNumber": 54
+        },
+        {
+          "caller": "crawl_overrides",
+          "callee": "data.pop",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_coerce",
+          "callee": "bool",
+          "lineNumber": 64
+        },
+        {
+          "caller": "_coerce",
+          "callee": "float",
+          "lineNumber": 67
+        },
+        {
+          "caller": "_coerce",
+          "callee": "int",
+          "lineNumber": 72
+        },
+        {
+          "caller": "load_presets",
+          "callee": "Path",
+          "lineNumber": 79
+        },
+        {
+          "caller": "load_presets",
+          "callee": "path.exists",
+          "lineNumber": 80
+        },
+        {
+          "caller": "load_presets",
+          "callee": "_yaml().load",
+          "lineNumber": 82
+        },
+        {
+          "caller": "load_presets",
+          "callee": "_yaml",
+          "lineNumber": 82
+        },
+        {
+          "caller": "load_presets",
+          "callee": "path.read_text",
+          "lineNumber": 82
+        },
+        {
+          "caller": "load_presets",
+          "callee": "(raw.get(\"sources\") or {}).items",
+          "lineNumber": 84
+        },
+        {
+          "caller": "load_presets",
+          "callee": "raw.get",
+          "lineNumber": 84
+        },
+        {
+          "caller": "load_presets",
+          "callee": "_coerce",
+          "lineNumber": 85
+        },
+        {
+          "caller": "load_presets",
+          "callee": "dict(item).items",
+          "lineNumber": 85
+        },
+        {
+          "caller": "load_presets",
+          "callee": "dict",
+          "lineNumber": 85
+        },
+        {
+          "caller": "load_presets",
+          "callee": "SourcePreset",
+          "lineNumber": 87
+        },
+        {
+          "caller": "detect_preset",
+          "callee": "urlparse",
+          "lineNumber": 100
+        },
+        {
+          "caller": "detect_preset",
+          "callee": "presets.items",
+          "lineNumber": 102
+        },
+        {
+          "caller": "detect_preset",
+          "callee": "p.domains.split",
+          "lineNumber": 105
+        },
+        {
+          "caller": "detect_preset",
+          "callee": "d.strip",
+          "lineNumber": 106
+        },
+        {
+          "caller": "detect_preset",
+          "callee": "candidates.append",
+          "lineNumber": 108
+        },
+        {
+          "caller": "detect_preset",
+          "callee": "len",
+          "lineNumber": 108
+        },
+        {
+          "caller": "detect_preset",
+          "callee": "candidates.sort",
+          "lineNumber": 111
+        },
+        {
+          "caller": "save_presets",
+          "callee": "Path",
+          "lineNumber": 116
+        },
+        {
+          "caller": "save_presets",
+          "callee": "path.exists",
+          "lineNumber": 118
+        },
+        {
+          "caller": "save_presets",
+          "callee": "_yaml().load",
+          "lineNumber": 119
+        },
+        {
+          "caller": "save_presets",
+          "callee": "_yaml",
+          "lineNumber": 119
+        },
+        {
+          "caller": "save_presets",
+          "callee": "path.read_text",
+          "lineNumber": 119
+        },
+        {
+          "caller": "save_presets",
+          "callee": "isinstance",
+          "lineNumber": 120
+        },
+        {
+          "caller": "save_presets",
+          "callee": "CommentedMap",
+          "lineNumber": 120
+        },
+        {
+          "caller": "save_presets",
+          "callee": "CommentedMap",
+          "lineNumber": 122
+        },
+        {
+          "caller": "save_presets",
+          "callee": "CommentedMap",
+          "lineNumber": 123
+        },
+        {
+          "caller": "save_presets",
+          "callee": "presets.items",
+          "lineNumber": 124
+        },
+        {
+          "caller": "save_presets",
+          "callee": "CommentedMap",
+          "lineNumber": 125
+        },
+        {
+          "caller": "save_presets",
+          "callee": "preset.crawl_overrides().items",
+          "lineNumber": 126
+        },
+        {
+          "caller": "save_presets",
+          "callee": "preset.crawl_overrides",
+          "lineNumber": 126
+        },
+        {
+          "caller": "save_presets",
+          "callee": "path.parent.mkdir",
+          "lineNumber": 130
+        },
+        {
+          "caller": "save_presets",
+          "callee": "path.open",
+          "lineNumber": 131
+        },
+        {
+          "caller": "save_presets",
+          "callee": "_yaml().dump",
+          "lineNumber": 132
+        },
+        {
+          "caller": "save_presets",
+          "callee": "_yaml",
+          "lineNumber": 132
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 6,
+        "functionCount": 5,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "tests/test_chapter_pagination.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 538,
+      "nonEmptyLines": 451,
+      "functions": [
+        {
+          "name": "_soup",
+          "startLine": 17,
+          "endLine": 18,
+          "params": [
+            "html"
+          ]
+        },
+        {
+          "name": "_page",
+          "startLine": 21,
+          "endLine": 35,
+          "params": [
+            "html",
+            "next_href",
+            "title_prefix"
+          ]
+        },
+        {
+          "name": "_make_http_crawler",
+          "startLine": 38,
+          "endLine": 39,
+          "params": [
+            "**kw"
+          ]
+        },
+        {
+          "name": "_patch_http_session",
+          "startLine": 47,
+          "endLine": 59,
+          "params": [
+            "monkeypatch",
+            "crawler",
+            "responses"
+          ]
+        },
+        {
+          "name": "test_single_page_no_pagination",
+          "startLine": 65,
+          "endLine": 89,
+          "params": []
+        },
+        {
+          "name": "test_three_page_chapter_follows_selector",
+          "startLine": 92,
+          "endLine": 146,
+          "params": []
+        },
+        {
+          "name": "test_url_pattern_fallback_substitutes_group",
+          "startLine": 149,
+          "endLine": 195,
+          "params": []
+        },
+        {
+          "name": "test_url_pattern_returns_none_when_no_match",
+          "startLine": 198,
+          "endLine": 226,
+          "params": []
+        },
+        {
+          "name": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "startLine": 229,
+          "endLine": 262,
+          "params": []
+        },
+        {
+          "name": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "startLine": 265,
+          "endLine": 299,
+          "params": []
+        },
+        {
+          "name": "test_duplicate_content_stops_pagination",
+          "startLine": 302,
+          "endLine": 352,
+          "params": []
+        },
+        {
+          "name": "test_max_pages_caps_pagination",
+          "startLine": 355,
+          "endLine": 403,
+          "params": []
+        },
+        {
+          "name": "test_repeated_title_is_stripped_from_subpage",
+          "startLine": 406,
+          "endLine": 459,
+          "params": []
+        },
+        {
+          "name": "test_http_crawler_follows_three_pages",
+          "startLine": 465,
+          "endLine": 495,
+          "params": [
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_http_crawler_single_page_when_no_pagination_config",
+          "startLine": 498,
+          "endLine": 509,
+          "params": [
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_http_crawler_pagination_with_url_pattern",
+          "startLine": 512,
+          "endLine": 538,
+          "params": [
+            "monkeypatch"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "_FakeResp",
+          "startLine": 42,
+          "endLine": 44,
+          "methods": [
+            "__init__"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "_soup",
+          "line": 17,
+          "isDefault": false
+        },
+        {
+          "name": "_page",
+          "line": 21,
+          "isDefault": false
+        },
+        {
+          "name": "_make_http_crawler",
+          "line": 38,
+          "isDefault": false
+        },
+        {
+          "name": "_FakeResp",
+          "line": 42,
+          "isDefault": false
+        },
+        {
+          "name": "_patch_http_session",
+          "line": 47,
+          "isDefault": false
+        },
+        {
+          "name": "test_single_page_no_pagination",
+          "line": 65,
+          "isDefault": false
+        },
+        {
+          "name": "test_three_page_chapter_follows_selector",
+          "line": 92,
+          "isDefault": false
+        },
+        {
+          "name": "test_url_pattern_fallback_substitutes_group",
+          "line": 149,
+          "isDefault": false
+        },
+        {
+          "name": "test_url_pattern_returns_none_when_no_match",
+          "line": 198,
+          "isDefault": false
+        },
+        {
+          "name": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "line": 229,
+          "isDefault": false
+        },
+        {
+          "name": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "line": 265,
+          "isDefault": false
+        },
+        {
+          "name": "test_duplicate_content_stops_pagination",
+          "line": 302,
+          "isDefault": false
+        },
+        {
+          "name": "test_max_pages_caps_pagination",
+          "line": 355,
+          "isDefault": false
+        },
+        {
+          "name": "test_repeated_title_is_stripped_from_subpage",
+          "line": 406,
+          "isDefault": false
+        },
+        {
+          "name": "test_http_crawler_follows_three_pages",
+          "line": 465,
+          "isDefault": false
+        },
+        {
+          "name": "test_http_crawler_single_page_when_no_pagination_config",
+          "line": 498,
+          "isDefault": false
+        },
+        {
+          "name": "test_http_crawler_pagination_with_url_pattern",
+          "line": 512,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_soup",
+          "callee": "BeautifulSoup",
+          "lineNumber": 18
+        },
+        {
+          "caller": "_make_http_crawler",
+          "callee": "HttpCrawler",
+          "lineNumber": 39
+        },
+        {
+          "caller": "_make_http_crawler",
+          "callee": "CrawlConfig",
+          "lineNumber": 39
+        },
+        {
+          "caller": "_patch_http_session",
+          "callee": "_soup",
+          "lineNumber": 50
+        },
+        {
+          "caller": "_patch_http_session",
+          "callee": "responses.items",
+          "lineNumber": 50
+        },
+        {
+          "caller": "fake_get_soup",
+          "callee": "RuntimeError",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_patch_http_session",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 59
+        },
+        {
+          "caller": "test_single_page_no_pagination",
+          "callee": "CrawlConfig",
+          "lineNumber": 67
+        },
+        {
+          "caller": "test_single_page_no_pagination",
+          "callee": "Chapter",
+          "lineNumber": 68
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "calls.append",
+          "lineNumber": 72
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "_soup",
+          "lineNumber": 73
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "_page",
+          "lineNumber": 73
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one(\"#content\").get_text",
+          "lineNumber": 76
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one",
+          "lineNumber": 76
+        },
+        {
+          "caller": "test_single_page_no_pagination",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 81
+        },
+        {
+          "caller": "test_three_page_chapter_follows_selector",
+          "callee": "CrawlConfig",
+          "lineNumber": 94
+        },
+        {
+          "caller": "test_three_page_chapter_follows_selector",
+          "callee": "Chapter",
+          "lineNumber": 98
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "visited.append",
+          "lineNumber": 121
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "_soup",
+          "lineNumber": 122
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one(\"#content p\").get_text",
+          "lineNumber": 125
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one",
+          "lineNumber": 125
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "page.select_one",
+          "lineNumber": 128
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "node.get(\"href\", \"\").strip",
+          "lineNumber": 131
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "node.get",
+          "lineNumber": 131
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "urljoin",
+          "lineNumber": 133
+        },
+        {
+          "caller": "test_three_page_chapter_follows_selector",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 135
+        },
+        {
+          "caller": "test_url_pattern_fallback_substitutes_group",
+          "callee": "CrawlConfig",
+          "lineNumber": 157
+        },
+        {
+          "caller": "test_url_pattern_fallback_substitutes_group",
+          "callee": "Chapter",
+          "lineNumber": 161
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "visited.append",
+          "lineNumber": 170
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "RuntimeError",
+          "lineNumber": 172
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "_soup",
+          "lineNumber": 173
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one(\"#content\").get_text",
+          "lineNumber": 176
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one",
+          "lineNumber": 176
+        },
+        {
+          "caller": "test_url_pattern_fallback_substitutes_group",
+          "callee": "_next_page_url_from_pattern",
+          "lineNumber": 178
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "pattern_resolver",
+          "lineNumber": 182
+        },
+        {
+          "caller": "test_url_pattern_fallback_substitutes_group",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 184
+        },
+        {
+          "caller": "test_url_pattern_fallback_substitutes_group",
+          "callee": "len",
+          "lineNumber": 195
+        },
+        {
+          "caller": "test_url_pattern_returns_none_when_no_match",
+          "callee": "CrawlConfig",
+          "lineNumber": 200
+        },
+        {
+          "caller": "test_url_pattern_returns_none_when_no_match",
+          "callee": "Chapter",
+          "lineNumber": 204
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "fetch_calls.append",
+          "lineNumber": 208
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "_soup",
+          "lineNumber": 209
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one(\"#content\").get_text",
+          "lineNumber": 212
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one",
+          "lineNumber": 212
+        },
+        {
+          "caller": "test_url_pattern_returns_none_when_no_match",
+          "callee": "_next_page_url_from_pattern",
+          "lineNumber": 214
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "pattern_resolver",
+          "lineNumber": 217
+        },
+        {
+          "caller": "test_url_pattern_returns_none_when_no_match",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 219
+        },
+        {
+          "caller": "test_url_pattern_returns_none_when_no_match",
+          "callee": "len",
+          "lineNumber": 226
+        },
+        {
+          "caller": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "callee": "CrawlConfig",
+          "lineNumber": 231
+        },
+        {
+          "caller": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "callee": "Chapter",
+          "lineNumber": 235
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "visited.append",
+          "lineNumber": 243
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "_soup",
+          "lineNumber": 244
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one(\"#content\").get_text",
+          "lineNumber": 247
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one",
+          "lineNumber": 247
+        },
+        {
+          "caller": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "callee": "_next_page_url_from_pattern",
+          "lineNumber": 249
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "pattern_resolver",
+          "lineNumber": 252
+        },
+        {
+          "caller": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 254
+        },
+        {
+          "caller": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "callee": "len",
+          "lineNumber": 262
+        },
+        {
+          "caller": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "callee": "CrawlConfig",
+          "lineNumber": 267
+        },
+        {
+          "caller": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "callee": "Chapter",
+          "lineNumber": 271
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "visited.append",
+          "lineNumber": 279
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "_soup",
+          "lineNumber": 280
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one(\"#content\").get_text",
+          "lineNumber": 283
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one",
+          "lineNumber": 283
+        },
+        {
+          "caller": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "callee": "_next_page_url_from_pattern",
+          "lineNumber": 285
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "pattern_resolver",
+          "lineNumber": 288
+        },
+        {
+          "caller": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 290
+        },
+        {
+          "caller": "test_url_pattern_stops_when_pattern_no_longer_matches",
+          "callee": "len",
+          "lineNumber": 299
+        },
+        {
+          "caller": "test_duplicate_content_stops_pagination",
+          "callee": "CrawlConfig",
+          "lineNumber": 304
+        },
+        {
+          "caller": "test_duplicate_content_stops_pagination",
+          "callee": "Chapter",
+          "lineNumber": 308
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "visited.append",
+          "lineNumber": 331
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "_soup",
+          "lineNumber": 332
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one(\"#content p\").get_text",
+          "lineNumber": 335
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one",
+          "lineNumber": 335
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "page.select_one",
+          "lineNumber": 338
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "urljoin",
+          "lineNumber": 342
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "node.get(\"href\", \"\").strip",
+          "lineNumber": 342
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "node.get",
+          "lineNumber": 342
+        },
+        {
+          "caller": "test_duplicate_content_stops_pagination",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 344
+        },
+        {
+          "caller": "test_duplicate_content_stops_pagination",
+          "callee": "len",
+          "lineNumber": 351
+        },
+        {
+          "caller": "test_max_pages_caps_pagination",
+          "callee": "CrawlConfig",
+          "lineNumber": 357
+        },
+        {
+          "caller": "test_max_pages_caps_pagination",
+          "callee": "Chapter",
+          "lineNumber": 362
+        },
+        {
+          "caller": "test_max_pages_caps_pagination",
+          "callee": "range",
+          "lineNumber": 370
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "visited.append",
+          "lineNumber": 380
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "_soup",
+          "lineNumber": 381
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one(\"#content p\").get_text",
+          "lineNumber": 384
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select_one",
+          "lineNumber": 384
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "page.select_one",
+          "lineNumber": 387
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "urljoin",
+          "lineNumber": 391
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "node.get(\"href\", \"\").strip",
+          "lineNumber": 391
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "node.get",
+          "lineNumber": 391
+        },
+        {
+          "caller": "test_max_pages_caps_pagination",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 393
+        },
+        {
+          "caller": "test_max_pages_caps_pagination",
+          "callee": "len",
+          "lineNumber": 399
+        },
+        {
+          "caller": "test_repeated_title_is_stripped_from_subpage",
+          "callee": "CrawlConfig",
+          "lineNumber": 408
+        },
+        {
+          "caller": "test_repeated_title_is_stripped_from_subpage",
+          "callee": "Chapter",
+          "lineNumber": 412
+        },
+        {
+          "caller": "fetch_page",
+          "callee": "_soup",
+          "lineNumber": 436
+        },
+        {
+          "caller": "extract_text",
+          "callee": "page.select",
+          "lineNumber": 439
+        },
+        {
+          "caller": "extract_text",
+          "callee": "\"\\n\".join",
+          "lineNumber": 440
+        },
+        {
+          "caller": "extract_text",
+          "callee": "p.get_text",
+          "lineNumber": 440
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "page.select_one",
+          "lineNumber": 443
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "urljoin",
+          "lineNumber": 447
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "node.get(\"href\", \"\").strip",
+          "lineNumber": 447
+        },
+        {
+          "caller": "next_page_url",
+          "callee": "node.get",
+          "lineNumber": 447
+        },
+        {
+          "caller": "test_repeated_title_is_stripped_from_subpage",
+          "callee": "fetch_chapter_paginated",
+          "lineNumber": 449
+        },
+        {
+          "caller": "test_repeated_title_is_stripped_from_subpage",
+          "callee": "text.count",
+          "lineNumber": 456
+        },
+        {
+          "caller": "test_http_crawler_follows_three_pages",
+          "callee": "_make_http_crawler",
+          "lineNumber": 467
+        },
+        {
+          "caller": "test_http_crawler_follows_three_pages",
+          "callee": "_patch_http_session",
+          "lineNumber": 490
+        },
+        {
+          "caller": "test_http_crawler_follows_three_pages",
+          "callee": "Chapter",
+          "lineNumber": 491
+        },
+        {
+          "caller": "test_http_crawler_follows_three_pages",
+          "callee": "crawler.fetch_chapter",
+          "lineNumber": 492
+        },
+        {
+          "caller": "test_http_crawler_single_page_when_no_pagination_config",
+          "callee": "_make_http_crawler",
+          "lineNumber": 500
+        },
+        {
+          "caller": "test_http_crawler_single_page_when_no_pagination_config",
+          "callee": "_patch_http_session",
+          "lineNumber": 506
+        },
+        {
+          "caller": "test_http_crawler_single_page_when_no_pagination_config",
+          "callee": "Chapter",
+          "lineNumber": 507
+        },
+        {
+          "caller": "test_http_crawler_single_page_when_no_pagination_config",
+          "callee": "crawler.fetch_chapter",
+          "lineNumber": 508
+        },
+        {
+          "caller": "test_http_crawler_pagination_with_url_pattern",
+          "callee": "_make_http_crawler",
+          "lineNumber": 518
+        },
+        {
+          "caller": "test_http_crawler_pagination_with_url_pattern",
+          "callee": "_patch_http_session",
+          "lineNumber": 533
+        },
+        {
+          "caller": "test_http_crawler_pagination_with_url_pattern",
+          "callee": "Chapter",
+          "lineNumber": 534
+        },
+        {
+          "caller": "test_http_crawler_pagination_with_url_pattern",
+          "callee": "crawler.fetch_chapter",
+          "lineNumber": 535
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 17,
+        "functionCount": 16,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "tests/test_config.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 141,
+      "nonEmptyLines": 113,
+      "functions": [
+        {
+          "name": "_write_config",
+          "startLine": 9,
+          "endLine": 20,
+          "params": [
+            "tmp_path",
+            "extra"
+          ]
+        },
+        {
+          "name": "test_glossary_files_default_to_data_dir_glossary_folder",
+          "startLine": 23,
+          "endLine": 29,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_glossary_files_explicit_path_is_respected",
+          "startLine": 32,
+          "endLine": 42,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_no_preset_backward_compat",
+          "startLine": 45,
+          "endLine": 50,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_go_preset_resolution",
+          "startLine": 53,
+          "endLine": 64,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_go_preset_override",
+          "startLine": 67,
+          "endLine": 84,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_unknown_preset_raises",
+          "startLine": 87,
+          "endLine": 93,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_crawl_config_pagination_defaults",
+          "startLine": 96,
+          "endLine": 101,
+          "params": []
+        },
+        {
+          "name": "test_crawl_config_pagination_fields_round_trip",
+          "startLine": 104,
+          "endLine": 120,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_crawl_config_rejects_pattern_with_zero_capturing_groups",
+          "startLine": 123,
+          "endLine": 125,
+          "params": []
+        },
+        {
+          "name": "test_crawl_config_rejects_pattern_with_two_capturing_groups",
+          "startLine": 128,
+          "endLine": 133,
+          "params": []
+        },
+        {
+          "name": "test_crawl_config_rejects_invalid_regex",
+          "startLine": 136,
+          "endLine": 141,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "_write_config",
+          "line": 9,
+          "isDefault": false
+        },
+        {
+          "name": "test_glossary_files_default_to_data_dir_glossary_folder",
+          "line": 23,
+          "isDefault": false
+        },
+        {
+          "name": "test_glossary_files_explicit_path_is_respected",
+          "line": 32,
+          "isDefault": false
+        },
+        {
+          "name": "test_no_preset_backward_compat",
+          "line": 45,
+          "isDefault": false
+        },
+        {
+          "name": "test_go_preset_resolution",
+          "line": 53,
+          "isDefault": false
+        },
+        {
+          "name": "test_go_preset_override",
+          "line": 67,
+          "isDefault": false
+        },
+        {
+          "name": "test_unknown_preset_raises",
+          "line": 87,
+          "isDefault": false
+        },
+        {
+          "name": "test_crawl_config_pagination_defaults",
+          "line": 96,
+          "isDefault": false
+        },
+        {
+          "name": "test_crawl_config_pagination_fields_round_trip",
+          "line": 104,
+          "isDefault": false
+        },
+        {
+          "name": "test_crawl_config_rejects_pattern_with_zero_capturing_groups",
+          "line": 123,
+          "isDefault": false
+        },
+        {
+          "name": "test_crawl_config_rejects_pattern_with_two_capturing_groups",
+          "line": 128,
+          "isDefault": false
+        },
+        {
+          "name": "test_crawl_config_rejects_invalid_regex",
+          "line": 136,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_write_config",
+          "callee": "data.update",
+          "lineNumber": 17
+        },
+        {
+          "caller": "_write_config",
+          "callee": "path.write_text",
+          "lineNumber": 19
+        },
+        {
+          "caller": "_write_config",
+          "callee": "yaml.safe_dump",
+          "lineNumber": 19
+        },
+        {
+          "caller": "test_glossary_files_default_to_data_dir_glossary_folder",
+          "callee": "_write_config",
+          "lineNumber": 24
+        },
+        {
+          "caller": "test_glossary_files_default_to_data_dir_glossary_folder",
+          "callee": "load_config",
+          "lineNumber": 25
+        },
+        {
+          "caller": "test_glossary_files_default_to_data_dir_glossary_folder",
+          "callee": "(tmp_path / \"data\" / \"my-novel\" / \"glossary\").resolve",
+          "lineNumber": 27
+        },
+        {
+          "caller": "test_glossary_files_default_to_data_dir_glossary_folder",
+          "callee": "Path",
+          "lineNumber": 28
+        },
+        {
+          "caller": "test_glossary_files_default_to_data_dir_glossary_folder",
+          "callee": "Path",
+          "lineNumber": 29
+        },
+        {
+          "caller": "test_glossary_files_explicit_path_is_respected",
+          "callee": "_write_config",
+          "lineNumber": 33
+        },
+        {
+          "caller": "test_glossary_files_explicit_path_is_respected",
+          "callee": "load_config",
+          "lineNumber": 37
+        },
+        {
+          "caller": "test_glossary_files_explicit_path_is_respected",
+          "callee": "Path",
+          "lineNumber": 39
+        },
+        {
+          "caller": "test_glossary_files_explicit_path_is_respected",
+          "callee": "(tmp_path / \"custom\" / \"names.txt\").resolve",
+          "lineNumber": 39
+        },
+        {
+          "caller": "test_glossary_files_explicit_path_is_respected",
+          "callee": "(tmp_path / \"data\" / \"my-novel\" / \"glossary\" / \"vietphrase.txt\").resolve",
+          "lineNumber": 41
+        },
+        {
+          "caller": "test_glossary_files_explicit_path_is_respected",
+          "callee": "Path",
+          "lineNumber": 42
+        },
+        {
+          "caller": "test_no_preset_backward_compat",
+          "callee": "_write_config",
+          "lineNumber": 46
+        },
+        {
+          "caller": "test_no_preset_backward_compat",
+          "callee": "load_config",
+          "lineNumber": 47
+        },
+        {
+          "caller": "test_go_preset_resolution",
+          "callee": "_write_config",
+          "lineNumber": 54
+        },
+        {
+          "caller": "test_go_preset_resolution",
+          "callee": "load_config",
+          "lineNumber": 58
+        },
+        {
+          "caller": "test_go_preset_override",
+          "callee": "_write_config",
+          "lineNumber": 68
+        },
+        {
+          "caller": "test_go_preset_override",
+          "callee": "load_config",
+          "lineNumber": 80
+        },
+        {
+          "caller": "test_unknown_preset_raises",
+          "callee": "_write_config",
+          "lineNumber": 88
+        },
+        {
+          "caller": "test_unknown_preset_raises",
+          "callee": "pytest.raises",
+          "lineNumber": 92
+        },
+        {
+          "caller": "test_unknown_preset_raises",
+          "callee": "load_config",
+          "lineNumber": 93
+        },
+        {
+          "caller": "test_crawl_config_pagination_defaults",
+          "callee": "CrawlConfig",
+          "lineNumber": 98
+        },
+        {
+          "caller": "test_crawl_config_pagination_fields_round_trip",
+          "callee": "_write_config",
+          "lineNumber": 106
+        },
+        {
+          "caller": "test_crawl_config_pagination_fields_round_trip",
+          "callee": "load_config",
+          "lineNumber": 117
+        },
+        {
+          "caller": "test_crawl_config_rejects_pattern_with_zero_capturing_groups",
+          "callee": "pytest.raises",
+          "lineNumber": 124
+        },
+        {
+          "caller": "test_crawl_config_rejects_pattern_with_zero_capturing_groups",
+          "callee": "CrawlConfig",
+          "lineNumber": 125
+        },
+        {
+          "caller": "test_crawl_config_rejects_pattern_with_two_capturing_groups",
+          "callee": "pytest.raises",
+          "lineNumber": 129
+        },
+        {
+          "caller": "test_crawl_config_rejects_pattern_with_two_capturing_groups",
+          "callee": "CrawlConfig",
+          "lineNumber": 130
+        },
+        {
+          "caller": "test_crawl_config_rejects_invalid_regex",
+          "callee": "pytest.raises",
+          "lineNumber": 137
+        },
+        {
+          "caller": "test_crawl_config_rejects_invalid_regex",
+          "callee": "CrawlConfig",
+          "lineNumber": 138
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 12,
+        "functionCount": 12,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_config_writer.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 73,
+      "nonEmptyLines": 62,
+      "functions": [
+        {
+          "name": "test_update_preserves_comments_and_only_changes_target",
+          "startLine": 12,
+          "endLine": 35,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_scaffold_creates_config_from_example",
+          "startLine": 38,
+          "endLine": 54,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_save_library_round_trip",
+          "startLine": 57,
+          "endLine": 63,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_sources_round_trip",
+          "startLine": 66,
+          "endLine": 73,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "test_update_preserves_comments_and_only_changes_target",
+          "line": 12,
+          "isDefault": false
+        },
+        {
+          "name": "test_scaffold_creates_config_from_example",
+          "line": 38,
+          "isDefault": false
+        },
+        {
+          "name": "test_save_library_round_trip",
+          "line": 57,
+          "isDefault": false
+        },
+        {
+          "name": "test_sources_round_trip",
+          "line": 66,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "test_update_preserves_comments_and_only_changes_target",
+          "callee": "path.write_text",
+          "lineNumber": 14
+        },
+        {
+          "caller": "test_update_preserves_comments_and_only_changes_target",
+          "callee": "update_config_file",
+          "lineNumber": 25
+        },
+        {
+          "caller": "test_update_preserves_comments_and_only_changes_target",
+          "callee": "path.read_text",
+          "lineNumber": 27
+        },
+        {
+          "caller": "test_update_preserves_comments_and_only_changes_target",
+          "callee": "load_config",
+          "lineNumber": 32
+        },
+        {
+          "caller": "test_scaffold_creates_config_from_example",
+          "callee": "SourcePreset",
+          "lineNumber": 40
+        },
+        {
+          "caller": "test_scaffold_creates_config_from_example",
+          "callee": "scaffold_config_file",
+          "lineNumber": 41
+        },
+        {
+          "caller": "test_scaffold_creates_config_from_example",
+          "callee": "preset.crawl_overrides",
+          "lineNumber": 47
+        },
+        {
+          "caller": "test_scaffold_creates_config_from_example",
+          "callee": "dest.exists",
+          "lineNumber": 49
+        },
+        {
+          "caller": "test_scaffold_creates_config_from_example",
+          "callee": "load_config",
+          "lineNumber": 50
+        },
+        {
+          "caller": "test_save_library_round_trip",
+          "callee": "LibraryConfig",
+          "lineNumber": 59
+        },
+        {
+          "caller": "test_save_library_round_trip",
+          "callee": "LibraryEntry",
+          "lineNumber": 59
+        },
+        {
+          "caller": "test_save_library_round_trip",
+          "callee": "save_library",
+          "lineNumber": 60
+        },
+        {
+          "caller": "test_save_library_round_trip",
+          "callee": "load_library",
+          "lineNumber": 61
+        },
+        {
+          "caller": "test_sources_round_trip",
+          "callee": "SourcePreset",
+          "lineNumber": 68
+        },
+        {
+          "caller": "test_sources_round_trip",
+          "callee": "save_presets",
+          "lineNumber": 69
+        },
+        {
+          "caller": "test_sources_round_trip",
+          "callee": "load_presets",
+          "lineNumber": 70
+        },
+        {
+          "caller": "test_sources_round_trip",
+          "callee": "loaded[\"biquge\"].crawl_overrides",
+          "lineNumber": 73
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 4,
+        "functionCount": 4,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_crawler_meta.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 150,
+      "nonEmptyLines": 118,
+      "functions": [
+        {
+          "name": "_crawler",
+          "startLine": 7,
+          "endLine": 8,
+          "params": [
+            "**kw"
+          ]
+        },
+        {
+          "name": "test_extract_meta_from_og_tags",
+          "startLine": 11,
+          "endLine": 26,
+          "params": []
+        },
+        {
+          "name": "test_extract_meta_selector_overrides_and_title_fallback",
+          "startLine": 29,
+          "endLine": 48,
+          "params": []
+        },
+        {
+          "name": "test_extract_meta_falls_back_to_html_title",
+          "startLine": 51,
+          "endLine": 55,
+          "params": []
+        },
+        {
+          "name": "test_meta_get_picks_first_nonempty_and_handles_list",
+          "startLine": 58,
+          "endLine": 61,
+          "params": []
+        },
+        {
+          "name": "_make_fake_response",
+          "startLine": 64,
+          "endLine": 73,
+          "params": [
+            "html_text"
+          ]
+        },
+        {
+          "name": "test_ai_fallback_triggers_when_content_empty",
+          "startLine": 76,
+          "endLine": 103,
+          "params": [
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_ai_fallback_skipped_when_cli_not_configured",
+          "startLine": 106,
+          "endLine": 121,
+          "params": [
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_ai_fallback_skipped_when_primary_succeeds",
+          "startLine": 124,
+          "endLine": 150,
+          "params": [
+            "monkeypatch"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_crawler",
+          "line": 7,
+          "isDefault": false
+        },
+        {
+          "name": "test_extract_meta_from_og_tags",
+          "line": 11,
+          "isDefault": false
+        },
+        {
+          "name": "test_extract_meta_selector_overrides_and_title_fallback",
+          "line": 29,
+          "isDefault": false
+        },
+        {
+          "name": "test_extract_meta_falls_back_to_html_title",
+          "line": 51,
+          "isDefault": false
+        },
+        {
+          "name": "test_meta_get_picks_first_nonempty_and_handles_list",
+          "line": 58,
+          "isDefault": false
+        },
+        {
+          "name": "_make_fake_response",
+          "line": 64,
+          "isDefault": false
+        },
+        {
+          "name": "test_ai_fallback_triggers_when_content_empty",
+          "line": 76,
+          "isDefault": false
+        },
+        {
+          "name": "test_ai_fallback_skipped_when_cli_not_configured",
+          "line": 106,
+          "isDefault": false
+        },
+        {
+          "name": "test_ai_fallback_skipped_when_primary_succeeds",
+          "line": 124,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_crawler",
+          "callee": "HttpCrawler",
+          "lineNumber": 8
+        },
+        {
+          "caller": "_crawler",
+          "callee": "CrawlConfig",
+          "lineNumber": 8
+        },
+        {
+          "caller": "test_extract_meta_from_og_tags",
+          "callee": "_crawler()._extract_meta",
+          "lineNumber": 21
+        },
+        {
+          "caller": "test_extract_meta_from_og_tags",
+          "callee": "_crawler",
+          "lineNumber": 21
+        },
+        {
+          "caller": "test_extract_meta_from_og_tags",
+          "callee": "BeautifulSoup",
+          "lineNumber": 21
+        },
+        {
+          "caller": "test_extract_meta_selector_overrides_and_title_fallback",
+          "callee": "_crawler",
+          "lineNumber": 38
+        },
+        {
+          "caller": "test_extract_meta_selector_overrides_and_title_fallback",
+          "callee": "c._extract_meta",
+          "lineNumber": 44
+        },
+        {
+          "caller": "test_extract_meta_selector_overrides_and_title_fallback",
+          "callee": "BeautifulSoup",
+          "lineNumber": 44
+        },
+        {
+          "caller": "test_extract_meta_falls_back_to_html_title",
+          "callee": "_crawler()._extract_meta",
+          "lineNumber": 53
+        },
+        {
+          "caller": "test_extract_meta_falls_back_to_html_title",
+          "callee": "_crawler",
+          "lineNumber": 53
+        },
+        {
+          "caller": "test_extract_meta_falls_back_to_html_title",
+          "callee": "BeautifulSoup",
+          "lineNumber": 53
+        },
+        {
+          "caller": "test_meta_get_picks_first_nonempty_and_handles_list",
+          "callee": "_meta_get",
+          "lineNumber": 59
+        },
+        {
+          "caller": "test_meta_get_picks_first_nonempty_and_handles_list",
+          "callee": "_meta_get",
+          "lineNumber": 60
+        },
+        {
+          "caller": "test_meta_get_picks_first_nonempty_and_handles_list",
+          "callee": "_meta_get",
+          "lineNumber": 61
+        },
+        {
+          "caller": "_make_fake_response",
+          "callee": "FakeResponse",
+          "lineNumber": 73
+        },
+        {
+          "caller": "test_ai_fallback_triggers_when_content_empty",
+          "callee": "CrawlConfig",
+          "lineNumber": 82
+        },
+        {
+          "caller": "test_ai_fallback_triggers_when_content_empty",
+          "callee": "CliTranslatorConfig",
+          "lineNumber": 87
+        },
+        {
+          "caller": "test_ai_fallback_triggers_when_content_empty",
+          "callee": "HttpCrawler",
+          "lineNumber": 89
+        },
+        {
+          "caller": "test_ai_fallback_triggers_when_content_empty",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 91
+        },
+        {
+          "caller": "test_ai_fallback_triggers_when_content_empty",
+          "callee": "_make_fake_response",
+          "lineNumber": 91
+        },
+        {
+          "caller": "_mock_run",
+          "callee": "calls.append",
+          "lineNumber": 96
+        },
+        {
+          "caller": "test_ai_fallback_triggers_when_content_empty",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 99
+        },
+        {
+          "caller": "test_ai_fallback_triggers_when_content_empty",
+          "callee": "Chapter",
+          "lineNumber": 100
+        },
+        {
+          "caller": "test_ai_fallback_triggers_when_content_empty",
+          "callee": "c.fetch_chapter",
+          "lineNumber": 101
+        },
+        {
+          "caller": "test_ai_fallback_triggers_when_content_empty",
+          "callee": "len",
+          "lineNumber": 103
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_cli_not_configured",
+          "callee": "CrawlConfig",
+          "lineNumber": 110
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_cli_not_configured",
+          "callee": "HttpCrawler",
+          "lineNumber": 116
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_cli_not_configured",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 117
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_cli_not_configured",
+          "callee": "_make_fake_response",
+          "lineNumber": 117
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_cli_not_configured",
+          "callee": "Chapter",
+          "lineNumber": 119
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_cli_not_configured",
+          "callee": "c.fetch_chapter",
+          "lineNumber": 120
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_primary_succeeds",
+          "callee": "CrawlConfig",
+          "lineNumber": 130
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_primary_succeeds",
+          "callee": "CliTranslatorConfig",
+          "lineNumber": 135
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_primary_succeeds",
+          "callee": "HttpCrawler",
+          "lineNumber": 137
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_primary_succeeds",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 138
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_primary_succeeds",
+          "callee": "_make_fake_response",
+          "lineNumber": 138
+        },
+        {
+          "caller": "_mock_run",
+          "callee": "calls.append",
+          "lineNumber": 143
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_primary_succeeds",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 146
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_primary_succeeds",
+          "callee": "Chapter",
+          "lineNumber": 147
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_primary_succeeds",
+          "callee": "c.fetch_chapter",
+          "lineNumber": 148
+        },
+        {
+          "caller": "test_ai_fallback_skipped_when_primary_succeeds",
+          "callee": "len",
+          "lineNumber": 150
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 9,
+        "functionCount": 9,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_pipeline_meta.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 246,
+      "nonEmptyLines": 183,
+      "functions": [
+        {
+          "name": "_cfg",
+          "startLine": 13,
+          "endLine": 19,
+          "params": [
+            "tmp_path",
+            "translate_type"
+          ]
+        },
+        {
+          "name": "test_step_fetch_toc_saves_metadata_no_content",
+          "startLine": 49,
+          "endLine": 68,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_step_translate_meta_fills_vi",
+          "startLine": 71,
+          "endLine": 84,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_step_translate_meta_noop_skips",
+          "startLine": 87,
+          "endLine": 97,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_translate_meta_inplace_respects_force",
+          "startLine": 100,
+          "endLine": 113,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "startLine": 130,
+          "endLine": 150,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_translate_selected_fails_fast_on_first_chapter",
+          "startLine": 153,
+          "endLine": 171,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_step_find_replace_replaces_and_backs_up",
+          "startLine": 174,
+          "endLine": 192,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_step_find_replace_empty_find_is_noop",
+          "startLine": 195,
+          "endLine": 205,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_step_build_inserts_glossary_footnotes",
+          "startLine": 208,
+          "endLine": 223,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_build_epub_uses_vi_meta_and_cover",
+          "startLine": 226,
+          "endLine": 246,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "_FakeCrawler",
+          "startLine": 22,
+          "endLine": 36,
+          "methods": [
+            "__init__",
+            "fetch_toc",
+            "fetch_chapter",
+            "sleep",
+            "close"
+          ],
+          "properties": []
+        },
+        {
+          "name": "_UpperTranslator",
+          "startLine": 39,
+          "endLine": 46,
+          "methods": [
+            "translate",
+            "translate_title"
+          ],
+          "properties": []
+        },
+        {
+          "name": "_FlakyTranslator",
+          "startLine": 116,
+          "endLine": 127,
+          "methods": [
+            "__init__",
+            "translate"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "_cfg",
+          "line": 13,
+          "isDefault": false
+        },
+        {
+          "name": "_FakeCrawler",
+          "line": 22,
+          "isDefault": false
+        },
+        {
+          "name": "_UpperTranslator",
+          "line": 39,
+          "isDefault": false
+        },
+        {
+          "name": "test_step_fetch_toc_saves_metadata_no_content",
+          "line": 49,
+          "isDefault": false
+        },
+        {
+          "name": "test_step_translate_meta_fills_vi",
+          "line": 71,
+          "isDefault": false
+        },
+        {
+          "name": "test_step_translate_meta_noop_skips",
+          "line": 87,
+          "isDefault": false
+        },
+        {
+          "name": "test_translate_meta_inplace_respects_force",
+          "line": 100,
+          "isDefault": false
+        },
+        {
+          "name": "_FlakyTranslator",
+          "line": 116,
+          "isDefault": false
+        },
+        {
+          "name": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "line": 130,
+          "isDefault": false
+        },
+        {
+          "name": "test_translate_selected_fails_fast_on_first_chapter",
+          "line": 153,
+          "isDefault": false
+        },
+        {
+          "name": "test_step_find_replace_replaces_and_backs_up",
+          "line": 174,
+          "isDefault": false
+        },
+        {
+          "name": "test_step_find_replace_empty_find_is_noop",
+          "line": 195,
+          "isDefault": false
+        },
+        {
+          "name": "test_step_build_inserts_glossary_footnotes",
+          "line": 208,
+          "isDefault": false
+        },
+        {
+          "name": "test_build_epub_uses_vi_meta_and_cover",
+          "line": 226,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_cfg",
+          "callee": "Config",
+          "lineNumber": 14
+        },
+        {
+          "caller": "_cfg",
+          "callee": "NovelConfig",
+          "lineNumber": 15
+        },
+        {
+          "caller": "_cfg",
+          "callee": "CrawlConfig",
+          "lineNumber": 16
+        },
+        {
+          "caller": "_cfg",
+          "callee": "TranslateConfig",
+          "lineNumber": 17
+        },
+        {
+          "caller": "_cfg",
+          "callee": "OutputConfig",
+          "lineNumber": 18
+        },
+        {
+          "caller": "_cfg",
+          "callee": "str",
+          "lineNumber": 18
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "TocResult",
+          "lineNumber": 50
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "Chapter",
+          "lineNumber": 55
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "Chapter",
+          "lineNumber": 55
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 57
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "_FakeCrawler",
+          "lineNumber": 57
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "_cfg",
+          "lineNumber": 59
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "pipeline.step_fetch_toc",
+          "lineNumber": 60
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "Storage",
+          "lineNumber": 62
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "storage.load_manifest",
+          "lineNumber": 63
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "len",
+          "lineNumber": 66
+        },
+        {
+          "caller": "test_step_fetch_toc_saves_metadata_no_content",
+          "callee": "storage.has_raw",
+          "lineNumber": 68
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "TocResult",
+          "lineNumber": 72
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "Chapter",
+          "lineNumber": 72
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 73
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "_FakeCrawler",
+          "lineNumber": 73
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 74
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "_UpperTranslator",
+          "lineNumber": 74
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "_cfg",
+          "lineNumber": 76
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "pipeline.step_fetch_toc",
+          "lineNumber": 77
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "pipeline.step_translate_meta",
+          "lineNumber": 78
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "Storage(tmp_path, \"t\").load_manifest",
+          "lineNumber": 80
+        },
+        {
+          "caller": "test_step_translate_meta_fills_vi",
+          "callee": "Storage",
+          "lineNumber": 80
+        },
+        {
+          "caller": "test_step_translate_meta_noop_skips",
+          "callee": "TocResult",
+          "lineNumber": 88
+        },
+        {
+          "caller": "test_step_translate_meta_noop_skips",
+          "callee": "Chapter",
+          "lineNumber": 88
+        },
+        {
+          "caller": "test_step_translate_meta_noop_skips",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 89
+        },
+        {
+          "caller": "test_step_translate_meta_noop_skips",
+          "callee": "_FakeCrawler",
+          "lineNumber": 89
+        },
+        {
+          "caller": "test_step_translate_meta_noop_skips",
+          "callee": "_cfg",
+          "lineNumber": 91
+        },
+        {
+          "caller": "test_step_translate_meta_noop_skips",
+          "callee": "pipeline.step_fetch_toc",
+          "lineNumber": 92
+        },
+        {
+          "caller": "test_step_translate_meta_noop_skips",
+          "callee": "pipeline.step_translate_meta",
+          "lineNumber": 93
+        },
+        {
+          "caller": "test_step_translate_meta_noop_skips",
+          "callee": "Storage(tmp_path, \"t\").load_manifest",
+          "lineNumber": 95
+        },
+        {
+          "caller": "test_step_translate_meta_noop_skips",
+          "callee": "Storage",
+          "lineNumber": 95
+        },
+        {
+          "caller": "test_translate_meta_inplace_respects_force",
+          "callee": "Manifest",
+          "lineNumber": 103
+        },
+        {
+          "caller": "test_translate_meta_inplace_respects_force",
+          "callee": "_UpperTranslator",
+          "lineNumber": 104
+        },
+        {
+          "caller": "test_translate_meta_inplace_respects_force",
+          "callee": "pipeline._translate_meta_inplace",
+          "lineNumber": 107
+        },
+        {
+          "caller": "test_translate_meta_inplace_respects_force",
+          "callee": "pipeline._translate_meta_inplace",
+          "lineNumber": 111
+        },
+        {
+          "caller": "__init__",
+          "callee": "set",
+          "lineNumber": 120
+        },
+        {
+          "caller": "translate",
+          "callee": "RuntimeError",
+          "lineNumber": 126
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "Storage",
+          "lineNumber": 133
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "Chapter",
+          "lineNumber": 134
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "storage.save_manifest",
+          "lineNumber": 135
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "Manifest",
+          "lineNumber": 135
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "storage.write_raw",
+          "lineNumber": 137
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "_FlakyTranslator",
+          "lineNumber": 140
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 141
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "_cfg",
+          "lineNumber": 144
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "pipeline.step_translate_selected",
+          "lineNumber": 145
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "storage.has_translated",
+          "lineNumber": 147
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "storage.has_translated",
+          "lineNumber": 147
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "storage.has_translated",
+          "lineNumber": 148
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "any",
+          "lineNumber": 149
+        },
+        {
+          "caller": "test_translate_selected_reports_per_chapter_error_and_continues",
+          "callee": "any",
+          "lineNumber": 150
+        },
+        {
+          "caller": "test_translate_selected_fails_fast_on_first_chapter",
+          "callee": "Storage",
+          "lineNumber": 156
+        },
+        {
+          "caller": "test_translate_selected_fails_fast_on_first_chapter",
+          "callee": "Chapter",
+          "lineNumber": 157
+        },
+        {
+          "caller": "test_translate_selected_fails_fast_on_first_chapter",
+          "callee": "storage.save_manifest",
+          "lineNumber": 158
+        },
+        {
+          "caller": "test_translate_selected_fails_fast_on_first_chapter",
+          "callee": "Manifest",
+          "lineNumber": 158
+        },
+        {
+          "caller": "test_translate_selected_fails_fast_on_first_chapter",
+          "callee": "storage.write_raw",
+          "lineNumber": 160
+        },
+        {
+          "caller": "test_translate_selected_fails_fast_on_first_chapter",
+          "callee": "_FlakyTranslator",
+          "lineNumber": 162
+        },
+        {
+          "caller": "test_translate_selected_fails_fast_on_first_chapter",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 163
+        },
+        {
+          "caller": "test_translate_selected_fails_fast_on_first_chapter",
+          "callee": "_cfg",
+          "lineNumber": 165
+        },
+        {
+          "caller": "test_translate_selected_fails_fast_on_first_chapter",
+          "callee": "pytest.raises",
+          "lineNumber": 168
+        },
+        {
+          "caller": "test_translate_selected_fails_fast_on_first_chapter",
+          "callee": "pipeline.step_translate_selected",
+          "lineNumber": 169
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "Storage",
+          "lineNumber": 177
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "Chapter",
+          "lineNumber": 178
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "storage.save_manifest",
+          "lineNumber": 179
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "Manifest",
+          "lineNumber": 179
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "storage.write_translated",
+          "lineNumber": 180
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "storage.write_translated",
+          "lineNumber": 181
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "_cfg",
+          "lineNumber": 183
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "pipeline.step_find_replace",
+          "lineNumber": 185
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "storage.read_translated",
+          "lineNumber": 187
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "storage.read_translated",
+          "lineNumber": 188
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "storage.read_meta",
+          "lineNumber": 190
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "storage.has_meta",
+          "lineNumber": 191
+        },
+        {
+          "caller": "test_step_find_replace_replaces_and_backs_up",
+          "callee": "any",
+          "lineNumber": 192
+        },
+        {
+          "caller": "test_step_find_replace_empty_find_is_noop",
+          "callee": "Storage",
+          "lineNumber": 198
+        },
+        {
+          "caller": "test_step_find_replace_empty_find_is_noop",
+          "callee": "Chapter",
+          "lineNumber": 199
+        },
+        {
+          "caller": "test_step_find_replace_empty_find_is_noop",
+          "callee": "storage.save_manifest",
+          "lineNumber": 200
+        },
+        {
+          "caller": "test_step_find_replace_empty_find_is_noop",
+          "callee": "Manifest",
+          "lineNumber": 200
+        },
+        {
+          "caller": "test_step_find_replace_empty_find_is_noop",
+          "callee": "storage.write_translated",
+          "lineNumber": 201
+        },
+        {
+          "caller": "test_step_find_replace_empty_find_is_noop",
+          "callee": "_cfg",
+          "lineNumber": 203
+        },
+        {
+          "caller": "test_step_find_replace_empty_find_is_noop",
+          "callee": "pipeline.step_find_replace",
+          "lineNumber": 204
+        },
+        {
+          "caller": "test_step_find_replace_empty_find_is_noop",
+          "callee": "storage.read_translated",
+          "lineNumber": 205
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "Storage",
+          "lineNumber": 211
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "Chapter",
+          "lineNumber": 212
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "storage.save_manifest",
+          "lineNumber": 213
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "Manifest",
+          "lineNumber": 213
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "storage.write_translated",
+          "lineNumber": 214
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 215
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "_cfg",
+          "lineNumber": 217
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "str",
+          "lineNumber": 218
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "pipeline.step_build",
+          "lineNumber": 219
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "Path(out).exists",
+          "lineNumber": 223
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "Path",
+          "lineNumber": 223
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "Path(out).stat",
+          "lineNumber": 223
+        },
+        {
+          "caller": "test_step_build_inserts_glossary_footnotes",
+          "callee": "Path",
+          "lineNumber": 223
+        },
+        {
+          "caller": "test_build_epub_uses_vi_meta_and_cover",
+          "callee": "cover.write_bytes",
+          "lineNumber": 231
+        },
+        {
+          "caller": "test_build_epub_uses_vi_meta_and_cover",
+          "callee": "Manifest",
+          "lineNumber": 232
+        },
+        {
+          "caller": "test_build_epub_uses_vi_meta_and_cover",
+          "callee": "Chapter",
+          "lineNumber": 238
+        },
+        {
+          "caller": "test_build_epub_uses_vi_meta_and_cover",
+          "callee": "build_epub",
+          "lineNumber": 240
+        },
+        {
+          "caller": "test_build_epub_uses_vi_meta_and_cover",
+          "callee": "out.exists",
+          "lineNumber": 246
+        },
+        {
+          "caller": "test_build_epub_uses_vi_meta_and_cover",
+          "callee": "out.stat",
+          "lineNumber": 246
+        }
+      ],
+      "metrics": {
+        "importCount": 5,
+        "exportCount": 14,
+        "functionCount": 11,
+        "classCount": 3
+      }
+    },
+    {
+      "path": "tests/test_sources_ui.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 103,
+      "nonEmptyLines": 83,
+      "functions": [
+        {
+          "name": "_cfg",
+          "startLine": 10,
+          "endLine": 22,
+          "params": [
+            "tmp_path",
+            "engine"
+          ]
+        },
+        {
+          "name": "_fake_job",
+          "startLine": 25,
+          "endLine": 30,
+          "params": []
+        },
+        {
+          "name": "test_sources_table_shows_usage_and_data_table",
+          "startLine": 33,
+          "endLine": 57,
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_sources_empty_state_renders_muted_message_no_table",
+          "startLine": 60,
+          "endLine": 76,
+          "params": [
+            "monkeypatch"
+          ]
+        },
+        {
+          "name": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "startLine": 79,
+          "endLine": 103,
+          "params": [
+            "monkeypatch"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_cfg",
+          "line": 10,
+          "isDefault": false
+        },
+        {
+          "name": "_fake_job",
+          "line": 25,
+          "isDefault": false
+        },
+        {
+          "name": "test_sources_table_shows_usage_and_data_table",
+          "line": 33,
+          "isDefault": false
+        },
+        {
+          "name": "test_sources_empty_state_renders_muted_message_no_table",
+          "line": 60,
+          "isDefault": false
+        },
+        {
+          "name": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "line": 79,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_cfg",
+          "callee": "Config",
+          "lineNumber": 11
+        },
+        {
+          "caller": "_cfg",
+          "callee": "NovelConfig",
+          "lineNumber": 12
+        },
+        {
+          "caller": "_cfg",
+          "callee": "CrawlConfig",
+          "lineNumber": 13
+        },
+        {
+          "caller": "_cfg",
+          "callee": "TranslateConfig",
+          "lineNumber": 20
+        },
+        {
+          "caller": "_cfg",
+          "callee": "OutputConfig",
+          "lineNumber": 21
+        },
+        {
+          "caller": "_cfg",
+          "callee": "str",
+          "lineNumber": 21
+        },
+        {
+          "caller": "_fake_job",
+          "callee": "Job",
+          "lineNumber": 30
+        },
+        {
+          "caller": "test_sources_table_shows_usage_and_data_table",
+          "callee": "SourcePreset",
+          "lineNumber": 37
+        },
+        {
+          "caller": "test_sources_table_shows_usage_and_data_table",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 39
+        },
+        {
+          "caller": "test_sources_table_shows_usage_and_data_table",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 40
+        },
+        {
+          "caller": "test_sources_table_shows_usage_and_data_table",
+          "callee": "LibraryConfig",
+          "lineNumber": 40
+        },
+        {
+          "caller": "test_sources_table_shows_usage_and_data_table",
+          "callee": "LibraryEntry",
+          "lineNumber": 41
+        },
+        {
+          "caller": "test_sources_table_shows_usage_and_data_table",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 42
+        },
+        {
+          "caller": "test_sources_table_shows_usage_and_data_table",
+          "callee": "_cfg",
+          "lineNumber": 42
+        },
+        {
+          "caller": "test_sources_table_shows_usage_and_data_table",
+          "callee": "_fake_job",
+          "lineNumber": 43
+        },
+        {
+          "caller": "test_sources_table_shows_usage_and_data_table",
+          "callee": "TestClient",
+          "lineNumber": 44
+        },
+        {
+          "caller": "test_sources_table_shows_usage_and_data_table",
+          "callee": "client.get",
+          "lineNumber": 46
+        },
+        {
+          "caller": "test_sources_empty_state_renders_muted_message_no_table",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 64
+        },
+        {
+          "caller": "test_sources_empty_state_renders_muted_message_no_table",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 65
+        },
+        {
+          "caller": "test_sources_empty_state_renders_muted_message_no_table",
+          "callee": "LibraryConfig",
+          "lineNumber": 65
+        },
+        {
+          "caller": "test_sources_empty_state_renders_muted_message_no_table",
+          "callee": "_fake_job",
+          "lineNumber": 66
+        },
+        {
+          "caller": "test_sources_empty_state_renders_muted_message_no_table",
+          "callee": "TestClient",
+          "lineNumber": 67
+        },
+        {
+          "caller": "test_sources_empty_state_renders_muted_message_no_table",
+          "callee": "client.get",
+          "lineNumber": 69
+        },
+        {
+          "caller": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "callee": "SourcePreset",
+          "lineNumber": 83
+        },
+        {
+          "caller": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 84
+        },
+        {
+          "caller": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 85
+        },
+        {
+          "caller": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "callee": "LibraryConfig",
+          "lineNumber": 85
+        },
+        {
+          "caller": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "callee": "_fake_job",
+          "lineNumber": 86
+        },
+        {
+          "caller": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "callee": "TestClient",
+          "lineNumber": 87
+        },
+        {
+          "caller": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "callee": "client.get",
+          "lineNumber": 90
+        },
+        {
+          "caller": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "callee": "SourcePreset",
+          "lineNumber": 96
+        },
+        {
+          "caller": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "callee": "monkeypatch.setattr",
+          "lineNumber": 97
+        },
+        {
+          "caller": "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+          "callee": "client.get",
+          "lineNumber": 98
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 5,
+        "functionCount": 5,
+        "classCount": 0
+      }
+    }
+  ]
+}

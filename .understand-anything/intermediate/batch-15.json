@@ -1,0 +1,102 @@
+{
+  "batchIndex": 15,
+  "nodes": [
+    {
+      "id": "document:AGENTS.md",
+      "type": "document",
+      "name": "AGENTS.md",
+      "filePath": "AGENTS.md",
+      "summary": "AI agent instruction file providing comprehensive project overview including pipeline stages, crawl engines, translation backends, commands, config files, environment variables, and tech stack for the novel2epub tool.",
+      "tags": ["documentation", "ai-agent", "project-overview", "instructions"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:CLAUDE.md",
+      "type": "document",
+      "name": "CLAUDE.md",
+      "filePath": "CLAUDE.md",
+      "summary": "Condensed AI agent instruction file covering the novel2epub project pipeline, key commands, architecture components, technical notes, and tech stack for Claude and similar agents.",
+      "tags": ["documentation", "ai-agent", "project-overview", "instructions"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "README.md",
+      "summary": "User-facing documentation in Vietnamese covering installation, configuration with config.example.yaml, translation backends (CLI AI, Google, none), CLI usage, Web UI, environment variables, and recommended workflow for novel2epub.",
+      "tags": ["documentation", "readme", "user-guide", "vietnamese", "getting-started"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:config.example.yaml",
+      "type": "config",
+      "name": "config.example.yaml",
+      "filePath": "config.example.yaml",
+      "summary": "Annotated configuration template defining all novel2epub settings: novel metadata (title, author, slug), crawl engine options (http/crawl4ai with selectors and pagination), AI translation backend with CLI prompt template, glossary, and output paths.",
+      "tags": ["configuration", "template", "yaml", "translation", "crawling"],
+      "complexity": "moderate",
+      "languageNotes": "Vietnamese comments explain each config section with detailed inline guidance for Chinese web novel crawling and AI translation setup."
+    },
+    {
+      "id": "document:requirements.txt",
+      "type": "document",
+      "name": "requirements.txt",
+      "filePath": "requirements.txt",
+      "summary": "Python package dependency declarations listing 11 runtime libraries for HTTP crawling (requests, beautifulsoup4), EPUB generation (ebooklib), AI translation (deep-translator), YAML config parsing (PyYAML, ruamel.yaml), web UI (fastapi, uvicorn, jinja2, python-multipart), and testing (pytest).",
+      "tags": ["dependencies", "python", "build-system", "requirements"],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:sources.yaml",
+      "type": "config",
+      "name": "sources.yaml",
+      "filePath": "sources.yaml",
+      "summary": "Site-specific crawl preset library defining engine types, CSS content/toc selectors, pagination rules, and encoding for 9 Chinese web novel sources including biquge, sto9, aixdzs, qidian, 69shuba, shuqi, qqread, baike, and shuhaige.",
+      "tags": ["configuration", "crawling", "presets", "sources", "web-scraping"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "document:README.md",
+      "target": "config:config.example.yaml",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "label": "README directs users to copy config.example.yaml for setup"
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:requirements.txt",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "label": "README explains pip install -r requirements.txt"
+    },
+    {
+      "source": "document:AGENTS.md",
+      "target": "document:CLAUDE.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5,
+      "label": "both are AI agent instruction documents for the same project"
+    },
+    {
+      "source": "document:AGENTS.md",
+      "target": "config:sources.yaml",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "label": "AGENTS.md Source Presets section explains sources.yaml usage"
+    },
+    {
+      "source": "document:CLAUDE.md",
+      "target": "config:sources.yaml",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "label": "CLAUDE.md Technical Notes section lists sources.yaml among config files"
+    }
+  ]
+}

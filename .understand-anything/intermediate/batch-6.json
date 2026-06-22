@@ -1,0 +1,50 @@
+{
+  "nodes": [
+    {
+      "id": "document:.claude/commands/opsx/apply.md",
+      "type": "document",
+      "name": "apply.md",
+      "filePath": ".claude/commands/opsx/apply.md",
+      "summary": "OpenSpec workflow command definition for implementing tasks from a change. Instructs the AI agent to select a change, check OpenSpec status for artifact schema, and execute implementation tasks sequentially.",
+      "tags": ["workflow", "opsx-command", "implementation", "experimental"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/commands/opsx/archive.md",
+      "type": "document",
+      "name": "archive.md",
+      "filePath": ".claude/commands/opsx/archive.md",
+      "summary": "OpenSpec workflow command definition for archiving a completed change. Guides the AI agent through change selection, artifact completion verification, and final archiving steps.",
+      "tags": ["workflow", "opsx-command", "archive", "experimental"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/commands/opsx/explore.md",
+      "type": "document",
+      "name": "explore.md",
+      "filePath": ".claude/commands/opsx/explore.md",
+      "summary": "OpenSpec explore mode command definition — a thinking-partner stance (not a workflow) with 9 sections covering exploration principles, OpenSpec awareness, context checking, change-aware behavior, and guardrails. Emphasizes curiosity, visualization, and free-form investigation without implementation.",
+      "tags": ["workflow", "opsx-command", "exploration", "thinking", "experimental"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/commands/opsx/propose.md",
+      "type": "document",
+      "name": "propose.md",
+      "filePath": ".claude/commands/opsx/propose.md",
+      "summary": "OpenSpec workflow command definition for proposing a new change with all artifacts (proposal, design, tasks) generated in one step. Derives a kebab-case change name from user input and sets up implementation scaffolding.",
+      "tags": ["workflow", "opsx-command", "proposal", "experimental"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.claude/commands/opsx/sync.md",
+      "type": "document",
+      "name": "sync.md",
+      "filePath": ".claude/commands/opsx/sync.md",
+      "summary": "OpenSpec workflow command definition for syncing delta specs from a change back to main specification files. Agent-driven operation that reads delta specs and intelligently merges them (e.g., adding scenarios without copying entire requirements).",
+      "tags": ["workflow", "opsx-command", "synchronization", "specs", "experimental"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": []
+}

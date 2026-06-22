@@ -1,0 +1,16 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            "tests/__init__.py":  [
+
+                                                  ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  "tests/__init__.py",
+                           "language":  "python",
+                           "sizeLines":  0,
+                           "fileCategory":  "code"
+                       }
+                   ]
+}

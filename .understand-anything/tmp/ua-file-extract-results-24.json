@@ -1,0 +1,1296 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 25,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": ".opencode/skills/openspec-sync-specs/SKILL.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 147,
+      "nonEmptyLines": 101,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    },
+    {
+      "path": ".specify/extensions/.registry",
+      "language": "unknown",
+      "fileCategory": "code",
+      "totalLines": 22,
+      "nonEmptyLines": 22,
+      "metrics": {}
+    },
+    {
+      "path": ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 26,
+      "nonEmptyLines": 16,
+      "sections": [
+        {
+          "heading": "Update Coding Agent Context",
+          "level": 1,
+          "line": 5
+        },
+        {
+          "heading": "Behavior",
+          "level": 2,
+          "line": 9
+        },
+        {
+          "heading": "Execution",
+          "level": 2,
+          "line": 21
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 3
+      }
+    },
+    {
+      "path": ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+      "language": "shell",
+      "fileCategory": "script",
+      "totalLines": 200,
+      "nonEmptyLines": 183,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
+      "language": "powershell",
+      "fileCategory": "script",
+      "totalLines": 237,
+      "nonEmptyLines": 211,
+      "metrics": {}
+    },
+    {
+      "path": ".specify/memory/constitution.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 100,
+      "nonEmptyLines": 82,
+      "sections": [
+        {
+          "heading": "novel2epub Constitution",
+          "level": 1,
+          "line": 22
+        },
+        {
+          "heading": "Core Principles",
+          "level": 2,
+          "line": 24
+        },
+        {
+          "heading": "I. Source Metadata Completeness",
+          "level": 3,
+          "line": 26
+        },
+        {
+          "heading": "II. Translation Fidelity and Glossary Discipline",
+          "level": 3,
+          "line": 35
+        },
+        {
+          "heading": "III. Idempotent Crawl/Translate/Build Pipeline",
+          "level": 3,
+          "line": 45
+        },
+        {
+          "heading": "IV. Chapter-Level User Control",
+          "level": 3,
+          "line": 54
+        },
+        {
+          "heading": "V. Independently Testable Delivery",
+          "level": 3,
+          "line": 62
+        },
+        {
+          "heading": "Product Constraints",
+          "level": 2,
+          "line": 71
+        },
+        {
+          "heading": "Development Workflow",
+          "level": 2,
+          "line": 81
+        },
+        {
+          "heading": "Governance",
+          "level": 2,
+          "line": 89
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 10
+      }
+    },
+    {
+      "path": ".specify/workflows/speckit/workflow.yml",
+      "language": "yaml",
+      "fileCategory": "config",
+      "totalLines": 77,
+      "nonEmptyLines": 69,
+      "sections": [
+        {
+          "heading": "schema_version",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "workflow",
+          "level": 1,
+          "line": 2
+        },
+        {
+          "heading": "requires",
+          "level": 1,
+          "line": 9
+        },
+        {
+          "heading": "inputs",
+          "level": 1,
+          "line": 28
+        },
+        {
+          "heading": "steps",
+          "level": 1,
+          "line": 42
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 5
+      }
+    },
+    {
+      "path": ".specify/workflows/workflow-registry.json",
+      "language": "json",
+      "fileCategory": "config",
+      "totalLines": 13,
+      "nonEmptyLines": 13,
+      "sections": [
+        {
+          "heading": "schema_version",
+          "level": 1,
+          "line": 2
+        },
+        {
+          "heading": "workflows",
+          "level": 1,
+          "line": 3
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 2
+      }
+    },
+    {
+      "path": ".understand-anything/.understandignore",
+      "language": "unknown",
+      "fileCategory": "code",
+      "totalLines": 50,
+      "nonEmptyLines": 44,
+      "metrics": {}
+    },
+    {
+      "path": ".understand-anything/config.json",
+      "language": "json",
+      "fileCategory": "config",
+      "totalLines": 3,
+      "nonEmptyLines": 3,
+      "sections": [
+        {
+          "heading": "outputLanguage",
+          "level": 1,
+          "line": 2
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 1
+      }
+    },
+    {
+      "path": "app/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 1,
+      "nonEmptyLines": 1,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "app/static/style.css",
+      "language": "css",
+      "fileCategory": "markup",
+      "totalLines": 131,
+      "nonEmptyLines": 129,
+      "metrics": {}
+    },
+    {
+      "path": "configs/novel.yaml",
+      "language": "yaml",
+      "fileCategory": "config",
+      "totalLines": 172,
+      "nonEmptyLines": 145,
+      "sections": [
+        {
+          "heading": "novel",
+          "level": 1,
+          "line": 5
+        },
+        {
+          "heading": "crawl",
+          "level": 1,
+          "line": 14
+        },
+        {
+          "heading": "translate",
+          "level": 1,
+          "line": 82
+        },
+        {
+          "heading": "output",
+          "level": 1,
+          "line": 168
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 4
+      }
+    },
+    {
+      "path": "novel2epub/presets/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 28,
+      "nonEmptyLines": 20,
+      "functions": [
+        {
+          "name": "available",
+          "startLine": 16,
+          "endLine": 17,
+          "params": []
+        },
+        {
+          "name": "load",
+          "startLine": 20,
+          "endLine": 28,
+          "params": [
+            "name"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "available",
+          "line": 16,
+          "isDefault": false
+        },
+        {
+          "name": "load",
+          "line": 20,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "available",
+          "callee": "sorted",
+          "lineNumber": 17
+        },
+        {
+          "caller": "load",
+          "callee": "_PRESETS.get",
+          "lineNumber": 21
+        },
+        {
+          "caller": "load",
+          "callee": "ValueError",
+          "lineNumber": 23
+        },
+        {
+          "caller": "load",
+          "callee": "', '.join",
+          "lineNumber": 25
+        },
+        {
+          "caller": "load",
+          "callee": "available",
+          "lineNumber": 25
+        },
+        {
+          "caller": "load",
+          "callee": "importlib.import_module",
+          "lineNumber": 27
+        },
+        {
+          "caller": "load",
+          "callee": "mod.load_preset",
+          "lineNumber": 28
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 2,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "novel2epub/presets/go.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 56,
+      "nonEmptyLines": 43,
+      "functions": [
+        {
+          "name": "load_preset",
+          "startLine": 48,
+          "endLine": 56,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "load_preset",
+          "line": 48,
+          "isDefault": false
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "openspec/changes/ai-source-preset-builder/specs/firecrawl-removal/spec.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 56,
+      "nonEmptyLines": 38,
+      "sections": [
+        {
+          "heading": "REMOVED Requirements",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "Requirement: `firecrawl` engine in `make_crawler`",
+          "level": 3,
+          "line": 3
+        },
+        {
+          "heading": "Requirement: `CrawlConfig.api_key` and `CrawlConfig.api_url`",
+          "level": 3,
+          "line": 8
+        },
+        {
+          "heading": "Requirement: `firecrawl` option in the Web UI engine `<select>`",
+          "level": 3,
+          "line": 13
+        },
+        {
+          "heading": "Requirement: `firecrawl` references in docs and AGENTS.md",
+          "level": 3,
+          "line": 18
+        },
+        {
+          "heading": "ADDED Requirements",
+          "level": 2,
+          "line": 23
+        },
+        {
+          "heading": "Requirement: `make_crawler` only supports `http` and `crawl4ai`",
+          "level": 3,
+          "line": 25
+        },
+        {
+          "heading": "Scenario: http engine",
+          "level": 4,
+          "line": 28
+        },
+        {
+          "heading": "Scenario: crawl4ai engine",
+          "level": 4,
+          "line": 32
+        },
+        {
+          "heading": "Scenario: legacy firecrawl engine value",
+          "level": 4,
+          "line": 36
+        },
+        {
+          "heading": "Requirement: `CrawlConfig` no longer carries `api_key` / `api_url`",
+          "level": 3,
+          "line": 40
+        },
+        {
+          "heading": "Scenario: YAML with stale api_key",
+          "level": 4,
+          "line": 43
+        },
+        {
+          "heading": "Scenario: FIRECRAWL_API_KEY env var set",
+          "level": 4,
+          "line": 47
+        },
+        {
+          "heading": "Requirement: `FirecrawlCrawler` class is removed",
+          "level": 3,
+          "line": 51
+        },
+        {
+          "heading": "Scenario: grep for firecrawl",
+          "level": 4,
+          "line": 54
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 15
+      }
+    },
+    {
+      "path": "openspec/changes/ai-source-preset-builder/specs/preset-builder/spec.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 101,
+      "nonEmptyLines": 74,
+      "sections": [
+        {
+          "heading": "ADDED Requirements",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "Requirement: Preset builder endpoint generates a `SourcePreset` from a TOC URL",
+          "level": 3,
+          "line": 3
+        },
+        {
+          "heading": "Scenario: Static HTML site",
+          "level": 4,
+          "line": 6
+        },
+        {
+          "heading": "Scenario: JS-rendered site",
+          "level": 4,
+          "line": 10
+        },
+        {
+          "heading": "Scenario: AI CLI unavailable",
+          "level": 4,
+          "line": 14
+        },
+        {
+          "heading": "Requirement: Pattern validation refuses too-broad or too-narrow regex",
+          "level": 3,
+          "line": 18
+        },
+        {
+          "heading": "Scenario: Too-broad regex caught and refined",
+          "level": 4,
+          "line": 21
+        },
+        {
+          "heading": "Scenario: Too-narrow regex caught and refined",
+          "level": 4,
+          "line": 25
+        },
+        {
+          "heading": "Scenario: Refinement budget exhausted",
+          "level": 4,
+          "line": 29
+        },
+        {
+          "heading": "Requirement: User can override the AI suggestion for any preset field",
+          "level": 3,
+          "line": 33
+        },
+        {
+          "heading": "Scenario: Override encoding for a GBK site",
+          "level": 4,
+          "line": 36
+        },
+        {
+          "heading": "Scenario: Override crawl4ai `js_code` for infinite-scroll TOC",
+          "level": 4,
+          "line": 40
+        },
+        {
+          "heading": "Requirement: `toc-preview` runs a non-mutating verification of an existing preset against a URL",
+          "level": 3,
+          "line": 44
+        },
+        {
+          "heading": "Scenario: Preview against an existing preset",
+          "level": 4,
+          "line": 47
+        },
+        {
+          "heading": "Scenario: Preview detects a broken pattern",
+          "level": 4,
+          "line": 51
+        },
+        {
+          "heading": "Requirement: `preset-build` CLI subcommand persists the candidate after confirmation",
+          "level": 3,
+          "line": 55
+        },
+        {
+          "heading": "Scenario: User confirms",
+          "level": 4,
+          "line": 58
+        },
+        {
+          "heading": "Scenario: User declines",
+          "level": 4,
+          "line": 62
+        },
+        {
+          "heading": "Scenario: Non-interactive `--yes` flag",
+          "level": 4,
+          "line": 66
+        },
+        {
+          "heading": "Requirement: Web UI route `/preset-builder` renders a form, preview, and save button",
+          "level": 3,
+          "line": 70
+        },
+        {
+          "heading": "Scenario: Preview submission",
+          "level": 4,
+          "line": 73
+        },
+        {
+          "heading": "Scenario: Save submission",
+          "level": 4,
+          "line": 77
+        },
+        {
+          "heading": "Requirement: `library._fetch_meta` suggests creating a preset when no match is found",
+          "level": 3,
+          "line": 81
+        },
+        {
+          "heading": "Scenario: URL matches a preset",
+          "level": 4,
+          "line": 84
+        },
+        {
+          "heading": "Scenario: URL matches no preset",
+          "level": 4,
+          "line": 88
+        },
+        {
+          "heading": "Requirement: Preset builder is offline-friendly",
+          "level": 3,
+          "line": 92
+        },
+        {
+          "heading": "Scenario: AI CLI timeout",
+          "level": 4,
+          "line": 95
+        },
+        {
+          "heading": "Scenario: Intermittent network failure",
+          "level": 4,
+          "line": 99
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 28
+      }
+    },
+    {
+      "path": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/specs/chapter-pagination/spec.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 147,
+      "nonEmptyLines": 118,
+      "sections": [
+        {
+          "heading": "ADDED Requirements",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "Requirement: Multi-page chapter detection by CSS selector",
+          "level": 3,
+          "line": 3
+        },
+        {
+          "heading": "Scenario: Three-page chapter follows selector",
+          "level": 4,
+          "line": 13
+        },
+        {
+          "heading": "Scenario: Single-page chapter with selector configured",
+          "level": 4,
+          "line": 20
+        },
+        {
+          "heading": "Scenario: Selector points to anchor with no href",
+          "level": 4,
+          "line": 26
+        },
+        {
+          "heading": "Requirement: Multi-page chapter detection by URL pattern",
+          "level": 3,
+          "line": 32
+        },
+        {
+          "heading": "Scenario: Pattern with numeric suffix",
+          "level": 4,
+          "line": 41
+        },
+        {
+          "heading": "Scenario: Pattern with no capturing group",
+          "level": 4,
+          "line": 48
+        },
+        {
+          "heading": "Requirement: Stop paginating on duplicate content",
+          "level": 3,
+          "line": 55
+        },
+        {
+          "heading": "Scenario: Last page repeats first page",
+          "level": 4,
+          "line": 62
+        },
+        {
+          "heading": "Scenario: Identical link points to the same URL",
+          "level": 4,
+          "line": 67
+        },
+        {
+          "heading": "Requirement: Page-count safety cap",
+          "level": 3,
+          "line": 73
+        },
+        {
+          "heading": "Scenario: Cap prevents runaway pagination",
+          "level": 4,
+          "line": 80
+        },
+        {
+          "heading": "Scenario: Default cap is ten",
+          "level": 4,
+          "line": 86
+        },
+        {
+          "heading": "Requirement: Repeated chapter title is removed",
+          "level": 3,
+          "line": 91
+        },
+        {
+          "heading": "Scenario: Sub-page starts with the chapter title",
+          "level": 4,
+          "line": 98
+        },
+        {
+          "heading": "Scenario: Sub-page has no title prefix",
+          "level": 4,
+          "line": 105
+        },
+        {
+          "heading": "Requirement: All engines share the same pagination contract",
+          "level": 3,
+          "line": 110
+        },
+        {
+          "heading": "Scenario: Crawl4AI engine follows the same selector",
+          "level": 4,
+          "line": 117
+        },
+        {
+          "heading": "Scenario: Firecrawl engine follows the same pattern",
+          "level": 4,
+          "line": 123
+        },
+        {
+          "heading": "Requirement: Source presets round-trip pagination fields",
+          "level": 3,
+          "line": 129
+        },
+        {
+          "heading": "Scenario: Preset saves and reloads the selector",
+          "level": 4,
+          "line": 137
+        },
+        {
+          "heading": "Scenario: Preset defaults match CrawlConfig defaults",
+          "level": 4,
+          "line": 144
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 23
+      }
+    },
+    {
+      "path": "openspec/changes/improve-sources-ui/specs/sources-ui/spec.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 79,
+      "nonEmptyLines": 58,
+      "sections": [
+        {
+          "heading": "ADDED Requirements",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "Requirement: Preset list renders as a responsive data table",
+          "level": 3,
+          "line": 3
+        },
+        {
+          "heading": "Scenario: Preset list displayed",
+          "level": 4,
+          "line": 6
+        },
+        {
+          "heading": "Scenario: Empty state",
+          "level": 4,
+          "line": 10
+        },
+        {
+          "heading": "Requirement: Preset usage indicator",
+          "level": 3,
+          "line": 14
+        },
+        {
+          "heading": "Scenario: Preset used by one or more ebooks",
+          "level": 4,
+          "line": 17
+        },
+        {
+          "heading": "Scenario: Preset unused",
+          "level": 4,
+          "line": 21
+        },
+        {
+          "heading": "Scenario: Usage is non-blocking on deletion",
+          "level": 4,
+          "line": 25
+        },
+        {
+          "heading": "Requirement: Grouped add/edit form",
+          "level": 3,
+          "line": 29
+        },
+        {
+          "heading": "Scenario: Rendering the add form",
+          "level": 4,
+          "line": 32
+        },
+        {
+          "heading": "Scenario: Rendering the edit form",
+          "level": 4,
+          "line": 36
+        },
+        {
+          "heading": "Requirement: Engine-conditional crawl4ai fields",
+          "level": 3,
+          "line": 40
+        },
+        {
+          "heading": "Scenario: Initial render with non-crawl4ai engine",
+          "level": 4,
+          "line": 43
+        },
+        {
+          "heading": "Scenario: User switches engine to crawl4ai",
+          "level": 4,
+          "line": 47
+        },
+        {
+          "heading": "Scenario: User switches engine away from crawl4ai",
+          "level": 4,
+          "line": 51
+        },
+        {
+          "heading": "Scenario: No-JS user editing a crawl4ai preset",
+          "level": 4,
+          "line": 55
+        },
+        {
+          "heading": "Requirement: Consistent row action buttons",
+          "level": 3,
+          "line": 59
+        },
+        {
+          "heading": "Scenario: Edit action",
+          "level": 4,
+          "line": 62
+        },
+        {
+          "heading": "Scenario: Delete action with confirmation",
+          "level": 4,
+          "line": 66
+        },
+        {
+          "heading": "Scenario: Delete action cancelled",
+          "level": 4,
+          "line": 70
+        },
+        {
+          "heading": "Requirement: Header and storage path messaging",
+          "level": 3,
+          "line": 74
+        },
+        {
+          "heading": "Scenario: Header copy visible",
+          "level": 4,
+          "line": 77
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 22
+      }
+    },
+    {
+      "path": "openspec/specs/chapter-pagination/spec.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 155,
+      "nonEmptyLines": 123,
+      "sections": [
+        {
+          "heading": "Spec: chapter-pagination",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Purpose",
+          "level": 2,
+          "line": 3
+        },
+        {
+          "heading": "Requirements",
+          "level": 2,
+          "line": 9
+        },
+        {
+          "heading": "Requirement: Multi-page chapter detection by CSS selector",
+          "level": 3,
+          "line": 11
+        },
+        {
+          "heading": "Scenario: Three-page chapter follows selector",
+          "level": 4,
+          "line": 21
+        },
+        {
+          "heading": "Scenario: Single-page chapter with selector configured",
+          "level": 4,
+          "line": 28
+        },
+        {
+          "heading": "Scenario: Selector points to anchor with no href",
+          "level": 4,
+          "line": 34
+        },
+        {
+          "heading": "Requirement: Multi-page chapter detection by URL pattern",
+          "level": 3,
+          "line": 40
+        },
+        {
+          "heading": "Scenario: Pattern with numeric suffix",
+          "level": 4,
+          "line": 49
+        },
+        {
+          "heading": "Scenario: Pattern with no capturing group",
+          "level": 4,
+          "line": 56
+        },
+        {
+          "heading": "Requirement: Stop paginating on duplicate content",
+          "level": 3,
+          "line": 63
+        },
+        {
+          "heading": "Scenario: Last page repeats first page",
+          "level": 4,
+          "line": 70
+        },
+        {
+          "heading": "Scenario: Identical link points to the same URL",
+          "level": 4,
+          "line": 75
+        },
+        {
+          "heading": "Requirement: Page-count safety cap",
+          "level": 3,
+          "line": 81
+        },
+        {
+          "heading": "Scenario: Cap prevents runaway pagination",
+          "level": 4,
+          "line": 88
+        },
+        {
+          "heading": "Scenario: Default cap is ten",
+          "level": 4,
+          "line": 94
+        },
+        {
+          "heading": "Requirement: Repeated chapter title is removed",
+          "level": 3,
+          "line": 99
+        },
+        {
+          "heading": "Scenario: Sub-page starts with the chapter title",
+          "level": 4,
+          "line": 106
+        },
+        {
+          "heading": "Scenario: Sub-page has no title prefix",
+          "level": 4,
+          "line": 113
+        },
+        {
+          "heading": "Requirement: All engines share the same pagination contract",
+          "level": 3,
+          "line": 118
+        },
+        {
+          "heading": "Scenario: Crawl4AI engine follows the same selector",
+          "level": 4,
+          "line": 125
+        },
+        {
+          "heading": "Scenario: Firecrawl engine follows the same pattern",
+          "level": 4,
+          "line": 131
+        },
+        {
+          "heading": "Requirement: Source presets round-trip pagination fields",
+          "level": 3,
+          "line": 137
+        },
+        {
+          "heading": "Scenario: Preset saves and reloads the selector",
+          "level": 4,
+          "line": 145
+        },
+        {
+          "heading": "Scenario: Preset defaults match CrawlConfig defaults",
+          "level": 4,
+          "line": 152
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 25
+      }
+    },
+    {
+      "path": "specs/001-refactor-toc/checklists/requirements.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 34,
+      "nonEmptyLines": 25,
+      "sections": [
+        {
+          "heading": "Specification Quality Checklist: Refactor TOC",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Content Quality",
+          "level": 2,
+          "line": 7
+        },
+        {
+          "heading": "Requirement Completeness",
+          "level": 2,
+          "line": 14
+        },
+        {
+          "heading": "Feature Readiness",
+          "level": 2,
+          "line": 25
+        },
+        {
+          "heading": "Notes",
+          "level": 2,
+          "line": 32
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 5
+      }
+    },
+    {
+      "path": "specs/001-refactor-toc/contracts/cli.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 96,
+      "nonEmptyLines": 67,
+      "sections": [
+        {
+          "heading": "CLI Contract: Refactor TOC",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Goals",
+          "level": 2,
+          "line": 3
+        },
+        {
+          "heading": "Commands",
+          "level": 2,
+          "line": 9
+        },
+        {
+          "heading": "Fetch TOC Metadata",
+          "level": 3,
+          "line": 11
+        },
+        {
+          "heading": "Translate Metadata",
+          "level": 3,
+          "line": 23
+        },
+        {
+          "heading": "List Chapters",
+          "level": 3,
+          "line": 36
+        },
+        {
+          "heading": "Crawl Selected Chapters",
+          "level": 3,
+          "line": 62
+        },
+        {
+          "heading": "Translate Selected Chapters",
+          "level": 3,
+          "line": 76
+        },
+        {
+          "heading": "Compatibility",
+          "level": 2,
+          "line": 91
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 9
+      }
+    },
+    {
+      "path": "specs/001-refactor-toc/contracts/web-ui.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 90,
+      "nonEmptyLines": 65,
+      "sections": [
+        {
+          "heading": "Web UI Contract: Refactor TOC",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Ebook Overview",
+          "level": 2,
+          "line": 3
+        },
+        {
+          "heading": "Fetch TOC Job",
+          "level": 2,
+          "line": 17
+        },
+        {
+          "heading": "Chapter List Query",
+          "level": 2,
+          "line": 27
+        },
+        {
+          "heading": "Bulk Chapter Action",
+          "level": 2,
+          "line": 48
+        },
+        {
+          "heading": "Per-Chapter Action",
+          "level": 2,
+          "line": 76
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    },
+    {
+      "path": "specs/002-opencode-go-preset/checklists/requirements.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 34,
+      "nonEmptyLines": 25,
+      "sections": [
+        {
+          "heading": "Specification Quality Checklist: OpenCode Go Translation & AI Preset",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Content Quality",
+          "level": 2,
+          "line": 7
+        },
+        {
+          "heading": "Requirement Completeness",
+          "level": 2,
+          "line": 14
+        },
+        {
+          "heading": "Feature Readiness",
+          "level": 2,
+          "line": 25
+        },
+        {
+          "heading": "Notes",
+          "level": 2,
+          "line": 32
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 5
+      }
+    },
+    {
+      "path": "specs/002-opencode-go-preset/contracts/cli.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 74,
+      "nonEmptyLines": 62,
+      "sections": [
+        {
+          "heading": "CLI Config Contract: Go Preset",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "`config.yaml` Schema (affected fields)",
+          "level": 2,
+          "line": 3
+        },
+        {
+          "heading": "Preset Resolution Rules",
+          "level": 2,
+          "line": 32
+        },
+        {
+          "heading": "Example Configurations",
+          "level": 2,
+          "line": 40
+        },
+        {
+          "heading": "Minimal (preset handles everything)",
+          "level": 3,
+          "line": 42
+        },
+        {
+          "heading": "Override model for quality",
+          "level": 3,
+          "line": 48
+        },
+        {
+          "heading": "Full custom (preset ignored for CLI fields)",
+          "level": 3,
+          "line": 56
+        },
+        {
+          "heading": "Error Handling",
+          "level": 2,
+          "line": 67
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 8
+      }
+    }
+  ]
+}

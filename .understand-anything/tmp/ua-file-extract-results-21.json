@@ -1,0 +1,478 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 6,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "specs/001-refactor-toc/data-model.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 119,
+      "nonEmptyLines": 91,
+      "sections": [
+        {
+          "heading": "Data Model: Refactor TOC",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Novel Metadata",
+          "level": 2,
+          "line": 3
+        },
+        {
+          "heading": "Chapter",
+          "level": 2,
+          "line": 35
+        },
+        {
+          "heading": "Chapter Selection",
+          "level": 2,
+          "line": 71
+        },
+        {
+          "heading": "Chapter Action Result",
+          "level": 2,
+          "line": 98
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 5
+      }
+    },
+    {
+      "path": "specs/001-refactor-toc/plan.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 116,
+      "nonEmptyLines": 88,
+      "sections": [
+        {
+          "heading": "Implementation Plan: Refactor TOC",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Summary",
+          "level": 2,
+          "line": 7
+        },
+        {
+          "heading": "Technical Context",
+          "level": 2,
+          "line": 16
+        },
+        {
+          "heading": "Constitution Check",
+          "level": 2,
+          "line": 45
+        },
+        {
+          "heading": "Project Structure",
+          "level": 2,
+          "line": 66
+        },
+        {
+          "heading": "Documentation (this feature)",
+          "level": 3,
+          "line": 68
+        },
+        {
+          "heading": "Source Code (repository root)",
+          "level": 3,
+          "line": 82
+        },
+        {
+          "heading": "Complexity Tracking",
+          "level": 2,
+          "line": 114
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 8
+      }
+    },
+    {
+      "path": "specs/001-refactor-toc/quickstart.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 135,
+      "nonEmptyLines": 90,
+      "sections": [
+        {
+          "heading": "Quickstart: Refactor TOC",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Prerequisites",
+          "level": 2,
+          "line": 3
+        },
+        {
+          "heading": "CLI Validation",
+          "level": 2,
+          "line": 9
+        },
+        {
+          "heading": "1. Fetch TOC metadata only",
+          "level": 3,
+          "line": 11
+        },
+        {
+          "heading": "2. Translate metadata using project rules",
+          "level": 3,
+          "line": 24
+        },
+        {
+          "heading": "3. Review chapter list controls",
+          "level": 3,
+          "line": 36
+        },
+        {
+          "heading": "4. Crawl a selected visible range without override",
+          "level": 3,
+          "line": 48
+        },
+        {
+          "heading": "5. Crawl or translate with explicit override",
+          "level": 3,
+          "line": 60
+        },
+        {
+          "heading": "Web UI Validation",
+          "level": 2,
+          "line": 73
+        },
+        {
+          "heading": "1. Start the UI",
+          "level": 3,
+          "line": 75
+        },
+        {
+          "heading": "2. Fetch and review TOC",
+          "level": 3,
+          "line": 83
+        },
+        {
+          "heading": "3. Sort, search, filter, and select range",
+          "level": 3,
+          "line": 91
+        },
+        {
+          "heading": "3b. Select non-contiguous rows with checkboxes",
+          "level": 3,
+          "line": 100
+        },
+        {
+          "heading": "4. Run per-chapter and bulk actions",
+          "level": 3,
+          "line": 108
+        },
+        {
+          "heading": "Test Commands",
+          "level": 2,
+          "line": 119
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 15
+      }
+    },
+    {
+      "path": "specs/001-refactor-toc/research.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 85,
+      "nonEmptyLines": 61,
+      "sections": [
+        {
+          "heading": "Research: Refactor TOC",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Decision: Preserve original and displayed metadata in the manifest",
+          "level": 2,
+          "line": 3
+        },
+        {
+          "heading": "Decision: Use compatibility-tolerant manifest loading",
+          "level": 2,
+          "line": 16
+        },
+        {
+          "heading": "Decision: Put sorting, filtering, and range selection in shared service logic",
+          "level": 2,
+          "line": 26
+        },
+        {
+          "heading": "Decision: Reuse the existing ebook overview chapter table as the TOC table",
+          "level": 2,
+          "line": 36
+        },
+        {
+          "heading": "Decision: Support both checked-row and visible-range targeting",
+          "level": 2,
+          "line": 47
+        },
+        {
+          "heading": "Decision: Keep cache reuse default and make override an explicit boolean action",
+          "level": 2,
+          "line": 57
+        },
+        {
+          "heading": "Decision: Treat missing metadata as non-blocking, visible status",
+          "level": 2,
+          "line": 67
+        },
+        {
+          "heading": "Decision: Contract both CLI and Web UI interactions",
+          "level": 2,
+          "line": 77
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 9
+      }
+    },
+    {
+      "path": "specs/001-refactor-toc/spec.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 199,
+      "nonEmptyLines": 161,
+      "sections": [
+        {
+          "heading": "Feature Specification: Refactor TOC",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "User Scenarios & Testing *(mandatory)*",
+          "level": 2,
+          "line": 11
+        },
+        {
+          "heading": "User Story 1 - Import full novel metadata from URL (Priority: P1)",
+          "level": 3,
+          "line": 13
+        },
+        {
+          "heading": "User Story 2 - Find and select chapters from the TOC (Priority: P2)",
+          "level": 3,
+          "line": 41
+        },
+        {
+          "heading": "User Story 3 - Run per-chapter crawl and translate actions (Priority: P3)",
+          "level": 3,
+          "line": 69
+        },
+        {
+          "heading": "Edge Cases",
+          "level": 3,
+          "line": 98
+        },
+        {
+          "heading": "Requirements *(mandatory)*",
+          "level": 2,
+          "line": 118
+        },
+        {
+          "heading": "Functional Requirements",
+          "level": 3,
+          "line": 120
+        },
+        {
+          "heading": "Key Entities *(include if feature involves data)*",
+          "level": 3,
+          "line": 159
+        },
+        {
+          "heading": "Success Criteria *(mandatory)*",
+          "level": 2,
+          "line": 171
+        },
+        {
+          "heading": "Measurable Outcomes",
+          "level": 3,
+          "line": 173
+        },
+        {
+          "heading": "Assumptions",
+          "level": 2,
+          "line": 190
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 12
+      }
+    },
+    {
+      "path": "specs/001-refactor-toc/tasks.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 231,
+      "nonEmptyLines": 158,
+      "sections": [
+        {
+          "heading": "Tasks: Refactor TOC",
+          "level": 1,
+          "line": 6
+        },
+        {
+          "heading": "Format: `[ID] [P?] [Story] Description`",
+          "level": 2,
+          "line": 16
+        },
+        {
+          "heading": "Phase 1: Setup (Shared Infrastructure)",
+          "level": 2,
+          "line": 22
+        },
+        {
+          "heading": "Phase 2: Foundational (Blocking Prerequisites)",
+          "level": 2,
+          "line": 32
+        },
+        {
+          "heading": "Phase 3: User Story 1 - Import full novel metadata from URL (Priority: P1) MVP",
+          "level": 2,
+          "line": 50
+        },
+        {
+          "heading": "Tests for User Story 1",
+          "level": 3,
+          "line": 56
+        },
+        {
+          "heading": "Implementation for User Story 1",
+          "level": 3,
+          "line": 62
+        },
+        {
+          "heading": "Phase 4: User Story 2 - Find and select chapters from the TOC (Priority: P2)",
+          "level": 2,
+          "line": 77
+        },
+        {
+          "heading": "Tests for User Story 2",
+          "level": 3,
+          "line": 83
+        },
+        {
+          "heading": "Implementation for User Story 2",
+          "level": 3,
+          "line": 89
+        },
+        {
+          "heading": "Phase 5: User Story 3 - Run per-chapter crawl and translate actions (Priority: P3)",
+          "level": 2,
+          "line": 101
+        },
+        {
+          "heading": "Tests for User Story 3",
+          "level": 3,
+          "line": 107
+        },
+        {
+          "heading": "Implementation for User Story 3",
+          "level": 3,
+          "line": 114
+        },
+        {
+          "heading": "Phase 6: Polish & Cross-Cutting Concerns",
+          "level": 2,
+          "line": 130
+        },
+        {
+          "heading": "Dependencies & Execution Order",
+          "level": 2,
+          "line": 149
+        },
+        {
+          "heading": "Phase Dependencies",
+          "level": 3,
+          "line": 151
+        },
+        {
+          "heading": "User Story Dependencies",
+          "level": 3,
+          "line": 160
+        },
+        {
+          "heading": "Within Each User Story",
+          "level": 3,
+          "line": 166
+        },
+        {
+          "heading": "Parallel Opportunities",
+          "level": 2,
+          "line": 175
+        },
+        {
+          "heading": "Parallel Example: User Story 1",
+          "level": 2,
+          "line": 184
+        },
+        {
+          "heading": "Parallel Example: User Story 2",
+          "level": 2,
+          "line": 192
+        },
+        {
+          "heading": "Parallel Example: User Story 3",
+          "level": 2,
+          "line": 200
+        },
+        {
+          "heading": "Implementation Strategy",
+          "level": 2,
+          "line": 211
+        },
+        {
+          "heading": "MVP First (User Story 1 Only)",
+          "level": 3,
+          "line": 213
+        },
+        {
+          "heading": "Incremental Delivery",
+          "level": 3,
+          "line": 220
+        },
+        {
+          "heading": "Notes",
+          "level": 3,
+          "line": 227
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 26
+      }
+    }
+  ]
+}

@@ -1,0 +1,235 @@
+﻿{
+    "batchIndex":  24,
+    "files":  [
+                  {
+                      "path":  ".opencode/skills/openspec-sync-specs/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  147,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/extensions/.registry",
+                      "language":  "unknown",
+                      "sizeLines":  21,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+                      "language":  "markdown",
+                      "sizeLines":  26,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+                      "language":  "shell",
+                      "sizeLines":  200,
+                      "fileCategory":  "script"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
+                      "language":  "powershell",
+                      "sizeLines":  237,
+                      "fileCategory":  "script"
+                  },
+                  {
+                      "path":  ".specify/memory/constitution.md",
+                      "language":  "markdown",
+                      "sizeLines":  100,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/workflows/speckit/workflow.yml",
+                      "language":  "yaml",
+                      "sizeLines":  77,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/workflows/workflow-registry.json",
+                      "language":  "json",
+                      "sizeLines":  12,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".understand-anything/.understandignore",
+                      "language":  "unknown",
+                      "sizeLines":  50,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  ".understand-anything/config.json",
+                      "language":  "json",
+                      "sizeLines":  3,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  "app/__init__.py",
+                      "language":  "python",
+                      "sizeLines":  1,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/static/style.css",
+                      "language":  "css",
+                      "sizeLines":  131,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "configs/novel.yaml",
+                      "language":  "yaml",
+                      "sizeLines":  172,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  "novel2epub/presets/__init__.py",
+                      "language":  "python",
+                      "sizeLines":  28,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/presets/go.py",
+                      "language":  "python",
+                      "sizeLines":  56,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "openspec/changes/ai-source-preset-builder/specs/firecrawl-removal/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  56,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/ai-source-preset-builder/specs/preset-builder/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  101,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/specs/chapter-pagination/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  147,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/improve-sources-ui/specs/sources-ui/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  78,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/specs/chapter-pagination/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  155,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/checklists/requirements.md",
+                      "language":  "markdown",
+                      "sizeLines":  34,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/contracts/cli.md",
+                      "language":  "markdown",
+                      "sizeLines":  96,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/contracts/web-ui.md",
+                      "language":  "markdown",
+                      "sizeLines":  90,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/002-opencode-go-preset/checklists/requirements.md",
+                      "language":  "markdown",
+                      "sizeLines":  34,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/002-opencode-go-preset/contracts/cli.md",
+                      "language":  "markdown",
+                      "sizeLines":  74,
+                      "fileCategory":  "docs"
+                  }
+              ],
+    "batchImportData":  {
+                            ".opencode/skills/openspec-sync-specs/SKILL.md":  [
+
+                                                                              ],
+                            ".specify/extensions/.registry":  [
+
+                                                              ],
+                            ".specify/extensions/agent-context/commands/speckit.agent-context.update.md":  [
+
+                                                                                                           ],
+                            ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh":  [
+
+                                                                                                       ],
+                            ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1":  [
+
+                                                                                                              ],
+                            ".specify/memory/constitution.md":  [
+
+                                                                ],
+                            ".specify/workflows/speckit/workflow.yml":  [
+
+                                                                        ],
+                            ".specify/workflows/workflow-registry.json":  [
+
+                                                                          ],
+                            ".understand-anything/.understandignore":  [
+
+                                                                       ],
+                            ".understand-anything/config.json":  [
+
+                                                                 ],
+                            "app/__init__.py":  [
+
+                                                ],
+                            "app/static/style.css":  [
+
+                                                     ],
+                            "configs/novel.yaml":  [
+
+                                                   ],
+                            "novel2epub/presets/__init__.py":  [
+
+                                                               ],
+                            "novel2epub/presets/go.py":  [
+
+                                                         ],
+                            "openspec/changes/ai-source-preset-builder/specs/firecrawl-removal/spec.md":  [
+
+                                                                                                          ],
+                            "openspec/changes/ai-source-preset-builder/specs/preset-builder/spec.md":  [
+
+                                                                                                       ],
+                            "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/specs/chapter-pagination/spec.md":  [
+
+                                                                                                                                   ],
+                            "openspec/changes/improve-sources-ui/specs/sources-ui/spec.md":  [
+
+                                                                                             ],
+                            "openspec/specs/chapter-pagination/spec.md":  [
+
+                                                                          ],
+                            "specs/001-refactor-toc/checklists/requirements.md":  [
+
+                                                                                  ],
+                            "specs/001-refactor-toc/contracts/cli.md":  [
+
+                                                                        ],
+                            "specs/001-refactor-toc/contracts/web-ui.md":  [
+
+                                                                           ],
+                            "specs/002-opencode-go-preset/checklists/requirements.md":  [
+
+                                                                                        ],
+                            "specs/002-opencode-go-preset/contracts/cli.md":  [
+
+                                                                              ]
+                        },
+    "neighborMap":  {
+
+                    }
+}

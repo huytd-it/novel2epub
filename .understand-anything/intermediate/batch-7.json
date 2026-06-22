@@ -1,0 +1,688 @@
+{
+  "nodes": [
+    {
+      "id": ".github/agents/speckit.agent-context.update.agent.md",
+      "label": "Agent Context Update Agent",
+      "type": "agent_definition",
+      "filePath": ".github/agents/speckit.agent-context.update.agent.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 29,
+      "nonEmptyLines": 18,
+      "sectionCount": 3,
+      "importCount": 0,
+      "exportCount": 0,
+      "description": "Speckit agent that refreshes the managed Spec Kit section in the coding agent context file (CLAUDE.md, AGENTS.md, etc.). Reads agent-context extension config from .specify/extensions/agent-context/.",
+      "domain_concepts": [
+        "Speckit workflow",
+        "Agent context management",
+        "Extension config",
+        "Spec Kit markers"
+      ],
+      "related_shell_scripts": [
+        ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+        ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1"
+      ],
+      "related_configs": [
+        ".specify/extensions/agent-context/agent-context-config.yml"
+      ],
+      "related_files": [
+        ".specify/extensions/agent-context/"
+      ],
+      "key_terms": [
+        "context_file",
+        "context_markers",
+        "SPECKIT START",
+        "SPECKIT END",
+        "plan_path"
+      ]
+    },
+    {
+      "id": ".github/agents/speckit.analyze.agent.md",
+      "label": "Analyze Agent",
+      "type": "agent_definition",
+      "filePath": ".github/agents/speckit.analyze.agent.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 249,
+      "nonEmptyLines": 172,
+      "sectionCount": 25,
+      "importCount": 0,
+      "exportCount": 0,
+      "description": "Speckit agent for non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation. Performs duplication, ambiguity, underspecification, constitution alignment, coverage gap, and inconsistency detection.",
+      "domain_concepts": [
+        "Speckit workflow",
+        "Cross-artifact analysis",
+        "Specification quality",
+        "Constitution alignment",
+        "Extension hooks"
+      ],
+      "related_shell_scripts": [],
+      "related_configs": [
+        ".specify/extensions.yml",
+        ".specify/memory/constitution.md"
+      ],
+      "related_files": [
+        ".github/agents/speckit.tasks.agent.md",
+        ".github/agents/speckit.specify.agent.md",
+        ".github/agents/speckit.plan.agent.md"
+      ],
+      "key_terms": [
+        "spec.md",
+        "plan.md",
+        "tasks.md",
+        "constitution.md",
+        "extensions.yml",
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "read-only"
+      ],
+      "references_agents": [
+        "speckit.tasks",
+        "speckit.specify",
+        "speckit.plan"
+      ]
+    },
+    {
+      "id": ".github/agents/speckit.checklist.agent.md",
+      "label": "Checklist Agent",
+      "type": "agent_definition",
+      "filePath": ".github/agents/speckit.checklist.agent.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 363,
+      "nonEmptyLines": 287,
+      "sectionCount": 7,
+      "importCount": 0,
+      "exportCount": 0,
+      "description": "Speckit agent that generates custom checklists for features based on user requirements. Described as \"Unit Tests for English\" — domain-specific, scenario-driven checklists with requirement-to-item mapping and source citations.",
+      "domain_concepts": [
+        "Speckit workflow",
+        "Quality assurance",
+        "Checklist generation",
+        "Requirement validation",
+        "Extension hooks"
+      ],
+      "related_shell_scripts": [
+        ".specify/scripts/powershell/check-prerequisites.ps1"
+      ],
+      "related_configs": [
+        ".specify/extensions.yml"
+      ],
+      "related_files": [
+        "checklists/"
+      ],
+      "key_terms": [
+        "unit tests for English",
+        "scenario-driven",
+        "requirement traceability",
+        "source citations",
+        "check_prerequisites.ps1"
+      ]
+    },
+    {
+      "id": ".github/agents/speckit.clarify.agent.md",
+      "label": "Clarify Agent",
+      "type": "agent_definition",
+      "filePath": ".github/agents/speckit.clarify.agent.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 279,
+      "nonEmptyLines": 231,
+      "sectionCount": 6,
+      "importCount": 0,
+      "exportCount": 0,
+      "description": "Speckit agent that identifies underspecified areas in the current feature spec by asking up to 5 targeted clarification questions and encoding answers back into the spec.",
+      "domain_concepts": [
+        "Speckit workflow",
+        "Requirement clarification",
+        "Specification refinement",
+        "Interactive questioning",
+        "Extension hooks"
+      ],
+      "related_shell_scripts": [
+        ".specify/scripts/powershell/check-prerequisites.ps1"
+      ],
+      "related_configs": [
+        ".specify/extensions.yml"
+      ],
+      "related_files": [],
+      "key_terms": [
+        "underspecified",
+        "clarification questions",
+        "spec.md",
+        "encoded answers",
+        "5 questions max",
+        "update-agent-context"
+      ]
+    },
+    {
+      "id": ".github/agents/speckit.constitution.agent.md",
+      "label": "Constitution Agent",
+      "type": "agent_definition",
+      "filePath": ".github/agents/speckit.constitution.agent.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 150,
+      "nonEmptyLines": 119,
+      "sectionCount": 4,
+      "importCount": 0,
+      "exportCount": 0,
+      "description": "Speckit agent that creates or updates the project constitution from interactive or provided principle inputs, ensuring all dependent templates stay in sync.",
+      "domain_concepts": [
+        "Speckit workflow",
+        "Project governance",
+        "Constitution management",
+        "Template synchronization",
+        "Extension hooks"
+      ],
+      "related_shell_scripts": [
+        ".specify/scripts/powershell/check-prerequisites.ps1"
+      ],
+      "related_configs": [
+        ".specify/memory/constitution.md",
+        ".specify/templates/",
+        ".specify/extensions.yml"
+      ],
+      "related_files": [
+        ".specify/templates/plan-template.md",
+        ".specify/templates/spec-template.md",
+        ".specify/templates/tasks-template.md"
+      ],
+      "key_terms": [
+        "constitution",
+        "principles",
+        "templates",
+        "non-negotiable",
+        "governance"
+      ]
+    },
+    {
+      "id": ".github/agents/speckit.implement.agent.md",
+      "label": "Implement Agent",
+      "type": "agent_definition",
+      "filePath": ".github/agents/speckit.implement.agent.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 213,
+      "nonEmptyLines": 173,
+      "sectionCount": 6,
+      "importCount": 0,
+      "exportCount": 0,
+      "description": "Speckit agent that executes the implementation plan by processing all tasks defined in tasks.md. Checks prerequisites, checklist status, and processes tasks in dependency order.",
+      "domain_concepts": [
+        "Speckit workflow",
+        "Task execution",
+        "Implementation pipeline",
+        "Checklist validation",
+        "Extension hooks"
+      ],
+      "related_shell_scripts": [
+        ".specify/scripts/powershell/check-prerequisites.ps1"
+      ],
+      "related_configs": [
+        ".specify/extensions.yml"
+      ],
+      "related_files": [
+        ".github/agents/speckit.tasks.agent.md",
+        ".github/agents/speckit.plan.agent.md"
+      ],
+      "key_terms": [
+        "tasks.md",
+        "checklists",
+        "FEATURE_DIR",
+        "AVAILABLE_DOCS",
+        "implementation",
+        "dependency order",
+        "update-agent-context"
+      ],
+      "references_agents": [
+        "speckit.tasks",
+        "speckit.plan"
+      ]
+    },
+    {
+      "id": ".github/agents/speckit.plan.agent.md",
+      "label": "Plan Agent",
+      "type": "agent_definition",
+      "filePath": ".github/agents/speckit.plan.agent.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 168,
+      "nonEmptyLines": 129,
+      "sectionCount": 10,
+      "importCount": 0,
+      "exportCount": 0,
+      "description": "Speckit agent that executes the implementation planning workflow using the plan template to generate design artifacts (plan.md, research.md, data-model.md, contracts/, quickstart.md).",
+      "domain_concepts": [
+        "Speckit workflow",
+        "Design planning",
+        "Architecture design",
+        "Contract definition",
+        "Extension hooks"
+      ],
+      "related_shell_scripts": [
+        ".specify/scripts/powershell/check-prerequisites.ps1"
+      ],
+      "related_configs": [
+        ".specify/extensions.yml",
+        ".specify/memory/constitution.md"
+      ],
+      "related_files": [
+        ".specify/templates/plan-template.md",
+        ".github/agents/speckit.specify.agent.md"
+      ],
+      "key_terms": [
+        "plan.md",
+        "research.md",
+        "data-model.md",
+        "contracts/",
+        "quickstart.md",
+        "Phase 0",
+        "Phase 1",
+        "update-agent-context"
+      ],
+      "references_agents": [
+        "speckit.specify"
+      ]
+    },
+    {
+      "id": ".github/agents/speckit.specify.agent.md",
+      "label": "Specify Agent",
+      "type": "agent_definition",
+      "filePath": ".github/agents/speckit.specify.agent.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 343,
+      "nonEmptyLines": 266,
+      "sectionCount": 10,
+      "importCount": 0,
+      "exportCount": 0,
+      "description": "Speckit agent that creates or updates the feature specification from a natural language feature description. Generates spec.md with user stories, functional requirements, success criteria, and key entities.",
+      "domain_concepts": [
+        "Speckit workflow",
+        "Feature specification",
+        "User stories",
+        "Requirements engineering",
+        "Extension hooks"
+      ],
+      "related_shell_scripts": [
+        ".specify/scripts/powershell/check-prerequisites.ps1"
+      ],
+      "related_configs": [
+        ".specify/extensions.yml",
+        ".specify/memory/constitution.md"
+      ],
+      "related_files": [
+        ".specify/templates/spec-template.md"
+      ],
+      "key_terms": [
+        "spec.md",
+        "user stories",
+        "functional requirements",
+        "success criteria",
+        "key entities",
+        "update-agent-context"
+      ]
+    },
+    {
+      "id": ".github/agents/speckit.tasks.agent.md",
+      "label": "Tasks Agent",
+      "type": "agent_definition",
+      "filePath": ".github/agents/speckit.tasks.agent.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 213,
+      "nonEmptyLines": 170,
+      "sectionCount": 10,
+      "importCount": 0,
+      "exportCount": 0,
+      "description": "Speckit agent that generates an actionable, dependency-ordered tasks.md for the feature based on available design artifacts (spec.md, plan.md, research.md, data-model.md, contracts/).",
+      "domain_concepts": [
+        "Speckit workflow",
+        "Task decomposition",
+        "Dependency ordering",
+        "Phase-based execution",
+        "Extension hooks"
+      ],
+      "related_shell_scripts": [
+        ".specify/scripts/powershell/check-prerequisites.ps1"
+      ],
+      "related_configs": [
+        ".specify/extensions.yml"
+      ],
+      "related_files": [
+        ".github/agents/speckit.specify.agent.md",
+        ".github/agents/speckit.plan.agent.md",
+        ".github/agents/speckit.implement.agent.md"
+      ],
+      "key_terms": [
+        "tasks.md",
+        "dependency order",
+        "phases",
+        "checklist format",
+        "parallel tasks",
+        "serial tasks",
+        "update-agent-context"
+      ],
+      "references_agents": [
+        "speckit.specify",
+        "speckit.plan",
+        "speckit.implement"
+      ]
+    },
+    {
+      "id": ".github/agents/speckit.taskstoissues.agent.md",
+      "label": "Tasks to Issues Agent",
+      "type": "agent_definition",
+      "filePath": ".github/agents/speckit.taskstoissues.agent.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 97,
+      "nonEmptyLines": 77,
+      "sectionCount": 4,
+      "importCount": 0,
+      "exportCount": 0,
+      "description": "Speckit agent that converts existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts.",
+      "domain_concepts": [
+        "Speckit workflow",
+        "GitHub integration",
+        "Issue generation",
+        "Task conversion"
+      ],
+      "related_shell_scripts": [
+        ".specify/scripts/powershell/check-prerequisites.ps1"
+      ],
+      "related_configs": [
+        ".specify/extensions.yml"
+      ],
+      "related_files": [
+        ".github/agents/speckit.tasks.agent.md"
+      ],
+      "key_terms": [
+        "GitHub issues",
+        "tasks.md",
+        "labels",
+        "milestones",
+        "dependency mapping"
+      ],
+      "references_agents": [
+        "speckit.tasks"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": ".github/agents/speckit.agent-context.update.agent.md",
+      "target": ".specify/extensions/agent-context/",
+      "type": "references",
+      "label": "manages agent context via"
+    },
+    {
+      "source": ".github/agents/speckit.agent-context.update.agent.md",
+      "target": ".specify/extensions/agent-context/agent-context-config.yml",
+      "type": "reads",
+      "label": "reads config from"
+    },
+    {
+      "source": ".github/agents/speckit.agent-context.update.agent.md",
+      "target": ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+      "type": "invokes",
+      "label": "executes bash script"
+    },
+    {
+      "source": ".github/agents/speckit.agent-context.update.agent.md",
+      "target": ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
+      "type": "invokes",
+      "label": "executes powershell script"
+    },
+    {
+      "source": ".github/agents/speckit.analyze.agent.md",
+      "target": ".specify/extensions.yml",
+      "type": "reads",
+      "label": "checks hook config"
+    },
+    {
+      "source": ".github/agents/speckit.analyze.agent.md",
+      "target": ".specify/memory/constitution.md",
+      "type": "references",
+      "label": "validates against"
+    },
+    {
+      "source": ".github/agents/speckit.analyze.agent.md",
+      "target": ".github/agents/speckit.tasks.agent.md",
+      "type": "depends_on",
+      "label": "requires tasks.md from"
+    },
+    {
+      "source": ".github/agents/speckit.analyze.agent.md",
+      "target": ".github/agents/speckit.specify.agent.md",
+      "type": "depends_on",
+      "label": "analyzes spec.md from"
+    },
+    {
+      "source": ".github/agents/speckit.analyze.agent.md",
+      "target": ".github/agents/speckit.plan.agent.md",
+      "type": "depends_on",
+      "label": "analyzes plan.md from"
+    },
+    {
+      "source": ".github/agents/speckit.checklist.agent.md",
+      "target": ".specify/scripts/powershell/check-prerequisites.ps1",
+      "type": "invokes",
+      "label": "uses prerequisites script"
+    },
+    {
+      "source": ".github/agents/speckit.checklist.agent.md",
+      "target": ".specify/extensions.yml",
+      "type": "reads",
+      "label": "checks hook config"
+    },
+    {
+      "source": ".github/agents/speckit.clarify.agent.md",
+      "target": ".specify/scripts/powershell/check-prerequisites.ps1",
+      "type": "invokes",
+      "label": "uses prerequisites script"
+    },
+    {
+      "source": ".github/agents/speckit.clarify.agent.md",
+      "target": ".specify/extensions.yml",
+      "type": "reads",
+      "label": "checks hook config"
+    },
+    {
+      "source": ".github/agents/speckit.constitution.agent.md",
+      "target": ".specify/memory/constitution.md",
+      "type": "writes",
+      "label": "creates/updates"
+    },
+    {
+      "source": ".github/agents/speckit.constitution.agent.md",
+      "target": ".specify/templates/",
+      "type": "writes",
+      "label": "syncs templates with"
+    },
+    {
+      "source": ".github/agents/speckit.constitution.agent.md",
+      "target": ".specify/scripts/powershell/check-prerequisites.ps1",
+      "type": "invokes",
+      "label": "uses prerequisites script"
+    },
+    {
+      "source": ".github/agents/speckit.constitution.agent.md",
+      "target": ".specify/extensions.yml",
+      "type": "reads",
+      "label": "checks hook config"
+    },
+    {
+      "source": ".github/agents/speckit.implement.agent.md",
+      "target": ".specify/scripts/powershell/check-prerequisites.ps1",
+      "type": "invokes",
+      "label": "uses prerequisites script"
+    },
+    {
+      "source": ".github/agents/speckit.implement.agent.md",
+      "target": ".specify/extensions.yml",
+      "type": "reads",
+      "label": "checks hook config"
+    },
+    {
+      "source": ".github/agents/speckit.implement.agent.md",
+      "target": ".github/agents/speckit.tasks.agent.md",
+      "type": "depends_on",
+      "label": "reads tasks.md from"
+    },
+    {
+      "source": ".github/agents/speckit.implement.agent.md",
+      "target": ".github/agents/speckit.plan.agent.md",
+      "type": "depends_on",
+      "label": "follows plan from"
+    },
+    {
+      "source": ".github/agents/speckit.plan.agent.md",
+      "target": ".specify/scripts/powershell/check-prerequisites.ps1",
+      "type": "invokes",
+      "label": "uses prerequisites script"
+    },
+    {
+      "source": ".github/agents/speckit.plan.agent.md",
+      "target": ".specify/extensions.yml",
+      "type": "reads",
+      "label": "checks hook config"
+    },
+    {
+      "source": ".github/agents/speckit.plan.agent.md",
+      "target": ".specify/memory/constitution.md",
+      "type": "references",
+      "label": "respects constraints from"
+    },
+    {
+      "source": ".github/agents/speckit.plan.agent.md",
+      "target": ".specify/templates/plan-template.md",
+      "type": "references",
+      "label": "uses template"
+    },
+    {
+      "source": ".github/agents/speckit.plan.agent.md",
+      "target": ".github/agents/speckit.specify.agent.md",
+      "type": "depends_on",
+      "label": "reads spec.md from"
+    },
+    {
+      "source": ".github/agents/speckit.specify.agent.md",
+      "target": ".specify/scripts/powershell/check-prerequisites.ps1",
+      "type": "invokes",
+      "label": "uses prerequisites script"
+    },
+    {
+      "source": ".github/agents/speckit.specify.agent.md",
+      "target": ".specify/extensions.yml",
+      "type": "reads",
+      "label": "checks hook config"
+    },
+    {
+      "source": ".github/agents/speckit.specify.agent.md",
+      "target": ".specify/memory/constitution.md",
+      "type": "references",
+      "label": "respects constraints from"
+    },
+    {
+      "source": ".github/agents/speckit.specify.agent.md",
+      "target": ".specify/templates/spec-template.md",
+      "type": "references",
+      "label": "uses template"
+    },
+    {
+      "source": ".github/agents/speckit.tasks.agent.md",
+      "target": ".specify/scripts/powershell/check-prerequisites.ps1",
+      "type": "invokes",
+      "label": "uses prerequisites script"
+    },
+    {
+      "source": ".github/agents/speckit.tasks.agent.md",
+      "target": ".specify/extensions.yml",
+      "type": "reads",
+      "label": "checks hook config"
+    },
+    {
+      "source": ".github/agents/speckit.tasks.agent.md",
+      "target": ".github/agents/speckit.specify.agent.md",
+      "type": "depends_on",
+      "label": "reads spec.md from"
+    },
+    {
+      "source": ".github/agents/speckit.tasks.agent.md",
+      "target": ".github/agents/speckit.plan.agent.md",
+      "type": "depends_on",
+      "label": "reads plan.md from"
+    },
+    {
+      "source": ".github/agents/speckit.tasks.agent.md",
+      "target": ".github/agents/speckit.implement.agent.md",
+      "type": "precedes",
+      "label": "generates tasks.md for"
+    },
+    {
+      "source": ".github/agents/speckit.taskstoissues.agent.md",
+      "target": ".specify/scripts/powershell/check-prerequisites.ps1",
+      "type": "invokes",
+      "label": "uses prerequisites script"
+    },
+    {
+      "source": ".github/agents/speckit.taskstoissues.agent.md",
+      "target": ".specify/extensions.yml",
+      "type": "reads",
+      "label": "checks hook config"
+    },
+    {
+      "source": ".github/agents/speckit.taskstoissues.agent.md",
+      "target": ".github/agents/speckit.tasks.agent.md",
+      "type": "depends_on",
+      "label": "reads tasks.md from"
+    },
+    {
+      "source": "Batch 7 - Speckit Agent Definitions",
+      "target": ".github/agents/",
+      "type": "directory",
+      "label": "all agent definitions live under"
+    },
+    {
+      "source": "Batch 7 - Speckit Agent Definitions",
+      "target": ".specify/",
+      "type": "references",
+      "label": "all agents interact with the .specify/ directory"
+    },
+    {
+      "source": ".github/agents/speckit.analyze.agent.md",
+      "target": ".github/agents/speckit.checklist.agent.md",
+      "type": "sibling",
+      "label": "same workflow family"
+    },
+    {
+      "source": ".github/agents/speckit.clarify.agent.md",
+      "target": ".github/agents/speckit.specify.agent.md",
+      "type": "related",
+      "label": "refines spec produced by"
+    },
+    {
+      "source": ".github/agents/speckit.tasks.agent.md",
+      "target": ".github/agents/speckit.checklist.agent.md",
+      "type": "sibling",
+      "label": "task-oriented workflow agents"
+    },
+    {
+      "source": ".github/agents/speckit.implement.agent.md",
+      "target": ".github/agents/speckit.taskstoissues.agent.md",
+      "type": "sibling",
+      "label": "consumes artifacts, produces outputs"
+    },
+    {
+      "source": "Batch 7 - Speckit Agent Definitions",
+      "target": "speckit workflow pipeline",
+      "type": "concept",
+      "label": "Specify → Clarify → Plan → Tasks → Analyze → Implement → Issues"
+    }
+  ]
+}

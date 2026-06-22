@@ -1,0 +1,1205 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "files":  [
+                  {
+                      "path":  ".claude/commands/opsx/apply.md",
+                      "language":  "markdown",
+                      "sizeLines":  155,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/commands/opsx/archive.md",
+                      "language":  "markdown",
+                      "sizeLines":  160,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/commands/opsx/explore.md",
+                      "language":  "markdown",
+                      "sizeLines":  172,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/commands/opsx/propose.md",
+                      "language":  "markdown",
+                      "sizeLines":  107,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/commands/opsx/sync.md",
+                      "language":  "markdown",
+                      "sizeLines":  143,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/openspec-apply-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  159,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/openspec-archive-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  117,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/openspec-explore/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  287,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/openspec-propose/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  111,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/openspec-sync-specs/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  147,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-agent-context-update/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  30,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-analyze/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  260,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-checklist/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  374,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-clarify/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  286,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-constitution/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  157,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-implement/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  224,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-plan/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  171,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-specify/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  346,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-tasks/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  215,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-taskstoissues/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  107,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/agents/speckit.agent-context.update.agent.md",
+                      "language":  "markdown",
+                      "sizeLines":  28,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/agents/speckit.analyze.agent.md",
+                      "language":  "markdown",
+                      "sizeLines":  249,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/agents/speckit.checklist.agent.md",
+                      "language":  "markdown",
+                      "sizeLines":  363,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/agents/speckit.clarify.agent.md",
+                      "language":  "markdown",
+                      "sizeLines":  279,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/agents/speckit.constitution.agent.md",
+                      "language":  "markdown",
+                      "sizeLines":  150,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/agents/speckit.implement.agent.md",
+                      "language":  "markdown",
+                      "sizeLines":  213,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/agents/speckit.plan.agent.md",
+                      "language":  "markdown",
+                      "sizeLines":  168,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/agents/speckit.specify.agent.md",
+                      "language":  "markdown",
+                      "sizeLines":  343,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/agents/speckit.tasks.agent.md",
+                      "language":  "markdown",
+                      "sizeLines":  213,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/agents/speckit.taskstoissues.agent.md",
+                      "language":  "markdown",
+                      "sizeLines":  97,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/copilot-instructions.md",
+                      "language":  "markdown",
+                      "sizeLines":  4,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/opsx-apply.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  152,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/opsx-archive.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  157,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/opsx-explore.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  169,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/opsx-propose.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  104,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/opsx-sync.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  140,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.agent-context.update.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.analyze.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.checklist.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.clarify.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.constitution.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.implement.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.plan.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.specify.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.tasks.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.taskstoissues.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/skills/openspec-apply-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  159,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/skills/openspec-archive-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  117,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/skills/openspec-explore/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  287,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/skills/openspec-propose/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  111,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/skills/openspec-sync-specs/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  147,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/opsx-apply.md",
+                      "language":  "markdown",
+                      "sizeLines":  152,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/opsx-archive.md",
+                      "language":  "markdown",
+                      "sizeLines":  157,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/opsx-explore.md",
+                      "language":  "markdown",
+                      "sizeLines":  169,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/opsx-propose.md",
+                      "language":  "markdown",
+                      "sizeLines":  104,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/opsx-sync.md",
+                      "language":  "markdown",
+                      "sizeLines":  140,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.analyze.md",
+                      "language":  "markdown",
+                      "sizeLines":  249,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.checklist.md",
+                      "language":  "markdown",
+                      "sizeLines":  363,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.clarify.md",
+                      "language":  "markdown",
+                      "sizeLines":  279,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.constitution.md",
+                      "language":  "markdown",
+                      "sizeLines":  150,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.implement.md",
+                      "language":  "markdown",
+                      "sizeLines":  213,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.plan.md",
+                      "language":  "markdown",
+                      "sizeLines":  168,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.specify.md",
+                      "language":  "markdown",
+                      "sizeLines":  343,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.tasks.md",
+                      "language":  "markdown",
+                      "sizeLines":  213,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.taskstoissues.md",
+                      "language":  "markdown",
+                      "sizeLines":  97,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/skills/openspec-apply-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  159,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/skills/openspec-archive-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  117,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/skills/openspec-explore/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  287,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/skills/openspec-propose/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  111,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/skills/openspec-sync-specs/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  147,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/extensions.yml",
+                      "language":  "yaml",
+                      "sizeLines":  23,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/extensions/.registry",
+                      "language":  "unknown",
+                      "sizeLines":  21,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/agent-context-config.yml",
+                      "language":  "yaml",
+                      "sizeLines":  4,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+                      "language":  "markdown",
+                      "sizeLines":  26,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/extension.yml",
+                      "language":  "yaml",
+                      "sizeLines":  34,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/README.md",
+                      "language":  "markdown",
+                      "sizeLines":  57,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+                      "language":  "shell",
+                      "sizeLines":  200,
+                      "fileCategory":  "script"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
+                      "language":  "powershell",
+                      "sizeLines":  237,
+                      "fileCategory":  "script"
+                  },
+                  {
+                      "path":  ".specify/feature.json",
+                      "language":  "json",
+                      "sizeLines":  3,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/init-options.json",
+                      "language":  "json",
+                      "sizeLines":  7,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/integration.json",
+                      "language":  "json",
+                      "sizeLines":  15,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/integrations/claude.manifest.json",
+                      "language":  "json",
+                      "sizeLines":  16,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/integrations/copilot.manifest.json",
+                      "language":  "json",
+                      "sizeLines":  26,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/integrations/opencode.manifest.json",
+                      "language":  "json",
+                      "sizeLines":  16,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/integrations/speckit.manifest.json",
+                      "language":  "json",
+                      "sizeLines":  17,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/memory/constitution.md",
+                      "language":  "markdown",
+                      "sizeLines":  100,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/scripts/powershell/check-prerequisites.ps1",
+                      "language":  "powershell",
+                      "sizeLines":  147,
+                      "fileCategory":  "script"
+                  },
+                  {
+                      "path":  ".specify/scripts/powershell/common.ps1",
+                      "language":  "powershell",
+                      "sizeLines":  516,
+                      "fileCategory":  "script"
+                  },
+                  {
+                      "path":  ".specify/scripts/powershell/create-new-feature.ps1",
+                      "language":  "powershell",
+                      "sizeLines":  237,
+                      "fileCategory":  "script"
+                  },
+                  {
+                      "path":  ".specify/scripts/powershell/setup-plan.ps1",
+                      "language":  "powershell",
+                      "sizeLines":  64,
+                      "fileCategory":  "script"
+                  },
+                  {
+                      "path":  ".specify/scripts/powershell/setup-tasks.ps1",
+                      "language":  "powershell",
+                      "sizeLines":  69,
+                      "fileCategory":  "script"
+                  },
+                  {
+                      "path":  ".specify/templates/checklist-template.md",
+                      "language":  "markdown",
+                      "sizeLines":  40,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/templates/constitution-template.md",
+                      "language":  "markdown",
+                      "sizeLines":  50,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/templates/plan-template.md",
+                      "language":  "markdown",
+                      "sizeLines":  123,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/templates/spec-template.md",
+                      "language":  "markdown",
+                      "sizeLines":  149,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/templates/tasks-template.md",
+                      "language":  "markdown",
+                      "sizeLines":  258,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/workflows/speckit/workflow.yml",
+                      "language":  "yaml",
+                      "sizeLines":  77,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/workflows/workflow-registry.json",
+                      "language":  "json",
+                      "sizeLines":  12,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".understand-anything/.understandignore",
+                      "language":  "unknown",
+                      "sizeLines":  50,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  ".understand-anything/config.json",
+                      "language":  "json",
+                      "sizeLines":  3,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  "AGENTS.md",
+                      "language":  "markdown",
+                      "sizeLines":  148,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "app/__init__.py",
+                      "language":  "python",
+                      "sizeLines":  1,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/deps.py",
+                      "language":  "python",
+                      "sizeLines":  67,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/job.py",
+                      "language":  "python",
+                      "sizeLines":  114,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/main.py",
+                      "language":  "python",
+                      "sizeLines":  25,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/__init__.py",
+                      "language":  "python",
+                      "sizeLines":  0,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/chapters.py",
+                      "language":  "python",
+                      "sizeLines":  252,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/ebooks.py",
+                      "language":  "python",
+                      "sizeLines":  128,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/glossary.py",
+                      "language":  "python",
+                      "sizeLines":  239,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/jobs.py",
+                      "language":  "python",
+                      "sizeLines":  184,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/library.py",
+                      "language":  "python",
+                      "sizeLines":  168,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/preset_builder.py",
+                      "language":  "python",
+                      "sizeLines":  215,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/settings.py",
+                      "language":  "python",
+                      "sizeLines":  152,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/sources.py",
+                      "language":  "python",
+                      "sizeLines":  99,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/static/style.css",
+                      "language":  "css",
+                      "sizeLines":  131,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/base.html",
+                      "language":  "html",
+                      "sizeLines":  23,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/chapter.html",
+                      "language":  "html",
+                      "sizeLines":  420,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/ebook.html",
+                      "language":  "html",
+                      "sizeLines":  343,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/glossary.html",
+                      "language":  "html",
+                      "sizeLines":  227,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/index.html",
+                      "language":  "html",
+                      "sizeLines":  108,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/library.html",
+                      "language":  "html",
+                      "sizeLines":  162,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/settings.html",
+                      "language":  "html",
+                      "sizeLines":  114,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/sources.html",
+                      "language":  "html",
+                      "sizeLines":  124,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "CLAUDE.md",
+                      "language":  "markdown",
+                      "sizeLines":  49,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "config.example.yaml",
+                      "language":  "yaml",
+                      "sizeLines":  182,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  "configs/novel.yaml",
+                      "language":  "yaml",
+                      "sizeLines":  172,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  "docs/rule.md",
+                      "language":  "markdown",
+                      "sizeLines":  184,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "docs/source.md",
+                      "language":  "markdown",
+                      "sizeLines":  128,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "docs/tool.md",
+                      "language":  "markdown",
+                      "sizeLines":  93,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "novel2epub/__init__.py",
+                      "language":  "python",
+                      "sizeLines":  3,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/__main__.py",
+                      "language":  "python",
+                      "sizeLines":  4,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/cli_runner.py",
+                      "language":  "python",
+                      "sizeLines":  74,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/cli.py",
+                      "language":  "python",
+                      "sizeLines":  331,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/config_writer.py",
+                      "language":  "python",
+                      "sizeLines":  120,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/config.py",
+                      "language":  "python",
+                      "sizeLines":  348,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/crawler.py",
+                      "language":  "python",
+                      "sizeLines":  656,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/epub_builder.py",
+                      "language":  "python",
+                      "sizeLines":  146,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/footnotes.py",
+                      "language":  "python",
+                      "sizeLines":  90,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/glossary_ai.py",
+                      "language":  "python",
+                      "sizeLines":  280,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/pipeline.py",
+                      "language":  "python",
+                      "sizeLines":  814,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/preset_builder.py",
+                      "language":  "python",
+                      "sizeLines":  453,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/presets/__init__.py",
+                      "language":  "python",
+                      "sizeLines":  28,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/presets/go.py",
+                      "language":  "python",
+                      "sizeLines":  56,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/sources.py",
+                      "language":  "python",
+                      "sizeLines":  132,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/storage.py",
+                      "language":  "python",
+                      "sizeLines":  250,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/toc.py",
+                      "language":  "python",
+                      "sizeLines":  154,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/translator.py",
+                      "language":  "python",
+                      "sizeLines":  257,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "openspec/changes/ai-source-preset-builder/.openspec.yaml",
+                      "language":  "yaml",
+                      "sizeLines":  2,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  "openspec/changes/ai-source-preset-builder/design.md",
+                      "language":  "markdown",
+                      "sizeLines":  81,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/ai-source-preset-builder/proposal.md",
+                      "language":  "markdown",
+                      "sizeLines":  43,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/ai-source-preset-builder/specs/firecrawl-removal/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  56,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/ai-source-preset-builder/specs/preset-builder/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  101,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/ai-source-preset-builder/tasks.md",
+                      "language":  "markdown",
+                      "sizeLines":  66,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/.openspec.yaml",
+                      "language":  "yaml",
+                      "sizeLines":  2,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+                      "language":  "markdown",
+                      "sizeLines":  204,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+                      "language":  "markdown",
+                      "sizeLines":  68,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/specs/chapter-pagination/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  147,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+                      "language":  "markdown",
+                      "sizeLines":  79,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/improve-sources-ui/.openspec.yaml",
+                      "language":  "yaml",
+                      "sizeLines":  2,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  "openspec/changes/improve-sources-ui/design.md",
+                      "language":  "markdown",
+                      "sizeLines":  48,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/improve-sources-ui/proposal.md",
+                      "language":  "markdown",
+                      "sizeLines":  28,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/improve-sources-ui/README.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/improve-sources-ui/specs/sources-ui/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  78,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/changes/improve-sources-ui/tasks.md",
+                      "language":  "markdown",
+                      "sizeLines":  32,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "openspec/specs/chapter-pagination/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  155,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "README.md",
+                      "language":  "markdown",
+                      "sizeLines":  204,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "requirements.txt",
+                      "language":  "txt",
+                      "sizeLines":  10,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "sources.yaml",
+                      "language":  "yaml",
+                      "sizeLines":  134,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/checklists/requirements.md",
+                      "language":  "markdown",
+                      "sizeLines":  34,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/contracts/cli.md",
+                      "language":  "markdown",
+                      "sizeLines":  96,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/contracts/web-ui.md",
+                      "language":  "markdown",
+                      "sizeLines":  90,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/data-model.md",
+                      "language":  "markdown",
+                      "sizeLines":  119,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/plan.md",
+                      "language":  "markdown",
+                      "sizeLines":  116,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/quickstart.md",
+                      "language":  "markdown",
+                      "sizeLines":  135,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/research.md",
+                      "language":  "markdown",
+                      "sizeLines":  85,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  199,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/tasks.md",
+                      "language":  "markdown",
+                      "sizeLines":  231,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/002-opencode-go-preset/checklists/requirements.md",
+                      "language":  "markdown",
+                      "sizeLines":  34,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/002-opencode-go-preset/contracts/cli.md",
+                      "language":  "markdown",
+                      "sizeLines":  74,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/002-opencode-go-preset/data-model.md",
+                      "language":  "markdown",
+                      "sizeLines":  62,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/002-opencode-go-preset/plan.md",
+                      "language":  "markdown",
+                      "sizeLines":  76,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/002-opencode-go-preset/quickstart.md",
+                      "language":  "markdown",
+                      "sizeLines":  124,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/002-opencode-go-preset/research.md",
+                      "language":  "markdown",
+                      "sizeLines":  78,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/002-opencode-go-preset/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  104,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/002-opencode-go-preset/tasks.md",
+                      "language":  "markdown",
+                      "sizeLines":  178,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "tests/__init__.py",
+                      "language":  "python",
+                      "sizeLines":  0,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_chapter_pagination.py",
+                      "language":  "python",
+                      "sizeLines":  538,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_config_writer.py",
+                      "language":  "python",
+                      "sizeLines":  73,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_config.py",
+                      "language":  "python",
+                      "sizeLines":  141,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_crawler_meta.py",
+                      "language":  "python",
+                      "sizeLines":  150,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_epub_builder.py",
+                      "language":  "python",
+                      "sizeLines":  37,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_footnotes.py",
+                      "language":  "python",
+                      "sizeLines":  54,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_glossary_ai.py",
+                      "language":  "python",
+                      "sizeLines":  121,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_pipeline_ai_chapter.py",
+                      "language":  "python",
+                      "sizeLines":  99,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_pipeline_meta.py",
+                      "language":  "python",
+                      "sizeLines":  246,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_refactor_toc.py",
+                      "language":  "python",
+                      "sizeLines":  312,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_routes_glossary.py",
+                      "language":  "python",
+                      "sizeLines":  45,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_sources_ui.py",
+                      "language":  "python",
+                      "sizeLines":  102,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_storage.py",
+                      "language":  "python",
+                      "sizeLines":  135,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_translator.py",
+                      "language":  "python",
+                      "sizeLines":  204,
+                      "fileCategory":  "code"
+                  }
+              ]
+}

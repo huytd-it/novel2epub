@@ -1,0 +1,19 @@
+﻿{
+    "batchIndex":  25,
+    "files":  [
+                  {
+                      "path":  "tests/__init__.py",
+                      "language":  "python",
+                      "sizeLines":  0,
+                      "fileCategory":  "code"
+                  }
+              ],
+    "batchImportData":  {
+                            "tests/__init__.py":  [
+
+                                                  ]
+                        },
+    "neighborMap":  {
+
+                    }
+}

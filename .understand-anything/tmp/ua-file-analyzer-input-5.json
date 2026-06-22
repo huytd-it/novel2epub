@@ -1,0 +1,59 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            "novel2epub/cli_runner.py":  [
+                                                             "novel2epub/config.py"
+                                                         ],
+                            "novel2epub/glossary_ai.py":  [
+                                                              "novel2epub/cli_runner.py",
+                                                              "novel2epub/config.py",
+                                                              "novel2epub/translator.py"
+                                                          ],
+                            "novel2epub/translator.py":  [
+                                                             "novel2epub/cli_runner.py",
+                                                             "novel2epub/config.py",
+                                                             "novel2epub/storage.py"
+                                                         ],
+                            "tests/test_glossary_ai.py":  [
+                                                              "novel2epub/glossary_ai.py"
+                                                          ],
+                            "tests/test_translator.py":  [
+                                                             "novel2epub/__init__.py",
+                                                             "novel2epub/cli_runner.py",
+                                                             "novel2epub/config.py",
+                                                             "novel2epub/translator.py"
+                                                         ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  "novel2epub/cli_runner.py",
+                           "language":  "python",
+                           "sizeLines":  74,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "novel2epub/glossary_ai.py",
+                           "language":  "python",
+                           "sizeLines":  280,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "novel2epub/translator.py",
+                           "language":  "python",
+                           "sizeLines":  257,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_glossary_ai.py",
+                           "language":  "python",
+                           "sizeLines":  121,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_translator.py",
+                           "language":  "python",
+                           "sizeLines":  204,
+                           "fileCategory":  "code"
+                       }
+                   ]
+}

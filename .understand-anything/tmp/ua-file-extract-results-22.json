@@ -1,0 +1,418 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 6,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "specs/002-opencode-go-preset/data-model.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 62,
+      "nonEmptyLines": 45,
+      "sections": [
+        {
+          "heading": "Data Model: OpenCode Go Preset",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Entities",
+          "level": 2,
+          "line": 3
+        },
+        {
+          "heading": "GoPreset",
+          "level": 3,
+          "line": 5
+        },
+        {
+          "heading": "TranslateConfig (extended)",
+          "level": 3,
+          "line": 23
+        },
+        {
+          "heading": "CrawlConfig (extended, P3 only)",
+          "level": 3,
+          "line": 36
+        },
+        {
+          "heading": "Preset Resolution Flow",
+          "level": 2,
+          "line": 49
+        },
+        {
+          "heading": "State Transitions",
+          "level": 2,
+          "line": 60
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 7
+      }
+    },
+    {
+      "path": "specs/002-opencode-go-preset/plan.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 76,
+      "nonEmptyLines": 49,
+      "sections": [
+        {
+          "heading": "Implementation Plan: OpenCode Go Translation & AI Preset",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Summary",
+          "level": 2,
+          "line": 7
+        },
+        {
+          "heading": "Technical Context",
+          "level": 2,
+          "line": 11
+        },
+        {
+          "heading": "Constitution Check",
+          "level": 2,
+          "line": 31
+        },
+        {
+          "heading": "Project Structure",
+          "level": 2,
+          "line": 43
+        },
+        {
+          "heading": "Documentation (this feature)",
+          "level": 3,
+          "line": 45
+        },
+        {
+          "heading": "Source Code (repository root)",
+          "level": 3,
+          "line": 58
+        },
+        {
+          "heading": "Complexity Tracking",
+          "level": 2,
+          "line": 74
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 8
+      }
+    },
+    {
+      "path": "specs/002-opencode-go-preset/quickstart.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 124,
+      "nonEmptyLines": 92,
+      "sections": [
+        {
+          "heading": "Quickstart: OpenCode Go Preset Validation",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Prerequisites",
+          "level": 2,
+          "line": 3
+        },
+        {
+          "heading": "Test 1: Preset activates with minimal config",
+          "level": 2,
+          "line": 10
+        },
+        {
+          "heading": "Test 2: User field overrides preset",
+          "level": 2,
+          "line": 36
+        },
+        {
+          "heading": "Test 3: Unknown preset raises error",
+          "level": 2,
+          "line": 56
+        },
+        {
+          "heading": "Test 4: End-to-end chapter title translation (mock CLI)",
+          "level": 2,
+          "line": 73
+        },
+        {
+          "heading": "Test 5: End-to-end chapter translation (mock CLI)",
+          "level": 2,
+          "line": 84
+        },
+        {
+          "heading": "Test 6: AI fallback crawling (P3, optional)",
+          "level": 2,
+          "line": 95
+        },
+        {
+          "heading": "Manual Validation",
+          "level": 2,
+          "line": 117
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 9
+      }
+    },
+    {
+      "path": "specs/002-opencode-go-preset/research.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 78,
+      "nonEmptyLines": 49,
+      "sections": [
+        {
+          "heading": "Research: OpenCode Go Preset",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "1. Preset Resolution Mechanism",
+          "level": 2,
+          "line": 5
+        },
+        {
+          "heading": "2. Go CLI Command Interface",
+          "level": 2,
+          "line": 17
+        },
+        {
+          "heading": "3. Default Go Model Selection",
+          "level": 2,
+          "line": 25
+        },
+        {
+          "heading": "4. Go-Optimized Prompt Templates",
+          "level": 2,
+          "line": 39
+        },
+        {
+          "heading": "5. AI Fallback Crawling (P3) Architecture",
+          "level": 2,
+          "line": 51
+        },
+        {
+          "heading": "6. Preset Field Override Rules",
+          "level": 2,
+          "line": 63
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 7
+      }
+    },
+    {
+      "path": "specs/002-opencode-go-preset/spec.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 104,
+      "nonEmptyLines": 66,
+      "sections": [
+        {
+          "heading": "Feature Specification: OpenCode Go Translation & AI Preset",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "User Scenarios & Testing *(mandatory)*",
+          "level": 2,
+          "line": 11
+        },
+        {
+          "heading": "User Story 1 — Translate chapters via OpenCode Go with one config change (P1)",
+          "level": 3,
+          "line": 13
+        },
+        {
+          "heading": "User Story 2 — Use Go models for AI-assisted glossary suggestions and rewrites (P2)",
+          "level": 3,
+          "line": 30
+        },
+        {
+          "heading": "User Story 3 — AI-powered fallback crawling via Go (P3)",
+          "level": 3,
+          "line": 45
+        },
+        {
+          "heading": "Edge Cases",
+          "level": 3,
+          "line": 60
+        },
+        {
+          "heading": "Requirements *(mandatory)*",
+          "level": 2,
+          "line": 68
+        },
+        {
+          "heading": "Functional Requirements",
+          "level": 3,
+          "line": 70
+        },
+        {
+          "heading": "Key Entities",
+          "level": 3,
+          "line": 82
+        },
+        {
+          "heading": "Success Criteria *(mandatory)*",
+          "level": 2,
+          "line": 89
+        },
+        {
+          "heading": "Measurable Outcomes",
+          "level": 3,
+          "line": 91
+        },
+        {
+          "heading": "Assumptions",
+          "level": 2,
+          "line": 98
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 12
+      }
+    },
+    {
+      "path": "specs/002-opencode-go-preset/tasks.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 178,
+      "nonEmptyLines": 118,
+      "sections": [
+        {
+          "heading": "Tasks: OpenCode Go Translation & AI Preset",
+          "level": 1,
+          "line": 6
+        },
+        {
+          "heading": "Format: `[ID] [P?] [Story] Description`",
+          "level": 2,
+          "line": 14
+        },
+        {
+          "heading": "Phase 1: Setup (Shared Infrastructure)",
+          "level": 2,
+          "line": 22
+        },
+        {
+          "heading": "Phase 2: Foundational (Blocking Prerequisites)",
+          "level": 2,
+          "line": 37
+        },
+        {
+          "heading": "Phase 3: User Story 1 — Translate chapters via Go with one config change (P1) 🎯 MVP",
+          "level": 2,
+          "line": 55
+        },
+        {
+          "heading": "Implementation for User Story 1",
+          "level": 3,
+          "line": 61
+        },
+        {
+          "heading": "Phase 4: User Story 2 — Go models for glossary AI, rewrite, evaluation (P2)",
+          "level": 2,
+          "line": 73
+        },
+        {
+          "heading": "Implementation for User Story 2",
+          "level": 3,
+          "line": 79
+        },
+        {
+          "heading": "Phase 5: User Story 3 — AI-powered fallback crawling via Go (P3)",
+          "level": 2,
+          "line": 89
+        },
+        {
+          "heading": "Implementation for User Story 3",
+          "level": 3,
+          "line": 95
+        },
+        {
+          "heading": "Phase 6: Polish & Cross-Cutting Concerns",
+          "level": 2,
+          "line": 107
+        },
+        {
+          "heading": "Dependencies & Execution Order",
+          "level": 2,
+          "line": 117
+        },
+        {
+          "heading": "Phase Dependencies",
+          "level": 3,
+          "line": 119
+        },
+        {
+          "heading": "User Story Dependencies",
+          "level": 3,
+          "line": 128
+        },
+        {
+          "heading": "Parallel Opportunities",
+          "level": 3,
+          "line": 134
+        },
+        {
+          "heading": "Parallel Example: User Story 1",
+          "level": 3,
+          "line": 141
+        },
+        {
+          "heading": "Implementation Strategy",
+          "level": 2,
+          "line": 153
+        },
+        {
+          "heading": "MVP First (User Story 1 Only)",
+          "level": 3,
+          "line": 155
+        },
+        {
+          "heading": "Incremental Delivery",
+          "level": 3,
+          "line": 163
+        },
+        {
+          "heading": "Parallel Strategy (multiple developers)",
+          "level": 3,
+          "line": 171
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 20
+      }
+    }
+  ]
+}

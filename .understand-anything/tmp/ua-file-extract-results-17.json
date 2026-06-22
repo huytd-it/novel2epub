@@ -1,0 +1,141 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 3,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "docs/rule.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 184,
+      "nonEmptyLines": 129,
+      "sections": [
+        {
+          "heading": "Quy tắc edit truyện và chú giải nhanh",
+          "level": 1,
+          "line": 23
+        },
+        {
+          "heading": "Mục lục",
+          "level": 2,
+          "line": 27
+        },
+        {
+          "heading": "Chú giải nhanh",
+          "level": 2,
+          "line": 35
+        },
+        {
+          "heading": "Checklist đọc nhanh cho editor",
+          "level": 2,
+          "line": 55
+        },
+        {
+          "heading": "I. Giới thiệu chung",
+          "level": 2,
+          "line": 65
+        },
+        {
+          "heading": "II. Làm thế nào để có bản edit đúng.",
+          "level": 2,
+          "line": 71
+        },
+        {
+          "heading": "II.1. Nguyên tắc 1: Lúc nào cũng phải cẩn thận.",
+          "level": 3,
+          "line": 75
+        },
+        {
+          "heading": "II.2. Nguyên tắc 2: Ngữ pháp tiếng Việt và tiếng Trung khác nhau, hãy điều chỉnh cho phù hợp.",
+          "level": 3,
+          "line": 87
+        },
+        {
+          "heading": "II.3. Nguyên tắc 3: Ngôi xưng quyết định phần lớn độ hay trong tác phẩm của bạn",
+          "level": 3,
+          "line": 109
+        },
+        {
+          "heading": "II.4. Nguyên tắc 4: Hãy cảnh giác, không phải lúc nào Quick translator cũng đáng tin.",
+          "level": 3,
+          "line": 133
+        },
+        {
+          "heading": "II.5. Nguyên tắc 5: Cân bằng từ Hán Việt và thuần Việt.",
+          "level": 3,
+          "line": 137
+        },
+        {
+          "heading": "II.6. Nguyên tắc 6: Đoán bừa cũng nên có căn cứ.",
+          "level": 3,
+          "line": 141
+        },
+        {
+          "heading": "III. Làm thế nào để có bản edit hay.",
+          "level": 2,
+          "line": 145
+        },
+        {
+          "heading": "III.1. Nguyên tắc 1: Sử dụng từ đồng nghĩa một cách linh hoạt.",
+          "level": 3,
+          "line": 149
+        },
+        {
+          "heading": "III.2. Nguyên tắc 2: Học cách dùng từ và diễn đạt từ bản edit tốt.",
+          "level": 3,
+          "line": 157
+        },
+        {
+          "heading": "III.3. Nguyên tắc 3: Diễn đạt lại thay vì tin máy móc vào Quick Translator.",
+          "level": 3,
+          "line": 161
+        },
+        {
+          "heading": "III.4. Nguyên tắc 4: Tên chương, tên truyện và trích dẫn phải được chuyển ngữ có ý thức.",
+          "level": 3,
+          "line": 170
+        },
+        {
+          "heading": "III.5. Nguyên tắc 5: Trình bày sạch sẽ để người đọc không bị cắt mạch.",
+          "level": 3,
+          "line": 180
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 18
+      }
+    },
+    {
+      "path": "docs/source.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 129,
+      "nonEmptyLines": 102,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    },
+    {
+      "path": "docs/tool.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 94,
+      "nonEmptyLines": 73,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    }
+  ]
+}

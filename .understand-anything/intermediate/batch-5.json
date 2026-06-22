@@ -1,0 +1,1116 @@
+{
+  "nodes": [
+    {
+      "id": "file:novel2epub/cli_runner.py",
+      "type": "file",
+      "name": "cli_runner.py",
+      "filePath": "novel2epub/cli_runner.py",
+      "summary": "Provides shared subprocess utilities for calling AI CLI tools (opencode, ollama, etc.), resolving command paths, building argument lists, and executing CLI processes with error handling.",
+      "tags": ["utility", "subprocess", "cli", "translation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:novel2epub/glossary_ai.py",
+      "type": "file",
+      "name": "glossary_ai.py",
+      "filePath": "novel2epub/glossary_ai.py",
+      "summary": "AI-powered glossary management module that suggests new glossary entries, rewrites translated chapters for improved fluency, and evaluates translation quality and glossary consistency.",
+      "tags": ["glossary", "ai", "translation-editing", "evaluation"],
+      "complexity": "complex",
+      "languageNotes": "Uses prompt templates with Vietnamese-language instructions and JSON-based response parsing with regex fallback for robustness against LLM output variations."
+    },
+    {
+      "id": "file:novel2epub/translator.py",
+      "type": "file",
+      "name": "translator.py",
+      "filePath": "novel2epub/translator.py",
+      "summary": "Pluggable Chinese-to-Vietnamese translation backends (CLI-based AI, Google Translate, noop passthrough) with glossary loading, prompt building, retry logic, and rate limiting.",
+      "tags": ["translation", "glossary", "ai-cli", "google-translate"],
+      "complexity": "complex",
+      "languageNotes": "Defines a Translator Protocol for pluggable backends; CLITranslator uses template-based prompts with tone/pronoun/han-viet parameters for Vietnamese localization."
+    },
+    {
+      "id": "file:tests/test_glossary_ai.py",
+      "type": "file",
+      "name": "test_glossary_ai.py",
+      "filePath": "tests/test_glossary_ai.py",
+      "summary": "Unit tests for glossary_ai.py covering JSON parsing edge cases (code fences, embedded text, invalid fields, garbage input) and evaluation report text formatting.",
+      "tags": ["test", "unit-test", "glossary", "json-parsing"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:tests/test_translator.py",
+      "type": "file",
+      "name": "test_translator.py",
+      "filePath": "tests/test_translator.py",
+      "summary": "Unit tests for translator.py and cli_runner.py covering CLI execution error handling, glossary application, dictionary loading, title parsing, and OpenCode Go preset integration.",
+      "tags": ["test", "unit-test", "translation", "cli"],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:novel2epub/translator.py:Translator",
+      "type": "class",
+      "name": "Translator",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [117, 119],
+      "summary": "Protocol defining the translator interface with translate and translate_title methods for pluggable translation backends.",
+      "tags": ["protocol", "interface", "translation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:novel2epub/translator.py:NoopTranslator",
+      "type": "class",
+      "name": "NoopTranslator",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [122, 127],
+      "summary": "Passthrough translator that returns input text unchanged, used for testing pipelines without translation cost.",
+      "tags": ["passthrough", "testing", "noop"],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:novel2epub/translator.py:CLITranslator",
+      "type": "class",
+      "name": "CLITranslator",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [130, 191],
+      "summary": "AI-powered translator that builds prompts from configurable style templates, invokes CLI via subprocess with retry logic, and applies glossary post-processing for consistent terminology.",
+      "tags": ["translation", "ai-cli", "glossary", "retry"],
+      "complexity": "complex",
+      "languageNotes": "Implements retry with configurable attempts and delay; provides OpenCode-specific auth guidance on FileNotFoundError."
+    },
+    {
+      "id": "class:novel2epub/translator.py:GoogleTranslator",
+      "type": "class",
+      "name": "GoogleTranslator",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [194, 226],
+      "summary": "Free Google Translate backend using the deep-translator library with chunking support for texts exceeding the 4500-character limit.",
+      "tags": ["translation", "google-translate", "chunking"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:novel2epub/translator.py:RateLimited",
+      "type": "class",
+      "name": "RateLimited",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [240, 257],
+      "summary": "Decorator wrapper that inserts a configurable delay between translator calls for downstream rate limiting.",
+      "tags": ["rate-limiting", "decorator", "translation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:novel2epub/cli_runner.py:resolve_command",
+      "type": "function",
+      "name": "resolve_command",
+      "filePath": "novel2epub/cli_runner.py",
+      "lineRange": [15, 25],
+      "summary": "Resolves the full path of a CLI command using shutil.which, falling back to the npm global directory on Windows for .cmd/.exe/.bat variants.",
+      "tags": ["utility", "cli", "command-resolution"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:novel2epub/cli_runner.py:build_argv",
+      "type": "function",
+      "name": "build_argv",
+      "filePath": "novel2epub/cli_runner.py",
+      "lineRange": [28, 37],
+      "summary": "Parses a CLI command string into an argv list using POSIX-aware shlex splitting, resolving the command path and appending an optional --model flag.",
+      "tags": ["utility", "cli", "argument-parsing"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:novel2epub/cli_runner.py:run_cli",
+      "type": "function",
+      "name": "run_cli",
+      "filePath": "novel2epub/cli_runner.py",
+      "lineRange": [40, 74],
+      "summary": "Executes a CLI command once with a given prompt via subprocess.run in either arg or stdin mode, raising RuntimeError on non-zero exit codes or empty stdout.",
+      "tags": ["subprocess", "cli", "execution"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:novel2epub/glossary_ai.py:_parse_suggestions",
+      "type": "function",
+      "name": "_parse_suggestions",
+      "filePath": "novel2epub/glossary_ai.py",
+      "lineRange": [95, 129],
+      "summary": "Parses AI suggestion output as a JSON array with regex fallback extraction from embedded/malformed text, validating entry types and target files against allowed values.",
+      "tags": ["json-parsing", "glossary", "validation"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:novel2epub/glossary_ai.py:suggest_glossary",
+      "type": "function",
+      "name": "suggest_glossary",
+      "filePath": "novel2epub/glossary_ai.py",
+      "lineRange": [132, 155],
+      "summary": "Calls AI to analyze combined raw and translated chapters, suggesting new glossary entries while filtering out duplicates already in the existing glossary.",
+      "tags": ["glossary", "ai", "suggestion"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:novel2epub/glossary_ai.py:rewrite_chapter",
+      "type": "function",
+      "name": "rewrite_chapter",
+      "filePath": "novel2epub/glossary_ai.py",
+      "lineRange": [163, 174],
+      "summary": "Invokes AI to polish a translated chapter using edit-hay guidelines, then applies glossary replacements and cleans the output.",
+      "tags": ["translation-editing", "ai", "glossary"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:novel2epub/glossary_ai.py:_parse_evaluation",
+      "type": "function",
+      "name": "_parse_evaluation",
+      "filePath": "novel2epub/glossary_ai.py",
+      "lineRange": [180, 222],
+      "summary": "Parses a JSON evaluation report from AI with regex fallback, validating issue categories and severities, and normalizing the optional numeric score.",
+      "tags": ["json-parsing", "evaluation", "validation"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:novel2epub/glossary_ai.py:evaluate_translation",
+      "type": "function",
+      "name": "evaluate_translation",
+      "filePath": "novel2epub/glossary_ai.py",
+      "lineRange": [225, 247],
+      "summary": "Calls AI to evaluate glossary consistency and translation quality across selected chapters, returning a structured report with scored issues.",
+      "tags": ["evaluation", "ai", "translation-quality"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:novel2epub/glossary_ai.py:format_evaluation_text",
+      "type": "function",
+      "name": "format_evaluation_text",
+      "filePath": "novel2epub/glossary_ai.py",
+      "lineRange": [250, 280],
+      "summary": "Formats an evaluation report dictionary into human-readable Vietnamese plain text listing score, summary, and numbered issues with severity and suggestions.",
+      "tags": ["formatting", "evaluation", "cli-output"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:novel2epub/translator.py:_clean_output",
+      "type": "function",
+      "name": "_clean_output",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [27, 42],
+      "summary": "Strips markdown code fences and AI preamble lines (e.g. 'Đây là bản dịch:') from translation output, returning clean text.",
+      "tags": ["text-cleaning", "translation", "output-processing"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:novel2epub/translator.py:_parse_title_response",
+      "type": "function",
+      "name": "_parse_title_response",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [49, 70],
+      "summary": "Extracts title and optional explanatory note from LLM response using TIÊU ĐỀ and GIẢI THÍCH format markers, falling back to the whole cleaned response as title.",
+      "tags": ["title-parsing", "translation", "output-processing"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:novel2epub/translator.py:_format_glossary",
+      "type": "function",
+      "name": "_format_glossary",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [73, 77],
+      "summary": "Formats a glossary dictionary into a readable 'zh = vi' text block for inclusion in AI translation prompts.",
+      "tags": ["glossary", "formatting", "prompt-engineering"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:novel2epub/translator.py:_apply_glossary",
+      "type": "function",
+      "name": "_apply_glossary",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [80, 85],
+      "summary": "Applies literal string replacements from a glossary dictionary to translated text to ensure consistent proper name and term translations.",
+      "tags": ["glossary", "text-replacement", "translation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:novel2epub/translator.py:load_glossary_dict",
+      "type": "function",
+      "name": "load_glossary_dict",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [97, 114],
+      "summary": "Merges inline glossary entries from config with names.txt and vietphrase.txt file contents into a single zh-to-vi dictionary, with line-level parsing via storage.parse_glossary_line.",
+      "tags": ["glossary", "file-loading", "config"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:novel2epub/translator.py:make_translator",
+      "type": "function",
+      "name": "make_translator",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [229, 237],
+      "summary": "Factory function that instantiates the appropriate translator backend (CLI, Google, or noop) based on the config type field.",
+      "tags": ["factory", "translation", "configuration"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:novel2epub/translator.py:CLITranslator._build_prompt",
+      "type": "function",
+      "name": "_build_prompt",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [137, 146],
+      "summary": "Builds a translation prompt by formatting the configured template with source text, glossary, tone, pronoun policy, and other style parameters.",
+      "tags": ["prompt-engineering", "translation", "templating"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:novel2epub/translator.py:CLITranslator._run_cli_with_retry",
+      "type": "function",
+      "name": "_run_cli_with_retry",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [155, 178],
+      "summary": "Executes a CLI prompt with configurable retry attempts and delay, providing OpenCode-specific auth guidance on FileNotFoundError and re-raising on final failure.",
+      "tags": ["retry", "cli", "error-handling", "translation"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:novel2epub/translator.py:GoogleTranslator.__init__",
+      "type": "function",
+      "name": "__init__",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [197, 206],
+      "summary": "Initializes the Google Translate engine with zh-CN source and Vietnamese target, lazy-importing deep_translator with a helpful error message if missing.",
+      "tags": ["initialization", "translation", "google-translate"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:novel2epub/translator.py:GoogleTranslator._chunks",
+      "type": "function",
+      "name": "_chunks",
+      "filePath": "novel2epub/translator.py",
+      "lineRange": [208, 217],
+      "summary": "Splits input text into chunks not exceeding 4500 characters, preserving paragraph boundaries to avoid breaking sentences mid-stream.",
+      "tags": ["chunking", "text-processing", "translation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:tests/test_glossary_ai.py:test_parse_plain_json_array",
+      "type": "function",
+      "name": "test_parse_plain_json_array",
+      "filePath": "tests/test_glossary_ai.py",
+      "lineRange": [4, 15],
+      "summary": "Tests that _parse_suggestions correctly parses a clean JSON array with all expected fields present and properly typed.",
+      "tags": ["test", "unit-test", "json-parsing", "glossary"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:tests/test_glossary_ai.py:test_parse_evaluation_valid_object",
+      "type": "function",
+      "name": "test_parse_evaluation_valid_object",
+      "filePath": "tests/test_glossary_ai.py",
+      "lineRange": [58, 69],
+      "summary": "Tests that _parse_evaluation correctly parses a valid JSON evaluation report with summary, numeric score, and issues array.",
+      "tags": ["test", "unit-test", "evaluation", "json-parsing"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:tests/test_glossary_ai.py:test_format_evaluation_text_lists_issues",
+      "type": "function",
+      "name": "test_format_evaluation_text_lists_issues",
+      "filePath": "tests/test_glossary_ai.py",
+      "lineRange": [103, 121],
+      "summary": "Tests that format_evaluation_text produces formatted output listing issues with severity, category, current text, and suggested replacement.",
+      "tags": ["test", "unit-test", "evaluation", "formatting"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:tests/test_translator.py:test_load_glossary_dict_merges_inline_and_files",
+      "type": "function",
+      "name": "test_load_glossary_dict_merges_inline_and_files",
+      "filePath": "tests/test_translator.py",
+      "lineRange": [53, 70],
+      "summary": "Tests that load_glossary_dict correctly merges inline config glossary entries with content from names.txt and vietphrase.txt files.",
+      "tags": ["test", "unit-test", "glossary", "file-loading"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:tests/test_translator.py:test_load_glossary_dict_strips_note",
+      "type": "function",
+      "name": "test_load_glossary_dict_strips_note",
+      "filePath": "tests/test_translator.py",
+      "lineRange": [73, 82],
+      "summary": "Tests that load_glossary_dict strips pipe-delimited notes from glossary file lines, preventing note text from leaking into translations.",
+      "tags": ["test", "unit-test", "glossary", "parsing"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:tests/test_translator.py:test_go_preset_chapter_translation_uses_opencode",
+      "type": "function",
+      "name": "test_go_preset_chapter_translation_uses_opencode",
+      "filePath": "tests/test_translator.py",
+      "lineRange": [121, 148],
+      "summary": "Tests that the go preset configures make_translator to produce a CLITranslator using the opencode command and deepseek-v4-flash model.",
+      "tags": ["test", "unit-test", "opencode", "preset"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:tests/test_translator.py:test_go_preset_title_translation_uses_opencode",
+      "type": "function",
+      "name": "test_go_preset_title_translation_uses_opencode",
+      "filePath": "tests/test_translator.py",
+      "lineRange": [151, 177],
+      "summary": "Tests that the go preset's title translation routes through opencode and parses TIÊU ĐỀ format from LLM response correctly.",
+      "tags": ["test", "unit-test", "opencode", "title-parsing"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:tests/test_translator.py:test_go_preset_error_guides_auth",
+      "type": "function",
+      "name": "test_go_preset_error_guides_auth",
+      "filePath": "tests/test_translator.py",
+      "lineRange": [180, 204],
+      "summary": "Tests that when opencode is not found, the error message includes guidance about running opencode auth after registration.",
+      "tags": ["test", "unit-test", "opencode", "error-handling"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:novel2epub/cli_runner.py",
+      "target": "function:novel2epub/cli_runner.py:resolve_command",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/cli_runner.py",
+      "target": "function:novel2epub/cli_runner.py:build_argv",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/cli_runner.py",
+      "target": "function:novel2epub/cli_runner.py:run_cli",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/cli_runner.py",
+      "target": "function:novel2epub/cli_runner.py:resolve_command",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/cli_runner.py",
+      "target": "function:novel2epub/cli_runner.py:build_argv",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/cli_runner.py",
+      "target": "function:novel2epub/cli_runner.py:run_cli",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/cli_runner.py",
+      "target": "file:novel2epub/config.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "function:novel2epub/cli_runner.py:build_argv",
+      "target": "function:novel2epub/cli_runner.py:resolve_command",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/cli_runner.py:run_cli",
+      "target": "function:novel2epub/cli_runner.py:build_argv",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:_parse_suggestions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:suggest_glossary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:rewrite_chapter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:_parse_evaluation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:evaluate_translation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:format_evaluation_text",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:_parse_suggestions",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:suggest_glossary",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:rewrite_chapter",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:_parse_evaluation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:evaluate_translation",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "function:novel2epub/glossary_ai.py:format_evaluation_text",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "file:novel2epub/cli_runner.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "file:novel2epub/config.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "file:novel2epub/translator.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:suggest_glossary",
+      "target": "function:novel2epub/cli_runner.py:run_cli",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:suggest_glossary",
+      "target": "function:novel2epub/glossary_ai.py:_parse_suggestions",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:suggest_glossary",
+      "target": "function:novel2epub/translator.py:_format_glossary",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:rewrite_chapter",
+      "target": "function:novel2epub/cli_runner.py:run_cli",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:rewrite_chapter",
+      "target": "function:novel2epub/translator.py:_format_glossary",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:rewrite_chapter",
+      "target": "function:novel2epub/translator.py:_apply_glossary",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:rewrite_chapter",
+      "target": "function:novel2epub/translator.py:_clean_output",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:evaluate_translation",
+      "target": "function:novel2epub/cli_runner.py:run_cli",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:evaluate_translation",
+      "target": "function:novel2epub/glossary_ai.py:_parse_evaluation",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:evaluate_translation",
+      "target": "function:novel2epub/translator.py:_format_glossary",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:_parse_suggestions",
+      "target": "function:novel2epub/translator.py:_clean_output",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/glossary_ai.py:_parse_evaluation",
+      "target": "function:novel2epub/translator.py:_clean_output",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:_clean_output",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:_parse_title_response",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:_format_glossary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:_apply_glossary",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:load_glossary_dict",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:make_translator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "class:novel2epub/translator.py:Translator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "class:novel2epub/translator.py:NoopTranslator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "class:novel2epub/translator.py:CLITranslator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "class:novel2epub/translator.py:GoogleTranslator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "class:novel2epub/translator.py:RateLimited",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:_clean_output",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:_parse_title_response",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:_format_glossary",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:_apply_glossary",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:load_glossary_dict",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "function:novel2epub/translator.py:make_translator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "class:novel2epub/translator.py:Translator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "class:novel2epub/translator.py:NoopTranslator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "class:novel2epub/translator.py:CLITranslator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "class:novel2epub/translator.py:GoogleTranslator",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "class:novel2epub/translator.py:RateLimited",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "file:novel2epub/cli_runner.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "file:novel2epub/config.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "file:novel2epub/storage.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "class:novel2epub/translator.py:CLITranslator",
+      "target": "function:novel2epub/translator.py:CLITranslator._build_prompt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "class:novel2epub/translator.py:CLITranslator",
+      "target": "function:novel2epub/translator.py:CLITranslator._run_cli_with_retry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "class:novel2epub/translator.py:GoogleTranslator",
+      "target": "function:novel2epub/translator.py:GoogleTranslator.__init__",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "class:novel2epub/translator.py:GoogleTranslator",
+      "target": "function:novel2epub/translator.py:GoogleTranslator._chunks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "function:novel2epub/translator.py:CLITranslator._build_prompt",
+      "target": "function:novel2epub/translator.py:_format_glossary",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/translator.py:CLITranslator._run_cli_with_retry",
+      "target": "function:novel2epub/cli_runner.py:run_cli",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/translator.py:load_glossary_dict",
+      "target": "function:novel2epub/storage.py:parse_glossary_line",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/translator.py:make_translator",
+      "target": "class:novel2epub/translator.py:CLITranslator",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/translator.py:make_translator",
+      "target": "class:novel2epub/translator.py:GoogleTranslator",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:novel2epub/translator.py:make_translator",
+      "target": "class:novel2epub/translator.py:NoopTranslator",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tests/test_glossary_ai.py",
+      "target": "function:tests/test_glossary_ai.py:test_parse_plain_json_array",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_glossary_ai.py",
+      "target": "function:tests/test_glossary_ai.py:test_parse_evaluation_valid_object",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_glossary_ai.py",
+      "target": "function:tests/test_glossary_ai.py:test_format_evaluation_text_lists_issues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_glossary_ai.py",
+      "target": "function:tests/test_glossary_ai.py:test_parse_plain_json_array",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tests/test_glossary_ai.py",
+      "target": "function:tests/test_glossary_ai.py:test_parse_evaluation_valid_object",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tests/test_glossary_ai.py",
+      "target": "function:tests/test_glossary_ai.py:test_format_evaluation_text_lists_issues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tests/test_glossary_ai.py",
+      "target": "file:novel2epub/glossary_ai.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "function:tests/test_glossary_ai.py:test_parse_plain_json_array",
+      "target": "function:novel2epub/glossary_ai.py:_parse_suggestions",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:tests/test_glossary_ai.py:test_parse_evaluation_valid_object",
+      "target": "function:novel2epub/glossary_ai.py:_parse_evaluation",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:tests/test_glossary_ai.py:test_format_evaluation_text_lists_issues",
+      "target": "function:novel2epub/glossary_ai.py:format_evaluation_text",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/glossary_ai.py",
+      "target": "file:tests/test_glossary_ai.py",
+      "type": "tested_by",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "function:tests/test_translator.py:test_load_glossary_dict_merges_inline_and_files",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "function:tests/test_translator.py:test_load_glossary_dict_strips_note",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "function:tests/test_translator.py:test_go_preset_chapter_translation_uses_opencode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "function:tests/test_translator.py:test_go_preset_title_translation_uses_opencode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "function:tests/test_translator.py:test_go_preset_error_guides_auth",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "function:tests/test_translator.py:test_load_glossary_dict_merges_inline_and_files",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "function:tests/test_translator.py:test_load_glossary_dict_strips_note",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "function:tests/test_translator.py:test_go_preset_chapter_translation_uses_opencode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "function:tests/test_translator.py:test_go_preset_title_translation_uses_opencode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "function:tests/test_translator.py:test_go_preset_error_guides_auth",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "file:novel2epub/__init__.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "file:novel2epub/cli_runner.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "file:novel2epub/config.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tests/test_translator.py",
+      "target": "file:novel2epub/translator.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "function:tests/test_translator.py:test_load_glossary_dict_merges_inline_and_files",
+      "target": "function:novel2epub/translator.py:load_glossary_dict",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:tests/test_translator.py:test_load_glossary_dict_strips_note",
+      "target": "function:novel2epub/translator.py:load_glossary_dict",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:tests/test_translator.py:test_go_preset_chapter_translation_uses_opencode",
+      "target": "function:novel2epub/translator.py:make_translator",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:tests/test_translator.py:test_go_preset_title_translation_uses_opencode",
+      "target": "function:novel2epub/translator.py:make_translator",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:tests/test_translator.py:test_go_preset_error_guides_auth",
+      "target": "function:novel2epub/translator.py:make_translator",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:novel2epub/__init__.py",
+      "target": "file:tests/test_translator.py",
+      "type": "tested_by",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:novel2epub/cli_runner.py",
+      "target": "file:tests/test_translator.py",
+      "type": "tested_by",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:novel2epub/config.py",
+      "target": "file:tests/test_translator.py",
+      "type": "tested_by",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:novel2epub/translator.py",
+      "target": "file:tests/test_translator.py",
+      "type": "tested_by",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "class:novel2epub/translator.py:CLITranslator",
+      "target": "function:novel2epub/translator.py:_format_glossary",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

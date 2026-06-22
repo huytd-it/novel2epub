@@ -1,0 +1,201 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 4,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/.openspec.yaml",
+      "language": "yaml",
+      "fileCategory": "config",
+      "totalLines": 2,
+      "nonEmptyLines": 2,
+      "sections": [
+        {
+          "heading": "schema",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "created",
+          "level": 1,
+          "line": 2
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 2
+      }
+    },
+    {
+      "path": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 204,
+      "nonEmptyLines": 166,
+      "sections": [
+        {
+          "heading": "Context",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "Goals / Non-Goals",
+          "level": 2,
+          "line": 22
+        },
+        {
+          "heading": "Decisions",
+          "level": 2,
+          "line": 50
+        },
+        {
+          "heading": "Decision 1: One helper, three thin wrappers",
+          "level": 3,
+          "line": 52
+        },
+        {
+          "heading": "Decision 2: Stop conditions",
+          "level": 3,
+          "line": 86
+        },
+        {
+          "heading": "Decision 3: Title strip heuristic",
+          "level": 3,
+          "line": 104
+        },
+        {
+          "heading": "Decision 4: URL-pattern fallback",
+          "level": 3,
+          "line": 112
+        },
+        {
+          "heading": "Decision 5: Where the configuration lives",
+          "level": 3,
+          "line": 122
+        },
+        {
+          "heading": "Decision 6: shuhaige preset",
+          "level": 3,
+          "line": 129
+        },
+        {
+          "heading": "Risks / Trade-offs",
+          "level": 2,
+          "line": 147
+        },
+        {
+          "heading": "Migration Plan",
+          "level": 2,
+          "line": 178
+        },
+        {
+          "heading": "Open Questions",
+          "level": 2,
+          "line": 194
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 12
+      }
+    },
+    {
+      "path": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 68,
+      "nonEmptyLines": 58,
+      "sections": [
+        {
+          "heading": "Why",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "What Changes",
+          "level": 2,
+          "line": 11
+        },
+        {
+          "heading": "Capabilities",
+          "level": 2,
+          "line": 36
+        },
+        {
+          "heading": "New Capabilities",
+          "level": 3,
+          "line": 38
+        },
+        {
+          "heading": "Modified Capabilities",
+          "level": 3,
+          "line": 46
+        },
+        {
+          "heading": "Impact",
+          "level": 2,
+          "line": 53
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    },
+    {
+      "path": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 79,
+      "nonEmptyLines": 68,
+      "sections": [
+        {
+          "heading": "1. Extend configuration model",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "2. Implement pagination helper",
+          "level": 2,
+          "line": 17
+        },
+        {
+          "heading": "3. Wire the helper into the three crawlers",
+          "level": 2,
+          "line": 31
+        },
+        {
+          "heading": "4. Ship the shuhaige preset",
+          "level": 2,
+          "line": 46
+        },
+        {
+          "heading": "5. Tests",
+          "level": 2,
+          "line": 54
+        },
+        {
+          "heading": "6. Documentation and smoke test",
+          "level": 2,
+          "line": 71
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    }
+  ]
+}

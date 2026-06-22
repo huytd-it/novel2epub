@@ -1,0 +1,111 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            "app/deps.py":  [
+                                                "novel2epub/config.py",
+                                                "novel2epub/sources.py"
+                                            ],
+                            "app/main.py":  [
+                                                "app/deps.py",
+                                                "app/job.py",
+                                                "app/routes/__init__.py",
+                                                "app/routes/chapters.py",
+                                                "app/routes/ebooks.py",
+                                                "app/routes/glossary.py",
+                                                "app/routes/jobs.py",
+                                                "app/routes/library.py",
+                                                "app/routes/settings.py",
+                                                "app/routes/sources.py"
+                                            ],
+                            "app/routes/__init__.py":  [
+
+                                                       ],
+                            "app/routes/chapters.py":  [
+                                                           "app/deps.py",
+                                                           "app/routes/glossary.py",
+                                                           "novel2epub/pipeline.py",
+                                                           "novel2epub/storage.py"
+                                                       ],
+                            "app/routes/ebooks.py":  [
+                                                         "app/deps.py",
+                                                         "novel2epub/config.py",
+                                                         "novel2epub/storage.py",
+                                                         "novel2epub/toc.py"
+                                                     ],
+                            "app/routes/glossary.py":  [
+                                                           "app/deps.py",
+                                                           "novel2epub/__init__.py",
+                                                           "novel2epub/glossary_ai.py",
+                                                           "novel2epub/pipeline.py",
+                                                           "novel2epub/storage.py"
+                                                       ],
+                            "app/routes/settings.py":  [
+                                                           "app/deps.py",
+                                                           "novel2epub/config_writer.py"
+                                                       ],
+                            "app/routes/sources.py":  [
+                                                          "app/deps.py",
+                                                          "novel2epub/sources.py"
+                                                      ],
+                            "tests/test_routes_glossary.py":  [
+                                                                  "app/routes/glossary.py",
+                                                                  "novel2epub/storage.py"
+                                                              ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  "app/deps.py",
+                           "language":  "python",
+                           "sizeLines":  67,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "app/main.py",
+                           "language":  "python",
+                           "sizeLines":  25,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "app/routes/__init__.py",
+                           "language":  "python",
+                           "sizeLines":  0,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "app/routes/chapters.py",
+                           "language":  "python",
+                           "sizeLines":  252,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "app/routes/ebooks.py",
+                           "language":  "python",
+                           "sizeLines":  128,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "app/routes/glossary.py",
+                           "language":  "python",
+                           "sizeLines":  239,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "app/routes/settings.py",
+                           "language":  "python",
+                           "sizeLines":  152,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "app/routes/sources.py",
+                           "language":  "python",
+                           "sizeLines":  99,
+                           "fileCategory":  "code"
+                       },
+                       {
+                           "path":  "tests/test_routes_glossary.py",
+                           "language":  "python",
+                           "sizeLines":  45,
+                           "fileCategory":  "code"
+                       }
+                   ]
+}

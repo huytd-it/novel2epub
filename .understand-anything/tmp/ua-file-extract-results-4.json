@@ -1,0 +1,809 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 5,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "novel2epub/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 3,
+      "nonEmptyLines": 2,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "novel2epub/epub_builder.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 146,
+      "nonEmptyLines": 126,
+      "functions": [
+        {
+          "name": "_markers_to_html",
+          "startLine": 27,
+          "endLine": 34,
+          "params": [
+            "escaped"
+          ]
+        },
+        {
+          "name": "_md_to_xhtml_body",
+          "startLine": 37,
+          "endLine": 54,
+          "params": [
+            "md"
+          ]
+        },
+        {
+          "name": "_render_footnotes",
+          "startLine": 57,
+          "endLine": 71,
+          "params": [
+            "items"
+          ]
+        },
+        {
+          "name": "build_epub",
+          "startLine": 74,
+          "endLine": 146,
+          "params": [
+            "manifest",
+            "chapters_html",
+            "out_path",
+            "language",
+            "cover_path",
+            "footnotes_by_stem"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_markers_to_html",
+          "line": 27,
+          "isDefault": false
+        },
+        {
+          "name": "_md_to_xhtml_body",
+          "line": 37,
+          "isDefault": false
+        },
+        {
+          "name": "_render_footnotes",
+          "line": 57,
+          "isDefault": false
+        },
+        {
+          "name": "build_epub",
+          "line": 74,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_markers_to_html",
+          "callee": "_MARK_RE.sub",
+          "lineNumber": 28
+        },
+        {
+          "caller": "_markers_to_html",
+          "callee": "m.group",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_markers_to_html",
+          "callee": "m.group",
+          "lineNumber": 31
+        },
+        {
+          "caller": "_markers_to_html",
+          "callee": "m.group",
+          "lineNumber": 31
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "re.split",
+          "lineNumber": 43
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "md.strip",
+          "lineNumber": 43
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "block.strip",
+          "lineNumber": 44
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "re.match",
+          "lineNumber": 47
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "blocks.append",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "_markers_to_html",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "html.escape",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "heading.group(1).strip",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "heading.group",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "_markers_to_html",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "html.escape",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "ln.strip",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "block.splitlines",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "ln.strip",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "blocks.append",
+          "lineNumber": 53
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "\"<br/>\".join",
+          "lineNumber": 53
+        },
+        {
+          "caller": "_md_to_xhtml_body",
+          "callee": "\"\\n\".join",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_render_footnotes",
+          "callee": "html.escape",
+          "lineNumber": 63
+        },
+        {
+          "caller": "_render_footnotes",
+          "callee": "str",
+          "lineNumber": 63
+        },
+        {
+          "caller": "_render_footnotes",
+          "callee": "it.get",
+          "lineNumber": 63
+        },
+        {
+          "caller": "_render_footnotes",
+          "callee": "html.escape",
+          "lineNumber": 64
+        },
+        {
+          "caller": "_render_footnotes",
+          "callee": "str",
+          "lineNumber": 64
+        },
+        {
+          "caller": "_render_footnotes",
+          "callee": "it.get",
+          "lineNumber": 64
+        },
+        {
+          "caller": "_render_footnotes",
+          "callee": "it.get",
+          "lineNumber": 65
+        },
+        {
+          "caller": "_render_footnotes",
+          "callee": "lis.append",
+          "lineNumber": 67
+        },
+        {
+          "caller": "_render_footnotes",
+          "callee": "\"\".join",
+          "lineNumber": 71
+        },
+        {
+          "caller": "build_epub",
+          "callee": "ImportError",
+          "lineNumber": 92
+        },
+        {
+          "caller": "build_epub",
+          "callee": "epub.EpubBook",
+          "lineNumber": 96
+        },
+        {
+          "caller": "build_epub",
+          "callee": "book.set_identifier",
+          "lineNumber": 97
+        },
+        {
+          "caller": "build_epub",
+          "callee": "book.set_title",
+          "lineNumber": 98
+        },
+        {
+          "caller": "build_epub",
+          "callee": "book.set_language",
+          "lineNumber": 99
+        },
+        {
+          "caller": "build_epub",
+          "callee": "book.add_author",
+          "lineNumber": 102
+        },
+        {
+          "caller": "build_epub",
+          "callee": "book.add_metadata",
+          "lineNumber": 105
+        },
+        {
+          "caller": "build_epub",
+          "callee": "Path",
+          "lineNumber": 108
+        },
+        {
+          "caller": "build_epub",
+          "callee": "cover_path.exists",
+          "lineNumber": 109
+        },
+        {
+          "caller": "build_epub",
+          "callee": "book.set_cover",
+          "lineNumber": 110
+        },
+        {
+          "caller": "build_epub",
+          "callee": "cover_path.read_bytes",
+          "lineNumber": 110
+        },
+        {
+          "caller": "build_epub",
+          "callee": "epub.EpubItem",
+          "lineNumber": 112
+        },
+        {
+          "caller": "build_epub",
+          "callee": "book.add_item",
+          "lineNumber": 118
+        },
+        {
+          "caller": "build_epub",
+          "callee": "epub.EpubHtml",
+          "lineNumber": 122
+        },
+        {
+          "caller": "build_epub",
+          "callee": "_md_to_xhtml_body",
+          "lineNumber": 127
+        },
+        {
+          "caller": "build_epub",
+          "callee": "_render_footnotes",
+          "lineNumber": 128
+        },
+        {
+          "caller": "build_epub",
+          "callee": "footnotes_by_stem.get",
+          "lineNumber": 128
+        },
+        {
+          "caller": "build_epub",
+          "callee": "html.escape",
+          "lineNumber": 130
+        },
+        {
+          "caller": "build_epub",
+          "callee": "html.escape",
+          "lineNumber": 132
+        },
+        {
+          "caller": "build_epub",
+          "callee": "item.add_item",
+          "lineNumber": 134
+        },
+        {
+          "caller": "build_epub",
+          "callee": "book.add_item",
+          "lineNumber": 135
+        },
+        {
+          "caller": "build_epub",
+          "callee": "epub_chapters.append",
+          "lineNumber": 136
+        },
+        {
+          "caller": "build_epub",
+          "callee": "tuple",
+          "lineNumber": 138
+        },
+        {
+          "caller": "build_epub",
+          "callee": "book.add_item",
+          "lineNumber": 139
+        },
+        {
+          "caller": "build_epub",
+          "callee": "epub.EpubNcx",
+          "lineNumber": 139
+        },
+        {
+          "caller": "build_epub",
+          "callee": "book.add_item",
+          "lineNumber": 140
+        },
+        {
+          "caller": "build_epub",
+          "callee": "epub.EpubNav",
+          "lineNumber": 140
+        },
+        {
+          "caller": "build_epub",
+          "callee": "Path",
+          "lineNumber": 143
+        },
+        {
+          "caller": "build_epub",
+          "callee": "out_path.parent.mkdir",
+          "lineNumber": 144
+        },
+        {
+          "caller": "build_epub",
+          "callee": "epub.write_epub",
+          "lineNumber": 145
+        },
+        {
+          "caller": "build_epub",
+          "callee": "str",
+          "lineNumber": 145
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 4,
+        "functionCount": 4,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "novel2epub/footnotes.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 90,
+      "nonEmptyLines": 71,
+      "functions": [
+        {
+          "name": "make_marker",
+          "startLine": 19,
+          "endLine": 20,
+          "params": [
+            "num"
+          ]
+        },
+        {
+          "name": "_is_word_char",
+          "startLine": 23,
+          "endLine": 25,
+          "params": [
+            "ch"
+          ]
+        },
+        {
+          "name": "_find_first_unclaimed",
+          "startLine": 28,
+          "endLine": 48,
+          "params": [
+            "text",
+            "term",
+            "claimed"
+          ]
+        },
+        {
+          "name": "annotate",
+          "startLine": 51,
+          "endLine": 90,
+          "params": [
+            "text",
+            "notes"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "make_marker",
+          "line": 19,
+          "isDefault": false
+        },
+        {
+          "name": "_is_word_char",
+          "line": 23,
+          "isDefault": false
+        },
+        {
+          "name": "_find_first_unclaimed",
+          "line": 28,
+          "isDefault": false
+        },
+        {
+          "name": "annotate",
+          "line": 51,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_is_word_char",
+          "callee": "ch.isalnum",
+          "lineNumber": 25
+        },
+        {
+          "caller": "_find_first_unclaimed",
+          "callee": "text.find",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_find_first_unclaimed",
+          "callee": "len",
+          "lineNumber": 40
+        },
+        {
+          "caller": "_find_first_unclaimed",
+          "callee": "len",
+          "lineNumber": 42
+        },
+        {
+          "caller": "_find_first_unclaimed",
+          "callee": "_is_word_char",
+          "lineNumber": 43
+        },
+        {
+          "caller": "_find_first_unclaimed",
+          "callee": "_is_word_char",
+          "lineNumber": 43
+        },
+        {
+          "caller": "_find_first_unclaimed",
+          "callee": "_is_word_char",
+          "lineNumber": 44
+        },
+        {
+          "caller": "_find_first_unclaimed",
+          "callee": "_is_word_char",
+          "lineNumber": 44
+        },
+        {
+          "caller": "_find_first_unclaimed",
+          "callee": "any",
+          "lineNumber": 45
+        },
+        {
+          "caller": "annotate",
+          "callee": "sorted",
+          "lineNumber": 66
+        },
+        {
+          "caller": "annotate",
+          "callee": "_find_first_unclaimed",
+          "lineNumber": 69
+        },
+        {
+          "caller": "annotate",
+          "callee": "hits.append",
+          "lineNumber": 71
+        },
+        {
+          "caller": "annotate",
+          "callee": "claimed.append",
+          "lineNumber": 72
+        },
+        {
+          "caller": "annotate",
+          "callee": "len",
+          "lineNumber": 72
+        },
+        {
+          "caller": "annotate",
+          "callee": "hits.sort",
+          "lineNumber": 78
+        },
+        {
+          "caller": "annotate",
+          "callee": "enumerate",
+          "lineNumber": 83
+        },
+        {
+          "caller": "annotate",
+          "callee": "footnotes.append",
+          "lineNumber": 84
+        },
+        {
+          "caller": "annotate",
+          "callee": "insertions.append",
+          "lineNumber": 85
+        },
+        {
+          "caller": "annotate",
+          "callee": "len",
+          "lineNumber": 85
+        },
+        {
+          "caller": "annotate",
+          "callee": "make_marker",
+          "lineNumber": 85
+        },
+        {
+          "caller": "annotate",
+          "callee": "sorted",
+          "lineNumber": 87
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 4,
+        "functionCount": 4,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_epub_builder.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 37,
+      "nonEmptyLines": 29,
+      "functions": [
+        {
+          "name": "test_md_to_xhtml_renders_footnote_marker_as_sup",
+          "startLine": 5,
+          "endLine": 14,
+          "params": []
+        },
+        {
+          "name": "test_render_footnotes_builds_ordered_list_with_backlinks",
+          "startLine": 17,
+          "endLine": 26,
+          "params": []
+        },
+        {
+          "name": "test_render_footnotes_empty_returns_empty",
+          "startLine": 29,
+          "endLine": 30,
+          "params": []
+        },
+        {
+          "name": "test_render_footnotes_escapes_html",
+          "startLine": 33,
+          "endLine": 37,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "test_md_to_xhtml_renders_footnote_marker_as_sup",
+          "line": 5,
+          "isDefault": false
+        },
+        {
+          "name": "test_render_footnotes_builds_ordered_list_with_backlinks",
+          "line": 17,
+          "isDefault": false
+        },
+        {
+          "name": "test_render_footnotes_empty_returns_empty",
+          "line": 29,
+          "isDefault": false
+        },
+        {
+          "name": "test_render_footnotes_escapes_html",
+          "line": 33,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "test_md_to_xhtml_renders_footnote_marker_as_sup",
+          "callee": "footnotes.make_marker",
+          "lineNumber": 6
+        },
+        {
+          "caller": "test_md_to_xhtml_renders_footnote_marker_as_sup",
+          "callee": "_md_to_xhtml_body",
+          "lineNumber": 7
+        },
+        {
+          "caller": "test_render_footnotes_builds_ordered_list_with_backlinks",
+          "callee": "_render_footnotes",
+          "lineNumber": 22
+        },
+        {
+          "caller": "test_render_footnotes_empty_returns_empty",
+          "callee": "_render_footnotes",
+          "lineNumber": 30
+        },
+        {
+          "caller": "test_render_footnotes_escapes_html",
+          "callee": "_render_footnotes",
+          "lineNumber": 35
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 4,
+        "functionCount": 4,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_footnotes.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 54,
+      "nonEmptyLines": 40,
+      "functions": [
+        {
+          "name": "_strip_marks",
+          "startLine": 10,
+          "endLine": 11,
+          "params": [
+            "text"
+          ]
+        },
+        {
+          "name": "test_annotate_numbers_by_first_occurrence_order",
+          "startLine": 14,
+          "endLine": 29,
+          "params": []
+        },
+        {
+          "name": "test_annotate_skips_terms_not_present",
+          "startLine": 32,
+          "endLine": 37,
+          "params": []
+        },
+        {
+          "name": "test_annotate_prefers_longer_term",
+          "startLine": 40,
+          "endLine": 47,
+          "params": []
+        },
+        {
+          "name": "test_annotate_no_notes_returns_unchanged",
+          "startLine": 50,
+          "endLine": 54,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "_strip_marks",
+          "line": 10,
+          "isDefault": false
+        },
+        {
+          "name": "test_annotate_numbers_by_first_occurrence_order",
+          "line": 14,
+          "isDefault": false
+        },
+        {
+          "name": "test_annotate_skips_terms_not_present",
+          "line": 32,
+          "isDefault": false
+        },
+        {
+          "name": "test_annotate_prefers_longer_term",
+          "line": 40,
+          "isDefault": false
+        },
+        {
+          "name": "test_annotate_no_notes_returns_unchanged",
+          "line": 50,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_strip_marks",
+          "callee": "_MARK_RE.sub",
+          "lineNumber": 11
+        },
+        {
+          "caller": "test_annotate_numbers_by_first_occurrence_order",
+          "callee": "footnotes.annotate",
+          "lineNumber": 17
+        },
+        {
+          "caller": "test_annotate_numbers_by_first_occurrence_order",
+          "callee": "_strip_marks",
+          "lineNumber": 25
+        },
+        {
+          "caller": "test_annotate_numbers_by_first_occurrence_order",
+          "callee": "marked.count",
+          "lineNumber": 26
+        },
+        {
+          "caller": "test_annotate_numbers_by_first_occurrence_order",
+          "callee": "footnotes.make_marker",
+          "lineNumber": 26
+        },
+        {
+          "caller": "test_annotate_numbers_by_first_occurrence_order",
+          "callee": "marked.count",
+          "lineNumber": 27
+        },
+        {
+          "caller": "test_annotate_numbers_by_first_occurrence_order",
+          "callee": "footnotes.make_marker",
+          "lineNumber": 27
+        },
+        {
+          "caller": "test_annotate_numbers_by_first_occurrence_order",
+          "callee": "marked.startswith",
+          "lineNumber": 29
+        },
+        {
+          "caller": "test_annotate_numbers_by_first_occurrence_order",
+          "callee": "footnotes.make_marker",
+          "lineNumber": 29
+        },
+        {
+          "caller": "test_annotate_skips_terms_not_present",
+          "callee": "footnotes.annotate",
+          "lineNumber": 35
+        },
+        {
+          "caller": "test_annotate_skips_terms_not_present",
+          "callee": "marked.count",
+          "lineNumber": 37
+        },
+        {
+          "caller": "test_annotate_prefers_longer_term",
+          "callee": "footnotes.annotate",
+          "lineNumber": 43
+        },
+        {
+          "caller": "test_annotate_no_notes_returns_unchanged",
+          "callee": "footnotes.annotate",
+          "lineNumber": 52
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 5,
+        "functionCount": 5,
+        "classCount": 0
+      }
+    }
+  ]
+}

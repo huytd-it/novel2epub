@@ -1,0 +1,678 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 14,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": ".opencode/commands/opsx-apply.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 152,
+      "nonEmptyLines": 112,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    },
+    {
+      "path": ".opencode/commands/opsx-archive.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 157,
+      "nonEmptyLines": 109,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    },
+    {
+      "path": ".opencode/commands/opsx-explore.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 169,
+      "nonEmptyLines": 125,
+      "sections": [
+        {
+          "heading": "The Stance",
+          "level": 2,
+          "line": 20
+        },
+        {
+          "heading": "What You Might Do",
+          "level": 2,
+          "line": 31
+        },
+        {
+          "heading": "OpenSpec Awareness",
+          "level": 2,
+          "line": 78
+        },
+        {
+          "heading": "Check for context",
+          "level": 3,
+          "line": 82
+        },
+        {
+          "heading": "When no change exists",
+          "level": 3,
+          "line": 96
+        },
+        {
+          "heading": "When a change exists",
+          "level": 3,
+          "line": 103
+        },
+        {
+          "heading": "What You Don't Have To Do",
+          "level": 2,
+          "line": 136
+        },
+        {
+          "heading": "Ending Discovery",
+          "level": 2,
+          "line": 147
+        },
+        {
+          "heading": "Guardrails",
+          "level": 2,
+          "line": 160
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 9
+      }
+    },
+    {
+      "path": ".opencode/commands/opsx-propose.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 104,
+      "nonEmptyLines": 80,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    },
+    {
+      "path": ".opencode/commands/opsx-sync.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 140,
+      "nonEmptyLines": 94,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    },
+    {
+      "path": ".opencode/commands/speckit.analyze.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 249,
+      "nonEmptyLines": 172,
+      "sections": [
+        {
+          "heading": "User Input",
+          "level": 2,
+          "line": 5
+        },
+        {
+          "heading": "Pre-Execution Checks",
+          "level": 2,
+          "line": 13
+        },
+        {
+          "heading": "Goal",
+          "level": 2,
+          "line": 47
+        },
+        {
+          "heading": "Operating Constraints",
+          "level": 2,
+          "line": 51
+        },
+        {
+          "heading": "Execution Steps",
+          "level": 2,
+          "line": 57
+        },
+        {
+          "heading": "1. Initialize Analysis Context",
+          "level": 3,
+          "line": 59
+        },
+        {
+          "heading": "2. Load Artifacts (Progressive Disclosure)",
+          "level": 3,
+          "line": 70
+        },
+        {
+          "heading": "3. Build Semantic Models",
+          "level": 3,
+          "line": 101
+        },
+        {
+          "heading": "4. Detection Passes (Token-Efficient Analysis)",
+          "level": 3,
+          "line": 110
+        },
+        {
+          "heading": "A. Duplication Detection",
+          "level": 4,
+          "line": 114
+        },
+        {
+          "heading": "B. Ambiguity Detection",
+          "level": 4,
+          "line": 119
+        },
+        {
+          "heading": "C. Underspecification",
+          "level": 4,
+          "line": 124
+        },
+        {
+          "heading": "D. Constitution Alignment",
+          "level": 4,
+          "line": 130
+        },
+        {
+          "heading": "E. Coverage Gaps",
+          "level": 4,
+          "line": 135
+        },
+        {
+          "heading": "F. Inconsistency",
+          "level": 4,
+          "line": 141
+        },
+        {
+          "heading": "5. Severity Assignment",
+          "level": 3,
+          "line": 148
+        },
+        {
+          "heading": "6. Produce Compact Analysis Report",
+          "level": 3,
+          "line": 157
+        },
+        {
+          "heading": "Specification Analysis Report",
+          "level": 2,
+          "line": 161
+        },
+        {
+          "heading": "7. Provide Next Actions",
+          "level": 3,
+          "line": 187
+        },
+        {
+          "heading": "8. Offer Remediation",
+          "level": 3,
+          "line": 195
+        },
+        {
+          "heading": "9. Check for extension hooks",
+          "level": 3,
+          "line": 199
+        },
+        {
+          "heading": "Operating Principles",
+          "level": 2,
+          "line": 230
+        },
+        {
+          "heading": "Context Efficiency",
+          "level": 3,
+          "line": 232
+        },
+        {
+          "heading": "Analysis Guidelines",
+          "level": 3,
+          "line": 239
+        },
+        {
+          "heading": "Context",
+          "level": 2,
+          "line": 247
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 25
+      }
+    },
+    {
+      "path": ".opencode/commands/speckit.checklist.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 363,
+      "nonEmptyLines": 287,
+      "sections": [
+        {
+          "heading": "Checklist Purpose: \"Unit Tests for English\"",
+          "level": 2,
+          "line": 5
+        },
+        {
+          "heading": "User Input",
+          "level": 2,
+          "line": 26
+        },
+        {
+          "heading": "Pre-Execution Checks",
+          "level": 2,
+          "line": 34
+        },
+        {
+          "heading": "Execution Steps",
+          "level": 2,
+          "line": 68
+        },
+        {
+          "heading": "Example Checklist Types & Sample Items",
+          "level": 2,
+          "line": 259
+        },
+        {
+          "heading": "Anti-Examples: What NOT To Do",
+          "level": 2,
+          "line": 302
+        },
+        {
+          "heading": "Post-Execution Checks",
+          "level": 2,
+          "line": 333
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 7
+      }
+    },
+    {
+      "path": ".opencode/commands/speckit.clarify.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 279,
+      "nonEmptyLines": 231,
+      "sections": [
+        {
+          "heading": "User Input",
+          "level": 2,
+          "line": 9
+        },
+        {
+          "heading": "Pre-Execution Checks",
+          "level": 2,
+          "line": 17
+        },
+        {
+          "heading": "Outline",
+          "level": 2,
+          "line": 51
+        },
+        {
+          "heading": "Mandatory Post-Execution Hooks",
+          "level": 2,
+          "line": 230
+        },
+        {
+          "heading": "Completion Report",
+          "level": 2,
+          "line": 263
+        },
+        {
+          "heading": "Done When",
+          "level": 2,
+          "line": 274
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    },
+    {
+      "path": ".opencode/commands/speckit.constitution.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 150,
+      "nonEmptyLines": 119,
+      "sections": [
+        {
+          "heading": "User Input",
+          "level": 2,
+          "line": 9
+        },
+        {
+          "heading": "Pre-Execution Checks",
+          "level": 2,
+          "line": 17
+        },
+        {
+          "heading": "Outline",
+          "level": 2,
+          "line": 51
+        },
+        {
+          "heading": "Post-Execution Checks",
+          "level": 2,
+          "line": 120
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 4
+      }
+    },
+    {
+      "path": ".opencode/commands/speckit.implement.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 213,
+      "nonEmptyLines": 173,
+      "sections": [
+        {
+          "heading": "User Input",
+          "level": 2,
+          "line": 5
+        },
+        {
+          "heading": "Pre-Execution Checks",
+          "level": 2,
+          "line": 13
+        },
+        {
+          "heading": "Outline",
+          "level": 2,
+          "line": 47
+        },
+        {
+          "heading": "Mandatory Post-Execution Hooks",
+          "level": 2,
+          "line": 171
+        },
+        {
+          "heading": "Completion Report",
+          "level": 2,
+          "line": 204
+        },
+        {
+          "heading": "Done When",
+          "level": 2,
+          "line": 208
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    },
+    {
+      "path": ".opencode/commands/speckit.plan.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 168,
+      "nonEmptyLines": 129,
+      "sections": [
+        {
+          "heading": "User Input",
+          "level": 2,
+          "line": 13
+        },
+        {
+          "heading": "Pre-Execution Checks",
+          "level": 2,
+          "line": 21
+        },
+        {
+          "heading": "Outline",
+          "level": 2,
+          "line": 55
+        },
+        {
+          "heading": "Mandatory Post-Execution Hooks",
+          "level": 2,
+          "line": 70
+        },
+        {
+          "heading": "Completion Report",
+          "level": 2,
+          "line": 103
+        },
+        {
+          "heading": "Phases",
+          "level": 2,
+          "line": 107
+        },
+        {
+          "heading": "Phase 0: Outline & Research",
+          "level": 3,
+          "line": 109
+        },
+        {
+          "heading": "Phase 1: Design & Contracts",
+          "level": 3,
+          "line": 132
+        },
+        {
+          "heading": "Key rules",
+          "level": 2,
+          "line": 159
+        },
+        {
+          "heading": "Done When",
+          "level": 2,
+          "line": 164
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 10
+      }
+    },
+    {
+      "path": ".opencode/commands/speckit.specify.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 343,
+      "nonEmptyLines": 266,
+      "sections": [
+        {
+          "heading": "User Input",
+          "level": 2,
+          "line": 13
+        },
+        {
+          "heading": "Pre-Execution Checks",
+          "level": 2,
+          "line": 21
+        },
+        {
+          "heading": "Outline",
+          "level": 2,
+          "line": 55
+        },
+        {
+          "heading": "Mandatory Post-Execution Hooks",
+          "level": 2,
+          "line": 235
+        },
+        {
+          "heading": "Completion Report",
+          "level": 2,
+          "line": 268
+        },
+        {
+          "heading": "Quick Guidelines",
+          "level": 2,
+          "line": 278
+        },
+        {
+          "heading": "Section Requirements",
+          "level": 3,
+          "line": 285
+        },
+        {
+          "heading": "For AI Generation",
+          "level": 3,
+          "line": 291
+        },
+        {
+          "heading": "Success Criteria Guidelines",
+          "level": 3,
+          "line": 316
+        },
+        {
+          "heading": "Done When",
+          "level": 2,
+          "line": 339
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 10
+      }
+    },
+    {
+      "path": ".opencode/commands/speckit.tasks.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 213,
+      "nonEmptyLines": 170,
+      "sections": [
+        {
+          "heading": "User Input",
+          "level": 2,
+          "line": 14
+        },
+        {
+          "heading": "Pre-Execution Checks",
+          "level": 2,
+          "line": 22
+        },
+        {
+          "heading": "Outline",
+          "level": 2,
+          "line": 56
+        },
+        {
+          "heading": "Mandatory Post-Execution Hooks",
+          "level": 2,
+          "line": 90
+        },
+        {
+          "heading": "Completion Report",
+          "level": 2,
+          "line": 123
+        },
+        {
+          "heading": "Task Generation Rules",
+          "level": 2,
+          "line": 137
+        },
+        {
+          "heading": "Checklist Format (REQUIRED)",
+          "level": 3,
+          "line": 143
+        },
+        {
+          "heading": "Task Organization",
+          "level": 3,
+          "line": 175
+        },
+        {
+          "heading": "Phase Structure",
+          "level": 3,
+          "line": 200
+        },
+        {
+          "heading": "Done When",
+          "level": 2,
+          "line": 209
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 10
+      }
+    },
+    {
+      "path": ".opencode/commands/speckit.taskstoissues.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 97,
+      "nonEmptyLines": 77,
+      "sections": [
+        {
+          "heading": "User Input",
+          "level": 2,
+          "line": 6
+        },
+        {
+          "heading": "Pre-Execution Checks",
+          "level": 2,
+          "line": 14
+        },
+        {
+          "heading": "Outline",
+          "level": 2,
+          "line": 48
+        },
+        {
+          "heading": "Post-Execution Checks",
+          "level": 2,
+          "line": 67
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 4
+      }
+    }
+  ]
+}

@@ -1,0 +1,3216 @@
+{
+    "edges":  [
+                  {
+                      "label":  "contains",
+                      "target":  "n15",
+                      "source":  "n1",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n16",
+                      "source":  "n2",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n17",
+                      "source":  "n2",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n18",
+                      "source":  "n2",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n19",
+                      "source":  "n2",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n20",
+                      "source":  "n2",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n21",
+                      "source":  "n2",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n22",
+                      "source":  "n3",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n23",
+                      "source":  "n3",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n24",
+                      "source":  "n3",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n25",
+                      "source":  "n3",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n26",
+                      "source":  "n3",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n27",
+                      "source":  "n3",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n28",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n29",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n30",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n31",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n32",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n33",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n34",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n35",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n36",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n37",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n38",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n39",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n40",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n41",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n42",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n43",
+                      "source":  "n4",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n44",
+                      "source":  "n5",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n45",
+                      "source":  "n5",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n46",
+                      "source":  "n5",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n47",
+                      "source":  "n5",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n48",
+                      "source":  "n5",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n49",
+                      "source":  "n5",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n50",
+                      "source":  "n5",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n51",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n52",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n53",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n54",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n55",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n56",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n57",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n58",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n59",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n60",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n61",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n62",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n63",
+                      "source":  "n6",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n64",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n65",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n66",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n67",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n68",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n69",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n70",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n71",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n72",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n73",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n74",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n75",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n76",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n77",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n78",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n79",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n80",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n81",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n82",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n83",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n84",
+                      "source":  "n7",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n85",
+                      "source":  "n8",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n86",
+                      "source":  "n8",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n87",
+                      "source":  "n8",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n88",
+                      "source":  "n8",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n89",
+                      "source":  "n8",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n90",
+                      "source":  "n8",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n91",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n92",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n93",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n94",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n95",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n96",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n97",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n98",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n99",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n100",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n101",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n102",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n103",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n104",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n105",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n106",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n107",
+                      "source":  "n9",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n108",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n109",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n110",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n111",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n112",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n113",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n114",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n115",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n116",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n117",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n118",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n119",
+                      "source":  "n10",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n120",
+                      "source":  "n11",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n121",
+                      "source":  "n11",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n122",
+                      "source":  "n11",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n123",
+                      "source":  "n11",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n124",
+                      "source":  "n12",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n125",
+                      "source":  "n12",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n126",
+                      "source":  "n12",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n127",
+                      "source":  "n12",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n128",
+                      "source":  "n12",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n129",
+                      "source":  "n12",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n130",
+                      "source":  "n12",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n131",
+                      "source":  "n12",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n132",
+                      "source":  "n12",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n133",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n134",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n135",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n136",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n137",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n138",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n139",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n140",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n141",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n142",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n143",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n144",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n145",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n146",
+                      "source":  "n13",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n147",
+                      "source":  "n14",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n148",
+                      "source":  "n14",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n149",
+                      "source":  "n14",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n150",
+                      "source":  "n14",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "contains",
+                      "target":  "n151",
+                      "source":  "n14",
+                      "type":  "contains"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n1",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n152",
+                      "source":  "n1",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n153",
+                      "source":  "n2",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n5",
+                      "source":  "n2",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n2",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n6",
+                      "source":  "n2",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n154",
+                      "source":  "n2",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n8",
+                      "source":  "n2",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n155",
+                      "source":  "n2",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n156",
+                      "source":  "n3",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n7",
+                      "source":  "n3",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n8",
+                      "source":  "n3",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n5",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n6",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n157",
+                      "source":  "n6",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n158",
+                      "source":  "n6",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n7",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n6",
+                      "source":  "n7",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n8",
+                      "source":  "n7",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n8",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n9",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n6",
+                      "source":  "n9",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n159",
+                      "source":  "n9",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n10",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n5",
+                      "source":  "n11",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n11",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n8",
+                      "source":  "n11",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n12",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n6",
+                      "source":  "n12",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n160",
+                      "source":  "n13",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n13",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n6",
+                      "source":  "n13",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n161",
+                      "source":  "n13",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n162",
+                      "source":  "n13",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n4",
+                      "source":  "n14",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "imports",
+                      "target":  "n8",
+                      "source":  "n14",
+                      "type":  "imports"
+                  },
+                  {
+                      "label":  "calls slugify",
+                      "target":  "n16",
+                      "source":  "n17",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls slugify",
+                      "target":  "n16",
+                      "source":  "n17",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _fetch_meta",
+                      "target":  "n17",
+                      "source":  "n19",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _fetch_meta",
+                      "target":  "n17",
+                      "source":  "n20",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls slugify",
+                      "target":  "n16",
+                      "source":  "n20",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _build_overrides",
+                      "target":  "n22",
+                      "source":  "n24",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls LibraryConfig",
+                      "target":  "n39",
+                      "source":  "n41",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _as_dict",
+                      "target":  "n40",
+                      "source":  "n41",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls LibraryEntry",
+                      "target":  "n38",
+                      "source":  "n41",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls LibraryConfig",
+                      "target":  "n39",
+                      "source":  "n41",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _as_dict",
+                      "target":  "n40",
+                      "source":  "n42",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls TranslationStyleConfig",
+                      "target":  "n30",
+                      "source":  "n42",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls NovelConfig",
+                      "target":  "n35",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls CrawlConfig",
+                      "target":  "n28",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _build_style",
+                      "target":  "n42",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _as_dict",
+                      "target":  "n40",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _as_dict",
+                      "target":  "n40",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _as_dict",
+                      "target":  "n40",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _as_dict",
+                      "target":  "n40",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _as_dict",
+                      "target":  "n40",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls TranslateConfig",
+                      "target":  "n34",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls GlossaryFilesConfig",
+                      "target":  "n29",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls TranslationRetryConfig",
+                      "target":  "n31",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls TranslationChunkConfig",
+                      "target":  "n32",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls CliTranslatorConfig",
+                      "target":  "n33",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls OutputConfig",
+                      "target":  "n36",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls Config",
+                      "target":  "n37",
+                      "source":  "n43",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _yaml",
+                      "target":  "n44",
+                      "source":  "n45",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _coerce",
+                      "target":  "n46",
+                      "source":  "n47",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _load",
+                      "target":  "n45",
+                      "source":  "n48",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _deep_merge",
+                      "target":  "n47",
+                      "source":  "n48",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _yaml",
+                      "target":  "n44",
+                      "source":  "n48",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _yaml",
+                      "target":  "n44",
+                      "source":  "n49",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _deep_merge",
+                      "target":  "n47",
+                      "source":  "n49",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _yaml",
+                      "target":  "n44",
+                      "source":  "n49",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _load",
+                      "target":  "n45",
+                      "source":  "n50",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _yaml",
+                      "target":  "n44",
+                      "source":  "n50",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _extract_href",
+                      "target":  "n59",
+                      "source":  "n56",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _get",
+                      "target":  "n54",
+                      "source":  "n59",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls HttpCrawler",
+                      "target":  "n61",
+                      "source":  "n63",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls Crawl4AICrawler",
+                      "target":  "n62",
+                      "source":  "n63",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _hostname",
+                      "target":  "n66",
+                      "source":  "n67",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _hostname",
+                      "target":  "n66",
+                      "source":  "n68",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _count_pattern_links",
+                      "target":  "n71",
+                      "source":  "n72",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _refine_feedback",
+                      "target":  "n73",
+                      "source":  "n74",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls parse_ai_suggestion",
+                      "target":  "n70",
+                      "source":  "n74",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _fallback_refine",
+                      "target":  "n75",
+                      "source":  "n74",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _domains_from_host",
+                      "target":  "n68",
+                      "source":  "n79",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _bool",
+                      "target":  "n76",
+                      "source":  "n79",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _bool",
+                      "target":  "n76",
+                      "source":  "n79",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _float",
+                      "target":  "n77",
+                      "source":  "n79",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _int",
+                      "target":  "n78",
+                      "source":  "n79",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls PresetBuilderResult",
+                      "target":  "n64",
+                      "source":  "n81",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls select_engine_heuristic",
+                      "target":  "n65",
+                      "source":  "n81",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _get_cli_config",
+                      "target":  "n80",
+                      "source":  "n81",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls build_ai_suggestion_prompt",
+                      "target":  "n69",
+                      "source":  "n81",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls parse_ai_suggestion",
+                      "target":  "n70",
+                      "source":  "n81",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls validate_pattern",
+                      "target":  "n72",
+                      "source":  "n81",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls refine_pattern_with_ai",
+                      "target":  "n74",
+                      "source":  "n81",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls validate_pattern",
+                      "target":  "n72",
+                      "source":  "n81",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _preset_name_from_host",
+                      "target":  "n67",
+                      "source":  "n81",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _build_source_preset",
+                      "target":  "n79",
+                      "source":  "n81",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls PresetBuilderResult",
+                      "target":  "n64",
+                      "source":  "n82",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _yaml",
+                      "target":  "n85",
+                      "source":  "n88",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _coerce",
+                      "target":  "n87",
+                      "source":  "n88",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls SourcePreset",
+                      "target":  "n86",
+                      "source":  "n88",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _yaml",
+                      "target":  "n85",
+                      "source":  "n90",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _yaml",
+                      "target":  "n85",
+                      "source":  "n90",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _soup",
+                      "target":  "n91",
+                      "source":  "n95",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _make_http_crawler",
+                      "target":  "n93",
+                      "source":  "n105",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _patch_http_session",
+                      "target":  "n95",
+                      "source":  "n105",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _make_http_crawler",
+                      "target":  "n93",
+                      "source":  "n106",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _patch_http_session",
+                      "target":  "n95",
+                      "source":  "n106",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _make_http_crawler",
+                      "target":  "n93",
+                      "source":  "n107",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _patch_http_session",
+                      "target":  "n95",
+                      "source":  "n107",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _write_config",
+                      "target":  "n108",
+                      "source":  "n109",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _write_config",
+                      "target":  "n108",
+                      "source":  "n110",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _write_config",
+                      "target":  "n108",
+                      "source":  "n111",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _write_config",
+                      "target":  "n108",
+                      "source":  "n112",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _write_config",
+                      "target":  "n108",
+                      "source":  "n113",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _write_config",
+                      "target":  "n108",
+                      "source":  "n114",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _write_config",
+                      "target":  "n108",
+                      "source":  "n116",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _crawler",
+                      "target":  "n124",
+                      "source":  "n125",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _crawler",
+                      "target":  "n124",
+                      "source":  "n126",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _crawler",
+                      "target":  "n124",
+                      "source":  "n127",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _make_fake_response",
+                      "target":  "n129",
+                      "source":  "n130",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _make_fake_response",
+                      "target":  "n129",
+                      "source":  "n131",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _make_fake_response",
+                      "target":  "n129",
+                      "source":  "n132",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _FakeCrawler",
+                      "target":  "n134",
+                      "source":  "n136",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _cfg",
+                      "target":  "n133",
+                      "source":  "n136",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _FakeCrawler",
+                      "target":  "n134",
+                      "source":  "n137",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _UpperTranslator",
+                      "target":  "n135",
+                      "source":  "n137",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _cfg",
+                      "target":  "n133",
+                      "source":  "n137",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _FakeCrawler",
+                      "target":  "n134",
+                      "source":  "n138",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _cfg",
+                      "target":  "n133",
+                      "source":  "n138",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _UpperTranslator",
+                      "target":  "n135",
+                      "source":  "n139",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _FlakyTranslator",
+                      "target":  "n140",
+                      "source":  "n141",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _cfg",
+                      "target":  "n133",
+                      "source":  "n141",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _FlakyTranslator",
+                      "target":  "n140",
+                      "source":  "n142",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _cfg",
+                      "target":  "n133",
+                      "source":  "n142",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _cfg",
+                      "target":  "n133",
+                      "source":  "n143",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _cfg",
+                      "target":  "n133",
+                      "source":  "n144",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _cfg",
+                      "target":  "n133",
+                      "source":  "n145",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _cfg",
+                      "target":  "n147",
+                      "source":  "n149",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _fake_job",
+                      "target":  "n148",
+                      "source":  "n149",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _fake_job",
+                      "target":  "n148",
+                      "source":  "n150",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "calls _fake_job",
+                      "target":  "n148",
+                      "source":  "n151",
+                      "type":  "calls"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n4",
+                      "source":  "n9",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n6",
+                      "source":  "n9",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n4",
+                      "source":  "n10",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n5",
+                      "source":  "n11",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n4",
+                      "source":  "n11",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n8",
+                      "source":  "n11",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n4",
+                      "source":  "n12",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n6",
+                      "source":  "n12",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n4",
+                      "source":  "n13",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n6",
+                      "source":  "n13",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n4",
+                      "source":  "n14",
+                      "type":  "tested_by"
+                  },
+                  {
+                      "label":  "tests",
+                      "target":  "n8",
+                      "source":  "n14",
+                      "type":  "tested_by"
+                  }
+              ],
+    "nodes":  [
+                  {
+                      "id":  "n1",
+                      "label":  "app/job.py",
+                      "language":  "python",
+                      "filePath":  "app/job.py",
+                      "type":  "code",
+                      "totalLines":  114,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n2",
+                      "label":  "app/routes/library.py",
+                      "language":  "python",
+                      "filePath":  "app/routes/library.py",
+                      "type":  "code",
+                      "totalLines":  168,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n3",
+                      "label":  "app/routes/preset_builder.py",
+                      "language":  "python",
+                      "filePath":  "app/routes/preset_builder.py",
+                      "type":  "code",
+                      "totalLines":  215,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n4",
+                      "label":  "novel2epub/config.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "code",
+                      "totalLines":  348,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n5",
+                      "label":  "novel2epub/config_writer.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/config_writer.py",
+                      "type":  "code",
+                      "totalLines":  120,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n6",
+                      "label":  "novel2epub/crawler.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "code",
+                      "totalLines":  656,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n7",
+                      "label":  "novel2epub/preset_builder.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "code",
+                      "totalLines":  453,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n8",
+                      "label":  "novel2epub/sources.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/sources.py",
+                      "type":  "code",
+                      "totalLines":  132,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n9",
+                      "label":  "tests/test_chapter_pagination.py",
+                      "language":  "python",
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "code",
+                      "totalLines":  538,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n10",
+                      "label":  "tests/test_config.py",
+                      "language":  "python",
+                      "filePath":  "tests/test_config.py",
+                      "type":  "code",
+                      "totalLines":  141,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n11",
+                      "label":  "tests/test_config_writer.py",
+                      "language":  "python",
+                      "filePath":  "tests/test_config_writer.py",
+                      "type":  "code",
+                      "totalLines":  73,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n12",
+                      "label":  "tests/test_crawler_meta.py",
+                      "language":  "python",
+                      "filePath":  "tests/test_crawler_meta.py",
+                      "type":  "code",
+                      "totalLines":  150,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n13",
+                      "label":  "tests/test_pipeline_meta.py",
+                      "language":  "python",
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "code",
+                      "totalLines":  246,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n14",
+                      "label":  "tests/test_sources_ui.py",
+                      "language":  "python",
+                      "filePath":  "tests/test_sources_ui.py",
+                      "type":  "code",
+                      "totalLines":  102,
+                      "category":  "code"
+                  },
+                  {
+                      "id":  "n15",
+                      "label":  "app/job.py|JobRunner",
+                      "startLine":  34,
+                      "filePath":  "app/job.py",
+                      "type":  "class",
+                      "name":  "JobRunner",
+                      "lineCount":  81
+                  },
+                  {
+                      "id":  "n16",
+                      "label":  "app/routes/library.py|slugify",
+                      "startLine":  23,
+                      "filePath":  "app/routes/library.py",
+                      "type":  "function",
+                      "name":  "slugify",
+                      "lineCount":  4
+                  },
+                  {
+                      "id":  "n17",
+                      "label":  "app/routes/library.py|_fetch_meta",
+                      "startLine":  29,
+                      "filePath":  "app/routes/library.py",
+                      "type":  "function",
+                      "name":  "_fetch_meta",
+                      "lineCount":  47
+                  },
+                  {
+                      "id":  "n18",
+                      "label":  "app/routes/library.py|library_page",
+                      "startLine":  78,
+                      "filePath":  "app/routes/library.py",
+                      "type":  "function",
+                      "name":  "library_page",
+                      "lineCount":  23
+                  },
+                  {
+                      "id":  "n19",
+                      "label":  "app/routes/library.py|fetch_meta_api",
+                      "startLine":  104,
+                      "filePath":  "app/routes/library.py",
+                      "type":  "function",
+                      "name":  "fetch_meta_api",
+                      "lineCount":  12
+                  },
+                  {
+                      "id":  "n20",
+                      "label":  "app/routes/library.py|create_ebook",
+                      "startLine":  119,
+                      "filePath":  "app/routes/library.py",
+                      "type":  "function",
+                      "name":  "create_ebook",
+                      "lineCount":  45
+                  },
+                  {
+                      "id":  "n21",
+                      "label":  "app/routes/library.py|delete_ebook",
+                      "startLine":  167,
+                      "filePath":  "app/routes/library.py",
+                      "type":  "function",
+                      "name":  "delete_ebook",
+                      "lineCount":  11
+                  },
+                  {
+                      "id":  "n22",
+                      "label":  "app/routes/preset_builder.py|_build_overrides",
+                      "startLine":  18,
+                      "filePath":  "app/routes/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_build_overrides",
+                      "lineCount":  34
+                  },
+                  {
+                      "id":  "n23",
+                      "label":  "app/routes/preset_builder.py|preset_builder_page",
+                      "startLine":  54,
+                      "filePath":  "app/routes/preset_builder.py",
+                      "type":  "function",
+                      "name":  "preset_builder_page",
+                      "lineCount":  10
+                  },
+                  {
+                      "id":  "n24",
+                      "label":  "app/routes/preset_builder.py|preset_builder_preview",
+                      "startLine":  67,
+                      "filePath":  "app/routes/preset_builder.py",
+                      "type":  "function",
+                      "name":  "preset_builder_preview",
+                      "lineCount":  80
+                  },
+                  {
+                      "id":  "n25",
+                      "label":  "app/routes/preset_builder.py|preset_builder_save",
+                      "startLine":  150,
+                      "filePath":  "app/routes/preset_builder.py",
+                      "type":  "function",
+                      "name":  "preset_builder_save",
+                      "lineCount":  39
+                  },
+                  {
+                      "id":  "n26",
+                      "label":  "app/routes/preset_builder.py|preset_builder_toc_preview_api",
+                      "startLine":  192,
+                      "filePath":  "app/routes/preset_builder.py",
+                      "type":  "function",
+                      "name":  "preset_builder_toc_preview_api",
+                      "lineCount":  18
+                  },
+                  {
+                      "id":  "n27",
+                      "label":  "app/routes/preset_builder.py|suggest_preset_url",
+                      "startLine":  213,
+                      "filePath":  "app/routes/preset_builder.py",
+                      "type":  "function",
+                      "name":  "suggest_preset_url",
+                      "lineCount":  3
+                  },
+                  {
+                      "id":  "n28",
+                      "label":  "novel2epub/config.py|CrawlConfig",
+                      "startLine":  13,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "CrawlConfig",
+                      "lineCount":  76
+                  },
+                  {
+                      "id":  "n29",
+                      "label":  "novel2epub/config.py|GlossaryFilesConfig",
+                      "startLine":  92,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "GlossaryFilesConfig",
+                      "lineCount":  3
+                  },
+                  {
+                      "id":  "n30",
+                      "label":  "novel2epub/config.py|TranslationStyleConfig",
+                      "startLine":  98,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "TranslationStyleConfig",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n31",
+                      "label":  "novel2epub/config.py|TranslationRetryConfig",
+                      "startLine":  107,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "TranslationRetryConfig",
+                      "lineCount":  3
+                  },
+                  {
+                      "id":  "n32",
+                      "label":  "novel2epub/config.py|TranslationChunkConfig",
+                      "startLine":  113,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "TranslationChunkConfig",
+                      "lineCount":  3
+                  },
+                  {
+                      "id":  "n33",
+                      "label":  "novel2epub/config.py|CliTranslatorConfig",
+                      "startLine":  160,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "CliTranslatorConfig",
+                      "lineCount":  7
+                  },
+                  {
+                      "id":  "n34",
+                      "label":  "novel2epub/config.py|TranslateConfig",
+                      "startLine":  170,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "TranslateConfig",
+                      "lineCount":  14
+                  },
+                  {
+                      "id":  "n35",
+                      "label":  "novel2epub/config.py|NovelConfig",
+                      "startLine":  187,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "NovelConfig",
+                      "lineCount":  5
+                  },
+                  {
+                      "id":  "n36",
+                      "label":  "novel2epub/config.py|OutputConfig",
+                      "startLine":  195,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "OutputConfig",
+                      "lineCount":  3
+                  },
+                  {
+                      "id":  "n37",
+                      "label":  "novel2epub/config.py|Config",
+                      "startLine":  201,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "Config",
+                      "lineCount":  9
+                  },
+                  {
+                      "id":  "n38",
+                      "label":  "novel2epub/config.py|LibraryEntry",
+                      "startLine":  213,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "LibraryEntry",
+                      "lineCount":  4
+                  },
+                  {
+                      "id":  "n39",
+                      "label":  "novel2epub/config.py|LibraryConfig",
+                      "startLine":  220,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "class",
+                      "name":  "LibraryConfig",
+                      "lineCount":  2
+                  },
+                  {
+                      "id":  "n40",
+                      "label":  "novel2epub/config.py|_as_dict",
+                      "startLine":  225,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "function",
+                      "name":  "_as_dict",
+                      "lineCount":  2
+                  },
+                  {
+                      "id":  "n41",
+                      "label":  "novel2epub/config.py|load_library",
+                      "startLine":  229,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "function",
+                      "name":  "load_library",
+                      "lineCount":  17
+                  },
+                  {
+                      "id":  "n42",
+                      "label":  "novel2epub/config.py|_build_style",
+                      "startLine":  248,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "function",
+                      "name":  "_build_style",
+                      "lineCount":  9
+                  },
+                  {
+                      "id":  "n43",
+                      "label":  "novel2epub/config.py|load_config",
+                      "startLine":  259,
+                      "filePath":  "novel2epub/config.py",
+                      "type":  "function",
+                      "name":  "load_config",
+                      "lineCount":  90
+                  },
+                  {
+                      "id":  "n44",
+                      "label":  "novel2epub/config_writer.py|_yaml",
+                      "startLine":  23,
+                      "filePath":  "novel2epub/config_writer.py",
+                      "type":  "function",
+                      "name":  "_yaml",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n45",
+                      "label":  "novel2epub/config_writer.py|_load",
+                      "startLine":  31,
+                      "filePath":  "novel2epub/config_writer.py",
+                      "type":  "function",
+                      "name":  "_load",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n46",
+                      "label":  "novel2epub/config_writer.py|_coerce",
+                      "startLine":  39,
+                      "filePath":  "novel2epub/config_writer.py",
+                      "type":  "function",
+                      "name":  "_coerce",
+                      "lineCount":  5
+                  },
+                  {
+                      "id":  "n47",
+                      "label":  "novel2epub/config_writer.py|_deep_merge",
+                      "startLine":  46,
+                      "filePath":  "novel2epub/config_writer.py",
+                      "type":  "function",
+                      "name":  "_deep_merge",
+                      "lineCount":  11
+                  },
+                  {
+                      "id":  "n48",
+                      "label":  "novel2epub/config_writer.py|update_config_file",
+                      "startLine":  59,
+                      "filePath":  "novel2epub/config_writer.py",
+                      "type":  "function",
+                      "name":  "update_config_file",
+                      "lineCount":  8
+                  },
+                  {
+                      "id":  "n49",
+                      "label":  "novel2epub/config_writer.py|scaffold_config_file",
+                      "startLine":  69,
+                      "filePath":  "novel2epub/config_writer.py",
+                      "type":  "function",
+                      "name":  "scaffold_config_file",
+                      "lineCount":  34
+                  },
+                  {
+                      "id":  "n50",
+                      "label":  "novel2epub/config_writer.py|save_library",
+                      "startLine":  105,
+                      "filePath":  "novel2epub/config_writer.py",
+                      "type":  "function",
+                      "name":  "save_library",
+                      "lineCount":  16
+                  },
+                  {
+                      "id":  "n51",
+                      "label":  "novel2epub/crawler.py|TocResult",
+                      "startLine":  25,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "class",
+                      "name":  "TocResult",
+                      "lineCount":  10
+                  },
+                  {
+                      "id":  "n52",
+                      "label":  "novel2epub/crawler.py|Crawler",
+                      "startLine":  38,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "class",
+                      "name":  "Crawler",
+                      "lineCount":  5
+                  },
+                  {
+                      "id":  "n53",
+                      "label":  "novel2epub/crawler.py|_dedupe_keep_last",
+                      "startLine":  45,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "function",
+                      "name":  "_dedupe_keep_last",
+                      "lineCount":  9
+                  },
+                  {
+                      "id":  "n54",
+                      "label":  "novel2epub/crawler.py|_get",
+                      "startLine":  56,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "function",
+                      "name":  "_get",
+                      "lineCount":  7
+                  },
+                  {
+                      "id":  "n55",
+                      "label":  "novel2epub/crawler.py|fetch_chapter_paginated",
+                      "startLine":  65,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "function",
+                      "name":  "fetch_chapter_paginated",
+                      "lineCount":  69
+                  },
+                  {
+                      "id":  "n56",
+                      "label":  "novel2epub/crawler.py|_next_page_url_from_html",
+                      "startLine":  136,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "function",
+                      "name":  "_next_page_url_from_html",
+                      "lineCount":  14
+                  },
+                  {
+                      "id":  "n57",
+                      "label":  "novel2epub/crawler.py|_make_css_resolver",
+                      "startLine":  152,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "function",
+                      "name":  "_make_css_resolver",
+                      "lineCount":  17
+                  },
+                  {
+                      "id":  "n58",
+                      "label":  "novel2epub/crawler.py|_next_page_url_from_pattern",
+                      "startLine":  171,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "function",
+                      "name":  "_next_page_url_from_pattern",
+                      "lineCount":  36
+                  },
+                  {
+                      "id":  "n59",
+                      "label":  "novel2epub/crawler.py|_extract_href",
+                      "startLine":  209,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "function",
+                      "name":  "_extract_href",
+                      "lineCount":  36
+                  },
+                  {
+                      "id":  "n60",
+                      "label":  "novel2epub/crawler.py|_meta_get",
+                      "startLine":  250,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "function",
+                      "name":  "_meta_get",
+                      "lineCount":  14
+                  },
+                  {
+                      "id":  "n61",
+                      "label":  "novel2epub/crawler.py|HttpCrawler",
+                      "startLine":  266,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "class",
+                      "name":  "HttpCrawler",
+                      "lineCount":  211
+                  },
+                  {
+                      "id":  "n62",
+                      "label":  "novel2epub/crawler.py|Crawl4AICrawler",
+                      "startLine":  479,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "class",
+                      "name":  "Crawl4AICrawler",
+                      "lineCount":  162
+                  },
+                  {
+                      "id":  "n63",
+                      "label":  "novel2epub/crawler.py|make_crawler",
+                      "startLine":  643,
+                      "filePath":  "novel2epub/crawler.py",
+                      "type":  "function",
+                      "name":  "make_crawler",
+                      "lineCount":  14
+                  },
+                  {
+                      "id":  "n64",
+                      "label":  "novel2epub/preset_builder.py|PresetBuilderResult",
+                      "startLine":  38,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "class",
+                      "name":  "PresetBuilderResult",
+                      "lineCount":  10
+                  },
+                  {
+                      "id":  "n65",
+                      "label":  "novel2epub/preset_builder.py|select_engine_heuristic",
+                      "startLine":  51,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "select_engine_heuristic",
+                      "lineCount":  19
+                  },
+                  {
+                      "id":  "n66",
+                      "label":  "novel2epub/preset_builder.py|_hostname",
+                      "startLine":  72,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_hostname",
+                      "lineCount":  2
+                  },
+                  {
+                      "id":  "n67",
+                      "label":  "novel2epub/preset_builder.py|_preset_name_from_host",
+                      "startLine":  76,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_preset_name_from_host",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n68",
+                      "label":  "novel2epub/preset_builder.py|_domains_from_host",
+                      "startLine":  84,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_domains_from_host",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n69",
+                      "label":  "novel2epub/preset_builder.py|build_ai_suggestion_prompt",
+                      "startLine":  92,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "build_ai_suggestion_prompt",
+                      "lineCount":  31
+                  },
+                  {
+                      "id":  "n70",
+                      "label":  "novel2epub/preset_builder.py|parse_ai_suggestion",
+                      "startLine":  125,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "parse_ai_suggestion",
+                      "lineCount":  14
+                  },
+                  {
+                      "id":  "n71",
+                      "label":  "novel2epub/preset_builder.py|_count_pattern_links",
+                      "startLine":  141,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_count_pattern_links",
+                      "lineCount":  25
+                  },
+                  {
+                      "id":  "n72",
+                      "label":  "novel2epub/preset_builder.py|validate_pattern",
+                      "startLine":  168,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "validate_pattern",
+                      "lineCount":  21
+                  },
+                  {
+                      "id":  "n73",
+                      "label":  "novel2epub/preset_builder.py|_refine_feedback",
+                      "startLine":  191,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_refine_feedback",
+                      "lineCount":  23
+                  },
+                  {
+                      "id":  "n74",
+                      "label":  "novel2epub/preset_builder.py|refine_pattern_with_ai",
+                      "startLine":  216,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "refine_pattern_with_ai",
+                      "lineCount":  31
+                  },
+                  {
+                      "id":  "n75",
+                      "label":  "novel2epub/preset_builder.py|_fallback_refine",
+                      "startLine":  249,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_fallback_refine",
+                      "lineCount":  10
+                  },
+                  {
+                      "id":  "n76",
+                      "label":  "novel2epub/preset_builder.py|_bool",
+                      "startLine":  261,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_bool",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n77",
+                      "label":  "novel2epub/preset_builder.py|_float",
+                      "startLine":  269,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_float",
+                      "lineCount":  5
+                  },
+                  {
+                      "id":  "n78",
+                      "label":  "novel2epub/preset_builder.py|_int",
+                      "startLine":  276,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_int",
+                      "lineCount":  5
+                  },
+                  {
+                      "id":  "n79",
+                      "label":  "novel2epub/preset_builder.py|_build_source_preset",
+                      "startLine":  283,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_build_source_preset",
+                      "lineCount":  24
+                  },
+                  {
+                      "id":  "n80",
+                      "label":  "novel2epub/preset_builder.py|_get_cli_config",
+                      "startLine":  309,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "_get_cli_config",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n81",
+                      "label":  "novel2epub/preset_builder.py|build_preset",
+                      "startLine":  317,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "build_preset",
+                      "lineCount":  90
+                  },
+                  {
+                      "id":  "n82",
+                      "label":  "novel2epub/preset_builder.py|preview_toc",
+                      "startLine":  409,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "preview_toc",
+                      "lineCount":  25
+                  },
+                  {
+                      "id":  "n83",
+                      "label":  "novel2epub/preset_builder.py|save_preset",
+                      "startLine":  436,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "save_preset",
+                      "lineCount":  8
+                  },
+                  {
+                      "id":  "n84",
+                      "label":  "novel2epub/preset_builder.py|remove_preset",
+                      "startLine":  446,
+                      "filePath":  "novel2epub/preset_builder.py",
+                      "type":  "function",
+                      "name":  "remove_preset",
+                      "lineCount":  8
+                  },
+                  {
+                      "id":  "n85",
+                      "label":  "novel2epub/sources.py|_yaml",
+                      "startLine":  20,
+                      "filePath":  "novel2epub/sources.py",
+                      "type":  "function",
+                      "name":  "_yaml",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n86",
+                      "label":  "novel2epub/sources.py|SourcePreset",
+                      "startLine":  28,
+                      "filePath":  "novel2epub/sources.py",
+                      "type":  "class",
+                      "name":  "SourcePreset",
+                      "lineCount":  28
+                  },
+                  {
+                      "id":  "n87",
+                      "label":  "novel2epub/sources.py|_coerce",
+                      "startLine":  62,
+                      "filePath":  "novel2epub/sources.py",
+                      "type":  "function",
+                      "name":  "_coerce",
+                      "lineCount":  14
+                  },
+                  {
+                      "id":  "n88",
+                      "label":  "novel2epub/sources.py|load_presets",
+                      "startLine":  78,
+                      "filePath":  "novel2epub/sources.py",
+                      "type":  "function",
+                      "name":  "load_presets",
+                      "lineCount":  11
+                  },
+                  {
+                      "id":  "n89",
+                      "label":  "novel2epub/sources.py|detect_preset",
+                      "startLine":  94,
+                      "filePath":  "novel2epub/sources.py",
+                      "type":  "function",
+                      "name":  "detect_preset",
+                      "lineCount":  19
+                  },
+                  {
+                      "id":  "n90",
+                      "label":  "novel2epub/sources.py|save_presets",
+                      "startLine":  115,
+                      "filePath":  "novel2epub/sources.py",
+                      "type":  "function",
+                      "name":  "save_presets",
+                      "lineCount":  18
+                  },
+                  {
+                      "id":  "n91",
+                      "label":  "tests/test_chapter_pagination.py|_soup",
+                      "startLine":  17,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "_soup",
+                      "lineCount":  2
+                  },
+                  {
+                      "id":  "n92",
+                      "label":  "tests/test_chapter_pagination.py|_page",
+                      "startLine":  21,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "_page",
+                      "lineCount":  15
+                  },
+                  {
+                      "id":  "n93",
+                      "label":  "tests/test_chapter_pagination.py|_make_http_crawler",
+                      "startLine":  38,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "_make_http_crawler",
+                      "lineCount":  2
+                  },
+                  {
+                      "id":  "n94",
+                      "label":  "tests/test_chapter_pagination.py|_FakeResp",
+                      "startLine":  42,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "class",
+                      "name":  "_FakeResp",
+                      "lineCount":  3
+                  },
+                  {
+                      "id":  "n95",
+                      "label":  "tests/test_chapter_pagination.py|_patch_http_session",
+                      "startLine":  47,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "_patch_http_session",
+                      "lineCount":  13
+                  },
+                  {
+                      "id":  "n96",
+                      "label":  "tests/test_chapter_pagination.py|test_single_page_no_pagination",
+                      "startLine":  65,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_single_page_no_pagination",
+                      "lineCount":  25
+                  },
+                  {
+                      "id":  "n97",
+                      "label":  "tests/test_chapter_pagination.py|test_three_page_chapter_follows_selector",
+                      "startLine":  92,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_three_page_chapter_follows_selector",
+                      "lineCount":  55
+                  },
+                  {
+                      "id":  "n98",
+                      "label":  "tests/test_chapter_pagination.py|test_url_pattern_fallback_substitutes_group",
+                      "startLine":  149,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_url_pattern_fallback_substitutes_group",
+                      "lineCount":  47
+                  },
+                  {
+                      "id":  "n99",
+                      "label":  "tests/test_chapter_pagination.py|test_url_pattern_returns_none_when_no_match",
+                      "startLine":  198,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_url_pattern_returns_none_when_no_match",
+                      "lineCount":  29
+                  },
+                  {
+                      "id":  "n100",
+                      "label":  "tests/test_chapter_pagination.py|test_url_pattern_stops_when_pattern_no_longer_matches",
+                      "startLine":  229,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_url_pattern_stops_when_pattern_no_longer_matches",
+                      "lineCount":  0
+                  },
+                  {
+                      "id":  "n101",
+                      "label":  "tests/test_chapter_pagination.py|test_url_pattern_stops_when_pattern_no_longer_matches",
+                      "startLine":  265,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_url_pattern_stops_when_pattern_no_longer_matches",
+                      "lineCount":  0
+                  },
+                  {
+                      "id":  "n102",
+                      "label":  "tests/test_chapter_pagination.py|test_duplicate_content_stops_pagination",
+                      "startLine":  302,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_duplicate_content_stops_pagination",
+                      "lineCount":  51
+                  },
+                  {
+                      "id":  "n103",
+                      "label":  "tests/test_chapter_pagination.py|test_max_pages_caps_pagination",
+                      "startLine":  355,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_max_pages_caps_pagination",
+                      "lineCount":  49
+                  },
+                  {
+                      "id":  "n104",
+                      "label":  "tests/test_chapter_pagination.py|test_repeated_title_is_stripped_from_subpage",
+                      "startLine":  406,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_repeated_title_is_stripped_from_subpage",
+                      "lineCount":  54
+                  },
+                  {
+                      "id":  "n105",
+                      "label":  "tests/test_chapter_pagination.py|test_http_crawler_follows_three_pages",
+                      "startLine":  465,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_http_crawler_follows_three_pages",
+                      "lineCount":  31
+                  },
+                  {
+                      "id":  "n106",
+                      "label":  "tests/test_chapter_pagination.py|test_http_crawler_single_page_when_no_pagination_config",
+                      "startLine":  498,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_http_crawler_single_page_when_no_pagination_config",
+                      "lineCount":  12
+                  },
+                  {
+                      "id":  "n107",
+                      "label":  "tests/test_chapter_pagination.py|test_http_crawler_pagination_with_url_pattern",
+                      "startLine":  512,
+                      "filePath":  "tests/test_chapter_pagination.py",
+                      "type":  "function",
+                      "name":  "test_http_crawler_pagination_with_url_pattern",
+                      "lineCount":  27
+                  },
+                  {
+                      "id":  "n108",
+                      "label":  "tests/test_config.py|_write_config",
+                      "startLine":  9,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "_write_config",
+                      "lineCount":  12
+                  },
+                  {
+                      "id":  "n109",
+                      "label":  "tests/test_config.py|test_glossary_files_default_to_data_dir_glossary_folder",
+                      "startLine":  23,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_glossary_files_default_to_data_dir_glossary_folder",
+                      "lineCount":  7
+                  },
+                  {
+                      "id":  "n110",
+                      "label":  "tests/test_config.py|test_glossary_files_explicit_path_is_respected",
+                      "startLine":  32,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_glossary_files_explicit_path_is_respected",
+                      "lineCount":  11
+                  },
+                  {
+                      "id":  "n111",
+                      "label":  "tests/test_config.py|test_no_preset_backward_compat",
+                      "startLine":  45,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_no_preset_backward_compat",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n112",
+                      "label":  "tests/test_config.py|test_go_preset_resolution",
+                      "startLine":  53,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_go_preset_resolution",
+                      "lineCount":  12
+                  },
+                  {
+                      "id":  "n113",
+                      "label":  "tests/test_config.py|test_go_preset_override",
+                      "startLine":  67,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_go_preset_override",
+                      "lineCount":  18
+                  },
+                  {
+                      "id":  "n114",
+                      "label":  "tests/test_config.py|test_unknown_preset_raises",
+                      "startLine":  87,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_unknown_preset_raises",
+                      "lineCount":  7
+                  },
+                  {
+                      "id":  "n115",
+                      "label":  "tests/test_config.py|test_crawl_config_pagination_defaults",
+                      "startLine":  96,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_crawl_config_pagination_defaults",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n116",
+                      "label":  "tests/test_config.py|test_crawl_config_pagination_fields_round_trip",
+                      "startLine":  104,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_crawl_config_pagination_fields_round_trip",
+                      "lineCount":  17
+                  },
+                  {
+                      "id":  "n117",
+                      "label":  "tests/test_config.py|test_crawl_config_rejects_pattern_with_zero_capturing_groups",
+                      "startLine":  123,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_crawl_config_rejects_pattern_with_zero_capturing_groups",
+                      "lineCount":  3
+                  },
+                  {
+                      "id":  "n118",
+                      "label":  "tests/test_config.py|test_crawl_config_rejects_pattern_with_two_capturing_groups",
+                      "startLine":  128,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_crawl_config_rejects_pattern_with_two_capturing_groups",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n119",
+                      "label":  "tests/test_config.py|test_crawl_config_rejects_invalid_regex",
+                      "startLine":  136,
+                      "filePath":  "tests/test_config.py",
+                      "type":  "function",
+                      "name":  "test_crawl_config_rejects_invalid_regex",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n120",
+                      "label":  "tests/test_config_writer.py|test_update_preserves_comments_and_only_changes_target",
+                      "startLine":  12,
+                      "filePath":  "tests/test_config_writer.py",
+                      "type":  "function",
+                      "name":  "test_update_preserves_comments_and_only_changes_target",
+                      "lineCount":  24
+                  },
+                  {
+                      "id":  "n121",
+                      "label":  "tests/test_config_writer.py|test_scaffold_creates_config_from_example",
+                      "startLine":  38,
+                      "filePath":  "tests/test_config_writer.py",
+                      "type":  "function",
+                      "name":  "test_scaffold_creates_config_from_example",
+                      "lineCount":  17
+                  },
+                  {
+                      "id":  "n122",
+                      "label":  "tests/test_config_writer.py|test_save_library_round_trip",
+                      "startLine":  57,
+                      "filePath":  "tests/test_config_writer.py",
+                      "type":  "function",
+                      "name":  "test_save_library_round_trip",
+                      "lineCount":  7
+                  },
+                  {
+                      "id":  "n123",
+                      "label":  "tests/test_config_writer.py|test_sources_round_trip",
+                      "startLine":  66,
+                      "filePath":  "tests/test_config_writer.py",
+                      "type":  "function",
+                      "name":  "test_sources_round_trip",
+                      "lineCount":  8
+                  },
+                  {
+                      "id":  "n124",
+                      "label":  "tests/test_crawler_meta.py|_crawler",
+                      "startLine":  7,
+                      "filePath":  "tests/test_crawler_meta.py",
+                      "type":  "function",
+                      "name":  "_crawler",
+                      "lineCount":  2
+                  },
+                  {
+                      "id":  "n125",
+                      "label":  "tests/test_crawler_meta.py|test_extract_meta_from_og_tags",
+                      "startLine":  11,
+                      "filePath":  "tests/test_crawler_meta.py",
+                      "type":  "function",
+                      "name":  "test_extract_meta_from_og_tags",
+                      "lineCount":  16
+                  },
+                  {
+                      "id":  "n126",
+                      "label":  "tests/test_crawler_meta.py|test_extract_meta_selector_overrides_and_title_fallback",
+                      "startLine":  29,
+                      "filePath":  "tests/test_crawler_meta.py",
+                      "type":  "function",
+                      "name":  "test_extract_meta_selector_overrides_and_title_fallback",
+                      "lineCount":  20
+                  },
+                  {
+                      "id":  "n127",
+                      "label":  "tests/test_crawler_meta.py|test_extract_meta_falls_back_to_html_title",
+                      "startLine":  51,
+                      "filePath":  "tests/test_crawler_meta.py",
+                      "type":  "function",
+                      "name":  "test_extract_meta_falls_back_to_html_title",
+                      "lineCount":  5
+                  },
+                  {
+                      "id":  "n128",
+                      "label":  "tests/test_crawler_meta.py|test_meta_get_picks_first_nonempty_and_handles_list",
+                      "startLine":  58,
+                      "filePath":  "tests/test_crawler_meta.py",
+                      "type":  "function",
+                      "name":  "test_meta_get_picks_first_nonempty_and_handles_list",
+                      "lineCount":  4
+                  },
+                  {
+                      "id":  "n129",
+                      "label":  "tests/test_crawler_meta.py|_make_fake_response",
+                      "startLine":  64,
+                      "filePath":  "tests/test_crawler_meta.py",
+                      "type":  "function",
+                      "name":  "_make_fake_response",
+                      "lineCount":  10
+                  },
+                  {
+                      "id":  "n130",
+                      "label":  "tests/test_crawler_meta.py|test_ai_fallback_triggers_when_content_empty",
+                      "startLine":  76,
+                      "filePath":  "tests/test_crawler_meta.py",
+                      "type":  "function",
+                      "name":  "test_ai_fallback_triggers_when_content_empty",
+                      "lineCount":  28
+                  },
+                  {
+                      "id":  "n131",
+                      "label":  "tests/test_crawler_meta.py|test_ai_fallback_skipped_when_cli_not_configured",
+                      "startLine":  106,
+                      "filePath":  "tests/test_crawler_meta.py",
+                      "type":  "function",
+                      "name":  "test_ai_fallback_skipped_when_cli_not_configured",
+                      "lineCount":  16
+                  },
+                  {
+                      "id":  "n132",
+                      "label":  "tests/test_crawler_meta.py|test_ai_fallback_skipped_when_primary_succeeds",
+                      "startLine":  124,
+                      "filePath":  "tests/test_crawler_meta.py",
+                      "type":  "function",
+                      "name":  "test_ai_fallback_skipped_when_primary_succeeds",
+                      "lineCount":  27
+                  },
+                  {
+                      "id":  "n133",
+                      "label":  "tests/test_pipeline_meta.py|_cfg",
+                      "startLine":  13,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "_cfg",
+                      "lineCount":  7
+                  },
+                  {
+                      "id":  "n134",
+                      "label":  "tests/test_pipeline_meta.py|_FakeCrawler",
+                      "startLine":  22,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "class",
+                      "name":  "_FakeCrawler",
+                      "lineCount":  15
+                  },
+                  {
+                      "id":  "n135",
+                      "label":  "tests/test_pipeline_meta.py|_UpperTranslator",
+                      "startLine":  39,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "class",
+                      "name":  "_UpperTranslator",
+                      "lineCount":  8
+                  },
+                  {
+                      "id":  "n136",
+                      "label":  "tests/test_pipeline_meta.py|test_step_fetch_toc_saves_metadata_no_content",
+                      "startLine":  49,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "test_step_fetch_toc_saves_metadata_no_content",
+                      "lineCount":  20
+                  },
+                  {
+                      "id":  "n137",
+                      "label":  "tests/test_pipeline_meta.py|test_step_translate_meta_fills_vi",
+                      "startLine":  71,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "test_step_translate_meta_fills_vi",
+                      "lineCount":  14
+                  },
+                  {
+                      "id":  "n138",
+                      "label":  "tests/test_pipeline_meta.py|test_step_translate_meta_noop_skips",
+                      "startLine":  87,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "test_step_translate_meta_noop_skips",
+                      "lineCount":  11
+                  },
+                  {
+                      "id":  "n139",
+                      "label":  "tests/test_pipeline_meta.py|test_translate_meta_inplace_respects_force",
+                      "startLine":  100,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "test_translate_meta_inplace_respects_force",
+                      "lineCount":  14
+                  },
+                  {
+                      "id":  "n140",
+                      "label":  "tests/test_pipeline_meta.py|_FlakyTranslator",
+                      "startLine":  116,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "class",
+                      "name":  "_FlakyTranslator",
+                      "lineCount":  12
+                  },
+                  {
+                      "id":  "n141",
+                      "label":  "tests/test_pipeline_meta.py|test_translate_selected_reports_per_chapter_error_and_continues",
+                      "startLine":  130,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "test_translate_selected_reports_per_chapter_error_and_continues",
+                      "lineCount":  21
+                  },
+                  {
+                      "id":  "n142",
+                      "label":  "tests/test_pipeline_meta.py|test_translate_selected_fails_fast_on_first_chapter",
+                      "startLine":  153,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "test_translate_selected_fails_fast_on_first_chapter",
+                      "lineCount":  19
+                  },
+                  {
+                      "id":  "n143",
+                      "label":  "tests/test_pipeline_meta.py|test_step_find_replace_replaces_and_backs_up",
+                      "startLine":  174,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "test_step_find_replace_replaces_and_backs_up",
+                      "lineCount":  19
+                  },
+                  {
+                      "id":  "n144",
+                      "label":  "tests/test_pipeline_meta.py|test_step_find_replace_empty_find_is_noop",
+                      "startLine":  195,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "test_step_find_replace_empty_find_is_noop",
+                      "lineCount":  11
+                  },
+                  {
+                      "id":  "n145",
+                      "label":  "tests/test_pipeline_meta.py|test_step_build_inserts_glossary_footnotes",
+                      "startLine":  208,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "test_step_build_inserts_glossary_footnotes",
+                      "lineCount":  16
+                  },
+                  {
+                      "id":  "n146",
+                      "label":  "tests/test_pipeline_meta.py|test_build_epub_uses_vi_meta_and_cover",
+                      "startLine":  226,
+                      "filePath":  "tests/test_pipeline_meta.py",
+                      "type":  "function",
+                      "name":  "test_build_epub_uses_vi_meta_and_cover",
+                      "lineCount":  21
+                  },
+                  {
+                      "id":  "n147",
+                      "label":  "tests/test_sources_ui.py|_cfg",
+                      "startLine":  10,
+                      "filePath":  "tests/test_sources_ui.py",
+                      "type":  "function",
+                      "name":  "_cfg",
+                      "lineCount":  13
+                  },
+                  {
+                      "id":  "n148",
+                      "label":  "tests/test_sources_ui.py|_fake_job",
+                      "startLine":  25,
+                      "filePath":  "tests/test_sources_ui.py",
+                      "type":  "function",
+                      "name":  "_fake_job",
+                      "lineCount":  6
+                  },
+                  {
+                      "id":  "n149",
+                      "label":  "tests/test_sources_ui.py|test_sources_table_shows_usage_and_data_table",
+                      "startLine":  33,
+                      "filePath":  "tests/test_sources_ui.py",
+                      "type":  "function",
+                      "name":  "test_sources_table_shows_usage_and_data_table",
+                      "lineCount":  25
+                  },
+                  {
+                      "id":  "n150",
+                      "label":  "tests/test_sources_ui.py|test_sources_empty_state_renders_muted_message_no_table",
+                      "startLine":  60,
+                      "filePath":  "tests/test_sources_ui.py",
+                      "type":  "function",
+                      "name":  "test_sources_empty_state_renders_muted_message_no_table",
+                      "lineCount":  17
+                  },
+                  {
+                      "id":  "n151",
+                      "label":  "tests/test_sources_ui.py|test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+                      "startLine":  79,
+                      "filePath":  "tests/test_sources_ui.py",
+                      "type":  "function",
+                      "name":  "test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit",
+                      "lineCount":  25
+                  },
+                  {
+                      "id":  "n152",
+                      "label":  "novel2epub/pipeline.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/pipeline.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  },
+                  {
+                      "id":  "n153",
+                      "label":  "app/deps.py",
+                      "language":  "python",
+                      "filePath":  "app/deps.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  },
+                  {
+                      "id":  "n154",
+                      "label":  "novel2epub/pipeline.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/pipeline.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  },
+                  {
+                      "id":  "n155",
+                      "label":  "novel2epub/translator.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/translator.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  },
+                  {
+                      "id":  "n156",
+                      "label":  "app/deps.py",
+                      "language":  "python",
+                      "filePath":  "app/deps.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  },
+                  {
+                      "id":  "n157",
+                      "label":  "novel2epub/storage.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/storage.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  },
+                  {
+                      "id":  "n158",
+                      "label":  "novel2epub/toc.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/toc.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  },
+                  {
+                      "id":  "n159",
+                      "label":  "novel2epub/storage.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/storage.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  },
+                  {
+                      "id":  "n160",
+                      "label":  "novel2epub/__init__.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/__init__.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  },
+                  {
+                      "id":  "n161",
+                      "label":  "novel2epub/pipeline.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/pipeline.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  },
+                  {
+                      "id":  "n162",
+                      "label":  "novel2epub/storage.py",
+                      "language":  "python",
+                      "filePath":  "novel2epub/storage.py",
+                      "type":  "module",
+                      "category":  "code",
+                      "isExternal":  true
+                  }
+              ]
+}

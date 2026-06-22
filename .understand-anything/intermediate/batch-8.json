@@ -1,0 +1,253 @@
+{
+  "nodes": [
+    {
+      "id": "document:.github/prompts/opsx-apply.prompt.md",
+      "type": "document",
+      "name": "opsx-apply.prompt.md",
+      "filePath": ".github/prompts/opsx-apply.prompt.md",
+      "summary": "AI agent prompt for implementing tasks from an OpenSpec change. Defines a 7-step workflow: select change, check schema status, read context files, show progress, loop through tasks, and display completion/pause status. Supports fluid workflow integration with artifact updates mid-implementation.",
+      "tags": ["documentation", "ai-prompt", "workflow", "implementation", "openspec"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.github/prompts/opsx-archive.prompt.md",
+      "type": "document",
+      "name": "opsx-archive.prompt.md",
+      "filePath": ".github/prompts/opsx-archive.prompt.md",
+      "summary": "AI agent prompt for archiving completed OpenSpec changes. Handles artifact completion checks, task completion warnings, delta spec sync assessment, and moves the change directory to a date-stamped archive. Includes guardrails for preserving .openspec.yaml and prompting user confirmation.",
+      "tags": ["documentation", "ai-prompt", "workflow", "archive", "openspec"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.github/prompts/opsx-explore.prompt.md",
+      "type": "document",
+      "name": "opsx-explore.prompt.md",
+      "filePath": ".github/prompts/opsx-explore.prompt.md",
+      "summary": "AI agent prompt for OpenSpec explore mode — a thinking partner for exploring ideas, investigating problems, and clarifying requirements before or during a change. Contains 9 structured sections guiding the agent through discovery, context checking, and ending discovery with guardrails.",
+      "tags": ["documentation", "ai-prompt", "workflow", "exploration", "openspec"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.github/prompts/opsx-propose.prompt.md",
+      "type": "document",
+      "name": "opsx-propose.prompt.md",
+      "filePath": ".github/prompts/opsx-propose.prompt.md",
+      "summary": "AI agent prompt for proposing a new OpenSpec change and generating all artifacts (proposal, design, tasks) in one step. Uses the openspec CLI to scaffold the change, create dependencies in order, and verify readiness for implementation.",
+      "tags": ["documentation", "ai-prompt", "workflow", "proposal", "openspec"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.github/prompts/opsx-sync.prompt.md",
+      "type": "document",
+      "name": "opsx-sync.prompt.md",
+      "filePath": ".github/prompts/opsx-sync.prompt.md",
+      "summary": "AI agent prompt for syncing delta specs from an OpenSpec change to main specs. Performs intelligent merging of ADDED, MODIFIED, REMOVED, and RENAMED requirements using the openspec CLI status and artifact paths for precise spec updates.",
+      "tags": ["documentation", "ai-prompt", "workflow", "spec-sync", "openspec"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.github/prompts/speckit.agent-context.update.prompt.md",
+      "type": "document",
+      "name": "speckit.agent-context.update.prompt.md",
+      "filePath": ".github/prompts/speckit.agent-context.update.prompt.md",
+      "summary": "Minimal prompt stub declaring the speckit.agent-context.update agent for refreshing the managed Spec Kit section in the coding agent context file.",
+      "tags": ["documentation", "ai-prompt", "speckit", "agent-configuration"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/prompts/speckit.analyze.prompt.md",
+      "type": "document",
+      "name": "speckit.analyze.prompt.md",
+      "filePath": ".github/prompts/speckit.analyze.prompt.md",
+      "summary": "Minimal prompt stub declaring the speckit.analyze agent for cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md.",
+      "tags": ["documentation", "ai-prompt", "speckit", "analysis"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/prompts/speckit.checklist.prompt.md",
+      "type": "document",
+      "name": "speckit.checklist.prompt.md",
+      "filePath": ".github/prompts/speckit.checklist.prompt.md",
+      "summary": "Minimal prompt stub declaring the speckit.checklist agent for generating custom checklists based on user requirements.",
+      "tags": ["documentation", "ai-prompt", "speckit", "checklist"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/prompts/speckit.clarify.prompt.md",
+      "type": "document",
+      "name": "speckit.clarify.prompt.md",
+      "filePath": ".github/prompts/speckit.clarify.prompt.md",
+      "summary": "Minimal prompt stub declaring the speckit.clarify agent for identifying underspecified areas in feature specs through targeted clarification questions.",
+      "tags": ["documentation", "ai-prompt", "speckit", "clarification"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/prompts/speckit.constitution.prompt.md",
+      "type": "document",
+      "name": "speckit.constitution.prompt.md",
+      "filePath": ".github/prompts/speckit.constitution.prompt.md",
+      "summary": "Minimal prompt stub declaring the speckit.constitution agent for creating or updating the project constitution from interactive or provided principle inputs.",
+      "tags": ["documentation", "ai-prompt", "speckit", "constitution"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/prompts/speckit.implement.prompt.md",
+      "type": "document",
+      "name": "speckit.implement.prompt.md",
+      "filePath": ".github/prompts/speckit.implement.prompt.md",
+      "summary": "Minimal prompt stub declaring the speckit.implement agent for executing the implementation plan by processing all tasks defined in tasks.md.",
+      "tags": ["documentation", "ai-prompt", "speckit", "implementation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/prompts/speckit.plan.prompt.md",
+      "type": "document",
+      "name": "speckit.plan.prompt.md",
+      "filePath": ".github/prompts/speckit.plan.prompt.md",
+      "summary": "Minimal prompt stub declaring the speckit.plan agent for executing the implementation planning workflow to generate design artifacts.",
+      "tags": ["documentation", "ai-prompt", "speckit", "planning"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/prompts/speckit.specify.prompt.md",
+      "type": "document",
+      "name": "speckit.specify.prompt.md",
+      "filePath": ".github/prompts/speckit.specify.prompt.md",
+      "summary": "Minimal prompt stub declaring the speckit.specify agent for creating or updating feature specifications from natural language descriptions.",
+      "tags": ["documentation", "ai-prompt", "speckit", "specification"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/prompts/speckit.tasks.prompt.md",
+      "type": "document",
+      "name": "speckit.tasks.prompt.md",
+      "filePath": ".github/prompts/speckit.tasks.prompt.md",
+      "summary": "Minimal prompt stub declaring the speckit.tasks agent for generating actionable, dependency-ordered task lists from design artifacts.",
+      "tags": ["documentation", "ai-prompt", "speckit", "task-generation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.github/prompts/speckit.taskstoissues.prompt.md",
+      "type": "document",
+      "name": "speckit.taskstoissues.prompt.md",
+      "filePath": ".github/prompts/speckit.taskstoissues.prompt.md",
+      "summary": "Minimal prompt stub declaring the speckit.taskstoissues agent for converting task lists into actionable, dependency-ordered GitHub issues.",
+      "tags": ["documentation", "ai-prompt", "speckit", "github-issues"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "document:.github/prompts/opsx-propose.prompt.md",
+      "target": "document:.github/prompts/opsx-explore.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/opsx-propose.prompt.md",
+      "target": "document:.github/prompts/opsx-apply.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/opsx-apply.prompt.md",
+      "target": "document:.github/prompts/opsx-archive.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/opsx-apply.prompt.md",
+      "target": "document:.github/prompts/opsx-sync.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/opsx-archive.prompt.md",
+      "target": "document:.github/prompts/opsx-sync.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/opsx-explore.prompt.md",
+      "target": "document:.github/prompts/opsx-propose.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/speckit.specify.prompt.md",
+      "target": "document:.github/prompts/speckit.clarify.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/speckit.specify.prompt.md",
+      "target": "document:.github/prompts/speckit.analyze.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/speckit.clarify.prompt.md",
+      "target": "document:.github/prompts/speckit.specify.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/speckit.plan.prompt.md",
+      "target": "document:.github/prompts/speckit.specify.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/speckit.plan.prompt.md",
+      "target": "document:.github/prompts/speckit.tasks.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/speckit.tasks.prompt.md",
+      "target": "document:.github/prompts/speckit.implement.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/speckit.tasks.prompt.md",
+      "target": "document:.github/prompts/speckit.taskstoissues.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/speckit.implement.prompt.md",
+      "target": "document:.github/prompts/speckit.checklist.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/speckit.constitution.prompt.md",
+      "target": "document:.github/prompts/speckit.plan.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.github/prompts/speckit.agent-context.update.prompt.md",
+      "target": "document:.github/prompts/speckit.plan.prompt.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    }
+  ]
+}

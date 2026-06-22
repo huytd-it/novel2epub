@@ -1,0 +1,14 @@
+{
+  "nodes": [
+    {
+      "id": "file:tests/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "tests/__init__.py",
+      "summary": "Marks the tests directory as a Python package, enabling pytest discovery and relative imports between test modules.",
+      "tags": ["entry-point", "package-marker", "test"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": []
+}

@@ -1,0 +1,363 @@
+{
+  "scriptCompleted": true,
+  "stats": {
+    "filesScanned": 200,
+    "filesWithImports": 37,
+    "totalEdges": 116
+  },
+  "importMap": {
+    ".claude/commands/opsx/apply.md": [],
+    ".claude/commands/opsx/archive.md": [],
+    ".claude/commands/opsx/explore.md": [],
+    ".claude/commands/opsx/propose.md": [],
+    ".claude/commands/opsx/sync.md": [],
+    ".claude/skills/openspec-apply-change/SKILL.md": [],
+    ".claude/skills/openspec-archive-change/SKILL.md": [],
+    ".claude/skills/openspec-explore/SKILL.md": [],
+    ".claude/skills/openspec-propose/SKILL.md": [],
+    ".claude/skills/openspec-sync-specs/SKILL.md": [],
+    ".claude/skills/speckit-agent-context-update/SKILL.md": [],
+    ".claude/skills/speckit-analyze/SKILL.md": [],
+    ".claude/skills/speckit-checklist/SKILL.md": [],
+    ".claude/skills/speckit-clarify/SKILL.md": [],
+    ".claude/skills/speckit-constitution/SKILL.md": [],
+    ".claude/skills/speckit-implement/SKILL.md": [],
+    ".claude/skills/speckit-plan/SKILL.md": [],
+    ".claude/skills/speckit-specify/SKILL.md": [],
+    ".claude/skills/speckit-tasks/SKILL.md": [],
+    ".claude/skills/speckit-taskstoissues/SKILL.md": [],
+    ".github/agents/speckit.agent-context.update.agent.md": [],
+    ".github/agents/speckit.analyze.agent.md": [],
+    ".github/agents/speckit.checklist.agent.md": [],
+    ".github/agents/speckit.clarify.agent.md": [],
+    ".github/agents/speckit.constitution.agent.md": [],
+    ".github/agents/speckit.implement.agent.md": [],
+    ".github/agents/speckit.plan.agent.md": [],
+    ".github/agents/speckit.specify.agent.md": [],
+    ".github/agents/speckit.tasks.agent.md": [],
+    ".github/agents/speckit.taskstoissues.agent.md": [],
+    ".github/copilot-instructions.md": [],
+    ".github/prompts/opsx-apply.prompt.md": [],
+    ".github/prompts/opsx-archive.prompt.md": [],
+    ".github/prompts/opsx-explore.prompt.md": [],
+    ".github/prompts/opsx-propose.prompt.md": [],
+    ".github/prompts/opsx-sync.prompt.md": [],
+    ".github/prompts/speckit.agent-context.update.prompt.md": [],
+    ".github/prompts/speckit.analyze.prompt.md": [],
+    ".github/prompts/speckit.checklist.prompt.md": [],
+    ".github/prompts/speckit.clarify.prompt.md": [],
+    ".github/prompts/speckit.constitution.prompt.md": [],
+    ".github/prompts/speckit.implement.prompt.md": [],
+    ".github/prompts/speckit.plan.prompt.md": [],
+    ".github/prompts/speckit.specify.prompt.md": [],
+    ".github/prompts/speckit.tasks.prompt.md": [],
+    ".github/prompts/speckit.taskstoissues.prompt.md": [],
+    ".github/skills/openspec-apply-change/SKILL.md": [],
+    ".github/skills/openspec-archive-change/SKILL.md": [],
+    ".github/skills/openspec-explore/SKILL.md": [],
+    ".github/skills/openspec-propose/SKILL.md": [],
+    ".github/skills/openspec-sync-specs/SKILL.md": [],
+    ".opencode/commands/opsx-apply.md": [],
+    ".opencode/commands/opsx-archive.md": [],
+    ".opencode/commands/opsx-explore.md": [],
+    ".opencode/commands/opsx-propose.md": [],
+    ".opencode/commands/opsx-sync.md": [],
+    ".opencode/commands/speckit.analyze.md": [],
+    ".opencode/commands/speckit.checklist.md": [],
+    ".opencode/commands/speckit.clarify.md": [],
+    ".opencode/commands/speckit.constitution.md": [],
+    ".opencode/commands/speckit.implement.md": [],
+    ".opencode/commands/speckit.plan.md": [],
+    ".opencode/commands/speckit.specify.md": [],
+    ".opencode/commands/speckit.tasks.md": [],
+    ".opencode/commands/speckit.taskstoissues.md": [],
+    ".opencode/skills/openspec-apply-change/SKILL.md": [],
+    ".opencode/skills/openspec-archive-change/SKILL.md": [],
+    ".opencode/skills/openspec-explore/SKILL.md": [],
+    ".opencode/skills/openspec-propose/SKILL.md": [],
+    ".opencode/skills/openspec-sync-specs/SKILL.md": [],
+    ".specify/extensions.yml": [],
+    ".specify/extensions/.registry": [],
+    ".specify/extensions/agent-context/agent-context-config.yml": [],
+    ".specify/extensions/agent-context/commands/speckit.agent-context.update.md": [],
+    ".specify/extensions/agent-context/extension.yml": [],
+    ".specify/extensions/agent-context/README.md": [],
+    ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh": [],
+    ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1": [],
+    ".specify/feature.json": [],
+    ".specify/init-options.json": [],
+    ".specify/integration.json": [],
+    ".specify/integrations/claude.manifest.json": [],
+    ".specify/integrations/copilot.manifest.json": [],
+    ".specify/integrations/opencode.manifest.json": [],
+    ".specify/integrations/speckit.manifest.json": [],
+    ".specify/memory/constitution.md": [],
+    ".specify/scripts/powershell/check-prerequisites.ps1": [],
+    ".specify/scripts/powershell/common.ps1": [],
+    ".specify/scripts/powershell/create-new-feature.ps1": [],
+    ".specify/scripts/powershell/setup-plan.ps1": [],
+    ".specify/scripts/powershell/setup-tasks.ps1": [],
+    ".specify/templates/checklist-template.md": [],
+    ".specify/templates/constitution-template.md": [],
+    ".specify/templates/plan-template.md": [],
+    ".specify/templates/spec-template.md": [],
+    ".specify/templates/tasks-template.md": [],
+    ".specify/workflows/speckit/workflow.yml": [],
+    ".specify/workflows/workflow-registry.json": [],
+    ".understand-anything/.understandignore": [],
+    ".understand-anything/config.json": [],
+    "AGENTS.md": [],
+    "app/__init__.py": [],
+    "app/deps.py": [
+      "novel2epub/config.py",
+      "novel2epub/sources.py"
+    ],
+    "app/job.py": [
+      "novel2epub/config.py",
+      "novel2epub/pipeline.py"
+    ],
+    "app/main.py": [
+      "app/deps.py",
+      "app/job.py",
+      "app/routes/__init__.py",
+      "app/routes/chapters.py",
+      "app/routes/ebooks.py",
+      "app/routes/glossary.py",
+      "app/routes/jobs.py",
+      "app/routes/library.py",
+      "app/routes/settings.py",
+      "app/routes/sources.py"
+    ],
+    "app/routes/__init__.py": [],
+    "app/routes/chapters.py": [
+      "app/deps.py",
+      "app/routes/glossary.py",
+      "novel2epub/pipeline.py",
+      "novel2epub/storage.py"
+    ],
+    "app/routes/ebooks.py": [
+      "app/deps.py",
+      "novel2epub/config.py",
+      "novel2epub/storage.py",
+      "novel2epub/toc.py"
+    ],
+    "app/routes/glossary.py": [
+      "app/deps.py",
+      "novel2epub/__init__.py",
+      "novel2epub/glossary_ai.py",
+      "novel2epub/pipeline.py",
+      "novel2epub/storage.py"
+    ],
+    "app/routes/jobs.py": [
+      "app/deps.py",
+      "novel2epub/pipeline.py",
+      "novel2epub/storage.py",
+      "novel2epub/toc.py"
+    ],
+    "app/routes/library.py": [
+      "app/deps.py",
+      "novel2epub/config_writer.py",
+      "novel2epub/config.py",
+      "novel2epub/crawler.py",
+      "novel2epub/pipeline.py",
+      "novel2epub/sources.py",
+      "novel2epub/translator.py"
+    ],
+    "app/routes/preset_builder.py": [
+      "app/deps.py",
+      "novel2epub/preset_builder.py",
+      "novel2epub/sources.py"
+    ],
+    "app/routes/settings.py": [
+      "app/deps.py",
+      "novel2epub/config_writer.py"
+    ],
+    "app/routes/sources.py": [
+      "app/deps.py",
+      "novel2epub/sources.py"
+    ],
+    "app/static/style.css": [],
+    "app/templates/base.html": [],
+    "app/templates/chapter.html": [],
+    "app/templates/ebook.html": [],
+    "app/templates/glossary.html": [],
+    "app/templates/index.html": [],
+    "app/templates/library.html": [],
+    "app/templates/settings.html": [],
+    "app/templates/sources.html": [],
+    "CLAUDE.md": [],
+    "config.example.yaml": [],
+    "configs/novel.yaml": [],
+    "docs/rule.md": [],
+    "docs/source.md": [],
+    "docs/tool.md": [],
+    "novel2epub/__init__.py": [],
+    "novel2epub/__main__.py": [
+      "novel2epub/cli.py"
+    ],
+    "novel2epub/cli_runner.py": [
+      "novel2epub/config.py"
+    ],
+    "novel2epub/cli.py": [
+      "novel2epub/config.py",
+      "novel2epub/pipeline.py",
+      "novel2epub/preset_builder.py",
+      "novel2epub/storage.py",
+      "novel2epub/toc.py"
+    ],
+    "novel2epub/config_writer.py": [
+      "novel2epub/config.py"
+    ],
+    "novel2epub/config.py": [],
+    "novel2epub/crawler.py": [
+      "novel2epub/config.py",
+      "novel2epub/storage.py",
+      "novel2epub/toc.py"
+    ],
+    "novel2epub/epub_builder.py": [
+      "novel2epub/footnotes.py",
+      "novel2epub/storage.py"
+    ],
+    "novel2epub/footnotes.py": [],
+    "novel2epub/glossary_ai.py": [
+      "novel2epub/cli_runner.py",
+      "novel2epub/config.py",
+      "novel2epub/translator.py"
+    ],
+    "novel2epub/pipeline.py": [
+      "novel2epub/config.py",
+      "novel2epub/crawler.py",
+      "novel2epub/epub_builder.py",
+      "novel2epub/storage.py",
+      "novel2epub/toc.py",
+      "novel2epub/translator.py"
+    ],
+    "novel2epub/preset_builder.py": [
+      "novel2epub/config.py",
+      "novel2epub/crawler.py",
+      "novel2epub/sources.py"
+    ],
+    "novel2epub/presets/__init__.py": [],
+    "novel2epub/presets/go.py": [],
+    "novel2epub/sources.py": [
+      "novel2epub/config.py"
+    ],
+    "novel2epub/storage.py": [],
+    "novel2epub/toc.py": [
+      "novel2epub/storage.py"
+    ],
+    "novel2epub/translator.py": [
+      "novel2epub/cli_runner.py",
+      "novel2epub/config.py",
+      "novel2epub/storage.py"
+    ],
+    "openspec/changes/ai-source-preset-builder/.openspec.yaml": [],
+    "openspec/changes/ai-source-preset-builder/design.md": [],
+    "openspec/changes/ai-source-preset-builder/proposal.md": [],
+    "openspec/changes/ai-source-preset-builder/specs/firecrawl-removal/spec.md": [],
+    "openspec/changes/ai-source-preset-builder/specs/preset-builder/spec.md": [],
+    "openspec/changes/ai-source-preset-builder/tasks.md": [],
+    "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/.openspec.yaml": [],
+    "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md": [],
+    "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md": [],
+    "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/specs/chapter-pagination/spec.md": [],
+    "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md": [],
+    "openspec/changes/improve-sources-ui/.openspec.yaml": [],
+    "openspec/changes/improve-sources-ui/design.md": [],
+    "openspec/changes/improve-sources-ui/proposal.md": [],
+    "openspec/changes/improve-sources-ui/README.md": [],
+    "openspec/changes/improve-sources-ui/specs/sources-ui/spec.md": [],
+    "openspec/changes/improve-sources-ui/tasks.md": [],
+    "openspec/specs/chapter-pagination/spec.md": [],
+    "README.md": [],
+    "requirements.txt": [],
+    "sources.yaml": [],
+    "specs/001-refactor-toc/checklists/requirements.md": [],
+    "specs/001-refactor-toc/contracts/cli.md": [],
+    "specs/001-refactor-toc/contracts/web-ui.md": [],
+    "specs/001-refactor-toc/data-model.md": [],
+    "specs/001-refactor-toc/plan.md": [],
+    "specs/001-refactor-toc/quickstart.md": [],
+    "specs/001-refactor-toc/research.md": [],
+    "specs/001-refactor-toc/spec.md": [],
+    "specs/001-refactor-toc/tasks.md": [],
+    "specs/002-opencode-go-preset/checklists/requirements.md": [],
+    "specs/002-opencode-go-preset/contracts/cli.md": [],
+    "specs/002-opencode-go-preset/data-model.md": [],
+    "specs/002-opencode-go-preset/plan.md": [],
+    "specs/002-opencode-go-preset/quickstart.md": [],
+    "specs/002-opencode-go-preset/research.md": [],
+    "specs/002-opencode-go-preset/spec.md": [],
+    "specs/002-opencode-go-preset/tasks.md": [],
+    "tests/__init__.py": [],
+    "tests/test_chapter_pagination.py": [
+      "novel2epub/config.py",
+      "novel2epub/crawler.py",
+      "novel2epub/storage.py"
+    ],
+    "tests/test_config_writer.py": [
+      "novel2epub/config_writer.py",
+      "novel2epub/config.py",
+      "novel2epub/sources.py"
+    ],
+    "tests/test_config.py": [
+      "novel2epub/config.py"
+    ],
+    "tests/test_crawler_meta.py": [
+      "novel2epub/config.py",
+      "novel2epub/crawler.py"
+    ],
+    "tests/test_epub_builder.py": [
+      "novel2epub/__init__.py",
+      "novel2epub/epub_builder.py",
+      "novel2epub/footnotes.py"
+    ],
+    "tests/test_footnotes.py": [
+      "novel2epub/__init__.py",
+      "novel2epub/footnotes.py"
+    ],
+    "tests/test_glossary_ai.py": [
+      "novel2epub/glossary_ai.py"
+    ],
+    "tests/test_pipeline_ai_chapter.py": [
+      "novel2epub/__init__.py",
+      "novel2epub/config.py",
+      "novel2epub/glossary_ai.py",
+      "novel2epub/pipeline.py",
+      "novel2epub/storage.py"
+    ],
+    "tests/test_pipeline_meta.py": [
+      "novel2epub/__init__.py",
+      "novel2epub/config.py",
+      "novel2epub/crawler.py",
+      "novel2epub/pipeline.py",
+      "novel2epub/storage.py"
+    ],
+    "tests/test_refactor_toc.py": [
+      "novel2epub/__init__.py",
+      "novel2epub/cli.py",
+      "novel2epub/config.py",
+      "novel2epub/crawler.py",
+      "novel2epub/pipeline.py",
+      "novel2epub/storage.py",
+      "novel2epub/toc.py"
+    ],
+    "tests/test_routes_glossary.py": [
+      "app/routes/glossary.py",
+      "novel2epub/storage.py"
+    ],
+    "tests/test_sources_ui.py": [
+      "novel2epub/config.py",
+      "novel2epub/sources.py"
+    ],
+    "tests/test_storage.py": [
+      "novel2epub/storage.py"
+    ],
+    "tests/test_translator.py": [
+      "novel2epub/__init__.py",
+      "novel2epub/cli_runner.py",
+      "novel2epub/config.py",
+      "novel2epub/translator.py"
+    ]
+  }
+}

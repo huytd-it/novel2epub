@@ -1,0 +1,236 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 4,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "openspec/changes/ai-source-preset-builder/.openspec.yaml",
+      "language": "yaml",
+      "fileCategory": "config",
+      "totalLines": 2,
+      "nonEmptyLines": 2,
+      "sections": [
+        {
+          "heading": "schema",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "created",
+          "level": 1,
+          "line": 2
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 2
+      }
+    },
+    {
+      "path": "openspec/changes/ai-source-preset-builder/design.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 81,
+      "nonEmptyLines": 58,
+      "sections": [
+        {
+          "heading": "Context",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "Goals / Non-Goals",
+          "level": 2,
+          "line": 9
+        },
+        {
+          "heading": "Decisions",
+          "level": 2,
+          "line": 26
+        },
+        {
+          "heading": "D1 — New module `novel2epub/preset_builder.py` for the AI flow",
+          "level": 3,
+          "line": 28
+        },
+        {
+          "heading": "D2 — Engine heuristic: HTTP first, then `crawl4ai` on insufficiency",
+          "level": 3,
+          "line": 31
+        },
+        {
+          "heading": "D3 — AI suggestion via a single structured prompt, not a chain",
+          "level": 3,
+          "line": 34
+        },
+        {
+          "heading": "D4 — Pattern validation with explicit bounds",
+          "level": 3,
+          "line": 37
+        },
+        {
+          "heading": "D5 — Overrides are first-class request fields, not post-hoc edits",
+          "level": 3,
+          "line": 40
+        },
+        {
+          "heading": "D6 — Non-mutating `toc-preview` reuses the same path, skips the AI",
+          "level": 3,
+          "line": 43
+        },
+        {
+          "heading": "D7 — Drop `firecrawl` engine and `api_key` / `api_url`",
+          "level": 3,
+          "line": 46
+        },
+        {
+          "heading": "D8 — Web UI uses the existing CSS conventions, not a new layout",
+          "level": 3,
+          "line": 49
+        },
+        {
+          "heading": "D9 — `library._fetch_meta` extension stays backward compatible",
+          "level": 3,
+          "line": 52
+        },
+        {
+          "heading": "D10 — Refinement budget is configurable per request, default 3",
+          "level": 3,
+          "line": 55
+        },
+        {
+          "heading": "Risks / Trade-offs",
+          "level": 2,
+          "line": 58
+        },
+        {
+          "heading": "Migration Plan",
+          "level": 2,
+          "line": 68
+        },
+        {
+          "heading": "Open Questions",
+          "level": 2,
+          "line": 77
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 16
+      }
+    },
+    {
+      "path": "openspec/changes/ai-source-preset-builder/proposal.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 43,
+      "nonEmptyLines": 33,
+      "sections": [
+        {
+          "heading": "Why",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "What Changes",
+          "level": 2,
+          "line": 5
+        },
+        {
+          "heading": "Capabilities",
+          "level": 2,
+          "line": 24
+        },
+        {
+          "heading": "New Capabilities",
+          "level": 3,
+          "line": 26
+        },
+        {
+          "heading": "Modified Capabilities",
+          "level": 3,
+          "line": 31
+        },
+        {
+          "heading": "Impact",
+          "level": 2,
+          "line": 35
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    },
+    {
+      "path": "openspec/changes/ai-source-preset-builder/tasks.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 66,
+      "nonEmptyLines": 49,
+      "sections": [
+        {
+          "heading": "1. Drop `firecrawl` from `CrawlConfig` and `load_config`",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "2. Drop `FirecrawlCrawler` and shrink `make_crawler`",
+          "level": 2,
+          "line": 7
+        },
+        {
+          "heading": "3. New `preset_builder` module",
+          "level": 2,
+          "line": 14
+        },
+        {
+          "heading": "4. CLI subcommands",
+          "level": 2,
+          "line": 25
+        },
+        {
+          "heading": "5. Web UI",
+          "level": 2,
+          "line": 31
+        },
+        {
+          "heading": "6. UI engine-option cleanup",
+          "level": 2,
+          "line": 39
+        },
+        {
+          "heading": "7. Docs and config",
+          "level": 2,
+          "line": 46
+        },
+        {
+          "heading": "8. Tests",
+          "level": 2,
+          "line": 53
+        },
+        {
+          "heading": "9. End-to-end smoke",
+          "level": 2,
+          "line": 61
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 9
+      }
+    }
+  ]
+}

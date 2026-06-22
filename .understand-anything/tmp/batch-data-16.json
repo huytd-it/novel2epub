@@ -1,0 +1,82 @@
+﻿{
+    "batchIndex":  16,
+    "files":  [
+                  {
+                      "path":  "app/templates/base.html",
+                      "language":  "html",
+                      "sizeLines":  23,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/chapter.html",
+                      "language":  "html",
+                      "sizeLines":  420,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/ebook.html",
+                      "language":  "html",
+                      "sizeLines":  343,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/glossary.html",
+                      "language":  "html",
+                      "sizeLines":  227,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/index.html",
+                      "language":  "html",
+                      "sizeLines":  108,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/library.html",
+                      "language":  "html",
+                      "sizeLines":  162,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/settings.html",
+                      "language":  "html",
+                      "sizeLines":  114,
+                      "fileCategory":  "markup"
+                  },
+                  {
+                      "path":  "app/templates/sources.html",
+                      "language":  "html",
+                      "sizeLines":  124,
+                      "fileCategory":  "markup"
+                  }
+              ],
+    "batchImportData":  {
+                            "app/templates/base.html":  [
+
+                                                        ],
+                            "app/templates/chapter.html":  [
+
+                                                           ],
+                            "app/templates/ebook.html":  [
+
+                                                         ],
+                            "app/templates/glossary.html":  [
+
+                                                            ],
+                            "app/templates/index.html":  [
+
+                                                         ],
+                            "app/templates/library.html":  [
+
+                                                           ],
+                            "app/templates/settings.html":  [
+
+                                                            ],
+                            "app/templates/sources.html":  [
+
+                                                           ]
+                        },
+    "neighborMap":  {
+
+                    }
+}

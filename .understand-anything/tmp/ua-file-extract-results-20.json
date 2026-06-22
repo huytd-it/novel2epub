@@ -1,0 +1,207 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 5,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "openspec/changes/improve-sources-ui/.openspec.yaml",
+      "language": "yaml",
+      "fileCategory": "config",
+      "totalLines": 2,
+      "nonEmptyLines": 2,
+      "sections": [
+        {
+          "heading": "schema",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "created",
+          "level": 1,
+          "line": 2
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 2
+      }
+    },
+    {
+      "path": "openspec/changes/improve-sources-ui/README.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 3,
+      "nonEmptyLines": 2,
+      "sections": [
+        {
+          "heading": "improve-sources-ui",
+          "level": 1,
+          "line": 1
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 1
+      }
+    },
+    {
+      "path": "openspec/changes/improve-sources-ui/design.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 49,
+      "nonEmptyLines": 34,
+      "sections": [
+        {
+          "heading": "Context",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "Goals / Non-Goals",
+          "level": 2,
+          "line": 9
+        },
+        {
+          "heading": "Decisions",
+          "level": 2,
+          "line": 24
+        },
+        {
+          "heading": "D1 — Adopt `.table-wrap` + `.data-table` for the preset list",
+          "level": 3,
+          "line": 26
+        },
+        {
+          "heading": "D2 — Add a render-time `usage` map keyed by preset name",
+          "level": 3,
+          "line": 29
+        },
+        {
+          "heading": "D3 — Restyle add/edit form with `fieldset` + `.form-row`",
+          "level": 3,
+          "line": 32
+        },
+        {
+          "heading": "D4 — Engine-conditional crawl4ai fieldset",
+          "level": 3,
+          "line": 35
+        },
+        {
+          "heading": "D5 — Button row replacing inline text links",
+          "level": 3,
+          "line": 38
+        },
+        {
+          "heading": "D6 — Empty-state and header copy",
+          "level": 3,
+          "line": 41
+        },
+        {
+          "heading": "Risks / Trade-offs",
+          "level": 2,
+          "line": 44
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 10
+      }
+    },
+    {
+      "path": "openspec/changes/improve-sources-ui/proposal.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 29,
+      "nonEmptyLines": 21,
+      "sections": [
+        {
+          "heading": "Why",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "What Changes",
+          "level": 2,
+          "line": 5
+        },
+        {
+          "heading": "Capabilities",
+          "level": 2,
+          "line": 15
+        },
+        {
+          "heading": "New Capabilities",
+          "level": 3,
+          "line": 17
+        },
+        {
+          "heading": "Modified Capabilities",
+          "level": 3,
+          "line": 20
+        },
+        {
+          "heading": "Impact",
+          "level": 2,
+          "line": 23
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    },
+    {
+      "path": "openspec/changes/improve-sources-ui/tasks.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 33,
+      "nonEmptyLines": 24,
+      "sections": [
+        {
+          "heading": "1. Route data: preset usage map",
+          "level": 2,
+          "line": 1
+        },
+        {
+          "heading": "2. Template: preset list table",
+          "level": 2,
+          "line": 6
+        },
+        {
+          "heading": "3. Template: grouped add/edit form",
+          "level": 2,
+          "line": 14
+        },
+        {
+          "heading": "4. Engine-conditional crawl4ai fieldset",
+          "level": 2,
+          "line": 21
+        },
+        {
+          "heading": "5. Tests & verification",
+          "level": 2,
+          "line": 27
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 5
+      }
+    }
+  ]
+}

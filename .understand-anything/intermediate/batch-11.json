@@ -1,0 +1,54 @@
+{
+  "nodes": [
+    {
+      "id": "document:.specify/extensions/agent-context/README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": ".specify/extensions/agent-context/README.md",
+      "summary": "Documents the Coding Agent Context extension for the Spec Kit system — manages managed sections in coding agent context files (CLAUDE.md, AGENTS.md, etc.) with configurable start/end markers, supporting opt-out, custom markers, and hook-driven auto-refresh on specify/plan.",
+      "tags": ["documentation", "extension", "agent-context", "configuration"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:.specify/extensions/agent-context/agent-context-config.yml",
+      "type": "config",
+      "name": "agent-context-config.yml",
+      "filePath": ".specify/extensions/agent-context/agent-context-config.yml",
+      "summary": "Configures the target coding agent context file (AGENTS.md) and the HTML comment delimiters (<!-- SPECKIT START --> / <!-- SPECKIT END -->) that bracket the managed Spec Kit section.",
+      "tags": ["configuration", "agent-context", "extension"],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.specify/extensions/agent-context/extension.yml",
+      "type": "config",
+      "name": "extension.yml",
+      "filePath": ".specify/extensions/agent-context/extension.yml",
+      "summary": "Extension manifest declaring the agent-context extension identity (v1.0.0), schema version, required Speckit version (>=0.2.0), provided command (speckit.agent-context.update), and lifecycle hooks (after_specify, after_plan).",
+      "tags": ["configuration", "extension", "manifest", "agent-context"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "document:.specify/extensions/agent-context/README.md",
+      "target": "config:.specify/extensions/agent-context/extension.yml",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.specify/extensions/agent-context/README.md",
+      "target": "config:.specify/extensions/agent-context/agent-context-config.yml",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "config:.specify/extensions/agent-context/extension.yml",
+      "target": "config:.specify/extensions/agent-context/agent-context-config.yml",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    }
+  ]
+}

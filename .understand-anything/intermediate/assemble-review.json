@@ -1,0 +1,308 @@
+{
+  "reviewedAt": "2026-06-22T16:16:01.131318+00:00",
+  "summary": {
+    "originalNodes": 713,
+    "originalEdges": 1200,
+    "actions": [
+      {
+        "action": "fix_type",
+        "nodeId": "file:n1",
+        "label": "app/job.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n2",
+        "label": "app/routes/library.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n3",
+        "label": "app/routes/preset_builder.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n4",
+        "label": "novel2epub/config.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n5",
+        "label": "novel2epub/config_writer.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n6",
+        "label": "novel2epub/crawler.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n7",
+        "label": "novel2epub/preset_builder.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n8",
+        "label": "novel2epub/sources.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n9",
+        "label": "tests/test_chapter_pagination.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n10",
+        "label": "tests/test_config.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n11",
+        "label": "tests/test_config_writer.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n12",
+        "label": "tests/test_crawler_meta.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n13",
+        "label": "tests/test_pipeline_meta.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:n14",
+        "label": "tests/test_sources_ui.py",
+        "from": "code",
+        "to": "file"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:.github/agents/speckit.agent-context.update.agent.md",
+        "label": "Agent Context Update Agent",
+        "from": "agent_definition",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:.github/agents/speckit.analyze.agent.md",
+        "label": "Analyze Agent",
+        "from": "agent_definition",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:.github/agents/speckit.checklist.agent.md",
+        "label": "Checklist Agent",
+        "from": "agent_definition",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:.github/agents/speckit.clarify.agent.md",
+        "label": "Clarify Agent",
+        "from": "agent_definition",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:.github/agents/speckit.constitution.agent.md",
+        "label": "Constitution Agent",
+        "from": "agent_definition",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:.github/agents/speckit.implement.agent.md",
+        "label": "Implement Agent",
+        "from": "agent_definition",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:.github/agents/speckit.plan.agent.md",
+        "label": "Plan Agent",
+        "from": "agent_definition",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:.github/agents/speckit.specify.agent.md",
+        "label": "Specify Agent",
+        "from": "agent_definition",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:.github/agents/speckit.tasks.agent.md",
+        "label": "Tasks Agent",
+        "from": "agent_definition",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:.github/agents/speckit.taskstoissues.agent.md",
+        "label": "Tasks to Issues Agent",
+        "from": "agent_definition",
+        "to": "document"
+      },
+      {
+        "action": "drop_node",
+        "type": "directory",
+        "nodeId": "file:dir:.specify",
+        "label": ".specify/"
+      },
+      {
+        "action": "drop_node",
+        "type": "directory",
+        "nodeId": "file:dir:specs/002-opencode-go-preset",
+        "label": "002-opencode-go-preset/"
+      },
+      {
+        "action": "drop_node",
+        "type": "directory",
+        "nodeId": "file:dir:.specify/integrations",
+        "label": "integrations/"
+      },
+      {
+        "action": "drop_node",
+        "type": "directory",
+        "nodeId": "file:dir:.specify/scripts/powershell",
+        "label": "powershell/"
+      },
+      {
+        "action": "drop_node",
+        "type": "directory",
+        "nodeId": "file:dir:.specify/scripts",
+        "label": "scripts/"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:app/templates/base.html",
+        "label": "base.html",
+        "from": "template",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:app/templates/chapter.html",
+        "label": "chapter.html",
+        "from": "template",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:app/templates/ebook.html",
+        "label": "ebook.html",
+        "from": "template",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:app/templates/glossary.html",
+        "label": "glossary.html",
+        "from": "template",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:app/templates/index.html",
+        "label": "index.html",
+        "from": "template",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:app/templates/library.html",
+        "label": "library.html",
+        "from": "template",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:app/templates/settings.html",
+        "label": "settings.html",
+        "from": "template",
+        "to": "document"
+      },
+      {
+        "action": "fix_type",
+        "nodeId": "file:app/templates/sources.html",
+        "label": "sources.html",
+        "from": "template",
+        "to": "document"
+      },
+      {
+        "action": "drop_nodes",
+        "type": "section",
+        "count": 171,
+        "note": "Markdown heading sections from batch 24 — not part of official schema"
+      },
+      {
+        "action": "add_imports_edges",
+        "added": 18,
+        "skipped": 0,
+        "addedList": [
+          "app/deps.py -> novel2epub/config.py",
+          "app/deps.py -> novel2epub/sources.py",
+          "app/main.py -> app/job.py",
+          "app/main.py -> app/routes/library.py",
+          "app/routes/ebooks.py -> novel2epub/config.py",
+          "app/routes/settings.py -> novel2epub/config_writer.py",
+          "app/routes/sources.py -> novel2epub/sources.py",
+          "novel2epub/cli_runner.py -> novel2epub/config.py",
+          "novel2epub/cli.py -> novel2epub/config.py",
+          "novel2epub/cli.py -> novel2epub/preset_builder.py",
+          "novel2epub/glossary_ai.py -> novel2epub/config.py",
+          "novel2epub/pipeline.py -> novel2epub/config.py",
+          "novel2epub/pipeline.py -> novel2epub/crawler.py",
+          "novel2epub/translator.py -> novel2epub/config.py",
+          "tests/test_pipeline_ai_chapter.py -> novel2epub/config.py",
+          "tests/test_refactor_toc.py -> novel2epub/config.py",
+          "tests/test_refactor_toc.py -> novel2epub/crawler.py",
+          "tests/test_translator.py -> novel2epub/config.py"
+        ],
+        "skippedList": []
+      }
+    ],
+    "droppedEdgesFromDroppedNodes": 187,
+    "finalNodes": 537,
+    "finalEdges": 1031,
+    "finalTypeCounts": {
+      "file": 95,
+      "class": 34,
+      "function": 275,
+      "module": 11,
+      "document": 98,
+      "config": 7,
+      "concept": 17
+    },
+    "remainingUnknownTypes": "none"
+  }
+}

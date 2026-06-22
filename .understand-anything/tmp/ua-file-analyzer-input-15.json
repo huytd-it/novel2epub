@@ -1,0 +1,61 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            "AGENTS.md":  [
+
+                                          ],
+                            "CLAUDE.md":  [
+
+                                          ],
+                            "README.md":  [
+
+                                          ],
+                            "config.example.yaml":  [
+
+                                                    ],
+                            "requirements.txt":  [
+
+                                                 ],
+                            "sources.yaml":  [
+
+                                             ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  "AGENTS.md",
+                           "language":  "markdown",
+                           "sizeLines":  148,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "CLAUDE.md",
+                           "language":  "markdown",
+                           "sizeLines":  49,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "README.md",
+                           "language":  "markdown",
+                           "sizeLines":  204,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "config.example.yaml",
+                           "language":  "yaml",
+                           "sizeLines":  182,
+                           "fileCategory":  "config"
+                       },
+                       {
+                           "path":  "requirements.txt",
+                           "language":  "txt",
+                           "sizeLines":  10,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "sources.yaml",
+                           "language":  "yaml",
+                           "sizeLines":  134,
+                           "fileCategory":  "config"
+                       }
+                   ]
+}

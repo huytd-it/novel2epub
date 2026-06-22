@@ -1,0 +1,43 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            ".specify/extensions.yml":  [
+
+                                                        ],
+                            ".specify/feature.json":  [
+
+                                                      ],
+                            ".specify/init-options.json":  [
+
+                                                           ],
+                            ".specify/integration.json":  [
+
+                                                          ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  ".specify/extensions.yml",
+                           "language":  "yaml",
+                           "sizeLines":  23,
+                           "fileCategory":  "config"
+                       },
+                       {
+                           "path":  ".specify/feature.json",
+                           "language":  "json",
+                           "sizeLines":  3,
+                           "fileCategory":  "config"
+                       },
+                       {
+                           "path":  ".specify/init-options.json",
+                           "language":  "json",
+                           "sizeLines":  7,
+                           "fileCategory":  "config"
+                       },
+                       {
+                           "path":  ".specify/integration.json",
+                           "language":  "json",
+                           "sizeLines":  15,
+                           "fileCategory":  "config"
+                       }
+                   ]
+}

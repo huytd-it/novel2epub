@@ -1,0 +1,52 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            ".specify/scripts/powershell/check-prerequisites.ps1":  [
+
+                                                                                    ],
+                            ".specify/scripts/powershell/common.ps1":  [
+
+                                                                       ],
+                            ".specify/scripts/powershell/create-new-feature.ps1":  [
+
+                                                                                   ],
+                            ".specify/scripts/powershell/setup-plan.ps1":  [
+
+                                                                           ],
+                            ".specify/scripts/powershell/setup-tasks.ps1":  [
+
+                                                                            ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  ".specify/scripts/powershell/check-prerequisites.ps1",
+                           "language":  "powershell",
+                           "sizeLines":  147,
+                           "fileCategory":  "script"
+                       },
+                       {
+                           "path":  ".specify/scripts/powershell/common.ps1",
+                           "language":  "powershell",
+                           "sizeLines":  516,
+                           "fileCategory":  "script"
+                       },
+                       {
+                           "path":  ".specify/scripts/powershell/create-new-feature.ps1",
+                           "language":  "powershell",
+                           "sizeLines":  237,
+                           "fileCategory":  "script"
+                       },
+                       {
+                           "path":  ".specify/scripts/powershell/setup-plan.ps1",
+                           "language":  "powershell",
+                           "sizeLines":  64,
+                           "fileCategory":  "script"
+                       },
+                       {
+                           "path":  ".specify/scripts/powershell/setup-tasks.ps1",
+                           "language":  "powershell",
+                           "sizeLines":  69,
+                           "fileCategory":  "script"
+                       }
+                   ]
+}

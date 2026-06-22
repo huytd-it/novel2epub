@@ -1,0 +1,136 @@
+﻿{
+    "batchIndex":  9,
+    "files":  [
+                  {
+                      "path":  ".opencode/commands/opsx-apply.md",
+                      "language":  "markdown",
+                      "sizeLines":  152,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/opsx-archive.md",
+                      "language":  "markdown",
+                      "sizeLines":  157,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/opsx-explore.md",
+                      "language":  "markdown",
+                      "sizeLines":  169,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/opsx-propose.md",
+                      "language":  "markdown",
+                      "sizeLines":  104,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/opsx-sync.md",
+                      "language":  "markdown",
+                      "sizeLines":  140,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.analyze.md",
+                      "language":  "markdown",
+                      "sizeLines":  249,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.checklist.md",
+                      "language":  "markdown",
+                      "sizeLines":  363,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.clarify.md",
+                      "language":  "markdown",
+                      "sizeLines":  279,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.constitution.md",
+                      "language":  "markdown",
+                      "sizeLines":  150,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.implement.md",
+                      "language":  "markdown",
+                      "sizeLines":  213,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.plan.md",
+                      "language":  "markdown",
+                      "sizeLines":  168,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.specify.md",
+                      "language":  "markdown",
+                      "sizeLines":  343,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.tasks.md",
+                      "language":  "markdown",
+                      "sizeLines":  213,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/commands/speckit.taskstoissues.md",
+                      "language":  "markdown",
+                      "sizeLines":  97,
+                      "fileCategory":  "docs"
+                  }
+              ],
+    "batchImportData":  {
+                            ".opencode/commands/opsx-apply.md":  [
+
+                                                                 ],
+                            ".opencode/commands/opsx-archive.md":  [
+
+                                                                   ],
+                            ".opencode/commands/opsx-explore.md":  [
+
+                                                                   ],
+                            ".opencode/commands/opsx-propose.md":  [
+
+                                                                   ],
+                            ".opencode/commands/opsx-sync.md":  [
+
+                                                                ],
+                            ".opencode/commands/speckit.analyze.md":  [
+
+                                                                      ],
+                            ".opencode/commands/speckit.checklist.md":  [
+
+                                                                        ],
+                            ".opencode/commands/speckit.clarify.md":  [
+
+                                                                      ],
+                            ".opencode/commands/speckit.constitution.md":  [
+
+                                                                           ],
+                            ".opencode/commands/speckit.implement.md":  [
+
+                                                                        ],
+                            ".opencode/commands/speckit.plan.md":  [
+
+                                                                   ],
+                            ".opencode/commands/speckit.specify.md":  [
+
+                                                                      ],
+                            ".opencode/commands/speckit.tasks.md":  [
+
+                                                                    ],
+                            ".opencode/commands/speckit.taskstoissues.md":  [
+
+                                                                            ]
+                        },
+    "neighborMap":  {
+
+                    }
+}

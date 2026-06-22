@@ -1,0 +1,61 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            "specs/002-opencode-go-preset/data-model.md":  [
+
+                                                                           ],
+                            "specs/002-opencode-go-preset/plan.md":  [
+
+                                                                     ],
+                            "specs/002-opencode-go-preset/quickstart.md":  [
+
+                                                                           ],
+                            "specs/002-opencode-go-preset/research.md":  [
+
+                                                                         ],
+                            "specs/002-opencode-go-preset/spec.md":  [
+
+                                                                     ],
+                            "specs/002-opencode-go-preset/tasks.md":  [
+
+                                                                      ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  "specs/002-opencode-go-preset/data-model.md",
+                           "language":  "markdown",
+                           "sizeLines":  62,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "specs/002-opencode-go-preset/plan.md",
+                           "language":  "markdown",
+                           "sizeLines":  76,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "specs/002-opencode-go-preset/quickstart.md",
+                           "language":  "markdown",
+                           "sizeLines":  124,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "specs/002-opencode-go-preset/research.md",
+                           "language":  "markdown",
+                           "sizeLines":  78,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "specs/002-opencode-go-preset/spec.md",
+                           "language":  "markdown",
+                           "sizeLines":  104,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "specs/002-opencode-go-preset/tasks.md",
+                           "language":  "markdown",
+                           "sizeLines":  178,
+                           "fileCategory":  "docs"
+                       }
+                   ]
+}

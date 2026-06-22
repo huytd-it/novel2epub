@@ -1,0 +1,268 @@
+{
+  "batchIndex": 13,
+  "nodes": [
+    {
+      "id": "file:.specify/scripts/powershell/common.ps1",
+      "label": "common.ps1",
+      "type": "file",
+      "filePath": ".specify/scripts/powershell/common.ps1",
+      "language": "powershell",
+      "category": "script",
+      "metrics": {
+        "totalLines": 516,
+        "nonEmptyLines": 463,
+        "importCount": 0,
+        "exportCount": 12,
+        "functionCount": 12,
+        "classCount": 0,
+        "sectionCount": 12
+      },
+      "sections": [
+        { "heading": "Find-SpecifyRoot", "level": 1, "line": 6 },
+        { "heading": "Get-RepoRoot", "level": 1, "line": 29 },
+        { "heading": "Get-CurrentBranch", "level": 1, "line": 41 },
+        { "heading": "Save-FeatureJson", "level": 1, "line": 57 },
+        { "heading": "Get-FeaturePathsEnv", "level": 1, "line": 103 },
+        { "heading": "Test-FileExists", "level": 1, "line": 157 },
+        { "heading": "Test-DirHasFiles", "level": 1, "line": 168 },
+        { "heading": "Get-InvokeSeparator", "level": 1, "line": 179 },
+        { "heading": "Format-SpecKitCommand", "level": 1, "line": 213 },
+        { "heading": "Get-Python3Command", "level": 1, "line": 233 },
+        { "heading": "Resolve-Template", "level": 1, "line": 251 },
+        { "heading": "Resolve-TemplateContent", "level": 1, "line": 317 }
+      ],
+      "description": "Central PowerShell library for SpecKit workflow scripts. Provides 12 shared functions: repository root detection (Find-SpecifyRoot, Get-RepoRoot), feature context resolution (Get-CurrentBranch, Save-FeatureJson, Get-FeaturePathsEnv), file validation helpers (Test-FileExists, Test-DirHasFiles), integration config reading (Get-InvokeSeparator, Format-SpecKitCommand), Python3 discovery (Get-Python3Command), and template resolution with composition strategies (Resolve-Template, Resolve-TemplateContent). Dot-sourced by all other SpecKit PowerShell scripts."
+    },
+    {
+      "id": "file:.specify/scripts/powershell/check-prerequisites.ps1",
+      "label": "check-prerequisites.ps1",
+      "type": "file",
+      "filePath": ".specify/scripts/powershell/check-prerequisites.ps1",
+      "language": "powershell",
+      "category": "script",
+      "metrics": {
+        "totalLines": 147,
+        "nonEmptyLines": 123,
+        "importCount": 1,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 4
+      },
+      "sections": [
+        { "heading": "param block", "level": 1, "line": 18 },
+        { "heading": "help display", "level": 1, "line": 29 },
+        { "heading": "paths-only mode", "level": 1, "line": 63 },
+        { "heading": "validation logic", "level": 1, "line": 85 }
+      ],
+      "description": "Unified prerequisite checker for Spec-Driven Development workflow. Validates existence of feature directory, plan.md, and optionally tasks.md. Supports JSON output, paths-only mode (no validation), and document discovery (research.md, data-model.md, contracts/, quickstart.md). Dot-sources common.ps1 for shared functions."
+    },
+    {
+      "id": "file:.specify/scripts/powershell/create-new-feature.ps1",
+      "label": "create-new-feature.ps1",
+      "type": "file",
+      "filePath": ".specify/scripts/powershell/create-new-feature.ps1",
+      "language": "powershell",
+      "category": "script",
+      "metrics": {
+        "totalLines": 237,
+        "nonEmptyLines": 205,
+        "importCount": 1,
+        "exportCount": 3,
+        "functionCount": 3,
+        "classCount": 0,
+        "sectionCount": 5
+      },
+      "sections": [
+        { "heading": "param block", "level": 1, "line": 3 },
+        { "heading": "help display", "level": 1, "line": 19 },
+        { "heading": "Get-HighestNumberFromSpecs", "level": 1, "line": 52 },
+        { "heading": "ConvertTo-CleanBranchName", "level": 1, "line": 70 },
+        { "heading": "Get-BranchName", "level": 1, "line": 89 }
+      ],
+      "description": "Creates a new feature directory under specs/ with auto-generated branch names. Supports sequential numbering (001, 002, ...) and timestamp prefixes. Features smart branch naming with stop-word filtering, GitHub 244-byte limit enforcement, and dry-run mode. Writes spec.md from resolved templates and persists feature context to .specify/feature.json via common.ps1's Save-FeatureJson. Defines Get-HighestNumberFromSpecs, ConvertTo-CleanBranchName, and Get-BranchName helper functions."
+    },
+    {
+      "id": "file:.specify/scripts/powershell/setup-plan.ps1",
+      "label": "setup-plan.ps1",
+      "type": "file",
+      "filePath": ".specify/scripts/powershell/setup-plan.ps1",
+      "language": "powershell",
+      "category": "script",
+      "metrics": {
+        "totalLines": 64,
+        "nonEmptyLines": 56,
+        "importCount": 1,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 3
+      },
+      "sections": [
+        { "heading": "param block", "level": 1, "line": 4 },
+        { "heading": "template copy", "level": 1, "line": 30 },
+        { "heading": "output", "level": 1, "line": 51 }
+      ],
+      "description": "Initializes an implementation plan (plan.md) for the current feature by copying the resolved plan template into the feature directory. Skips if plan.md already exists. Outputs feature spec path, plan path, and branch name in text or JSON format. Dot-sources common.ps1 for Get-FeaturePathsEnv and Resolve-Template."
+    },
+    {
+      "id": "file:.specify/scripts/powershell/setup-tasks.ps1",
+      "label": "setup-tasks.ps1",
+      "type": "file",
+      "filePath": ".specify/scripts/powershell/setup-tasks.ps1",
+      "language": "powershell",
+      "category": "script",
+      "metrics": {
+        "totalLines": 69,
+        "nonEmptyLines": 59,
+        "importCount": 1,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 3
+      },
+      "sections": [
+        { "heading": "param block", "level": 1, "line": 3 },
+        { "heading": "prerequisite checks", "level": 1, "line": 22 },
+        { "heading": "template resolution", "level": 1, "line": 45 }
+      ],
+      "description": "Sets up task scaffolding for a feature by validating that plan.md and spec.md exist, discovering available design docs (research.md, data-model.md, contracts/, quickstart.md), and resolving the tasks template through the SpecKit override/preset/extension/core priority stack. Outputs feature directory, available docs list, and resolved template path. Dot-sources common.ps1."
+    },
+    {
+      "id": "dir:.specify/scripts/powershell",
+      "label": "powershell/",
+      "type": "directory",
+      "filePath": ".specify/scripts/powershell",
+      "description": "SpecKit PowerShell script suite: 5 scripts implementing the Spec-Driven Development workflow phases — feature creation (create-new-feature.ps1), plan initialization (setup-plan.ps1), task setup (setup-tasks.ps1), and prerequisite validation (check-prerequisites.ps1), all built on the shared function library (common.ps1)."
+    },
+    {
+      "id": "dir:.specify/scripts",
+      "label": "scripts/",
+      "type": "directory",
+      "filePath": ".specify/scripts",
+      "description": "SpecKit scripts root directory containing PowerShell workflow automation scripts for feature lifecycle management."
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:.specify/scripts/powershell/check-prerequisites.ps1",
+      "target": "file:.specify/scripts/powershell/common.ps1",
+      "type": "imports",
+      "label": "dot-sources common.ps1 for Get-FeaturePathsEnv, Test-FileExists, Test-DirHasFiles"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/create-new-feature.ps1",
+      "target": "file:.specify/scripts/powershell/common.ps1",
+      "type": "imports",
+      "label": "dot-sources common.ps1 for Get-RepoRoot, Save-FeatureJson, Resolve-Template"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/setup-plan.ps1",
+      "target": "file:.specify/scripts/powershell/common.ps1",
+      "type": "imports",
+      "label": "dot-sources common.ps1 for Get-FeaturePathsEnv, Resolve-Template"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/setup-tasks.ps1",
+      "target": "file:.specify/scripts/powershell/common.ps1",
+      "type": "imports",
+      "label": "dot-sources common.ps1 for Get-FeaturePathsEnv, Resolve-Template, Test-FileExists, Test-DirHasFiles"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/check-prerequisites.ps1",
+      "target": "file:.specify/scripts/powershell/create-new-feature.ps1",
+      "type": "precedes",
+      "label": "prerequisite check runs after feature creation to validate spec/plan exist"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/create-new-feature.ps1",
+      "target": "file:.specify/scripts/powershell/setup-plan.ps1",
+      "type": "precedes",
+      "label": "feature creation must complete before plan setup"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/setup-plan.ps1",
+      "target": "file:.specify/scripts/powershell/setup-tasks.ps1",
+      "type": "precedes",
+      "label": "plan must exist before tasks can be set up; setup-tasks validates plan.md"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/check-prerequisites.ps1",
+      "target": "file:.specify/scripts/powershell/setup-plan.ps1",
+      "type": "validates",
+      "label": "check-prerequisites validates plan.md created by setup-plan"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/check-prerequisites.ps1",
+      "target": "file:.specify/scripts/powershell/setup-tasks.ps1",
+      "type": "validates",
+      "label": "check-prerequisites can require tasks.md created by setup-tasks"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/common.ps1",
+      "target": "file:.specify/scripts/powershell/check-prerequisites.ps1",
+      "type": "supports",
+      "label": "Get-FeaturePathsEnv resolves feature paths; Test-FileExists/Test-DirHasFiles validate docs"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/common.ps1",
+      "target": "file:.specify/scripts/powershell/create-new-feature.ps1",
+      "type": "supports",
+      "label": "Get-RepoRoot finds project root; Save-FeatureJson persists feature; Resolve-Template copies spec template"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/common.ps1",
+      "target": "file:.specify/scripts/powershell/setup-plan.ps1",
+      "type": "supports",
+      "label": "Get-FeaturePathsEnv provides plan path; Resolve-Template loads plan template"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/common.ps1",
+      "target": "file:.specify/scripts/powershell/setup-tasks.ps1",
+      "type": "supports",
+      "label": "Get-FeaturePathsEnv provides paths; Resolve-Template loads tasks template; Test-FileExists/Test-DirHasFiles list available docs"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/create-new-feature.ps1",
+      "target": "dir:.specify/scripts/../feature.json",
+      "type": "writes",
+      "label": "Save-FeatureJson persists active feature directory to .specify/feature.json"
+    },
+    {
+      "source": "dir:.specify/scripts/powershell",
+      "target": "dir:.specify/scripts",
+      "type": "contained_in",
+      "label": "PowerShell scripts subdirectory of SpecKit scripts"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/common.ps1",
+      "target": "dir:.specify/scripts/powershell",
+      "type": "contained_in",
+      "label": "part of PowerShell script suite"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/check-prerequisites.ps1",
+      "target": "dir:.specify/scripts/powershell",
+      "type": "contained_in",
+      "label": "part of PowerShell script suite"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/create-new-feature.ps1",
+      "target": "dir:.specify/scripts/powershell",
+      "type": "contained_in",
+      "label": "part of PowerShell script suite"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/setup-plan.ps1",
+      "target": "dir:.specify/scripts/powershell",
+      "type": "contained_in",
+      "label": "part of PowerShell script suite"
+    },
+    {
+      "source": "file:.specify/scripts/powershell/setup-tasks.ps1",
+      "target": "dir:.specify/scripts/powershell",
+      "type": "contained_in",
+      "label": "part of PowerShell script suite"
+    }
+  ]
+}

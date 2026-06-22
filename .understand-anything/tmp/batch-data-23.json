@@ -1,0 +1,235 @@
+﻿{
+    "batchIndex":  23,
+    "files":  [
+                  {
+                      "path":  ".claude/skills/openspec-apply-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  159,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/openspec-archive-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  117,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/openspec-explore/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  287,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/openspec-propose/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  111,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/openspec-sync-specs/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  147,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-agent-context-update/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  30,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-analyze/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  260,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-checklist/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  374,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-clarify/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  286,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-constitution/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  157,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-implement/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  224,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-plan/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  171,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-specify/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  346,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-tasks/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  215,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".claude/skills/speckit-taskstoissues/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  107,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/copilot-instructions.md",
+                      "language":  "markdown",
+                      "sizeLines":  4,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/skills/openspec-apply-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  159,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/skills/openspec-archive-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  117,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/skills/openspec-explore/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  287,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/skills/openspec-propose/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  111,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/skills/openspec-sync-specs/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  147,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/skills/openspec-apply-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  159,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/skills/openspec-archive-change/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  117,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/skills/openspec-explore/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  287,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".opencode/skills/openspec-propose/SKILL.md",
+                      "language":  "markdown",
+                      "sizeLines":  111,
+                      "fileCategory":  "docs"
+                  }
+              ],
+    "batchImportData":  {
+                            ".claude/skills/openspec-apply-change/SKILL.md":  [
+
+                                                                              ],
+                            ".claude/skills/openspec-archive-change/SKILL.md":  [
+
+                                                                                ],
+                            ".claude/skills/openspec-explore/SKILL.md":  [
+
+                                                                         ],
+                            ".claude/skills/openspec-propose/SKILL.md":  [
+
+                                                                         ],
+                            ".claude/skills/openspec-sync-specs/SKILL.md":  [
+
+                                                                            ],
+                            ".claude/skills/speckit-agent-context-update/SKILL.md":  [
+
+                                                                                     ],
+                            ".claude/skills/speckit-analyze/SKILL.md":  [
+
+                                                                        ],
+                            ".claude/skills/speckit-checklist/SKILL.md":  [
+
+                                                                          ],
+                            ".claude/skills/speckit-clarify/SKILL.md":  [
+
+                                                                        ],
+                            ".claude/skills/speckit-constitution/SKILL.md":  [
+
+                                                                             ],
+                            ".claude/skills/speckit-implement/SKILL.md":  [
+
+                                                                          ],
+                            ".claude/skills/speckit-plan/SKILL.md":  [
+
+                                                                     ],
+                            ".claude/skills/speckit-specify/SKILL.md":  [
+
+                                                                        ],
+                            ".claude/skills/speckit-tasks/SKILL.md":  [
+
+                                                                      ],
+                            ".claude/skills/speckit-taskstoissues/SKILL.md":  [
+
+                                                                              ],
+                            ".github/copilot-instructions.md":  [
+
+                                                                ],
+                            ".github/skills/openspec-apply-change/SKILL.md":  [
+
+                                                                              ],
+                            ".github/skills/openspec-archive-change/SKILL.md":  [
+
+                                                                                ],
+                            ".github/skills/openspec-explore/SKILL.md":  [
+
+                                                                         ],
+                            ".github/skills/openspec-propose/SKILL.md":  [
+
+                                                                         ],
+                            ".github/skills/openspec-sync-specs/SKILL.md":  [
+
+                                                                            ],
+                            ".opencode/skills/openspec-apply-change/SKILL.md":  [
+
+                                                                                ],
+                            ".opencode/skills/openspec-archive-change/SKILL.md":  [
+
+                                                                                  ],
+                            ".opencode/skills/openspec-explore/SKILL.md":  [
+
+                                                                           ],
+                            ".opencode/skills/openspec-propose/SKILL.md":  [
+
+                                                                           ]
+                        },
+    "neighborMap":  {
+
+                    }
+}

@@ -1,0 +1,52 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            ".claude/commands/opsx/apply.md":  [
+
+                                                               ],
+                            ".claude/commands/opsx/archive.md":  [
+
+                                                                 ],
+                            ".claude/commands/opsx/explore.md":  [
+
+                                                                 ],
+                            ".claude/commands/opsx/propose.md":  [
+
+                                                                 ],
+                            ".claude/commands/opsx/sync.md":  [
+
+                                                              ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  ".claude/commands/opsx/apply.md",
+                           "language":  "markdown",
+                           "sizeLines":  155,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  ".claude/commands/opsx/archive.md",
+                           "language":  "markdown",
+                           "sizeLines":  160,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  ".claude/commands/opsx/explore.md",
+                           "language":  "markdown",
+                           "sizeLines":  172,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  ".claude/commands/opsx/propose.md",
+                           "language":  "markdown",
+                           "sizeLines":  107,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  ".claude/commands/opsx/sync.md",
+                           "language":  "markdown",
+                           "sizeLines":  143,
+                           "fileCategory":  "docs"
+                       }
+                   ]
+}

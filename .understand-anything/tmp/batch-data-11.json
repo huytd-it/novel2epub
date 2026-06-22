@@ -1,0 +1,37 @@
+﻿{
+    "batchIndex":  11,
+    "files":  [
+                  {
+                      "path":  ".specify/extensions/agent-context/README.md",
+                      "language":  "markdown",
+                      "sizeLines":  57,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/agent-context-config.yml",
+                      "language":  "yaml",
+                      "sizeLines":  4,
+                      "fileCategory":  "config"
+                  },
+                  {
+                      "path":  ".specify/extensions/agent-context/extension.yml",
+                      "language":  "yaml",
+                      "sizeLines":  34,
+                      "fileCategory":  "config"
+                  }
+              ],
+    "batchImportData":  {
+                            ".specify/extensions/agent-context/README.md":  [
+
+                                                                            ],
+                            ".specify/extensions/agent-context/agent-context-config.yml":  [
+
+                                                                                           ],
+                            ".specify/extensions/agent-context/extension.yml":  [
+
+                                                                                ]
+                        },
+    "neighborMap":  {
+
+                    }
+}

@@ -1,0 +1,34 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            "docs/rule.md":  [
+
+                                             ],
+                            "docs/source.md":  [
+
+                                               ],
+                            "docs/tool.md":  [
+
+                                             ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  "docs/rule.md",
+                           "language":  "markdown",
+                           "sizeLines":  184,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "docs/source.md",
+                           "language":  "markdown",
+                           "sizeLines":  128,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "docs/tool.md",
+                           "language":  "markdown",
+                           "sizeLines":  93,
+                           "fileCategory":  "docs"
+                       }
+                   ]
+}

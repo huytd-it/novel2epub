@@ -1,0 +1,61 @@
+{
+  "batchIndex": 17,
+  "nodes": [
+    {
+      "id": "document:docs/rule.md",
+      "type": "document",
+      "name": "rule.md",
+      "filePath": "docs/rule.md",
+      "summary": "Vietnamese-language editing rules and quick-reference glossary for Chinese-to-Vietnamese novel translation editing. Covers 6 correctness principles (caution, grammar adjustments, pronoun/address forms, Quick Translator distrust, Han-Viet vs pure Vietnamese word balance, educated guessing) and 5 quality principles (flexible synonyms, learning from good edits, rewording over machine trust, conscious title/quote translation, clean formatting). Includes a 14-row glossary table and a 7-item editor checklist.",
+      "tags": ["documentation", "vietnamese", "translation", "editing-guidelines", "han-viet", "glossary", "quick-translator"],
+      "complexity": "moderate",
+      "languageNotes": "Written entirely in Vietnamese. References Quick Translator tool extensively. Contains pm-task frontmatter metadata for task tracking."
+    },
+    {
+      "id": "document:docs/source.md",
+      "type": "document",
+      "name": "source.md",
+      "filePath": "docs/source.md",
+      "summary": "Curated directory of Chinese web novel sources for translators and editors, organized into three sections: (I) raw Chinese text sources including qidian.com, novel.feiku.com, wenku.com, 17k.com, tieba.baidu.com and 30+ aggregator sites; (II) pre-converted Vietnamese text sources from tangthuvien.vn, diendanlequydon.com, and WordPress blogs; (III) Quick Translate (QT) software download sources. Includes a VIP-content workaround note advising Google search by Chinese title.",
+      "tags": ["documentation", "vietnamese", "source-listing", "web-novels", "crawling", "qidian", "quick-translator"],
+      "complexity": "simple",
+      "languageNotes": "Written entirely in Vietnamese. Contains pm-task frontmatter with status=done. References the novel2epub crawling system as related project."
+    },
+    {
+      "id": "document:docs/tool.md",
+      "type": "document",
+      "name": "tool.md",
+      "filePath": "docs/tool.md",
+      "summary": "Step-by-step Vietnamese tutorial on using Quick Translator for Chinese novel conversion (convert) — the traditional non-AI workflow. Explains the convert concept, required prerequisites (NET Framework 3.5, Chinese fonts), and detailed usage of four tools: QuickTranslator (clipboard-based single-chapter convert with Han-Viet, Vietphrase, and dictionary views), QuickConverter (batch file conversion with 6 output formats), QuickAnalyzer, and QuickVietPhraseMerger. Emphasizes the importance of maintaining Name.txt and Vietphrase.txt data files as the core of quality output.",
+      "tags": ["documentation", "vietnamese", "tool-tutorial", "quick-translator", "conversion", "chinese-translation", "traditional-workflow"],
+      "complexity": "moderate",
+      "languageNotes": "Written entirely in Vietnamese. Contains pm-task frontmatter with status=todo. References the novel2epub AI translate project."
+    }
+  ],
+  "edges": [
+    {
+      "source": "document:docs/rule.md",
+      "target": "document:docs/tool.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.8,
+      "label": "rule.md references Quick Translator throughout all editing principles; tool.md explains how to use Quick Translator"
+    },
+    {
+      "source": "document:docs/tool.md",
+      "target": "document:docs/source.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5,
+      "label": "tool.md mentions sourcing txt files from sites like qidian and zongheng; source.md catalogs those sites"
+    },
+    {
+      "source": "document:docs/rule.md",
+      "target": "document:docs/source.md",
+      "type": "documents",
+      "direction": "bidirectional",
+      "weight": 0.3,
+      "label": "Both reference the traditional convert/edit workflow ecosystem; source.md provides inputs, rule.md governs output quality"
+    }
+  ]
+}

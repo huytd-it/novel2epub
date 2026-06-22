@@ -1,0 +1,168 @@
+{
+  "nodes": [
+    {
+      "id": "config:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/.openspec.yaml",
+      "type": "config",
+      "name": ".openspec.yaml",
+      "filePath": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/.openspec.yaml",
+      "summary": "OpenSpec metadata file declaring the spec-driven schema and creation date for the paginated-chapter-support change.",
+      "tags": ["configuration", "open-spec", "metadata"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+      "type": "document",
+      "name": "proposal.md",
+      "filePath": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+      "summary": "Proposal for adding multi-page chapter pagination across all crawler engines, outlining new CrawlConfig fields, a shared pagination helper, and the shuhaige site preset.",
+      "tags": ["proposal", "pagination", "crawler", "feature"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+      "type": "document",
+      "name": "design.md",
+      "filePath": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+      "summary": "Technical design document for paginated chapter support covering six key decisions: shared helper function, stop conditions, title-strip heuristic, URL-pattern fallback, configuration placement, and the shuhaige preset.",
+      "tags": ["design", "architecture", "pagination", "crawler", "documentation"],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+      "type": "document",
+      "name": "tasks.md",
+      "filePath": "openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+      "summary": "Implementation checklist for paginated-chapter-support with 6 phases: config model extension, pagination helper, crawler wiring, preset shipping, testing, and documentation.",
+      "tags": ["tasks", "implementation", "checklist", "pagination"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "config:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/.openspec.yaml",
+      "target": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "config:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/.openspec.yaml",
+      "target": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "config:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/.openspec.yaml",
+      "target": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+      "target": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+      "target": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+      "target": "file:novel2epub/crawler.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+      "target": "file:novel2epub/config.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+      "target": "file:novel2epub/sources.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/proposal.md",
+      "target": "file:novel2epub/sources.yaml",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+      "target": "file:novel2epub/crawler.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+      "target": "file:novel2epub/config.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+      "target": "file:novel2epub/sources.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/design.md",
+      "target": "file:novel2epub/sources.yaml",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+      "target": "file:novel2epub/crawler.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+      "target": "file:novel2epub/config.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+      "target": "file:novel2epub/sources.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+      "target": "file:novel2epub/sources.yaml",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/archive/2026-06-22-add-paginated-chapter-support/tasks.md",
+      "target": "file:tests/test_chapter_pagination.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    }
+  ]
+}

@@ -1,0 +1,2855 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 9,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "app/deps.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 67,
+      "nonEmptyLines": 48,
+      "functions": [
+        {
+          "name": "cfg",
+          "startLine": 23,
+          "endLine": 30,
+          "params": []
+        },
+        {
+          "name": "library",
+          "startLine": 33,
+          "endLine": 34,
+          "params": []
+        },
+        {
+          "name": "presets",
+          "startLine": 37,
+          "endLine": 38,
+          "params": []
+        },
+        {
+          "name": "resolve_path",
+          "startLine": 41,
+          "endLine": 47,
+          "params": [
+            "base",
+            "value"
+          ]
+        },
+        {
+          "name": "ebook_config_path",
+          "startLine": 50,
+          "endLine": 55,
+          "params": [
+            "slug"
+          ]
+        },
+        {
+          "name": "ebook_cfg",
+          "startLine": 58,
+          "endLine": 62,
+          "params": [
+            "slug"
+          ]
+        },
+        {
+          "name": "resolved_cfg",
+          "startLine": 65,
+          "endLine": 67,
+          "params": [
+            "slug"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "cfg",
+          "line": 23,
+          "isDefault": false
+        },
+        {
+          "name": "library",
+          "line": 33,
+          "isDefault": false
+        },
+        {
+          "name": "presets",
+          "line": 37,
+          "isDefault": false
+        },
+        {
+          "name": "resolve_path",
+          "line": 41,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_config_path",
+          "line": 50,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_cfg",
+          "line": 58,
+          "isDefault": false
+        },
+        {
+          "name": "resolved_cfg",
+          "line": 65,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "cfg",
+          "callee": "load_config",
+          "lineNumber": 25
+        },
+        {
+          "caller": "cfg",
+          "callee": "HTTPException",
+          "lineNumber": 27
+        },
+        {
+          "caller": "library",
+          "callee": "load_library",
+          "lineNumber": 34
+        },
+        {
+          "caller": "presets",
+          "callee": "load_presets",
+          "lineNumber": 38
+        },
+        {
+          "caller": "resolve_path",
+          "callee": "Path",
+          "lineNumber": 44
+        },
+        {
+          "caller": "resolve_path",
+          "callee": "p.is_absolute",
+          "lineNumber": 45
+        },
+        {
+          "caller": "resolve_path",
+          "callee": "str",
+          "lineNumber": 47
+        },
+        {
+          "caller": "resolve_path",
+          "callee": "(base / p).resolve",
+          "lineNumber": 47
+        },
+        {
+          "caller": "ebook_config_path",
+          "callee": "library",
+          "lineNumber": 51
+        },
+        {
+          "caller": "ebook_config_path",
+          "callee": "lib.ebooks.get",
+          "lineNumber": 52
+        },
+        {
+          "caller": "ebook_config_path",
+          "callee": "resolve_path",
+          "lineNumber": 54
+        },
+        {
+          "caller": "ebook_config_path",
+          "callee": "Path(LIBRARY_PATH).resolve",
+          "lineNumber": 54
+        },
+        {
+          "caller": "ebook_config_path",
+          "callee": "Path",
+          "lineNumber": 54
+        },
+        {
+          "caller": "ebook_cfg",
+          "callee": "load_config",
+          "lineNumber": 60
+        },
+        {
+          "caller": "ebook_cfg",
+          "callee": "ebook_config_path",
+          "lineNumber": 60
+        },
+        {
+          "caller": "ebook_cfg",
+          "callee": "HTTPException",
+          "lineNumber": 62
+        },
+        {
+          "caller": "ebook_cfg",
+          "callee": "str",
+          "lineNumber": 62
+        },
+        {
+          "caller": "resolved_cfg",
+          "callee": "ebook_cfg",
+          "lineNumber": 67
+        },
+        {
+          "caller": "resolved_cfg",
+          "callee": "library",
+          "lineNumber": 67
+        },
+        {
+          "caller": "resolved_cfg",
+          "callee": "cfg",
+          "lineNumber": 67
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 7,
+        "functionCount": 7,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "app/main.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 26,
+      "nonEmptyLines": 21,
+      "metrics": {
+        "importCount": 10,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "app/routes/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 1,
+      "nonEmptyLines": 0,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "app/routes/chapters.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 252,
+      "nonEmptyLines": 209,
+      "functions": [
+        {
+          "name": "_chapter_glossary",
+          "startLine": 28,
+          "endLine": 45,
+          "params": [
+            "storage",
+            "raw",
+            "translated"
+          ]
+        },
+        {
+          "name": "_chapter_context",
+          "startLine": 59,
+          "endLine": 70,
+          "params": [
+            "storage",
+            "ch",
+            "raw",
+            "translated",
+            "slug",
+            "meta"
+          ]
+        },
+        {
+          "name": "chapter_detail",
+          "startLine": 74,
+          "endLine": 91,
+          "params": [
+            "request",
+            "index"
+          ]
+        },
+        {
+          "name": "ebook_chapter_detail",
+          "startLine": 95,
+          "endLine": 112,
+          "params": [
+            "request",
+            "slug",
+            "index"
+          ]
+        },
+        {
+          "name": "chapter_save",
+          "startLine": 116,
+          "endLine": 128,
+          "params": [
+            "index",
+            "translated"
+          ]
+        },
+        {
+          "name": "ebook_chapter_save",
+          "startLine": 132,
+          "endLine": 143,
+          "params": [
+            "slug",
+            "index",
+            "translated"
+          ]
+        },
+        {
+          "name": "ebook_chapter_action",
+          "startLine": 147,
+          "endLine": 161,
+          "params": [
+            "request",
+            "slug",
+            "index",
+            "action",
+            "override"
+          ]
+        },
+        {
+          "name": "_load_chapter_or_404",
+          "startLine": 167,
+          "endLine": 175,
+          "params": [
+            "cfg",
+            "index"
+          ]
+        },
+        {
+          "name": "ebook_chapter_ai_rewrite_apply",
+          "startLine": 179,
+          "endLine": 193,
+          "params": [
+            "slug",
+            "index"
+          ]
+        },
+        {
+          "name": "ebook_chapter_ai_rewrite_discard",
+          "startLine": 197,
+          "endLine": 203,
+          "params": [
+            "slug",
+            "index"
+          ]
+        },
+        {
+          "name": "ebook_chapter_ai_review_dismiss",
+          "startLine": 207,
+          "endLine": 213,
+          "params": [
+            "slug",
+            "index"
+          ]
+        },
+        {
+          "name": "ebook_chapter_ai_suggest_apply",
+          "startLine": 217,
+          "endLine": 235,
+          "params": [
+            "slug",
+            "index",
+            "request"
+          ]
+        },
+        {
+          "name": "ebook_chapter_ai",
+          "startLine": 239,
+          "endLine": 252,
+          "params": [
+            "request",
+            "slug",
+            "index",
+            "op"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_chapter_glossary",
+          "line": 28,
+          "isDefault": false
+        },
+        {
+          "name": "_chapter_context",
+          "line": 59,
+          "isDefault": false
+        },
+        {
+          "name": "chapter_detail",
+          "line": 73,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_chapter_detail",
+          "line": 94,
+          "isDefault": false
+        },
+        {
+          "name": "chapter_save",
+          "line": 115,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_chapter_save",
+          "line": 131,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_chapter_action",
+          "line": 146,
+          "isDefault": false
+        },
+        {
+          "name": "_load_chapter_or_404",
+          "line": 167,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_chapter_ai_rewrite_apply",
+          "line": 178,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_chapter_ai_rewrite_discard",
+          "line": 196,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_chapter_ai_review_dismiss",
+          "line": 206,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_chapter_ai_suggest_apply",
+          "line": 216,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_chapter_ai",
+          "line": 238,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_chapter_glossary",
+          "callee": "f\"{raw}\\n{translated}\".lower",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_chapter_glossary",
+          "callee": "storage.read_glossary_notes",
+          "lineNumber": 31
+        },
+        {
+          "caller": "_chapter_glossary",
+          "callee": "storage.read_glossary_file(filename).items",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_chapter_glossary",
+          "callee": "storage.read_glossary_file",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_chapter_glossary",
+          "callee": "source.lower",
+          "lineNumber": 35
+        },
+        {
+          "caller": "_chapter_glossary",
+          "callee": "suggested.lower",
+          "lineNumber": 36
+        },
+        {
+          "caller": "_chapter_glossary",
+          "callee": "rows.append",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_chapter_glossary",
+          "callee": "notes.get",
+          "lineNumber": 40
+        },
+        {
+          "caller": "_chapter_glossary",
+          "callee": "sorted",
+          "lineNumber": 45
+        },
+        {
+          "caller": "_chapter_glossary",
+          "callee": "str",
+          "lineNumber": 45
+        },
+        {
+          "caller": "_chapter_glossary",
+          "callee": "str",
+          "lineNumber": 45
+        },
+        {
+          "caller": "_chapter_context",
+          "callee": "_chapter_glossary",
+          "lineNumber": 60
+        },
+        {
+          "caller": "_chapter_context",
+          "callee": "sum",
+          "lineNumber": 68
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "deps.cfg",
+          "lineNumber": 75
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "Storage",
+          "lineNumber": 76
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "storage.load_manifest",
+          "lineNumber": 77
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "HTTPException",
+          "lineNumber": 79
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "next",
+          "lineNumber": 80
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "HTTPException",
+          "lineNumber": 82
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "storage.read_raw",
+          "lineNumber": 84
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "storage.has_raw",
+          "lineNumber": 84
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "storage.read_translated",
+          "lineNumber": 85
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "storage.has_translated",
+          "lineNumber": 85
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "storage.read_meta",
+          "lineNumber": 86
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "storage.has_meta",
+          "lineNumber": 86
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 87
+        },
+        {
+          "caller": "chapter_detail",
+          "callee": "_chapter_context",
+          "lineNumber": 90
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 96
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "Storage",
+          "lineNumber": 97
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "storage.load_manifest",
+          "lineNumber": 98
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "HTTPException",
+          "lineNumber": 100
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "next",
+          "lineNumber": 101
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "HTTPException",
+          "lineNumber": 103
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "storage.read_raw",
+          "lineNumber": 105
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "storage.has_raw",
+          "lineNumber": 105
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "storage.read_translated",
+          "lineNumber": 106
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "storage.has_translated",
+          "lineNumber": 106
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "storage.read_meta",
+          "lineNumber": 107
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "storage.has_meta",
+          "lineNumber": 107
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 108
+        },
+        {
+          "caller": "ebook_chapter_detail",
+          "callee": "_chapter_context",
+          "lineNumber": 111
+        },
+        {
+          "caller": "chapter_save",
+          "callee": "Form",
+          "lineNumber": 116
+        },
+        {
+          "caller": "chapter_save",
+          "callee": "deps.cfg",
+          "lineNumber": 118
+        },
+        {
+          "caller": "chapter_save",
+          "callee": "Storage",
+          "lineNumber": 119
+        },
+        {
+          "caller": "chapter_save",
+          "callee": "storage.load_manifest",
+          "lineNumber": 120
+        },
+        {
+          "caller": "chapter_save",
+          "callee": "HTTPException",
+          "lineNumber": 122
+        },
+        {
+          "caller": "chapter_save",
+          "callee": "next",
+          "lineNumber": 123
+        },
+        {
+          "caller": "chapter_save",
+          "callee": "HTTPException",
+          "lineNumber": 125
+        },
+        {
+          "caller": "chapter_save",
+          "callee": "storage.write_translated",
+          "lineNumber": 127
+        },
+        {
+          "caller": "chapter_save",
+          "callee": "RedirectResponse",
+          "lineNumber": 128
+        },
+        {
+          "caller": "ebook_chapter_save",
+          "callee": "Form",
+          "lineNumber": 132
+        },
+        {
+          "caller": "ebook_chapter_save",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 133
+        },
+        {
+          "caller": "ebook_chapter_save",
+          "callee": "Storage",
+          "lineNumber": 134
+        },
+        {
+          "caller": "ebook_chapter_save",
+          "callee": "storage.load_manifest",
+          "lineNumber": 135
+        },
+        {
+          "caller": "ebook_chapter_save",
+          "callee": "HTTPException",
+          "lineNumber": 137
+        },
+        {
+          "caller": "ebook_chapter_save",
+          "callee": "next",
+          "lineNumber": 138
+        },
+        {
+          "caller": "ebook_chapter_save",
+          "callee": "HTTPException",
+          "lineNumber": 140
+        },
+        {
+          "caller": "ebook_chapter_save",
+          "callee": "storage.write_translated",
+          "lineNumber": 142
+        },
+        {
+          "caller": "ebook_chapter_save",
+          "callee": "RedirectResponse",
+          "lineNumber": 143
+        },
+        {
+          "caller": "ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 147
+        },
+        {
+          "caller": "ebook_chapter_action",
+          "callee": "Form",
+          "lineNumber": 147
+        },
+        {
+          "caller": "ebook_chapter_action",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 148
+        },
+        {
+          "caller": "_target",
+          "callee": "step_crawl_selected",
+          "lineNumber": 152
+        },
+        {
+          "caller": "_target",
+          "callee": "step_translate_selected",
+          "lineNumber": 154
+        },
+        {
+          "caller": "_target",
+          "callee": "ValueError",
+          "lineNumber": 156
+        },
+        {
+          "caller": "ebook_chapter_action",
+          "callee": "request.app.state.job.start_custom",
+          "lineNumber": 158
+        },
+        {
+          "caller": "ebook_chapter_action",
+          "callee": "HTTPException",
+          "lineNumber": 160
+        },
+        {
+          "caller": "ebook_chapter_action",
+          "callee": "RedirectResponse",
+          "lineNumber": 161
+        },
+        {
+          "caller": "_load_chapter_or_404",
+          "callee": "Storage",
+          "lineNumber": 168
+        },
+        {
+          "caller": "_load_chapter_or_404",
+          "callee": "storage.load_manifest",
+          "lineNumber": 169
+        },
+        {
+          "caller": "_load_chapter_or_404",
+          "callee": "HTTPException",
+          "lineNumber": 171
+        },
+        {
+          "caller": "_load_chapter_or_404",
+          "callee": "next",
+          "lineNumber": 172
+        },
+        {
+          "caller": "_load_chapter_or_404",
+          "callee": "HTTPException",
+          "lineNumber": 174
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 182
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "_load_chapter_or_404",
+          "lineNumber": 183
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "storage.read_meta",
+          "lineNumber": 184
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "storage.has_meta",
+          "lineNumber": 184
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "(meta.get(\"ai_rewrite\") or {}).get",
+          "lineNumber": 185
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "meta.get",
+          "lineNumber": 185
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "preview.strip",
+          "lineNumber": 186
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "HTTPException",
+          "lineNumber": 187
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "storage.read_translated",
+          "lineNumber": 188
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "storage.has_translated",
+          "lineNumber": 188
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "meta.pop",
+          "lineNumber": 190
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "storage.write_translated",
+          "lineNumber": 191
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "storage.write_meta",
+          "lineNumber": 192
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_apply",
+          "callee": "RedirectResponse",
+          "lineNumber": 193
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_discard",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 198
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_discard",
+          "callee": "_load_chapter_or_404",
+          "lineNumber": 199
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_discard",
+          "callee": "storage.read_meta",
+          "lineNumber": 200
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_discard",
+          "callee": "storage.has_meta",
+          "lineNumber": 200
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_discard",
+          "callee": "meta.pop",
+          "lineNumber": 201
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_discard",
+          "callee": "storage.write_meta",
+          "lineNumber": 202
+        },
+        {
+          "caller": "ebook_chapter_ai_rewrite_discard",
+          "callee": "RedirectResponse",
+          "lineNumber": 203
+        },
+        {
+          "caller": "ebook_chapter_ai_review_dismiss",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 208
+        },
+        {
+          "caller": "ebook_chapter_ai_review_dismiss",
+          "callee": "_load_chapter_or_404",
+          "lineNumber": 209
+        },
+        {
+          "caller": "ebook_chapter_ai_review_dismiss",
+          "callee": "storage.read_meta",
+          "lineNumber": 210
+        },
+        {
+          "caller": "ebook_chapter_ai_review_dismiss",
+          "callee": "storage.has_meta",
+          "lineNumber": 210
+        },
+        {
+          "caller": "ebook_chapter_ai_review_dismiss",
+          "callee": "meta.pop",
+          "lineNumber": 211
+        },
+        {
+          "caller": "ebook_chapter_ai_review_dismiss",
+          "callee": "storage.write_meta",
+          "lineNumber": 212
+        },
+        {
+          "caller": "ebook_chapter_ai_review_dismiss",
+          "callee": "RedirectResponse",
+          "lineNumber": 213
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 219
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "_load_chapter_or_404",
+          "lineNumber": 220
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "request.form",
+          "lineNumber": 221
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "_append_glossary_entry",
+          "lineNumber": 225
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "form.get",
+          "lineNumber": 227
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "form.get",
+          "lineNumber": 228
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "form.get",
+          "lineNumber": 229
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "storage.read_meta",
+          "lineNumber": 232
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "storage.has_meta",
+          "lineNumber": 232
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "meta.pop",
+          "lineNumber": 233
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "storage.write_meta",
+          "lineNumber": 234
+        },
+        {
+          "caller": "ebook_chapter_ai_suggest_apply",
+          "callee": "RedirectResponse",
+          "lineNumber": 235
+        },
+        {
+          "caller": "ebook_chapter_ai",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 241
+        },
+        {
+          "caller": "ebook_chapter_ai",
+          "callee": "_AI_STEPS.get",
+          "lineNumber": 242
+        },
+        {
+          "caller": "ebook_chapter_ai",
+          "callee": "HTTPException",
+          "lineNumber": 244
+        },
+        {
+          "caller": "_target",
+          "callee": "step",
+          "lineNumber": 247
+        },
+        {
+          "caller": "ebook_chapter_ai",
+          "callee": "request.app.state.job.start_custom",
+          "lineNumber": 249
+        },
+        {
+          "caller": "ebook_chapter_ai",
+          "callee": "HTTPException",
+          "lineNumber": 251
+        },
+        {
+          "caller": "ebook_chapter_ai",
+          "callee": "RedirectResponse",
+          "lineNumber": 252
+        }
+      ],
+      "metrics": {
+        "importCount": 4,
+        "exportCount": 13,
+        "functionCount": 13,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "app/routes/ebooks.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 128,
+      "nonEmptyLines": 117,
+      "functions": [
+        {
+          "name": "_chapter_rows",
+          "startLine": 17,
+          "endLine": 39,
+          "params": [
+            "cfg",
+            "sort",
+            "direction",
+            "search",
+            "filter_raw",
+            "filter_translated",
+            "filter_missing"
+          ]
+        },
+        {
+          "name": "index",
+          "startLine": 43,
+          "endLine": 81,
+          "params": [
+            "request"
+          ]
+        },
+        {
+          "name": "ebook_home",
+          "startLine": 85,
+          "endLine": 128,
+          "params": [
+            "request",
+            "slug",
+            "sort",
+            "direction",
+            "search",
+            "filter_raw",
+            "filter_translated",
+            "filter_missing"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_chapter_rows",
+          "line": 17,
+          "isDefault": false
+        },
+        {
+          "name": "index",
+          "line": 42,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_home",
+          "line": 84,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_chapter_rows",
+          "callee": "Storage",
+          "lineNumber": 27
+        },
+        {
+          "caller": "_chapter_rows",
+          "callee": "storage.load_manifest",
+          "lineNumber": 28
+        },
+        {
+          "caller": "_chapter_rows",
+          "callee": "apply_chapter_query",
+          "lineNumber": 31
+        },
+        {
+          "caller": "_chapter_rows",
+          "callee": "chapter_rows",
+          "lineNumber": 32
+        },
+        {
+          "caller": "index",
+          "callee": "deps.library",
+          "lineNumber": 44
+        },
+        {
+          "caller": "index",
+          "callee": "library.ebooks.items",
+          "lineNumber": 47
+        },
+        {
+          "caller": "index",
+          "callee": "deps.cfg",
+          "lineNumber": 52
+        },
+        {
+          "caller": "index",
+          "callee": "load_config",
+          "lineNumber": 55
+        },
+        {
+          "caller": "index",
+          "callee": "deps.ebook_config_path",
+          "lineNumber": 55
+        },
+        {
+          "caller": "index",
+          "callee": "Storage",
+          "lineNumber": 57
+        },
+        {
+          "caller": "index",
+          "callee": "storage.load_manifest",
+          "lineNumber": 58
+        },
+        {
+          "caller": "index",
+          "callee": "sum",
+          "lineNumber": 59
+        },
+        {
+          "caller": "index",
+          "callee": "storage.has_raw",
+          "lineNumber": 59
+        },
+        {
+          "caller": "index",
+          "callee": "sum",
+          "lineNumber": 60
+        },
+        {
+          "caller": "index",
+          "callee": "storage.has_translated",
+          "lineNumber": 60
+        },
+        {
+          "caller": "index",
+          "callee": "ebooks.append",
+          "lineNumber": 61
+        },
+        {
+          "caller": "index",
+          "callee": "Path(cfg.epub_path).exists",
+          "lineNumber": 69
+        },
+        {
+          "caller": "index",
+          "callee": "Path",
+          "lineNumber": 69
+        },
+        {
+          "caller": "index",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 72
+        },
+        {
+          "caller": "index",
+          "callee": "request.app.state.job.status",
+          "lineNumber": 79
+        },
+        {
+          "caller": "ebook_home",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 95
+        },
+        {
+          "caller": "ebook_home",
+          "callee": "Storage",
+          "lineNumber": 96
+        },
+        {
+          "caller": "ebook_home",
+          "callee": "storage.load_manifest",
+          "lineNumber": 97
+        },
+        {
+          "caller": "ebook_home",
+          "callee": "Path",
+          "lineNumber": 98
+        },
+        {
+          "caller": "ebook_home",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 99
+        },
+        {
+          "caller": "ebook_home",
+          "callee": "deps.ebook_config_path",
+          "lineNumber": 104
+        },
+        {
+          "caller": "ebook_home",
+          "callee": "_chapter_rows",
+          "lineNumber": 107
+        },
+        {
+          "caller": "ebook_home",
+          "callee": "epub_path.exists",
+          "lineNumber": 124
+        },
+        {
+          "caller": "ebook_home",
+          "callee": "str",
+          "lineNumber": 125
+        },
+        {
+          "caller": "ebook_home",
+          "callee": "request.app.state.job.status",
+          "lineNumber": 126
+        }
+      ],
+      "metrics": {
+        "importCount": 4,
+        "exportCount": 3,
+        "functionCount": 3,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "app/routes/glossary.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 239,
+      "nonEmptyLines": 206,
+      "functions": [
+        {
+          "name": "_append_glossary_entry",
+          "startLine": 20,
+          "endLine": 37,
+          "params": [
+            "storage",
+            "target_file",
+            "source",
+            "suggested",
+            "note"
+          ]
+        },
+        {
+          "name": "ebook_glossary",
+          "startLine": 41,
+          "endLine": 56,
+          "params": [
+            "request",
+            "slug"
+          ]
+        },
+        {
+          "name": "ebook_glossary_save",
+          "startLine": 60,
+          "endLine": 65,
+          "params": [
+            "slug",
+            "names",
+            "vietphrase"
+          ]
+        },
+        {
+          "name": "ebook_glossary_suggest",
+          "startLine": 69,
+          "endLine": 112,
+          "params": [
+            "request",
+            "slug",
+            "chapter_from",
+            "chapter_to"
+          ]
+        },
+        {
+          "name": "ebook_glossary_evaluate",
+          "startLine": 116,
+          "endLine": 163,
+          "params": [
+            "request",
+            "slug",
+            "chapter_from",
+            "chapter_to"
+          ]
+        },
+        {
+          "name": "ebook_glossary_apply",
+          "startLine": 167,
+          "endLine": 182,
+          "params": [
+            "slug",
+            "request"
+          ]
+        },
+        {
+          "name": "ebook_glossary_quick_add",
+          "startLine": 186,
+          "endLine": 200,
+          "params": [
+            "slug",
+            "chapter_index",
+            "source",
+            "suggested",
+            "note",
+            "target_file"
+          ]
+        },
+        {
+          "name": "ebook_glossary_find_replace",
+          "startLine": 204,
+          "endLine": 226,
+          "params": [
+            "request",
+            "slug",
+            "find",
+            "replace",
+            "chapter_from",
+            "chapter_to",
+            "also_raw"
+          ]
+        },
+        {
+          "name": "ebook_glossary_rewrite",
+          "startLine": 230,
+          "endLine": 239,
+          "params": [
+            "request",
+            "slug",
+            "chapter_from",
+            "chapter_to"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_append_glossary_entry",
+          "line": 20,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_glossary",
+          "line": 40,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_glossary_save",
+          "line": 59,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_glossary_suggest",
+          "line": 68,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_glossary_evaluate",
+          "line": 115,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_glossary_apply",
+          "line": 166,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_glossary_quick_add",
+          "line": 185,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_glossary_find_replace",
+          "line": 203,
+          "isDefault": false
+        },
+        {
+          "name": "ebook_glossary_rewrite",
+          "line": 229,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_append_glossary_entry",
+          "callee": "source.strip",
+          "lineNumber": 25
+        },
+        {
+          "caller": "_append_glossary_entry",
+          "callee": "suggested.strip",
+          "lineNumber": 25
+        },
+        {
+          "caller": "_append_glossary_entry",
+          "callee": "note.strip",
+          "lineNumber": 25
+        },
+        {
+          "caller": "_append_glossary_entry",
+          "callee": "storage.read_glossary_file(target_file).get",
+          "lineNumber": 28
+        },
+        {
+          "caller": "_append_glossary_entry",
+          "callee": "storage.read_glossary_file",
+          "lineNumber": 28
+        },
+        {
+          "caller": "_append_glossary_entry",
+          "callee": "storage.glossary_path",
+          "lineNumber": 31
+        },
+        {
+          "caller": "_append_glossary_entry",
+          "callee": "path.read_text",
+          "lineNumber": 32
+        },
+        {
+          "caller": "_append_glossary_entry",
+          "callee": "path.exists",
+          "lineNumber": 32
+        },
+        {
+          "caller": "_append_glossary_entry",
+          "callee": "existing.endswith",
+          "lineNumber": 33
+        },
+        {
+          "caller": "_append_glossary_entry",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 36
+        },
+        {
+          "caller": "ebook_glossary",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 42
+        },
+        {
+          "caller": "ebook_glossary",
+          "callee": "Storage",
+          "lineNumber": 43
+        },
+        {
+          "caller": "ebook_glossary",
+          "callee": "storage.glossary_path",
+          "lineNumber": 44
+        },
+        {
+          "caller": "ebook_glossary",
+          "callee": "storage.glossary_path",
+          "lineNumber": 45
+        },
+        {
+          "caller": "ebook_glossary",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 46
+        },
+        {
+          "caller": "ebook_glossary",
+          "callee": "names.read_text",
+          "lineNumber": 51
+        },
+        {
+          "caller": "ebook_glossary",
+          "callee": "names.exists",
+          "lineNumber": 51
+        },
+        {
+          "caller": "ebook_glossary",
+          "callee": "vietphrase.read_text",
+          "lineNumber": 52
+        },
+        {
+          "caller": "ebook_glossary",
+          "callee": "vietphrase.exists",
+          "lineNumber": 52
+        },
+        {
+          "caller": "ebook_glossary",
+          "callee": "request.app.state.job.status",
+          "lineNumber": 54
+        },
+        {
+          "caller": "ebook_glossary_save",
+          "callee": "Form",
+          "lineNumber": 60
+        },
+        {
+          "caller": "ebook_glossary_save",
+          "callee": "Form",
+          "lineNumber": 60
+        },
+        {
+          "caller": "ebook_glossary_save",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 61
+        },
+        {
+          "caller": "ebook_glossary_save",
+          "callee": "Storage",
+          "lineNumber": 62
+        },
+        {
+          "caller": "ebook_glossary_save",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 63
+        },
+        {
+          "caller": "ebook_glossary_save",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 64
+        },
+        {
+          "caller": "ebook_glossary_save",
+          "callee": "RedirectResponse",
+          "lineNumber": 65
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "Form",
+          "lineNumber": 70
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "Form",
+          "lineNumber": 70
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 72
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "Storage",
+          "lineNumber": 73
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "storage.load_manifest",
+          "lineNumber": 74
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "storage.glossary_path",
+          "lineNumber": 75
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "storage.glossary_path",
+          "lineNumber": 76
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "len",
+          "lineNumber": 84
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "storage.read_raw",
+          "lineNumber": 89
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "storage.has_raw",
+          "lineNumber": 89
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "storage.read_translated",
+          "lineNumber": 90
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "storage.has_translated",
+          "lineNumber": 90
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "glossary_ai.load_glossary",
+          "lineNumber": 94
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "glossary_ai.suggest_glossary",
+          "lineNumber": 95
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 99
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "names.read_text",
+          "lineNumber": 104
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "names.exists",
+          "lineNumber": 104
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "vietphrase.read_text",
+          "lineNumber": 105
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "vietphrase.exists",
+          "lineNumber": 105
+        },
+        {
+          "caller": "ebook_glossary_suggest",
+          "callee": "request.app.state.job.status",
+          "lineNumber": 110
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "Form",
+          "lineNumber": 117
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "Form",
+          "lineNumber": 117
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 121
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "Storage",
+          "lineNumber": 122
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "storage.load_manifest",
+          "lineNumber": 123
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "storage.glossary_path",
+          "lineNumber": 124
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "storage.glossary_path",
+          "lineNumber": 125
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "storage.has_translated",
+          "lineNumber": 133
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "len",
+          "lineNumber": 137
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "storage.read_raw",
+          "lineNumber": 141
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "storage.has_raw",
+          "lineNumber": 141
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "storage.read_translated",
+          "lineNumber": 141
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "glossary_ai.load_glossary",
+          "lineNumber": 144
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "glossary_ai.evaluate_translation",
+          "lineNumber": 145
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "report.get",
+          "lineNumber": 146
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "report.get",
+          "lineNumber": 146
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 149
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "names.read_text",
+          "lineNumber": 154
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "names.exists",
+          "lineNumber": 154
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "vietphrase.read_text",
+          "lineNumber": 155
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "vietphrase.exists",
+          "lineNumber": 155
+        },
+        {
+          "caller": "ebook_glossary_evaluate",
+          "callee": "request.app.state.job.status",
+          "lineNumber": 161
+        },
+        {
+          "caller": "ebook_glossary_apply",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 168
+        },
+        {
+          "caller": "ebook_glossary_apply",
+          "callee": "Storage",
+          "lineNumber": 169
+        },
+        {
+          "caller": "ebook_glossary_apply",
+          "callee": "request.form",
+          "lineNumber": 170
+        },
+        {
+          "caller": "ebook_glossary_apply",
+          "callee": "_append_glossary_entry",
+          "lineNumber": 174
+        },
+        {
+          "caller": "ebook_glossary_apply",
+          "callee": "form.get",
+          "lineNumber": 176
+        },
+        {
+          "caller": "ebook_glossary_apply",
+          "callee": "form.get",
+          "lineNumber": 177
+        },
+        {
+          "caller": "ebook_glossary_apply",
+          "callee": "form.get",
+          "lineNumber": 178
+        },
+        {
+          "caller": "ebook_glossary_apply",
+          "callee": "RedirectResponse",
+          "lineNumber": 182
+        },
+        {
+          "caller": "ebook_glossary_quick_add",
+          "callee": "Form",
+          "lineNumber": 188
+        },
+        {
+          "caller": "ebook_glossary_quick_add",
+          "callee": "Form",
+          "lineNumber": 189
+        },
+        {
+          "caller": "ebook_glossary_quick_add",
+          "callee": "Form",
+          "lineNumber": 190
+        },
+        {
+          "caller": "ebook_glossary_quick_add",
+          "callee": "Form",
+          "lineNumber": 191
+        },
+        {
+          "caller": "ebook_glossary_quick_add",
+          "callee": "Form",
+          "lineNumber": 192
+        },
+        {
+          "caller": "ebook_glossary_quick_add",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 197
+        },
+        {
+          "caller": "ebook_glossary_quick_add",
+          "callee": "Storage",
+          "lineNumber": 198
+        },
+        {
+          "caller": "ebook_glossary_quick_add",
+          "callee": "_append_glossary_entry",
+          "lineNumber": 199
+        },
+        {
+          "caller": "ebook_glossary_quick_add",
+          "callee": "RedirectResponse",
+          "lineNumber": 200
+        },
+        {
+          "caller": "ebook_glossary_find_replace",
+          "callee": "Form",
+          "lineNumber": 207
+        },
+        {
+          "caller": "ebook_glossary_find_replace",
+          "callee": "Form",
+          "lineNumber": 208
+        },
+        {
+          "caller": "ebook_glossary_find_replace",
+          "callee": "Form",
+          "lineNumber": 209
+        },
+        {
+          "caller": "ebook_glossary_find_replace",
+          "callee": "Form",
+          "lineNumber": 210
+        },
+        {
+          "caller": "ebook_glossary_find_replace",
+          "callee": "Form",
+          "lineNumber": 211
+        },
+        {
+          "caller": "ebook_glossary_find_replace",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 214
+        },
+        {
+          "caller": "_target",
+          "callee": "step_find_replace",
+          "lineNumber": 219
+        },
+        {
+          "caller": "ebook_glossary_find_replace",
+          "callee": "request.app.state.job.start_custom",
+          "lineNumber": 223
+        },
+        {
+          "caller": "ebook_glossary_find_replace",
+          "callee": "HTTPException",
+          "lineNumber": 225
+        },
+        {
+          "caller": "ebook_glossary_find_replace",
+          "callee": "RedirectResponse",
+          "lineNumber": 226
+        },
+        {
+          "caller": "ebook_glossary_rewrite",
+          "callee": "Form",
+          "lineNumber": 230
+        },
+        {
+          "caller": "ebook_glossary_rewrite",
+          "callee": "Form",
+          "lineNumber": 230
+        },
+        {
+          "caller": "ebook_glossary_rewrite",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 231
+        },
+        {
+          "caller": "_target",
+          "callee": "step_rewrite_chapters",
+          "lineNumber": 234
+        },
+        {
+          "caller": "ebook_glossary_rewrite",
+          "callee": "request.app.state.job.start_custom",
+          "lineNumber": 236
+        },
+        {
+          "caller": "ebook_glossary_rewrite",
+          "callee": "HTTPException",
+          "lineNumber": 238
+        },
+        {
+          "caller": "ebook_glossary_rewrite",
+          "callee": "RedirectResponse",
+          "lineNumber": 239
+        }
+      ],
+      "metrics": {
+        "importCount": 5,
+        "exportCount": 9,
+        "functionCount": 9,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "app/routes/settings.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 152,
+      "nonEmptyLines": 137,
+      "functions": [
+        {
+          "name": "settings_page",
+          "startLine": 15,
+          "endLine": 27,
+          "params": [
+            "request",
+            "slug"
+          ]
+        },
+        {
+          "name": "save_novel",
+          "startLine": 31,
+          "endLine": 41,
+          "params": [
+            "slug",
+            "title",
+            "author",
+            "language"
+          ]
+        },
+        {
+          "name": "save_source",
+          "startLine": 45,
+          "endLine": 90,
+          "params": [
+            "slug",
+            "engine",
+            "toc_url",
+            "chapter_link_pattern",
+            "max_chapters",
+            "delay_seconds",
+            "content_selector",
+            "toc_selector",
+            "chapter_title_selector",
+            "title_selector",
+            "author_selector",
+            "desc_selector",
+            "cover_selector",
+            "encoding",
+            "api_key",
+            "api_url",
+            "headless",
+            "magic",
+            "js_code"
+          ]
+        },
+        {
+          "name": "apply_preset",
+          "startLine": 94,
+          "endLine": 99,
+          "params": [
+            "slug",
+            "preset"
+          ]
+        },
+        {
+          "name": "save_ai",
+          "startLine": 103,
+          "endLine": 152,
+          "params": [
+            "slug",
+            "type",
+            "command",
+            "model",
+            "mode",
+            "timeout_seconds",
+            "prompt_template",
+            "title_prompt_template",
+            "tone",
+            "pronoun_policy",
+            "title_mode",
+            "han_viet_level",
+            "keep_paragraphs",
+            "delay_seconds",
+            "retry_attempts",
+            "retry_delay_seconds",
+            "chunk_max_chars",
+            "chunk_overlap_paragraphs"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "settings_page",
+          "line": 14,
+          "isDefault": false
+        },
+        {
+          "name": "save_novel",
+          "line": 30,
+          "isDefault": false
+        },
+        {
+          "name": "save_source",
+          "line": 44,
+          "isDefault": false
+        },
+        {
+          "name": "apply_preset",
+          "line": 93,
+          "isDefault": false
+        },
+        {
+          "name": "save_ai",
+          "line": 102,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "settings_page",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 16
+        },
+        {
+          "caller": "settings_page",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 17
+        },
+        {
+          "caller": "settings_page",
+          "callee": "deps.ebook_config_path",
+          "lineNumber": 22
+        },
+        {
+          "caller": "settings_page",
+          "callee": "deps.presets",
+          "lineNumber": 24
+        },
+        {
+          "caller": "settings_page",
+          "callee": "request.app.state.job.status",
+          "lineNumber": 25
+        },
+        {
+          "caller": "save_novel",
+          "callee": "Form",
+          "lineNumber": 33
+        },
+        {
+          "caller": "save_novel",
+          "callee": "Form",
+          "lineNumber": 34
+        },
+        {
+          "caller": "save_novel",
+          "callee": "Form",
+          "lineNumber": 35
+        },
+        {
+          "caller": "save_novel",
+          "callee": "update_config_file",
+          "lineNumber": 37
+        },
+        {
+          "caller": "save_novel",
+          "callee": "deps.ebook_config_path",
+          "lineNumber": 38
+        },
+        {
+          "caller": "save_novel",
+          "callee": "RedirectResponse",
+          "lineNumber": 41
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 47
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 48
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 49
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 50
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 51
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 52
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 53
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 54
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 55
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 56
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 57
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 58
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 59
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 60
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 61
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 62
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 63
+        },
+        {
+          "caller": "save_source",
+          "callee": "Form",
+          "lineNumber": 64
+        },
+        {
+          "caller": "save_source",
+          "callee": "update_config_file",
+          "lineNumber": 89
+        },
+        {
+          "caller": "save_source",
+          "callee": "deps.ebook_config_path",
+          "lineNumber": 89
+        },
+        {
+          "caller": "save_source",
+          "callee": "RedirectResponse",
+          "lineNumber": 90
+        },
+        {
+          "caller": "apply_preset",
+          "callee": "Form",
+          "lineNumber": 94
+        },
+        {
+          "caller": "apply_preset",
+          "callee": "deps.presets().get",
+          "lineNumber": 95
+        },
+        {
+          "caller": "apply_preset",
+          "callee": "deps.presets",
+          "lineNumber": 95
+        },
+        {
+          "caller": "apply_preset",
+          "callee": "HTTPException",
+          "lineNumber": 97
+        },
+        {
+          "caller": "apply_preset",
+          "callee": "update_config_file",
+          "lineNumber": 98
+        },
+        {
+          "caller": "apply_preset",
+          "callee": "deps.ebook_config_path",
+          "lineNumber": 98
+        },
+        {
+          "caller": "apply_preset",
+          "callee": "p.crawl_overrides",
+          "lineNumber": 98
+        },
+        {
+          "caller": "apply_preset",
+          "callee": "RedirectResponse",
+          "lineNumber": 99
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 105
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 106
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 107
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 108
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 109
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 110
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 111
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 112
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 113
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 114
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 115
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 116
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 117
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 118
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 119
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 120
+        },
+        {
+          "caller": "save_ai",
+          "callee": "Form",
+          "lineNumber": 121
+        },
+        {
+          "caller": "save_ai",
+          "callee": "prompt_template.strip",
+          "lineNumber": 129
+        },
+        {
+          "caller": "save_ai",
+          "callee": "title_prompt_template.strip",
+          "lineNumber": 131
+        },
+        {
+          "caller": "save_ai",
+          "callee": "update_config_file",
+          "lineNumber": 151
+        },
+        {
+          "caller": "save_ai",
+          "callee": "deps.ebook_config_path",
+          "lineNumber": 151
+        },
+        {
+          "caller": "save_ai",
+          "callee": "RedirectResponse",
+          "lineNumber": 152
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 5,
+        "functionCount": 5,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "app/routes/sources.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 99,
+      "nonEmptyLines": 87,
+      "functions": [
+        {
+          "name": "_preset_usage",
+          "startLine": 14,
+          "endLine": 29,
+          "params": [
+            "presets",
+            "library"
+          ]
+        },
+        {
+          "name": "sources_page",
+          "startLine": 33,
+          "endLine": 45,
+          "params": [
+            "request",
+            "edit"
+          ]
+        },
+        {
+          "name": "save_source_preset",
+          "startLine": 49,
+          "endLine": 91,
+          "params": [
+            "name",
+            "engine",
+            "chapter_link_pattern",
+            "content_selector",
+            "toc_selector",
+            "chapter_title_selector",
+            "title_selector",
+            "author_selector",
+            "desc_selector",
+            "cover_selector",
+            "encoding",
+            "user_agent",
+            "headless",
+            "magic",
+            "js_code",
+            "delay_seconds"
+          ]
+        },
+        {
+          "name": "delete_source_preset",
+          "startLine": 95,
+          "endLine": 99,
+          "params": [
+            "name"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "_preset_usage",
+          "line": 14,
+          "isDefault": false
+        },
+        {
+          "name": "sources_page",
+          "line": 32,
+          "isDefault": false
+        },
+        {
+          "name": "save_source_preset",
+          "line": 48,
+          "isDefault": false
+        },
+        {
+          "name": "delete_source_preset",
+          "line": 94,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_preset_usage",
+          "callee": "deps.resolved_cfg",
+          "lineNumber": 22
+        },
+        {
+          "caller": "_preset_usage",
+          "callee": "presets.items",
+          "lineNumber": 25
+        },
+        {
+          "caller": "_preset_usage",
+          "callee": "preset.crawl_overrides",
+          "lineNumber": 26
+        },
+        {
+          "caller": "_preset_usage",
+          "callee": "all",
+          "lineNumber": 27
+        },
+        {
+          "caller": "_preset_usage",
+          "callee": "getattr",
+          "lineNumber": 27
+        },
+        {
+          "caller": "_preset_usage",
+          "callee": "overrides.items",
+          "lineNumber": 27
+        },
+        {
+          "caller": "_preset_usage",
+          "callee": "usage[name].append",
+          "lineNumber": 28
+        },
+        {
+          "caller": "sources_page",
+          "callee": "deps.presets",
+          "lineNumber": 34
+        },
+        {
+          "caller": "sources_page",
+          "callee": "deps.templates.TemplateResponse",
+          "lineNumber": 35
+        },
+        {
+          "caller": "sources_page",
+          "callee": "presets.get",
+          "lineNumber": 41
+        },
+        {
+          "caller": "sources_page",
+          "callee": "_preset_usage",
+          "lineNumber": 42
+        },
+        {
+          "caller": "sources_page",
+          "callee": "deps.library",
+          "lineNumber": 42
+        },
+        {
+          "caller": "sources_page",
+          "callee": "request.app.state.job.status",
+          "lineNumber": 43
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 50
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 51
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 52
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 53
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 54
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 55
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 56
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 57
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 58
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 59
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 60
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 61
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 62
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 63
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 64
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "Form",
+          "lineNumber": 65
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "name.strip",
+          "lineNumber": 67
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "deps.presets",
+          "lineNumber": 68
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "dict",
+          "lineNumber": 70
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "user_agent.strip",
+          "lineNumber": 87
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "SourcePreset",
+          "lineNumber": 89
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "save_presets",
+          "lineNumber": 90
+        },
+        {
+          "caller": "save_source_preset",
+          "callee": "RedirectResponse",
+          "lineNumber": 91
+        },
+        {
+          "caller": "delete_source_preset",
+          "callee": "deps.presets",
+          "lineNumber": 96
+        },
+        {
+          "caller": "delete_source_preset",
+          "callee": "presets.pop",
+          "lineNumber": 97
+        },
+        {
+          "caller": "delete_source_preset",
+          "callee": "save_presets",
+          "lineNumber": 98
+        },
+        {
+          "caller": "delete_source_preset",
+          "callee": "RedirectResponse",
+          "lineNumber": 99
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 4,
+        "functionCount": 4,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_routes_glossary.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 45,
+      "nonEmptyLines": 30,
+      "functions": [
+        {
+          "name": "test_append_new_entry_writes_line",
+          "startLine": 5,
+          "endLine": 12,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_append_skips_when_already_present_with_same_value",
+          "startLine": 15,
+          "endLine": 24,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_append_updates_when_value_differs",
+          "startLine": 27,
+          "endLine": 36,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_append_rejects_blank_or_invalid_target",
+          "startLine": 39,
+          "endLine": 45,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "test_append_new_entry_writes_line",
+          "line": 5,
+          "isDefault": false
+        },
+        {
+          "name": "test_append_skips_when_already_present_with_same_value",
+          "line": 15,
+          "isDefault": false
+        },
+        {
+          "name": "test_append_updates_when_value_differs",
+          "line": 27,
+          "isDefault": false
+        },
+        {
+          "name": "test_append_rejects_blank_or_invalid_target",
+          "line": 39,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "test_append_new_entry_writes_line",
+          "callee": "Storage",
+          "lineNumber": 6
+        },
+        {
+          "caller": "test_append_new_entry_writes_line",
+          "callee": "storage.ensure_dirs",
+          "lineNumber": 7
+        },
+        {
+          "caller": "test_append_new_entry_writes_line",
+          "callee": "_append_glossary_entry",
+          "lineNumber": 9
+        },
+        {
+          "caller": "test_append_new_entry_writes_line",
+          "callee": "storage.read_glossary_file",
+          "lineNumber": 12
+        },
+        {
+          "caller": "test_append_skips_when_already_present_with_same_value",
+          "callee": "Storage",
+          "lineNumber": 16
+        },
+        {
+          "caller": "test_append_skips_when_already_present_with_same_value",
+          "callee": "storage.ensure_dirs",
+          "lineNumber": 17
+        },
+        {
+          "caller": "test_append_skips_when_already_present_with_same_value",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 18
+        },
+        {
+          "caller": "test_append_skips_when_already_present_with_same_value",
+          "callee": "_append_glossary_entry",
+          "lineNumber": 20
+        },
+        {
+          "caller": "test_append_skips_when_already_present_with_same_value",
+          "callee": "storage.glossary_path(\"vietphrase.txt\").read_text",
+          "lineNumber": 23
+        },
+        {
+          "caller": "test_append_skips_when_already_present_with_same_value",
+          "callee": "storage.glossary_path",
+          "lineNumber": 23
+        },
+        {
+          "caller": "test_append_skips_when_already_present_with_same_value",
+          "callee": "content.count",
+          "lineNumber": 24
+        },
+        {
+          "caller": "test_append_updates_when_value_differs",
+          "callee": "Storage",
+          "lineNumber": 28
+        },
+        {
+          "caller": "test_append_updates_when_value_differs",
+          "callee": "storage.ensure_dirs",
+          "lineNumber": 29
+        },
+        {
+          "caller": "test_append_updates_when_value_differs",
+          "callee": "storage.write_glossary_file",
+          "lineNumber": 30
+        },
+        {
+          "caller": "test_append_updates_when_value_differs",
+          "callee": "_append_glossary_entry",
+          "lineNumber": 32
+        },
+        {
+          "caller": "test_append_updates_when_value_differs",
+          "callee": "storage.glossary_path(\"vietphrase.txt\").read_text",
+          "lineNumber": 35
+        },
+        {
+          "caller": "test_append_updates_when_value_differs",
+          "callee": "storage.glossary_path",
+          "lineNumber": 35
+        },
+        {
+          "caller": "test_append_rejects_blank_or_invalid_target",
+          "callee": "Storage",
+          "lineNumber": 40
+        },
+        {
+          "caller": "test_append_rejects_blank_or_invalid_target",
+          "callee": "storage.ensure_dirs",
+          "lineNumber": 41
+        },
+        {
+          "caller": "test_append_rejects_blank_or_invalid_target",
+          "callee": "_append_glossary_entry",
+          "lineNumber": 43
+        },
+        {
+          "caller": "test_append_rejects_blank_or_invalid_target",
+          "callee": "_append_glossary_entry",
+          "lineNumber": 44
+        },
+        {
+          "caller": "test_append_rejects_blank_or_invalid_target",
+          "callee": "_append_glossary_entry",
+          "lineNumber": 45
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 4,
+        "functionCount": 4,
+        "classCount": 0
+      }
+    }
+  ]
+}

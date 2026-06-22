@@ -1,0 +1,597 @@
+﻿{
+    "batchIndex":  3,
+    "files":  [
+                  {
+                      "path":  "app/routes/jobs.py",
+                      "language":  "python",
+                      "sizeLines":  184,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/__main__.py",
+                      "language":  "python",
+                      "sizeLines":  4,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/cli.py",
+                      "language":  "python",
+                      "sizeLines":  331,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/pipeline.py",
+                      "language":  "python",
+                      "sizeLines":  814,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/storage.py",
+                      "language":  "python",
+                      "sizeLines":  250,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "novel2epub/toc.py",
+                      "language":  "python",
+                      "sizeLines":  154,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_pipeline_ai_chapter.py",
+                      "language":  "python",
+                      "sizeLines":  99,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_refactor_toc.py",
+                      "language":  "python",
+                      "sizeLines":  312,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_storage.py",
+                      "language":  "python",
+                      "sizeLines":  135,
+                      "fileCategory":  "code"
+                  }
+              ],
+    "batchImportData":  {
+                            "app/routes/jobs.py":  [
+                                                       "app/deps.py",
+                                                       "novel2epub/pipeline.py",
+                                                       "novel2epub/storage.py",
+                                                       "novel2epub/toc.py"
+                                                   ],
+                            "novel2epub/__main__.py":  [
+                                                           "novel2epub/cli.py"
+                                                       ],
+                            "novel2epub/cli.py":  [
+                                                      "novel2epub/config.py",
+                                                      "novel2epub/pipeline.py",
+                                                      "novel2epub/preset_builder.py",
+                                                      "novel2epub/storage.py",
+                                                      "novel2epub/toc.py"
+                                                  ],
+                            "novel2epub/pipeline.py":  [
+                                                           "novel2epub/config.py",
+                                                           "novel2epub/crawler.py",
+                                                           "novel2epub/epub_builder.py",
+                                                           "novel2epub/storage.py",
+                                                           "novel2epub/toc.py",
+                                                           "novel2epub/translator.py"
+                                                       ],
+                            "novel2epub/storage.py":  [
+
+                                                      ],
+                            "novel2epub/toc.py":  [
+                                                      "novel2epub/storage.py"
+                                                  ],
+                            "tests/test_pipeline_ai_chapter.py":  [
+                                                                      "novel2epub/__init__.py",
+                                                                      "novel2epub/config.py",
+                                                                      "novel2epub/glossary_ai.py",
+                                                                      "novel2epub/pipeline.py",
+                                                                      "novel2epub/storage.py"
+                                                                  ],
+                            "tests/test_refactor_toc.py":  [
+                                                               "novel2epub/__init__.py",
+                                                               "novel2epub/cli.py",
+                                                               "novel2epub/config.py",
+                                                               "novel2epub/crawler.py",
+                                                               "novel2epub/pipeline.py",
+                                                               "novel2epub/storage.py",
+                                                               "novel2epub/toc.py"
+                                                           ],
+                            "tests/test_storage.py":  [
+                                                          "novel2epub/storage.py"
+                                                      ]
+                        },
+    "neighborMap":  {
+                        "app/routes/jobs.py":  [
+                                                   {
+                                                       "path":  "app/deps.py",
+                                                       "batchIndex":  2,
+                                                       "symbols":  [
+                                                                       "cfg",
+                                                                       "library",
+                                                                       "presets",
+                                                                       "resolve_path",
+                                                                       "ebook_config_path",
+                                                                       "ebook_cfg",
+                                                                       "resolved_cfg"
+                                                                   ]
+                                                   },
+                                                   {
+                                                       "path":  "app/main.py",
+                                                       "batchIndex":  2,
+                                                       "symbols":  [
+
+                                                                   ]
+                                                   }
+                                               ],
+                        "novel2epub/cli.py":  [
+                                                  {
+                                                      "path":  "novel2epub/config.py",
+                                                      "batchIndex":  1,
+                                                      "symbols":  [
+                                                                      "CrawlConfig",
+                                                                      "GlossaryFilesConfig",
+                                                                      "TranslationStyleConfig",
+                                                                      "TranslationRetryConfig",
+                                                                      "TranslationChunkConfig",
+                                                                      "CliTranslatorConfig",
+                                                                      "TranslateConfig",
+                                                                      "NovelConfig",
+                                                                      "OutputConfig",
+                                                                      "Config",
+                                                                      "LibraryEntry",
+                                                                      "LibraryConfig",
+                                                                      "_as_dict",
+                                                                      "load_library",
+                                                                      "_build_style",
+                                                                      "load_config"
+                                                                  ]
+                                                  },
+                                                  {
+                                                      "path":  "novel2epub/preset_builder.py",
+                                                      "batchIndex":  1,
+                                                      "symbols":  [
+                                                                      "PresetBuilderResult",
+                                                                      "select_engine_heuristic",
+                                                                      "_hostname",
+                                                                      "_preset_name_from_host",
+                                                                      "_domains_from_host",
+                                                                      "build_ai_suggestion_prompt",
+                                                                      "parse_ai_suggestion",
+                                                                      "_count_pattern_links",
+                                                                      "validate_pattern",
+                                                                      "_refine_feedback",
+                                                                      "refine_pattern_with_ai",
+                                                                      "_fallback_refine",
+                                                                      "_bool",
+                                                                      "_float",
+                                                                      "_int",
+                                                                      "_build_source_preset",
+                                                                      "_get_cli_config",
+                                                                      "build_preset",
+                                                                      "preview_toc",
+                                                                      "save_preset",
+                                                                      "remove_preset"
+                                                                  ]
+                                                  }
+                                              ],
+                        "novel2epub/pipeline.py":  [
+                                                       {
+                                                           "path":  "novel2epub/config.py",
+                                                           "batchIndex":  1,
+                                                           "symbols":  [
+                                                                           "CrawlConfig",
+                                                                           "GlossaryFilesConfig",
+                                                                           "TranslationStyleConfig",
+                                                                           "TranslationRetryConfig",
+                                                                           "TranslationChunkConfig",
+                                                                           "CliTranslatorConfig",
+                                                                           "TranslateConfig",
+                                                                           "NovelConfig",
+                                                                           "OutputConfig",
+                                                                           "Config",
+                                                                           "LibraryEntry",
+                                                                           "LibraryConfig",
+                                                                           "_as_dict",
+                                                                           "load_library",
+                                                                           "_build_style",
+                                                                           "load_config"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "novel2epub/crawler.py",
+                                                           "batchIndex":  1,
+                                                           "symbols":  [
+                                                                           "TocResult",
+                                                                           "Crawler",
+                                                                           "_dedupe_keep_last",
+                                                                           "_get",
+                                                                           "fetch_chapter_paginated",
+                                                                           "_next_page_url_from_html",
+                                                                           "_make_css_resolver",
+                                                                           "_next_page_url_from_pattern",
+                                                                           "_extract_href",
+                                                                           "_meta_get",
+                                                                           "HttpCrawler",
+                                                                           "Crawl4AICrawler",
+                                                                           "make_crawler"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "novel2epub/epub_builder.py",
+                                                           "batchIndex":  4,
+                                                           "symbols":  [
+                                                                           "_markers_to_html",
+                                                                           "_md_to_xhtml_body",
+                                                                           "_render_footnotes",
+                                                                           "build_epub"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "novel2epub/translator.py",
+                                                           "batchIndex":  5,
+                                                           "symbols":  [
+                                                                           "_clean_output",
+                                                                           "_parse_title_response",
+                                                                           "_format_glossary",
+                                                                           "_apply_glossary",
+                                                                           "_merge_glossaries",
+                                                                           "load_glossary_dict",
+                                                                           "Translator",
+                                                                           "NoopTranslator",
+                                                                           "CLITranslator",
+                                                                           "GoogleTranslator",
+                                                                           "make_translator",
+                                                                           "RateLimited"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "app/job.py",
+                                                           "batchIndex":  1,
+                                                           "symbols":  [
+                                                                           "JobRunner"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "app/routes/chapters.py",
+                                                           "batchIndex":  2,
+                                                           "symbols":  [
+                                                                           "_chapter_glossary",
+                                                                           "_chapter_context",
+                                                                           "chapter_detail",
+                                                                           "ebook_chapter_detail",
+                                                                           "chapter_save",
+                                                                           "ebook_chapter_save",
+                                                                           "ebook_chapter_action",
+                                                                           "_load_chapter_or_404",
+                                                                           "ebook_chapter_ai_rewrite_apply",
+                                                                           "ebook_chapter_ai_rewrite_discard",
+                                                                           "ebook_chapter_ai_review_dismiss",
+                                                                           "ebook_chapter_ai_suggest_apply",
+                                                                           "ebook_chapter_ai"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "app/routes/glossary.py",
+                                                           "batchIndex":  2,
+                                                           "symbols":  [
+                                                                           "_append_glossary_entry",
+                                                                           "ebook_glossary",
+                                                                           "ebook_glossary_save",
+                                                                           "ebook_glossary_suggest",
+                                                                           "ebook_glossary_evaluate",
+                                                                           "ebook_glossary_apply",
+                                                                           "ebook_glossary_quick_add",
+                                                                           "ebook_glossary_find_replace",
+                                                                           "ebook_glossary_rewrite"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "app/routes/library.py",
+                                                           "batchIndex":  1,
+                                                           "symbols":  [
+                                                                           "slugify",
+                                                                           "_fetch_meta",
+                                                                           "library_page",
+                                                                           "fetch_meta_api",
+                                                                           "create_ebook",
+                                                                           "delete_ebook"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "tests/test_pipeline_meta.py",
+                                                           "batchIndex":  1,
+                                                           "symbols":  [
+                                                                           "_cfg",
+                                                                           "_FakeCrawler",
+                                                                           "_UpperTranslator",
+                                                                           "test_step_fetch_toc_saves_metadata_no_content",
+                                                                           "test_step_translate_meta_fills_vi",
+                                                                           "test_step_translate_meta_noop_skips",
+                                                                           "test_translate_meta_inplace_respects_force",
+                                                                           "_FlakyTranslator",
+                                                                           "test_translate_selected_reports_per_chapter_error_and_continues",
+                                                                           "test_translate_selected_fails_fast_on_first_chapter",
+                                                                           "test_step_find_replace_replaces_and_backs_up",
+                                                                           "test_step_find_replace_empty_find_is_noop",
+                                                                           "test_step_build_inserts_glossary_footnotes",
+                                                                           "test_build_epub_uses_vi_meta_and_cover"
+                                                                       ]
+                                                       }
+                                                   ],
+                        "novel2epub/storage.py":  [
+                                                      {
+                                                          "path":  "app/routes/chapters.py",
+                                                          "batchIndex":  2,
+                                                          "symbols":  [
+                                                                          "_chapter_glossary",
+                                                                          "_chapter_context",
+                                                                          "chapter_detail",
+                                                                          "ebook_chapter_detail",
+                                                                          "chapter_save",
+                                                                          "ebook_chapter_save",
+                                                                          "ebook_chapter_action",
+                                                                          "_load_chapter_or_404",
+                                                                          "ebook_chapter_ai_rewrite_apply",
+                                                                          "ebook_chapter_ai_rewrite_discard",
+                                                                          "ebook_chapter_ai_review_dismiss",
+                                                                          "ebook_chapter_ai_suggest_apply",
+                                                                          "ebook_chapter_ai"
+                                                                      ]
+                                                      },
+                                                      {
+                                                          "path":  "app/routes/ebooks.py",
+                                                          "batchIndex":  2,
+                                                          "symbols":  [
+                                                                          "_chapter_rows",
+                                                                          "index",
+                                                                          "ebook_home"
+                                                                      ]
+                                                      },
+                                                      {
+                                                          "path":  "app/routes/glossary.py",
+                                                          "batchIndex":  2,
+                                                          "symbols":  [
+                                                                          "_append_glossary_entry",
+                                                                          "ebook_glossary",
+                                                                          "ebook_glossary_save",
+                                                                          "ebook_glossary_suggest",
+                                                                          "ebook_glossary_evaluate",
+                                                                          "ebook_glossary_apply",
+                                                                          "ebook_glossary_quick_add",
+                                                                          "ebook_glossary_find_replace",
+                                                                          "ebook_glossary_rewrite"
+                                                                      ]
+                                                      },
+                                                      {
+                                                          "path":  "novel2epub/crawler.py",
+                                                          "batchIndex":  1,
+                                                          "symbols":  [
+                                                                          "TocResult",
+                                                                          "Crawler",
+                                                                          "_dedupe_keep_last",
+                                                                          "_get",
+                                                                          "fetch_chapter_paginated",
+                                                                          "_next_page_url_from_html",
+                                                                          "_make_css_resolver",
+                                                                          "_next_page_url_from_pattern",
+                                                                          "_extract_href",
+                                                                          "_meta_get",
+                                                                          "HttpCrawler",
+                                                                          "Crawl4AICrawler",
+                                                                          "make_crawler"
+                                                                      ]
+                                                      },
+                                                      {
+                                                          "path":  "novel2epub/epub_builder.py",
+                                                          "batchIndex":  4,
+                                                          "symbols":  [
+                                                                          "_markers_to_html",
+                                                                          "_md_to_xhtml_body",
+                                                                          "_render_footnotes",
+                                                                          "build_epub"
+                                                                      ]
+                                                      },
+                                                      {
+                                                          "path":  "novel2epub/translator.py",
+                                                          "batchIndex":  5,
+                                                          "symbols":  [
+                                                                          "_clean_output",
+                                                                          "_parse_title_response",
+                                                                          "_format_glossary",
+                                                                          "_apply_glossary",
+                                                                          "_merge_glossaries",
+                                                                          "load_glossary_dict",
+                                                                          "Translator",
+                                                                          "NoopTranslator",
+                                                                          "CLITranslator",
+                                                                          "GoogleTranslator",
+                                                                          "make_translator",
+                                                                          "RateLimited"
+                                                                      ]
+                                                      },
+                                                      {
+                                                          "path":  "tests/test_chapter_pagination.py",
+                                                          "batchIndex":  1,
+                                                          "symbols":  [
+                                                                          "_soup",
+                                                                          "_page",
+                                                                          "_make_http_crawler",
+                                                                          "_FakeResp",
+                                                                          "_patch_http_session",
+                                                                          "test_single_page_no_pagination",
+                                                                          "test_three_page_chapter_follows_selector",
+                                                                          "test_url_pattern_fallback_substitutes_group",
+                                                                          "test_url_pattern_returns_none_when_no_match",
+                                                                          "test_url_pattern_stops_when_pattern_no_longer_matches",
+                                                                          "test_url_pattern_stops_when_pattern_no_longer_matches",
+                                                                          "test_duplicate_content_stops_pagination",
+                                                                          "test_max_pages_caps_pagination",
+                                                                          "test_repeated_title_is_stripped_from_subpage",
+                                                                          "test_http_crawler_follows_three_pages",
+                                                                          "test_http_crawler_single_page_when_no_pagination_config",
+                                                                          "test_http_crawler_pagination_with_url_pattern"
+                                                                      ]
+                                                      },
+                                                      {
+                                                          "path":  "tests/test_pipeline_meta.py",
+                                                          "batchIndex":  1,
+                                                          "symbols":  [
+                                                                          "_cfg",
+                                                                          "_FakeCrawler",
+                                                                          "_UpperTranslator",
+                                                                          "test_step_fetch_toc_saves_metadata_no_content",
+                                                                          "test_step_translate_meta_fills_vi",
+                                                                          "test_step_translate_meta_noop_skips",
+                                                                          "test_translate_meta_inplace_respects_force",
+                                                                          "_FlakyTranslator",
+                                                                          "test_translate_selected_reports_per_chapter_error_and_continues",
+                                                                          "test_translate_selected_fails_fast_on_first_chapter",
+                                                                          "test_step_find_replace_replaces_and_backs_up",
+                                                                          "test_step_find_replace_empty_find_is_noop",
+                                                                          "test_step_build_inserts_glossary_footnotes",
+                                                                          "test_build_epub_uses_vi_meta_and_cover"
+                                                                      ]
+                                                      },
+                                                      {
+                                                          "path":  "tests/test_routes_glossary.py",
+                                                          "batchIndex":  2,
+                                                          "symbols":  [
+                                                                          "test_append_new_entry_writes_line",
+                                                                          "test_append_skips_when_already_present_with_same_value",
+                                                                          "test_append_updates_when_value_differs",
+                                                                          "test_append_rejects_blank_or_invalid_target"
+                                                                      ]
+                                                      }
+                                                  ],
+                        "novel2epub/toc.py":  [
+                                                  {
+                                                      "path":  "app/routes/ebooks.py",
+                                                      "batchIndex":  2,
+                                                      "symbols":  [
+                                                                      "_chapter_rows",
+                                                                      "index",
+                                                                      "ebook_home"
+                                                                  ]
+                                                  },
+                                                  {
+                                                      "path":  "novel2epub/crawler.py",
+                                                      "batchIndex":  1,
+                                                      "symbols":  [
+                                                                      "TocResult",
+                                                                      "Crawler",
+                                                                      "_dedupe_keep_last",
+                                                                      "_get",
+                                                                      "fetch_chapter_paginated",
+                                                                      "_next_page_url_from_html",
+                                                                      "_make_css_resolver",
+                                                                      "_next_page_url_from_pattern",
+                                                                      "_extract_href",
+                                                                      "_meta_get",
+                                                                      "HttpCrawler",
+                                                                      "Crawl4AICrawler",
+                                                                      "make_crawler"
+                                                                  ]
+                                                  }
+                                              ],
+                        "tests/test_pipeline_ai_chapter.py":  [
+                                                                  {
+                                                                      "path":  "novel2epub/__init__.py",
+                                                                      "batchIndex":  4,
+                                                                      "symbols":  [
+
+                                                                                  ]
+                                                                  },
+                                                                  {
+                                                                      "path":  "novel2epub/config.py",
+                                                                      "batchIndex":  1,
+                                                                      "symbols":  [
+                                                                                      "CrawlConfig",
+                                                                                      "GlossaryFilesConfig",
+                                                                                      "TranslationStyleConfig",
+                                                                                      "TranslationRetryConfig",
+                                                                                      "TranslationChunkConfig",
+                                                                                      "CliTranslatorConfig",
+                                                                                      "TranslateConfig",
+                                                                                      "NovelConfig",
+                                                                                      "OutputConfig",
+                                                                                      "Config",
+                                                                                      "LibraryEntry",
+                                                                                      "LibraryConfig",
+                                                                                      "_as_dict",
+                                                                                      "load_library",
+                                                                                      "_build_style",
+                                                                                      "load_config"
+                                                                                  ]
+                                                                  },
+                                                                  {
+                                                                      "path":  "novel2epub/glossary_ai.py",
+                                                                      "batchIndex":  5,
+                                                                      "symbols":  [
+                                                                                      "_parse_suggestions",
+                                                                                      "suggest_glossary",
+                                                                                      "rewrite_chapter",
+                                                                                      "_parse_evaluation",
+                                                                                      "evaluate_translation",
+                                                                                      "format_evaluation_text"
+                                                                                  ]
+                                                                  }
+                                                              ],
+                        "tests/test_refactor_toc.py":  [
+                                                           {
+                                                               "path":  "novel2epub/__init__.py",
+                                                               "batchIndex":  4,
+                                                               "symbols":  [
+
+                                                                           ]
+                                                           },
+                                                           {
+                                                               "path":  "novel2epub/config.py",
+                                                               "batchIndex":  1,
+                                                               "symbols":  [
+                                                                               "CrawlConfig",
+                                                                               "GlossaryFilesConfig",
+                                                                               "TranslationStyleConfig",
+                                                                               "TranslationRetryConfig",
+                                                                               "TranslationChunkConfig",
+                                                                               "CliTranslatorConfig",
+                                                                               "TranslateConfig",
+                                                                               "NovelConfig",
+                                                                               "OutputConfig",
+                                                                               "Config",
+                                                                               "LibraryEntry",
+                                                                               "LibraryConfig",
+                                                                               "_as_dict",
+                                                                               "load_library",
+                                                                               "_build_style",
+                                                                               "load_config"
+                                                                           ]
+                                                           },
+                                                           {
+                                                               "path":  "novel2epub/crawler.py",
+                                                               "batchIndex":  1,
+                                                               "symbols":  [
+                                                                               "TocResult",
+                                                                               "Crawler",
+                                                                               "_dedupe_keep_last",
+                                                                               "_get",
+                                                                               "fetch_chapter_paginated",
+                                                                               "_next_page_url_from_html",
+                                                                               "_make_css_resolver",
+                                                                               "_next_page_url_from_pattern",
+                                                                               "_extract_href",
+                                                                               "_meta_get",
+                                                                               "HttpCrawler",
+                                                                               "Crawl4AICrawler",
+                                                                               "make_crawler"
+                                                                           ]
+                                                           }
+                                                       ]
+                    }
+}

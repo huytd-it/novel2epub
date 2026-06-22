@@ -1,0 +1,434 @@
+﻿{
+    "batchIndex":  2,
+    "files":  [
+                  {
+                      "path":  "app/deps.py",
+                      "language":  "python",
+                      "sizeLines":  67,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/main.py",
+                      "language":  "python",
+                      "sizeLines":  25,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/__init__.py",
+                      "language":  "python",
+                      "sizeLines":  0,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/chapters.py",
+                      "language":  "python",
+                      "sizeLines":  252,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/ebooks.py",
+                      "language":  "python",
+                      "sizeLines":  128,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/glossary.py",
+                      "language":  "python",
+                      "sizeLines":  239,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/settings.py",
+                      "language":  "python",
+                      "sizeLines":  152,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "app/routes/sources.py",
+                      "language":  "python",
+                      "sizeLines":  99,
+                      "fileCategory":  "code"
+                  },
+                  {
+                      "path":  "tests/test_routes_glossary.py",
+                      "language":  "python",
+                      "sizeLines":  45,
+                      "fileCategory":  "code"
+                  }
+              ],
+    "batchImportData":  {
+                            "app/deps.py":  [
+                                                "novel2epub/config.py",
+                                                "novel2epub/sources.py"
+                                            ],
+                            "app/main.py":  [
+                                                "app/deps.py",
+                                                "app/job.py",
+                                                "app/routes/__init__.py",
+                                                "app/routes/chapters.py",
+                                                "app/routes/ebooks.py",
+                                                "app/routes/glossary.py",
+                                                "app/routes/jobs.py",
+                                                "app/routes/library.py",
+                                                "app/routes/settings.py",
+                                                "app/routes/sources.py"
+                                            ],
+                            "app/routes/__init__.py":  [
+
+                                                       ],
+                            "app/routes/chapters.py":  [
+                                                           "app/deps.py",
+                                                           "app/routes/glossary.py",
+                                                           "novel2epub/pipeline.py",
+                                                           "novel2epub/storage.py"
+                                                       ],
+                            "app/routes/ebooks.py":  [
+                                                         "app/deps.py",
+                                                         "novel2epub/config.py",
+                                                         "novel2epub/storage.py",
+                                                         "novel2epub/toc.py"
+                                                     ],
+                            "app/routes/glossary.py":  [
+                                                           "app/deps.py",
+                                                           "novel2epub/__init__.py",
+                                                           "novel2epub/glossary_ai.py",
+                                                           "novel2epub/pipeline.py",
+                                                           "novel2epub/storage.py"
+                                                       ],
+                            "app/routes/settings.py":  [
+                                                           "app/deps.py",
+                                                           "novel2epub/config_writer.py"
+                                                       ],
+                            "app/routes/sources.py":  [
+                                                          "app/deps.py",
+                                                          "novel2epub/sources.py"
+                                                      ],
+                            "tests/test_routes_glossary.py":  [
+                                                                  "app/routes/glossary.py",
+                                                                  "novel2epub/storage.py"
+                                                              ]
+                        },
+    "neighborMap":  {
+                        "app/deps.py":  [
+                                            {
+                                                "path":  "novel2epub/config.py",
+                                                "batchIndex":  1,
+                                                "symbols":  [
+                                                                "CrawlConfig",
+                                                                "GlossaryFilesConfig",
+                                                                "TranslationStyleConfig",
+                                                                "TranslationRetryConfig",
+                                                                "TranslationChunkConfig",
+                                                                "CliTranslatorConfig",
+                                                                "TranslateConfig",
+                                                                "NovelConfig",
+                                                                "OutputConfig",
+                                                                "Config",
+                                                                "LibraryEntry",
+                                                                "LibraryConfig",
+                                                                "_as_dict",
+                                                                "load_library",
+                                                                "_build_style",
+                                                                "load_config"
+                                                            ]
+                                            },
+                                            {
+                                                "path":  "novel2epub/sources.py",
+                                                "batchIndex":  1,
+                                                "symbols":  [
+                                                                "_yaml",
+                                                                "SourcePreset",
+                                                                "_coerce",
+                                                                "load_presets",
+                                                                "detect_preset",
+                                                                "save_presets"
+                                                            ]
+                                            },
+                                            {
+                                                "path":  "app/routes/jobs.py",
+                                                "batchIndex":  3,
+                                                "symbols":  [
+                                                                "_parse_optional_int",
+                                                                "start_job",
+                                                                "start_ebook_crawl_range",
+                                                                "start_ebook_chapter_action",
+                                                                "start_ebook_job",
+                                                                "api_status",
+                                                                "download",
+                                                                "ebook_cover",
+                                                                "ebook_download"
+                                                            ]
+                                            },
+                                            {
+                                                "path":  "app/routes/library.py",
+                                                "batchIndex":  1,
+                                                "symbols":  [
+                                                                "slugify",
+                                                                "_fetch_meta",
+                                                                "library_page",
+                                                                "fetch_meta_api",
+                                                                "create_ebook",
+                                                                "delete_ebook"
+                                                            ]
+                                            },
+                                            {
+                                                "path":  "app/routes/preset_builder.py",
+                                                "batchIndex":  1,
+                                                "symbols":  [
+                                                                "_build_overrides",
+                                                                "preset_builder_page",
+                                                                "preset_builder_preview",
+                                                                "preset_builder_save",
+                                                                "preset_builder_toc_preview_api",
+                                                                "suggest_preset_url"
+                                                            ]
+                                            }
+                                        ],
+                        "app/main.py":  [
+                                            {
+                                                "path":  "app/job.py",
+                                                "batchIndex":  1,
+                                                "symbols":  [
+                                                                "JobRunner"
+                                                            ]
+                                            },
+                                            {
+                                                "path":  "app/routes/jobs.py",
+                                                "batchIndex":  3,
+                                                "symbols":  [
+                                                                "_parse_optional_int",
+                                                                "start_job",
+                                                                "start_ebook_crawl_range",
+                                                                "start_ebook_chapter_action",
+                                                                "start_ebook_job",
+                                                                "api_status",
+                                                                "download",
+                                                                "ebook_cover",
+                                                                "ebook_download"
+                                                            ]
+                                            },
+                                            {
+                                                "path":  "app/routes/library.py",
+                                                "batchIndex":  1,
+                                                "symbols":  [
+                                                                "slugify",
+                                                                "_fetch_meta",
+                                                                "library_page",
+                                                                "fetch_meta_api",
+                                                                "create_ebook",
+                                                                "delete_ebook"
+                                                            ]
+                                            }
+                                        ],
+                        "app/routes/chapters.py":  [
+                                                       {
+                                                           "path":  "novel2epub/pipeline.py",
+                                                           "batchIndex":  3,
+                                                           "symbols":  [
+                                                                           "_print",
+                                                                           "_now_iso",
+                                                                           "_run_with_heartbeat",
+                                                                           "_log_chapter_done",
+                                                                           "_clean_title",
+                                                                           "_strip_repeated_title",
+                                                                           "_chapter_range",
+                                                                           "_chapter_selection",
+                                                                           "_apply_default_crawl_limit",
+                                                                           "_build_meta",
+                                                                           "_quality_warnings",
+                                                                           "_refresh_manifest",
+                                                                           "_download_cover",
+                                                                           "_cover_ext",
+                                                                           "_fetch_chapter_with_retry",
+                                                                           "step_crawl",
+                                                                           "step_crawl_selected",
+                                                                           "step_fetch_toc",
+                                                                           "_translate_meta_inplace",
+                                                                           "step_translate_meta",
+                                                                           "step_translate",
+                                                                           "step_translate_selected",
+                                                                           "step_rewrite_chapters",
+                                                                           "step_find_replace",
+                                                                           "step_evaluate_translation",
+                                                                           "_require_chapter",
+                                                                           "_update_chapter_meta",
+                                                                           "step_review_chapter",
+                                                                           "step_suggest_chapter",
+                                                                           "step_rewrite_preview",
+                                                                           "step_build",
+                                                                           "run_all"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "novel2epub/storage.py",
+                                                           "batchIndex":  3,
+                                                           "symbols":  [
+                                                                           "parse_glossary_line",
+                                                                           "Chapter",
+                                                                           "Manifest",
+                                                                           "Storage"
+                                                                       ]
+                                                       }
+                                                   ],
+                        "app/routes/ebooks.py":  [
+                                                     {
+                                                         "path":  "novel2epub/config.py",
+                                                         "batchIndex":  1,
+                                                         "symbols":  [
+                                                                         "CrawlConfig",
+                                                                         "GlossaryFilesConfig",
+                                                                         "TranslationStyleConfig",
+                                                                         "TranslationRetryConfig",
+                                                                         "TranslationChunkConfig",
+                                                                         "CliTranslatorConfig",
+                                                                         "TranslateConfig",
+                                                                         "NovelConfig",
+                                                                         "OutputConfig",
+                                                                         "Config",
+                                                                         "LibraryEntry",
+                                                                         "LibraryConfig",
+                                                                         "_as_dict",
+                                                                         "load_library",
+                                                                         "_build_style",
+                                                                         "load_config"
+                                                                     ]
+                                                     },
+                                                     {
+                                                         "path":  "novel2epub/storage.py",
+                                                         "batchIndex":  3,
+                                                         "symbols":  [
+                                                                         "parse_glossary_line",
+                                                                         "Chapter",
+                                                                         "Manifest",
+                                                                         "Storage"
+                                                                     ]
+                                                     },
+                                                     {
+                                                         "path":  "novel2epub/toc.py",
+                                                         "batchIndex":  3,
+                                                         "symbols":  [
+                                                                         "ChapterRow",
+                                                                         "missing_metadata",
+                                                                         "chapter_missing",
+                                                                         "mark_duplicate_chapters",
+                                                                         "chapter_rows",
+                                                                         "_matches_filter",
+                                                                         "apply_chapter_query",
+                                                                         "select_visible_range",
+                                                                         "parse_filter",
+                                                                         "parse_range"
+                                                                     ]
+                                                     }
+                                                 ],
+                        "app/routes/glossary.py":  [
+                                                       {
+                                                           "path":  "novel2epub/__init__.py",
+                                                           "batchIndex":  4,
+                                                           "symbols":  [
+
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "novel2epub/glossary_ai.py",
+                                                           "batchIndex":  5,
+                                                           "symbols":  [
+                                                                           "_parse_suggestions",
+                                                                           "suggest_glossary",
+                                                                           "rewrite_chapter",
+                                                                           "_parse_evaluation",
+                                                                           "evaluate_translation",
+                                                                           "format_evaluation_text"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "novel2epub/pipeline.py",
+                                                           "batchIndex":  3,
+                                                           "symbols":  [
+                                                                           "_print",
+                                                                           "_now_iso",
+                                                                           "_run_with_heartbeat",
+                                                                           "_log_chapter_done",
+                                                                           "_clean_title",
+                                                                           "_strip_repeated_title",
+                                                                           "_chapter_range",
+                                                                           "_chapter_selection",
+                                                                           "_apply_default_crawl_limit",
+                                                                           "_build_meta",
+                                                                           "_quality_warnings",
+                                                                           "_refresh_manifest",
+                                                                           "_download_cover",
+                                                                           "_cover_ext",
+                                                                           "_fetch_chapter_with_retry",
+                                                                           "step_crawl",
+                                                                           "step_crawl_selected",
+                                                                           "step_fetch_toc",
+                                                                           "_translate_meta_inplace",
+                                                                           "step_translate_meta",
+                                                                           "step_translate",
+                                                                           "step_translate_selected",
+                                                                           "step_rewrite_chapters",
+                                                                           "step_find_replace",
+                                                                           "step_evaluate_translation",
+                                                                           "_require_chapter",
+                                                                           "_update_chapter_meta",
+                                                                           "step_review_chapter",
+                                                                           "step_suggest_chapter",
+                                                                           "step_rewrite_preview",
+                                                                           "step_build",
+                                                                           "run_all"
+                                                                       ]
+                                                       },
+                                                       {
+                                                           "path":  "novel2epub/storage.py",
+                                                           "batchIndex":  3,
+                                                           "symbols":  [
+                                                                           "parse_glossary_line",
+                                                                           "Chapter",
+                                                                           "Manifest",
+                                                                           "Storage"
+                                                                       ]
+                                                       }
+                                                   ],
+                        "app/routes/settings.py":  [
+                                                       {
+                                                           "path":  "novel2epub/config_writer.py",
+                                                           "batchIndex":  1,
+                                                           "symbols":  [
+                                                                           "_yaml",
+                                                                           "_load",
+                                                                           "_coerce",
+                                                                           "_deep_merge",
+                                                                           "update_config_file",
+                                                                           "scaffold_config_file",
+                                                                           "save_library"
+                                                                       ]
+                                                       }
+                                                   ],
+                        "app/routes/sources.py":  [
+                                                      {
+                                                          "path":  "novel2epub/sources.py",
+                                                          "batchIndex":  1,
+                                                          "symbols":  [
+                                                                          "_yaml",
+                                                                          "SourcePreset",
+                                                                          "_coerce",
+                                                                          "load_presets",
+                                                                          "detect_preset",
+                                                                          "save_presets"
+                                                                      ]
+                                                      }
+                                                  ],
+                        "tests/test_routes_glossary.py":  [
+                                                              {
+                                                                  "path":  "novel2epub/storage.py",
+                                                                  "batchIndex":  3,
+                                                                  "symbols":  [
+                                                                                  "parse_glossary_line",
+                                                                                  "Chapter",
+                                                                                  "Manifest",
+                                                                                  "Storage"
+                                                                              ]
+                                                              }
+                                                          ]
+                    }
+}

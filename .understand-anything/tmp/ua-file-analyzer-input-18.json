@@ -1,0 +1,43 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            "openspec/changes/ai-source-preset-builder/.openspec.yaml":  [
+
+                                                                                         ],
+                            "openspec/changes/ai-source-preset-builder/design.md":  [
+
+                                                                                    ],
+                            "openspec/changes/ai-source-preset-builder/proposal.md":  [
+
+                                                                                      ],
+                            "openspec/changes/ai-source-preset-builder/tasks.md":  [
+
+                                                                                   ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  "openspec/changes/ai-source-preset-builder/.openspec.yaml",
+                           "language":  "yaml",
+                           "sizeLines":  2,
+                           "fileCategory":  "config"
+                       },
+                       {
+                           "path":  "openspec/changes/ai-source-preset-builder/design.md",
+                           "language":  "markdown",
+                           "sizeLines":  81,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "openspec/changes/ai-source-preset-builder/proposal.md",
+                           "language":  "markdown",
+                           "sizeLines":  43,
+                           "fileCategory":  "docs"
+                       },
+                       {
+                           "path":  "openspec/changes/ai-source-preset-builder/tasks.md",
+                           "language":  "markdown",
+                           "sizeLines":  66,
+                           "fileCategory":  "docs"
+                       }
+                   ]
+}

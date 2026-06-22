@@ -1,0 +1,145 @@
+﻿{
+    "batchIndex":  8,
+    "files":  [
+                  {
+                      "path":  ".github/prompts/opsx-apply.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  152,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/opsx-archive.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  157,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/opsx-explore.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  169,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/opsx-propose.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  104,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/opsx-sync.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  140,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.agent-context.update.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.analyze.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.checklist.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.clarify.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.constitution.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.implement.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.plan.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.specify.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.tasks.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  ".github/prompts/speckit.taskstoissues.prompt.md",
+                      "language":  "markdown",
+                      "sizeLines":  3,
+                      "fileCategory":  "docs"
+                  }
+              ],
+    "batchImportData":  {
+                            ".github/prompts/opsx-apply.prompt.md":  [
+
+                                                                     ],
+                            ".github/prompts/opsx-archive.prompt.md":  [
+
+                                                                       ],
+                            ".github/prompts/opsx-explore.prompt.md":  [
+
+                                                                       ],
+                            ".github/prompts/opsx-propose.prompt.md":  [
+
+                                                                       ],
+                            ".github/prompts/opsx-sync.prompt.md":  [
+
+                                                                    ],
+                            ".github/prompts/speckit.agent-context.update.prompt.md":  [
+
+                                                                                       ],
+                            ".github/prompts/speckit.analyze.prompt.md":  [
+
+                                                                          ],
+                            ".github/prompts/speckit.checklist.prompt.md":  [
+
+                                                                            ],
+                            ".github/prompts/speckit.clarify.prompt.md":  [
+
+                                                                          ],
+                            ".github/prompts/speckit.constitution.prompt.md":  [
+
+                                                                               ],
+                            ".github/prompts/speckit.implement.prompt.md":  [
+
+                                                                            ],
+                            ".github/prompts/speckit.plan.prompt.md":  [
+
+                                                                       ],
+                            ".github/prompts/speckit.specify.prompt.md":  [
+
+                                                                          ],
+                            ".github/prompts/speckit.tasks.prompt.md":  [
+
+                                                                        ],
+                            ".github/prompts/speckit.taskstoissues.prompt.md":  [
+
+                                                                                ]
+                        },
+    "neighborMap":  {
+
+                    }
+}

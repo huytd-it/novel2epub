@@ -1,0 +1,43 @@
+{
+    "projectRoot":  "D:\\Projects\\novel2epub",
+    "batchImportData":  {
+                            ".specify/integrations/claude.manifest.json":  [
+
+                                                                           ],
+                            ".specify/integrations/copilot.manifest.json":  [
+
+                                                                            ],
+                            ".specify/integrations/opencode.manifest.json":  [
+
+                                                                             ],
+                            ".specify/integrations/speckit.manifest.json":  [
+
+                                                                            ]
+                        },
+    "batchFiles":  [
+                       {
+                           "path":  ".specify/integrations/claude.manifest.json",
+                           "language":  "json",
+                           "sizeLines":  16,
+                           "fileCategory":  "config"
+                       },
+                       {
+                           "path":  ".specify/integrations/copilot.manifest.json",
+                           "language":  "json",
+                           "sizeLines":  26,
+                           "fileCategory":  "config"
+                       },
+                       {
+                           "path":  ".specify/integrations/opencode.manifest.json",
+                           "language":  "json",
+                           "sizeLines":  16,
+                           "fileCategory":  "config"
+                       },
+                       {
+                           "path":  ".specify/integrations/speckit.manifest.json",
+                           "language":  "json",
+                           "sizeLines":  17,
+                           "fileCategory":  "config"
+                       }
+                   ]
+}

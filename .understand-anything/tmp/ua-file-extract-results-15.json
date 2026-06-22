@@ -1,0 +1,265 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 6,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "AGENTS.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 147,
+      "nonEmptyLines": 110,
+      "sections": [
+        {
+          "heading": "CodeGraph",
+          "level": 2,
+          "line": 2
+        },
+        {
+          "heading": "novel2epub",
+          "level": 1,
+          "line": 18
+        },
+        {
+          "heading": "Pipeline",
+          "level": 2,
+          "line": 22
+        },
+        {
+          "heading": "Project Structure",
+          "level": 2,
+          "line": 30
+        },
+        {
+          "heading": "Crawl Engines",
+          "level": 2,
+          "line": 62
+        },
+        {
+          "heading": "Multi-page chapters (pagination)",
+          "level": 3,
+          "line": 71
+        },
+        {
+          "heading": "Translation Backends",
+          "level": 2,
+          "line": 84
+        },
+        {
+          "heading": "Source Presets",
+          "level": 2,
+          "line": 94
+        },
+        {
+          "heading": "Commands",
+          "level": 2,
+          "line": 98
+        },
+        {
+          "heading": "Config Files",
+          "level": 2,
+          "line": 115
+        },
+        {
+          "heading": "Key Environment Variables",
+          "level": 2,
+          "line": 122
+        },
+        {
+          "heading": "Tech Stack",
+          "level": 2,
+          "line": 128
+        },
+        {
+          "heading": "Tested Sources (赤心巡天)",
+          "level": 2,
+          "line": 139
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 13
+      }
+    },
+    {
+      "path": "CLAUDE.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 49,
+      "nonEmptyLines": 36,
+      "sections": [
+        {
+          "heading": "novel2epub",
+          "level": 1,
+          "line": 7
+        },
+        {
+          "heading": "Pipeline",
+          "level": 2,
+          "line": 11
+        },
+        {
+          "heading": "Key Commands",
+          "level": 2,
+          "line": 17
+        },
+        {
+          "heading": "Architecture",
+          "level": 2,
+          "line": 29
+        },
+        {
+          "heading": "Technical Notes",
+          "level": 2,
+          "line": 39
+        },
+        {
+          "heading": "Tech Stack",
+          "level": 2,
+          "line": 47
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    },
+    {
+      "path": "README.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 207,
+      "nonEmptyLines": 155,
+      "sections": [
+        {
+          "heading": "novel2epub",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Cài đặt",
+          "level": 2,
+          "line": 15
+        },
+        {
+          "heading": "Cấu hình",
+          "level": 2,
+          "line": 39
+        },
+        {
+          "heading": "Quản lý nhiều ebook",
+          "level": 3,
+          "line": 47
+        },
+        {
+          "heading": "`crawl` — lấy truyện",
+          "level": 3,
+          "line": 62
+        },
+        {
+          "heading": "`translate` — phần quan trọng nhất",
+          "level": 3,
+          "line": 85
+        },
+        {
+          "heading": "Sử dụng",
+          "level": 2,
+          "line": 126
+        },
+        {
+          "heading": "Web UI (tùy chọn)",
+          "level": 2,
+          "line": 171
+        },
+        {
+          "heading": "Quy trình khuyên dùng cho truyện mới",
+          "level": 2,
+          "line": 191
+        },
+        {
+          "heading": "Hạn chế",
+          "level": 2,
+          "line": 202
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 10
+      }
+    },
+    {
+      "path": "config.example.yaml",
+      "language": "yaml",
+      "fileCategory": "config",
+      "totalLines": 176,
+      "nonEmptyLines": 149,
+      "sections": [
+        {
+          "heading": "novel",
+          "level": 1,
+          "line": 5
+        },
+        {
+          "heading": "crawl",
+          "level": 1,
+          "line": 14
+        },
+        {
+          "heading": "translate",
+          "level": 1,
+          "line": 81
+        },
+        {
+          "heading": "output",
+          "level": 1,
+          "line": 172
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 4
+      }
+    },
+    {
+      "path": "requirements.txt",
+      "language": "txt",
+      "fileCategory": "docs",
+      "totalLines": 11,
+      "nonEmptyLines": 11,
+      "metrics": {}
+    },
+    {
+      "path": "sources.yaml",
+      "language": "yaml",
+      "fileCategory": "config",
+      "totalLines": 134,
+      "nonEmptyLines": 125,
+      "sections": [
+        {
+          "heading": "sources",
+          "level": 1,
+          "line": 14
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 1
+      }
+    }
+  ]
+}

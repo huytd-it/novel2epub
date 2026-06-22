@@ -1,0 +1,64 @@
+﻿{
+    "batchIndex":  21,
+    "files":  [
+                  {
+                      "path":  "specs/001-refactor-toc/data-model.md",
+                      "language":  "markdown",
+                      "sizeLines":  119,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/plan.md",
+                      "language":  "markdown",
+                      "sizeLines":  116,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/quickstart.md",
+                      "language":  "markdown",
+                      "sizeLines":  135,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/research.md",
+                      "language":  "markdown",
+                      "sizeLines":  85,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/spec.md",
+                      "language":  "markdown",
+                      "sizeLines":  199,
+                      "fileCategory":  "docs"
+                  },
+                  {
+                      "path":  "specs/001-refactor-toc/tasks.md",
+                      "language":  "markdown",
+                      "sizeLines":  231,
+                      "fileCategory":  "docs"
+                  }
+              ],
+    "batchImportData":  {
+                            "specs/001-refactor-toc/data-model.md":  [
+
+                                                                     ],
+                            "specs/001-refactor-toc/plan.md":  [
+
+                                                               ],
+                            "specs/001-refactor-toc/quickstart.md":  [
+
+                                                                     ],
+                            "specs/001-refactor-toc/research.md":  [
+
+                                                                   ],
+                            "specs/001-refactor-toc/spec.md":  [
+
+                                                               ],
+                            "specs/001-refactor-toc/tasks.md":  [
+
+                                                                ]
+                        },
+    "neighborMap":  {
+
+                    }
+}

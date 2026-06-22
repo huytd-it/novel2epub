@@ -1,0 +1,434 @@
+{
+  "batchIndex": 12,
+  "nodes": [
+    {
+      "id": "file:.specify/integrations/claude.manifest.json",
+      "label": "claude.manifest.json",
+      "type": "file",
+      "filePath": ".specify/integrations/claude.manifest.json",
+      "language": "json",
+      "category": "config",
+      "metrics": {
+        "totalLines": 16,
+        "nonEmptyLines": 16,
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 4
+      },
+      "sections": [
+        { "heading": "integration", "level": 1, "line": 2 },
+        { "heading": "version", "level": 1, "line": 3 },
+        { "heading": "installed_at", "level": 1, "line": 4 },
+        { "heading": "files", "level": 1, "line": 5 }
+      ],
+      "description": "Claude Code Speckit integration manifest v0.10.2 tracking 8 installed skill files under .claude/skills/ for Speckit workflow commands (analyze, clarify, constitution, implement, plan, checklist, specify, tasks)."
+    },
+    {
+      "id": "file:.specify/integrations/copilot.manifest.json",
+      "label": "copilot.manifest.json",
+      "type": "file",
+      "filePath": ".specify/integrations/copilot.manifest.json",
+      "language": "json",
+      "category": "config",
+      "metrics": {
+        "totalLines": 26,
+        "nonEmptyLines": 26,
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 4
+      },
+      "sections": [
+        { "heading": "integration", "level": 1, "line": 2 },
+        { "heading": "version", "level": 1, "line": 3 },
+        { "heading": "installed_at", "level": 1, "line": 4 },
+        { "heading": "files", "level": 1, "line": 5 }
+      ],
+      "description": "GitHub Copilot Speckit integration manifest v0.10.2 tracking 19 installed files: 9 agent definitions (.github/agents/), 9 prompt templates (.github/prompts/), and 1 VS Code settings file (.vscode/settings.json) for Speckit workflow commands."
+    },
+    {
+      "id": "file:.specify/integrations/opencode.manifest.json",
+      "label": "opencode.manifest.json",
+      "type": "file",
+      "filePath": ".specify/integrations/opencode.manifest.json",
+      "language": "json",
+      "category": "config",
+      "metrics": {
+        "totalLines": 16,
+        "nonEmptyLines": 16,
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 4
+      },
+      "sections": [
+        { "heading": "integration", "level": 1, "line": 2 },
+        { "heading": "version", "level": 1, "line": 3 },
+        { "heading": "installed_at", "level": 1, "line": 4 },
+        { "heading": "files", "level": 1, "line": 5 }
+      ],
+      "description": "OpenCode Speckit integration manifest v0.10.2 tracking 9 installed command files under .opencode/commands/ for Speckit workflow commands (analyze, clarify, constitution, implement, plan, checklist, specify, tasks, taskstoissues)."
+    },
+    {
+      "id": "file:.specify/integrations/speckit.manifest.json",
+      "label": "speckit.manifest.json",
+      "type": "file",
+      "filePath": ".specify/integrations/speckit.manifest.json",
+      "language": "json",
+      "category": "config",
+      "metrics": {
+        "totalLines": 17,
+        "nonEmptyLines": 17,
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 4
+      },
+      "sections": [
+        { "heading": "integration", "level": 1, "line": 2 },
+        { "heading": "version", "level": 1, "line": 3 },
+        { "heading": "installed_at", "level": 1, "line": 4 },
+        { "heading": "files", "level": 1, "line": 5 }
+      ],
+      "description": "Core Speckit manifest v0.10.2 tracking 10 installed files: 5 PowerShell workflow scripts (.specify/scripts/powershell/) and 5 Markdown templates (.specify/templates/) for the Speckit specification workflow."
+    },
+    {
+      "id": "dir:.specify/integrations",
+      "label": "integrations/",
+      "type": "directory",
+      "filePath": ".specify/integrations",
+      "description": "Speckit per-tool integration manifests directory. Contains installation tracking manifests for Claude Code, GitHub Copilot, OpenCode, and the core Speckit workflow, each recording installed files with SHA-256 hashes."
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:.specify/integrations/claude.manifest.json",
+      "target": "dir:.specify/integrations",
+      "type": "contained_in",
+      "label": "Claude integration manifest"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "dir:.specify/integrations",
+      "type": "contained_in",
+      "label": "Copilot integration manifest"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "dir:.specify/integrations",
+      "type": "contained_in",
+      "label": "OpenCode integration manifest"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "dir:.specify/integrations",
+      "type": "contained_in",
+      "label": "Core Speckit manifest"
+    },
+    {
+      "source": "dir:.specify/integrations",
+      "target": "dir:.specify",
+      "type": "contained_in",
+      "label": "nested under SpecKit config root"
+    },
+    {
+      "source": "file:.specify/integrations/claude.manifest.json",
+      "target": "file:.specify/integrations/speckit.manifest.json",
+      "type": "references",
+      "label": "Claude adapter tracks Speckit core installed files"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.specify/integrations/speckit.manifest.json",
+      "type": "references",
+      "label": "Copilot adapter tracks Speckit core installed files"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "file:.specify/integrations/speckit.manifest.json",
+      "type": "references",
+      "label": "OpenCode adapter tracks Speckit core installed files"
+    },
+    {
+      "source": "file:.specify/integrations/claude.manifest.json",
+      "target": "file:.claude/skills/speckit-analyze/SKILL.md",
+      "type": "references",
+      "label": "tracks installed skill file"
+    },
+    {
+      "source": "file:.specify/integrations/claude.manifest.json",
+      "target": "file:.claude/skills/speckit-clarify/SKILL.md",
+      "type": "references",
+      "label": "tracks installed skill file"
+    },
+    {
+      "source": "file:.specify/integrations/claude.manifest.json",
+      "target": "file:.claude/skills/speckit-constitution/SKILL.md",
+      "type": "references",
+      "label": "tracks installed skill file"
+    },
+    {
+      "source": "file:.specify/integrations/claude.manifest.json",
+      "target": "file:.claude/skills/speckit-implement/SKILL.md",
+      "type": "references",
+      "label": "tracks installed skill file"
+    },
+    {
+      "source": "file:.specify/integrations/claude.manifest.json",
+      "target": "file:.claude/skills/speckit-plan/SKILL.md",
+      "type": "references",
+      "label": "tracks installed skill file"
+    },
+    {
+      "source": "file:.specify/integrations/claude.manifest.json",
+      "target": "file:.claude/skills/speckit-checklist/SKILL.md",
+      "type": "references",
+      "label": "tracks installed skill file"
+    },
+    {
+      "source": "file:.specify/integrations/claude.manifest.json",
+      "target": "file:.claude/skills/speckit-specify/SKILL.md",
+      "type": "references",
+      "label": "tracks installed skill file"
+    },
+    {
+      "source": "file:.specify/integrations/claude.manifest.json",
+      "target": "file:.claude/skills/speckit-tasks/SKILL.md",
+      "type": "references",
+      "label": "tracks installed skill file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/agents/speckit.analyze.agent.md",
+      "type": "references",
+      "label": "tracks installed agent file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/agents/speckit.clarify.agent.md",
+      "type": "references",
+      "label": "tracks installed agent file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/agents/speckit.constitution.agent.md",
+      "type": "references",
+      "label": "tracks installed agent file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/agents/speckit.implement.agent.md",
+      "type": "references",
+      "label": "tracks installed agent file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/agents/speckit.plan.agent.md",
+      "type": "references",
+      "label": "tracks installed agent file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/agents/speckit.checklist.agent.md",
+      "type": "references",
+      "label": "tracks installed agent file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/agents/speckit.specify.agent.md",
+      "type": "references",
+      "label": "tracks installed agent file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/agents/speckit.tasks.agent.md",
+      "type": "references",
+      "label": "tracks installed agent file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/agents/speckit.taskstoissues.agent.md",
+      "type": "references",
+      "label": "tracks installed agent file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/prompts/speckit.analyze.prompt.md",
+      "type": "references",
+      "label": "tracks installed prompt file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/prompts/speckit.clarify.prompt.md",
+      "type": "references",
+      "label": "tracks installed prompt file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/prompts/speckit.constitution.prompt.md",
+      "type": "references",
+      "label": "tracks installed prompt file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/prompts/speckit.implement.prompt.md",
+      "type": "references",
+      "label": "tracks installed prompt file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/prompts/speckit.plan.prompt.md",
+      "type": "references",
+      "label": "tracks installed prompt file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/prompts/speckit.checklist.prompt.md",
+      "type": "references",
+      "label": "tracks installed prompt file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/prompts/speckit.specify.prompt.md",
+      "type": "references",
+      "label": "tracks installed prompt file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/prompts/speckit.tasks.prompt.md",
+      "type": "references",
+      "label": "tracks installed prompt file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.github/prompts/speckit.taskstoissues.prompt.md",
+      "type": "references",
+      "label": "tracks installed prompt file"
+    },
+    {
+      "source": "file:.specify/integrations/copilot.manifest.json",
+      "target": "file:.vscode/settings.json",
+      "type": "references",
+      "label": "tracks installed VS Code settings"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "file:.opencode/commands/speckit.analyze.md",
+      "type": "references",
+      "label": "tracks installed command file"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "file:.opencode/commands/speckit.clarify.md",
+      "type": "references",
+      "label": "tracks installed command file"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "file:.opencode/commands/speckit.constitution.md",
+      "type": "references",
+      "label": "tracks installed command file"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "file:.opencode/commands/speckit.implement.md",
+      "type": "references",
+      "label": "tracks installed command file"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "file:.opencode/commands/speckit.plan.md",
+      "type": "references",
+      "label": "tracks installed command file"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "file:.opencode/commands/speckit.checklist.md",
+      "type": "references",
+      "label": "tracks installed command file"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "file:.opencode/commands/speckit.specify.md",
+      "type": "references",
+      "label": "tracks installed command file"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "file:.opencode/commands/speckit.tasks.md",
+      "type": "references",
+      "label": "tracks installed command file"
+    },
+    {
+      "source": "file:.specify/integrations/opencode.manifest.json",
+      "target": "file:.opencode/commands/speckit.taskstoissues.md",
+      "type": "references",
+      "label": "tracks installed command file"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "file:.specify/scripts/powershell/check-prerequisites.ps1",
+      "type": "references",
+      "label": "tracks installed PowerShell script"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "file:.specify/scripts/powershell/common.ps1",
+      "type": "references",
+      "label": "tracks installed PowerShell script"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "file:.specify/scripts/powershell/create-new-feature.ps1",
+      "type": "references",
+      "label": "tracks installed PowerShell script"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "file:.specify/scripts/powershell/setup-plan.ps1",
+      "type": "references",
+      "label": "tracks installed PowerShell script"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "file:.specify/scripts/powershell/setup-tasks.ps1",
+      "type": "references",
+      "label": "tracks installed PowerShell script"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "file:.specify/templates/checklist-template.md",
+      "type": "references",
+      "label": "tracks installed template file"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "file:.specify/templates/constitution-template.md",
+      "type": "references",
+      "label": "tracks installed template file"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "file:.specify/templates/plan-template.md",
+      "type": "references",
+      "label": "tracks installed template file"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "file:.specify/templates/spec-template.md",
+      "type": "references",
+      "label": "tracks installed template file"
+    },
+    {
+      "source": "file:.specify/integrations/speckit.manifest.json",
+      "target": "file:.specify/templates/tasks-template.md",
+      "type": "references",
+      "label": "tracks installed template file"
+    }
+  ]
+}

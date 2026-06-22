@@ -1,0 +1,124 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 5,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": ".claude/commands/opsx/apply.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 155,
+      "nonEmptyLines": 115,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    },
+    {
+      "path": ".claude/commands/opsx/archive.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 160,
+      "nonEmptyLines": 112,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    },
+    {
+      "path": ".claude/commands/opsx/explore.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 172,
+      "nonEmptyLines": 128,
+      "sections": [
+        {
+          "heading": "The Stance",
+          "level": 2,
+          "line": 23
+        },
+        {
+          "heading": "What You Might Do",
+          "level": 2,
+          "line": 34
+        },
+        {
+          "heading": "OpenSpec Awareness",
+          "level": 2,
+          "line": 81
+        },
+        {
+          "heading": "Check for context",
+          "level": 3,
+          "line": 85
+        },
+        {
+          "heading": "When no change exists",
+          "level": 3,
+          "line": 99
+        },
+        {
+          "heading": "When a change exists",
+          "level": 3,
+          "line": 106
+        },
+        {
+          "heading": "What You Don't Have To Do",
+          "level": 2,
+          "line": 139
+        },
+        {
+          "heading": "Ending Discovery",
+          "level": 2,
+          "line": 150
+        },
+        {
+          "heading": "Guardrails",
+          "level": 2,
+          "line": 163
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 9
+      }
+    },
+    {
+      "path": ".claude/commands/opsx/propose.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 107,
+      "nonEmptyLines": 83,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    },
+    {
+      "path": ".claude/commands/opsx/sync.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 143,
+      "nonEmptyLines": 97,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 0
+      }
+    }
+  ]
+}

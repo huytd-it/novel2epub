@@ -1,0 +1,125 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 3,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": ".specify/extensions/agent-context/README.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 57,
+      "nonEmptyLines": 38,
+      "sections": [
+        {
+          "heading": "Coding Agent Context Extension",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "Why an extension?",
+          "level": 2,
+          "line": 7
+        },
+        {
+          "heading": "Commands",
+          "level": 2,
+          "line": 15
+        },
+        {
+          "heading": "Configuration",
+          "level": 2,
+          "line": 21
+        },
+        {
+          "heading": "Requirements",
+          "level": 2,
+          "line": 39
+        },
+        {
+          "heading": "Disable",
+          "level": 2,
+          "line": 51
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    },
+    {
+      "path": ".specify/extensions/agent-context/agent-context-config.yml",
+      "language": "yaml",
+      "fileCategory": "config",
+      "totalLines": 4,
+      "nonEmptyLines": 4,
+      "sections": [
+        {
+          "heading": "context_file",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "context_markers",
+          "level": 1,
+          "line": 2
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 2
+      }
+    },
+    {
+      "path": ".specify/extensions/agent-context/extension.yml",
+      "language": "yaml",
+      "fileCategory": "config",
+      "totalLines": 34,
+      "nonEmptyLines": 29,
+      "sections": [
+        {
+          "heading": "schema_version",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "extension",
+          "level": 1,
+          "line": 3
+        },
+        {
+          "heading": "requires",
+          "level": 1,
+          "line": 12
+        },
+        {
+          "heading": "provides",
+          "level": 1,
+          "line": 15
+        },
+        {
+          "heading": "hooks",
+          "level": 1,
+          "line": 21
+        },
+        {
+          "heading": "tags",
+          "level": 1,
+          "line": 31
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    }
+  ]
+}

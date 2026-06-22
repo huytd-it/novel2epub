@@ -1,0 +1,123 @@
+{
+  "nodes": [
+    {
+      "id": "document:specs/001-refactor-toc/spec.md",
+      "type": "document",
+      "name": "spec.md",
+      "filePath": "specs/001-refactor-toc/spec.md",
+      "summary": "Feature specification for Refactor TOC with 3 user stories: import full novel metadata with Hán Việt translation (P1), find and select chapters with sort/search/filter/range (P2), and per-chapter crawl/translate actions with override support (P3). Includes edge cases, functional requirements, key entities (NovelMetadata, Chapter, ChapterSelection, ChapterActionResult), success criteria, and assumptions.",
+      "tags": ["specification", "toc-refactor", "user-stories", "requirements", "entities"],
+      "complexity": "substantial"
+    },
+    {
+      "id": "document:specs/001-refactor-toc/data-model.md",
+      "type": "document",
+      "name": "data-model.md",
+      "filePath": "specs/001-refactor-toc/data-model.md",
+      "summary": "Formal data model for the refactored TOC defining four entities: NovelMetadata (title, author, description, source URL with original/translated dual fields), Chapter (index, title, URL, crawl/translate status), ChapterSelection (selected indices, range, filter criteria), and ChapterAction (crawl/translate per-chapter with override flag and result status).",
+      "tags": ["data-model", "toc-refactor", "entities", "manifest"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:specs/001-refactor-toc/research.md",
+      "type": "document",
+      "name": "research.md",
+      "filePath": "specs/001-refactor-toc/research.md",
+      "summary": "Technical research documenting 8 architectural decisions for the TOC refactor: (1) preserve original+displayed metadata in manifest, (2) use compatibility-tolerant manifest loading, (3) shared service logic for sort/filter/range, (4) reuse ebook overview chapter table as TOC table, (5) support both checked-row and visible-range targeting, (6) keep cache reuse default with explicit override boolean, (7) treat missing metadata as non-blocking visible status, (8) contract both CLI and Web UI interactions.",
+      "tags": ["research", "architecture", "decisions", "toc-refactor", "tradeoffs"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:specs/001-refactor-toc/plan.md",
+      "type": "document",
+      "name": "plan.md",
+      "filePath": "specs/001-refactor-toc/plan.md",
+      "summary": "Implementation plan for Refactor TOC covering technical context (Python 3.10+, FastAPI, Jinja2, PyYAML, pytest), constitution check against project principles, project structure (specs docs vs source code layout), and complexity tracking. Defines source files affected: cli.py, toc.py, storage.py, config.py, pipeline.py, crawler.py, translator.py, epub_builder.py, and app/routes.",
+      "tags": ["implementation-plan", "toc-refactor", "stack", "constitution", "structure"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:specs/001-refactor-toc/tasks.md",
+      "type": "document",
+      "name": "tasks.md",
+      "filePath": "specs/001-refactor-toc/tasks.md",
+      "summary": "Task breakdown in 6 phases: Setup (shared infrastructure), Foundational (blocking prerequisites), US1 P1 (import full metadata), US2 P2 (find/select chapters with sort/search/filter/range), US3 P3 (per-chapter crawl/translate actions with override), and Polish (cross-cutting concerns). Includes dependency graph, parallel opportunities per user story, and MVP-first incremental delivery strategy.",
+      "tags": ["tasks", "implementation", "toc-refactor", "phases", "dependencies", "mvp"],
+      "complexity": "substantial"
+    },
+    {
+      "id": "document:specs/001-refactor-toc/quickstart.md",
+      "type": "document",
+      "name": "quickstart.md",
+      "filePath": "specs/001-refactor-toc/quickstart.md",
+      "summary": "Step-by-step validation guide with CLI and Web UI workflows: fetch TOC metadata, translate metadata using Hán Việt rules, review chapter list controls, crawl a visible range without override, explicit override crawl/translate, Web UI start/fetch/review with sort/search/filter/checkboxes, and bulk per-chapter actions. Includes test commands for pytest validation.",
+      "tags": ["quickstart", "validation", "toc-refactor", "cli", "web-ui", "testing"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "document:specs/001-refactor-toc/spec.md",
+      "target": "document:specs/001-refactor-toc/data-model.md",
+      "type": "refines",
+      "direction": "forward",
+      "weight": 0.9
+    },
+    {
+      "source": "document:specs/001-refactor-toc/spec.md",
+      "target": "document:specs/001-refactor-toc/research.md",
+      "type": "informs",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "document:specs/001-refactor-toc/spec.md",
+      "target": "document:specs/001-refactor-toc/plan.md",
+      "type": "informs",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "document:specs/001-refactor-toc/spec.md",
+      "target": "document:specs/001-refactor-toc/tasks.md",
+      "type": "drives",
+      "direction": "forward",
+      "weight": 0.9
+    },
+    {
+      "source": "document:specs/001-refactor-toc/research.md",
+      "target": "document:specs/001-refactor-toc/data-model.md",
+      "type": "informs",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "document:specs/001-refactor-toc/research.md",
+      "target": "document:specs/001-refactor-toc/plan.md",
+      "type": "informs",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "document:specs/001-refactor-toc/plan.md",
+      "target": "document:specs/001-refactor-toc/tasks.md",
+      "type": "drives",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "document:specs/001-refactor-toc/spec.md",
+      "target": "document:specs/001-refactor-toc/quickstart.md",
+      "type": "validates",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "document:specs/001-refactor-toc/tasks.md",
+      "target": "document:specs/001-refactor-toc/quickstart.md",
+      "type": "validates",
+      "direction": "forward",
+      "weight": 0.5
+    }
+  ]
+}

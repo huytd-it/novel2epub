@@ -1,0 +1,156 @@
+{
+  "nodes": [
+    {
+      "id": "config:openspec/changes/improve-sources-ui/.openspec.yaml",
+      "type": "config",
+      "name": ".openspec.yaml",
+      "filePath": "openspec/changes/improve-sources-ui/.openspec.yaml",
+      "summary": "OpenSpec change metadata declaring a spec-driven change created on 2026-06-22.",
+      "tags": ["configuration", "openspec", "metadata"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:openspec/changes/improve-sources-ui/README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "openspec/changes/improve-sources-ui/README.md",
+      "summary": "Brief overview of the improve-sources-ui change: responsive table, engine badges, form-row layout, consistent action buttons, and preset-usage indicator for the /sources page.",
+      "tags": ["documentation", "overview", "ui-improvement"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:openspec/changes/improve-sources-ui/proposal.md",
+      "type": "document",
+      "name": "proposal.md",
+      "filePath": "openspec/changes/improve-sources-ui/proposal.md",
+      "summary": "Change proposal describing why the /sources page needs UI improvements, what changes (table pattern, usage column, form groupings, conditional crawl4ai fields, action buttons), new capabilities, and impact on code, data, APIs, tests, and dependencies.",
+      "tags": ["documentation", "proposal", "ui-improvement", "specification"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:openspec/changes/improve-sources-ui/design.md",
+      "type": "document",
+      "name": "design.md",
+      "filePath": "openspec/changes/improve-sources-ui/design.md",
+      "summary": "Detailed design document covering context, goals/non-goals, and six design decisions (D1-D6): adopting .table-wrap/.data-table, render-time usage map, fieldset/form-row form layout, engine-conditional crawl4ai fieldset with inline JS toggle, button-row actions, and empty-state copy. Includes risk analysis for usage detection accuracy, performance, JS toggle UX, and CSS extension.",
+      "tags": ["documentation", "design", "architecture", "ui-improvement"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:openspec/changes/improve-sources-ui/tasks.md",
+      "type": "document",
+      "name": "tasks.md",
+      "filePath": "openspec/changes/improve-sources-ui/tasks.md",
+      "summary": "Implementation task breakdown with five sections: route data for preset usage map in sources_page, template rewrite for preset list table with data-table and badges, grouped add/edit form with fieldset blocks, engine-conditional crawl4ai fieldset with inline JS, and tests/verification including HTML assertions and manual validation.",
+      "tags": ["documentation", "tasks", "implementation", "ui-improvement", "testing"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "config:openspec/changes/improve-sources-ui/.openspec.yaml",
+      "target": "document:openspec/changes/improve-sources-ui/README.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/README.md",
+      "target": "document:openspec/changes/improve-sources-ui/proposal.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/README.md",
+      "target": "document:openspec/changes/improve-sources-ui/design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/README.md",
+      "target": "document:openspec/changes/improve-sources-ui/tasks.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/proposal.md",
+      "target": "document:openspec/changes/improve-sources-ui/design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/proposal.md",
+      "target": "document:openspec/changes/improve-sources-ui/tasks.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/design.md",
+      "target": "document:openspec/changes/improve-sources-ui/tasks.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/proposal.md",
+      "target": "file:app/routes/sources.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/proposal.md",
+      "target": "file:app/templates/sources.html",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/design.md",
+      "target": "file:app/routes/sources.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/design.md",
+      "target": "file:app/templates/sources.html",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/design.md",
+      "target": "file:app/static/style.css",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/tasks.md",
+      "target": "file:app/routes/sources.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/tasks.md",
+      "target": "file:app/templates/sources.html",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:openspec/changes/improve-sources-ui/tasks.md",
+      "target": "file:tests/test_crawler_meta.py",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    }
+  ]
+}

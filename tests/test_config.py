@@ -1,8 +1,9 @@
 from pathlib import Path
 
+import pytest
 import yaml
 
-from novel2epub.config import load_config
+from novel2epub.config import CrawlConfig, load_config
 
 
 def _write_config(tmp_path: Path, extra: dict | None = None) -> Path:
@@ -88,6 +89,53 @@ def test_unknown_preset_raises(tmp_path):
         tmp_path,
         extra={"translate": {"preset": "nonexistent"}},
     )
-    import pytest
     with pytest.raises(ValueError, match="nonexistent"):
         load_config(config_path)
+
+
+def test_crawl_config_pagination_defaults():
+    """Pagination fields default to safe values; existing configs still load."""
+    cfg = CrawlConfig(toc_url="https://example.com/book/")
+    assert cfg.next_page_selector == ""
+    assert cfg.next_page_url_pattern == ""
+    assert cfg.max_pages_per_chapter == 10
+
+
+def test_crawl_config_pagination_fields_round_trip(tmp_path):
+    """Pagination fields survive load_config / YAML round-trip."""
+    config_path = _write_config(
+        tmp_path,
+        extra={
+            "crawl": {
+                "toc_url": "https://example.com/book/",
+                "next_page_selector": "a#pager_next",
+                "next_page_url_pattern": r"(\d+)\.html$",
+                "max_pages_per_chapter": 4,
+            }
+        },
+    )
+    cfg = load_config(config_path)
+    assert cfg.crawl.next_page_selector == "a#pager_next"
+    assert cfg.crawl.next_page_url_pattern == r"(\d+)\.html$"
+    assert cfg.crawl.max_pages_per_chapter == 4
+
+
+def test_crawl_config_rejects_pattern_with_zero_capturing_groups():
+    with pytest.raises(ValueError, match="capturing group"):
+        CrawlConfig(toc_url="https://example.com", next_page_url_pattern=r"\.html$")
+
+
+def test_crawl_config_rejects_pattern_with_two_capturing_groups():
+    with pytest.raises(ValueError, match="capturing group"):
+        CrawlConfig(
+            toc_url="https://example.com",
+            next_page_url_pattern=r"(\d+)_(\d+)\.html$",
+        )
+
+
+def test_crawl_config_rejects_invalid_regex():
+    with pytest.raises(ValueError, match="regex"):
+        CrawlConfig(
+            toc_url="https://example.com",
+            next_page_url_pattern=r"(unclosed",
+        )

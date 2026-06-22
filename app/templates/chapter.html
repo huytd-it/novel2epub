@@ -6,7 +6,7 @@
 {% if ch.title_note %}<p class="muted">{{ ch.title_note }}</p>{% endif %}
 <p class="muted"><a href="{{ ch.url }}" target="_blank">{{ ch.url }}</a></p>
 {% if ch.missing_fields %}<p class="muted">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}
-<p class="muted">Số từ: bản dịch {{ translated_word_count }} từ{% if raw %} · raw {{ raw_word_count }} từ{% endif %}</p>
+<p class="muted">Số từ bản dịch: {{ translated_word_count }} từ{% if raw %} · raw: {{ raw_char_count }} ký tự{% endif %}</p>
 {% if ch.last_action_status %}<p class="muted">Action gần nhất: {{ ch.last_action_status }}</p>{% endif %}
 <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="form-row">
     <label>Action
@@ -35,10 +35,15 @@
         <p class="muted">{{ glossary_relevant_count }}/{{ glossary_rows|length }} mục khớp chương này.</p>
         <div class="quick-glossary" id="quick-glossary">
             {% for row in glossary_rows[:80] %}
-            <div class="glossary-chip{% if row.relevant %} relevant{% endif %}" data-search="{{ row.source }} {{ row.suggested }} {{ row.type }} {{ row.file }}">
-                <div><strong>{{ row.source }}</strong> <span class="muted">→</span> {{ row.suggested }}</div>
+            <div class="glossary-chip{% if row.relevant %} relevant{% endif %}{% if row.mismatch %} mismatch{% endif %}" data-search="{{ row.source }} {{ row.suggested }} {{ row.type }} {{ row.file }}" data-source="{{ row.source }}" data-suggested="{{ row.suggested }}">
+                <div><strong>{{ row.source }}</strong> <span class="muted">→</span> {{ row.suggested }}
+                    {% if row.relevant %}<button type="button" class="jump-btn" title="Soi vị trí trong raw + bản dịch">🔎</button>{% endif %}
+                </div>
                 {% if row.note %}<div class="muted">📝 {{ row.note }} <em>· → footnote khi build</em></div>{% endif %}
-                <div class="muted">{{ row.type }} · {{ row.file }}{% if row.relevant %} · trong chương{% endif %}</div>
+                <div class="muted">{{ row.type }} · {{ row.file }}{% if row.relevant %} · trong chương{% endif %}
+                    {% if row.relevant %} · raw {{ row.raw_count }} lần · dịch {{ row.translated_count }} lần{% endif %}
+                    {% if row.mismatch %} · <strong class="warn">thiếu trong bản dịch?</strong>{% endif %}
+                </div>
             </div>
             {% else %}
             <p class="muted">Chưa có glossary. Thêm nhanh ở cuối trang khi gặp tên riêng/thuật ngữ cần thống nhất.</p>
@@ -286,6 +291,92 @@ if (rawView) {
     if (highlightToggle) highlightToggle.addEventListener("change", renderRawView);
 }
 
+// --- Soi vị trí glossary: scroll raw + bản dịch tới đúng chỗ xuất hiện ---
+function flashElement(el) {
+    el.classList.add("jump-flash");
+    setTimeout(() => el.classList.remove("jump-flash"), 1200);
+}
+
+function termOccurrenceIndexes(haystack, term) {
+    const idxs = [];
+    if (!term) return idxs;
+    let start = 0;
+    while (true) {
+        const idx = haystack.indexOf(term, start);
+        if (idx === -1) break;
+        idxs.push(idx);
+        start = idx + term.length;
+    }
+    return idxs;
+}
+
+function jumpRawTo(term, occurrence) {
+    if (!rawView || !term) return 0;
+    const marks = Array.from(rawView.querySelectorAll("mark")).filter(m => m.textContent === term);
+    if (marks.length === 0) return 0;
+    const target = marks[occurrence % marks.length];
+    target.scrollIntoView({ block: "center" });
+    flashElement(target);
+    return marks.length;
+}
+
+// Mirror-div: đo chiều cao pixel của text trước vị trí cần tới trong textarea,
+// vì textarea không cho đọc vị trí pixel của 1 ký tự trực tiếp.
+function mirrorScrollTopForIndex(textarea, index) {
+    const mirror = document.createElement("div");
+    const style = getComputedStyle(textarea);
+    const props = [
+        "boxSizing", "width", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+        "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth",
+        "fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing",
+    ];
+    for (const p of props) mirror.style[p] = style[p];
+    mirror.style.position = "absolute";
+    mirror.style.visibility = "hidden";
+    mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.wordWrap = "break-word";
+    mirror.style.overflowWrap = "break-word";
+    mirror.style.height = "auto";
+    mirror.style.top = "0";
+    mirror.style.left = "-9999px";
+    document.body.appendChild(mirror);
+    mirror.appendChild(document.createTextNode(textarea.value.substring(0, index)));
+    const marker = document.createElement("span");
+    marker.textContent = "​";
+    mirror.appendChild(marker);
+    const top = marker.offsetTop;
+    document.body.removeChild(mirror);
+    return top;
+}
+
+function jumpTranslatedTo(term, occurrence) {
+    if (!translatedArea || !term) return 0;
+    const idxs = termOccurrenceIndexes(translatedArea.value, term);
+    if (idxs.length === 0) return 0;
+    const charIndex = idxs[occurrence % idxs.length];
+    const top = mirrorScrollTopForIndex(translatedArea, charIndex);
+    translatedArea.scrollTop = Math.max(0, top - translatedArea.clientHeight / 2);
+    translatedArea.focus();
+    translatedArea.setSelectionRange(charIndex, charIndex + term.length);
+    flashElement(translatedArea);
+    return idxs.length;
+}
+
+for (const chip of glossaryRows) {
+    const btn = chip.querySelector(".jump-btn");
+    if (!btn) continue;
+    let cursor = 0;
+    btn.addEventListener("click", () => {
+        const source = chip.dataset.source || "";
+        const suggested = chip.dataset.suggested || "";
+        const rawCount = jumpRawTo(source, cursor);
+        const transCount = jumpTranslatedTo(suggested, cursor);
+        cursor += 1;
+        const total = Math.max(rawCount, transCount, 1);
+        btn.title = `Soi vị trí ${(cursor % total) || total}/${total}`;
+    });
+}
+
 // --- Hiện/ẩn chú thích (footnote) trong preview bản dịch ---
 const footnotesToggle = document.getElementById("footnotes-toggle");
 const footnotesControl = document.getElementById("footnotes-control");
@@ -343,7 +434,7 @@ if (diffCurrent && diffPreview && rewriteText && translatedArea) {
 }
 
 // --- Job execution & polling ---
-const logEl = document.getElementById("log");
+const logPanel = initLogPanel("log");
 const statusSection = document.getElementById("job-status-section");
 
 function setJobButtonsDisabled(disabled) {
@@ -422,9 +513,8 @@ async function poll() {
             }
         }
         
-        if (logEl && data.log.length > 0) {
-            logEl.textContent = data.log.join("\n");
-            logEl.scrollTop = logEl.scrollHeight;
+        if (data.log.length > 0) {
+            logPanel.setLines(data.log);
         }
         
         const container = document.getElementById("status-badge-container");

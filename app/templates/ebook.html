@@ -157,6 +157,8 @@
 {% block scripts %}
 <script>
 const SLUG = {{ slug | tojson }};
+const logPanel = initLogPanel("log");
+logPanel.setLines({{ job.log | tojson }});
 let wasRunning = {{ "true" if job.running else "false" }};
 let tocToken = 0;       // chống race khi nhiều request filter chồng nhau
 let searchTimer = null; // debounce cho ô tìm kiếm
@@ -195,7 +197,7 @@ async function loadToc(url, { push = true } = {}) {
     const caret = searchFocused ? active.selectionStart : null;
 
     try {
-        const res = await fetch(target, { headers: { "X-Requested-With": "fetch" } });
+        const res = await fetch(target, { cache: "no-store", headers: { "X-Requested-With": "fetch" } });
         if (!res.ok || token !== tocToken) return; // bỏ qua response cũ
         const html = await res.text();
         const doc = new DOMParser().parseFromString(html, "text/html");
@@ -303,11 +305,7 @@ async function poll() {
         if (!res.ok) return;
         const data = await res.json();
 
-        const logEl = document.getElementById("log");
-        if (logEl) {
-            logEl.textContent = data.log.join("\n");
-            logEl.scrollTop = logEl.scrollHeight;
-        }
+        logPanel.setLines(data.log);
 
         const container = document.getElementById("status-badge-container");
         if (container) {

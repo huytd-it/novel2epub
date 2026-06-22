@@ -86,32 +86,87 @@
     </p>
     <fieldset>
         <legend>CLI</legend>
-        <p><label>command <input type="text" name="command" value="{{ cfg.translate.cli.command }}" size="30"></label>
-           <label>model <input type="text" name="model" value="{{ cfg.translate.cli.model }}" size="20"></label>
+        <p><label>command <input type="text" name="command" value="{{ cfg.translate.cli.command }}" size="30" list="command-options"></label>
+           <label>model <input type="text" name="model" value="{{ cfg.translate.cli.model }}" size="20" list="model-options"></label>
            <label>mode
                 <select name="mode">
                     {% for opt in ["stdin", "arg"] %}<option value="{{ opt }}" {% if cfg.translate.cli.mode == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}
                 </select>
            </label>
            <label>timeout_seconds <input type="number" name="timeout_seconds" value="{{ cfg.translate.cli.timeout_seconds }}" min="1"></label></p>
+        <p class="muted">command: lệnh CLI gọi AI dịch (ví dụ <code>claude -p</code>, <code>opencode run</code>, <code>gemini -p</code>, <code>codex exec</code>). model: tên model truyền cho lệnh trên — để trống dùng model mặc định của CLI. mode: <code>stdin</code> gửi văn bản qua input chuẩn, <code>arg</code> gửi qua tham số dòng lệnh.</p>
+        <datalist id="command-options">
+            <option value="claude -p">
+            <option value="opencode run">
+            <option value="gemini -p">
+            <option value="codex exec">
+        </datalist>
+        <datalist id="model-options">
+            <option value="">
+            <option value="opencode-go/glm-5.2">
+            <option value="opencode-go/glm-5.1">
+            <option value="opencode-go/kimi-k2.7">
+            <option value="opencode-go/kimi-k2.6">
+            <option value="opencode-go/deepseek-v4-pro">
+            <option value="opencode-go/deepseek-v4-flash">
+            <option value="opencode-go/mimo-v2.5">
+            <option value="opencode-go/mimo-v2.5-pro">
+            <option value="opencode-go/minimax-m3">
+            <option value="opencode-go/minimax-m2.7">
+            <option value="opencode-go/minimax-m2.5">
+            <option value="opencode-go/qwen3.7-max">
+            <option value="opencode-go/qwen3.7-plus">
+            <option value="opencode-go/qwen3.6-plus">
+        </datalist>
         <p><label>prompt_template (để trống = giữ nguyên)<br><textarea name="prompt_template" rows="10" cols="80">{{ cfg.translate.cli.prompt_template }}</textarea></label></p>
         <p><label>title_prompt_template (để trống = giữ nguyên)<br><textarea name="title_prompt_template" rows="6" cols="80">{{ cfg.translate.cli.title_prompt_template }}</textarea></label></p>
     </fieldset>
     <fieldset>
         <legend>Style</legend>
-        <p><label>tone <input type="text" name="tone" value="{{ cfg.translate.style.tone }}" size="40"></label></p>
-        <p><label>pronoun_policy <input type="text" name="pronoun_policy" value="{{ cfg.translate.style.pronoun_policy }}" size="20"></label>
-           <label>title_mode <input type="text" name="title_mode" value="{{ cfg.translate.style.title_mode }}" size="15"></label>
-           <label>han_viet_level <input type="text" name="han_viet_level" value="{{ cfg.translate.style.han_viet_level }}" size="15"></label>
+        <p><label>tone <input type="text" name="tone" value="{{ cfg.translate.style.tone }}" size="40" list="tone-options"></label></p>
+        <p class="muted">tone: tông giọng văn dịch, chèn vào prompt để AI bám theo phong cách này.</p>
+        <datalist id="tone-options">
+            <option value="mượt, tự nhiên, có chất cổ trang">
+            <option value="trang trọng, cổ điển, văn chương">
+            <option value="hiện đại, gần gũi, đời thường">
+            <option value="dí dỏm, hài hước, trẻ trung">
+            <option value="khốc liệt, gân guốc, dồn nén (action/huyết chiến)">
+        </datalist>
+        <p><label>pronoun_policy <input type="text" name="pronoun_policy" value="{{ cfg.translate.style.pronoun_policy }}" size="20" list="pronoun-options"></label>
+           <label>title_mode <input type="text" name="title_mode" value="{{ cfg.translate.style.title_mode }}" size="15" list="title-mode-options"></label>
+           <label>han_viet_level <input type="text" name="han_viet_level" value="{{ cfg.translate.style.han_viet_level }}" size="15" list="han-viet-options"></label>
            <label class="check"><input type="checkbox" name="keep_paragraphs" value="true" {% if cfg.translate.style.keep_paragraphs %}checked{% endif %}> keep_paragraphs</label></p>
+        <p class="muted">pronoun_policy: cách chọn đại từ xưng hô (ta/ngươi, con/cháu...). title_mode: cách dịch tiêu đề chương. han_viet_level: mức độ dùng từ Hán Việt thay từ thuần Việt. keep_paragraphs: giữ nguyên cách chia đoạn của bản gốc.</p>
+        <datalist id="pronoun-options">
+            <option value="contextual">
+            <option value="formal">
+            <option value="modern_casual">
+        </datalist>
+        <datalist id="title-mode-options">
+            <option value="creative">
+            <option value="literal">
+        </datalist>
+        <datalist id="han-viet-options">
+            <option value="balanced">
+            <option value="heavy">
+            <option value="light">
+        </datalist>
     </fieldset>
     <fieldset>
         <legend>Retry / Chunk / Rate</legend>
         <p><label>retry attempts <input type="number" name="retry_attempts" value="{{ cfg.translate.retry.attempts }}" min="1"></label>
            <label>retry delay_seconds <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.translate.retry.delay_seconds }}" min="0"></label></p>
-        <p><label>chunk max_chars <input type="number" name="chunk_max_chars" value="{{ cfg.translate.chunk.max_chars }}" min="0"></label>
+        <p class="muted">retry attempts: số lần thử lại khi gọi AI thất bại. retry delay_seconds: thời gian chờ giữa các lần thử lại.</p>
+        <p><label>chunk max_chars <input type="number" name="chunk_max_chars" value="{{ cfg.translate.chunk.max_chars }}" min="0" list="chunk-max-chars-options"></label>
            <label>chunk overlap_paragraphs <input type="number" name="chunk_overlap_paragraphs" value="{{ cfg.translate.chunk.overlap_paragraphs }}" min="0"></label>
            <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.translate.delay_seconds }}" min="0"></label></p>
+        <p class="muted">chunk max_chars: cắt chương dài thành nhiều đoạn theo số ký tự tối đa trước khi gửi AI (0 = không cắt). chunk overlap_paragraphs: số đoạn lặp lại giữa các phần cắt để giữ mạch văn. delay_seconds: thời gian nghỉ giữa các lần gọi AI (tránh rate limit).</p>
+        <datalist id="chunk-max-chars-options">
+            <option value="0">
+            <option value="2000">
+            <option value="4000">
+            <option value="8000">
+        </datalist>
     </fieldset>
     <p><button type="submit">Lưu cấu hình AI</button></p>
 </form>

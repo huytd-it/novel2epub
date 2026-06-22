@@ -21,6 +21,8 @@ from novel2epub.pipeline import (
     step_translate_meta,
 )
 
+from .logging_config import logger
+
 _STEPS: dict[str, Callable[[Config, Callable[[str], None]], object]] = {
     "crawl": step_crawl,
     "fetch-toc": step_fetch_toc,
@@ -86,11 +88,14 @@ class JobRunner:
         return True
 
     def _run_custom(self, target_fn: Callable[[Callable[[str], None]], object]) -> None:
+        logger.info("Bắt đầu job %r (custom)", self.step)
         try:
             target_fn(self._log_line)
+            logger.info("Job %r (custom) hoàn tất", self.step)
         except Exception as e:  # noqa: BLE001
             self._log_line(f"[lỗi] {e}")
             self._log_line(traceback.format_exc())
+            logger.exception("Job %r (custom) thất bại: %s", self.step, e)
             with self._lock:
                 self.error = str(e)
         finally:
@@ -100,13 +105,17 @@ class JobRunner:
     def _log_line(self, msg: str) -> None:
         with self._lock:
             self._log.append(msg)
+        logger.info(msg)
 
     def _run(self, fn, cfg: Config) -> None:
+        logger.info("Bắt đầu job %r", self.step)
         try:
             fn(cfg, self._log_line)
+            logger.info("Job %r hoàn tất", self.step)
         except Exception as e:  # noqa: BLE001 - hiển thị lỗi bất kỳ lên UI
             self._log_line(f"[lỗi] {e}")
             self._log_line(traceback.format_exc())
+            logger.exception("Job %r thất bại: %s", self.step, e)
             with self._lock:
                 self.error = str(e)
         finally:

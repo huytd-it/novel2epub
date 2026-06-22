@@ -10,7 +10,10 @@ from fastapi.staticfiles import StaticFiles
 
 from .deps import BASE_DIR
 from .job import JobRunner
+from .logging_config import setup_logging
 from .routes import chapters, ebooks, glossary, jobs, library, preset_builder, settings, sources
+
+setup_logging()
 
 app = FastAPI(title="novel2epub")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")

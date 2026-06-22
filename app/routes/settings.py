@@ -7,6 +7,7 @@ from fastapi.responses import RedirectResponse
 from novel2epub.config_writer import update_config_file
 
 from .. import deps
+from ..logging_config import logger
 
 router = APIRouter()
 
@@ -34,10 +35,12 @@ def save_novel(
     author: str = Form(""),
     language: str = Form("vi"),
 ):
-    update_config_file(
-        deps.ebook_config_path(slug),
-        {"novel": {"title": title, "author": author, "language": language}},
+    path = deps.ebook_config_path(slug)
+    logger.info(
+        "[config][NOVEL] slug=%s lưu vào %s: title=%r author=%r language=%r",
+        slug, path, title, author, language,
     )
+    update_config_file(path, {"novel": {"title": title, "author": author, "language": language}})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -85,7 +88,14 @@ def save_source(
         "next_page_url_pattern": next_page_url_pattern,
         "max_pages_per_chapter": max_pages_per_chapter,
     }
-    update_config_file(deps.ebook_config_path(slug), {"crawl": crawl})
+    path = deps.ebook_config_path(slug)
+    logger.info(
+        "[config][CRAWL] slug=%s lưu vào %s: engine=%s toc_url=%r content_selector=%r "
+        "max_chapters=%s delay=%ss pagination=%s ai_fallback... encoding=%r headless=%s magic=%s",
+        slug, path, engine, toc_url, content_selector, max_chapters, delay_seconds,
+        next_page_selector or next_page_url_pattern or "off", encoding, headless, magic,
+    )
+    update_config_file(path, {"crawl": crawl})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -94,7 +104,10 @@ def apply_preset(slug: str, preset: str = Form("")):
     p = deps.presets().get(preset)
     if p is None:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy preset '{preset}'.")
-    update_config_file(deps.ebook_config_path(slug), {"crawl": p.crawl_overrides()})
+    path = deps.ebook_config_path(slug)
+    logger.info("[config][CRAWL/PRESET] slug=%s áp preset %r vào %s: %s",
+                slug, preset, path, p.crawl_overrides())
+    update_config_file(path, {"crawl": p.crawl_overrides()})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -147,5 +160,14 @@ def save_ai(
         },
         "delay_seconds": delay_seconds,
     }
-    update_config_file(deps.ebook_config_path(slug), {"translate": translate})
+    path = deps.ebook_config_path(slug)
+    logger.info(
+        "[config][AI/DỊCH] slug=%s lưu vào %s: type=%s command=%r model=%r mode=%s "
+        "timeout=%ss tone=%r pronoun=%s title_mode=%s han_viet=%s keep_paragraphs=%s "
+        "retry=%s chunk_max_chars=%s delay=%ss",
+        slug, path, type, command, model, mode, timeout_seconds, tone, pronoun_policy,
+        title_mode, han_viet_level, keep_paragraphs, retry_attempts, chunk_max_chars,
+        delay_seconds,
+    )
+    update_config_file(path, {"translate": translate})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)

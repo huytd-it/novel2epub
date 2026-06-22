@@ -40,6 +40,74 @@ def _emit_config_warnings(cfg: Config, log: LogFn) -> None:
         log(f"[config] CẢNH BÁO: {w}")
 
 
+def _fmt(value: object, empty: str = "(trống)") -> str:
+    """Hiển thị giá trị config gọn gàng: rỗng -> nhãn, bool -> on/off."""
+    if isinstance(value, bool):
+        return "on" if value else "off"
+    if value is None or value == "" or value == 0:
+        return empty
+    return str(value)
+
+
+def _emit_crawl_config(cfg: Config, log: LogFn) -> None:
+    """Echo config thực sự dùng cho tính năng CRAWL — để soi log đối chiếu
+    với cài đặt trong settings.html (engine nào, selector nào, có paginate
+    không, AI fallback bật chưa...) mà không cần mở file config."""
+    c = cfg.crawl
+    log(f"[config] CRAWL dùng: engine={c.engine} | toc_url={_fmt(c.toc_url)} "
+        f"| content_selector={_fmt(c.content_selector, '(auto OG/body)')} "
+        f"| chapter_link_pattern={c.chapter_link_pattern} "
+        f"| max_chapters={_fmt(c.max_chapters, '∞')} | delay={c.delay_seconds}s "
+        f"| encoding={_fmt(c.encoding, '(auto)')}")
+    if c.next_page_selector or c.next_page_url_pattern:
+        rule = c.next_page_selector or f"url~{c.next_page_url_pattern}"
+        log(f"[config] CRAWL pagination: {rule} (tối đa {c.max_pages_per_chapter} trang/chương)")
+    else:
+        log("[config] CRAWL pagination: off")
+    if c.engine == "crawl4ai":
+        log(f"[config] CRAWL crawl4ai: headless={_fmt(c.headless)} | magic={_fmt(c.magic)} "
+            f"| js_code={'có' if c.js_code else 'không'}")
+    elif c.engine == "http":
+        log(f"[config] CRAWL http selectors: toc={_fmt(c.toc_selector)} "
+            f"| chapter_title={_fmt(c.chapter_title_selector)} | title={_fmt(c.title_selector)} "
+            f"| author={_fmt(c.author_selector)} | desc={_fmt(c.desc_selector)} "
+            f"| cover={_fmt(c.cover_selector)}")
+    if c.ai_fallback:
+        log(f"[config] CRAWL AI fallback: ON (≤{c.ai_fallback_max_html} ký tự HTML gửi CLI)")
+    else:
+        log("[config] CRAWL AI fallback: off")
+
+
+def _emit_translate_config(cfg: Config, log: LogFn, *, feature: str = "DỊCH") -> None:
+    """Echo config thực sự dùng cho các tính năng gọi AI dịch/biên tập
+    (dịch chương, dịch metadata, review/suggest/rewrite/đánh giá)."""
+    t = cfg.translate
+    log(f"[config] {feature} dùng: type={t.type} | preset={_fmt(t.preset, '(không)')} "
+        f"| profile={t.profile} | delay={t.delay_seconds}s")
+    if t.type.lower() == "cli":
+        log(f"[config] {feature} CLI: command={t.cli.command!r} "
+            f"| model={_fmt(t.cli.model, '(mặc định CLI)')} | mode={t.cli.mode} "
+            f"| timeout={t.cli.timeout_seconds}s")
+    elif t.type.lower() == "none":
+        log(f"[config] {feature}: type=none — KHÔNG gọi AI, giữ nguyên bản gốc.")
+    s = t.style
+    log(f"[config] {feature} style: tone={s.tone!r} | pronoun_policy={s.pronoun_policy} "
+        f"| han_viet_level={s.han_viet_level} | title_mode={s.title_mode} "
+        f"| keep_paragraphs={_fmt(s.keep_paragraphs)}")
+    chunk = (f"max_chars={t.chunk.max_chars}, overlap={t.chunk.overlap_paragraphs} đoạn"
+             if t.chunk.max_chars else "off (dịch nguyên chương)")
+    log(f"[config] {feature} chunk: {chunk} | retry: {t.retry.attempts} lần "
+        f"(chờ {t.retry.delay_seconds}s)")
+    log(f"[config] {feature} glossary: names={_fmt(t.glossary_files.names)} "
+        f"| vietphrase={_fmt(t.glossary_files.vietphrase)}")
+
+
+def _emit_build_config(cfg: Config, log: LogFn) -> None:
+    """Echo config thực sự dùng cho tính năng BUILD EPUB."""
+    log(f"[config] BUILD dùng: epub_path={cfg.epub_path} | language={cfg.novel.language} "
+        f"| slug={cfg.novel.slug} | data_dir={cfg.output.data_dir}")
+
+
 def _run_with_heartbeat(log: LogFn, prefix: str, fn: Callable[[], object], *, interval: float = 5.0):
     """Chạy fn ở thread phụ, định kỳ log một nhịp 'vẫn đang chạy' để UI biết job còn sống.
 
@@ -298,9 +366,11 @@ def step_crawl_selected(
         gián đoạn cả job.
     """
     _emit_config_warnings(cfg, log)
+    _emit_crawl_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     if cfg.crawl.ai_fallback:
         cfg.crawl._cli_fallback = cfg.translate.cli
+        _emit_translate_config(cfg, log, feature="CRAWL AI fallback")
     crawler = make_crawler(cfg.crawl)
     try:
         manifest = _refresh_manifest(cfg, storage, crawler, log)
@@ -351,9 +421,11 @@ def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False) -> 
     crawl, hoặc làm mới ảnh bìa/mô tả.
     """
     _emit_config_warnings(cfg, log)
+    _emit_crawl_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     if cfg.crawl.ai_fallback:
         cfg.crawl._cli_fallback = cfg.translate.cli
+        _emit_translate_config(cfg, log, feature="CRAWL AI fallback")
     crawler = make_crawler(cfg.crawl)
     try:
         manifest = _refresh_manifest(cfg, storage, crawler, log, force_meta=force)
@@ -392,6 +464,7 @@ def _translate_meta_inplace(
 def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False) -> Manifest:
     """Dịch metadata truyện (title/author/description) sang tiếng Việt bằng AI CLI."""
     _emit_config_warnings(cfg, log)
+    _emit_translate_config(cfg, log, feature="DỊCH METADATA")
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -413,6 +486,7 @@ def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False
 
 def step_translate(cfg: Config, log: LogFn = _print) -> Manifest:
     _emit_config_warnings(cfg, log)
+    _emit_translate_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -485,6 +559,7 @@ def step_translate_selected(
     selected_indexes: list[int] | None = None,
 ) -> Manifest:
     _emit_config_warnings(cfg, log)
+    _emit_translate_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -565,6 +640,7 @@ def step_rewrite_chapters(
     """
     from . import glossary_ai
 
+    _emit_translate_config(cfg, log, feature="REWRITE")
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -666,6 +742,7 @@ def step_evaluate_translation(
     """
     from . import glossary_ai
 
+    _emit_translate_config(cfg, log, feature="ĐÁNH GIÁ")
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -732,6 +809,7 @@ def step_review_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> dict
         log("[review] Chương chưa có bản dịch, không có gì để review.")
         return dict(glossary_ai._EMPTY_REPORT)
 
+    _emit_translate_config(cfg, log, feature="REVIEW")
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
     translated = storage.read_translated(ch)
     glossary = glossary_ai.load_glossary(cfg.translate)
@@ -748,6 +826,7 @@ def step_suggest_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> lis
     from . import glossary_ai
 
     storage, _manifest, ch = _require_chapter(cfg, index)
+    _emit_translate_config(cfg, log, feature="GỢI Ý GLOSSARY")
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
     translated = storage.read_translated(ch) if storage.has_translated(ch) else ""
     existing = glossary_ai.load_glossary(cfg.translate)
@@ -768,6 +847,7 @@ def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> str
         log("[rewrite] Chương chưa có bản dịch, không có gì để biên tập.")
         return ""
 
+    _emit_translate_config(cfg, log, feature="REWRITE PREVIEW")
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
     current = storage.read_translated(ch)
     glossary = glossary_ai.load_glossary(cfg.translate)
@@ -782,6 +862,7 @@ def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> str
 
 
 def step_build(cfg: Config, log: LogFn = _print) -> str:
+    _emit_build_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:

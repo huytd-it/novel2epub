@@ -67,6 +67,7 @@ def index(request: Request):
                 "raw_count": raw_count,
                 "translated_count": translated_count,
                 "epub_exists": Path(cfg.epub_path).exists(),
+                "in_library": entry is not None,
             }
         )
     return deps.templates.TemplateResponse(
@@ -77,6 +78,7 @@ def index(request: Request):
             "library_path": deps.LIBRARY_PATH,
             "ebooks": ebooks,
             "job": request.app.state.job.status(),
+            "presets": deps.presets(),
         },
     )
 

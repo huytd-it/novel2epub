@@ -5,7 +5,7 @@ import re
 import unicodedata
 from pathlib import Path
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub.config import CrawlConfig, LibraryEntry, load_config
@@ -76,29 +76,9 @@ def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
 
 
 @router.get("/library")
-def library_page(request: Request):
-    lib = deps.library()
-    rows = []
-    for slug, entry in lib.ebooks.items():
-        config_path = deps.ebook_config_path(slug)
-        rows.append(
-            {
-                "slug": slug,
-                "name": entry.name or slug,
-                "config": entry.config,
-                "exists": Path(config_path).exists(),
-            }
-        )
-    return deps.templates.TemplateResponse(
-        request,
-        "library.html",
-        {
-            "library_path": deps.LIBRARY_PATH,
-            "ebooks": rows,
-            "presets": deps.presets(),
-            "job": request.app.state.job.status(),
-        },
-    )
+def library_page():
+    # Trang Thư viện đã gộp vào trang chủ.
+    return RedirectResponse(url="/", status_code=302)
 
 
 @router.post("/library/ebooks/fetch-meta")
@@ -175,4 +155,4 @@ def delete_ebook(slug: str, delete_config: bool = Form(False)):
         if config_path.exists():
             config_path.unlink()
     save_library(deps.LIBRARY_PATH, lib)
-    return RedirectResponse(url="/library", status_code=303)
+    return RedirectResponse(url="/", status_code=303)

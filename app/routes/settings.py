@@ -57,11 +57,12 @@ def save_source(
     desc_selector: str = Form(""),
     cover_selector: str = Form(""),
     encoding: str = Form(""),
-    api_key: str = Form(""),
-    api_url: str = Form(""),
     headless: bool = Form(False),
     magic: bool = Form(False),
     js_code: str = Form(""),
+    next_page_selector: str = Form(""),
+    next_page_url_pattern: str = Form(""),
+    max_pages_per_chapter: int = Form(10),
 ):
     crawl: dict = {
         "engine": engine,
@@ -80,12 +81,10 @@ def save_source(
         "headless": headless,
         "magic": magic,
         "js_code": js_code,
+        "next_page_selector": next_page_selector,
+        "next_page_url_pattern": next_page_url_pattern,
+        "max_pages_per_chapter": max_pages_per_chapter,
     }
-    # Chỉ ghi api_key/api_url khi có giá trị (tránh để lộ/đè khóa rỗng lên file).
-    if api_key:
-        crawl["api_key"] = api_key
-    if api_url:
-        crawl["api_url"] = api_url
     update_config_file(deps.ebook_config_path(slug), {"crawl": crawl})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 

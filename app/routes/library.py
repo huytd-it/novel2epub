@@ -62,7 +62,17 @@ def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
             pass
 
     slug = slugify(name or slugify(toc_url))
-    return {"name": name, "author": author, "slug": slug, "preset": preset_name}
+    suggest_url = ""
+    if not preset_name:
+        suggest_url = f"/preset-builder?toc_url={toc_url}"
+    return {
+        "name": name,
+        "author": author,
+        "slug": slug,
+        "preset": preset_name,
+        "suggested_preset": None,
+        "suggest_url": suggest_url,
+    }
 
 
 @router.get("/library")

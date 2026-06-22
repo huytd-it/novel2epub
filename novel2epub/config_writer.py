@@ -94,7 +94,10 @@ def scaffold_config_file(
     if toc_url:
         updates["crawl"]["toc_url"] = toc_url
     if preset:
-        updates["crawl"].update({k: v for k, v in preset.items() if k not in {"name"}})
+        # Bỏ "engine": form đã gửi engine người dùng chọn (có thể auto-fill từ
+        # preset hoặc tự sửa tay) — không cho preset đè lại lần 2, tránh xung
+        # đột khi preset lưu engine khác với lựa chọn hiện tại trên form.
+        updates["crawl"].update({k: v for k, v in preset.items() if k not in {"name", "engine"}})
 
     _deep_merge(data, updates)
     dest.parent.mkdir(parents=True, exist_ok=True)

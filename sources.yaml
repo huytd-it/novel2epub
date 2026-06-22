@@ -16,8 +16,9 @@ sources:
   # ====== SITE FAMILY: 笔趣阁 / biquge ======
   # Hàng trăm site clone từ mã nguồn biquge (biquge, biqunet, biquwo, 69shu…).
   # HTML tĩnh, nội dung trong #content hoặc #chaptercontent.
+  # Lưu ý: shuhaige có preset riêng ở dưới (cần pagination).
   biquge:
-    domains: "biquge,biqunet,biquwo,69shu,shuhaige"
+    domains: "biquge,biqunet,biquwo,69shu"
     engine: http
     toc_selector: "#list"
     content_selector: "#content"
@@ -116,3 +117,18 @@ sources:
     desc_selector: ".para"
     cover_selector: ".summary-pic img"
     delay_seconds: 0.5
+
+  # ====== 书海阁 (shuhaige) ======
+  # https://www.shuhaige.net
+  # Tách chương dài thành nhiều trang con (a#pager_next).
+  # Cần pagination để crawler nối các trang con về cùng một chương.
+  shuhaige:
+    name: 书海阁 (shuhaige.net)
+    domains: "shuhaige.net"
+    engine: http
+    toc_selector: "#list"
+    content_selector: "#content"
+    chapter_title_selector: ".bookname h1"
+    next_page_selector: "a#pager_next"
+    max_pages_per_chapter: 10
+    delay_seconds: 1.0

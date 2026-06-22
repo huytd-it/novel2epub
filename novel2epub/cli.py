@@ -5,6 +5,8 @@ import argparse
 import sys
 from pathlib import Path
 
+import os
+
 from .config import load_config, load_library
 from .pipeline import (
     run_all,
@@ -17,11 +19,13 @@ from .pipeline import (
     step_translate_meta,
     step_translate_selected,
 )
+from .preset_builder import build_preset, preview_toc, save_preset
 from .storage import Storage
 from .toc import apply_chapter_query, chapter_rows, parse_filter, parse_range, select_visible_range
 
 
 DEFAULT_LIBRARY_PATH = "library.yaml"
+SOURCES_PATH = os.environ.get("NOVEL2EPUB_SOURCES", "sources.yaml")
 
 
 def _force_utf8() -> None:
@@ -128,6 +132,23 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("run", help="Chạy toàn bộ: crawl -> translate -> build")
     sub.add_parser("list", help="Liệt kê các ebook trong library")
 
+    preset_build_parser = sub.add_parser("preset-build", help="Tạo site preset từ URL mục lục bằng AI")
+    preset_build_parser.add_argument("toc_url", help="URL mục lục của truyện")
+    preset_build_parser.add_argument("--name", default="", help="Tên preset (mặc định từ hostname)")
+    preset_build_parser.add_argument("--novel-title", default="赤心巡天", help="Tên truyện gợi ý cho AI")
+    preset_build_parser.add_argument("--yes", action="store_true", help="Lưu ngay không hỏi")
+    preset_build_parser.add_argument("--max-rounds", type=int, default=3, help="Số vòng refine pattern tối đa")
+    preset_build_parser.add_argument("--low", type=int, default=5, help="Ngưỡng dưới số chương match")
+    preset_build_parser.add_argument("--high", type=int, default=2000, help="Ngưỡng trên số chương match")
+    preset_build_parser.add_argument("--timeout", type=int, default=120, help="Timeout AI CLI (giây)")
+    preset_build_parser.add_argument("--encoding", default="", help="Override encoding")
+    preset_build_parser.add_argument("--js-code", default="", help="Override js_code (tự động chọn crawl4ai)")
+    preset_build_parser.add_argument("--engine", default="", choices=["http", "crawl4ai"], help="Override engine")
+
+    toc_preview_parser = sub.add_parser("toc-preview", help="Preview danh sách chương bằng preset đã lưu")
+    toc_preview_parser.add_argument("toc_url", help="URL mục lục")
+    toc_preview_parser.add_argument("--preset", required=True, help="Tên preset trong sources.yaml")
+
     translate_parser = sub.choices["translate"]
     translate_parser.add_argument("--force", action="store_true", help="Dịch lại dù đã có bản dịch")
     translate_parser.add_argument("--missing", action="store_true", help="Chỉ dịch chương chưa có bản dịch")
@@ -207,10 +228,103 @@ def main(argv: list[str] | None = None) -> int:
             step_build(cfg)
         elif args.command == "run":
             run_all(cfg)
+        elif args.command == "preset-build":
+            return _cmd_preset_build(args)
+        elif args.command == "toc-preview":
+            return _cmd_toc_preview(args)
     except (RuntimeError, ValueError, ImportError) as e:
         print(f"Lỗi: {e}", file=sys.stderr)
         return 1
 
+    return 0
+
+
+def _cmd_preset_build(args) -> int:
+    overrides: dict[str, object] = {}
+    if args.encoding:
+        overrides["encoding"] = args.encoding
+    if args.js_code:
+        overrides["js_code"] = args.js_code
+    if args.engine:
+        overrides["engine"] = args.engine
+
+    result = build_preset(
+        toc_url=args.toc_url,
+        preset_name=args.name,
+        novel_title=args.novel_title,
+        overrides=overrides,
+        config_path=args.config,
+        max_rounds=args.max_rounds,
+        low=args.low,
+        high=args.high,
+        timeout_seconds=args.timeout,
+    )
+    if result.error:
+        print(f"Lỗi: {result.error}", file=sys.stderr)
+        return 1
+
+    print(f"\nĐề xuất preset: {result.preset.name}")
+    print(f"Engine: {result.engine}")
+    print(f"Validation: {result.validation.get('status')} (count={result.validation.get('count')}, rounds={result.rounds})")
+    print(f"toc_selector: {result.preset.toc_selector}")
+    print(f"chapter_link_pattern: {result.preset.chapter_link_pattern}")
+    print(f"content_selector: {result.preset.content_selector}")
+    if result.overrides_applied:
+        print(f"Overrides applied: {', '.join(result.overrides_applied)}")
+
+    preview = result.preview
+    if preview is None:
+        print("Không lấy được preview.")
+        return 1
+
+    print(f"\nPreview: {len(preview.chapters)} chương")
+    print(f"Title : {preview.title or '(rỗng)'}")
+    print(f"Author: {preview.author or '(rỗng)'}")
+    rows = preview.chapters[:20]
+    for ch in rows:
+        print(f"  {ch.index:4d}. {ch.title_zh or '(no title)'} — {ch.url}")
+    if len(preview.chapters) > 20:
+        print(f"  ... và {len(preview.chapters) - 20} chương khác")
+
+    if args.yes:
+        save = True
+    else:
+        answer = input(f"\nLưu preset '{result.preset.name}' vào {SOURCES_PATH}? [y/N] ")
+        save = answer.strip().lower() == "y"
+
+    if save:
+        save_preset(result.preset, SOURCES_PATH)
+        print(f"Đã lưu preset '{result.preset.name}'.")
+    else:
+        print("Đã hủy.")
+    return 0
+
+
+def _cmd_toc_preview(args) -> int:
+    result = preview_toc(args.toc_url, args.preset, SOURCES_PATH)
+    if result.error:
+        print(f"Lỗi: {result.error}", file=sys.stderr)
+        return 1
+    preview = result.preview
+    if preview is None:
+        print("Không lấy được preview.", file=sys.stderr)
+        return 1
+
+    print(f"Title : {preview.title or '(rỗng)'}")
+    print(f"Author: {preview.author or '(rỗng)'}")
+    print(f"Chapters: {len(preview.chapters)}")
+    if not preview.chapters:
+        print("Pattern matches 0 chapters", file=sys.stderr)
+        return 1
+
+    rows = preview.chapters[:5]
+    print("\nĐầu:")
+    for ch in rows:
+        print(f"  {ch.index:4d}. {ch.title_zh or '(no title)'} — {ch.url}")
+    if len(preview.chapters) > 5:
+        print("\nCuối:")
+        for ch in preview.chapters[-5:]:
+            print(f"  {ch.index:4d}. {ch.title_zh or '(no title)'} — {ch.url}")
     return 0
 
 

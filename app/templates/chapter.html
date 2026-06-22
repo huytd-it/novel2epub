@@ -6,6 +6,7 @@
 {% if ch.title_note %}<p class="muted">{{ ch.title_note }}</p>{% endif %}
 <p class="muted"><a href="{{ ch.url }}" target="_blank">{{ ch.url }}</a></p>
 {% if ch.missing_fields %}<p class="muted">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}
+<p class="muted">Số từ: bản dịch {{ translated_word_count }} từ{% if raw %} · raw {{ raw_word_count }} từ{% endif %}</p>
 {% if ch.last_action_status %}<p class="muted">Action gần nhất: {{ ch.last_action_status }}</p>{% endif %}
 <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="form-row">
     <label>Action
@@ -177,6 +178,23 @@
     </div>
 </div>
 
+{% if footnote_list %}
+<div class="section-head">
+    <h3>Xem trước chú thích</h3>
+    <label class="check muted"><input type="checkbox" id="footnotes-toggle" checked> Hiện chú thích</label>
+</div>
+<details id="footnotes-control" class="edit-rules">
+    <summary>Ẩn từng chú thích ({{ footnote_list|length }})</summary>
+    <ul>
+        {% for fn in footnote_list %}
+        <li><label class="check"><input type="checkbox" class="footnote-item-toggle" data-num="{{ fn.num }}" checked> ({{ fn.num }}) <strong>{{ fn.term }}</strong>: {{ fn.note }}</label></li>
+        {% endfor %}
+    </ul>
+</details>
+<div class="raw-view" id="translated-preview">{{ translated_preview_html|safe }}</div>
+{{ footnotes_html|safe }}
+{% endif %}
+
 {% if meta and meta.ai_rewrite and meta.ai_rewrite.text %}
 <div class="ai-panel rewrite">
     <div class="section-head">
@@ -267,6 +285,28 @@ if (rawView) {
     renderRawView();
     if (highlightToggle) highlightToggle.addEventListener("change", renderRawView);
 }
+
+// --- Hiện/ẩn chú thích (footnote) trong preview bản dịch ---
+const footnotesToggle = document.getElementById("footnotes-toggle");
+const footnotesControl = document.getElementById("footnotes-control");
+const itemToggles = Array.from(document.querySelectorAll(".footnote-item-toggle"));
+
+function applyFootnoteVisibility() {
+    const showAll = !footnotesToggle || footnotesToggle.checked;
+    if (footnotesControl) footnotesControl.style.display = showAll ? "" : "none";
+    const hiddenNums = new Set(
+        itemToggles.filter(cb => !cb.checked).map(cb => cb.dataset.num)
+    );
+    document.querySelectorAll('sup.fn[data-num], .footnotes li[data-num]').forEach(el => {
+        const num = el.dataset.num;
+        el.style.display = (!showAll || hiddenNums.has(num)) ? "none" : "";
+    });
+    const fnBlock = document.querySelector(".footnotes");
+    if (fnBlock) fnBlock.style.display = showAll ? "" : "none";
+}
+if (footnotesToggle) footnotesToggle.addEventListener("change", applyFootnoteVisibility);
+for (const cb of itemToggles) cb.addEventListener("change", applyFootnoteVisibility);
+applyFootnoteVisibility();
 
 // --- Diff bản dịch hiện tại vs bản nháp AI (line-level LCS) ---
 function lineDiff(aText, bText) {

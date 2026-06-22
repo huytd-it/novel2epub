@@ -91,6 +91,8 @@ def test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit(monkeypatch
     assert res.status_code == 200
     assert 'id="crawl4ai-options"' in res.text
     assert 'style="display:none"' in res.text
+    # Engine select no longer contains firecrawl
+    assert '>firecrawl<' not in res.text
 
     # Edit a crawl4ai preset -> crawl4ai fieldset visible (no display:none on the fieldset)
     presets_c4 = {"c4": SourcePreset(name="c4", engine="crawl4ai", js_code="window.scrollTo(...)")}
@@ -101,3 +103,4 @@ def test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit(monkeypatch
     assert 'id="crawl4ai-options"' in res.text
     assert 'crawl4ai-options" style="display:none"' not in res.text
     assert 'crawl4ai-options"' in res.text or 'crawl4ai-options ' in res.text
+    assert '>firecrawl<' not in res.text

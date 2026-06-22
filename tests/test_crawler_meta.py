@@ -1,7 +1,8 @@
+import pytest
 from bs4 import BeautifulSoup
 
 from novel2epub.config import CrawlConfig
-from novel2epub.crawler import HttpCrawler, _meta_get
+from novel2epub.crawler import HttpCrawler, _meta_get, make_crawler
 
 
 def _crawler(**kw):
@@ -148,3 +149,13 @@ def test_ai_fallback_skipped_when_primary_succeeds(monkeypatch):
     result = c.fetch_chapter(ch)
     assert result == "Nội dung chính."
     assert len(calls) == 0  # fallback NOT called
+
+
+def test_make_crawler_rejects_firecrawl_with_helpful_message():
+    cfg = CrawlConfig(toc_url="http://x", engine="firecrawl")
+    with pytest.raises(ValueError) as exc_info:
+        make_crawler(cfg)
+    msg = str(exc_info.value)
+    assert "firecrawl" in msg
+    assert "crawl4ai" in msg
+    assert "remove api_key" in msg or "api_key" in msg

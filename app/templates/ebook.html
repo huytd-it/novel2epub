@@ -123,7 +123,7 @@
 </div>
 <div class="table-wrap">
 <table id="chapter-table" class="data-table">
-    <thead><tr><th><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th>#</th><th>Tiêu đề</th><th>Raw</th><th>Dịch</th><th>Thiếu</th><th>Action</th><th></th></tr></thead>
+    <thead><tr><th><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th>#</th><th>Tiêu đề</th><th>Raw</th><th>Dịch</th><th>Số từ</th><th>Thiếu</th><th>Action</th><th></th></tr></thead>
     <tbody>
     {% for ch in chapters %}
     <tr data-index="{{ ch.index }}">
@@ -132,6 +132,7 @@
         <td><a href="{{ ch.url }}" target="_blank">{{ ch.visible_title }}</a></td>
         <td>{% if ch.has_raw %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
         <td>{% if ch.has_translated %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
+        <td>{{ ch.word_count if ch.has_translated else '-' }}</td>
         <td>{{ ch.missing_fields|join(', ') if ch.missing_fields else '-' }}</td>
         <td>
             <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="row-actions">

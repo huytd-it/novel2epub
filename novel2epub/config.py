@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,26 +13,62 @@ import yaml
 @dataclass
 class CrawlConfig:
     toc_url: str
-    # engine: http (requests+BS4) | crawl4ai (browser, JS) | firecrawl (API)
+    # engine: http (requests+BS4) | crawl4ai (browser, JS)
     engine: str = "http"
-    api_key: str = ""
-    api_url: str | None = None
     chapter_link_pattern: str = r".*"
     max_chapters: int = 0
     strip_patterns: list[str] = field(default_factory=list)
     delay_seconds: float = 1.0
 
-    # ----- chỉ dùng cho engine = "http" -----
+    # ----- multi-page chapter (pagination) -----
+    # CSS selector cho link "trang tiếp" trong chương (vd "a#pager_next",
+    # "a.next"). Khi tìm thấy, crawler tải nội dung trang đó rồi nối vào
+    # chương hiện tại. Để trống = không paginate.
+    next_page_selector: str = ""
+    # Regex fallback cho site không có link "trang tiếp" rõ ràng (vd JS
+    # navigation). Phải chứa đúng 1 capturing group; group sẽ được thay
+    # bằng hậu tố tăng dần ("_2", "_3", ...) để dò URL trang kế tiếp.
+    next_page_url_pattern: str = ""
+    # Số trang tối đa cho 1 chương (an toàn, tránh loop vô hạn).
+    max_pages_per_chapter: int = 10
+
+    def __post_init__(self) -> None:
+        if self.next_page_url_pattern:
+            try:
+                pat = re.compile(self.next_page_url_pattern)
+            except re.error as e:
+                raise ValueError(
+                    f"crawl.next_page_url_pattern không phải regex hợp lệ: {e}"
+                ) from e
+            unnamed_groups = pat.groups
+            named_groups = len(pat.groupindex)
+            total = unnamed_groups + named_groups
+            if total != 1:
+                raise ValueError(
+                    "crawl.next_page_url_pattern phải chứa đúng 1 capturing "
+                    f"group, hiện có {total}."
+                )
+
     # CSS selector vùng chứa nội dung chương (vd "#content", ".read-content").
+    # Dùng cho cả 2 engine: engine "http" dùng để bóc text trực tiếp; engine
+    # "crawl4ai" dùng làm css_selector cho CrawlerRunConfig (giới hạn vùng
+    # crawl4ai render Markdown).
     content_selector: str = ""
+
+    # ----- chỉ dùng cho engine = "http" -----
     # CSS selector vùng chứa danh sách link chương ở trang mục lục (tùy chọn,
     # giúp loại bỏ link rác ở header/footer). Vd "#list", ".listmain".
+    # KHÔNG áp dụng cho engine "crawl4ai" (fetch_toc của engine đó quét toàn
+    # trang theo chapter_link_pattern, không scope theo toc_selector).
     toc_selector: str = ""
     # CSS selector tiêu đề chương (tùy chọn). Vd "h1".
     chapter_title_selector: str = ""
-    # ----- selector metadata truyện ở trang mục lục/giới thiệu (tùy chọn) -----
+    # ----- selector metadata truyện ở trang mục lục/giới thiệu, chỉ dùng cho
+    # engine = "http" (tùy chọn) -----
     # Để trống thì crawler tự lấy từ thẻ OG/meta chuẩn (og:title, og:novel:author,
     # og:description, og:image...). Đặt selector khi trang không có thẻ OG.
+    # KHÔNG áp dụng cho engine "crawl4ai" (engine đó chỉ đọc og:meta, bỏ qua
+    # các selector này).
     title_selector: str = ""
     author_selector: str = ""
     desc_selector: str = ""
@@ -176,6 +213,10 @@ class Config:
     crawl: CrawlConfig
     translate: TranslateConfig
     output: OutputConfig
+    # Cảnh báo xung đột tính năng phát hiện lúc load config (vd preset ép đổi
+    # type, selector không áp dụng cho engine hiện tại...). pipeline.py log
+    # các dòng này ra job log để hiện trên web UI thay vì chỉ ghi logging nội bộ.
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def epub_path(self) -> str:
@@ -239,9 +280,9 @@ def load_config(path: str | Path) -> Config:
     novel = NovelConfig(**(raw.get("novel") or {}))
 
     crawl_raw = dict(raw.get("crawl") or {})
-    crawl_raw.setdefault("api_key", "")
-    if not crawl_raw.get("api_key"):
-        crawl_raw["api_key"] = os.environ.get("FIRECRAWL_API_KEY", "")
+    # api_key / api_url chỉ dùng cho firecrawl, đã bỏ engine này; bỏ qua cũ.
+    crawl_raw.pop("api_key", None)
+    crawl_raw.pop("api_url", None)
     crawl = CrawlConfig(**crawl_raw)
 
     translate_raw = dict(raw.get("translate") or {})
@@ -274,6 +315,7 @@ def load_config(path: str | Path) -> Config:
             names_path = str(glossary_dir / "names.txt")
         if not vietphrase_path:
             vietphrase_path = str(glossary_dir / "vietphrase.txt")
+    warnings: list[str] = []
     if preset_name:
         from . import presets as _presets
 
@@ -283,11 +325,9 @@ def load_config(path: str | Path) -> Config:
         cli_raw = merged
         tr_type = translate_raw.get("type", "cli")
         if tr_type and tr_type != "cli":
-            import logging as _logging
-
-            _logging.getLogger(__name__).warning(
-                "translate.preset=%r overrides translate.type=%r to 'cli'",
-                preset_name, tr_type,
+            warnings.append(
+                f"translate.preset={preset_name!r} đã ép translate.type về 'cli' "
+                f"(translate.type={tr_type!r} trong file config bị bỏ qua)."
             )
 
     translate = TranslateConfig(
@@ -317,4 +357,25 @@ def load_config(path: str | Path) -> Config:
 
     output = OutputConfig(**(raw.get("output") or {}))
 
-    return Config(novel=novel, crawl=crawl, translate=translate, output=output)
+    if crawl.engine == "crawl4ai":
+        ignored_selectors = [
+            name for name in (
+                "toc_selector", "title_selector", "author_selector",
+                "desc_selector", "cover_selector",
+            )
+            if getattr(crawl, name)
+        ]
+        if ignored_selectors:
+            warnings.append(
+                "crawl.engine='crawl4ai' không dùng "
+                f"{', '.join(f'crawl.{n}' for n in ignored_selectors)} "
+                "(các selector này chỉ áp dụng cho engine 'http')."
+            )
+    if crawl.ai_fallback and preset_name != "go":
+        warnings.append(
+            "crawl.ai_fallback=true nhưng translate.preset không phải 'go' "
+            f"(hiện tại: {preset_name or '(trống)'!r}) — fallback vẫn dùng prompt "
+            "trích xuất HTML của preset 'go', kiểm tra translate.cli có phù hợp không."
+        )
+
+    return Config(novel=novel, crawl=crawl, translate=translate, output=output, warnings=warnings)

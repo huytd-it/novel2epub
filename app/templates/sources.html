@@ -4,7 +4,7 @@
 <div class="section-head">
     <h2>Thư viện nguồn (site preset)</h2>
 </div>
-<p class="muted">Preset gom selector/pattern theo từng website để dùng lại khi thêm ebook hoặc cập nhật nguồn. Lưu trong <code>{{ sources_path }}</code>. Không chứa <code>toc_url</code> (đặc thù từng truyện). Engine: <strong>http</strong> = requests+BS4, <strong>crawl4ai</strong> = trình duyệt/JS, <strong>firecrawl</strong> = API Markdown.</p>
+<p class="muted">Preset gom selector/pattern theo từng website để dùng lại khi thêm ebook hoặc cập nhật nguồn. Lưu trong <code>{{ sources_path }}</code>. Không chứa <code>toc_url</code> (đặc thù từng truyện). Engine: <strong>http</strong> = requests+BS4, <strong>crawl4ai</strong> = trình duyệt/JS. <a href="/preset-builder">Tạo preset từ URL mục lục</a>.</p>
 
 {% if presets %}
 <div class="table-wrap">
@@ -59,7 +59,7 @@
             <label>Tên (trùng tên = ghi đè) <input type="text" name="name" value="{{ edit.name if edit else '' }}" {% if not edit %}required{% endif %}></label>
             <label>Engine
                 <select name="engine" id="engine-select">
-                    {% for opt in ["http", "crawl4ai", "firecrawl"] %}
+                    {% for opt in ["http", "crawl4ai"] %}
                     <option value="{{ opt }}" {% if edit and edit.engine == opt %}selected{% endif %}>{{ opt }}</option>
                     {% endfor %}
                 </select>
@@ -84,6 +84,15 @@
             <label>author_selector <input type="text" name="author_selector" value="{{ edit.author_selector if edit else '' }}" size="20"></label>
             <label>desc_selector <input type="text" name="desc_selector" value="{{ edit.desc_selector if edit else '' }}" size="20"></label>
             <label>cover_selector <input type="text" name="cover_selector" value="{{ edit.cover_selector if edit else '' }}" size="20"></label>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Pagination (chương nhiều trang)</legend>
+        <div class="form-row">
+            <label>next_page_selector <input type="text" name="next_page_selector" value="{{ edit.next_page_selector if edit else '' }}" size="30" placeholder="a#pager_next"></label>
+            <label>next_page_url_pattern <input type="text" name="next_page_url_pattern" value="{{ edit.next_page_url_pattern if edit else '' }}" size="30" placeholder="regex có 1 group"></label>
+            <label>max_pages_per_chapter <input type="number" name="max_pages_per_chapter" value="{{ edit.max_pages_per_chapter if edit else 10 }}" min="1" size="4"></label>
         </div>
     </fieldset>
 

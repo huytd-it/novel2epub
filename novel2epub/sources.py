@@ -44,6 +44,9 @@ class SourcePreset:
     magic: bool = True
     js_code: str = ""
     delay_seconds: float = 1.0
+    next_page_selector: str = ""
+    next_page_url_pattern: str = ""
+    max_pages_per_chapter: int = 10
 
     def crawl_overrides(self) -> dict[str, Any]:
         """Dict áp lên nhánh `crawl` của config (bỏ `name`, `domains`)."""
@@ -64,6 +67,11 @@ def _coerce(name: str, value: Any) -> Any:
             return float(value)
         except (TypeError, ValueError):
             return 1.0
+    if name == "max_pages_per_chapter":
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 10
     return "" if value is None else value
 
 
@@ -115,7 +123,10 @@ def save_presets(path: str | Path, presets: dict[str, SourcePreset]) -> None:
     sources = CommentedMap()
     for name, preset in presets.items():
         item = CommentedMap()
-        for k, v in preset.crawl_overrides().items():
+        # Lưu toàn bộ field của SourcePreset ngoại trừ name.
+        for k, v in asdict(preset).items():
+            if k == "name":
+                continue
             item[k] = v
         sources[name] = item
     data["sources"] = sources

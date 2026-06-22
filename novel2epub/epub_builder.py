@@ -18,20 +18,7 @@ sup.fn a { text-decoration: none; font-size: 0.8em; }
 .footnotes li { text-indent: 0; margin: 0.3em 0; }
 """
 
-# Sau khi html.escape, thay placeholder PUA của footnote thành <sup> có anchor.
-_MARK_RE = re.compile(
-    re.escape(footnotes.MARK_OPEN) + r"(\d+)" + re.escape(footnotes.MARK_CLOSE)
-)
-
-
-def _markers_to_html(escaped: str) -> str:
-    return _MARK_RE.sub(
-        lambda m: (
-            f'<sup class="fn"><a id="fnref{m.group(1)}" '
-            f'href="#fn{m.group(1)}">({m.group(1)})</a></sup>'
-        ),
-        escaped,
-    )
+_markers_to_html = footnotes.markers_to_html
 
 
 def _md_to_xhtml_body(md: str) -> str:
@@ -54,21 +41,7 @@ def _md_to_xhtml_body(md: str) -> str:
     return "\n".join(blocks)
 
 
-def _render_footnotes(items: list[dict]) -> str:
-    """Sinh khối <div class="footnotes"> với danh sách định nghĩa + back-link."""
-    if not items:
-        return ""
-    lis = []
-    for it in items:
-        term = html.escape(str(it.get("term", "")))
-        note = html.escape(str(it.get("note", "")))
-        num = it.get("num")
-        body = f"<strong>{term}:</strong> {note}" if term else note
-        lis.append(
-            f'<li id="fn{num}">{body} '
-            f'<a href="#fnref{num}">↩</a></li>'
-        )
-    return '<div class="footnotes"><hr/><ol>' + "".join(lis) + "</ol></div>"
+_render_footnotes = footnotes.render_footnotes_html
 
 
 def build_epub(

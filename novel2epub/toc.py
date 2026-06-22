@@ -19,6 +19,7 @@ class ChapterRow:
     missing_fields: list[str]
     duplicate_of: int | None
     last_action_status: str
+    word_count: int = 0
 
     @property
     def has_missing(self) -> bool:
@@ -60,9 +61,15 @@ def mark_duplicate_chapters(chapters: list[Chapter]) -> list[Chapter]:
     return chapters
 
 
+def count_words(text: str) -> int:
+    return len(text.split())
+
+
 def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterRow]:
     rows = []
     for ch in chapters:
+        has_translated = storage.has_translated(ch)
+        word_count = count_words(storage.read_translated(ch)) if has_translated else 0
         rows.append(ChapterRow(
             index=ch.index,
             title_zh=ch.title_zh,
@@ -70,10 +77,11 @@ def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterR
             visible_title=ch.title_vi or ch.title_zh or f"Chương {ch.index}",
             url=ch.url,
             has_raw=storage.has_raw(ch),
-            has_translated=storage.has_translated(ch),
+            has_translated=has_translated,
             missing_fields=chapter_missing(ch),
             duplicate_of=ch.duplicate_of,
             last_action_status=ch.last_action_status,
+            word_count=word_count,
         ))
     return rows
 

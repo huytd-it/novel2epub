@@ -121,9 +121,27 @@ def start_ebook_chapter_action(
 
     def _target(log):
         if action == "crawl":
-            step_crawl_selected(cfg, log, force=override, selected_indexes=selected)
+            log(
+                f"[config] action=crawl engine={cfg.crawl.engine!r} "
+                f"ai_fallback={cfg.crawl.ai_fallback!r} force={override!r} "
+                f"selected={len(selected)} chương"
+            )
+            try:
+                step_crawl_selected(cfg, log, force=override, selected_indexes=selected)
+            except Exception as e:  # noqa: BLE001 - log chi tiết config trước khi job.py ghi traceback
+                log(f"[config] Lỗi khi crawl với engine={cfg.crawl.engine!r}: {e}")
+                raise
         elif action == "translate":
-            step_translate_selected(cfg, log, force=override, selected_indexes=selected)
+            log(
+                f"[config] action=translate type={cfg.translate.type!r} "
+                f"preset={cfg.translate.preset!r} force={override!r} "
+                f"selected={len(selected)} chương"
+            )
+            try:
+                step_translate_selected(cfg, log, force=override, selected_indexes=selected)
+            except Exception as e:  # noqa: BLE001 - log chi tiết config trước khi job.py ghi traceback
+                log(f"[config] Lỗi khi dịch với type={cfg.translate.type!r} preset={cfg.translate.preset!r}: {e}")
+                raise
         else:
             raise ValueError(f"action không hợp lệ: {action!r}")
 

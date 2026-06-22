@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Tạo preset — novel2epub{% endblock %}
+{% block content %}
+<div class="section-head">
+    <h2>Tạo site preset từ URL mục lục</h2>
+    <p class="muted">AI sẽ đề xuất selector, regex, engine; bạn preview danh sách chương trước khi lưu vào <code>{{ sources_path }}</code>.</p>
+</div>
+
+<form id="builder-form">
+    <fieldset>
+        <legend>URL &amp; tùy chọn cơ bản</legend>
+        <div class="form-row">
+            <label>URL mục lục <input type="text" name="toc_url" id="toc_url" value="{{ toc_url }}" size="60" required placeholder="https://..."></label>
+            <label>Tên preset <input type="text" name="preset_name" id="preset_name" placeholder="mặc định từ hostname"></label>
+            <label>Tên truyện gợi ý <input type="text" name="novel_title" value="赤心巡天" size="20"></label>
+        </div>
+    </fieldset>
+    <fieldset>
+        <legend>Overrides (tùy chọn)</legend>
+        <div class="form-row">
+            <label>encoding <input type="text" name="encoding" placeholder="gbk / utf-8" size="10"></label>
+            <label>engine
+                <select name="engine">
+                    <option value="">— auto —</option>
+                    <option value="http">http</option>
+                    <option value="crawl4ai">crawl4ai</option>
+                </select>
+            </label>
+            <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" placeholder="1.0" size="6"></label>
+            <label>max_pages_per_chapter <input type="number" name="max_pages_per_chapter" placeholder="10" size="4"></label>
+        </div>
+        <div class="form-row">
+            <label>user_agent <input type="text" name="user_agent" placeholder="để trống = mặc định" size="60"></label>
+        </div>
+        <div class="form-row">
+            <label>js_code <input type="text" name="js_code" placeholder="JS để chạy trước khi crawl (tự động chọn crawl4ai)" size="80"></label>
+        </div>
+        <div class="form-row">
+            <label>next_page_selector <input type="text" name="next_page_selector" placeholder="a#pager_next" size="30"></label>
+            <label>next_page_url_pattern <input type="text" name="next_page_url_pattern" placeholder="regex có 1 group" size="30"></label>
+        </div>
+    </fieldset>
+    <div class="form-row">
+        <button type="submit" id="preview-btn">🔍 Preview</button>
+        <span id="status" class="muted"></span>
+    </div>
+</form>
+
+<div id="preview"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("builder-form");
+    const previewDiv = document.getElementById("preview");
+    const statusEl = document.getElementById("status");
+
+    form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const data = new FormData(form);
+        statusEl.textContent = "⏳ Đang phân tích...";
+        previewDiv.innerHTML = "";
+
+        try {
+            const res = await fetch("/preset-builder/preview", { method: "POST", body: data });
+            const json = await res.json();
+            if (json.error) {
+                statusEl.textContent = "⚠️ " + json.error;
+                return;
+            }
+            renderPreview(json);
+            statusEl.textContent = "✅ Đã tạo đề xuất.";
+        } catch (err) {
+            statusEl.textContent = "⚠️ Lỗi: " + err.message;
+        }
+    });
+
+    function renderPreview(data) {
+        const p = data.preset;
+        const rows = data.preview.chapters.slice(0, 20).map(c =>
+            `<tr><td>${c.index}</td><td>${escapeHtml(c.title_zh || "(no title)")}</td><td><code>${escapeHtml(c.url)}</code></td></tr>`
+        ).join("");
+
+        previewDiv.innerHTML = `
+            <hr>
+            <div class="section-head"><h3>Đề xuất preset</h3></div>
+            <form method="post" action="/preset-builder/save">
+                <input type="hidden" name="preset_json" value='${escapeHtml(JSON.stringify(p))}'>
+                <fieldset>
+                    <legend>Thông tin cơ bản</legend>
+                    <div class="form-row">
+                        <label>name <input type="text" name="name" value="${escapeHtml(p.name)}" required></label>
+                        <label>engine
+                            <select name="engine">
+                                <option value="http" ${p.engine === "http" ? "selected" : ""}>http</option>
+                                <option value="crawl4ai" ${p.engine === "crawl4ai" ? "selected" : ""}>crawl4ai</option>
+                            </select>
+                        </label>
+                        <label>domains <input type="text" name="domains" value="${escapeHtml(p.domains)}"></label>
+                        <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="${p.delay_seconds}"></label>
+                    </div>
+                    <div class="form-row">
+                        <label>chapter_link_pattern <input type="text" name="chapter_link_pattern" value="${escapeHtml(p.chapter_link_pattern)}" size="60"></label>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Selectors</legend>
+                    <div class="form-row">
+                        <label>toc_selector <input type="text" name="toc_selector" value="${escapeHtml(p.toc_selector)}"></label>
+                        <label>content_selector <input type="text" name="content_selector" value="${escapeHtml(p.content_selector)}"></label>
+                        <label>chapter_title_selector <input type="text" name="chapter_title_selector" value="${escapeHtml(p.chapter_title_selector)}"></label>
+                    </div>
+                    <div class="form-row">
+                        <label>title_selector <input type="text" name="title_selector" value="${escapeHtml(p.title_selector)}"></label>
+                        <label>author_selector <input type="text" name="author_selector" value="${escapeHtml(p.author_selector)}"></label>
+                        <label>desc_selector <input type="text" name="desc_selector" value="${escapeHtml(p.desc_selector)}"></label>
+                        <label>cover_selector <input type="text" name="cover_selector" value="${escapeHtml(p.cover_selector)}"></label>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>crawl4ai</legend>
+                    <div class="form-row">
+                        <label class="check"><input type="checkbox" name="headless" value="true" ${p.headless ? "checked" : ""}> headless</label>
+                        <label class="check"><input type="checkbox" name="magic" value="true" ${p.magic ? "checked" : ""}> magic</label>
+                        <label>js_code <input type="text" name="js_code" value="${escapeHtml(p.js_code)}" size="60"></label>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Network / Pagination</legend>
+                    <div class="form-row">
+                        <label>encoding <input type="text" name="encoding" value="${escapeHtml(p.encoding)}"></label>
+                        <label>user_agent <input type="text" name="user_agent" value="${escapeHtml(p.user_agent)}" size="60"></label>
+                    </div>
+                    <div class="form-row">
+                        <label>next_page_selector <input type="text" name="next_page_selector" value="${escapeHtml(p.next_page_selector)}"></label>
+                        <label>next_page_url_pattern <input type="text" name="next_page_url_pattern" value="${escapeHtml(p.next_page_url_pattern)}"></label>
+                        <label>max_pages_per_chapter <input type="number" name="max_pages_per_chapter" value="${p.max_pages_per_chapter}"></label>
+                    </div>
+                </fieldset>
+                <div class="form-row">
+                    <button type="submit">💾 Lưu preset</button>
+                    <span class="badge ${data.validation.status === "ok" ? "ok" : "no"}">${data.validation.status}</span>
+                    <span class="muted">${data.preview.chapter_count} chương · ${data.rounds} vòng refine</span>
+                </div>
+            </form>
+            <h4>Preview (${data.preview.chapter_count} chương)</h4>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <tr><th>#</th><th>Tiêu đề</th><th>URL</th></tr>
+                    ${rows}
+                </table>
+            </div>
+            ${data.preview.chapter_count > 20 ? `<p class="muted">... và ${data.preview.chapter_count - 20} chương khác</p>` : ""}
+        `;
+    }
+
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return "";
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+});
+</script>
+{% endblock %}

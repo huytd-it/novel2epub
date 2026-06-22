@@ -10,6 +10,9 @@ Private-Use để qua html.escape không bị phá.
 """
 from __future__ import annotations
 
+import html
+import re
+
 # Bao quanh số footnote bằng ký tự Private-Use Area (U+E000/U+E001) để không trùng
 # nội dung thật và sống sót qua html.escape (escape không đụng tới các ký tự này).
 MARK_OPEN = ""
@@ -18,6 +21,40 @@ MARK_CLOSE = ""
 
 def make_marker(num: int) -> str:
     return f"{MARK_OPEN}{num}{MARK_CLOSE}"
+
+
+_MARK_RE = re.compile(re.escape(MARK_OPEN) + r"(\d+)" + re.escape(MARK_CLOSE))
+
+
+def markers_to_html(escaped: str) -> str:
+    """Đổi placeholder PUA (sau khi đã html.escape) thành <sup> có anchor.
+
+    Dùng chung cho EPUB (epub_builder) và preview trên web UI (route chapters).
+    """
+    return _MARK_RE.sub(
+        lambda m: (
+            f'<sup class="fn" data-num="{m.group(1)}"><a id="fnref{m.group(1)}" '
+            f'href="#fn{m.group(1)}">({m.group(1)})</a></sup>'
+        ),
+        escaped,
+    )
+
+
+def render_footnotes_html(items: list[dict]) -> str:
+    """Sinh khối <div class="footnotes"> với danh sách định nghĩa + back-link."""
+    if not items:
+        return ""
+    lis = []
+    for it in items:
+        term = html.escape(str(it.get("term", "")))
+        note = html.escape(str(it.get("note", "")))
+        num = it.get("num")
+        body = f"<strong>{term}:</strong> {note}" if term else note
+        lis.append(
+            f'<li id="fn{num}" data-num="{num}">{body} '
+            f'<a href="#fnref{num}">↩</a></li>'
+        )
+    return '<div class="footnotes"><hr/><ol>' + "".join(lis) + "</ol></div>"
 
 
 def _is_word_char(ch: str) -> bool:

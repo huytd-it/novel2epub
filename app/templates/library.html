@@ -51,7 +51,6 @@
                 <select name="engine" id="engine">
                     <option value="http">http (requests + BS4)</option>
                     <option value="crawl4ai">crawl4ai (trình duyệt, JS)</option>
-                    <option value="firecrawl">firecrawl (API)</option>
                 </select>
             </label>
             <label>Site preset
@@ -68,6 +67,7 @@
         <button type="button" id="fetch-btn">🔍 Lấy thông tin</button>
         <button type="submit">💾 Tạo ebook</button>
         <span id="fetch-status" class="muted"></span>
+        <span id="preset-suggest" class="muted"></span>
     </div>
 </form>
 
@@ -134,6 +134,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 method: "POST",
                 body: formData,
             });
+
             const data = await res.json();
 
             if (data.error) {
@@ -150,6 +151,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 const engine = PRESET_ENGINES[data.preset];
                 if (engine) engineEl.value = engine;
             }
+            const suggestEl = document.getElementById("preset-suggest");
+            if (data.suggest_url) {
+                suggestEl.innerHTML = 'Chưa có preset cho URL này — <a href="' + escapeHtml(data.suggest_url) + '">Tạo preset</a>';
+            } else {
+                suggestEl.innerHTML = "";
+            }
             fetchStatus.textContent = "✅ " + (data.name || "Đã lấy thông tin");
         } catch (e) {
             fetchStatus.textContent = "⚠️ Lỗi: " + e.message;
@@ -157,6 +164,15 @@ document.addEventListener("DOMContentLoaded", function () {
             fetchBtn.disabled = false;
         }
     });
+
+    function escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
 });
 </script>
 {% endblock %}

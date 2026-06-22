@@ -1,36 +1,147 @@
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+
+- **MCP tools** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them. `codegraph_node` returns one symbol's source + callers, or reads a whole file with line numbers. If the tools are listed but deferred, load them by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` and `codegraph node <symbol-or-file>` print the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- CODEGRAPH_END -->
+
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-specs/001-refactor-toc/plan.md
+specs/002-opencode-go-preset/plan.md
 <!-- SPECKIT END -->
 
-## Crawl4AI
+# novel2epub
 
-Crawl4AI 0.9.0 đã cài và hoạt động trên Windows.
-Crawl engines available: `http`, `crawl4ai`, `firecrawl`.
+Crawl Chinese web novels, translate to Vietnamese, and package into EPUB.
 
-Khi dùng `engine: crawl4ai`, tham số `magic` phải được đặt trong `CrawlerRunConfig`
-(không truyền như kwarg riêng của `arun`) — xem `Crawl4AICrawler._run_cfg` trong
-`novel2epub/crawler.py`.
+## Pipeline
 
-## Source presets
+```
+TOC fetch -> crawl raw/*.md -> translate -> translated/*.md -> build -> .epub
+```
 
-Config riêng theo website được lưu ở `novel2epub/sources.yaml`.
-Load bằng `novel2epub.sources.load_presets()`.
+Each step is cached on disk. Resume or re-run individual steps.
 
-## Test commands
+## Project Structure
+
+```
+novel2epub/
+├── cli.py              # Argparse CLI (crawl/translate/meta/toc/build/run/list/...)
+├── pipeline.py         # Pipeline orchestration
+├── crawler.py          # 2 crawl engines: http, crawl4ai
+├── translator.py       # Translation backends: CLI (opencode), Google, noop
+├── cli_runner.py       # Subprocess wrapper for AI CLI commands
+├── config.py           # YAML config loading + dataclass models
+├── config_writer.py    # Round-trip YAML writer
+├── epub_builder.py     # EPUB packaging via ebooklib
+├── footnotes.py        # Glossary footnote annotation engine
+├── glossary_ai.py      # AI glossary suggestions + translation evaluation + rewrite
+├── sources.py          # Site preset library CRUD + auto-detect
+├── storage.py          # Disk-based manifest + chapter + glossary storage
+├── toc.py              # Chapter table helpers (sort/filter/range/pagination)
+└── presets/
+    └── go.py           # OpenCode Go translation preset
+
+app/
+├── main.py             # FastAPI app (uvicorn app.main:app --port 8010)
+├── deps.py             # Shared deps: config loading, template engine
+├── job.py              # Background job runner
+└── routes/             # ebooks, chapters, glossary, jobs, library, settings, sources
+    └── templates/      # Jinja2 templates
+
+config.yaml             # Active novel config
+sources.yaml            # Site-specific crawl presets
+library.yaml            # Multi-ebook library manifest
+```
+
+## Crawl Engines
+
+| Engine | Backend | When to use |
+|--------|---------|-------------|
+| `http` | requests + BeautifulSoup | Static HTML sites |
+| `crawl4ai` | Playwright (browser) | JS-rendered sites, SPA |
+
+Crawl4AI 0.9.0 is installed. When using `engine: crawl4ai`, pass `magic` inside `CrawlerRunConfig`, not as a separate kwarg — see `Crawl4AICrawler._run_cfg` in `crawler.py`.
+
+### Multi-page chapters (pagination)
+
+Some sites split a chapter across multiple pages. Configure in `crawl:` section:
+
+```yaml
+crawl:
+  next_page_selector: "a#pager_next"     # CSS selector for "next page" link
+  next_page_url_pattern: "_(\d+)\.html$" # Regex fallback (exactly 1 capture group)
+  max_pages_per_chapter: 10              # Safety limit
+```
+
+Auto-stops when: next link missing, URL visited, content unchanged, or limit reached.
+
+## Translation Backends
+
+| Type | Backend | Config Field |
+|------|---------|-------------|
+| `cli` | External AI CLI (opencode, ollama) | `translate.cli.command` |
+| `google` | deep-translator (Google Translate) | `translate.type: google` |
+| `none` | Passthrough (noop) | `translate.type: none` |
+
+The `translate.preset: go` activates OpenCode Go-optimized prompts and model defaults via `presets/go.py`.
+
+## Source Presets
+
+Site-specific crawl configs are stored in `sources.yaml`. Load with `sources.load_presets()`. Auto-detect by domain with `sources.detect_preset(url)`.
+
+## Commands
 
 ```sh
+# CLI
+python -m novel2epub crawl
+python -m novel2epub translate
+python -m novel2epub build
+python -m novel2epub run                 # crawl + translate + build
+
+# Web UI
+uvicorn app.main:app --reload --port 8010
+
+# Tests
 pytest tests/ -v
 pytest tests/test_crawler_meta.py -v
 ```
 
-## Các nguồn đã test cho 赤心巡天 (情何以甚)
+## Config Files
 
-| Source | URL | Engine | Status |
-|--------|-----|--------|--------|
-| sto9 (思兔) | https://sto9.com/book/3352/index.html | crawl4ai | ✓ |
-| aixdzs (爱下电子书) | https://www.aixdzs.com/novel/赤心巡天/ | http | ✓ |
-| qidian (起点) | https://www.qidian.com/book/1016530091/ | crawl4ai | untested |
-| 69shuba | https://www.69shuba.com/book/51265/ | crawl4ai | JS chapter list, needs more testing |
-| shuqi (书旗) | https://www.shuqi.com/book/9162887.html | crawl4ai | SPA, needs more testing |
+- `config.yaml` — Active novel config (title, crawl, translate, output sections)
+- `config.example.yaml` — Template for new configs
+- `sources.yaml` — Reusable crawl presets per website
+- `library.yaml` — Multi-ebook library manifest
+
+## Key Environment Variables
+
+- `NOVEL2EPUB_CONFIG` — Override config path
+- `NOVEL2EPUB_LIBRARY` — Override library path
+- `NOVEL2EPUB_SOURCES` — Override sources path
+
+## Tech Stack
+
+- Python 3.10+
+- FastAPI + Jinja2 (Web UI)
+- ebooklib (EPUB generation)
+- requests + BeautifulSoup (HTTP crawl)
+- crawl4ai (Playwright-based browser crawl)
+- deep-translator (Google Translate)
+- PyYAML + ruamel.yaml (config)
+- pytest (testing)
+
+## Tested Sources (赤心巡天)
+
+| Source | URL | Engine |
+|--------|-----|--------|
+| sto9 | https://sto9.com/book/3352/index.html | crawl4ai |
+| aixdzs | https://www.aixdzs.com/novel/赤心巡天/ | http |
+| qidian | https://www.qidian.com/book/1016530091/ | crawl4ai |
+| 69shuba | https://www.69shuba.com/book/51265/ | crawl4ai |
+| shuqi | https://www.shuqi.com/book/9162887.html | crawl4ai |

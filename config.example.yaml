@@ -18,7 +18,6 @@ crawl:
   #   crawl4ai  -> trình duyệt thật (Playwright), render JS + vượt bot detection
   #                (magic mode). Dùng khi engine "http" bị chặn/redirect verify.
   #                Cần: pip install crawl4ai && crawl4ai-setup
-  #   firecrawl -> Firecrawl trả Markdown sạch (cần api_key hoặc self-host).
   engine: "http"
 
   # URL trang mục lục (table of contents) chứa danh sách link các chương
@@ -77,11 +76,6 @@ crawl:
   # ai_fallback: true
   # Số ký tự HTML tối đa gửi cho AI (tránh vượt context window).
   # ai_fallback_max_html: 32000
-
-  # ----- chỉ dùng cho engine = "firecrawl" -----
-  # API key Firecrawl (hoặc đặt biến môi trường FIRECRAWL_API_KEY).
-  api_key: ""
-  # api_url: "http://localhost:3002"   # bỏ comment nếu self-host Firecrawl
 
 # ----------------------- DỊCH -----------------------
 translate:

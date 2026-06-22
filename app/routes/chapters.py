@@ -4,6 +4,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
+import html
+
+from novel2epub import footnotes
 from novel2epub.pipeline import (
     step_crawl_selected,
     step_review_chapter,
@@ -12,6 +15,7 @@ from novel2epub.pipeline import (
     step_translate_selected,
 )
 from novel2epub.storage import Storage
+from novel2epub.toc import count_words
 
 from .. import deps
 from .glossary import _append_glossary_entry
@@ -25,15 +29,22 @@ _AI_STEPS = {
 router = APIRouter()
 
 
-def _chapter_glossary(storage: Storage, raw: str, translated: str) -> list[dict[str, str | bool]]:
-    """Return glossary rows with entries used in this chapter first."""
+def _chapter_glossary(storage: Storage, raw: str, translated: str) -> list[dict[str, str | bool | int]]:
+    """Return glossary rows with entries used in this chapter first.
+
+    raw_count/translated_count đếm số lần xuất hiện literal trong chương, dùng
+    để soi vị trí (jump-to) và phát hiện thiếu thống nhất (vd có trong raw mà
+    không thấy trong bản dịch).
+    """
     haystack = f"{raw}\n{translated}".lower()
     notes = storage.read_glossary_notes()
-    rows: list[dict[str, str | bool]] = []
+    rows: list[dict[str, str | bool | int]] = []
     for filename, label in (("names.txt", "Tên riêng"), ("vietphrase.txt", "Thuật ngữ")):
         for source, suggested in storage.read_glossary_file(filename).items():
             source_hit = source.lower() in haystack if source else False
             suggested_hit = suggested.lower() in haystack if suggested else False
+            raw_count = raw.count(source) if source else 0
+            translated_count = translated.count(suggested) if suggested else 0
             rows.append({
                 "source": source,
                 "suggested": suggested,
@@ -41,6 +52,9 @@ def _chapter_glossary(storage: Storage, raw: str, translated: str) -> list[dict[
                 "file": filename,
                 "type": label,
                 "relevant": source_hit or suggested_hit,
+                "raw_count": raw_count,
+                "translated_count": translated_count,
+                "mismatch": raw_count > 0 and translated_count == 0,
             })
     return sorted(rows, key=lambda row: (not row["relevant"], str(row["type"]), str(row["source"])))
 
@@ -56,12 +70,32 @@ _CATEGORY_LABELS = {
 }
 
 
+def _render_translated_preview(storage: Storage, translated: str) -> tuple[str, list[dict]]:
+    """Đánh dấu footnote trong bản dịch để hiện preview kèm chú thích trên web.
+
+    Chỉ dùng để hiển thị (textarea sửa tay vẫn giữ text thuần, không có marker).
+    """
+    notes = storage.read_glossary_notes()
+    marked, footnote_list = footnotes.annotate(translated, notes)
+    escaped = "\n".join(
+        f"<p>{footnotes.markers_to_html(html.escape(line))}</p>" if line.strip() else ""
+        for line in marked.splitlines()
+    )
+    return escaped, footnote_list
+
+
 def _chapter_context(storage: Storage, ch, raw: str, translated: str, slug: str, meta: dict | None = None) -> dict:
     glossary_rows = _chapter_glossary(storage, raw, translated)
+    translated_preview_html, footnote_list = _render_translated_preview(storage, translated)
     return {
         "ch": ch,
         "raw": raw,
         "translated": translated,
+        "translated_preview_html": translated_preview_html,
+        "footnote_list": footnote_list,
+        "footnotes_html": footnotes.render_footnotes_html(footnote_list),
+        "raw_word_count": count_words(raw),
+        "translated_word_count": count_words(translated),
         "slug": slug,
         "meta": meta or {},
         "glossary_rows": glossary_rows,

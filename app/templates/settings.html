@@ -33,7 +33,7 @@
     <p>
         <label>Engine
             <select name="engine">
-                {% for opt in ["http", "crawl4ai", "firecrawl"] %}
+                {% for opt in ["http", "crawl4ai"] %}
                 <option value="{{ opt }}" {% if cfg.crawl.engine == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
@@ -57,12 +57,16 @@
            <label>cover_selector <input type="text" name="cover_selector" value="{{ cfg.crawl.cover_selector }}" size="20"></label></p>
     </fieldset>
     <fieldset>
-        <legend>crawl4ai / firecrawl</legend>
+        <legend>crawl4ai</legend>
         <p><label class="check"><input type="checkbox" name="headless" value="true" {% if cfg.crawl.headless %}checked{% endif %}> headless</label>
            <label class="check"><input type="checkbox" name="magic" value="true" {% if cfg.crawl.magic %}checked{% endif %}> magic</label></p>
         <p><label>js_code <input type="text" name="js_code" value="{{ cfg.crawl.js_code }}" size="50"></label></p>
-        <p><label>api_url <input type="text" name="api_url" value="{{ cfg.crawl.api_url or '' }}" size="40"></label></p>
-        <p><label>api_key (để trống = giữ nguyên) <input type="password" name="api_key" size="40"></label></p>
+    </fieldset>
+    <fieldset>
+        <legend>Pagination (chương nhiều trang)</legend>
+        <p><label>next_page_selector <input type="text" name="next_page_selector" value="{{ cfg.crawl.next_page_selector }}" size="30" placeholder="a#pager_next"></label>
+           <label>next_page_url_pattern <input type="text" name="next_page_url_pattern" value="{{ cfg.crawl.next_page_url_pattern }}" size="30" placeholder="regex có 1 group"></label>
+           <label>max_pages_per_chapter <input type="number" name="max_pages_per_chapter" value="{{ cfg.crawl.max_pages_per_chapter }}" min="1" size="4"></label></p>
     </fieldset>
     <p><button type="submit">Lưu nguồn</button></p>
 </form>

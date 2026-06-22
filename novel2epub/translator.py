@@ -23,6 +23,11 @@ _PREAMBLE = re.compile(
     re.IGNORECASE,
 )
 
+_HAN_RE = re.compile(r"[一-鿿]")
+
+# Số lần thử lại tối đa khi bản dịch còn sót chữ Hán chưa dịch.
+_RESIDUAL_HAN_RETRIES = 2
+
 
 def _clean_output(text: str) -> str:
     """Bỏ ```fence``` và dòng mở đầu kiểu 'Đây là bản dịch:' nếu có."""
@@ -127,7 +132,34 @@ class NoopTranslator:
         return text, ""
 
 
+def _split_into_chunks(text: str, max_chars: int, overlap_paragraphs: int) -> list[list[str]]:
+    """Chia text thành các nhóm đoạn văn (paragraph) <= max_chars ký tự.
+
+    Mỗi chunk (trừ chunk đầu) lặp lại `overlap_paragraphs` đoạn cuối của chunk
+    trước để LLM có ngữ cảnh nối câu, tránh lệch văn phong/ngôi xưng giữa các
+    chunk khi chương quá dài phải tách nhỏ.
+    """
+    paragraphs = text.split("\n")
+    chunks: list[list[str]] = []
+    buf: list[str] = []
+    buf_len = 0
+    for para in paragraphs:
+        if buf and buf_len + len(para) + 1 > max_chars:
+            chunks.append(buf)
+            buf = list(buf[-overlap_paragraphs:]) if overlap_paragraphs > 0 else []
+            buf_len = sum(len(p) + 1 for p in buf)
+        buf.append(para)
+        buf_len += len(para) + 1
+    if buf:
+        chunks.append(buf)
+    return chunks
+
+
 class CLITranslator:
+    # Áp dụng khi translate.chunk.max_chars = 0 (mặc định) — tự chia chương dài
+    # để tránh prompt quá tải/timeout CLI dịch.
+    DEFAULT_MAX_CHARS = 6000
+
     def __init__(self, cfg: TranslateConfig):
         self.cfg = cfg
         self.cli = cfg.cli
@@ -143,6 +175,12 @@ class CLITranslator:
             keep_paragraphs=self.cfg.style.keep_paragraphs,
             title_mode=self.cfg.style.title_mode,
             han_viet_level=self.cfg.style.han_viet_level,
+        )
+
+    def _build_fixup_prompt(self, text: str) -> str:
+        return self._build_prompt(text) + (
+            "\n\nLƯU Ý QUAN TRỌNG: Bản dịch trước đó còn sót chữ Hán chưa được dịch. "
+            "Hãy dịch toàn bộ văn bản gốc sang tiếng Việt, không để sót lại bất kỳ chữ Hán nào."
         )
 
     def _build_title_prompt(self, text: str, kind: str) -> str:
@@ -177,11 +215,38 @@ class CLITranslator:
         assert last_error is not None
         raise last_error
 
+    def _translate_chunk(self, chunk_text: str) -> str:
+        """Dịch một đoạn và thử lại nếu kết quả còn sót chữ Hán chưa dịch."""
+        out = self._run_cli_with_retry(self._build_prompt(chunk_text))
+        cleaned = _clean_output(out)
+        for _ in range(_RESIDUAL_HAN_RETRIES):
+            residual = len(_HAN_RE.findall(cleaned))
+            if residual == 0:
+                break
+            out = self._run_cli_with_retry(self._build_fixup_prompt(chunk_text))
+            retried = _clean_output(out)
+            if len(_HAN_RE.findall(retried)) < residual:
+                cleaned = retried
+            else:
+                break
+        return cleaned
+
     def translate(self, text: str) -> str:
         if not text.strip():
             return text
-        out = self._run_cli_with_retry(self._build_prompt(text))
-        return _apply_glossary(_clean_output(out), self.glossary)
+        max_chars = self.cfg.chunk.max_chars or self.DEFAULT_MAX_CHARS
+        if len(text) <= max_chars:
+            return _apply_glossary(self._translate_chunk(text), self.glossary)
+
+        overlap = max(0, self.cfg.chunk.overlap_paragraphs)
+        pieces: list[str] = []
+        for i, chunk_paragraphs in enumerate(_split_into_chunks(text, max_chars, overlap)):
+            cleaned = self._translate_chunk("\n".join(chunk_paragraphs))
+            if i > 0 and overlap > 0:
+                lines = cleaned.split("\n")
+                cleaned = "\n".join(lines[overlap:]) if len(lines) > overlap else cleaned
+            pieces.append(cleaned)
+        return _apply_glossary("\n".join(pieces), self.glossary)
 
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
         if not text.strip():

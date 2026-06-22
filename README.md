@@ -23,13 +23,17 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-`crawl4ai` và `firecrawl-py` là dependency tùy chọn, không cài mặc định để
+`crawl4ai` là dependency tùy chọn, không cài mặc định để
 tránh lỗi build `lxml` trên Windows. Chỉ cài khi cần:
 ```bash
 pip install crawl4ai && crawl4ai-setup   # cài Playwright + Chromium
-pip install firecrawl-py
 ```
 Engine mặc định `http` chỉ cần `requests` + `beautifulsoup4`.
+
+> **Migration từ `firecrawl`**: engine `firecrawl` và dependency `firecrawl-py`
+> đã bị loại bỏ. Nếu config cũ của bạn dùng `engine: firecrawl`, hãy đổi thành
+> `engine: crawl4ai` (nếu site cần trình duyệt) hoặc `engine: http` (nếu site tĩnh),
+> đồng thừi xoá các dòng `api_key` / `api_url` trong nhánh `crawl`.
 `fastapi`/`uvicorn`/`jinja2`/`python-multipart` chỉ cần nếu dùng Web UI (xem dưới).
 
 ## Cấu hình
@@ -59,7 +63,7 @@ vẫn có thể chạy như cũ với `config.yaml`.
 
 | Khóa | Ý nghĩa |
 |------|---------|
-| `engine` | `http` (mặc định, free, không cần API key) / `crawl4ai` / `firecrawl` |
+| `engine` | `http` (mặc định, free, không cần API key) / `crawl4ai` |
 | `toc_url` | URL trang mục lục chứa danh sách link chương |
 | `chapter_link_pattern` | Regex lọc link chương trên URL đầy đủ |
 | `max_chapters` | Giới hạn số chương (0 = tất cả) — đặt nhỏ để test trước |
@@ -198,7 +202,6 @@ ngay sau khi sửa tay.
 ## Hạn chế
 
 - Engine `http` chỉ đọc HTML tĩnh; site dùng JavaScript/chống bot nên thử
-  `engine: crawl4ai`; chương VIP/cần đăng nhập có thể cần `engine: firecrawl`
-  hoặc nguồn khác.
+  `engine: crawl4ai`; chương VIP/cần đăng nhập cần nguồn khác.
 - Chất lượng dịch phụ thuộc model của AI CLI bạn cắm vào.
 - Tôn trọng bản quyền & điều khoản của trang nguồn; chỉ dùng cho mục đích cá nhân.

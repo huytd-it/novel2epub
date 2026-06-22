@@ -63,6 +63,9 @@ def save_source_preset(
     magic: bool = Form(False),
     js_code: str = Form(""),
     delay_seconds: float = Form(1.0),
+    next_page_selector: str = Form(""),
+    next_page_url_pattern: str = Form(""),
+    max_pages_per_chapter: int = Form(10),
 ):
     name = name.strip()
     presets = deps.presets()
@@ -83,6 +86,9 @@ def save_source_preset(
             magic=magic,
             js_code=js_code,
             delay_seconds=delay_seconds,
+            next_page_selector=next_page_selector,
+            next_page_url_pattern=next_page_url_pattern,
+            max_pages_per_chapter=max_pages_per_chapter,
         )
         if user_agent.strip():
             kwargs["user_agent"] = user_agent

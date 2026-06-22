@@ -148,6 +148,59 @@ def test_go_preset_chapter_translation_uses_opencode(monkeypatch):
     assert captured["model"] == "opencode-go/deepseek-v4-flash"
 
 
+def test_translate_retries_when_output_has_residual_chinese(monkeypatch):
+    from novel2epub.translator import CLITranslator, make_translator
+
+    cfg = TranslateConfig(
+        type="cli",
+        cli=CliTranslatorConfig(
+            command="dummy",
+            prompt_template="{text}",
+            title_prompt_template="{text}",
+            mode="stdin",
+        ),
+    )
+    calls = []
+
+    def _mock_run_cli(cli, prompt, argv=None):
+        calls.append(prompt)
+        if len(calls) == 1:
+            return "Xin chào 世界"
+        return "Xin chào thế giới"
+
+    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    translator = make_translator(cfg)
+    result = translator.translate("你好世界")
+    assert result == "Xin chào thế giới"
+    assert len(calls) == 2
+    assert "LƯU Ý QUAN TRỌNG" in calls[1]
+
+
+def test_translate_stops_retrying_when_chinese_does_not_improve(monkeypatch):
+    from novel2epub.translator import CLITranslator, make_translator
+
+    cfg = TranslateConfig(
+        type="cli",
+        cli=CliTranslatorConfig(
+            command="dummy",
+            prompt_template="{text}",
+            title_prompt_template="{text}",
+            mode="stdin",
+        ),
+    )
+    calls = []
+
+    def _mock_run_cli(cli, prompt, argv=None):
+        calls.append(prompt)
+        return "Xin chào 世界"
+
+    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    translator = make_translator(cfg)
+    result = translator.translate("你好世界")
+    assert result == "Xin chào 世界"
+    assert len(calls) == 2
+
+
 def test_go_preset_title_translation_uses_opencode(monkeypatch):
     from novel2epub.translator import make_translator
 

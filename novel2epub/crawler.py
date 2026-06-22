@@ -2,7 +2,7 @@
 
 Hai engine:
   - http       : requests + BeautifulSoup, KHÔNG cần API key (mặc định, free).
-  - firecrawl  : Firecrawl trả Markdown sạch (cần API key hoặc self-host).
+  - crawl4ai   : Crawl4AI (Playwright browser) cho site JS-render hoặc bot detection.
 
 Cả hai cùng trả về nội dung dạng văn bản/markdown đơn giản để bước dịch xử lý.
 """
@@ -62,6 +62,225 @@ def _get(obj, key, default=None):
     return getattr(obj, key, default)
 
 
+_CHAPTER_BASE_ID_RE = re.compile(r"(\d+)(?:_\d+)?\.\w+(?:[?#].*)?$")
+
+
+def _chapter_base_id(url: str) -> str | None:
+    """Rút "ID chương" từ URL dạng ``.../<id>.html`` hoặc ``.../<id>_<page>.html``.
+
+    Trả ``None`` nếu URL không khớp dạng này (không đủ tin cậy để so sánh,
+    caller nên bỏ qua kiểm tra ranh giới chương trong trường hợp đó).
+    """
+    m = _CHAPTER_BASE_ID_RE.search(url)
+    return m.group(1) if m else None
+
+
+def _crosses_chapter_boundary(base_id: str | None, candidate_url: str | None) -> bool:
+    """True nếu ``candidate_url`` trỏ sang một chương khác với ``base_id``.
+
+    Một số site tái dùng cùng selector/class "next" cho cả hai ý nghĩa:
+    trang kế của chương hiện tại VÀ link sang chương tiếp theo (khi trang
+    hiện tại là trang cuối). Nếu rút được ID chương từ cả URL gốc và URL
+    ứng viên mà hai ID khác nhau, coi đó là đã sang chương khác — không
+    được dùng làm "trang kế tiếp".
+    """
+    if base_id is None or candidate_url is None:
+        return False
+    candidate_id = _chapter_base_id(candidate_url)
+    return candidate_id is not None and candidate_id != base_id
+
+
+def fetch_chapter_paginated(
+    cfg: CrawlConfig,
+    ch: Chapter,
+    *,
+    fetch_page,
+    extract_text,
+    next_page_url,
+) -> str:
+    """Tải và ghép nội dung nhiều trang con của một chương.
+
+    Mỗi engine truyền vào 3 closure:
+      - ``fetch_page(url) -> page_obj``: tải URL, trả về đối tượng engine
+        (BeautifulSoup, crawl4ai result, dict scrape, ...).
+      - ``extract_text(page_obj) -> str``: trích nội dung chương đã làm sạch.
+      - ``next_page_url(url, page_obj) -> str | None``: tìm URL trang kế
+        tiếp. Trả ``None`` nếu không có.
+
+    Vòng lặp dừng khi gặp bất kỳ điều kiện nào:
+      1. ``next_page_url`` trả về ``None``.
+      2. URL đã xuất hiện trong chương này (tránh vòng lặp vô hạn).
+      3. Nội dung trang mới trùng với một trang đã tải.
+      4. Đã đạt ``cfg.max_pages_per_chapter`` trang.
+      5. URL kế tiếp trỏ sang một chương khác (xem ``_crosses_chapter_boundary``).
+    """
+    max_pages = max(1, int(getattr(cfg, "max_pages_per_chapter", 1) or 1))
+
+    current_url = ch.url
+    seen_urls: set[str] = {current_url}
+    base_chapter_id = _chapter_base_id(ch.url)
+
+    # Lần fetch đầu: lấy text + khám phá next URL TRƯỚC khi extract
+    # (vì extract có thể mutate page_obj — vd HttpCrawler._extract_text
+    # decompose thẻ <a>).
+    try:
+        current_page = fetch_page(current_url)
+    except Exception:
+        return ""
+    try:
+        next_url = next_page_url(current_url, current_page)
+    except Exception:
+        next_url = None
+    if _crosses_chapter_boundary(base_chapter_id, next_url):
+        next_url = None
+    first_text = (extract_text(current_page) or "").strip()
+    if not first_text:
+        return first_text
+
+    pages: list[str] = [first_text]
+    title_line = first_text.splitlines()[0].strip() if first_text else ""
+
+    for _ in range(max_pages - 1):
+        if not next_url or next_url in seen_urls:
+            break
+        seen_urls.add(next_url)
+        current_url = next_url
+        try:
+            current_page = fetch_page(current_url)
+        except Exception:
+            break
+        try:
+            next_url = next_page_url(current_url, current_page)
+        except Exception:
+            next_url = None
+        if _crosses_chapter_boundary(base_chapter_id, next_url):
+            next_url = None
+        new_text = (extract_text(current_page) or "").strip()
+        if not new_text or new_text in pages:
+            break
+        if title_line:
+            lines = new_text.splitlines()
+            if lines and lines[0].strip() == title_line:
+                new_text = "\n".join(lines[1:]).lstrip()
+        pages.append(new_text)
+
+    return "\n\n".join(p for p in pages if p)
+
+
+def _next_page_url_from_html(current_url: str, page_obj, cfg: CrawlConfig):
+    """Tìm URL trang kế tiếp từ CSS selector trong trang hiện tại.
+
+    Dùng cho cả 3 engine — bóc link từ ``page_obj`` dù nó là BeautifulSoup,
+    crawl4ai result hay dict scrape. Trả ``None`` nếu không tìm thấy hoặc
+    link rỗng / là ``javascript:`` / không phải HTTP(S).
+    """
+    selector = (cfg.next_page_selector or "").strip()
+    if not selector:
+        return None
+    href = _extract_href(page_obj, selector)
+    if not href or href.startswith("javascript:") or href.startswith("#"):
+        return None
+    return urljoin(current_url, href.strip())
+
+
+def _make_css_resolver(cfg: CrawlConfig):
+    """Trả về closure ``(url, page_obj) -> str | None`` dùng CSS selector.
+
+    Trả ``None`` nếu ``cfg.next_page_selector`` rỗng (caller sẽ thử
+    pattern resolver tiếp theo).
+    """
+    selector = (cfg.next_page_selector or "").strip()
+    if not selector:
+        return None
+
+    def _resolve(current_url: str, page_obj) -> str | None:
+        href = _extract_href(page_obj, selector)
+        if not href or href.startswith("javascript:") or href.startswith("#"):
+            return None
+        return urljoin(current_url, href.strip())
+
+    return _resolve
+
+
+def _next_page_url_from_pattern(cfg: CrawlConfig):
+    """Tạo closure sinh URL kế tiếp từ ``next_page_url_pattern``.
+
+    Pattern phải chứa đúng 1 capturing group — group này là **số trang
+    hiện tại**. Closure thay text của group trong URL bằng số tăng dần
+    (bắt đầu từ 2) và trả về URL mới.
+
+    Ví dụ pattern ``_(\\d+)\\.html$`` trên URL ``ch7_1.html``:
+    - Lần 1 (n=2): thay ``1`` bằng ``2`` → ``ch7_2.html``.
+    - Lần 2 (n=3): thay ``2`` bằng ``3`` → ``ch7_3.html``.
+
+    Trả ``None`` khi pattern không khớp URL hiện tại.
+    """
+    pattern = (cfg.next_page_url_pattern or "").strip()
+    if not pattern:
+        return None
+    pat = re.compile(pattern)
+    counter = [2]
+
+    def _resolver(current_url: str, page_obj) -> str | None:
+        m = pat.search(current_url)
+        if not m:
+            return None
+        n = counter[0]
+        counter[0] = n + 1
+        # Lấy text đã match (literal, không chứa escape regex) rồi thay
+        # group 1 bằng số mới.
+        matched = m.group(0)
+        new_matched = (
+            matched[: m.start(1) - m.start()]
+            + str(n)
+            + matched[m.end(1) - m.start():]
+        )
+        return current_url[: m.start()] + new_matched + current_url[m.end():]
+
+    return _resolver
+
+
+def _extract_href(page_obj, selector: str) -> str:
+    """Trích href từ phần tử đầu tiên khớp ``selector``.
+
+    Hỗ trợ 2 dạng ``page_obj``:
+      - BeautifulSoup (HttpCrawler)
+      - crawl4ai ``CrawlResult`` (Crawl4AICrawler) — dùng ``links`` +
+        ``markdown`` fallback.
+    """
+    if page_obj is None:
+        return ""
+    # BeautifulSoup has .select_one; crawl4ai result does not.
+    select_one = getattr(page_obj, "select_one", None)
+    if select_one is not None:
+        node = select_one(selector)
+        if node is None:
+            return ""
+        href = node.get("href")
+        if href:
+            return str(href).strip()
+        return ""
+    # crawl4ai result: search internal links for one whose ``text`` or
+    # ``title`` matches the selector (best-effort) or whose href appears
+    # in a "next" / "pager_next" pattern.
+    links = getattr(page_obj, "links", None) or {}
+    if isinstance(links, dict):
+        internal = links.get("internal", []) or []
+    else:
+        internal = list(links) if links else []
+    sel = selector.lstrip(".").lstrip("#").lower()
+    for link in internal:
+        href = (_get(link, "href", "") or "").strip()
+        if not href or href.startswith("javascript:") or href.startswith("#"):
+            continue
+        if sel in (href.lower(), sel):
+            return href
+    return ""
+
+
+
+
+
 def _meta_get(meta, *keys: str) -> str:
     """Trả về giá trị chuỗi không rỗng đầu tiên theo các khóa metadata cho trước.
 
@@ -76,110 +295,6 @@ def _meta_get(meta, *keys: str) -> str:
         if val:
             return str(val).strip()
     return ""
-
-
-class FirecrawlCrawler:
-    def __init__(self, cfg: CrawlConfig):
-        self.cfg = cfg
-        try:
-            from firecrawl import FirecrawlApp
-        except ImportError as e:  # pragma: no cover
-            raise ImportError(
-                "Chưa cài firecrawl-py. Chạy: pip install firecrawl-py"
-            ) from e
-
-        kwargs: dict = {}
-        if cfg.api_key:
-            kwargs["api_key"] = cfg.api_key
-        if cfg.api_url:
-            kwargs["api_url"] = cfg.api_url
-        self.app = FirecrawlApp(**kwargs)
-
-    # ---------- low-level scrape ----------
-    def _scrape(self, url: str, formats: list[str]) -> dict:
-        """Trả về dict gồm các khóa 'markdown', 'links', 'metadata' nếu có."""
-        result = None
-        # SDK mới: scrape_url(url, formats=[...]); SDK cũ: params={'formats':[...]}
-        try:
-            result = self.app.scrape_url(url, formats=formats)
-        except TypeError:
-            result = self.app.scrape_url(url, params={"formats": formats})
-
-        # Một số phiên bản bọc dữ liệu trong .data
-        data = _get(result, "data", result)
-        return {
-            "markdown": _get(data, "markdown", "") or "",
-            "links": _get(data, "links", []) or [],
-            "metadata": _get(data, "metadata", {}) or {},
-        }
-
-    # ---------- mục lục ----------
-    def fetch_toc(self) -> TocResult:
-        """Trả về metadata truyện + danh sách chương theo thứ tự xuất hiện."""
-        res = self._scrape(self.cfg.toc_url, formats=["markdown", "links"])
-        markdown = res["markdown"]
-        meta = res["metadata"]
-
-        pattern = re.compile(self.cfg.chapter_link_pattern)
-        chapters: list[Chapter] = []
-        seen: set[str] = set()
-
-        # Ưu tiên link trong markdown vì giữ đúng thứ tự đọc + có tiêu đề chương.
-        for m in _MD_LINK.finditer(markdown):
-            text, href = m.group(1).strip(), m.group(2).strip()
-            full = urljoin(self.cfg.toc_url, href)
-            if not pattern.search(full) or full in seen:
-                continue
-            seen.add(full)
-            chapters.append(Chapter(index=len(chapters) + 1, url=full, title_zh=text))
-
-        # Fallback: dùng mảng links nếu markdown không có link nào khớp.
-        if not chapters:
-            for href in res["links"]:
-                full = urljoin(self.cfg.toc_url, str(href))
-                if not pattern.search(full) or full in seen:
-                    continue
-                seen.add(full)
-                chapters.append(Chapter(index=len(chapters) + 1, url=full))
-
-        title = _meta_get(meta, "og:novel:book_name", "title", "ogTitle") or ""
-        author = _meta_get(meta, "og:novel:author", "author") or ""
-        description = _meta_get(meta, "description", "og:description", "ogDescription") or ""
-        return TocResult(
-            title=title,
-            author=author,
-            description=description,
-            cover_url=_meta_get(meta, "og:image", "ogImage") or "",
-            source_url=self.cfg.toc_url,
-            metadata_missing=missing_metadata(title, author, description),
-            chapters=mark_duplicate_chapters(chapters),
-        )
-
-    # ---------- nội dung chương ----------
-    def fetch_chapter(self, ch: Chapter) -> str:
-        res = self._scrape(ch.url, formats=["markdown"])
-        return self._clean(res["markdown"])
-
-    def _clean(self, markdown: str) -> str:
-        if not markdown:
-            return ""
-        patterns = [re.compile(p) for p in self.cfg.strip_patterns]
-        lines = []
-        for line in markdown.splitlines():
-            if any(p.search(line) for p in patterns):
-                continue
-            lines.append(line)
-        # Gộp nhiều dòng trống liên tiếp thành 1.
-        text = "\n".join(lines)
-        text = re.sub(r"\n{3,}", "\n\n", text).strip()
-        return text
-
-    def sleep(self) -> None:
-        if self.cfg.delay_seconds > 0:
-            time.sleep(self.cfg.delay_seconds)
-
-    def close(self) -> None:
-        pass
 
 
 class HttpCrawler:
@@ -295,6 +410,44 @@ class HttpCrawler:
 
     # ---------- nội dung chương ----------
     def fetch_chapter(self, ch: Chapter) -> str:
+        if not (self.cfg.next_page_selector or self.cfg.next_page_url_pattern):
+            return self._fetch_chapter_single(ch)
+
+        def fetch_page(url: str):
+            return self._get_soup(url)
+
+        def extract_text(page_obj) -> str:
+            return self._extract_text(page_obj)
+
+        css_resolver = _make_css_resolver(self.cfg)
+        pattern_resolver = _next_page_url_from_pattern(self.cfg)
+        call_count = [0]
+
+        def next_page_url(current_url: str, page_obj) -> str | None:
+            # Mỗi engine pass: thử CSS trước, fallback pattern.
+            nxt = css_resolver(current_url, page_obj) if css_resolver else None
+            if nxt:
+                call_count[0] += 1
+                return nxt
+            if pattern_resolver:
+                nxt = pattern_resolver(current_url, page_obj)
+                if nxt:
+                    call_count[0] += 1
+                    return nxt
+            return None
+
+        text = fetch_chapter_paginated(
+            self.cfg,
+            ch,
+            fetch_page=fetch_page,
+            extract_text=extract_text,
+            next_page_url=next_page_url,
+        )
+        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+            return text
+        return self._ai_fallback_extract(ch.url)
+
+    def _fetch_chapter_single(self, ch: Chapter) -> str:
         soup = self._get_soup(ch.url)
         text = self._extract_text(soup)
         if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
@@ -447,6 +600,39 @@ class Crawl4AICrawler:
 
     # ---------- nội dung chương ----------
     def fetch_chapter(self, ch: Chapter) -> str:
+        if not (self.cfg.next_page_selector or self.cfg.next_page_url_pattern):
+            return self._fetch_chapter_single(ch)
+
+        css_resolver = _make_css_resolver(self.cfg)
+        pattern_resolver = _next_page_url_from_pattern(self.cfg)
+
+        def fetch_page(url: str):
+            return self._arun(url, css_selector=self.cfg.content_selector or None)
+
+        def extract_text(page_obj) -> str:
+            return self._clean(self._markdown(page_obj))
+
+        def next_page_url(current_url: str, page_obj) -> str | None:
+            if css_resolver:
+                nxt = css_resolver(current_url, page_obj)
+                if nxt:
+                    return nxt
+            if pattern_resolver:
+                return pattern_resolver(current_url, page_obj)
+            return None
+
+        text = fetch_chapter_paginated(
+            self.cfg,
+            ch,
+            fetch_page=fetch_page,
+            extract_text=extract_text,
+            next_page_url=next_page_url,
+        )
+        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+            return text
+        return self._ai_fallback_extract(ch.url)
+
+    def _fetch_chapter_single(self, ch: Chapter) -> str:
         self._last_result = self._arun(ch.url, css_selector=self.cfg.content_selector or None)
         text = self._clean(self._markdown(self._last_result))
         if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
@@ -495,7 +681,10 @@ def make_crawler(cfg: CrawlConfig) -> Crawler:
     if engine == "crawl4ai":
         return Crawl4AICrawler(cfg)
     if engine == "firecrawl":
-        return FirecrawlCrawler(cfg)
+        raise ValueError(
+            f"crawl.engine={cfg.engine!r} has been removed. "
+            "Migration: set engine: crawl4ai (or http) and remove api_key."
+        )
     raise ValueError(
-        f"crawl.engine không hợp lệ: {cfg.engine!r} (http|crawl4ai|firecrawl)"
+        f"crawl.engine không hợp lệ: {cfg.engine!r} (http|crawl4ai)"
     )

@@ -30,6 +30,16 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _emit_config_warnings(cfg: Config, log: LogFn) -> None:
+    """In cảnh báo xung đột config (preset đè type, selector sai engine...).
+
+    Để trên web UI thấy được nguyên nhân thật khi job lỗi, thay vì chỉ nằm
+    trong logging nội bộ không ai xem (xem Config.warnings trong config.py).
+    """
+    for w in cfg.warnings:
+        log(f"[config] CẢNH BÁO: {w}")
+
+
 def _run_with_heartbeat(log: LogFn, prefix: str, fn: Callable[[], object], *, interval: float = 5.0):
     """Chạy fn ở thread phụ, định kỳ log một nhịp 'vẫn đang chạy' để UI biết job còn sống.
 
@@ -287,6 +297,7 @@ def step_crawl_selected(
         một chương tải lỗi; chương lỗi sau khi thử hết sẽ bị bỏ qua, không làm
         gián đoạn cả job.
     """
+    _emit_config_warnings(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     if cfg.crawl.ai_fallback:
         cfg.crawl._cli_fallback = cfg.translate.cli
@@ -339,6 +350,7 @@ def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False) -> 
     Dùng để xem nhanh danh sách chương + thông tin truyện trước khi chọn phạm vi
     crawl, hoặc làm mới ảnh bìa/mô tả.
     """
+    _emit_config_warnings(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     if cfg.crawl.ai_fallback:
         cfg.crawl._cli_fallback = cfg.translate.cli
@@ -379,6 +391,7 @@ def _translate_meta_inplace(
 
 def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False) -> Manifest:
     """Dịch metadata truyện (title/author/description) sang tiếng Việt bằng AI CLI."""
+    _emit_config_warnings(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -399,6 +412,7 @@ def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False
 
 
 def step_translate(cfg: Config, log: LogFn = _print) -> Manifest:
+    _emit_config_warnings(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -470,6 +484,7 @@ def step_translate_selected(
     missing: bool = False,
     selected_indexes: list[int] | None = None,
 ) -> Manifest:
+    _emit_config_warnings(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:

@@ -39,8 +39,11 @@ class _FakeCrawler:
 class _UpperTranslator:
     """Translator giả: 'dịch' = thêm tiền tố để kiểm tra giá trị được ghi."""
 
-    def translate(self, text):
-        return f"VI:{text}"
+    def translate(self, text, *, on_chunk=None):
+        out = f"VI:{text}"
+        if on_chunk is not None:
+            on_chunk(1, 1, out, True)
+        return out
 
     def translate_title(self, text, kind="tên chương"):
         return f"VI:{text}", f"note:{kind}"
@@ -120,11 +123,14 @@ class _FlakyTranslator:
         self.fail_on = set(fail_on)
         self.calls = 0
 
-    def translate(self, text):
+    def translate(self, text, *, on_chunk=None):
         self.calls += 1
         if text in self.fail_on:
             raise RuntimeError("CLI thoát mã 0 nhưng không trả về nội dung")
-        return f"VI:{text}"
+        out = f"VI:{text}"
+        if on_chunk is not None:
+            on_chunk(1, 1, out, True)
+        return out
 
 
 def test_translate_selected_reports_per_chapter_error_and_continues(tmp_path, monkeypatch):

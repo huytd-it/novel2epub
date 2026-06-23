@@ -120,12 +120,28 @@ def load_glossary_dict(cfg: TranslateConfig) -> dict[str, str]:
 
 
 class Translator(Protocol):
-    def translate(self, text: str) -> str: ...
+    # Mỗi translate() chia văn bản thành nhiều chunk; triển khai có thể nhận
+    # kwarg tùy chọn `on_chunk(index, total, chunk_text, is_final)` để stream
+    # tiến độ (xem `translate-chunk-streaming` spec). Gọi không truyền kwarg
+    # vẫn hoạt động như cũ — tương thích ngược hoàn toàn.
+    def translate(
+        self,
+        text: str,
+        *,
+        on_chunk: Callable[[int, int, str, bool], None] | None = None,
+    ) -> str: ...
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]: ...
 
 
 class NoopTranslator:
-    def translate(self, text: str) -> str:
+    def translate(
+        self,
+        text: str,
+        *,
+        on_chunk: Callable[[int, int, str, bool], None] | None = None,
+    ) -> str:
+        if on_chunk is not None:
+            on_chunk(1, 1, text, True)
         return text
 
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
@@ -232,25 +248,36 @@ class CLITranslator:
                 break
         return cleaned
 
-    def translate(self, text: str) -> str:
+    def translate(
+        self,
+        text: str,
+        *,
+        on_chunk: Callable[[int, int, str, bool], None] | None = None,
+    ) -> str:
         if not text.strip():
             return text
         max_chars = self.cfg.chunk.max_chars or self.DEFAULT_MAX_CHARS
         if len(text) <= max_chars:
-            return _apply_glossary(self._translate_chunk(text), self.glossary)
+            cleaned = self._translate_chunk(text)
+            if on_chunk is not None:
+                on_chunk(1, 1, cleaned, True)
+            return _apply_glossary(cleaned, self.glossary)
 
         overlap = max(0, self.cfg.chunk.overlap_paragraphs)
         chunks = _split_into_chunks(text, max_chars, overlap)
         self.log(f"  … chia {len(chunks)} đoạn ({len(text)} ký tự, ≤{max_chars}/đoạn, overlap={overlap})")
+        total = len(chunks)
         pieces: list[str] = []
         for i, chunk_paragraphs in enumerate(chunks):
             chunk_text = "\n".join(chunk_paragraphs)
-            self.log(f"  … đoạn {i+1}/{len(chunks)} ({len(chunk_text)} ký tự)")
+            self.log(f"  … đoạn {i+1}/{total} ({len(chunk_text)} ký tự)")
             cleaned = self._translate_chunk(chunk_text)
             if i > 0 and overlap > 0:
                 lines = cleaned.split("\n")
                 cleaned = "\n".join(lines[overlap:]) if len(lines) > overlap else cleaned
             pieces.append(cleaned)
+            if on_chunk is not None:
+                on_chunk(i + 1, total, cleaned, i + 1 == total)
         return _apply_glossary("\n".join(pieces), self.glossary)
 
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
@@ -286,10 +313,22 @@ class GoogleTranslator:
         if buf:
             yield buf
 
-    def translate(self, text: str) -> str:
+    def translate(
+        self,
+        text: str,
+        *,
+        on_chunk: Callable[[int, int, str, bool], None] | None = None,
+    ) -> str:
         if not text.strip():
             return text
-        parts = [self._engine.translate(chunk) or "" for chunk in self._chunks(text)]
+        chunks = list(self._chunks(text))
+        total = len(chunks)
+        parts: list[str] = []
+        for i, chunk in enumerate(chunks, 1):
+            part = self._engine.translate(chunk) or ""
+            parts.append(part)
+            if on_chunk is not None:
+                on_chunk(i, total, part, i == total)
         return _apply_glossary("\n".join(parts), self.glossary)
 
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
@@ -314,8 +353,13 @@ class RateLimited:
         self.inner = inner
         self.delay = delay_seconds
 
-    def translate(self, text: str) -> str:
-        out = self.inner.translate(text)
+    def translate(
+        self,
+        text: str,
+        *,
+        on_chunk: Callable[[int, int, str, bool], None] | None = None,
+    ) -> str:
+        out = self.inner.translate(text, on_chunk=on_chunk)
         if self.delay > 0:
             time.sleep(self.delay)
         return out

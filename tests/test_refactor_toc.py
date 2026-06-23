@@ -43,8 +43,11 @@ class _FakeCrawler:
 
 
 class _FakeTranslator:
-    def translate(self, text):
-        return f"VI:{text}"
+    def translate(self, text, *, on_chunk=None):
+        out = f"VI:{text}"
+        if on_chunk is not None:
+            on_chunk(1, 1, out, True)
+        return out
 
     def translate_title(self, text, kind="tên chương"):
         return f"VI:{text}", ""

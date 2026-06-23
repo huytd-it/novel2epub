@@ -2,6 +2,7 @@ from pathlib import Path
 
 from novel2epub.config import LibraryConfig, LibraryEntry, load_config, load_library
 from novel2epub.config_writer import (
+    clean_prompt_text,
     save_library,
     scaffold_config_file,
     update_config_file,
@@ -61,6 +62,30 @@ def test_save_library_round_trip(tmp_path):
     loaded = load_library(path)
     assert "a" in loaded.ebooks
     assert loaded.ebooks["a"].config == "configs/a.yaml"
+
+
+def test_clean_prompt_text_normalizes_whitespace():
+    raw = "  Dịch đoạn sau:  \r\n\r\n\r\n\r\n{text}   \r\n  Giữ {glossary}.  \r\n\r\n"
+    cleaned = clean_prompt_text(raw)
+    assert cleaned == "  Dịch đoạn sau:\n\n{text}\n  Giữ {glossary}."
+    # Placeholder không bị đụng -> vẫn format được
+    assert "{text}" in cleaned and "{glossary}" in cleaned
+    # Không còn CR, không còn khoảng trắng cuối dòng, không còn dòng trống đầu/cuối
+    assert "\r" not in cleaned
+    assert not any(line != line.rstrip() for line in cleaned.split("\n"))
+    assert cleaned == cleaned.strip("\n")
+
+
+def test_update_config_cleans_crlf_prompt_no_blank_lines(tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text("crawl:\n  toc_url: https://a\n", encoding="utf-8")
+    template = clean_prompt_text("Dòng 1\r\nDòng 2\r\nDòng 3")
+    update_config_file(path, {"translate": {"cli": {"prompt_template": template}}})
+    text = path.read_text(encoding="utf-8")
+    # Block scalar literal, các dòng liền nhau, không chèn dòng trống
+    assert "Dòng 1\n      Dòng 2\n      Dòng 3" in text
+    cfg = load_config(path)
+    assert cfg.translate.cli.prompt_template == "Dòng 1\nDòng 2\nDòng 3"
 
 
 def test_sources_round_trip(tmp_path):

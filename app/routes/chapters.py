@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 import html
 
@@ -284,3 +284,57 @@ def ebook_chapter_ai(request: Request, slug: str, index: int, op: str):
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
+
+
+# --- API JSON cho UI poll trong khi job dịch đang chạy ---
+
+
+def _chapter_translated_payload(storage: Storage, ch) -> dict:
+    """Trả payload {text, complete, mtime, char_count} cho endpoint JSON.
+
+    `mtime` = 0 nếu file chưa tồn tại (chapters chưa được dịch); `complete`
+    = False khi meta thiếu hoặc `complete != True` (partial do job crash).
+    Xem spec `translate-chunk-streaming` requirement: web-api.
+    """
+    p = storage.translated_path(ch)
+    if p.exists():
+        text = p.read_text(encoding="utf-8")
+        mtime = p.stat().st_mtime
+    else:
+        text = ""
+        mtime = 0.0
+    meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+    complete = bool(meta.get("complete", False))
+    return {
+        "text": text,
+        "complete": complete,
+        "mtime": mtime,
+        "char_count": len(text),
+    }
+
+
+@router.get("/api/ebooks/{slug}/chapters/{index}/translated")
+def api_ebook_chapter_translated(slug: str, index: int):
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
+    return JSONResponse(_chapter_translated_payload(storage, ch))
+
+
+@router.get("/api/chapters/{index}/translated")
+def api_chapter_translated(index: int):
+    """Back-compat: route không slug dùng config mặc định (ebook đang active)."""
+    cfg = deps.cfg()
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
+    return JSONResponse(_chapter_translated_payload(storage, ch))

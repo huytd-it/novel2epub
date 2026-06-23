@@ -252,6 +252,10 @@
 
 {% block scripts %}
 <script>
+const CHAPTER_SLUG = {{ slug | tojson }};
+const CHAPTER_INDEX = {{ ch.index | tojson }};
+const TRANSLATED_API_URL = `/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/chapters/${CHAPTER_INDEX}/translated`;
+
 const glossarySearch = document.getElementById("glossary-search");
 const glossaryRows = Array.from(document.querySelectorAll(".glossary-chip"));
 if (glossarySearch) {
@@ -527,6 +531,56 @@ document.addEventListener("submit", async function(event) {
 
 let wasRunning = { crawl: false, translate: false };
 
+// --- Poll nội dung dịch trong khi job translate đang chạy ---
+// Xem spec `translate-chunk-streaming` requirement: chapter-page-polls.
+// Cập nhật textarea + preview khi mtime đổi. Textarea KHÔNG bị ghi đè nếu
+// user đang focus (giữ nguyên con trỏ, lịch sử undo, ...). Khi job xong,
+// `poll()` vẫn chạy `location.reload()` như cũ — tránh trường hợp textarea
+// có chỉnh sửa tạm thời chưa lưu.
+let lastTranslatedMtime = -1;
+let translatedPollScheduled = false;
+
+function renderTranslatedPreview(text) {
+    const previewEl = document.getElementById("translated-preview");
+    if (!previewEl) return;
+    // Re-render cơ bản: escape HTML rồi wrap mỗi dòng trong <p>. Không cần
+    // tô sáng footnote marker (job dịch đang chạy, glossary có thể chưa cập
+    // nhật); sau khi job xong, `location.reload()` sẽ render lại đầy đủ.
+    const escaped = (text || "").split("\n").map(line => {
+        const safe = line
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        return safe.trim() ? `<p>${safe}</p>` : "";
+    }).join("");
+    previewEl.innerHTML = escaped;
+}
+
+async function pollTranslated() {
+    translatedPollScheduled = false;
+    try {
+        const res = await fetch(TRANSLATED_API_URL, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.mtime === lastTranslatedMtime) return;
+        lastTranslatedMtime = data.mtime;
+        const area = document.getElementById("translated-area");
+        if (area && document.activeElement !== area) {
+            // Không ghi đè nếu user đang sửa trong textarea.
+            area.value = data.text || "";
+        }
+        renderTranslatedPreview(data.text || "");
+    } catch (e) {
+        console.error("Lỗi khi poll translated:", e);
+    }
+}
+
+function schedulePollTranslated() {
+    if (translatedPollScheduled) return;
+    translatedPollScheduled = true;
+    setTimeout(pollTranslated, 200);
+}
+
 async function poll() {
     try {
         const res = await fetch("/api/status");
@@ -565,6 +619,10 @@ async function poll() {
         }
 
         setJobButtonsDisabled(data);
+
+        if (data.translate && data.translate.running) {
+            schedulePollTranslated();
+        }
 
         if (anyJustFinished) {
             location.reload();

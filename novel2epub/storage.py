@@ -163,7 +163,21 @@ class Storage:
 
     def has_translated(self, ch: Chapter) -> bool:
         p = self.translated_path(ch)
-        return p.exists() and p.stat().st_size > 0
+        if not (p.exists() and p.stat().st_size > 0):
+            return False
+        # Phân biệt bản dịch hoàn tất với bản dịch dở (job bị crash giữa chunk).
+        # Back-compat: meta cũ (không có key `complete`) được coi là hoàn tất để
+        # không ép người dùng dịch lại thư viện EPUB đã build. Meta mới chỉ được
+        # ghi kèm `complete: true` ở cuối `_translate_one` (xem
+        # `translate-chunk-streaming` spec).
+        meta_path = self.meta_path(ch)
+        if not meta_path.exists():
+            return True
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return True
+        return bool(meta.get("complete", True))
 
     def write_raw(self, ch: Chapter, content: str) -> None:
         self.ensure_dirs()
@@ -193,6 +207,38 @@ class Storage:
         self.meta_path(ch).write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
         )
+
+    def mark_translated_complete(self, ch: Chapter, *, meta_extra: dict | None = None) -> None:
+        """Đánh dấu chương đã dịch xong (set `complete: true` trong meta).
+
+        Đọc meta hiện tại (nếu có) để không phá các key đã có (warnings,
+        generated_at, ...), merge thêm `meta_extra` (vd. length_raw) rồi
+        set `complete=True` và ghi lại. Pipeline gọi đúng một lần ở cuối
+        `_translate_one` (xem `translate-chunk-streaming` spec).
+        """
+        meta = self.read_meta(ch) if self.has_meta(ch) else {}
+        if meta_extra:
+            meta.update(meta_extra)
+        meta["complete"] = True
+        self.write_meta(ch, meta)
+
+    def append_translated_chunk(
+        self, ch: Chapter, chunk_text: str, *, is_first: bool
+    ) -> None:
+        """Ghi 1 chunk của bản dịch: chunk đầu tạo file, các chunk sau append.
+
+        Chèn `\n` ngăn cách giữa 2 chunk để tránh dính ký tự cuối chunk
+        trước với đầu chunk sau khi `_split_into_chunks` cắt ở ranh giới
+        đoạn văn (xem `translate-chunk-streaming` spec).
+        """
+        self.ensure_dirs()
+        path = self.translated_path(ch)
+        if is_first:
+            path.write_text(chunk_text, encoding="utf-8")
+        else:
+            with path.open("a", encoding="utf-8") as f:
+                f.write("\n")
+                f.write(chunk_text)
 
     # ----- ảnh bìa -----
     def write_cover(self, content: bytes, ext: str) -> str:

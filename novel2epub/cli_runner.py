@@ -60,8 +60,12 @@ def run_cli(cli: CliTranslatorConfig, prompt: str, argv: list[str] | None = None
         timeout=cli.timeout_seconds,
     )
     stderr = (proc.stderr or "").strip()
+    stdout = (proc.stdout or "").strip()
     if proc.returncode != 0:
-        detail = stderr or "(không có stderr)"
+        # Nhiều AI CLI (vd `claude -p`) in thông báo lỗi ra stdout chứ không phải
+        # stderr. Gộp cả hai để không nuốt mất nguyên nhân thật.
+        parts = [p for p in (stderr, stdout) if p]
+        detail = "\n".join(parts) or "(không có stderr/stdout)"
         raise RuntimeError(f"CLI trả về mã lỗi {proc.returncode}:\n{detail}")
 
     out = proc.stdout or ""

@@ -7,6 +7,7 @@ dump lại toàn bộ object Config (tránh ghi đè đường dẫn glossary đ
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -36,10 +37,35 @@ def _load(path: Path) -> CommentedMap:
     return CommentedMap()
 
 
+def clean_prompt_text(value: str) -> str:
+    """Làm sạch nội dung prompt nhập từ textarea cho gọn gàng, thống nhất.
+
+    Chỉ đụng tới khoảng trắng / ký tự xuống dòng nên an toàn với các placeholder
+    `{text}`, `{glossary}`, `{tone}`... mà translator dùng qua ``str.format``:
+
+    - Chuẩn hoá CRLF/CR về ``\\n`` (textarea web gửi xuống dùng CRLF).
+    - Bỏ khoảng trắng thừa ở cuối mỗi dòng.
+    - Gộp >=3 dòng trống liên tiếp thành tối đa 1 dòng trống.
+    - Cắt dòng trống ở đầu và cuối.
+
+    Giữ nguyên thụt đầu dòng (có thể là chủ ý) và mọi dấu ``{...}``.
+    """
+    value = value.replace("\r\n", "\n").replace("\r", "\n")
+    value = "\n".join(line.rstrip() for line in value.split("\n"))
+    value = re.sub(r"\n{3,}", "\n\n", value)
+    return value.strip("\n")
+
+
 def _coerce(value: Any) -> Any:
     """String nhiều dòng -> block scalar literal cho dễ đọc trong file."""
-    if isinstance(value, str) and "\n" in value:
-        return LiteralScalarString(value)
+    if isinstance(value, str):
+        # Textarea trên web gửi xuống dùng CRLF; ruamel không biểu diễn được \r
+        # trong block scalar nên mỗi dòng bị chèn thêm 1 dòng trống khi round-trip.
+        # Chuẩn hoá về \n trước khi ghi.
+        if "\r" in value:
+            value = value.replace("\r\n", "\n").replace("\r", "\n")
+        if "\n" in value:
+            return LiteralScalarString(value)
     return value
 
 

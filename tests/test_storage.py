@@ -133,3 +133,59 @@ def test_cover_helpers(tmp_path):
     assert storage.cover_fs_path(manifest).read_bytes() == b"\x89PNG"
     assert storage.cover_fs_path(Manifest(slug="slug")) is None
     assert storage.cover_fs_path(Manifest(slug="slug", cover_file="missing.jpg")) is None
+
+
+# --- has_translated cache contract (xem spec translate-chunk-streaming) ---
+
+
+def test_has_translated_false_when_file_missing(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    ch = Chapter(index=1, url="x")
+    assert storage.has_translated(ch) is False
+
+
+def test_has_translated_true_when_file_exists_but_meta_missing(tmp_path):
+    """Back-compat: meta cũ (không có `complete` key) coi như complete."""
+    storage = Storage(tmp_path, "slug")
+    ch = Chapter(index=1, url="x")
+    storage.write_translated(ch, "bản dịch")
+    assert not storage.has_meta(ch)  # confirm meta missing
+    assert storage.has_translated(ch) is True
+
+
+def test_has_translated_false_when_file_exists_and_meta_complete_false(tmp_path):
+    """Partial: file có nhưng meta chưa đánh dấu complete (job bị crash)."""
+    storage = Storage(tmp_path, "slug")
+    ch = Chapter(index=1, url="x")
+    storage.write_translated(ch, "đoạn 1")
+    storage.write_meta(ch, {"complete": False, "warnings": []})
+    assert storage.has_translated(ch) is False
+
+
+def test_has_translated_true_when_meta_complete_true(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    ch = Chapter(index=1, url="x")
+    storage.write_translated(ch, "đầy đủ")
+    storage.mark_translated_complete(ch, meta_extra={"warnings": [], "length_raw": 100})
+    assert storage.has_translated(ch) is True
+
+
+def test_mark_translated_complete_preserves_existing_meta_keys(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    ch = Chapter(index=1, url="x")
+    storage.write_translated(ch, "x")
+    storage.write_meta(ch, {"warnings": ["warn 1"], "length_raw": 42})
+    storage.mark_translated_complete(ch, meta_extra={"length_raw": 99})
+    meta = storage.read_meta(ch)
+    assert meta["complete"] is True
+    assert meta["warnings"] == ["warn 1"]  # giữ key cũ
+    assert meta["length_raw"] == 99  # bị override bởi meta_extra
+
+
+def test_append_translated_chunk_creates_then_appends(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    ch = Chapter(index=1, url="x")
+    storage.append_translated_chunk(ch, "đoạn 1", is_first=True)
+    storage.append_translated_chunk(ch, "đoạn 2", is_first=False)
+    storage.append_translated_chunk(ch, "đoạn 3", is_first=False)
+    assert storage.read_translated(ch) == "đoạn 1\nđoạn 2\nđoạn 3"

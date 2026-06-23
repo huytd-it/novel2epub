@@ -18,6 +18,19 @@ def test_run_cli_raises_on_nonzero_with_stderr(monkeypatch):
         cli_runner.run_cli(cli, "xin chào", argv=["dummy"])
 
 
+def test_run_cli_surfaces_stdout_when_nonzero_and_no_stderr(monkeypatch):
+    # `claude -p` hay thoát mã != 0 mà in lỗi ra stdout, stderr rỗng -> phải lộ
+    # nội dung stdout thay vì báo "(không có stderr)".
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **k: _fake_completed(returncode=1, stdout="Usage limit reached", stderr=""),
+    )
+    cli = CliTranslatorConfig(command="dummy", mode="stdin")
+    with pytest.raises(RuntimeError, match="Usage limit reached"):
+        cli_runner.run_cli(cli, "xin chào", argv=["dummy"])
+
+
 def test_run_cli_raises_when_exit0_but_empty_output(monkeypatch):
     # AI CLI hay thoát mã 0 mà vẫn lỗi (rate-limit) -> stdout rỗng, stderr có lỗi.
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _fake_completed(returncode=0, stdout="  \n", stderr="rate limited"))

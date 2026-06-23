@@ -583,12 +583,26 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     Trả (status, title_changed) với status 'completed'/'replaced'/'failed'.
     Raise lại exception sau khi đã log + đánh dấu failed, để caller (nhánh
     tuần tự) tự quyết định có dừng sớm hay không.
+
+    Streaming: truyền `on_chunk` cho translator để mỗi chunk dịch xong được
+    ghi ngay vào `translated/{stem}.md` (chunk đầu = write, các chunk sau =
+    append với `\n` ngăn cách). Cuối cùng `mark_translated_complete` set
+    `complete: true` trong meta — phân biệt với partial do job bị crash.
+    Xem spec `translate-chunk-streaming`.
     """
     had_translated = storage.has_translated(ch)
     raw = storage.read_raw(ch)
     log(f"[dịch] ({i}/{total}) → {ch.title_zh or ch.stem} ({len(raw)} ký tự)")
     started = time.monotonic()
     title_changed = False
+    pieces: list[str] = []
+
+    def _on_chunk(index: int, total_chunks: int, chunk_text: str, is_final: bool) -> None:
+        log(f"[dịch]   ({i}/{total}) → đang lưu chunk {index}/{total_chunks} vào file "
+            f"({len(chunk_text)} ký tự)")
+        storage.append_translated_chunk(ch, chunk_text, is_first=(index == 1))
+        pieces.append(chunk_text)
+
     try:
         if ch.title_zh and not is_noop:
             log(f"[dịch]   ({i}/{total}) → đang dịch tiêu đề…")
@@ -599,19 +613,33 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
             ch.title_vi = _clean_title(title)
             ch.title_note = note
             title_changed = True
-        translated = _run_with_heartbeat(log, f"[dịch]   ({i}/{total})", lambda: translator.translate(raw))
+        _run_with_heartbeat(
+            log, f"[dịch]   ({i}/{total})",
+            lambda: translator.translate(raw, on_chunk=_on_chunk),
+        )
     except Exception as e:  # noqa: BLE001 - caller quyết định dừng sớm hay tiếp tục
         ch.last_action_status = "failed"
         log(f"[dịch]   ({i}/{total}) ! Lỗi chương {ch.stem}: {e}")
+        # File `translated/{stem}.md` có thể đã chứa 1 vài chunk trước khi
+        # lỗi — đánh dấu `complete: false` vào meta để `has_translated` trả
+        # False ở lần chạy kế (cache đúng: chapter partial sẽ được dịch lại
+        # từ đầu thay vì bị coi là đã xong — xem spec translate-chunk-streaming).
+        partial_meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+        partial_meta["complete"] = False
+        partial_meta["last_error"] = str(e)
+        storage.write_meta(ch, partial_meta)
         # Gắn title_changed vào exception để caller biết tiêu đề đã dịch
         # xong trước khi nội dung lỗi (cần lưu manifest dù chương bị bỏ qua).
         e.title_changed = title_changed
         raise
 
     elapsed = time.monotonic() - started
-    storage.write_translated(ch, translated)
+    translated = "\n".join(pieces)
     warnings = _quality_warnings(raw, translated)
-    storage.write_meta(ch, _build_meta(cfg, ch, translated, warnings))
+    meta = _build_meta(cfg, ch, translated, warnings)
+    meta["complete"] = True
+    # File đã được _on_chunk ghi từng phần rồi; chỉ cần đánh dấu complete.
+    storage.mark_translated_complete(ch, meta_extra=meta)
     ch.last_action_status = "replaced" if had_translated and force else "completed"
     _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title_vi or ch.title_zh or ch.stem, elapsed, translated, warnings)
     return ch.last_action_status, title_changed
@@ -645,6 +673,12 @@ def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manife
     chung), GoogleTranslator gọi HTTP riêng mỗi lần — cả hai an toàn gọi đồng
     thời. Không dừng sớm khi 1 chương lỗi (các chương khác đã đang chạy song
     song); chỉ raise nếu TẤT CẢ chương trong batch đều lỗi.
+
+    Streaming: mỗi worker chỉ xử lý 1 chapter tại 1 thời điểm (`pool.map`
+    ánh xạ 1-1), nên callback `on_chunk` chạy tuần tự trong worker đó —
+    không có race khi 2 worker cùng ghi 1 file. Hai worker khác nhau chạm
+    2 file khác nhau (path `translated/{stem}.md` khác `stem`) nên cũng
+    không xung đột I/O. Không cần lock.
     """
     progress = {"done": 0}
     progress_lock = threading.Lock()

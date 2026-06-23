@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from novel2epub.config_writer import update_config_file
+from novel2epub.config_writer import clean_prompt_text, update_config_file
 
 from .. import deps
 from ..logging_config import logger
@@ -139,9 +139,9 @@ def save_ai(
         "timeout_seconds": timeout_seconds,
     }
     if prompt_template.strip():
-        cli["prompt_template"] = prompt_template
+        cli["prompt_template"] = clean_prompt_text(prompt_template)
     if title_prompt_template.strip():
-        cli["title_prompt_template"] = title_prompt_template
+        cli["title_prompt_template"] = clean_prompt_text(title_prompt_template)
 
     translate: dict = {
         "type": type,

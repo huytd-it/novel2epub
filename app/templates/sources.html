@@ -11,6 +11,7 @@
     <table class="data-table">
         <tr>
             <th>Tên</th>
+            <th>URL</th>
             <th>Engine</th>
             <th>content_selector</th>
             <th>pattern</th>
@@ -20,6 +21,10 @@
         {% for name, p in presets.items() %}
         <tr>
             <td>{{ name }}</td>
+            <td>
+                {% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">{{ p.url }}</a>
+                {% else %}<span class="muted">—</span>{% endif %}
+            </td>
             <td>
                 {% if p.engine == "http" %}<span class="badge ok">http</span>
                 {% elif p.engine == "crawl4ai" %}<span class="badge run">crawl4ai</span>
@@ -66,6 +71,10 @@
             </label>
             <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ edit.delay_seconds if edit else 1.0 }}" min="0"></label>
             <label>encoding <input type="text" name="encoding" value="{{ edit.encoding if edit else '' }}" size="8"></label>
+        </div>
+        <div class="form-row">
+            <label>URL web (trang chủ/mục lục mẫu) <input type="url" name="url" value="{{ edit.url if edit else '' }}" size="50" placeholder="https://www.example.com"></label>
+            <label>domains (để trống = tự suy từ URL) <input type="text" name="domains" value="{{ edit.domains if edit else '' }}" size="30" placeholder="example.com,example.net"></label>
         </div>
         <div class="form-row">
             <label>chapter_link_pattern <input type="text" name="chapter_link_pattern" value="{{ edit.chapter_link_pattern if edit else '.*' }}" size="50"></label>

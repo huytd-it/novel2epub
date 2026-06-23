@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
@@ -29,6 +30,7 @@ def _yaml() -> YAML:
 class SourcePreset:
     name: str
     engine: str = "http"
+    url: str = ""
     domains: str = ""
     chapter_link_pattern: str = r".*"
     content_selector: str = ""
@@ -52,8 +54,17 @@ class SourcePreset:
         """Dict áp lên nhánh `crawl` của config (bỏ `name`, `domains`)."""
         data = asdict(self)
         data.pop("name", None)
+        data.pop("url", None)
         data.pop("domains", None)
         return data
+
+    def __post_init__(self) -> None:
+        # Tự suy `domains` từ `url` khi để trống, để detect_preset vẫn dùng được.
+        if self.url and not self.domains:
+            host = urlparse(self.url).hostname or ""
+            if host.startswith("www."):
+                host = host[4:]
+            self.domains = host
 
 
 _FIELD_NAMES = {f.name for f in fields(SourcePreset)}
@@ -88,7 +99,16 @@ def load_presets(path: str | Path) -> dict[str, SourcePreset]:
     return presets
 
 
-from urllib.parse import urlparse
+def preset_matches_url(preset: SourcePreset, url: str) -> bool:
+    """True nếu hostname của ``url`` chứa một trong các token `domains` của preset."""
+    if not url or not preset.domains:
+        return False
+    hostname = urlparse(url).hostname or ""
+    for d in preset.domains.split(","):
+        d = d.strip()
+        if d and d in hostname:
+            return True
+    return False
 
 
 def detect_preset(url: str, presets: dict[str, SourcePreset]) -> str | None:

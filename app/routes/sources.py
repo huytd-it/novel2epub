@@ -49,6 +49,8 @@ def sources_page(request: Request, edit: str = ""):
 def save_source_preset(
     name: str = Form(""),
     engine: str = Form("http"),
+    url: str = Form(""),
+    domains: str = Form(""),
     chapter_link_pattern: str = Form(".*"),
     content_selector: str = Form(""),
     toc_selector: str = Form(""),
@@ -73,6 +75,8 @@ def save_source_preset(
         kwargs = dict(
             name=name,
             engine=engine,
+            url=url.strip(),
+            domains=domains.strip(),
             chapter_link_pattern=chapter_link_pattern,
             content_selector=content_selector,
             toc_selector=toc_selector,

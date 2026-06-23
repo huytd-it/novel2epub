@@ -12,7 +12,7 @@ from novel2epub.config import CrawlConfig, LibraryEntry, load_config
 from novel2epub.config_writer import save_library, scaffold_config_file
 from novel2epub.crawler import make_crawler
 from novel2epub.pipeline import _clean_title
-from novel2epub.sources import detect_preset
+from novel2epub.sources import detect_preset, preset_matches_url
 from novel2epub.translator import RateLimited, make_translator
 
 from .. import deps
@@ -45,6 +45,8 @@ def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
 
     name = toc.title or ""
     author = toc.author or ""
+    cover_url = toc.cover_url or ""
+    chapter_count = len(toc.chapters)
 
     # Dịch title nếu có AI CLI
     if name:
@@ -69,6 +71,8 @@ def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
         "name": name,
         "author": author,
         "slug": slug,
+        "cover_url": cover_url,
+        "chapter_count": chapter_count,
         "preset": preset_name,
         "suggested_preset": None,
         "suggest_url": suggest_url,
@@ -81,16 +85,39 @@ def library_page():
     return RedirectResponse(url="/", status_code=302)
 
 
-@router.post("/library/ebooks/fetch-meta")
-def fetch_meta_api(
+@router.post("/library/ebooks/preview")
+def preview_ebook_api(
     toc_url: str = Form(""),
     preset: str = Form(""),
 ):
-    """API: detect metadata từ URL + preset, trả JSON."""
+    """API: validate link khớp nguồn đã chọn rồi fetch metadata, trả JSON.
+
+    Luồng thêm ebook: chọn nguồn (preset) trước → paste link. Link phải khớp
+    domain của nguồn đã chọn mới fetch metadata để preview.
+    """
+    toc_url = toc_url.strip()
     if not toc_url:
-        return JSONResponse({"error": "Thiếu toc_url"}, status_code=400)
+        return JSONResponse({"error": "Thiếu URL mục lục."}, status_code=400)
+    if not preset:
+        return JSONResponse({"error": "Hãy chọn nguồn trước."}, status_code=400)
+
+    p = deps.presets().get(preset)
+    if p is None:
+        return JSONResponse({"error": f"Không tìm thấy nguồn '{preset}'."}, status_code=400)
+
+    if not preset_matches_url(p, toc_url):
+        return JSONResponse(
+            {
+                "error": f"Link không thuộc nguồn '{preset}' (domain: {p.domains}). "
+                "Nếu đây là nguồn mới, hãy tạo preset trước.",
+                "suggest_url": f"/preset-builder?toc_url={toc_url}",
+            },
+            status_code=400,
+        )
+
     try:
         data = _fetch_meta(toc_url, preset)
+        data["engine"] = p.engine
         return JSONResponse(data)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -102,10 +129,22 @@ def create_ebook(
     name: str = Form(""),
     author: str = Form(""),
     toc_url: str = Form(""),
-    engine: str = Form("http"),
     preset: str = Form(""),
 ):
-    # Tự động detect nếu chưa có name nhưng có toc_url
+    toc_url = toc_url.strip()
+    preset = preset.strip()
+    if not preset:
+        raise HTTPException(status_code=400, detail="Hãy chọn nguồn trước.")
+    p = deps.presets().get(preset)
+    if p is None:
+        raise HTTPException(status_code=400, detail=f"Không tìm thấy nguồn '{preset}'.")
+    if not preset_matches_url(p, toc_url):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Link không thuộc nguồn '{preset}' (domain: {p.domains}).",
+        )
+
+    # name/author/slug thường gửi từ bước preview. Nếu thiếu (vd JS tắt) thì tự fetch.
     if not name and toc_url:
         try:
             fetched = _fetch_meta(toc_url, preset)
@@ -123,20 +162,14 @@ def create_ebook(
     rel_config = f"configs/{slug}.yaml"
     dest = deps.resolve_path(Path(deps.LIBRARY_PATH).resolve().parent, rel_config)
 
-    preset_overrides = None
-    if preset:
-        p = deps.presets().get(preset)
-        if p:
-            preset_overrides = p.crawl_overrides()
-
     scaffold_config_file(
         dest,
         slug=slug,
         title=name,
         author=author,
         toc_url=toc_url,
-        engine=engine,
-        preset=preset_overrides,
+        engine=p.engine,
+        preset=p.crawl_overrides(),
     )
 
     lib.ebooks[slug] = LibraryEntry(slug=slug, name=name, config=rel_config)

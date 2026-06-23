@@ -11,16 +11,11 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Protocol
 
 from . import cli_runner
 from .config import TranslateConfig
 from .storage import parse_glossary_line
-
-# Callback log tùy chọn — translator gọi để báo tiến trình chunk.
-LogFn = Callable[[str], object] | None
-# Callback ghi partial — nhận nội dung tích lũy sau mỗi chunk dịch xong.
-OnChunkDoneFn = Callable[[str], object] | None
 
 # Một số mẫu "lời mở đầu" mà LLM hay tự thêm dù đã bảo đừng.
 _PREAMBLE = re.compile(
@@ -170,9 +165,6 @@ class CLITranslator:
         self.cli = cfg.cli
         self.glossary = load_glossary_dict(cfg)
         self._argv = cli_runner.build_argv(cfg.cli)
-        self._log: LogFn = None
-        self._log_prefix: str = ""
-        self._on_chunk_done: OnChunkDoneFn = None
 
     def _build_prompt(self, text: str) -> str:
         return self.cli.prompt_template.format(
@@ -247,27 +239,13 @@ class CLITranslator:
             return _apply_glossary(self._translate_chunk(text), self.glossary)
 
         overlap = max(0, self.cfg.chunk.overlap_paragraphs)
-        chunks = _split_into_chunks(text, max_chars, overlap)
-        total_chunks = len(chunks)
-
-        if self._log:
-            self._log(f"{self._log_prefix} chia thành {total_chunks} chunks (max_chars={max_chars})")
-            if total_chunks > 3 and overlap == 0:
-                self._log(f"{self._log_prefix} ⚠ overlap=0 — có thể đứt ngữ cảnh giữa chunks, cân nhắc thêm overlap_paragraphs")
-
         pieces: list[str] = []
-        for i, chunk_paragraphs in enumerate(chunks):
-            if self._log:
-                self._log(f"{self._log_prefix} chunk {i + 1}/{total_chunks}")
+        for i, chunk_paragraphs in enumerate(_split_into_chunks(text, max_chars, overlap)):
             cleaned = self._translate_chunk("\n".join(chunk_paragraphs))
             if i > 0 and overlap > 0:
                 lines = cleaned.split("\n")
                 cleaned = "\n".join(lines[overlap:]) if len(lines) > overlap else cleaned
             pieces.append(cleaned)
-            # Ghi partial sau mỗi chunk để preview sớm.
-            if self._on_chunk_done:
-                partial = _apply_glossary("\n".join(pieces), self.glossary)
-                self._on_chunk_done(partial)
         return _apply_glossary("\n".join(pieces), self.glossary)
 
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
@@ -330,17 +308,6 @@ class RateLimited:
     def __init__(self, inner: Translator, delay_seconds: float):
         self.inner = inner
         self.delay = delay_seconds
-
-    def set_log(self, log: LogFn, prefix: str = "") -> None:
-        """Truyền log callback + prefix vào inner translator (nếu hỗ trợ)."""
-        if hasattr(self.inner, "_log"):
-            self.inner._log = log
-            self.inner._log_prefix = prefix
-
-    def set_on_chunk_done(self, fn: OnChunkDoneFn) -> None:
-        """Truyền callback ghi partial vào inner translator (nếu hỗ trợ)."""
-        if hasattr(self.inner, "_on_chunk_done"):
-            self.inner._on_chunk_done = fn
 
     def translate(self, text: str) -> str:
         out = self.inner.translate(text)

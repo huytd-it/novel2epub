@@ -142,6 +142,10 @@ textarea.jump-flash { outline: 2px solid #d97706; }
 .diff-line { padding: 0 0.4rem; white-space: pre-wrap; word-break: break-word; }
 .diff-line.eq { color: #555; }
 
+.preview-card { display: flex; gap: 1rem; align-items: flex-start; margin: 0.5rem 0 0.75rem; }
+.preview-card img { border: 1px solid #ccc; border-radius: 4px; object-fit: cover; }
+.preview-meta { display: flex; flex-direction: column; gap: 0.35rem; }
+
 @media (max-width: 900px) {
     .cols, .hero { flex-direction: column; }
     .bulk-bar, .quick-guide { position: static; }

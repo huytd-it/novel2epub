@@ -60,45 +60,48 @@
 
 <div class="section-head">
     <h3>Thêm ebook mới</h3>
-    <p class="muted">Nhập URL mục lục → bấm <strong>Lấy thông tin</strong> để tự detect preset, tên, tác giả. Hoặc chọn <a href="/sources">site preset</a> thủ công.</p>
+    <p class="muted">① Chọn <strong>nguồn</strong> · ② Paste <strong>link mục lục</strong> truyện · ③ <strong>Xem trước</strong> → ④ <strong>Tạo ebook</strong>. Chưa có nguồn phù hợp? <a href="/sources">Quản lý nguồn</a>.</p>
 </div>
 <form method="post" action="/library/ebooks" id="create-form">
+    <input type="hidden" name="name" id="name">
+    <input type="hidden" name="author" id="author">
     <fieldset>
-        <legend>Thông tin cơ bản</legend>
+        <legend>① Chọn nguồn &amp; ② Link truyện</legend>
         <div class="form-row">
-            <label>Tên truyện <input type="text" name="name" id="name" placeholder="để trống + Lấy thông tin"></label>
-            <label>Tác giả <input type="text" name="author" id="author" placeholder="detect từ URL"></label>
-        </div>
-        <div class="form-row">
-            <label>Slug <input type="text" name="slug" id="slug" placeholder="tự sinh từ tên"></label>
-            <label>URL mục lục <input type="text" name="toc_url" id="toc_url" size="50" required placeholder="https://..."></label>
-        </div>
-    </fieldset>
-    <fieldset>
-        <legend>Crawl engine &amp; preset</legend>
-        <div class="form-row">
-            <label>Engine
-                <select name="engine" id="engine">
-                    <option value="http">http (requests + BS4)</option>
-                    <option value="crawl4ai">crawl4ai (trình duyệt, JS)</option>
-                </select>
-            </label>
-            <label>Site preset
-                <select name="preset" id="preset">
-                    <option value="">— không dùng —</option>
-                    {% for name in presets.keys() %}
-                    <option value="{{ name }}">{{ name }}</option>
+            <label>Nguồn (site preset)
+                <select name="preset" id="preset" required>
+                    <option value="">— chọn nguồn —</option>
+                    {% for name, p in presets.items() %}
+                    <option value="{{ name }}" data-engine="{{ p.engine }}" data-url="{{ p.url }}">{{ name }} · {{ p.engine }}{% if p.url %} · {{ p.url }}{% endif %}</option>
                     {% endfor %}
                 </select>
             </label>
+            <label>URL mục lục <input type="text" name="toc_url" id="toc_url" size="50" required placeholder="https://..."></label>
+        </div>
+        <div class="form-row">
+            <button type="button" id="preview-btn">🔍 Xem trước</button>
+            <span id="fetch-status" class="muted"></span>
+        </div>
+        <div class="form-row" id="preset-suggest-row" style="display:none">
+            <span id="preset-suggest" class="muted"></span>
         </div>
     </fieldset>
-    <div class="form-row">
-        <button type="button" id="fetch-btn">🔍 Lấy thông tin</button>
-        <button type="submit">💾 Tạo ebook</button>
-        <span id="fetch-status" class="muted"></span>
-        <span id="preset-suggest" class="muted"></span>
-    </div>
+
+    <fieldset id="preview-box" style="display:none">
+        <legend>③ Xem trước</legend>
+        <div class="preview-card">
+            <img id="pv-cover" alt="bìa" style="max-height:120px;display:none">
+            <div class="preview-meta">
+                <div><strong id="pv-name"></strong></div>
+                <div class="muted" id="pv-author"></div>
+                <div class="muted" id="pv-chapters"></div>
+                <label>Slug <input type="text" name="slug" id="slug" placeholder="tự sinh từ tên"></label>
+            </div>
+        </div>
+        <div class="form-row">
+            <button type="submit" id="create-btn">💾 Tạo ebook</button>
+        </div>
+    </fieldset>
 </form>
 {% endblock %}
 
@@ -170,12 +173,6 @@ async function loadLibrary() {
 poll();
 setInterval(poll, 1500);
 
-const PRESET_ENGINES = {
-    {% for name, p in presets.items() %}
-    "{{ name }}": "{{ p.engine }}",
-    {% endfor %}
-};
-
 function slugify(value) {
     return value
         .normalize("NFKD")
@@ -185,42 +182,55 @@ function slugify(value) {
         .toLowerCase() || "novel";
 }
 
+function escapeHtml(text) {
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     const nameEl = document.getElementById("name");
+    const authorEl = document.getElementById("author");
     const slugEl = document.getElementById("slug");
     const presetEl = document.getElementById("preset");
-    const engineEl = document.getElementById("engine");
     const tocUrlEl = document.getElementById("toc_url");
-    const fetchBtn = document.getElementById("fetch-btn");
+    const previewBtn = document.getElementById("preview-btn");
+    const createBtn = document.getElementById("create-btn");
     const fetchStatus = document.getElementById("fetch-status");
-    const authorEl = document.getElementById("author");
+    const suggestEl = document.getElementById("preset-suggest");
+    const suggestRow = document.getElementById("preset-suggest-row");
+    const previewBox = document.getElementById("preview-box");
+    const form = document.getElementById("create-form");
 
-    // Auto‑generate slug preview from name
-    nameEl.addEventListener("input", function () {
-        if (!slugEl.dataset.userEdited) {
-            slugEl.value = slugify(nameEl.value);
-        }
-    });
+    // Slug: tự sinh từ tên đã preview, trừ khi người dùng tự sửa.
     slugEl.addEventListener("input", function () {
         slugEl.dataset.userEdited = slugEl.value !== slugify(nameEl.value);
     });
 
-    // Auto‑fill engine when a preset is selected
-    presetEl.addEventListener("change", function () {
-        const engine = PRESET_ENGINES[presetEl.value];
-        if (engine) {
-            engineEl.value = engine;
-        }
-    });
+    // Đổi nguồn / sửa link ⇒ ẩn preview cũ (buộc xem trước lại).
+    function resetPreview() {
+        previewBox.style.display = "none";
+    }
+    presetEl.addEventListener("change", resetPreview);
+    tocUrlEl.addEventListener("input", resetPreview);
 
-    // Fetch metadata from URL + preset
-    fetchBtn.addEventListener("click", async function () {
+    previewBtn.addEventListener("click", async function () {
         const url = tocUrlEl.value.trim();
+        suggestRow.style.display = "none";
+        suggestEl.innerHTML = "";
+        previewBox.style.display = "none";
+        if (!presetEl.value) {
+            fetchStatus.textContent = "⚠️ Hãy chọn nguồn trước.";
+            return;
+        }
         if (!url) {
             fetchStatus.textContent = "⚠️ Nhập URL mục lục trước.";
             return;
         }
-        fetchBtn.disabled = true;
+        previewBtn.disabled = true;
         fetchStatus.textContent = "⏳ Đang lấy thông tin...";
 
         try {
@@ -228,49 +238,52 @@ document.addEventListener("DOMContentLoaded", function () {
             formData.append("toc_url", url);
             formData.append("preset", presetEl.value);
 
-            const res = await fetch("/library/ebooks/fetch-meta", {
+            const res = await fetch("/library/ebooks/preview", {
                 method: "POST",
                 body: formData,
             });
-
             const data = await res.json();
 
             if (data.error) {
                 fetchStatus.textContent = "⚠️ " + data.error;
+                if (data.suggest_url) {
+                    suggestEl.innerHTML = 'Chưa có nguồn cho domain này — <a href="' + escapeHtml(data.suggest_url) + '">Tạo preset</a>';
+                    suggestRow.style.display = "";
+                }
                 return;
             }
 
-            if (data.name) nameEl.value = data.name;
-            if (data.author) authorEl.value = data.author;
-            if (data.slug && !slugEl.dataset.userEdited) slugEl.value = data.slug;
-            if (data.preset && presetEl.value !== data.preset) {
-                presetEl.value = data.preset;
-                // auto‑fill engine for the detected preset
-                const engine = PRESET_ENGINES[data.preset];
-                if (engine) engineEl.value = engine;
-            }
-            const suggestEl = document.getElementById("preset-suggest");
-            if (data.suggest_url) {
-                suggestEl.innerHTML = 'Chưa có preset cho URL này — <a href="' + escapeHtml(data.suggest_url) + '">Tạo preset</a>';
+            // Đổ metadata vào hidden field + vùng preview.
+            nameEl.value = data.name || "";
+            authorEl.value = data.author || "";
+            if (!slugEl.dataset.userEdited) slugEl.value = data.slug || "";
+
+            document.getElementById("pv-name").textContent = data.name || "(không lấy được tên)";
+            document.getElementById("pv-author").textContent = data.author ? ("Tác giả: " + data.author) : "";
+            document.getElementById("pv-chapters").textContent = "Số chương: " + (data.chapter_count || 0);
+            const coverEl = document.getElementById("pv-cover");
+            if (data.cover_url) {
+                coverEl.src = data.cover_url;
+                coverEl.style.display = "";
             } else {
-                suggestEl.innerHTML = "";
+                coverEl.style.display = "none";
             }
+            previewBox.style.display = "";
             fetchStatus.textContent = "✅ " + (data.name || "Đã lấy thông tin");
         } catch (e) {
             fetchStatus.textContent = "⚠️ Lỗi: " + e.message;
         } finally {
-            fetchBtn.disabled = false;
+            previewBtn.disabled = false;
         }
     });
 
-    function escapeHtml(text) {
-        return String(text)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
+    // Chặn submit nếu chưa xem trước (chưa có tên) — buộc bấm Xem trước.
+    form.addEventListener("submit", function (e) {
+        if (previewBox.style.display === "none") {
+            e.preventDefault();
+            fetchStatus.textContent = "⚠️ Hãy bấm Xem trước trước khi tạo.";
+        }
+    });
 });
 </script>
 {% endblock %}

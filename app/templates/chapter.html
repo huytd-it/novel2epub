@@ -17,8 +17,12 @@
 </form>
 
 <div id="job-status-section" style="margin: 1rem 0; padding: 1rem; border: 1px solid #ccc; border-radius: 8px; background: #fcfcfc; display: none;">
-    <p><strong>Trạng thái job:</strong> <span id="status-badge-container"><span class="badge ok">rảnh</span></span></p>
-    <pre id="log" style="background: #111; color: #ddd; padding: 0.5rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.8rem; border-radius: 4px;"></pre>
+    <p><strong>Trạng thái job:</strong>
+        <span id="status-badge-crawl"><span class="badge ok">Crawl: rảnh</span></span>
+        <span id="status-badge-translate"><span class="badge ok">Dịch: rảnh</span></span>
+    </p>
+    <pre id="log-crawl" style="background: #111; color: #ddd; padding: 0.5rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.8rem; border-radius: 4px;"></pre>
+    <pre id="log-translate" style="background: #111; color: #ddd; padding: 0.5rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.8rem; border-radius: 4px;"></pre>
 </div>
 {% if meta %}
 <p class="muted">Prompt/profile: <code>{{ meta.profile }}</code> · Model: <code>{{ meta.model or "-" }}</code></p>
@@ -70,7 +74,7 @@
 
 {% set base = "/ebooks/" ~ slug ~ "/chapters/" ~ ch.index %}
 
-<div class="ai-toolbar">
+<div class="ai-toolbar" data-job-category="translate">
     <strong>AI hỗ trợ:</strong>
     <form method="post" action="{{ base }}/ai/review" class="ai-job-form"><button type="submit" title="AI đọc bản dịch và liệt kê vấn đề theo mục III của rule.md — bạn tự sửa tay.">Review chương này</button></form>
     <form method="post" action="{{ base }}/ai/rewrite" class="ai-job-form"><button type="submit" title="AI biên tập lại cả chương thành bản nháp để bạn xem diff rồi quyết định áp dụng.">Đề xuất bản biên tập</button></form>
@@ -434,46 +438,71 @@ if (diffCurrent && diffPreview && rewriteText && translatedArea) {
 }
 
 // --- Job execution & polling ---
-const logPanel = initLogPanel("log");
+const logPanels = {
+    crawl: initLogPanel("log-crawl"),
+    translate: initLogPanel("log-translate"),
+};
 const statusSection = document.getElementById("job-status-section");
 
-function setJobButtonsDisabled(disabled) {
+// Xác định job-category của 1 form/button: data-job-category gần nhất nếu
+// có; nếu form có select[name=action] (action chương: crawl|translate) thì
+// đọc giá trị đang chọn; mặc định "both" (an toàn, disable cả 2 khi không
+// xác định được).
+function jobCategoryFor(form) {
+    const select = form && form.querySelector ? form.querySelector('select[name="action"]') : null;
+    if (select && (select.value === "crawl" || select.value === "translate")) {
+        return select.value;
+    }
+    const el = form && form.closest ? form.closest("[data-job-category]") : null;
+    return (el && el.dataset.jobCategory) || "both";
+}
+
+function isCategoryRunning(status, category) {
+    if (category === "both") return status.crawl.running || status.translate.running;
+    return status[category].running;
+}
+
+function setJobButtonsDisabled(status) {
     const jobButtons = document.querySelectorAll(
-        'form[action*="/action"] button, form[action*="/jobs/"] button'
+        'form[action*="/action"] button, form[action*="/jobs/"] button, .ai-job-form button'
     );
     for (const btn of jobButtons) {
-        btn.disabled = disabled;
+        const form = btn.closest("form");
+        btn.disabled = isCategoryRunning(status, jobCategoryFor(form));
     }
 }
 
 document.addEventListener("submit", async function(event) {
     const form = event.target;
     const action = form.getAttribute("action") || "";
-    
+
     if (action.includes("/action") || action.includes("/jobs/") || form.classList.contains("ai-job-form")) {
         event.preventDefault();
-        
-        setJobButtonsDisabled(true);
+
+        const category = jobCategoryFor(form);
+        const affected = category === "both" ? ["crawl", "translate"] : [category];
         if (statusSection) {
             statusSection.style.display = "block";
         }
-        const container = document.getElementById("status-badge-container");
-        if (container) {
-            container.innerHTML = '<span class="badge run">đang kết nối...</span>';
+        for (const cat of affected) {
+            const container = document.getElementById(`status-badge-${cat}`);
+            if (container) {
+                container.innerHTML = '<span class="badge run">đang kết nối...</span>';
+            }
         }
-        
+
         try {
             const formData = new FormData(form);
             const submitter = event.submitter;
             if (submitter && submitter.name && submitter.value) {
                 formData.set(submitter.name, submitter.value);
             }
-            
+
             const response = await fetch(action, {
                 method: form.method || "POST",
                 body: formData
             });
-            
+
             if (!response.ok) {
                 let errMsg = "Có lỗi xảy ra khi bắt đầu job.";
                 try {
@@ -485,7 +514,7 @@ document.addEventListener("submit", async function(event) {
                 alert(errMsg);
                 poll();
             } else {
-                wasRunning = true;
+                for (const cat of affected) wasRunning[cat] = true;
                 setTimeout(poll, 200);
             }
         } catch (error) {
@@ -496,49 +525,51 @@ document.addEventListener("submit", async function(event) {
     }
 });
 
-let wasRunning = false;
+let wasRunning = { crawl: false, translate: false };
 
 async function poll() {
     try {
         const res = await fetch("/api/status");
         if (!res.ok) return;
         const data = await res.json();
-        
+
         // Show status section if running, or if there is log/error
         if (statusSection) {
-            if (data.running || data.log.length > 0 || data.error) {
-                statusSection.style.display = "block";
-            } else {
-                statusSection.style.display = "none";
-            }
+            const anyActivity = data.crawl.running || data.translate.running
+                || data.crawl.log.length > 0 || data.translate.log.length > 0
+                || data.crawl.error || data.translate.error;
+            statusSection.style.display = anyActivity ? "block" : "none";
         }
-        
-        if (data.log.length > 0) {
-            logPanel.setLines(data.log);
-        }
-        
-        const container = document.getElementById("status-badge-container");
-        if (container) {
-            let html = "";
-            if (data.running) {
-                html += `<span class="badge run">đang chạy: ${data.step}</span> `;
-            } else {
-                html += '<span class="badge ok">rảnh</span> ';
+
+        const labels = { crawl: "Crawl", translate: "Dịch" };
+        let anyJustFinished = false;
+        for (const cat of ["crawl", "translate"]) {
+            if (data[cat].log.length > 0) {
+                logPanels[cat].setLines(data[cat].log);
             }
-            if (data.error) {
-                html += `<span class="badge no">lỗi: ${data.error}</span>`;
+            const container = document.getElementById(`status-badge-${cat}`);
+            if (container) {
+                let html = "";
+                if (data[cat].running) {
+                    html += `<span class="badge run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
+                } else {
+                    html += `<span class="badge ok">${labels[cat]}: rảnh</span> `;
+                }
+                if (data[cat].error) {
+                    html += `<span class="badge no">lỗi: ${data[cat].error}</span>`;
+                }
+                container.innerHTML = html;
             }
-            container.innerHTML = html;
+            if (wasRunning[cat] && !data[cat].running) anyJustFinished = true;
+            wasRunning[cat] = data[cat].running;
         }
-        
-        setJobButtonsDisabled(data.running);
-        
-        const isRunningNow = data.running;
-        if (wasRunning && !isRunningNow) {
+
+        setJobButtonsDisabled(data);
+
+        if (anyJustFinished) {
             location.reload();
             return;
         }
-        wasRunning = isRunningNow;
     } catch (e) {
         console.error("Lỗi khi poll status:", e);
     }

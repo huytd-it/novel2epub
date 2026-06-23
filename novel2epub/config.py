@@ -19,6 +19,9 @@ class CrawlConfig:
     max_chapters: int = 0
     strip_patterns: list[str] = field(default_factory=list)
     delay_seconds: float = 1.0
+    # Số chương tải song song (luồng riêng, mỗi luồng tự giữ 1 crawler/session).
+    # 1 = tuần tự như trước. delay_seconds vẫn áp dụng riêng trong mỗi luồng.
+    max_workers: int = 1
 
     # ----- multi-page chapter (pagination) -----
     # CSS selector cho link "trang tiếp" trong chương (vd "a#pager_next",
@@ -191,6 +194,9 @@ class TranslateConfig:
     chunk: TranslationChunkConfig = field(default_factory=TranslationChunkConfig)
     cli: CliTranslatorConfig = field(default_factory=CliTranslatorConfig)
     delay_seconds: float = 0.5
+    # Số chương dịch song song (luồng riêng, dùng chung 1 translator — CLI
+    # subprocess/Google request đều an toàn gọi đồng thời). 1 = tuần tự như trước.
+    max_workers: int = 1
 
 
 @dataclass
@@ -353,6 +359,7 @@ def load_config(path: str | Path) -> Config:
         ),
         cli=CliTranslatorConfig(**cli_raw),
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
+        max_workers=int(translate_raw.get("max_workers", 1)),
     )
 
     output = OutputConfig(**(raw.get("output") or {}))

@@ -74,7 +74,7 @@ def start_ebook_crawl_range(
             retries=retries,
         )
 
-    started = request.app.state.job.start_custom("crawl", _target)
+    started = request.app.state.job.start_custom("crawl", _target, category="crawl")
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
@@ -145,7 +145,7 @@ def start_ebook_chapter_action(
         else:
             raise ValueError(f"action không hợp lệ: {action!r}")
 
-    started = request.app.state.job.start_custom(f"chapter-{action}", _target)
+    started = request.app.state.job.start_custom(f"chapter-{action}", _target, category=action)
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
@@ -160,7 +160,7 @@ def start_ebook_job(request: Request, slug: str, step: str, force: bool = Form(F
 
             step_fetch_toc(cfg, log, force=True)
 
-        started = request.app.state.job.start_custom(step, _target)
+        started = request.app.state.job.start_custom(step, _target, category="crawl")
     else:
         started = request.app.state.job.start(step, cfg)
     if not started:

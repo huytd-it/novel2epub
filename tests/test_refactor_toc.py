@@ -223,9 +223,10 @@ def test_chapter_action_routes_start_custom_job(tmp_path, monkeypatch):
 
     class Job:
         def status(self):
-            return {"running": False, "step": "", "error": "", "log": []}
+            empty = {"running": False, "step": "", "error": "", "log": []}
+            return {"crawl": empty, "translate": empty}
 
-        def start_custom(self, step, target):
+        def start_custom(self, step, target, category):
             calls.append(step)
             return True
 
@@ -290,9 +291,10 @@ def test_bulk_chapter_action_checked_mode_uses_visible_checked_rows(tmp_path, mo
 
     class Job:
         def status(self):
-            return {"running": False, "step": "", "error": "", "log": []}
+            empty = {"running": False, "step": "", "error": "", "log": []}
+            return {"crawl": empty, "translate": empty}
 
-        def start_custom(self, step, target):
+        def start_custom(self, step, target, category):
             target(lambda m: None)
             return True
 

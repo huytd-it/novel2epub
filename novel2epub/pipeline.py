@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Callable
 
@@ -58,7 +59,7 @@ def _emit_crawl_config(cfg: Config, log: LogFn) -> None:
         f"| content_selector={_fmt(c.content_selector, '(auto OG/body)')} "
         f"| chapter_link_pattern={c.chapter_link_pattern} "
         f"| max_chapters={_fmt(c.max_chapters, '∞')} | delay={c.delay_seconds}s "
-        f"| encoding={_fmt(c.encoding, '(auto)')}")
+        f"| encoding={_fmt(c.encoding, '(auto)')} | max_workers={c.max_workers}")
     if c.next_page_selector or c.next_page_url_pattern:
         rule = c.next_page_selector or f"url~{c.next_page_url_pattern}"
         log(f"[config] CRAWL pagination: {rule} (tối đa {c.max_pages_per_chapter} trang/chương)")
@@ -83,7 +84,7 @@ def _emit_translate_config(cfg: Config, log: LogFn, *, feature: str = "DỊCH") 
     (dịch chương, dịch metadata, review/suggest/rewrite/đánh giá)."""
     t = cfg.translate
     log(f"[config] {feature} dùng: type={t.type} | preset={_fmt(t.preset, '(không)')} "
-        f"| profile={t.profile} | delay={t.delay_seconds}s")
+        f"| profile={t.profile} | delay={t.delay_seconds}s | max_workers={t.max_workers}")
     if t.type.lower() == "cli":
         log(f"[config] {feature} CLI: command={t.cli.command!r} "
             f"| model={_fmt(t.cli.model, '(mặc định CLI)')} | mode={t.cli.mode} "
@@ -346,6 +347,94 @@ def step_crawl(cfg: Config, log: LogFn = _print) -> Manifest:
     return step_crawl_selected(cfg, log)
 
 
+def _crawl_one(crawler, storage: Storage, ch: Chapter, force: bool, retries: int, retry_delay: float, log: LogFn, i: int, total: int) -> str:
+    """Tải 1 chương, ghi raw, trả về last_action_status ('completed'/'replaced'/'failed').
+
+    Dùng chung cho cả nhánh tuần tự và song song.
+    """
+    had_raw = storage.has_raw(ch)
+    log(f"[crawl] ({i}/{total}) {ch.url}")
+    content = _fetch_chapter_with_retry(crawler, ch, retries, retry_delay, log)
+    crawler.sleep()
+    if content is None:
+        ch.last_action_status = "failed"
+        return "failed"
+    if not content.strip():
+        log(f"[crawl]   ! Chương {ch.stem} rỗng, bỏ qua.")
+    storage.write_raw(ch, content)
+    ch.last_action_status = "replaced" if had_raw and force else "completed"
+    return ch.last_action_status
+
+
+def _crawl_chapters_sequential(crawler, storage: Storage, chapters: list[Chapter], force: bool, retries: int, retry_delay: float, log: LogFn, total: int) -> tuple[int, int, int]:
+    crawled = failed = replaced = 0
+    for i, ch in enumerate(chapters, 1):
+        status = _crawl_one(crawler, storage, ch, force, retries, retry_delay, log, i, total)
+        if status == "failed":
+            failed += 1
+        else:
+            crawled += 1
+            if status == "replaced":
+                replaced += 1
+    return crawled, failed, replaced
+
+
+def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapter], force: bool, retries: int, retry_delay: float, log: LogFn, total: int, workers: int) -> tuple[int, int, int]:
+    """Tải nhiều chương song song bằng ThreadPoolExecutor.
+
+    Mỗi luồng tự tạo + giữ riêng 1 crawler (Crawl4AICrawler không thread-safe vì
+    dùng 1 event loop/browser cố định; HttpCrawler cũng tách session riêng cho
+    gọn, dù requests.Session vốn chịu được dùng chung). Crawler được đóng lại
+    khi luồng kết thúc qua thread-local cleanup.
+    """
+    local = threading.local()
+    instances: list = []
+    instances_lock = threading.Lock()
+    progress = {"done": 0}
+    progress_lock = threading.Lock()
+    counters = {"crawled": 0, "failed": 0, "replaced": 0}
+    counters_lock = threading.Lock()
+
+    def _get_crawler():
+        crawler = getattr(local, "crawler", None)
+        if crawler is None:
+            crawler = make_crawler(cfg.crawl)
+            with instances_lock:
+                instances.append(crawler)
+            local.crawler = crawler
+        return crawler
+
+    def _work(ch: Chapter) -> None:
+        with progress_lock:
+            progress["done"] += 1
+            i = progress["done"]
+        try:
+            status = _crawl_one(_get_crawler(), storage, ch, force, retries, retry_delay, log, i, total)
+        except Exception as e:  # noqa: BLE001 - 1 chương lỗi không được giết cả batch song song
+            ch.last_action_status = "failed"
+            log(f"[crawl]   ! Lỗi không lường được ở chương {ch.stem}: {e}")
+            status = "failed"
+        with counters_lock:
+            if status == "failed":
+                counters["failed"] += 1
+            else:
+                counters["crawled"] += 1
+                if status == "replaced":
+                    counters["replaced"] += 1
+
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(_work, chapters))
+    finally:
+        for inst in instances:
+            try:
+                inst.close()
+            except Exception:  # noqa: BLE001 - đóng best-effort, không che lỗi chính
+                pass
+
+    return counters["crawled"], counters["failed"], counters["replaced"]
+
+
 def step_crawl_selected(
     cfg: Config,
     log: LogFn = _print,
@@ -364,6 +453,9 @@ def step_crawl_selected(
       - retries / retry_delay: số lần thử lại + thời gian chờ giữa các lần khi
         một chương tải lỗi; chương lỗi sau khi thử hết sẽ bị bỏ qua, không làm
         gián đoạn cả job.
+
+    crawl.max_workers > 1 trong config sẽ tải nhiều chương song song (mỗi
+    luồng tự giữ 1 crawler riêng — xem _crawl_chapters_parallel).
     """
     _emit_config_warnings(cfg, log)
     _emit_crawl_config(cfg, log)
@@ -382,33 +474,30 @@ def step_crawl_selected(
                 f"(từ {start or 1} đến {end or len(manifest.chapters)}).")
 
         total = len(selected)
-        crawled = 0
+        to_fetch = []
         skipped = 0
-        failed = 0
-        replaced = 0
-        for i, ch in enumerate(selected, 1):
+        for ch in selected:
             if storage.has_raw(ch) and not force:
                 skipped += 1
                 ch.last_action_status = "skipped"
-                continue
-            had_raw = storage.has_raw(ch)
-            log(f"[crawl] ({i}/{total}) {ch.url}")
-            content = _fetch_chapter_with_retry(crawler, ch, retries, retry_delay, log)
-            if content is None:
-                failed += 1
-                ch.last_action_status = "failed"
-                continue
-            if not content.strip():
-                log(f"[crawl]   ! Chương {ch.stem} rỗng, bỏ qua.")
-            storage.write_raw(ch, content)
-            ch.last_action_status = "replaced" if had_raw and force else "completed"
-            if had_raw and force:
-                replaced += 1
-            crawled += 1
-            crawler.sleep()
+            else:
+                to_fetch.append(ch)
+
+        workers = max(1, int(cfg.crawl.max_workers))
+        if workers > 1 and len(to_fetch) > 1:
+            crawler.close()
+            crawled, failed, replaced = _crawl_chapters_parallel(
+                cfg, storage, to_fetch, force, retries, retry_delay, log, total, workers
+            )
+            crawler = None
+        else:
+            crawled, failed, replaced = _crawl_chapters_sequential(
+                crawler, storage, to_fetch, force, retries, retry_delay, log, total
+            )
         storage.save_manifest(manifest)
     finally:
-        crawler.close()
+        if crawler is not None:
+            crawler.close()
 
     log(f"[crawl] Hoàn tất. Đã tải {crawled} chương, bỏ qua {skipped}, lỗi {failed}, ghi đè {replaced}.")
     return manifest
@@ -485,66 +574,108 @@ def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False
 
 
 def step_translate(cfg: Config, log: LogFn = _print) -> Manifest:
-    _emit_config_warnings(cfg, log)
-    _emit_translate_config(cfg, log)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    if manifest is None:
-        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+    return step_translate_selected(cfg, log)
 
-    translator = RateLimited(make_translator(cfg.translate), cfg.translate.delay_seconds)
-    is_noop = cfg.translate.type.lower() == "none"
 
-    # Dịch metadata truyện (nếu chưa có) để EPUB hiển thị title/tác giả tiếng Việt.
-    changed = _translate_meta_inplace(manifest, translator, is_noop, log, force=False)
+def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int) -> tuple[str, bool]:
+    """Dịch tiêu đề + nội dung 1 chương, ghi translated+meta.
 
-    total = len(manifest.chapters)
-    pending = sum(1 for ch in manifest.chapters if storage.has_raw(ch) and not storage.has_translated(ch))
-    log(f"[dịch] Bắt đầu: {pending}/{total} chương cần dịch.")
-    done = 0
-    failed = 0
-    for i, ch in enumerate(manifest.chapters, 1):
-        if not storage.has_raw(ch):
-            log(f"[dịch] ({i}/{total}) chưa có raw cho {ch.stem}, bỏ qua.")
-            continue
-        if storage.has_translated(ch):
-            continue
+    Trả (status, title_changed) với status 'completed'/'replaced'/'failed'.
+    Raise lại exception sau khi đã log + đánh dấu failed, để caller (nhánh
+    tuần tự) tự quyết định có dừng sớm hay không.
+    """
+    had_translated = storage.has_translated(ch)
+    raw = storage.read_raw(ch)
+    log(f"[dịch] ({i}/{total}) → {ch.title_zh or ch.stem} ({len(raw)} ký tự)")
+    started = time.monotonic()
+    title_changed = False
+    try:
+        if ch.title_zh and not is_noop:
+            title, note = translator.translate_title(ch.title_zh, kind="tên chương")
+            ch.title_vi = _clean_title(title)
+            ch.title_note = note
+            title_changed = True
+        translated = _run_with_heartbeat(log, f"[dịch]   ({i}/{total})", lambda: translator.translate(raw))
+    except Exception as e:  # noqa: BLE001 - caller quyết định dừng sớm hay tiếp tục
+        ch.last_action_status = "failed"
+        log(f"[dịch]   ({i}/{total}) ! Lỗi chương {ch.stem}: {e}")
+        # Gắn title_changed vào exception để caller biết tiêu đề đã dịch
+        # xong trước khi nội dung lỗi (cần lưu manifest dù chương bị bỏ qua).
+        e.title_changed = title_changed
+        raise
 
-        raw = storage.read_raw(ch)
-        log(f"[dịch] ({i}/{total}) → {ch.title_zh or ch.stem} ({len(raw)} ký tự)")
-        started = time.monotonic()
+    elapsed = time.monotonic() - started
+    storage.write_translated(ch, translated)
+    warnings = _quality_warnings(raw, translated)
+    storage.write_meta(ch, _build_meta(cfg, ch, translated, warnings))
+    ch.last_action_status = "replaced" if had_translated and force else "completed"
+    _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title_vi or ch.title_zh or ch.stem, elapsed, translated, warnings)
+    return ch.last_action_status, title_changed
 
+
+def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool) -> tuple[int, int, int, bool]:
+    translated_count = failed = replaced = 0
+    for i, ch in enumerate(chapters, 1):
         try:
-            # Dịch tiêu đề (nếu có) + nội dung.
-            if ch.title_zh and not is_noop:
-                title, note = translator.translate_title(ch.title_zh, kind="tên chương")
-                ch.title_vi = _clean_title(title)
-                ch.title_note = note
-                changed = True
-            translated = _run_with_heartbeat(log, f"[dịch]   ({i}/{total})", lambda: translator.translate(raw))
-        except Exception as e:  # noqa: BLE001 - báo lỗi từng chương thay vì giết cả job
+            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total)
+        except Exception as e:
             failed += 1
-            ch.last_action_status = "failed"
-            log(f"[dịch]   ({i}/{total}) ! Lỗi chương {ch.stem}: {e}")
-            if done == 0:
+            changed = changed or getattr(e, "title_changed", False)
+            if translated_count == 0:
                 # Lỗi ngay chương đầu tiên dịch được => gần như chắc do cấu hình/CLI;
                 # dừng sớm và báo lỗi rõ thay vì thử lỗi hàng loạt.
                 if changed:
                     storage.save_manifest(manifest)
                 raise RuntimeError(f"Dịch lỗi ngay chương đầu ({ch.stem}): {e}") from e
             continue
+        changed = changed or title_changed
+        translated_count += 1
+        if status == "replaced":
+            replaced += 1
+    return translated_count, failed, replaced, changed
 
-        elapsed = time.monotonic() - started
-        storage.write_translated(ch, translated)
-        warnings = _quality_warnings(raw, translated)
-        storage.write_meta(ch, _build_meta(cfg, ch, translated, warnings))
-        done += 1
-        _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title_vi or ch.title_zh or ch.stem, elapsed, translated, warnings)
 
-    if changed:
-        storage.save_manifest(manifest)
-    log(f"[dịch] Hoàn tất. Đã dịch {done} chương, lỗi {failed}.")
-    return manifest
+def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool) -> tuple[int, int, int, bool]:
+    """Dịch nhiều chương song song. Translator được dùng chung giữa các luồng:
+    CLITranslator chỉ spawn subprocess riêng mỗi lần gọi (không state dùng
+    chung), GoogleTranslator gọi HTTP riêng mỗi lần — cả hai an toàn gọi đồng
+    thời. Không dừng sớm khi 1 chương lỗi (các chương khác đã đang chạy song
+    song); chỉ raise nếu TẤT CẢ chương trong batch đều lỗi.
+    """
+    progress = {"done": 0}
+    progress_lock = threading.Lock()
+    counters = {"translated": 0, "failed": 0, "replaced": 0, "changed": changed}
+    counters_lock = threading.Lock()
+    first_error: list[BaseException] = []
+
+    def _work(ch: Chapter) -> None:
+        with progress_lock:
+            progress["done"] += 1
+            i = progress["done"]
+        try:
+            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total)
+        except Exception as e:  # noqa: BLE001 - đã log trong _translate_one, gom lại để quyết định ở cuối
+            with counters_lock:
+                counters["failed"] += 1
+                counters["changed"] = counters["changed"] or getattr(e, "title_changed", False)
+                if not first_error:
+                    first_error.append(e)
+            return
+        with counters_lock:
+            counters["translated"] += 1
+            counters["changed"] = counters["changed"] or title_changed
+            if status == "replaced":
+                counters["replaced"] += 1
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(_work, chapters))
+
+    if counters["translated"] == 0 and first_error:
+        if counters["changed"]:
+            storage.save_manifest(manifest)
+        raise RuntimeError(f"Dịch lỗi toàn bộ {counters['failed']} chương đã chọn: {first_error[0]}") from first_error[0]
+
+    return counters["translated"], counters["failed"], counters["replaced"], counters["changed"]
 
 
 def step_translate_selected(
@@ -558,6 +689,8 @@ def step_translate_selected(
     missing: bool = False,
     selected_indexes: list[int] | None = None,
 ) -> Manifest:
+    """translate.max_workers > 1 trong config sẽ dịch nhiều chương song song
+    bằng 1 translator dùng chung (xem _translate_chapters_parallel)."""
     _emit_config_warnings(cfg, log)
     _emit_translate_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -567,59 +700,38 @@ def step_translate_selected(
 
     translator = RateLimited(make_translator(cfg.translate), cfg.translate.delay_seconds)
     is_noop = cfg.translate.type.lower() == "none"
+
+    # Dịch metadata truyện (nếu chưa có) để EPUB hiển thị title/tác giả tiếng Việt.
+    changed = _translate_meta_inplace(manifest, translator, is_noop, log, force=False)
+
     selected = _chapter_selection(manifest.chapters, chapter, start, end, selected_indexes)
     total = len(selected)
     log(f"[dịch] Bắt đầu xử lý {total} chương trong phạm vi đã chọn.")
-    changed = False
-    translated_count = 0
+
+    to_translate = []
     skipped = 0
-    replaced = 0
-    failed = 0
-    for i, ch in enumerate(selected, 1):
+    for ch in selected:
         if not storage.has_raw(ch):
-            log(f"[dịch] ({i}/{total}) chưa có raw cho {ch.stem}, bỏ qua.")
+            log(f"[dịch] chưa có raw cho {ch.stem}, bỏ qua.")
             skipped += 1
             ch.last_action_status = "skipped"
             continue
-        had_translated = storage.has_translated(ch)
-        if not force and missing and had_translated:
+        if not force and storage.has_translated(ch):
             skipped += 1
             ch.last_action_status = "skipped"
             continue
-        if not force and not missing and had_translated:
-            skipped += 1
-            ch.last_action_status = "skipped"
-            continue
-        raw = storage.read_raw(ch)
-        log(f"[dịch] ({i}/{total}) → {ch.title_zh or ch.stem} ({len(raw)} ký tự)")
-        started = time.monotonic()
-        try:
-            if ch.title_zh and not is_noop:
-                title, note = translator.translate_title(ch.title_zh, kind="tên chương")
-                ch.title_vi = _clean_title(title)
-                ch.title_note = note
-                changed = True
-            translated = _run_with_heartbeat(log, f"[dịch]   ({i}/{total})", lambda: translator.translate(raw))
-        except Exception as e:  # noqa: BLE001 - báo lỗi từng chương thay vì giết cả job
-            failed += 1
-            ch.last_action_status = "failed"
-            log(f"[dịch]   ({i}/{total}) ! Lỗi chương {ch.stem}: {e}")
-            if translated_count == 0:
-                # Lỗi ngay chương đầu tiên dịch được => gần như chắc do cấu hình/CLI;
-                # dừng sớm và báo lỗi rõ thay vì thử lỗi hàng loạt.
-                if changed:
-                    storage.save_manifest(manifest)
-                raise RuntimeError(f"Dịch lỗi ngay chương đầu ({ch.stem}): {e}") from e
-            continue
-        elapsed = time.monotonic() - started
-        storage.write_translated(ch, translated)
-        warnings = _quality_warnings(raw, translated)
-        storage.write_meta(ch, _build_meta(cfg, ch, translated, warnings))
-        ch.last_action_status = "replaced" if had_translated and force else "completed"
-        translated_count += 1
-        _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title_vi or ch.title_zh or ch.stem, elapsed, translated, warnings)
-        if had_translated and force:
-            replaced += 1
+        to_translate.append(ch)
+
+    workers = max(1, int(cfg.translate.max_workers))
+    if workers > 1 and len(to_translate) > 1:
+        translated_count, failed, replaced, changed = _translate_chapters_parallel(
+            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed
+        )
+    else:
+        translated_count, failed, replaced, changed = _translate_chapters_sequential(
+            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, changed
+        )
+
     if changed or translated_count or skipped or failed:
         storage.save_manifest(manifest)
     log(f"[dịch] Hoàn tất. Đã dịch {translated_count} chương, bỏ qua {skipped}, lỗi {failed}, ghi đè {replaced}.")

@@ -220,7 +220,7 @@ def ebook_glossary_find_replace(
             cfg, log, find=find, replace=replace, start=start, end=end, also_raw=also_raw
         )
 
-    started = request.app.state.job.start_custom("find_replace", _target)
+    started = request.app.state.job.start_custom("find_replace", _target, category="translate")
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)
@@ -233,7 +233,7 @@ def ebook_glossary_rewrite(request: Request, slug: str, chapter_from: int = Form
     def _target(log):
         step_rewrite_chapters(cfg, log, start=chapter_from, end=chapter_to)
 
-    started = request.app.state.job.start_custom("rewrite_chapters", _target)
+    started = request.app.state.job.start_custom("rewrite_chapters", _target, category="translate")
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)

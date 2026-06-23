@@ -10,13 +10,18 @@
 
 <p>
     Trạng thái chung:
-    <span id="status-badge-container">
-        {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
-        {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+    <span id="status-badge-crawl">
+        {% if job.crawl.running %}<span class="badge run">Crawl: đang chạy ({{ job.crawl.step }})</span>{% else %}<span class="badge ok">Crawl: rảnh</span>{% endif %}
+        {% if job.crawl.error %}<span class="badge no">lỗi: {{ job.crawl.error }}</span>{% endif %}
+    </span>
+    <span id="status-badge-translate">
+        {% if job.translate.running %}<span class="badge run">Dịch: đang chạy ({{ job.translate.step }})</span>{% else %}<span class="badge ok">Dịch: rảnh</span>{% endif %}
+        {% if job.translate.error %}<span class="badge no">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
 </p>
 
-<pre id="log">{{ job.log | join('\n') }}</pre>
+<details open><summary>Log crawl</summary><pre id="log-crawl">{{ job.crawl.log | join('\n') }}</pre></details>
+<details open><summary>Log dịch</summary><pre id="log-translate">{{ job.translate.log | join('\n') }}</pre></details>
 
 <div id="library-region">
 {% if ebooks %}
@@ -99,9 +104,16 @@
 
 {% block scripts %}
 <script>
-const logPanel = initLogPanel("log");
-logPanel.setLines({{ job.log | tojson }});
-let wasRunning = {{ "true" if job.running else "false" }};
+const logPanels = {
+    crawl: initLogPanel("log-crawl"),
+    translate: initLogPanel("log-translate"),
+};
+logPanels.crawl.setLines({{ job.crawl.log | tojson }});
+logPanels.translate.setLines({{ job.translate.log | tojson }});
+let wasRunning = {
+    crawl: {{ "true" if job.crawl.running else "false" }},
+    translate: {{ "true" if job.translate.running else "false" }},
+};
 
 async function poll() {
     try {
@@ -109,30 +121,33 @@ async function poll() {
         if (!res.ok) return;
         const data = await res.json();
 
-        logPanel.setLines(data.log);
+        logPanels.crawl.setLines(data.crawl.log);
+        logPanels.translate.setLines(data.translate.log);
 
-        const container = document.getElementById("status-badge-container");
-        if (container) {
-            let html = "";
-            if (data.running) {
-                html += `<span class="badge run">đang chạy: ${data.step}</span> `;
-            } else {
-                html += '<span class="badge ok">rảnh</span> ';
+        const labels = { crawl: "Crawl", translate: "Dịch" };
+        let anyJustFinished = false;
+        for (const cat of ["crawl", "translate"]) {
+            const container = document.getElementById(`status-badge-${cat}`);
+            if (container) {
+                let html = "";
+                if (data[cat].running) {
+                    html += `<span class="badge run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
+                } else {
+                    html += `<span class="badge ok">${labels[cat]}: rảnh</span> `;
+                }
+                if (data[cat].error) {
+                    html += `<span class="badge no">lỗi: ${data[cat].error}</span>`;
+                }
+                container.innerHTML = html;
             }
-            if (data.error) {
-                html += `<span class="badge no">lỗi: ${data.error}</span>`;
-            }
-            container.innerHTML = html;
+            if (wasRunning[cat] && !data[cat].running) anyJustFinished = true;
+            wasRunning[cat] = data[cat].running;
         }
-        
-        const isRunningNow = data.running;
-        if (wasRunning && !isRunningNow) {
-            // Job vừa xong: làm mới danh sách ebook qua fetch thay vì reload cả trang
-            wasRunning = false;
+
+        if (anyJustFinished) {
+            // 1 trong 2 job vừa xong: làm mới danh sách ebook qua fetch thay vì reload cả trang
             await loadLibrary();
-            return;
         }
-        wasRunning = isRunningNow;
     } catch (e) {
         console.error("Lỗi khi poll status:", e);
     }

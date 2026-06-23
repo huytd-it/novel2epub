@@ -101,7 +101,7 @@
     <label>Từ chương <input type="number" name="chapter_from" value="0" min="0"></label>
     <label>đến chương <input type="number" name="chapter_to" value="0" min="0"></label>
     <label class="check"><input type="checkbox" name="also_raw" value="true"> Cả bản gốc (raw)</label>
-    <button type="submit" {% if job.running %}disabled{% endif %}>Tìm &amp; thay thế</button>
+    <button type="submit" {% if job.translate.running %}disabled{% endif %}>Tìm &amp; thay thế</button>
 </form>
 
 <hr>
@@ -113,17 +113,17 @@
 <form method="post" action="/ebooks/{{ slug }}/glossary/rewrite" class="form-row">
     <label>Từ chương <input type="number" name="chapter_from" value="1" min="0" required></label>
     <label>đến chương <input type="number" name="chapter_to" value="1" min="0" required></label>
-    <button type="submit" {% if job.running %}disabled{% endif %}>AI rewrite</button>
+    <button type="submit" {% if job.translate.running %}disabled{% endif %}>AI rewrite</button>
 </form>
 
 <p>
-    Trạng thái job:
+    Trạng thái job dịch:
     <span id="status-badge-container">
-        {% if job.running %}<span class="badge run">đang chạy: {{ job.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
-        {% if job.error %}<span class="badge no">lỗi: {{ job.error }}</span>{% endif %}
+        {% if job.translate.running %}<span class="badge run">đang chạy: {{ job.translate.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
+        {% if job.translate.error %}<span class="badge no">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
 </p>
-<pre id="log">{{ job.log | join('\n') }}</pre>
+<pre id="log">{{ job.translate.log | join('\n') }}</pre>
 
 <script>
 const logEl = document.getElementById("log");
@@ -185,38 +185,39 @@ document.addEventListener("submit", async function(event) {
     }
 });
 
-let wasRunning = {{ "true" if job.running else "false" }};
+let wasRunning = {{ "true" if job.translate.running else "false" }};
 
 async function poll() {
     try {
         const res = await fetch("/api/status");
         if (!res.ok) return;
         const data = await res.json();
-        
+        const t = data.translate;
+
         if (logEl) {
-            logEl.textContent = data.log.join("\n");
+            logEl.textContent = t.log.join("\n");
             logEl.scrollTop = logEl.scrollHeight;
         }
-        
+
         const container = document.getElementById("status-badge-container");
         if (container) {
             let html = "";
-            if (data.running) {
-                html += `<span class="badge run">đang chạy: ${data.step}</span> `;
+            if (t.running) {
+                html += `<span class="badge run">đang chạy: ${t.step}</span> `;
             } else {
                 html += '<span class="badge ok">rảnh</span> ';
             }
-            if (data.error) {
-                html += `<span class="badge no">lỗi: ${data.error}</span>`;
+            if (t.error) {
+                html += `<span class="badge no">lỗi: ${t.error}</span>`;
             }
             container.innerHTML = html;
         }
-        
-        setJobButtonsDisabled(data.running);
-        
+
+        setJobButtonsDisabled(t.running);
+
         // Job rewrite ghi vào file chương, không đụng tới form glossary nên
         // không reload trang (tránh mất nội dung đang gõ trong textarea).
-        wasRunning = data.running;
+        wasRunning = t.running;
     } catch (e) {
         console.error("Lỗi khi poll status:", e);
     }

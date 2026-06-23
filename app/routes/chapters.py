@@ -189,7 +189,7 @@ def ebook_chapter_action(request: Request, slug: str, index: int, action: str = 
         else:
             raise ValueError(f"action không hợp lệ: {action!r}")
 
-    started = request.app.state.job.start_custom(f"chapter-{action}", _target)
+    started = request.app.state.job.start_custom(f"chapter-{action}", _target, category=action)
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
@@ -280,7 +280,7 @@ def ebook_chapter_ai(request: Request, slug: str, index: int, op: str):
     def _target(log):
         step(cfg, log, index=index)
 
-    started = request.app.state.job.start_custom(f"ai-{op}-{index}", _target)
+    started = request.app.state.job.start_custom(f"ai-{op}-{index}", _target, category="translate")
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)

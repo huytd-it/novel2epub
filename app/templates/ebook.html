@@ -11,14 +11,25 @@
         <p class="muted">Crawl: <code>{{ cfg.crawl.engine }}</code> · Dịch: <code>{{ cfg.translate.type }}</code> · Model: <code>{{ cfg.translate.cli.model or "-" }}</code></p>
     </div>
     <div class="stack actions">
-        <form method="post" action="/ebooks/{{ slug }}/jobs/crawl" data-job-category="crawl"><button {% if job.crawl.running %}disabled{% endif %}>Crawl</button></form>
-        <form method="post" action="/ebooks/{{ slug }}/jobs/translate" data-job-category="translate"><button {% if job.translate.running %}disabled{% endif %}>Dịch</button></form>
-        <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate"><button {% if job.translate.running %}disabled{% endif %}>Dịch metadata (AI)</button></form>
-        <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="both"><button {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB</button></form>
-        <form method="post" action="/ebooks/{{ slug }}/jobs/run" data-job-category="both"><button {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Chạy tất cả</button></form>
-        {% if epub_exists %}<a class="button" href="/ebooks/{{ slug }}/download">Tải EPUB ({{ epub_path }})</a>{% endif %}
-        <a class="button" href="/ebooks/{{ slug }}/glossary">Glossary</a>
-        <a class="button" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
+        <div class="action-group" role="group" aria-label="Crawl & Dịch (chạy song song được)">
+            <span class="action-group-label">Crawl</span>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/crawl" data-job-category="crawl"><button class="btn-primary" {% if job.crawl.running %}disabled{% endif %}>Crawl tất cả</button></form>
+        </div>
+        <div class="action-group" role="group" aria-label="Dịch">
+            <span class="action-group-label">Dịch</span>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/translate" data-job-category="translate"><button class="btn-primary" {% if job.translate.running %}disabled{% endif %}>Dịch tất cả</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate"><button {% if job.translate.running %}disabled{% endif %}>Dịch metadata (AI)</button></form>
+        </div>
+        <div class="action-group" role="group" aria-label="Hoàn thiện">
+            <span class="action-group-label">Xuất bản</span>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="both"><button {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/run" data-job-category="both"><button {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Chạy tất cả</button></form>
+            {% if epub_exists %}<a class="button" href="/ebooks/{{ slug }}/download">Tải EPUB</a>{% endif %}
+        </div>
+        <div class="action-group" role="group" aria-label="Khác">
+            <a class="button" href="/ebooks/{{ slug }}/glossary">Glossary</a>
+            <a class="button" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
+        </div>
     </div>
 </div>
 
@@ -54,8 +65,7 @@
     </form>
 </div>
 
-<p>
-    Trạng thái:
+<div class="status-bar">
     <span id="status-badge-crawl">
         {% if job.crawl.running %}<span class="badge run">Crawl: đang chạy ({{ job.crawl.step }})</span>{% else %}<span class="badge ok">Crawl: rảnh</span>{% endif %}
         {% if job.crawl.error %}<span class="badge no">lỗi: {{ job.crawl.error }}</span>{% endif %}
@@ -64,15 +74,16 @@
         {% if job.translate.running %}<span class="badge run">Dịch: đang chạy ({{ job.translate.step }})</span>{% else %}<span class="badge ok">Dịch: rảnh</span>{% endif %}
         {% if job.translate.error %}<span class="badge no">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
-</p>
+    <span class="muted status-hint">Crawl và dịch chạy độc lập — có thể dịch trong khi đang crawl.</span>
+</div>
 
 <details open><summary>Log crawl</summary><pre id="log-crawl">{{ job.crawl.log | join('\n') }}</pre></details>
 <details open><summary>Log dịch</summary><pre id="log-translate">{{ job.translate.log | join('\n') }}</pre></details>
 
 <div id="toc-region">
 <div class="section-head">
-    <h3>Chương ({{ chapters|length }})</h3>
-    <p class="muted">Bảng nhẹ server-side: search/sort/filter chạy ngầm (không reload trang), tick dòng để chạy bulk action.</p>
+    <h3>Chương <span class="count-pill">{{ chapters|length }}</span></h3>
+    <p class="muted">Search / sort / lọc chạy ngầm (không reload), được nhớ trong trình duyệt. Tick dòng để chạy bulk action.</p>
 </div>
 <form method="get" action="/ebooks/{{ slug }}" class="compact-toolbar">
     <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL">
@@ -124,7 +135,7 @@
     <label>Đến <input type="number" name="range_end" form="bulk-action-form" min="1" value="{{ chapters[-1].index if chapters else '' }}"></label>
     <label class="check"><input type="checkbox" name="override" form="bulk-action-form" value="true"> Override old</label>
     <span id="checked-info" class="muted">Đã tick 0 chương.</span>
-    <button type="submit" form="bulk-action-form" data-job-category="both" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Chạy</button>
+    <button type="submit" id="bulk-run-btn" form="bulk-action-form">Chạy</button>
 </div>
 <div class="table-wrap">
 <table id="chapter-table" class="data-table">
@@ -152,6 +163,25 @@
     </tbody>
 </table>
 </div>
+<nav class="pager" id="pager" aria-label="Phân trang">
+    <label class="pager-size">Mỗi trang
+        <select id="page-size" aria-label="Số chương mỗi trang">
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="0">Tất cả</option>
+        </select>
+    </label>
+    <span id="pager-info" class="pager-info muted"></span>
+    <div class="pager-nav">
+        <button type="button" data-page="first" aria-label="Trang đầu">&laquo;</button>
+        <button type="button" data-page="prev" aria-label="Trang trước">&lsaquo;</button>
+        <input type="number" id="pager-current" min="1" value="1" aria-label="Trang hiện tại">
+        <button type="button" data-page="next" aria-label="Trang sau">&rsaquo;</button>
+        <button type="button" data-page="last" aria-label="Trang cuối">&raquo;</button>
+    </div>
+</nav>
 {% else %}
 <p class="muted">Chưa có chương phù hợp — bấm "Crawl" để lấy chương hoặc đổi lại bộ lọc.</p>
 {% endif %}
@@ -175,12 +205,117 @@ let wasRunning = {
 let tocToken = 0;       // chống race khi nhiều request filter chồng nhau
 let searchTimer = null; // debounce cho ô tìm kiếm
 
-// Xác định job-category của 1 form/button: ưu tiên data-job-category trên
-// form gần nhất; nút row-action (name="action") dùng chính value của nó
-// (crawl|translate) vì 1 form chứa cả 2 nút khác category.
+// --- Bộ nhớ filter/sort/search + cỡ trang (localStorage theo từng ebook) ---
+const LS_KEY = "n2e:toc:" + SLUG;
+const CONTROL_FIELDS = ["search", "sort", "direction", "filter_raw", "filter_translated", "filter_missing"];
+
+function readSaved() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }
+    catch (e) { return {}; }
+}
+function writeSaved(patch) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(Object.assign(readSaved(), patch))); }
+    catch (e) {}
+}
+function persistControls() {
+    const form = document.querySelector(".compact-toolbar");
+    if (!form) return;
+    const data = new FormData(form);
+    const patch = {};
+    for (const f of CONTROL_FIELDS) patch[f] = data.get(f) || "";
+    writeSaved(patch);
+}
+// Áp giá trị đã lưu vào toolbar; trả true nếu có field khác mặc định (cần fetch lại).
+function applySavedControls() {
+    const saved = readSaved();
+    const form = document.querySelector(".compact-toolbar");
+    if (!form) return false;
+    let changed = false;
+    for (const f of CONTROL_FIELDS) {
+        if (!(f in saved)) continue;
+        const el = form.elements[f];
+        if (el && el.value !== saved[f]) { el.value = saved[f]; changed = true; }
+    }
+    return changed;
+}
+
+// --- Phân trang client-side ---
+const DEFAULT_PAGE_SIZE = 50;
+let currentPage = 1;
+let pageSize = (() => {
+    const s = parseInt(readSaved().page_size, 10);
+    return Number.isFinite(s) && s >= 0 ? s : DEFAULT_PAGE_SIZE;
+})();
+
+function visibleRows() {
+    const table = document.getElementById("chapter-table");
+    if (!table || !table.tBodies.length) return [];
+    return Array.from(table.tBodies[0].rows);
+}
+
+function syncCheckAll() {
+    const all = document.getElementById("check-all");
+    if (!all) return;
+    const shown = visibleRows().filter((r) => r.style.display !== "none");
+    const boxes = shown.map((r) => r.querySelector(".chapter-check")).filter(Boolean);
+    all.checked = boxes.length > 0 && boxes.every((b) => b.checked);
+}
+
+function paginate({ reset = false } = {}) {
+    const rows = visibleRows();
+    const total = rows.length;
+    if (reset) currentPage = 1;
+    const size = pageSize > 0 ? pageSize : (total || 1);
+    const pages = Math.max(1, Math.ceil(total / size));
+    if (currentPage > pages) currentPage = pages;
+    if (currentPage < 1) currentPage = 1;
+    const start = (currentPage - 1) * size;
+    const end = pageSize > 0 ? start + size : total;
+    rows.forEach((r, i) => { r.style.display = (i >= start && i < end) ? "" : "none"; });
+
+    const info = document.getElementById("pager-info");
+    if (info) {
+        info.textContent = total === 0
+            ? "0 chương"
+            : `${start + 1}–${Math.min(end, total)} / ${total} chương · trang ${currentPage}/${pages}`;
+    }
+    const cur = document.getElementById("pager-current");
+    if (cur) { cur.value = currentPage; cur.max = pages; }
+    const sizeSel = document.getElementById("page-size");
+    if (sizeSel) sizeSel.value = String(pageSize);
+    const pager = document.getElementById("pager");
+    if (pager) {
+        pager.querySelectorAll('[data-page="first"],[data-page="prev"]').forEach((b) => b.disabled = currentPage <= 1);
+        pager.querySelectorAll('[data-page="next"],[data-page="last"]').forEach((b) => b.disabled = currentPage >= pages);
+        pager.style.display = total > 0 ? "" : "none";
+        const nav = pager.querySelector(".pager-nav");
+        if (nav) nav.style.visibility = pages > 1 ? "" : "hidden";
+    }
+    syncCheckAll();
+}
+
+function gotoPage(target) {
+    const rows = visibleRows();
+    const size = pageSize > 0 ? pageSize : (rows.length || 1);
+    const pages = Math.max(1, Math.ceil(rows.length / size));
+    if (target === "first") currentPage = 1;
+    else if (target === "prev") currentPage -= 1;
+    else if (target === "next") currentPage += 1;
+    else if (target === "last") currentPage = pages;
+    else { const n = parseInt(target, 10); if (Number.isFinite(n)) currentPage = n; }
+    paginate();
+}
+
+// Xác định job-category của 1 form/button: nút bulk dùng select action;
+// nút row-action (name="action") dùng chính value của nó; còn lại đọc
+// data-job-category trên form gần nhất.
 function jobCategoryFor(form, btn) {
     if (btn && btn.name === "action" && (btn.value === "crawl" || btn.value === "translate")) {
         return btn.value;
+    }
+    if (form && form.id === "bulk-action-form") {
+        const a = form.elements && form.elements["action"];
+        if (a && (a.value === "crawl" || a.value === "translate")) return a.value;
     }
     const el = form && form.closest ? form.closest("[data-job-category]") : null;
     return (el && el.dataset.jobCategory) || "both";
@@ -189,6 +324,10 @@ function jobCategoryFor(form, btn) {
 function isCategoryRunning(status, category) {
     if (category === "both") return status.crawl.running || status.translate.running;
     return status[category].running;
+}
+
+function lastStatus() {
+    return { crawl: { running: wasRunning.crawl }, translate: { running: wasRunning.translate } };
 }
 
 function refreshCheckedInfo() {
@@ -206,6 +345,12 @@ function setJobButtonsDisabled(status) {
         const form = btn.closest("form");
         btn.disabled = isCategoryRunning(status, jobCategoryFor(form, btn));
     }
+    // Nút bulk nằm ngoài <form> (gắn qua form=) — chỉ khoá theo slot của action đang chọn.
+    const bulkBtn = document.getElementById("bulk-run-btn");
+    const bulkForm = document.getElementById("bulk-action-form");
+    if (bulkBtn && bulkForm) {
+        bulkBtn.disabled = isCategoryRunning(status, jobCategoryFor(bulkForm, null));
+    }
 }
 
 // --- Tải lại danh mục chương qua fetch, swap DOM thay vì reload trang ---
@@ -216,9 +361,10 @@ function tocUrl() {
     return `${form.getAttribute("action")}?${params.toString()}`;
 }
 
-async function loadToc(url, { push = true } = {}) {
+async function loadToc(url, { push = true, reset = true } = {}) {
     const target = url || tocUrl();
     const token = ++tocToken;
+    persistControls();
 
     // Giữ lại focus + vị trí con trỏ của ô tìm kiếm khi swap
     const active = document.activeElement;
@@ -237,7 +383,8 @@ async function loadToc(url, { push = true } = {}) {
         current.replaceWith(fresh);
         if (push) history.pushState({ toc: true }, "", target);
         refreshCheckedInfo();
-        setJobButtonsDisabled({ crawl: { running: wasRunning.crawl }, translate: { running: wasRunning.translate } });
+        paginate({ reset });
+        setJobButtonsDisabled(lastStatus());
 
         if (searchFocused) {
             const ns = document.querySelector('.compact-toolbar input[type="search"]');
@@ -251,17 +398,36 @@ async function loadToc(url, { push = true } = {}) {
     }
 }
 
-// --- Delegated change: chọn dòng + đổi bộ lọc/sắp xếp (chạy ngầm) ---
+// --- Delegated change: chọn dòng + đổi bộ lọc/sắp xếp/cỡ trang ---
 document.addEventListener("change", (event) => {
     const t = event.target;
     if (t.id === "check-all") {
-        for (const c of document.querySelectorAll(".chapter-check")) c.checked = t.checked;
+        for (const r of visibleRows()) {
+            if (r.style.display === "none") continue;
+            const box = r.querySelector(".chapter-check");
+            if (box) box.checked = t.checked;
+        }
         refreshCheckedInfo();
     } else if (t.classList && t.classList.contains("chapter-check")) {
         refreshCheckedInfo();
+        syncCheckAll();
+    } else if (t.id === "page-size") {
+        pageSize = parseInt(t.value, 10) || 0;
+        writeSaved({ page_size: pageSize });
+        paginate({ reset: true });
+    } else if (t.id === "pager-current") {
+        gotoPage(t.value);
+    } else if (t.name === "action" && t.getAttribute("form") === "bulk-action-form") {
+        setJobButtonsDisabled(lastStatus());
     } else if (t.matches && t.matches(".compact-toolbar select")) {
         loadToc();
     }
+});
+
+// --- Click phân trang ---
+document.addEventListener("click", (event) => {
+    const btn = event.target.closest && event.target.closest(".pager-nav button[data-page]");
+    if (btn) { event.preventDefault(); gotoPage(btn.dataset.page); }
 });
 
 // --- Ô tìm kiếm: debounce rồi filter ngầm ---
@@ -363,13 +529,24 @@ async function poll() {
         setJobButtonsDisabled(data);
 
         if (anyJustFinished) {
-            // 1 trong 2 job vừa xong: làm mới bảng chương qua fetch thay vì reload cả trang
-            loadToc(location.href, { push: false });
+            // 1 trong 2 job vừa xong: làm mới bảng chương theo bộ lọc hiện tại,
+            // giữ nguyên trang đang xem (reset: false).
+            loadToc(undefined, { push: false, reset: false });
         }
     } catch (e) {
         console.error("Lỗi khi poll status:", e);
     }
 }
+
+// --- Khởi tạo: khôi phục filter/sort/search đã lưu rồi phân trang ---
+(function initToc() {
+    if (applySavedControls()) {
+        loadToc(undefined, { push: false, reset: true });
+    } else {
+        paginate({ reset: true });
+    }
+})();
+
 poll();
 setInterval(poll, 1500);
 refreshCheckedInfo();

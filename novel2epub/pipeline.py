@@ -591,7 +591,11 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     title_changed = False
     try:
         if ch.title_zh and not is_noop:
-            title, note = translator.translate_title(ch.title_zh, kind="tên chương")
+            log(f"[dịch]   ({i}/{total}) → đang dịch tiêu đề…")
+            title, note = _run_with_heartbeat(
+                log, f"[dịch]   ({i}/{total})",
+                lambda: translator.translate_title(ch.title_zh, kind="tên chương"),
+            )
             ch.title_vi = _clean_title(title)
             ch.title_note = note
             title_changed = True
@@ -698,7 +702,7 @@ def step_translate_selected(
     if manifest is None:
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
 
-    translator = RateLimited(make_translator(cfg.translate), cfg.translate.delay_seconds)
+    translator = RateLimited(make_translator(cfg.translate, log), cfg.translate.delay_seconds)
     is_noop = cfg.translate.type.lower() == "none"
 
     # Dịch metadata truyện (nếu chưa có) để EPUB hiển thị title/tác giả tiếng Việt.

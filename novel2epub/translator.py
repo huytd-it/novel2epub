@@ -11,7 +11,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 from . import cli_runner
 from .config import TranslateConfig
@@ -160,11 +160,12 @@ class CLITranslator:
     # để tránh prompt quá tải/timeout CLI dịch.
     DEFAULT_MAX_CHARS = 6000
 
-    def __init__(self, cfg: TranslateConfig):
+    def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None):
         self.cfg = cfg
         self.cli = cfg.cli
         self.glossary = load_glossary_dict(cfg)
         self._argv = cli_runner.build_argv(cfg.cli)
+        self.log = log or (lambda _: None)
 
     def _build_prompt(self, text: str) -> str:
         return self.cli.prompt_template.format(
@@ -239,9 +240,13 @@ class CLITranslator:
             return _apply_glossary(self._translate_chunk(text), self.glossary)
 
         overlap = max(0, self.cfg.chunk.overlap_paragraphs)
+        chunks = _split_into_chunks(text, max_chars, overlap)
+        self.log(f"  … chia {len(chunks)} đoạn ({len(text)} ký tự, ≤{max_chars}/đoạn, overlap={overlap})")
         pieces: list[str] = []
-        for i, chunk_paragraphs in enumerate(_split_into_chunks(text, max_chars, overlap)):
-            cleaned = self._translate_chunk("\n".join(chunk_paragraphs))
+        for i, chunk_paragraphs in enumerate(chunks):
+            chunk_text = "\n".join(chunk_paragraphs)
+            self.log(f"  … đoạn {i+1}/{len(chunks)} ({len(chunk_text)} ký tự)")
+            cleaned = self._translate_chunk(chunk_text)
             if i > 0 and overlap > 0:
                 lines = cleaned.split("\n")
                 cleaned = "\n".join(lines[overlap:]) if len(lines) > overlap else cleaned
@@ -291,10 +296,10 @@ class GoogleTranslator:
         return self.translate(text), ""
 
 
-def make_translator(cfg: TranslateConfig) -> Translator:
+def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = None) -> Translator:
     kind = (cfg.type or "none").lower()
     if kind == "cli":
-        return CLITranslator(cfg)
+        return CLITranslator(cfg, log=log)
     if kind == "google":
         return GoogleTranslator(cfg)
     if kind == "none":

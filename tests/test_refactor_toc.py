@@ -142,7 +142,7 @@ def test_selected_crawl_and_translate_respect_force(tmp_path, monkeypatch):
     storage.write_translated(manifest.chapters[0], "old vi")
     toc = TocResult(chapters=manifest.chapters)
     monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(toc, "new raw"))
-    monkeypatch.setattr(pipeline, "make_translator", lambda c: _FakeTranslator())
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: _FakeTranslator())
 
     pipeline.step_crawl_selected(cfg, lambda m: None, selected_indexes=[1])
     assert storage.read_raw(manifest.chapters[0]) == "old raw"

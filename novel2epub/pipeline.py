@@ -17,7 +17,7 @@ from .crawler import make_crawler
 from .epub_builder import build_epub
 from .storage import Chapter, Manifest, Storage
 from .toc import mark_duplicate_chapters
-from .translator import RateLimited, make_translator
+from .translator import CLITranslator, RateLimited, make_translator
 
 # Kiểu hàm ghi log; mặc định in ra stdout, UI truyền callback riêng để stream.
 LogFn = Callable[[str], None]
@@ -96,9 +96,12 @@ def _emit_translate_config(cfg: Config, log: LogFn, *, feature: str = "DỊCH") 
         f"| han_viet_level={s.han_viet_level} | title_mode={s.title_mode} "
         f"| keep_paragraphs={_fmt(s.keep_paragraphs)}")
     chunk = (f"max_chars={t.chunk.max_chars}, overlap={t.chunk.overlap_paragraphs} đoạn"
-             if t.chunk.max_chars else "off (dịch nguyên chương)")
+             if t.chunk.max_chars else f"auto (mặc định {CLITranslator.DEFAULT_MAX_CHARS} ký tự/chunk)")
     log(f"[config] {feature} chunk: {chunk} | retry: {t.retry.attempts} lần "
         f"(chờ {t.retry.delay_seconds}s)")
+    if t.chunk.max_chars and t.chunk.max_chars < 2000:
+        log(f"[config] ⚠ max_chars={t.chunk.max_chars} khá nhỏ — LLM có thể thiếu "
+            f"ngữ cảnh. Khuyến nghị >= 3000.")
     log(f"[config] {feature} glossary: names={_fmt(t.glossary_files.names)} "
         f"| vietphrase={_fmt(t.glossary_files.vietphrase)}")
 
@@ -589,6 +592,12 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     log(f"[dịch] ({i}/{total}) → {ch.title_zh or ch.stem} ({len(raw)} ký tự)")
     started = time.monotonic()
     title_changed = False
+    # Truyền log callback để translator báo tiến trình chunk.
+    if hasattr(translator, "set_log"):
+        translator.set_log(log, f"[dịch]   ({i}/{total})")
+    # Ghi partial sau mỗi chunk để preview sớm trong khi đang dịch.
+    if hasattr(translator, "set_on_chunk_done"):
+        translator.set_on_chunk_done(lambda partial: storage.write_translated(ch, partial))
     try:
         if ch.title_zh and not is_noop:
             title, note = translator.translate_title(ch.title_zh, kind="tên chương")

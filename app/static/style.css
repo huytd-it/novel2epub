@@ -99,6 +99,8 @@ input, select {
 .action-group form { margin: 0; }
 .actions button.btn-primary { background: #2563eb; border-color: #1d4ed8; color: #fff; font-weight: 600; }
 .actions button.btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+.actions button.btn-stop { background: #fef2f2; border-color: #dc2626; color: #991b1b; }
+.actions button.btn-stop:hover:not(:disabled) { background: #fee2e2; }
 
 .status-bar {
     display: flex; align-items: center; gap: 0.5rem 0.9rem; flex-wrap: wrap;

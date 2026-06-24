@@ -14,11 +14,13 @@
         <div class="action-group" role="group" aria-label="Crawl & Dịch (chạy song song được)">
             <span class="action-group-label">Crawl</span>
             <form method="post" action="/ebooks/{{ slug }}/jobs/crawl" data-job-category="crawl"><button class="btn-primary" {% if job.crawl.running %}disabled{% endif %}>Crawl tất cả</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/crawl/cancel" data-job-category="crawl"><button class="btn-stop" {% if not job.crawl.running %}disabled{% endif %}>Dừng</button></form>
         </div>
         <div class="action-group" role="group" aria-label="Dịch">
             <span class="action-group-label">Dịch</span>
             <form method="post" action="/ebooks/{{ slug }}/jobs/translate" data-job-category="translate"><button class="btn-primary" {% if job.translate.running %}disabled{% endif %}>Dịch tất cả</button></form>
             <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate"><button {% if job.translate.running %}disabled{% endif %}>Dịch metadata (AI)</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/translate/cancel" data-job-category="translate"><button class="btn-stop" {% if not job.translate.running %}disabled{% endif %}>Dừng</button></form>
         </div>
         <div class="action-group" role="group" aria-label="Hoàn thiện">
             <span class="action-group-label">Xuất bản</span>
@@ -345,7 +347,9 @@ function setJobButtonsDisabled(status) {
     );
     for (const btn of jobButtons) {
         const form = btn.closest("form");
-        btn.disabled = isCategoryRunning(status, jobCategoryFor(form, btn));
+        const running = isCategoryRunning(status, jobCategoryFor(form, btn));
+        // Nút Dừng đảo ngược logic: chỉ bật khi job đang chạy.
+        btn.disabled = btn.classList.contains("btn-stop") ? !running : running;
     }
     // Nút bulk nằm ngoài <form> (gắn qua form=) — chỉ khoá theo slot của action đang chọn.
     const bulkBtn = document.getElementById("bulk-run-btn");

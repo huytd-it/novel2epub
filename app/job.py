@@ -53,6 +53,7 @@ class _Slot:
         self.running = False
         self.step = ""
         self.error = ""
+        self.cancel_event = threading.Event()
 
 
 class JobRunner:
@@ -77,6 +78,7 @@ class JobRunner:
                     "step": slot.step,
                     "error": slot.error,
                     "log": list(slot.log),
+                    "cancelling": slot.cancel_event.is_set(),
                 }
                 for name, slot in self._slots.items()
             }
@@ -87,7 +89,18 @@ class JobRunner:
         category = _STEP_CATEGORY.get(step)
         if fn is None or category is None:
             raise ValueError(f"step không hợp lệ: {step!r}")
-        return self._claim_and_run(step, category, lambda log: fn(cfg, log))
+        slots = self._slots_for(category)
+        should_cancel = lambda: any(s.cancel_event.is_set() for s in slots)  # noqa: E731
+        return self._claim_and_run(step, category, lambda log: fn(cfg, log, should_cancel=should_cancel))
+
+    def request_cancel(self, category: str) -> bool:
+        """Yêu cầu dừng job đang chạy ở 1 category. Trả False nếu category không có job nào đang chạy."""
+        slots = self._slots_for(category)
+        with self._lock:
+            running = [s for s in slots if s.running]
+            for s in running:
+                s.cancel_event.set()
+        return bool(running)
 
     def start_custom(
         self,
@@ -121,6 +134,7 @@ class JobRunner:
                 s.step = step
                 s.error = ""
                 s.log.clear()
+                s.cancel_event.clear()
 
         thread = threading.Thread(target=self._run, args=(target_fn, step, slots), daemon=True)
         thread.start()

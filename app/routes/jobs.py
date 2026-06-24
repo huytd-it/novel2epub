@@ -151,6 +151,17 @@ def start_ebook_chapter_action(
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
+@router.post("/ebooks/{slug}/jobs/{category}/cancel")
+def cancel_ebook_job(request: Request, slug: str, category: str):
+    """Yêu cầu dừng job crawl/dịch đang chạy (job tự kiểm tra cờ này giữa các chương)."""
+    if category not in ("crawl", "translate"):
+        raise HTTPException(status_code=400, detail=f"category không hợp lệ: {category!r}")
+    cancelled = request.app.state.job.request_cancel(category)
+    if not cancelled:
+        raise HTTPException(status_code=409, detail="Không có job nào đang chạy để dừng.")
+    return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
+
+
 @router.post("/ebooks/{slug}/jobs/{step}")
 def start_ebook_job(request: Request, slug: str, step: str, force: bool = Form(False)):
     cfg = deps.resolved_cfg(slug)

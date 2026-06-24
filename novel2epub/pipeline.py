@@ -22,6 +22,7 @@ from .translator import RateLimited, make_translator
 
 # Kiểu hàm ghi log; mặc định in ra stdout, UI truyền callback riêng để stream.
 LogFn = Callable[[str], None]
+CancelFn = Callable[[], bool]
 
 
 def _print(msg: str) -> None:
@@ -384,8 +385,8 @@ def _fetch_chapter_with_retry(crawler, ch: Chapter, retry: CrawlRetryConfig, log
     return None
 
 
-def step_crawl(cfg: Config, log: LogFn = _print) -> Manifest:
-    return step_crawl_selected(cfg, log)
+def step_crawl(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> Manifest:
+    return step_crawl_selected(cfg, log, should_cancel=should_cancel)
 
 
 def _crawl_one(crawler, storage: Storage, ch: Chapter, force: bool, retry: CrawlRetryConfig, log: LogFn, i: int, total: int) -> str:
@@ -407,9 +408,12 @@ def _crawl_one(crawler, storage: Storage, ch: Chapter, force: bool, retry: Crawl
     return ch.last_action_status
 
 
-def _crawl_chapters_sequential(crawler, storage: Storage, chapters: list[Chapter], force: bool, retry: CrawlRetryConfig, log: LogFn, total: int) -> tuple[int, int, int]:
+def _crawl_chapters_sequential(crawler, storage: Storage, chapters: list[Chapter], force: bool, retry: CrawlRetryConfig, log: LogFn, total: int, should_cancel: CancelFn | None = None) -> tuple[int, int, int]:
     crawled = failed = replaced = 0
     for i, ch in enumerate(chapters, 1):
+        if should_cancel and should_cancel():
+            log(f"[crawl] Đã dừng theo yêu cầu — còn {total - i + 1} chương chưa xử lý.")
+            break
         status = _crawl_one(crawler, storage, ch, force, retry, log, i, total)
         if status == "failed":
             failed += 1
@@ -420,7 +424,7 @@ def _crawl_chapters_sequential(crawler, storage: Storage, chapters: list[Chapter
     return crawled, failed, replaced
 
 
-def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapter], force: bool, retry: CrawlRetryConfig, log: LogFn, total: int, workers: int) -> tuple[int, int, int]:
+def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapter], force: bool, retry: CrawlRetryConfig, log: LogFn, total: int, workers: int, should_cancel: CancelFn | None = None) -> tuple[int, int, int]:
     """Tải nhiều chương song song bằng ThreadPoolExecutor.
 
     Mỗi luồng tự tạo + giữ riêng 1 crawler (Crawl4AICrawler không thread-safe vì
@@ -446,6 +450,8 @@ def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapt
         return crawler
 
     def _work(ch: Chapter) -> None:
+        if should_cancel and should_cancel():
+            return
         with progress_lock:
             progress["done"] += 1
             i = progress["done"]
@@ -486,6 +492,7 @@ def step_crawl_selected(
     retries: int | None = None,
     retry_delay: float | None = None,
     selected_indexes: list[int] | None = None,
+    should_cancel: CancelFn | None = None,
 ) -> Manifest:
     """Crawl nội dung chương trong phạm vi [start, end].
 
@@ -530,12 +537,12 @@ def step_crawl_selected(
         if workers > 1 and len(to_fetch) > 1:
             crawler.close()
             crawled, failed, replaced = _crawl_chapters_parallel(
-                cfg, storage, to_fetch, force, retry, log, total, workers
+                cfg, storage, to_fetch, force, retry, log, total, workers, should_cancel
             )
             crawler = None
         else:
             crawled, failed, replaced = _crawl_chapters_sequential(
-                crawler, storage, to_fetch, force, retry, log, total
+                crawler, storage, to_fetch, force, retry, log, total, should_cancel
             )
         storage.save_manifest(manifest)
     finally:
@@ -546,7 +553,7 @@ def step_crawl_selected(
     return manifest
 
 
-def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False) -> Manifest:
+def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False, should_cancel: CancelFn | None = None) -> Manifest:
     """Chỉ lấy mục lục + metadata (không crawl nội dung chương).
 
     Dùng để xem nhanh danh sách chương + thông tin truyện trước khi chọn phạm vi
@@ -593,7 +600,7 @@ def _translate_meta_inplace(
     return changed
 
 
-def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False) -> Manifest:
+def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False, should_cancel: CancelFn | None = None) -> Manifest:
     """Dịch metadata truyện (title/author/description) sang tiếng Việt bằng AI CLI."""
     _emit_config_warnings(cfg, log)
     _emit_translate_config(cfg, log, feature="DỊCH METADATA")
@@ -616,8 +623,8 @@ def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False
     return manifest
 
 
-def step_translate(cfg: Config, log: LogFn = _print) -> Manifest:
-    return step_translate_selected(cfg, log)
+def step_translate(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> Manifest:
+    return step_translate_selected(cfg, log, should_cancel=should_cancel)
 
 
 def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int) -> tuple[str, bool]:
@@ -688,9 +695,12 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     return ch.last_action_status, title_changed
 
 
-def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool) -> tuple[int, int, int, bool]:
+def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool, should_cancel: CancelFn | None = None) -> tuple[int, int, int, bool]:
     translated_count = failed = replaced = 0
     for i, ch in enumerate(chapters, 1):
+        if should_cancel and should_cancel():
+            log(f"[dịch] Đã dừng theo yêu cầu — còn {total - i + 1} chương chưa xử lý.")
+            break
         try:
             status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total)
         except Exception as e:
@@ -710,7 +720,7 @@ def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Mani
     return translated_count, failed, replaced, changed
 
 
-def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool) -> tuple[int, int, int, bool]:
+def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool, should_cancel: CancelFn | None = None) -> tuple[int, int, int, bool]:
     """Dịch nhiều chương song song. Translator được dùng chung giữa các luồng:
     CLITranslator chỉ spawn subprocess riêng mỗi lần gọi (không state dùng
     chung), GoogleTranslator gọi HTTP riêng mỗi lần — cả hai an toàn gọi đồng
@@ -730,6 +740,8 @@ def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manife
     first_error: list[BaseException] = []
 
     def _work(ch: Chapter) -> None:
+        if should_cancel and should_cancel():
+            return
         with progress_lock:
             progress["done"] += 1
             i = progress["done"]
@@ -769,6 +781,7 @@ def step_translate_selected(
     force: bool = False,
     missing: bool = False,
     selected_indexes: list[int] | None = None,
+    should_cancel: CancelFn | None = None,
 ) -> Manifest:
     """translate.max_workers > 1 trong config sẽ dịch nhiều chương song song
     bằng 1 translator dùng chung (xem _translate_chapters_parallel)."""
@@ -806,11 +819,11 @@ def step_translate_selected(
     workers = max(1, int(cfg.translate.max_workers))
     if workers > 1 and len(to_translate) > 1:
         translated_count, failed, replaced, changed = _translate_chapters_parallel(
-            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed
+            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed, should_cancel
         )
     else:
         translated_count, failed, replaced, changed = _translate_chapters_sequential(
-            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, changed
+            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, changed, should_cancel
         )
 
     if changed or translated_count or skipped or failed:
@@ -1054,7 +1067,7 @@ def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> str
     return rewritten
 
 
-def step_build(cfg: Config, log: LogFn = _print) -> str:
+def step_build(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> str:
     _emit_build_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -1097,7 +1110,13 @@ def step_build(cfg: Config, log: LogFn = _print) -> str:
     return str(out)
 
 
-def run_all(cfg: Config, log: LogFn = _print) -> str:
-    step_crawl(cfg, log)
-    step_translate(cfg, log)
+def run_all(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> str:
+    step_crawl(cfg, log, should_cancel=should_cancel)
+    if should_cancel and should_cancel():
+        log("[run] Đã dừng theo yêu cầu — bỏ qua bước dịch và build.")
+        return ""
+    step_translate(cfg, log, should_cancel=should_cancel)
+    if should_cancel and should_cancel():
+        log("[run] Đã dừng theo yêu cầu — bỏ qua bước build.")
+        return ""
     return step_build(cfg, log)

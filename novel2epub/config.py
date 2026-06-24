@@ -245,6 +245,20 @@ def _as_dict(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
 
+def _deep_merge_raw(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Deep-merge `override` lên `base`, trả về dict mới (không sửa input).
+
+    Dùng để dựng config hiệu lực của một ebook = defaults + phần override riêng.
+    """
+    result: dict[str, Any] = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _deep_merge_raw(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def load_library(path: str | Path) -> LibraryConfig:
     path = Path(path)
     if not path.exists():
@@ -259,6 +273,7 @@ def load_library(path: str | Path) -> LibraryConfig:
         entries[slug] = LibraryEntry(
             slug=slug,
             name=data.get("name", ""),
+            # File gộp: ebook nằm inline trong cùng file (không còn `config:` riêng).
             config=data.get("config", ""),
         )
     return LibraryConfig(ebooks=entries)
@@ -275,13 +290,31 @@ def _build_style(raw: dict[str, Any]) -> TranslationStyleConfig:
     )
 
 
-def load_config(path: str | Path) -> Config:
+def load_config(path: str | Path, slug: str = "") -> Config:
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Không tìm thấy file cấu hình: {path}")
 
     raw: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     base_dir = path.parent
+
+    # Chế độ "unified": file gộp có khối `ebooks:` -> config hiệu lực của một
+    # ebook = deep_merge(defaults, ebooks[slug]). Không có `ebooks:` thì coi như
+    # file phẳng cũ (novel/crawl/translate/output ở top-level), giữ nguyên hành vi.
+    if "ebooks" in raw:
+        defaults = _as_dict(raw.get("defaults"))
+        ebooks = _as_dict(raw.get("ebooks"))
+        if slug:
+            if slug not in ebooks:
+                raise KeyError(f"không tìm thấy ebook {slug!r} trong {path}")
+            override = _as_dict(ebooks.get(slug))
+        elif ebooks:
+            override = _as_dict(next(iter(ebooks.values())))
+        else:
+            override = {}
+        override = dict(override)
+        override.pop("name", None)  # tên hiển thị cấp ebook, không thuộc Config
+        raw = _deep_merge_raw(defaults, override)
 
     novel = NovelConfig(**(raw.get("novel") or {}))
 

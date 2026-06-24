@@ -309,7 +309,9 @@ def _build_source_preset(name: str, data: dict[str, Any], url: str) -> SourcePre
 
 def _get_cli_config(config_path: str | None = None) -> CliTranslatorConfig | None:
     """Load cli từ config. Trả None nếu không có AI CLI."""
-    path = config_path or os.environ.get("NOVEL2EPUB_CONFIG", "config.yaml")
+    path = config_path or os.environ.get(
+        "NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.yaml")
+    )
     try:
         cfg = load_config(path)
         cli = cfg.translate.cli

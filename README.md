@@ -38,26 +38,35 @@ Engine mặc định `http` chỉ cần `requests` + `beautifulsoup4`.
 
 ## Cấu hình
 
+Toàn bộ cấu hình nằm trong **một file gộp duy nhất** `novel2epub.yaml`:
+
 ```bash
-cp config.example.yaml config.yaml   # rồi chỉnh sửa
+cp novel2epub.example.yaml novel2epub.yaml   # rồi chỉnh sửa
 ```
 
-Các phần chính trong `config.yaml`:
+File có 3 khối top-level:
+
+- `defaults` — phần DÙNG CHUNG cho mọi ebook (prompt dịch, style, output...).
+- `sources` — preset theo website (selector/pattern) để tái dùng.
+- `ebooks` — mỗi ebook CHỈ khai phần KHÁC với `defaults`.
+
+Config hiệu lực của một ebook = `deep_merge(defaults, ebooks[<slug>])`.
 
 ### Quản lý nhiều ebook
 
-Tool hỗ trợ một `library.yaml` ở root để quản lý nhiều truyện/ebook, mỗi truyện trỏ
-tới một file config riêng:
+Mỗi ebook là một mục trong khối `ebooks:` (không còn file config riêng):
 
 ```yaml
 ebooks:
   xich-tam-tuan-thien:
     name: "Xích Tâm Tuần Thiên"
-    config: "configs/xich-tam-tuan-thien.yaml"
+    novel: { slug: xich-tam-tuan-thien, title: "Xích Tâm Tuần Thiên" }
+    crawl: { toc_url: "https://www.shuhaige.net/17619/" }
 ```
 
-CLI và Web UI đều có thể chọn theo slug ebook. Nếu không dùng `library.yaml`, bạn
-vẫn có thể chạy như cũ với `config.yaml`.
+CLI và Web UI chọn ebook theo slug (`-e <slug>`). Nếu chỉ có một ebook, bỏ `-e`
+sẽ tự lấy ebook đầu tiên. Đã có sẵn layout cũ nhiều file? Chạy
+`python scripts/migrate_to_single_yaml.py` để gộp tự động.
 
 ### `crawl` — lấy truyện
 
@@ -126,31 +135,30 @@ lẫn thay thế literal sau khi dịch.
 ## Sử dụng
 
 ```bash
+# Chọn ebook bằng -e <slug> (bỏ -e sẽ lấy ebook đầu tiên trong khối ebooks:).
+# Liệt kê các ebook đang có:
+python -m novel2epub list
+
 # Chạy từng bước (khuyên dùng — kiểm tra kết quả mỗi bước):
-python -m novel2epub -c config.yaml crawl       # lấy mục lục + nội dung chương
-python -m novel2epub -c config.yaml translate   # dịch các chương đã crawl
-python -m novel2epub -c config.yaml build        # đóng gói EPUB
+python -m novel2epub -e xich-tam-tuan-thien crawl       # lấy mục lục + nội dung chương
+python -m novel2epub -e xich-tam-tuan-thien translate   # dịch các chương đã crawl
+python -m novel2epub -e xich-tam-tuan-thien build        # đóng gói EPUB
 
 # Chỉ lấy metadata + toàn bộ mục lục/chapter list, không tải nội dung chương:
-python -m novel2epub -c config.yaml toc
-python -m novel2epub -c config.yaml meta         # dịch title/author/description theo rule Hán Việt
+python -m novel2epub -e xich-tam-tuan-thien toc
+python -m novel2epub -e xich-tam-tuan-thien meta         # dịch title/author/description theo rule Hán Việt
 
-# Xem/lọc/sort danh sách chương (Web UI dùng cùng table này, có checkbox từng row
-# và nút Crawl/Dịch ở từng dòng):
-python -m novel2epub -c config.yaml chapters --sort title --search "章" --filter raw:no
+# Xem/lọc/sort danh sách chương (Web UI dùng cùng table này):
+python -m novel2epub -e xich-tam-tuan-thien chapters --sort title --search "章" --filter raw:no
 
 # Chọn range theo danh sách đang sort/filter; --force = override old cache:
-python -m novel2epub -c config.yaml crawl --sort title --search "章" --range 1:3
-python -m novel2epub -c config.yaml translate --sort source --range 1:1 --force
+python -m novel2epub -e xich-tam-tuan-thien crawl --sort title --search "章" --range 1:3
+python -m novel2epub -e xich-tam-tuan-thien translate --sort source --range 1:1 --force
 
 # AI đánh giá glossary + bản dịch (chỉ xem, không sửa file):
-python -m novel2epub -c config.yaml evaluate --from 1 --to 2
+python -m novel2epub -e xich-tam-tuan-thien evaluate --from 1 --to 2
 
 # Hoặc chạy tất cả:
-python -m novel2epub -c config.yaml run
-
-# Với nhiều ebook:
-python -m novel2epub list
 python -m novel2epub -e xich-tam-tuan-thien run
 python -m novel2epub -e xich-tam-tuan-thien translate --missing
 python -m novel2epub -e xich-tam-tuan-thien translate --chapter 12
@@ -178,15 +186,13 @@ python -m pip install fastapi uvicorn jinja2 python-multipart
 uvicorn app.main:app --reload --port 8010
 ```
 
-Mở `http://127.0.0.1:8010`. UI ưu tiên `library.yaml` để hiển thị thư viện ebook;
-nếu không có, có thể dùng `NOVEL2EPUB_CONFIG=duong/dan/khac.yaml` cho chế độ
-1 truyện. Trang thư viện hiển thị trạng thái từng ebook, còn trang ebook cho phép
-crawl/dịch/build và sửa tay từng chương ngay trên web.
+Mở `http://127.0.0.1:8010`. UI đọc khối `ebooks:` trong `novel2epub.yaml` để hiển
+thị thư viện ebook. Trang thư viện hiển thị trạng thái từng ebook, còn trang ebook
+cho phép crawl/dịch/build và sửa tay từng chương ngay trên web.
 
 Biến môi trường liên quan:
 
-- `NOVEL2EPUB_CONFIG`: file config mặc định khi không dùng library.
-- `NOVEL2EPUB_LIBRARY`: đường dẫn `library.yaml`.
+- `NOVEL2EPUB_FILE`: đường dẫn file cấu hình gộp (mặc định `novel2epub.yaml`).
 
 ## Quy trình khuyên dùng cho truyện mới
 

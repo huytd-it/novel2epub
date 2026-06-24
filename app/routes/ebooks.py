@@ -5,7 +5,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request
 
-from novel2epub.config import load_config
 from novel2epub.storage import Storage
 from novel2epub.toc import apply_chapter_query, chapter_rows
 
@@ -52,7 +51,7 @@ def index(request: Request):
             cfg = deps.cfg()
             name = cfg.novel.title or cfg.novel.slug
         else:
-            cfg = load_config(deps.ebook_config_path(slug))
+            cfg = deps.resolved_cfg(slug)
             name = entry.name or cfg.novel.title or slug
         storage = Storage(cfg.output.data_dir, cfg.novel.slug)
         manifest = storage.load_manifest()

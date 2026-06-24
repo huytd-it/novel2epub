@@ -1,7 +1,7 @@
 """Web UI cho novel2epub: chạy crawl/translate/build, xem & sửa tay bản dịch.
 
 Chạy: uvicorn app.main:app --reload   (từ thư mục novel2epub/)
-Đường dẫn config lấy từ biến môi trường NOVEL2EPUB_CONFIG (mặc định config.yaml).
+Đường dẫn config gộp lấy từ biến môi trường NOVEL2EPUB_FILE (mặc định novel2epub.yaml).
 """
 from __future__ import annotations
 

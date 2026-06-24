@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from novel2epub.config import CrawlConfig, LibraryEntry, load_config
-from novel2epub.config_writer import save_library, scaffold_config_file
+from novel2epub.config import CrawlConfig, load_config
+from novel2epub.config_writer import add_ebook, remove_ebook
 from novel2epub.crawler import make_crawler
 from novel2epub.pipeline import _clean_title
 from novel2epub.sources import detect_preset, preset_matches_url
@@ -159,33 +158,26 @@ def create_ebook(
     if slug in lib.ebooks:
         raise HTTPException(status_code=409, detail=f"Ebook '{slug}' đã tồn tại.")
 
-    rel_config = f"configs/{slug}.yaml"
-    dest = deps.resolve_path(Path(deps.LIBRARY_PATH).resolve().parent, rel_config)
-
-    scaffold_config_file(
-        dest,
-        slug=slug,
+    # File gộp: ghi thẳng ebook (chỉ phần override) vào khối `ebooks:`.
+    add_ebook(
+        deps.WORKSPACE_PATH,
+        slug,
+        name=name,
         title=name,
         author=author,
         toc_url=toc_url,
         engine=p.engine,
         preset=p.crawl_overrides(),
     )
-
-    lib.ebooks[slug] = LibraryEntry(slug=slug, name=name, config=rel_config)
-    save_library(deps.LIBRARY_PATH, lib)
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
 @router.post("/library/ebooks/{slug}/delete")
 def delete_ebook(slug: str, delete_config: bool = Form(False)):
     lib = deps.library()
-    entry = lib.ebooks.pop(slug, None)
-    if entry is None:
+    if slug not in lib.ebooks:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy ebook '{slug}'.")
-    if delete_config and entry.config:
-        config_path = Path(deps.resolve_path(Path(deps.LIBRARY_PATH).resolve().parent, entry.config))
-        if config_path.exists():
-            config_path.unlink()
-    save_library(deps.LIBRARY_PATH, lib)
+    # File gộp: xóa ebook = bỏ khối `ebooks.<slug>`. `delete_config` không còn ý
+    # nghĩa riêng (config nằm inline) nhưng giữ tham số để form cũ không vỡ.
+    remove_ebook(deps.WORKSPACE_PATH, slug)
     return RedirectResponse(url="/", status_code=303)

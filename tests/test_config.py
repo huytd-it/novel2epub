@@ -139,3 +139,55 @@ def test_crawl_config_rejects_invalid_regex():
             toc_url="https://example.com",
             next_page_url_pattern=r"(unclosed",
         )
+
+
+def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
+    """File gộp: config hiệu lực = deep_merge(defaults, ebooks[slug])."""
+    path = tmp_path / "novel2epub.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "defaults": {
+                    "crawl": {"engine": "http", "content_selector": "#default"},
+                    "translate": {"type": "none", "cli": {"command": "claude -p"}},
+                    "output": {"data_dir": "data"},
+                },
+                "ebooks": {
+                    "a": {
+                        "name": "Truyện A",
+                        "novel": {"slug": "a", "title": "A"},
+                        "crawl": {"toc_url": "https://a", "engine": "crawl4ai"},
+                    },
+                    "b": {
+                        "novel": {"slug": "b"},
+                        "crawl": {"toc_url": "https://b"},
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cfg_a = load_config(path, "a")
+    assert cfg_a.novel.title == "A"
+    assert cfg_a.crawl.engine == "crawl4ai"          # override
+    assert cfg_a.crawl.content_selector == "#default"  # kế thừa defaults
+    assert cfg_a.crawl.toc_url == "https://a"
+    assert cfg_a.translate.cli.command == "claude -p"  # kế thừa defaults
+
+    # Slug rỗng -> lấy ebook đầu tiên.
+    assert load_config(path).novel.slug == "a"
+    # Ebook 'b' chỉ override toc_url, mọi thứ khác từ defaults.
+    cfg_b = load_config(path, "b")
+    assert cfg_b.crawl.engine == "http"
+    assert cfg_b.crawl.content_selector == "#default"
+
+
+def test_unified_file_unknown_slug_raises(tmp_path):
+    path = tmp_path / "novel2epub.yaml"
+    path.write_text(
+        yaml.safe_dump({"defaults": {}, "ebooks": {"a": {"novel": {"slug": "a"}}}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(KeyError, match="nonexistent"):
+        load_config(path, "nonexistent")

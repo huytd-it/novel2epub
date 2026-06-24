@@ -43,7 +43,6 @@
             <a href="/ebooks/{{ ebook.slug }}">mở</a> · <a href="/ebooks/{{ ebook.slug }}/settings">cài đặt</a>
             {% if ebook.in_library %}
             · <form method="post" action="/library/ebooks/{{ ebook.slug }}/delete" style="display:inline" onsubmit="return confirm('Gỡ ebook {{ ebook.slug }} khỏi thư viện?');">
-                <label class="check"><input type="checkbox" name="delete_config" value="true"> xóa cả config</label>
                 <button type="submit">Gỡ</button>
             </form>
             {% endif %}

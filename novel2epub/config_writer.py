@@ -17,9 +17,6 @@ from ruamel.yaml.scalarstring import LiteralScalarString
 
 from .config import LibraryConfig
 
-# config.example.yaml nằm ở gốc repo (cha của package novel2epub/).
-EXAMPLE_CONFIG = Path(__file__).resolve().parent.parent / "config.example.yaml"
-
 
 def _yaml() -> YAML:
     y = YAML()
@@ -82,68 +79,110 @@ def _deep_merge(target: CommentedMap, updates: dict[str, Any]) -> None:
             target[key] = _coerce(value)
 
 
-def update_config_file(path: str | Path, updates: dict[str, Any]) -> None:
-    """Load file config hiện có (giữ comment), merge `updates`, ghi lại cùng path."""
-    path = Path(path)
-    data = _load(path)
-    _deep_merge(data, updates)
+def _dump(path: Path, data: CommentedMap) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         _yaml().dump(data, f)
 
 
-def scaffold_config_file(
-    dest: str | Path,
-    *,
+def _ebooks_map(data: CommentedMap) -> CommentedMap:
+    """Lấy (tạo nếu chưa có) khối `ebooks:` trong file gộp."""
+    ebooks = data.get("ebooks")
+    if not isinstance(ebooks, CommentedMap):
+        ebooks = CommentedMap()
+        data["ebooks"] = ebooks
+    return ebooks
+
+
+def update_ebook(path: str | Path, slug: str, updates: dict[str, Any]) -> None:
+    """Merge `updates` vào `ebooks.<slug>` của file gộp, giữ comment + các khối khác.
+
+    Chỉ chạm đúng section của ebook này — `defaults`, `sources`, ebook khác giữ nguyên.
+    """
+    path = Path(path)
+    data = _load(path)
+    ebooks = _ebooks_map(data)
+    item = ebooks.get(slug)
+    if not isinstance(item, CommentedMap):
+        item = CommentedMap()
+        ebooks[slug] = item
+    _deep_merge(item, updates)
+    _dump(path, data)
+
+
+def add_ebook(
+    path: str | Path,
     slug: str,
+    *,
+    name: str = "",
     title: str = "",
     author: str = "",
     toc_url: str = "",
     engine: str = "http",
     preset: dict[str, Any] | None = None,
 ) -> None:
-    """Tạo config mới từ config.example.yaml (giữ comment làm tài liệu) rồi áp giá trị."""
-    dest = Path(dest)
-    if EXAMPLE_CONFIG.exists():
-        data = _yaml().load(EXAMPLE_CONFIG.read_text(encoding="utf-8"))
-    else:
-        data = CommentedMap()
+    """Thêm 1 ebook vào `ebooks.<slug>` với CHỈ phần override tối thiểu.
 
-    updates: dict[str, Any] = {
-        "novel": {"slug": slug},
-        "crawl": {"engine": engine},
-    }
+    Phần dùng chung (prompt, style, output...) do `defaults:` lo, không lặp lại.
+    """
+    path = Path(path)
+    data = _load(path)
+    ebooks = _ebooks_map(data)
+
+    novel = CommentedMap()
+    novel["slug"] = slug
     if title:
-        updates["novel"]["title"] = title
+        novel["title"] = title
     if author:
-        updates["novel"]["author"] = author
-    if toc_url:
-        updates["crawl"]["toc_url"] = toc_url
-    if preset:
-        # Bỏ "engine": form đã gửi engine người dùng chọn (có thể auto-fill từ
-        # preset hoặc tự sửa tay) — không cho preset đè lại lần 2, tránh xung
-        # đột khi preset lưu engine khác với lựa chọn hiện tại trên form.
-        updates["crawl"].update({k: v for k, v in preset.items() if k not in {"name", "engine"}})
+        novel["author"] = author
 
-    _deep_merge(data, updates)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    with dest.open("w", encoding="utf-8") as f:
-        _yaml().dump(data, f)
+    crawl = CommentedMap()
+    crawl["engine"] = engine
+    if toc_url:
+        crawl["toc_url"] = toc_url
+    if preset:
+        # Bỏ "engine": form đã gửi engine người dùng chọn — không cho preset đè lại.
+        for k, v in preset.items():
+            if k in {"name", "url", "domains", "engine"}:
+                continue
+            crawl[k] = _coerce(v)
+
+    item = CommentedMap()
+    if name:
+        item["name"] = name
+    item["novel"] = novel
+    item["crawl"] = crawl
+    ebooks[slug] = item
+    _dump(path, data)
+
+
+def remove_ebook(path: str | Path, slug: str) -> None:
+    """Xóa `ebooks.<slug>` khỏi file gộp (giữ nguyên các khối còn lại)."""
+    path = Path(path)
+    data = _load(path)
+    ebooks = data.get("ebooks")
+    if isinstance(ebooks, CommentedMap) and slug in ebooks:
+        del ebooks[slug]
+        _dump(path, data)
 
 
 def save_library(path: str | Path, library: LibraryConfig) -> None:
-    """Ghi danh sách ebook vào library.yaml, giữ comment nếu file đã có."""
+    """Đồng bộ danh sách ebook trong khối `ebooks:`: cập nhật `name`, xóa key đã gỡ.
+
+    KHÔNG dựng lại từ đầu để tránh xóa mất phần override (novel/crawl/translate)
+    inline của từng ebook trong file gộp.
+    """
     path = Path(path)
     data = _load(path)
-    ebooks = CommentedMap()
+    ebooks = _ebooks_map(data)
+    for slug in list(ebooks.keys()):
+        if slug not in library.ebooks:
+            del ebooks[slug]
     for slug, entry in library.ebooks.items():
-        item = CommentedMap()
+        item = ebooks.get(slug)
+        if not isinstance(item, CommentedMap):
+            item = CommentedMap()
+            ebooks[slug] = item
         if entry.name:
             item["name"] = entry.name
-        if entry.config:
-            item["config"] = entry.config
-        ebooks[slug] = item
-    data["ebooks"] = ebooks
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        _yaml().dump(data, f)
+    _dump(path, data)

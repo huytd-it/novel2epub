@@ -2,7 +2,8 @@
 data/
 *.epub
 
-# Local configuration
+# Local configuration (file gộp duy nhất; commit bản mẫu novel2epub.example.yaml)
+novel2epub.yaml
 config.yaml
 library.yaml
 
@@ -26,4 +27,3 @@ Thumbs.db
 *.swp
 .idea/
 logs
-configs

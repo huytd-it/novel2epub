@@ -93,21 +93,19 @@ def test_preview_missing_preset(monkeypatch):
 
 # ---------------- create endpoint ----------------
 
-def test_create_ebook_uses_preset_engine(monkeypatch, tmp_path):
-    from app import deps
+def test_create_ebook_uses_preset_engine(monkeypatch):
     from app.routes import library
 
     app, client = _client(monkeypatch, {"shuhaige": _shuhaige()})
 
     captured = {}
 
-    def fake_scaffold(dest, *, slug, title, author, toc_url, engine, preset):
-        captured.update(slug=slug, title=title, engine=engine, preset=preset, dest=str(dest))
+    def fake_add_ebook(path, slug, *, name="", title="", author="", toc_url="",
+                       engine="http", preset=None):
+        captured.update(path=str(path), slug=slug, name=name, title=title,
+                        engine=engine, preset=preset)
 
-    saved = {}
-    monkeypatch.setattr(library, "scaffold_config_file", fake_scaffold)
-    monkeypatch.setattr(library, "save_library", lambda path, lib: saved.update(lib=lib))
-    monkeypatch.setattr(deps, "resolve_path", lambda base, rel: str(tmp_path / rel))
+    monkeypatch.setattr(library, "add_ebook", fake_add_ebook)
 
     res = client.post("/library/ebooks", data={
         "preset": "shuhaige",
@@ -117,9 +115,9 @@ def test_create_ebook_uses_preset_engine(monkeypatch, tmp_path):
 
     assert res.status_code == 303
     assert res.headers["location"] == "/ebooks/ten-truyen/settings"
+    assert captured["slug"] == "ten-truyen"
     assert captured["engine"] == "http"
     assert captured["preset"]["content_selector"] == "#content"
-    assert "ten-truyen" in saved["lib"].ebooks
 
 
 def test_create_ebook_domain_mismatch_rejected(monkeypatch):

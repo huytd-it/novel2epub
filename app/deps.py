@@ -13,29 +13,35 @@ from novel2epub.config import load_config, load_library
 from novel2epub.sources import load_presets
 
 BASE_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = os.environ.get("NOVEL2EPUB_CONFIG", "config.yaml")
-LIBRARY_PATH = os.environ.get("NOVEL2EPUB_LIBRARY", "library.yaml")
-SOURCES_PATH = os.environ.get("NOVEL2EPUB_SOURCES", "sources.yaml")
+# File cấu hình gộp duy nhất (defaults + sources + ebooks). NOVEL2EPUB_CONFIG
+# giữ làm fallback để tương thích lệnh/script cũ.
+WORKSPACE_PATH = os.environ.get(
+    "NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.yaml")
+)
+# Alias: nhiều route/template còn tham chiếu 3 tên cũ — đều trỏ về 1 file gộp.
+CONFIG_PATH = WORKSPACE_PATH
+LIBRARY_PATH = WORKSPACE_PATH
+SOURCES_PATH = WORKSPACE_PATH
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
 def cfg():
     try:
-        return load_config(CONFIG_PATH)
+        return load_config(WORKSPACE_PATH)
     except FileNotFoundError as e:
         raise HTTPException(
             status_code=400,
-            detail=f"{e} — copy config.example.yaml thành {CONFIG_PATH} rồi chỉnh sửa.",
+            detail=f"{e} — copy novel2epub.example.yaml thành {WORKSPACE_PATH} rồi chỉnh sửa.",
         ) from e
 
 
 def library():
-    return load_library(LIBRARY_PATH)
+    return load_library(WORKSPACE_PATH)
 
 
 def presets():
-    return load_presets(SOURCES_PATH)
+    return load_presets(WORKSPACE_PATH)
 
 
 def resolve_path(base: Path, value: str) -> str:
@@ -48,20 +54,19 @@ def resolve_path(base: Path, value: str) -> str:
 
 
 def ebook_config_path(slug: str) -> str:
-    lib = library()
-    entry = lib.ebooks.get(slug)
-    if entry and entry.config:
-        return resolve_path(Path(LIBRARY_PATH).resolve().parent, entry.config)
-    return CONFIG_PATH
+    # File gộp: mọi ebook nằm inline trong cùng file. Trả về để hiển thị.
+    return WORKSPACE_PATH
 
 
 def ebook_cfg(slug: str):
     try:
-        return load_config(ebook_config_path(slug))
+        return load_config(WORKSPACE_PATH, slug)
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 def resolved_cfg(slug: str):
-    """cfg theo ebook nếu library.yaml có khai báo, ngược lại dùng config global."""
+    """cfg theo ebook nếu file gộp có khai báo ebook, ngược lại dùng defaults."""
     return ebook_cfg(slug) if library().ebooks else cfg()

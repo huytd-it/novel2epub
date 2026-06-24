@@ -54,9 +54,8 @@ app/
 └── routes/             # ebooks, chapters, glossary, jobs, library, settings, sources
     └── templates/      # Jinja2 templates
 
-config.yaml             # Active novel config
-sources.yaml            # Site-specific crawl presets
-library.yaml            # Multi-ebook library manifest
+novel2epub.yaml         # Single config file (gitignored): defaults + sources + ebooks
+novel2epub.example.yaml # Committed template (copy → novel2epub.yaml)
 ```
 
 ## Crawl Engines
@@ -93,7 +92,7 @@ The `translate.preset: go` activates OpenCode Go-optimized prompts and model def
 
 ## Source Presets
 
-Site-specific crawl configs are stored in `sources.yaml`. Load with `sources.load_presets()`. Auto-detect by domain with `sources.detect_preset(url)`.
+Site-specific crawl presets live in the `sources:` block of `novel2epub.yaml`. Load with `sources.load_presets()`. Auto-detect by domain with `sources.detect_preset(url)`.
 
 ## Commands
 
@@ -112,18 +111,22 @@ pytest tests/ -v
 pytest tests/test_crawler_meta.py -v
 ```
 
-## Config Files
+## Config File (single, unified)
 
-- `config.yaml` — Active novel config (title, crawl, translate, output sections)
-- `config.example.yaml` — Template for new configs
-- `sources.yaml` — Reusable crawl presets per website
-- `library.yaml` — Multi-ebook library manifest
+`novel2epub.yaml` (gitignored) holds everything in 3 top-level blocks:
+
+- `defaults` — shared base: crawl/translate/output defaults + prompt templates.
+- `sources` — reusable crawl presets per website.
+- `ebooks` — one entry per ebook holding ONLY the fields that differ from `defaults`
+  (`name`, `novel`, plus crawl/translate/output overrides).
+
+Effective config for an ebook = `deep_merge(defaults, ebooks[slug])`, resolved by
+`load_config(path, slug)`. `novel2epub.example.yaml` is the committed template.
+Migrate from the old multi-file layout: `python scripts/migrate_to_single_yaml.py`.
 
 ## Key Environment Variables
 
-- `NOVEL2EPUB_CONFIG` — Override config path
-- `NOVEL2EPUB_LIBRARY` — Override library path
-- `NOVEL2EPUB_SOURCES` — Override sources path
+- `NOVEL2EPUB_FILE` — Override the unified config path (falls back to `NOVEL2EPUB_CONFIG`)
 
 ## Tech Stack
 

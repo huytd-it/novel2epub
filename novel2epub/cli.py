@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
 import os
 
@@ -24,8 +23,11 @@ from .storage import Storage
 from .toc import apply_chapter_query, chapter_rows, parse_filter, parse_range, select_visible_range
 
 
-DEFAULT_LIBRARY_PATH = "library.yaml"
-SOURCES_PATH = os.environ.get("NOVEL2EPUB_SOURCES", "sources.yaml")
+# File cấu hình gộp duy nhất (defaults + sources + ebooks).
+DEFAULT_CONFIG_PATH = os.environ.get(
+    "NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.yaml")
+)
+SOURCES_PATH = DEFAULT_CONFIG_PATH
 
 
 def _force_utf8() -> None:
@@ -37,21 +39,6 @@ def _force_utf8() -> None:
                 reconfigure(encoding="utf-8")
             except (ValueError, OSError):
                 pass
-
-
-def _resolve_config_path(config_path: str, library_path: str, ebook_slug: str) -> str:
-    if not ebook_slug:
-        return config_path
-    library = load_library(library_path)
-    entry = library.ebooks.get(ebook_slug)
-    if entry is None:
-        raise KeyError(f"không tìm thấy ebook {ebook_slug!r}")
-    if not entry.config:
-        return config_path
-    p = Path(entry.config)
-    if p.is_absolute():
-        return entry.config
-    return str((Path(library_path).resolve().parent / p).resolve())
 
 
 def _selected_indexes_from_args(cfg, args) -> list[int] | None:
@@ -101,9 +88,8 @@ def main(argv: list[str] | None = None) -> int:
         prog="novel2epub",
         description="Crawl truyện tiếng Trung -> dịch tiếng Việt -> đóng gói EPUB.",
     )
-    parser.add_argument("-c", "--config", default="config.yaml", help="Đường dẫn file cấu hình YAML")
-    parser.add_argument("-e", "--ebook", default="", help="Slug ebook trong library.yaml")
-    parser.add_argument("--library", default=DEFAULT_LIBRARY_PATH, help="Đường dẫn file library.yaml")
+    parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH, help="Đường dẫn file cấu hình gộp (novel2epub.yaml)")
+    parser.add_argument("-e", "--ebook", default="", help="Slug ebook trong khối ebooks: của file gộp")
     sub = parser.add_subparsers(dest="command", required=True)
     crawl_parser = sub.add_parser("crawl", help="Crawl mục lục + nội dung chương")
     crawl_parser.add_argument("--from", dest="start", type=int, default=None, help="Crawl từ chương số")
@@ -164,28 +150,23 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "list":
-        library = load_library(args.library)
+        library = load_library(args.config)
         if not library.ebooks:
-            print("Chưa có ebook nào trong library.yaml")
+            print("Chưa có ebook nào trong file gộp (khối ebooks:)")
             return 0
         for slug, entry in library.ebooks.items():
-            print(f"{slug}\t{entry.name or slug}\t{entry.config}")
+            print(f"{slug}\t{entry.name or slug}")
         return 0
 
-    config_path = args.config
-    if args.ebook:
-        try:
-            config_path = _resolve_config_path(args.config, args.library, args.ebook)
-        except KeyError as e:
-            print(f"Lỗi: {e} trong {args.library}", file=sys.stderr)
-            return 1
-
     try:
-        cfg = load_config(config_path)
+        cfg = load_config(args.config, args.ebook)
     except FileNotFoundError as e:
         print(f"Lỗi: {e}", file=sys.stderr)
-        print("Gợi ý: copy config.example.yaml thành config.yaml rồi chỉnh sửa.",
+        print("Gợi ý: copy novel2epub.example.yaml thành novel2epub.yaml rồi chỉnh sửa.",
               file=sys.stderr)
+        return 1
+    except KeyError as e:
+        print(f"Lỗi: {e}", file=sys.stderr)
         return 1
 
     try:

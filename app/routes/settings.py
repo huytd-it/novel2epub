@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from novel2epub.config_writer import clean_prompt_text, update_config_file
+from novel2epub.config_writer import clean_prompt_text, update_ebook
 
 from .. import deps
 from ..logging_config import logger
@@ -40,7 +40,7 @@ def save_novel(
         "[config][NOVEL] slug=%s lưu vào %s: title=%r author=%r language=%r",
         slug, path, title, author, language,
     )
-    update_config_file(path, {"novel": {"title": title, "author": author, "language": language}})
+    update_ebook(deps.WORKSPACE_PATH, slug, {"novel": {"title": title, "author": author, "language": language}})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -95,7 +95,7 @@ def save_source(
         slug, path, engine, toc_url, content_selector, max_chapters, delay_seconds,
         next_page_selector or next_page_url_pattern or "off", encoding, headless, magic,
     )
-    update_config_file(path, {"crawl": crawl})
+    update_ebook(deps.WORKSPACE_PATH, slug, {"crawl": crawl})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -107,7 +107,7 @@ def apply_preset(slug: str, preset: str = Form("")):
     path = deps.ebook_config_path(slug)
     logger.info("[config][CRAWL/PRESET] slug=%s áp preset %r vào %s: %s",
                 slug, preset, path, p.crawl_overrides())
-    update_config_file(path, {"crawl": p.crawl_overrides()})
+    update_ebook(deps.WORKSPACE_PATH, slug, {"crawl": p.crawl_overrides()})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -169,5 +169,5 @@ def save_ai(
         title_mode, han_viet_level, keep_paragraphs, retry_attempts, chunk_max_chars,
         delay_seconds,
     )
-    update_config_file(path, {"translate": translate})
+    update_ebook(deps.WORKSPACE_PATH, slug, {"translate": translate})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)

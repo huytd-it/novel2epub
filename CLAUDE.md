@@ -41,8 +41,9 @@ pytest tests/ -v                             # run tests
 - Crawl4AI 0.9.0: `magic` param goes inside `CrawlerRunConfig`, see `Crawl4AICrawler._run_cfg` in `crawler.py`
 - Pagination: `crawl.next_page_selector` (CSS) or `crawl.next_page_url_pattern` (regex with 1 capture group)
 - Translation presets: `translate.preset: go` activates Go-optimized prompts via `presets/go.py`
-- Config files: `config.yaml`, `sources.yaml`, `library.yaml`
-- ENV overrides: `NOVEL2EPUB_CONFIG`, `NOVEL2EPUB_LIBRARY`, `NOVEL2EPUB_SOURCES`
+- Config: single file `novel2epub.yaml` (gitignored) with 3 blocks — `defaults` (shared base), `sources` (site presets), `ebooks` (per-ebook overrides). Effective ebook config = `deep_merge(defaults, ebooks[slug])`. Committed template: `novel2epub.example.yaml`. Run a given ebook via `-e <slug>` / web `resolved_cfg(slug)`.
+- ENV override: `NOVEL2EPUB_FILE` (path to the unified file; falls back to `NOVEL2EPUB_CONFIG`)
+- One-off migration from the old multi-file layout: `python scripts/migrate_to_single_yaml.py`
 
 ## Tech Stack
 

@@ -2,7 +2,7 @@
 (selector, pattern, engine...) để tái sử dụng khi thêm ebook mới hoặc cập nhật
 nguồn của một ebook. Không chứa `toc_url`/`api_key` vì đó là đặc thù từng truyện.
 
-Lưu ở sources.yaml (override bằng env NOVEL2EPUB_SOURCES). Đọc–ghi round-trip để
+Lưu trong khối `sources:` của file gộp novel2epub.yaml. Đọc–ghi round-trip để
 giữ comment người dùng tự thêm.
 """
 from __future__ import annotations

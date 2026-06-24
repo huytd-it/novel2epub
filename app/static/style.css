@@ -107,6 +107,12 @@ input, select {
 }
 .status-hint { margin-left: auto; }
 
+.btn-refresh {
+    padding: 0.1rem 0.45rem; border: 1px solid #888; background: #f4f4f4;
+    cursor: pointer; border-radius: 4px; font-size: 0.85rem; line-height: 1.4;
+}
+.btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .count-pill {
     display: inline-block; font-size: 0.8rem; font-weight: 600; color: #1d4ed8;
     background: #e7efff; border-radius: 999px; padding: 0.05rem 0.55rem; vertical-align: middle;

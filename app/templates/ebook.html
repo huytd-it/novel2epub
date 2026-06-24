@@ -70,10 +70,12 @@
         {% if job.crawl.running %}<span class="badge run">Crawl: đang chạy ({{ job.crawl.step }})</span>{% else %}<span class="badge ok">Crawl: rảnh</span>{% endif %}
         {% if job.crawl.error %}<span class="badge no">lỗi: {{ job.crawl.error }}</span>{% endif %}
     </span>
+    <button type="button" class="btn-refresh" data-refresh-cat="crawl" title="Làm mới trạng thái Crawl">⟳</button>
     <span id="status-badge-translate">
         {% if job.translate.running %}<span class="badge run">Dịch: đang chạy ({{ job.translate.step }})</span>{% else %}<span class="badge ok">Dịch: rảnh</span>{% endif %}
         {% if job.translate.error %}<span class="badge no">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
+    <button type="button" class="btn-refresh" data-refresh-cat="translate" title="Làm mới trạng thái Dịch">⟳</button>
     <span class="muted status-hint">Crawl và dịch chạy độc lập — có thể dịch trong khi đang crawl.</span>
 </div>
 
@@ -430,6 +432,12 @@ document.addEventListener("click", (event) => {
     if (btn) { event.preventDefault(); gotoPage(btn.dataset.page); }
 });
 
+// --- Click làm mới chủ động trạng thái crawl/dịch ---
+document.addEventListener("click", (event) => {
+    const btn = event.target.closest && event.target.closest("[data-refresh-cat]");
+    if (btn) { event.preventDefault(); refreshCategory(btn.dataset.refreshCat); }
+});
+
 // --- Ô tìm kiếm: debounce rồi filter ngầm ---
 document.addEventListener("input", (event) => {
     if (event.target.matches && event.target.matches('.compact-toolbar input[type="search"]')) {
@@ -497,33 +505,41 @@ document.addEventListener("submit", async function(event) {
     }
 });
 
+const STATUS_LABELS = { crawl: "Crawl", translate: "Dịch" };
+
+// Cập nhật badge + log của 1 category từ dữ liệu /api/status; trả về true
+// nếu job của category đó vừa chuyển từ "đang chạy" sang "xong".
+function updateCategoryUI(cat, data) {
+    logPanels[cat].setLines(data[cat].log);
+
+    const container = document.getElementById(`status-badge-${cat}`);
+    if (container) {
+        let html = "";
+        if (data[cat].running) {
+            html += `<span class="badge run">${STATUS_LABELS[cat]}: đang chạy (${data[cat].step})</span> `;
+        } else {
+            html += `<span class="badge ok">${STATUS_LABELS[cat]}: rảnh</span> `;
+        }
+        if (data[cat].error) {
+            html += `<span class="badge no">lỗi: ${data[cat].error}</span>`;
+        }
+        container.innerHTML = html;
+    }
+
+    const justFinished = wasRunning[cat] && !data[cat].running;
+    wasRunning[cat] = data[cat].running;
+    return justFinished;
+}
+
 async function poll() {
     try {
         const res = await fetch("/api/status");
         if (!res.ok) return;
         const data = await res.json();
 
-        logPanels.crawl.setLines(data.crawl.log);
-        logPanels.translate.setLines(data.translate.log);
-
-        const labels = { crawl: "Crawl", translate: "Dịch" };
         let anyJustFinished = false;
         for (const cat of ["crawl", "translate"]) {
-            const container = document.getElementById(`status-badge-${cat}`);
-            if (container) {
-                let html = "";
-                if (data[cat].running) {
-                    html += `<span class="badge run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
-                } else {
-                    html += `<span class="badge ok">${labels[cat]}: rảnh</span> `;
-                }
-                if (data[cat].error) {
-                    html += `<span class="badge no">lỗi: ${data[cat].error}</span>`;
-                }
-                container.innerHTML = html;
-            }
-            if (wasRunning[cat] && !data[cat].running) anyJustFinished = true;
-            wasRunning[cat] = data[cat].running;
+            if (updateCategoryUI(cat, data)) anyJustFinished = true;
         }
 
         setJobButtonsDisabled(data);
@@ -535,6 +551,25 @@ async function poll() {
         }
     } catch (e) {
         console.error("Lỗi khi poll status:", e);
+    }
+}
+
+// Làm mới chủ động (do người bấm nút) — chỉ cập nhật UI của 1 category,
+// tránh nhấp nháy category còn lại không liên quan tới nút vừa bấm.
+async function refreshCategory(cat) {
+    const btn = document.querySelector(`[data-refresh-cat="${cat}"]`);
+    if (btn) btn.disabled = true;
+    try {
+        const res = await fetch("/api/status");
+        if (!res.ok) return;
+        const data = await res.json();
+        const justFinished = updateCategoryUI(cat, data);
+        setJobButtonsDisabled(data);
+        if (justFinished) loadToc(undefined, { push: false, reset: false });
+    } catch (e) {
+        console.error(`Lỗi khi làm mới trạng thái ${cat}:`, e);
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 

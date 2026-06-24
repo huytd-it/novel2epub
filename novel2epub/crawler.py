@@ -22,6 +22,51 @@ from .toc import mark_duplicate_chapters, missing_metadata
 _MD_LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 
 
+class RateLimitError(Exception):
+    """Trang chặn do quá nhiều request (HTTP 429) hoặc anti-bot protection.
+
+    Mang theo `retry_after` (giây) nếu server gửi header `Retry-After`, để tầng
+    retry chờ đúng khoảng server yêu cầu thay vì backoff tự đoán.
+    """
+
+    def __init__(self, message: str, retry_after: float | None = None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+# Dấu hiệu bị giới hạn tốc độ trong message lỗi (vd lỗi text từ crawl4ai).
+_RATE_LIMIT_SIGNS = re.compile(
+    r"429|too many requests|rate.?limit|anti-bot|blocked by", re.IGNORECASE
+)
+
+
+def _parse_retry_after(value: str | None) -> float | None:
+    """Đọc header Retry-After: dạng số giây (phổ biến nhất) -> float.
+
+    Bỏ qua dạng HTTP-date (hiếm với 429) để giữ logic đơn giản; khi đó tầng
+    retry tự dùng backoff.
+    """
+    if not value:
+        return None
+    value = value.strip()
+    try:
+        secs = float(value)
+        return secs if secs >= 0 else None
+    except ValueError:
+        return None
+
+
+def is_rate_limited(err: BaseException) -> tuple[bool, float | None]:
+    """Phán đoán một exception có phải do bị giới hạn tốc độ / anti-bot không.
+
+    Trả (matched, retry_after_seconds). Nhận diện cả RateLimitError (đã gắn sẵn
+    retry_after) lẫn lỗi chung có chữ '429'/'too many requests'/'anti-bot' trong
+    message (vd lỗi text crawl4ai trả về)."""
+    if isinstance(err, RateLimitError):
+        return True, err.retry_after
+    return bool(_RATE_LIMIT_SIGNS.search(str(err))), None
+
+
 @dataclass
 class TocResult:
     """Kết quả đọc trang mục lục: metadata truyện + danh sách chương."""
@@ -325,6 +370,13 @@ class HttpCrawler:
         from bs4 import BeautifulSoup
 
         resp = self._session.get(url, timeout=30)
+        # 429 (Too Many Requests) / 503 (thường gặp khi anti-bot tạm chặn) ->
+        # ném RateLimitError mang theo Retry-After để tầng retry lùi dần.
+        if resp.status_code in (429, 503):
+            raise RateLimitError(
+                f"Bị chặn do quá nhiều request: HTTP {resp.status_code} {resp.reason}",
+                retry_after=_parse_retry_after(resp.headers.get("Retry-After")),
+            )
         resp.raise_for_status()
         # Đoán bảng mã (nhiều trang Trung dùng gbk/gb2312).
         if self.cfg.encoding:
@@ -548,7 +600,23 @@ class Crawl4AICrawler:
     def _arun(self, url: str, css_selector: str | None = None):
         cfg = self._run_cfg(css_selector)
         coro = self._crawler.arun(url=url, config=cfg)
-        return self._loop.run_until_complete(coro)
+        result = self._loop.run_until_complete(coro)
+        self._raise_if_blocked(result)
+        return result
+
+    @staticmethod
+    def _raise_if_blocked(result) -> None:
+        """crawl4ai thường KHÔNG ném exception mà trả result.success=False kèm
+        error_message khi bị anti-bot/429. Chuyển thành RateLimitError để tầng
+        retry lùi dần thay vì âm thầm coi như chương rỗng."""
+        if getattr(result, "success", True):
+            return
+        status = getattr(result, "status_code", None)
+        err_msg = getattr(result, "error_message", "") or ""
+        if status == 429 or _RATE_LIMIT_SIGNS.search(err_msg):
+            raise RateLimitError(
+                f"Bị chặn anti-bot/429: {err_msg or f'HTTP {status}'}"
+            )
 
     @staticmethod
     def _markdown(result) -> str:

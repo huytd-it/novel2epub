@@ -9,11 +9,12 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Callable
 
-from .config import Config
-from .crawler import make_crawler
+from .config import Config, CrawlRetryConfig
+from .crawler import is_rate_limited, make_crawler
 from .epub_builder import build_epub
 from .storage import Chapter, Manifest, Storage
 from .toc import mark_duplicate_chapters
@@ -65,6 +66,12 @@ def _emit_crawl_config(cfg: Config, log: LogFn) -> None:
         log(f"[config] CRAWL pagination: {rule} (tối đa {c.max_pages_per_chapter} trang/chương)")
     else:
         log("[config] CRAWL pagination: off")
+    r = c.retry
+    if r.attempts > 0:
+        log(f"[config] CRAWL retry (429/anti-bot): {r.attempts} lần | chờ {r.delay_seconds}s "
+            f"×{r.backoff} (trần {r.max_delay_seconds}s) | respect_retry_after={_fmt(r.respect_retry_after)}")
+    else:
+        log("[config] CRAWL retry (429/anti-bot): off (attempts=0)")
     if c.engine == "crawl4ai":
         log(f"[config] CRAWL crawl4ai: headless={_fmt(c.headless)} | magic={_fmt(c.magic)} "
             f"| js_code={'có' if c.js_code else 'không'}")
@@ -326,19 +333,53 @@ def _cover_ext(url: str, content_type: str) -> str:
     return "jpg"
 
 
-def _fetch_chapter_with_retry(crawler, ch: Chapter, retries: int, retry_delay: float, log: LogFn) -> str | None:
-    """Tải 1 chương, thử lại tối đa `retries` lần nếu lỗi. Trả None nếu thất bại
-    sau khi đã thử hết — để caller bỏ qua chương đó thay vì giết cả job."""
-    attempts = max(1, retries + 1)
+def _resolve_crawl_retry(base: CrawlRetryConfig, retries: int | None, retry_delay: float | None) -> CrawlRetryConfig:
+    """Lấy cấu hình retry hiệu lực: mặc định từ config (cfg.crawl.retry), chỉ ghi
+    đè attempts/delay khi caller (vd CLI --retries) truyền giá trị tường minh."""
+    if retries is None and retry_delay is None:
+        return base
+    return replace(
+        base,
+        attempts=base.attempts if retries is None else retries,
+        delay_seconds=base.delay_seconds if retry_delay is None else retry_delay,
+    )
+
+
+def _retry_wait_seconds(retry: CrawlRetryConfig, attempt: int, retry_after: float | None) -> float:
+    """Tính thời gian chờ trước lần thử kế tiếp.
+
+    - Nếu server gửi Retry-After và bật respect_retry_after -> ưu tiên giá trị đó.
+    - Ngược lại backoff cấp số nhân: delay × backoff^(attempt-1), chặn trần
+      max_delay_seconds. attempt tính từ 1 (lần thất bại đầu tiên).
+    """
+    if retry_after is not None and retry.respect_retry_after:
+        return min(max(retry_after, 0.0), retry.max_delay_seconds)
+    wait = retry.delay_seconds * (retry.backoff ** (attempt - 1))
+    return min(wait, retry.max_delay_seconds)
+
+
+def _fetch_chapter_with_retry(crawler, ch: Chapter, retry: CrawlRetryConfig, log: LogFn) -> str | None:
+    """Tải 1 chương, thử lại tối đa `retry.attempts` lần nếu lỗi. Trả None nếu
+    thất bại sau khi đã thử hết — để caller bỏ qua chương đó thay vì giết cả job.
+
+    Lỗi bị giới hạn tốc độ (HTTP 429 / anti-bot) được lùi dần theo cấp số nhân và
+    tôn trọng header Retry-After nếu có, giúp vượt qua chặn tạm thời."""
+    attempts = max(1, retry.attempts + 1)
     last_err: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
             return _strip_repeated_title(crawler.fetch_chapter(ch), ch)
         except Exception as e:  # noqa: BLE001 - lỗi mạng/parse bất kỳ
             last_err = e
-            log(f"[crawl]   ! Lỗi tải chương {ch.stem} (lần {attempt}/{attempts}): {e}")
-            if attempt < attempts and retry_delay > 0:
-                time.sleep(retry_delay)
+            limited, retry_after = is_rate_limited(e)
+            tag = " [rate-limit 429]" if limited else ""
+            log(f"[crawl]   ! Lỗi tải chương {ch.stem} (lần {attempt}/{attempts}){tag}: {e}")
+            if attempt < attempts:
+                wait = _retry_wait_seconds(retry, attempt, retry_after)
+                if wait > 0:
+                    src = "Retry-After" if (retry_after is not None and retry.respect_retry_after) else "backoff"
+                    log(f"[crawl]   … chờ {wait:.0f}s ({src}) rồi thử lại.")
+                    time.sleep(wait)
     log(f"[crawl]   ! Bỏ qua chương {ch.stem} sau {attempts} lần thử: {last_err}")
     return None
 
@@ -347,14 +388,14 @@ def step_crawl(cfg: Config, log: LogFn = _print) -> Manifest:
     return step_crawl_selected(cfg, log)
 
 
-def _crawl_one(crawler, storage: Storage, ch: Chapter, force: bool, retries: int, retry_delay: float, log: LogFn, i: int, total: int) -> str:
+def _crawl_one(crawler, storage: Storage, ch: Chapter, force: bool, retry: CrawlRetryConfig, log: LogFn, i: int, total: int) -> str:
     """Tải 1 chương, ghi raw, trả về last_action_status ('completed'/'replaced'/'failed').
 
     Dùng chung cho cả nhánh tuần tự và song song.
     """
     had_raw = storage.has_raw(ch)
     log(f"[crawl] ({i}/{total}) {ch.url}")
-    content = _fetch_chapter_with_retry(crawler, ch, retries, retry_delay, log)
+    content = _fetch_chapter_with_retry(crawler, ch, retry, log)
     crawler.sleep()
     if content is None:
         ch.last_action_status = "failed"
@@ -366,10 +407,10 @@ def _crawl_one(crawler, storage: Storage, ch: Chapter, force: bool, retries: int
     return ch.last_action_status
 
 
-def _crawl_chapters_sequential(crawler, storage: Storage, chapters: list[Chapter], force: bool, retries: int, retry_delay: float, log: LogFn, total: int) -> tuple[int, int, int]:
+def _crawl_chapters_sequential(crawler, storage: Storage, chapters: list[Chapter], force: bool, retry: CrawlRetryConfig, log: LogFn, total: int) -> tuple[int, int, int]:
     crawled = failed = replaced = 0
     for i, ch in enumerate(chapters, 1):
-        status = _crawl_one(crawler, storage, ch, force, retries, retry_delay, log, i, total)
+        status = _crawl_one(crawler, storage, ch, force, retry, log, i, total)
         if status == "failed":
             failed += 1
         else:
@@ -379,7 +420,7 @@ def _crawl_chapters_sequential(crawler, storage: Storage, chapters: list[Chapter
     return crawled, failed, replaced
 
 
-def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapter], force: bool, retries: int, retry_delay: float, log: LogFn, total: int, workers: int) -> tuple[int, int, int]:
+def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapter], force: bool, retry: CrawlRetryConfig, log: LogFn, total: int, workers: int) -> tuple[int, int, int]:
     """Tải nhiều chương song song bằng ThreadPoolExecutor.
 
     Mỗi luồng tự tạo + giữ riêng 1 crawler (Crawl4AICrawler không thread-safe vì
@@ -409,7 +450,7 @@ def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapt
             progress["done"] += 1
             i = progress["done"]
         try:
-            status = _crawl_one(_get_crawler(), storage, ch, force, retries, retry_delay, log, i, total)
+            status = _crawl_one(_get_crawler(), storage, ch, force, retry, log, i, total)
         except Exception as e:  # noqa: BLE001 - 1 chương lỗi không được giết cả batch song song
             ch.last_action_status = "failed"
             log(f"[crawl]   ! Lỗi không lường được ở chương {ch.stem}: {e}")
@@ -442,23 +483,25 @@ def step_crawl_selected(
     start: int | None = None,
     end: int | None = None,
     force: bool = False,
-    retries: int = 0,
-    retry_delay: float = 2.0,
+    retries: int | None = None,
+    retry_delay: float | None = None,
     selected_indexes: list[int] | None = None,
 ) -> Manifest:
     """Crawl nội dung chương trong phạm vi [start, end].
 
     Tùy chọn:
       - force: tải lại cả chương đã có raw (mặc định chỉ tải chương còn thiếu).
-      - retries / retry_delay: số lần thử lại + thời gian chờ giữa các lần khi
-        một chương tải lỗi; chương lỗi sau khi thử hết sẽ bị bỏ qua, không làm
-        gián đoạn cả job.
+      - retries / retry_delay: ghi đè số lần thử lại + thời gian chờ ban đầu khi
+        một chương tải lỗi (mặc định lấy từ cfg.crawl.retry). Chương lỗi sau khi
+        thử hết sẽ bị bỏ qua, không làm gián đoạn cả job. Lỗi HTTP 429 / anti-bot
+        được lùi dần theo cấp số nhân và tôn trọng header Retry-After.
 
     crawl.max_workers > 1 trong config sẽ tải nhiều chương song song (mỗi
     luồng tự giữ 1 crawler riêng — xem _crawl_chapters_parallel).
     """
     _emit_config_warnings(cfg, log)
     _emit_crawl_config(cfg, log)
+    retry = _resolve_crawl_retry(cfg.crawl.retry, retries, retry_delay)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     if cfg.crawl.ai_fallback:
         cfg.crawl._cli_fallback = cfg.translate.cli
@@ -487,12 +530,12 @@ def step_crawl_selected(
         if workers > 1 and len(to_fetch) > 1:
             crawler.close()
             crawled, failed, replaced = _crawl_chapters_parallel(
-                cfg, storage, to_fetch, force, retries, retry_delay, log, total, workers
+                cfg, storage, to_fetch, force, retry, log, total, workers
             )
             crawler = None
         else:
             crawled, failed, replaced = _crawl_chapters_sequential(
-                crawler, storage, to_fetch, force, retries, retry_delay, log, total
+                crawler, storage, to_fetch, force, retry, log, total
             )
         storage.save_manifest(manifest)
     finally:

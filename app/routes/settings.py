@@ -66,6 +66,11 @@ def save_source(
     next_page_selector: str = Form(""),
     next_page_url_pattern: str = Form(""),
     max_pages_per_chapter: int = Form(10),
+    retry_attempts: int = Form(3),
+    retry_delay_seconds: float = Form(5.0),
+    retry_backoff: float = Form(2.0),
+    retry_max_delay_seconds: float = Form(120.0),
+    retry_respect_retry_after: bool = Form(False),
 ):
     crawl: dict = {
         "engine": engine,
@@ -87,6 +92,13 @@ def save_source(
         "next_page_selector": next_page_selector,
         "next_page_url_pattern": next_page_url_pattern,
         "max_pages_per_chapter": max_pages_per_chapter,
+        "retry": {
+            "attempts": retry_attempts,
+            "delay_seconds": retry_delay_seconds,
+            "backoff": retry_backoff,
+            "max_delay_seconds": retry_max_delay_seconds,
+            "respect_retry_after": retry_respect_retry_after,
+        },
     }
     path = deps.ebook_config_path(slug)
     logger.info(

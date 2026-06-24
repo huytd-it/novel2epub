@@ -95,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
     crawl_parser.add_argument("--from", dest="start", type=int, default=None, help="Crawl từ chương số")
     crawl_parser.add_argument("--to", dest="end", type=int, default=None, help="Crawl đến chương số")
     crawl_parser.add_argument("--force", action="store_true", help="Tải lại cả chương đã có raw")
-    crawl_parser.add_argument("--retries", type=int, default=0, help="Số lần thử lại khi tải chương lỗi")
+    crawl_parser.add_argument("--retries", type=int, default=None, help="Ghi đè số lần thử lại khi tải chương lỗi (mặc định lấy từ crawl.retry trong config)")
     crawl_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Sắp xếp danh sách chương trước khi chọn range")
     crawl_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort danh sách chương")
     crawl_parser.add_argument("--search", default="", help="Tìm trong tiêu đề hiển thị hoặc URL chương")
@@ -172,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "crawl":
             selected_indexes = _selected_indexes_from_args(cfg, args)
-            if args.force or args.retries or args.start is not None or args.end is not None or selected_indexes is not None:
+            if args.force or args.retries is not None or args.start is not None or args.end is not None or selected_indexes is not None:
                 step_crawl_selected(
                     cfg,
                     start=args.start,

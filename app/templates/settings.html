@@ -68,6 +68,15 @@
            <label>next_page_url_pattern <input type="text" name="next_page_url_pattern" value="{{ cfg.crawl.next_page_url_pattern }}" size="30" placeholder="regex có 1 group"></label>
            <label>max_pages_per_chapter <input type="number" name="max_pages_per_chapter" value="{{ cfg.crawl.max_pages_per_chapter }}" min="1" size="4"></label></p>
     </fieldset>
+    <fieldset>
+        <legend>Chống lỗi 429 / anti-bot (thử lại + lùi dần)</legend>
+        <p><label>retry attempts <input type="number" name="retry_attempts" value="{{ cfg.crawl.retry.attempts }}" min="0" size="4"></label>
+           <label>retry delay_seconds <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.crawl.retry.delay_seconds }}" min="0" size="5"></label>
+           <label>backoff <input type="number" step="0.1" name="retry_backoff" value="{{ cfg.crawl.retry.backoff }}" min="1" size="4"></label>
+           <label>max_delay_seconds <input type="number" step="0.1" name="retry_max_delay_seconds" value="{{ cfg.crawl.retry.max_delay_seconds }}" min="0" size="5"></label>
+           <label class="check"><input type="checkbox" name="retry_respect_retry_after" value="true" {% if cfg.crawl.retry.respect_retry_after %}checked{% endif %}> respect_retry_after</label></p>
+        <p class="muted">Khi một chương tải lỗi HTTP 429 (Too Many Requests) / bị chặn anti-bot, hệ thống chờ rồi thử lại: attempts = số lần thử lại, delay_seconds = chờ ban đầu, backoff = hệ số nhân thời gian chờ mỗi lần (5s→10s→20s…), max_delay_seconds = trần thời gian chờ, respect_retry_after = tôn trọng header Retry-After server gửi. Bị 429 nhiều thì tăng delay_seconds (mục Nguồn ở trên) và giảm max_workers.</p>
+    </fieldset>
     <p><button type="submit">Lưu nguồn</button></p>
 </form>
 

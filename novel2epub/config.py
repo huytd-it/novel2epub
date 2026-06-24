@@ -11,6 +11,30 @@ import yaml
 
 
 @dataclass
+class CrawlRetryConfig:
+    """Thử lại khi tải chương bị chặn vì quá nhiều request (HTTP 429 anti-bot)
+    hoặc lỗi mạng tạm thời.
+
+    Khác với `delay_seconds` (giãn cách đều giữa MỌI chương), cấu hình này chỉ
+    kích hoạt KHI một chương tải lỗi: chờ lùi dần theo cấp số nhân
+    (delay_seconds, ×backoff, ×backoff², ... tối đa max_delay_seconds) rồi thử
+    lại, giúp vượt qua chặn tạm thời thay vì bỏ luôn chương.
+    """
+
+    # Số lần thử lại sau lần đầu thất bại (0 = không thử lại).
+    attempts: int = 3
+    # Thời gian chờ ban đầu trước lần thử lại đầu tiên (giây).
+    delay_seconds: float = 5.0
+    # Hệ số nhân thời gian chờ sau mỗi lần thất bại (1 = chờ đều, 2 = gấp đôi).
+    backoff: float = 2.0
+    # Trần thời gian chờ một lần (giây) — chặn backoff khỏi phình vô hạn.
+    max_delay_seconds: float = 120.0
+    # Tôn trọng header `Retry-After` của server (HTTP 429/503) nếu có — chờ đúng
+    # số giây server yêu cầu thay vì backoff tự tính.
+    respect_retry_after: bool = True
+
+
+@dataclass
 class CrawlConfig:
     toc_url: str
     # engine: http (requests+BS4) | crawl4ai (browser, JS)
@@ -22,6 +46,8 @@ class CrawlConfig:
     # Số chương tải song song (luồng riêng, mỗi luồng tự giữ 1 crawler/session).
     # 1 = tuần tự như trước. delay_seconds vẫn áp dụng riêng trong mỗi luồng.
     max_workers: int = 1
+    # Thử lại + lùi dần khi bị HTTP 429 / chặn anti-bot (xem CrawlRetryConfig).
+    retry: CrawlRetryConfig = field(default_factory=CrawlRetryConfig)
 
     # ----- multi-page chapter (pagination) -----
     # CSS selector cho link "trang tiếp" trong chương (vd "a#pager_next",
@@ -322,7 +348,17 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     # api_key / api_url chỉ dùng cho firecrawl, đã bỏ engine này; bỏ qua cũ.
     crawl_raw.pop("api_key", None)
     crawl_raw.pop("api_url", None)
+    crawl_retry_raw = _as_dict(crawl_raw.pop("retry", None))
     crawl = CrawlConfig(**crawl_raw)
+    if crawl_retry_raw:
+        defaults_rc = CrawlRetryConfig()
+        crawl.retry = CrawlRetryConfig(
+            attempts=int(crawl_retry_raw.get("attempts", defaults_rc.attempts)),
+            delay_seconds=float(crawl_retry_raw.get("delay_seconds", defaults_rc.delay_seconds)),
+            backoff=float(crawl_retry_raw.get("backoff", defaults_rc.backoff)),
+            max_delay_seconds=float(crawl_retry_raw.get("max_delay_seconds", defaults_rc.max_delay_seconds)),
+            respect_retry_after=bool(crawl_retry_raw.get("respect_retry_after", defaults_rc.respect_retry_after)),
+        )
 
     translate_raw = dict(raw.get("translate") or {})
     preset_name = translate_raw.get("preset", "")

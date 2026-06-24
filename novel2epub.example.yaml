@@ -27,6 +27,15 @@ defaults:
     next_page_selector: ""      # phân trang trong 1 chương (vd "a#pager_next")
     max_pages_per_chapter: 10
     max_chapters: 0             # 0 = tải tất cả
+    # Thử lại + lùi dần khi bị HTTP 429 (Too Many Requests) / chặn anti-bot.
+    # Chỉ kích hoạt khi chương tải LỖI; tôn trọng header Retry-After nếu server gửi.
+    # Bị 429 nhiều? Tăng delay_seconds (giãn cách đều), giảm max_workers, tăng retry dưới đây.
+    retry:
+      attempts: 3               # số lần thử lại sau lần đầu thất bại (0 = tắt)
+      delay_seconds: 5.0        # chờ ban đầu trước lần thử lại đầu tiên
+      backoff: 2.0              # nhân thời gian chờ mỗi lần (5s -> 10s -> 20s ...)
+      max_delay_seconds: 120.0  # trần thời gian chờ một lần
+      respect_retry_after: true # ưu tiên header Retry-After của server nếu có
 
   translate:
     # type: cli (gọi AI CLI bất kỳ) | google (deep-translator) | none (giữ gốc)

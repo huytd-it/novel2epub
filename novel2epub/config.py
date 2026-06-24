@@ -116,6 +116,8 @@ class CrawlConfig:
     js_code: str = ""
     # Vượt bot detection tốt hơn (Crawl4AI undetected/magic mode).
     magic: bool = True
+    # Chống phát hiện trình duyệt tự động (Crawl4AI stealth mode, chặn Cloudflare).
+    stealth: bool = True
 
     # ----- AI fallback crawl (experimental, cần translate.preset: go) -----
     # Khi selector không trích được nội dung, gửi HTML thô cho AI CLI

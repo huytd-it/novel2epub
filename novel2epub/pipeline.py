@@ -74,7 +74,7 @@ def _emit_crawl_config(cfg: Config, log: LogFn) -> None:
         log("[config] CRAWL retry (429/anti-bot): off (attempts=0)")
     if c.engine == "crawl4ai":
         log(f"[config] CRAWL crawl4ai: headless={_fmt(c.headless)} | magic={_fmt(c.magic)} "
-            f"| js_code={'có' if c.js_code else 'không'}")
+            f"| stealth={_fmt(c.stealth)} | js_code={'có' if c.js_code else 'không'}")
     elif c.engine == "http":
         log(f"[config] CRAWL http selectors: toc={_fmt(c.toc_selector)} "
             f"| chapter_title={_fmt(c.chapter_title_selector)} | title={_fmt(c.title_selector)} "

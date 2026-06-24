@@ -583,7 +583,11 @@ class Crawl4AICrawler:
 
         self._asyncio = asyncio
         self._loop = asyncio.new_event_loop()
-        browser_cfg = BrowserConfig(headless=cfg.headless, user_agent=cfg.user_agent)
+        browser_cfg = BrowserConfig(
+            headless=cfg.headless,
+            user_agent=cfg.user_agent,
+            enable_stealth=cfg.stealth,
+        )
         self._crawler = AsyncWebCrawler(config=browser_cfg)
         self._loop.run_until_complete(self._crawler.__aenter__())
 

@@ -703,9 +703,18 @@ class Crawl4AICrawler:
     def _fetch_chapter_single(self, ch: Chapter) -> str:
         self._last_result = self._arun(ch.url, css_selector=self.cfg.content_selector or None)
         text = self._clean(self._markdown(self._last_result))
-        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+        if text:
             return text
-        return self._ai_fallback_extract(ch.url)
+        if _result_success(self._last_result) and self.cfg.content_selector:
+            self._last_result = self._arun(ch.url, css_selector=None)
+            text = self._clean(self._markdown(self._last_result))
+            if text:
+                return text
+        if not _result_success(self._last_result):
+            _log_crawl4ai_failure(self._last_result, ch)
+        if self.cfg.ai_fallback and self.cfg._cli_fallback is not None:
+            return self._ai_fallback_extract(ch.url)
+        return ""
 
     def _ai_fallback_extract(self, url: str) -> str:
         from . import cli_runner
@@ -740,6 +749,23 @@ class Crawl4AICrawler:
             )
         finally:
             self._loop.close()
+
+
+def _result_success(result) -> bool:
+    """Kiểm tra crawl4ai result.success an toàn (có thể result là None)."""
+    return bool(getattr(result, "success", True))
+
+
+def _log_crawl4ai_failure(result, ch: "Chapter") -> None:
+    """Log chi tiết khi crawl4ai trả về thất bại (success=False) để dễ debug."""
+    from .pipeline import _print
+
+    status = getattr(result, "status_code", None)
+    err = getattr(result, "error_message", "") or ""
+    _print(
+        f"[crawl]   ! crawl4ai không tải được {ch.url}: "
+        f"status_code={status}, error={err!r}"
+    )
 
 
 def make_crawler(cfg: CrawlConfig) -> Crawler:

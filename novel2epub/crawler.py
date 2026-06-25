@@ -772,17 +772,295 @@ def _log_crawl4ai_failure(result, ch: "Chapter") -> None:
     )
 
 
+class ScraplingCrawler:
+    """Crawler dùng Scrapling (stealth browser, anti-bot bypass).
+
+    Hỗ trợ 3 mode qua ``cfg.scrapling_mode``:
+      - ``"fetcher"``: HTTP thuần, giả lập TLS fingerprint (nhanh, nhẹ).
+      - ``"stealthy"``: Browser stealth (Camoufox), bypass Cloudflare Turnstile.
+      - ``"dynamic"``: Full Playwright automation.
+
+    Tất cả trả về Adaptor object hỗ trợ ``.css()``, ``.xpath()``, ``.find_all()``.
+    """
+
+    def __init__(self, cfg: CrawlConfig):
+        self.cfg = cfg
+        self._last_response_html: str = ""
+        try:
+            from scrapling.fetchers import (  # noqa: F401
+                DynamicFetcher,
+                Fetcher,
+                StealthyFetcher,
+            )
+        except ImportError as e:  # pragma: no cover
+            raise ImportError(
+                "Chưa cài scrapling. "
+                "Chạy: pip install scrapling[fetchers] && scrapling install"
+            ) from e
+
+        mode = (cfg.scrapling_mode or "stealthy").lower()
+        if mode == "fetcher":
+            self._fetcher_cls = Fetcher
+        elif mode == "dynamic":
+            self._fetcher_cls = DynamicFetcher
+        else:  # stealthy (mặc định)
+            self._fetcher_cls = StealthyFetcher
+        self._mode = mode
+
+    # ---------- internal ----------
+    def _fetch_page(self, url: str):
+        """Fetch 1 URL bằng Scrapling fetcher, trả về Adaptor (response object).
+
+        Xử lý HTTP 429 / anti-bot → raise RateLimitError để tầng retry lùi dần.
+        """
+        kwargs: dict = {"headless": self.cfg.headless}
+        if self._mode == "stealthy":
+            kwargs["network_idle"] = self.cfg.network_idle
+            if self.cfg.solve_cloudflare:
+                kwargs["solve_cloudflare"] = True
+        elif self._mode == "dynamic":
+            kwargs["network_idle"] = self.cfg.network_idle
+        elif self._mode == "fetcher":
+            if self.cfg.impersonate:
+                kwargs["impersonate"] = self.cfg.impersonate
+            # Fetcher dùng method .get() thay vì .fetch()
+            kwargs.pop("headless", None)
+
+        try:
+            if self._mode == "fetcher":
+                page = self._fetcher_cls.get(url, **kwargs)
+            else:
+                page = self._fetcher_cls.fetch(url, **kwargs)
+        except Exception as e:
+            msg = str(e).lower()
+            if "429" in msg or "too many" in msg or "rate" in msg or "blocked" in msg:
+                raise RateLimitError(
+                    f"Bị chặn anti-bot/429: {e}"
+                ) from e
+            raise
+
+        # Lưu raw HTML cho AI fallback
+        self._last_response_html = getattr(page, "html_content", "") or ""
+        if not self._last_response_html:
+            self._last_response_html = str(page) if page else ""
+
+        # Kiểm tra status code nếu có
+        status = getattr(page, "status", None)
+        if status and status in (429, 503):
+            raise RateLimitError(f"Bị chặn: HTTP {status}")
+
+        return page
+
+    def _meta_tag(self, page, *queries: str) -> str:
+        """Lấy content của thẻ <meta> đầu tiên khớp (property hoặc name)."""
+        for q in queries:
+            tags = page.css(f'meta[property="{q}"]') or page.css(f'meta[name="{q}"]')
+            if tags:
+                tag = tags[0] if hasattr(tags, '__getitem__') else tags
+                content = tag.attrib.get("content", "")
+                if content and content.strip():
+                    return content.strip()
+        return ""
+
+    def _sel_text(self, page, selector: str) -> str:
+        if not selector:
+            return ""
+        results = page.css(selector)
+        if results:
+            el = results[0] if hasattr(results, '__getitem__') else results
+            text = el.text if hasattr(el, 'text') else ""
+            return text.strip() if text else ""
+        return ""
+
+    def _extract_meta(self, page) -> tuple[str, str, str, str]:
+        """Trả (title, author, description, cover_url) theo ưu tiên
+        selector cấu hình -> thẻ OG/meta chuẩn -> fallback."""
+        title = self._sel_text(page, self.cfg.title_selector) \
+            or self._meta_tag(page, "og:novel:book_name", "og:title")
+        if not title:
+            title_tags = page.css("title")
+            if title_tags:
+                el = title_tags[0] if hasattr(title_tags, '__getitem__') else title_tags
+                text = el.text if hasattr(el, 'text') else ""
+                title = text.strip() if text else ""
+
+        author = self._sel_text(page, self.cfg.author_selector) \
+            or self._meta_tag(page, "og:novel:author", "author")
+
+        description = self._sel_text(page, self.cfg.desc_selector) \
+            or self._meta_tag(page, "og:description", "description")
+
+        cover_url = ""
+        if self.cfg.cover_selector:
+            imgs = page.css(self.cfg.cover_selector)
+            if imgs:
+                img = imgs[0] if hasattr(imgs, '__getitem__') else imgs
+                src = img.attrib.get("src") or img.attrib.get("data-src") or ""
+                cover_url = urljoin(self.cfg.toc_url, src.strip()) if src else ""
+        if not cover_url:
+            og_img = self._meta_tag(page, "og:image")
+            cover_url = urljoin(self.cfg.toc_url, og_img) if og_img else ""
+
+        return title, author, description, cover_url
+
+    # ---------- mục lục ----------
+    def fetch_toc(self) -> TocResult:
+        page = self._fetch_page(self.cfg.toc_url)
+        title, author, description, cover_url = self._extract_meta(page)
+
+        scope = page
+        if self.cfg.toc_selector:
+            found = page.css(self.cfg.toc_selector)
+            if found:
+                scope = found[0] if hasattr(found, '__getitem__') else found
+
+        pattern = re.compile(self.cfg.chapter_link_pattern)
+        pairs: list[tuple[str, str]] = []
+        links = scope.css("a[href]")
+        if links:
+            for a in links:
+                href = a.attrib.get("href", "")
+                if not href:
+                    continue
+                full = urljoin(self.cfg.toc_url, href.strip())
+                if pattern.search(full):
+                    text = a.text if hasattr(a, 'text') else ""
+                    pairs.append((full, (text or "").strip()))
+
+        chapters = [
+            Chapter(index=i, url=url, title_zh=text)
+            for i, (url, text) in enumerate(_dedupe_keep_last(pairs), 1)
+        ]
+        return TocResult(
+            title=title,
+            author=author,
+            description=description,
+            cover_url=cover_url,
+            source_url=self.cfg.toc_url,
+            metadata_missing=missing_metadata(title, author, description),
+            chapters=mark_duplicate_chapters(chapters),
+        )
+
+    # ---------- nội dung chương ----------
+    def fetch_chapter(self, ch: Chapter) -> str:
+        if not (self.cfg.next_page_selector or self.cfg.next_page_url_pattern):
+            return self._fetch_chapter_single(ch)
+
+        css_resolver = _make_css_resolver(self.cfg)
+        pattern_resolver = _next_page_url_from_pattern(self.cfg)
+
+        def fetch_page(url: str):
+            return self._fetch_page(url)
+
+        def extract_text(page_obj) -> str:
+            return self._extract_text(page_obj)
+
+        def next_page_url(current_url: str, page_obj) -> str | None:
+            if css_resolver:
+                nxt = css_resolver(current_url, page_obj)
+                if nxt:
+                    return nxt
+            if pattern_resolver:
+                return pattern_resolver(current_url, page_obj)
+            return None
+
+        text = fetch_chapter_paginated(
+            self.cfg,
+            ch,
+            fetch_page=fetch_page,
+            extract_text=extract_text,
+            next_page_url=next_page_url,
+        )
+        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+            return text
+        return self._ai_fallback_extract(ch.url)
+
+    def _fetch_chapter_single(self, ch: Chapter) -> str:
+        page = self._fetch_page(ch.url)
+        text = self._extract_text(page)
+        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+            return text
+        return self._ai_fallback_extract(ch.url)
+
+    def _extract_text(self, page) -> str:
+        node = None
+        if self.cfg.content_selector:
+            results = page.css(self.cfg.content_selector)
+            if results:
+                node = results[0] if hasattr(results, '__getitem__') else results
+        if node is None:
+            for sel in ("#content", "#chaptercontent", ".content", ".read-content",
+                        "#booktext", "#TextContent", ".showtxt"):
+                results = page.css(sel)
+                if results:
+                    node = results[0] if hasattr(results, '__getitem__') else results
+                    break
+        if node is None:
+            return ""
+
+        # Lấy text từ node, dọn thẻ rác
+        # Scrapling Adaptor hỗ trợ .text (text gộp) và .get_text()
+        text = ""
+        # Thử lấy từ các thẻ <p>
+        paras = node.css("p")
+        if paras:
+            parts = []
+            for p in paras:
+                p_text = p.text if hasattr(p, 'text') else ""
+                if p_text and p_text.strip():
+                    parts.append(p_text.strip())
+            if parts:
+                text = "\n\n".join(parts)
+        if not text:
+            text = node.text if hasattr(node, 'text') else ""
+            text = text or ""
+
+        return self._clean(text)
+
+    def _ai_fallback_extract(self, url: str) -> str:
+        from . import cli_runner
+        from .presets.go import GO_EXTRACT_PROMPT
+
+        html = self._last_response_html
+        if not html:
+            return ""
+        html = html[:self.cfg.ai_fallback_max_html]
+        prompt = GO_EXTRACT_PROMPT.format(html=html)
+        try:
+            return cli_runner.run_cli(self.cfg._cli_fallback, prompt)
+        except Exception:
+            return ""
+
+    def _clean(self, text: str) -> str:
+        if not text:
+            return ""
+        patterns = [re.compile(p) for p in self.cfg.strip_patterns]
+        lines = [ln for ln in text.splitlines()
+                 if not any(p.search(ln) for p in patterns)]
+        text = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+        return text
+
+    def sleep(self) -> None:
+        if self.cfg.delay_seconds > 0:
+            time.sleep(self.cfg.delay_seconds)
+
+    def close(self) -> None:
+        pass  # Scrapling one-off fetchers không cần đóng tường minh
+
+
 def make_crawler(cfg: CrawlConfig) -> Crawler:
     engine = (cfg.engine or "http").lower()
     if engine == "http":
         return HttpCrawler(cfg)
     if engine == "crawl4ai":
         return Crawl4AICrawler(cfg)
+    if engine == "scrapling":
+        return ScraplingCrawler(cfg)
     if engine == "firecrawl":
         raise ValueError(
             f"crawl.engine={cfg.engine!r} has been removed. "
             "Migration: set engine: crawl4ai (or http) and remove api_key."
         )
     raise ValueError(
-        f"crawl.engine không hợp lệ: {cfg.engine!r} (http|crawl4ai)"
+        f"crawl.engine không hợp lệ: {cfg.engine!r} (http|crawl4ai|scrapling)"
     )

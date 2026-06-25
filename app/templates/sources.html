@@ -4,7 +4,7 @@
 <div class="section-head">
     <h2>Thư viện nguồn (site preset)</h2>
 </div>
-<p class="muted">Preset gom selector/pattern theo từng website để dùng lại khi thêm ebook hoặc cập nhật nguồn. Lưu trong <code>{{ sources_path }}</code>. Không chứa <code>toc_url</code> (đặc thù từng truyện). Engine: <strong>http</strong> = requests+BS4, <strong>crawl4ai</strong> = trình duyệt/JS. <a href="/preset-builder">Tạo preset từ URL mục lục</a>.</p>
+<p class="muted">Preset gom selector/pattern theo từng website để dùng lại khi thêm ebook hoặc cập nhật nguồn. Lưu trong <code>{{ sources_path }}</code>. Không chứa <code>toc_url</code> (đặc thù từng truyện). Engine: <strong>http</strong> = requests+BS4, <strong>crawl4ai</strong> = trình duyệt/JS, <strong>scrapling</strong> = stealth/anti-bot. <a href="/preset-builder">Tạo preset từ URL mục lục</a>.</p>
 
 {% if presets %}
 <div class="table-wrap">
@@ -28,6 +28,7 @@
             <td>
                 {% if p.engine == "http" %}<span class="badge ok">http</span>
                 {% elif p.engine == "crawl4ai" %}<span class="badge run">crawl4ai</span>
+                {% elif p.engine == "scrapling" %}<span class="badge run">scrapling</span>
                 {% else %}<span class="badge">{{ p.engine }}</span>{% endif %}
             </td>
             <td><code>{{ p.content_selector }}</code></td>
@@ -64,7 +65,7 @@
             <label>Tên (trùng tên = ghi đè) <input type="text" name="name" value="{{ edit.name if edit else '' }}" {% if not edit %}required{% endif %}></label>
             <label>Engine
                 <select name="engine" id="engine-select">
-                    {% for opt in ["http", "crawl4ai"] %}
+                    {% for opt in ["http", "crawl4ai", "scrapling"] %}
                     <option value="{{ opt }}" {% if edit and edit.engine == opt %}selected{% endif %}>{{ opt }}</option>
                     {% endfor %}
                 </select>
@@ -115,6 +116,23 @@
         </div>
     </fieldset>
 
+    {% set is_scrapling = edit and edit.engine == "scrapling" %}
+    <fieldset id="scrapling-options"{% if not is_scrapling %} style="display:none"{% endif %}>
+        <legend>scrapling</legend>
+        <div class="form-row">
+            <label>scrapling_mode
+                <select name="scrapling_mode">
+                    {% for opt in ["stealthy", "fetcher", "dynamic"] %}
+                    <option value="{{ opt }}" {% if edit and edit.scrapling_mode == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="check"><input type="checkbox" name="solve_cloudflare" value="true" {% if edit and edit.solve_cloudflare %}checked{% endif %}> solve_cloudflare</label>
+            <label class="check"><input type="checkbox" name="network_idle" value="true" {% if not edit or edit.network_idle %}checked{% endif %}> network_idle</label>
+            <label>impersonate <input type="text" name="impersonate" value="{{ edit.impersonate if edit else '' }}" size="20" placeholder="chrome, firefox135"></label>
+        </div>
+    </fieldset>
+
     <fieldset>
         <legend>Network</legend>
         <div class="form-row">
@@ -132,12 +150,15 @@
 document.addEventListener("DOMContentLoaded", function () {
     const engineSelect = document.getElementById("engine-select");
     const crawl4ai = document.getElementById("crawl4ai-options");
-    if (!engineSelect || !crawl4ai) return;
-    function syncCrawl4ai() {
-        crawl4ai.style.display = engineSelect.value === "crawl4ai" ? "" : "none";
+    const scrapling = document.getElementById("scrapling-options");
+    if (!engineSelect) return;
+    function syncEngine() {
+        var v = engineSelect.value;
+        if (crawl4ai) crawl4ai.style.display = v === "crawl4ai" ? "" : "none";
+        if (scrapling) scrapling.style.display = v === "scrapling" ? "" : "none";
     }
-    engineSelect.addEventListener("change", syncCrawl4ai);
-    syncCrawl4ai();
+    engineSelect.addEventListener("change", syncEngine);
+    syncEngine();
 });
 </script>
 {% endblock %}

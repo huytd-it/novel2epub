@@ -14,7 +14,7 @@
 
 defaults:
   crawl:
-    # engine: http (requests+BS4, free) | crawl4ai (browser thật, render JS)
+    # engine: http (requests+BS4, free) | crawl4ai (browser thật, render JS) | scrapling (stealth, anti-bot)
     engine: http
     delay_seconds: 1.0
     content_selector: ""        # CSS vùng nội dung chương, vd "#content"
@@ -205,6 +205,16 @@ sources:
     headless: true
     magic: true
     delay_seconds: 1.5
+  scrapling-stealth:
+    name: Scrapling stealth (ví dụ site có Cloudflare)
+    url: ""
+    domains: ""
+    engine: scrapling
+    scrapling_mode: stealthy
+    solve_cloudflare: true
+    network_idle: true
+    headless: true
+    delay_seconds: 2.0
   baike:
     name: 百度百科 (metadata only)
     url: https://baike.baidu.com/

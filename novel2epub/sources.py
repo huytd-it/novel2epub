@@ -49,6 +49,11 @@ class SourcePreset:
     next_page_selector: str = ""
     next_page_url_pattern: str = ""
     max_pages_per_chapter: int = 10
+    # ----- chỉ dùng cho engine = "scrapling" -----
+    scrapling_mode: str = "stealthy"
+    solve_cloudflare: bool = False
+    network_idle: bool = True
+    impersonate: str = ""
 
     def crawl_overrides(self) -> dict[str, Any]:
         """Dict áp lên nhánh `crawl` của config (bỏ `name`, `domains`)."""
@@ -71,7 +76,7 @@ _FIELD_NAMES = {f.name for f in fields(SourcePreset)}
 
 
 def _coerce(name: str, value: Any) -> Any:
-    if name in {"headless", "magic"}:
+    if name in {"headless", "magic", "solve_cloudflare", "network_idle"}:
         return bool(value)
     if name == "delay_seconds":
         try:

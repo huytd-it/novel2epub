@@ -68,6 +68,10 @@ def save_source_preset(
     next_page_selector: str = Form(""),
     next_page_url_pattern: str = Form(""),
     max_pages_per_chapter: int = Form(10),
+    scrapling_mode: str = Form("stealthy"),
+    solve_cloudflare: bool = Form(False),
+    network_idle: bool = Form(False),
+    impersonate: str = Form(""),
 ):
     name = name.strip()
     presets = deps.presets()
@@ -93,6 +97,10 @@ def save_source_preset(
             next_page_selector=next_page_selector,
             next_page_url_pattern=next_page_url_pattern,
             max_pages_per_chapter=max_pages_per_chapter,
+            scrapling_mode=scrapling_mode,
+            solve_cloudflare=solve_cloudflare,
+            network_idle=network_idle,
+            impersonate=impersonate.strip(),
         )
         if user_agent.strip():
             kwargs["user_agent"] = user_agent

@@ -33,7 +33,7 @@ Each step is cached on disk. Resume or re-run individual steps.
 novel2epub/
 ├── cli.py              # Argparse CLI (crawl/translate/meta/toc/build/run/list/...)
 ├── pipeline.py         # Pipeline orchestration
-├── crawler.py          # 2 crawl engines: http, crawl4ai
+├── crawler.py          # 3 crawl engines: http, crawl4ai, scrapling
 ├── translator.py       # Translation backends: CLI (opencode), Google, noop
 ├── cli_runner.py       # Subprocess wrapper for AI CLI commands
 ├── config.py           # YAML config loading + dataclass models
@@ -64,6 +64,7 @@ novel2epub.example.yaml # Committed template (copy → novel2epub.yaml)
 |--------|---------|-------------|
 | `http` | requests + BeautifulSoup | Static HTML sites |
 | `crawl4ai` | Playwright (browser) | JS-rendered sites, SPA |
+| `scrapling` | Scrapling (stealth browser) | Anti-bot sites, Cloudflare bypass |
 
 Crawl4AI 0.9.0 is installed. When using `engine: crawl4ai`, pass `magic` inside `CrawlerRunConfig`, not as a separate kwarg — see `Crawl4AICrawler._run_cfg` in `crawler.py`.
 
@@ -135,6 +136,7 @@ Migrate from the old multi-file layout: `python scripts/migrate_to_single_yaml.p
 - ebooklib (EPUB generation)
 - requests + BeautifulSoup (HTTP crawl)
 - crawl4ai (Playwright-based browser crawl)
+- scrapling (stealth browser crawl, anti-bot bypass)
 - deep-translator (Google Translate)
 - PyYAML + ruamel.yaml (config)
 - pytest (testing)

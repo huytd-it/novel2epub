@@ -37,7 +37,7 @@ class CrawlRetryConfig:
 @dataclass
 class CrawlConfig:
     toc_url: str
-    # engine: http (requests+BS4) | crawl4ai (browser, JS)
+    # engine: http (requests+BS4) | crawl4ai (browser, JS) | scrapling (stealth)
     engine: str = "http"
     chapter_link_pattern: str = r".*"
     max_chapters: int = 0
@@ -118,6 +118,18 @@ class CrawlConfig:
     magic: bool = True
     # Chống phát hiện trình duyệt tự động (Crawl4AI stealth mode, chặn Cloudflare).
     stealth: bool = True
+
+    # ----- chỉ dùng cho engine = "scrapling" -----
+    # Chọn fetcher class: "stealthy" (bypass anti-bot, mặc định) | "fetcher"
+    # (HTTP thuần, TLS fingerprint) | "dynamic" (full Playwright).
+    scrapling_mode: str = "stealthy"
+    # Bật bypass Cloudflare Turnstile (chỉ scrapling_mode=stealthy).
+    solve_cloudflare: bool = False
+    # Chờ network idle trước khi scrape (stealthy/dynamic mode).
+    network_idle: bool = True
+    # Giả lập TLS fingerprint của browser cụ thể (vd "chrome", "firefox135").
+    # Chỉ dùng cho scrapling_mode=fetcher. Để trống = mặc định.
+    impersonate: str = ""
 
     # ----- AI fallback crawl (experimental, cần translate.preset: go) -----
     # Khi selector không trích được nội dung, gửi HTML thô cho AI CLI

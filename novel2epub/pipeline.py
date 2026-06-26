@@ -685,6 +685,10 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
 
     elapsed = time.monotonic() - started
     translated = "\n".join(pieces)
+    # Snapshot bản dịch máy (cột "VI" editor 3 cột): ghi bản máy gốc tách khỏi
+    # `translated` (cột "Biên tập" — sẽ bị sửa tay/AI rewrite về sau). Cho phép
+    # luôn đối chiếu "máy dịch ra gì" kể cả sau khi đã biên tập nhiều.
+    storage.write_translated_mt(ch, translated)
     warnings = _quality_warnings(raw, translated)
     meta = _build_meta(cfg, ch, translated, warnings)
     meta["complete"] = True

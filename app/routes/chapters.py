@@ -87,10 +87,14 @@ def _render_translated_preview(storage: Storage, translated: str) -> tuple[str, 
 def _chapter_context(storage: Storage, ch, raw: str, translated: str, slug: str, meta: dict | None = None) -> dict:
     glossary_rows = _chapter_glossary(storage, raw, translated)
     translated_preview_html, footnote_list = _render_translated_preview(storage, translated)
+    # Cột "VI" (bản dịch máy) trong editor 3 cột: snapshot bản máy nếu có; chương
+    # cũ chưa có snapshot thì degrade an toàn về bản dịch hiện hành (read-only).
+    translated_mt = storage.read_translated_mt(ch) if storage.has_translated_mt(ch) else translated
     return {
         "ch": ch,
         "raw": raw,
         "translated": translated,
+        "translated_mt": translated_mt,
         "translated_preview_html": translated_preview_html,
         "footnote_list": footnote_list,
         "footnotes_html": footnotes.render_footnotes_html(footnote_list),

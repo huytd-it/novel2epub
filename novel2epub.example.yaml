@@ -38,7 +38,9 @@ defaults:
       respect_retry_after: true # ưu tiên header Retry-After của server nếu có
 
   translate:
-    # type: cli (gọi AI CLI bất kỳ) | google (deep-translator) | none (giữ gốc)
+    # type: cli (gọi AI CLI bất kỳ) | google (deep-translator)
+    #     | moxhimt (model NMT cục bộ, offline, miễn phí — xem khối `moxhimt`)
+    #     | none (giữ gốc)
     type: cli
     style:
       tone: "mượt, tự nhiên, có chất cổ trang"
@@ -57,6 +59,24 @@ defaults:
       # Bỏ trống prompt_template/title_prompt_template để dùng prompt mặc định
       # tích hợp sẵn trong code (novel2epub/config.py: DEFAULT_PROMPT/TITLE_PROMPT).
       # Chỉ khai ở đây hoặc trong từng ebook khi muốn ghi đè.
+    # Backend dịch cục bộ MoxhiMT (chỉ dùng khi type: moxhimt). Chạy offline,
+    # miễn phí, tối ưu cho tiểu thuyết mạng/tiên hiệp. Model tự tải từ Hugging
+    # Face Hub lần đầu. Cần: pip install ctranslate2 sentencepiece huggingface_hub
+    # MẶC ĐỊNH bên dưới đã là cấu hình chất lượng cao nhất — không cần chỉnh gì.
+    moxhimt:
+      # model_id cùng kiến trúc SentencePiece + CTranslate2 Marian (đổi 1 dòng):
+      #   DanVP/MoxhiMT-60          (mặc định — bản 60, chất lượng cao nhất)
+      #   DanVP/MoxhiMT-30          (nhẹ/nhanh hơn)
+      #   DanVP/MoxhiMT-30-web
+      #   ngocdang83/HachimiMT-60-zh-vi
+      #   ngocdang83/HachimiMT-30-zh-vi
+      # KHÔNG hỗ trợ: hy-mt-xianxia-lora-vi (LoRA), moxhimt-pronoun-clf (classifier).
+      model_id: "DanVP/MoxhiMT-60"
+      beam_size: 4              # rộng hơn = tốt hơn (chậm hơn)
+      max_length: 512           # trần token/lượt dịch của model
+      chunk_mode: paragraph     # paragraph (cẩn thận nhất) | sentence (nhanh hơn)
+      cache_dir: ""             # trống = cache mặc định của huggingface_hub
+      device: cpu
 
   output:
     data_dir: data              # thư mục cache raw + bản dịch

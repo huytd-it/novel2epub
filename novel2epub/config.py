@@ -220,8 +220,34 @@ class CliTranslatorConfig:
 
 
 @dataclass
+class MoxhiMTConfig:
+    """Cấu hình backend dịch cục bộ MoxhiMT (CTranslate2 + SentencePiece).
+
+    Toàn bộ giá trị mặc định là bộ tham số chất lượng cao nhất (cẩn thận nhất) —
+    người dùng không cần chỉnh gì để đạt chất lượng tốt nhất. Xem
+    `MoxhiMTTranslator` trong translator.py.
+    """
+    # Repo Hugging Face chứa SentencePiece tokenizer + model CTranslate2. Đổi
+    # sang model cùng kiến trúc Marian khác chỉ cần đổi field này (vd
+    # DanVP/MoxhiMT-30, ngocdang83/HachimiMT-60-zh-vi).
+    model_id: str = "DanVP/MoxhiMT-60"
+    backend: str = "ctranslate2"
+    # Beam search rộng hơn = chất lượng tốt hơn (chậm hơn). 4 theo model card.
+    beam_size: int = 4
+    # Trần token mỗi lượt dịch của model (giới hạn cứng kiến trúc).
+    max_length: int = 512
+    # "paragraph" = gom trọn đoạn cho model giữ ngữ cảnh (mặc định, cẩn thận
+    # nhất), tự fallback chia câu khi đoạn vượt token. "sentence" = chia câu
+    # ngay từ đầu (nhanh hơn, mất ngữ cảnh đoạn).
+    chunk_mode: str = "paragraph"
+    # Thư mục cache model. Để trống = dùng cache mặc định của huggingface_hub.
+    cache_dir: str = ""
+    device: str = "cpu"
+
+
+@dataclass
 class TranslateConfig:
-    type: str = "cli"  # cli | google | none
+    type: str = "cli"  # cli | google | none | moxhimt
     preset: str = ""
     profile: str = "traditional_cn_novel"
     source_language: str = "zh-CN"
@@ -233,6 +259,7 @@ class TranslateConfig:
     retry: TranslationRetryConfig = field(default_factory=TranslationRetryConfig)
     chunk: TranslationChunkConfig = field(default_factory=TranslationChunkConfig)
     cli: CliTranslatorConfig = field(default_factory=CliTranslatorConfig)
+    moxhimt: MoxhiMTConfig = field(default_factory=MoxhiMTConfig)
     delay_seconds: float = 0.5
     # Số chương dịch song song (luồng riêng, dùng chung 1 translator — CLI
     # subprocess/Google request đều an toàn gọi đồng thời). 1 = tuần tự như trước.
@@ -377,6 +404,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     translate_raw = dict(raw.get("translate") or {})
     preset_name = translate_raw.get("preset", "")
     cli_raw = translate_raw.pop("cli", None) or {}
+    moxhimt_raw = _as_dict(translate_raw.pop("moxhimt", None))
     style = _build_style(translate_raw)
     glossary_files_raw = _as_dict(translate_raw.pop("glossary_files", None))
     retry_raw = _as_dict(translate_raw.pop("retry", None))
@@ -441,6 +469,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             overlap_paragraphs=int(chunk_raw.get("overlap_paragraphs", 0)),
         ),
         cli=CliTranslatorConfig(**cli_raw),
+        moxhimt=MoxhiMTConfig(**moxhimt_raw) if moxhimt_raw else MoxhiMTConfig(),
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
     )

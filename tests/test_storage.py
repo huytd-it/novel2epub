@@ -189,3 +189,33 @@ def test_append_translated_chunk_creates_then_appends(tmp_path):
     storage.append_translated_chunk(ch, "đoạn 2", is_first=False)
     storage.append_translated_chunk(ch, "đoạn 3", is_first=False)
     assert storage.read_translated(ch) == "đoạn 1\nđoạn 2\nđoạn 3"
+
+
+# --- snapshot bản dịch máy (editor 3 cột: cột VI tách khỏi cột Biên tập) ---
+
+
+def test_mt_snapshot_independent_from_edited_copy(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    ch = Chapter(index=1, url="x")
+    storage.write_translated_mt(ch, "BẢN MÁY")
+    storage.write_translated(ch, "BẢN MÁY")
+    # Sửa cột Biên tập KHÔNG đụng tới snapshot máy.
+    storage.write_translated(ch, "BẢN ĐÃ SỬA")
+    assert storage.has_translated_mt(ch) is True
+    assert storage.read_translated_mt(ch) == "BẢN MÁY"
+    assert storage.read_translated(ch) == "BẢN ĐÃ SỬA"
+
+
+def test_read_mt_snapshot_falls_back_to_translated(tmp_path):
+    """Chương cũ chưa có snapshot máy → đọc fallback bản dịch hiện có."""
+    storage = Storage(tmp_path, "slug")
+    ch = Chapter(index=2, url="x")
+    storage.write_translated(ch, "chỉ có bản dịch")
+    assert storage.has_translated_mt(ch) is False
+    assert storage.read_translated_mt(ch) == "chỉ có bản dịch"
+
+
+def test_read_mt_snapshot_empty_when_nothing(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    ch = Chapter(index=3, url="x")
+    assert storage.read_translated_mt(ch) == ""

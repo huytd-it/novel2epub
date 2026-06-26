@@ -20,9 +20,6 @@
     </span>
 </p>
 
-<details open><summary>Log crawl</summary><pre id="log-crawl">{{ job.crawl.log | join('\n') }}</pre></details>
-<details open><summary>Log dịch</summary><pre id="log-translate">{{ job.translate.log | join('\n') }}</pre></details>
-
 <div id="library-region">
 {% if ebooks %}
 <div class="section-head">
@@ -144,12 +141,6 @@ document.getElementById("bulk-select-all")?.addEventListener("change", function 
     document.querySelectorAll('#bulk-form input[name="slugs"]').forEach((cb) => { cb.checked = this.checked; });
 });
 
-const logPanels = {
-    crawl: initLogPanel("log-crawl"),
-    translate: initLogPanel("log-translate"),
-};
-logPanels.crawl.setLines({{ job.crawl.log | tojson }});
-logPanels.translate.setLines({{ job.translate.log | tojson }});
 let wasRunning = {
     crawl: {{ "true" if job.crawl.running else "false" }},
     translate: {{ "true" if job.translate.running else "false" }},
@@ -160,9 +151,6 @@ async function poll() {
         const res = await fetch("/api/status");
         if (!res.ok) return;
         const data = await res.json();
-
-        logPanels.crawl.setLines(data.crawl.log);
-        logPanels.translate.setLines(data.translate.log);
 
         const labels = { crawl: "Crawl", translate: "Dịch" };
         let anyJustFinished = false;

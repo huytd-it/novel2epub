@@ -22,6 +22,7 @@
             <a href="/sources" class="{{ 'active' if request.url.path.startswith('/sources') or request.url.path.startswith('/preset-builder') else '' }}">Nguồn</a>
             <a href="/storage" class="{{ 'active' if request.url.path.startswith('/storage') else '' }}">Lưu trữ</a>
             <a href="/automation" class="{{ 'active' if request.url.path.startswith('/automation') else '' }}">Tự động hóa</a>
+            <a href="/logs" class="{{ 'active' if request.url.path.startswith('/logs') else '' }}">Nhật ký</a>
         </nav>
         <div class="shell-header-right">
             <a href="/queue" id="queue-indicator" class="queue-indicator" title="Hàng đợi job">⏳ <span id="queue-count">0</span></a>
@@ -32,7 +33,6 @@
         {% block content %}{% endblock %}
     </main>
     <div id="toast-region" class="toast-region" aria-live="polite"></div>
-    <script src="/static/log-panel.js"></script>
     <script src="/static/app.js"></script>
     {% block scripts %}{% endblock %}
 </body>

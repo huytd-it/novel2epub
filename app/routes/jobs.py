@@ -13,6 +13,7 @@ from novel2epub.storage import Storage
 from novel2epub.toc import apply_chapter_query, chapter_rows, select_visible_range
 
 from .. import deps
+from ..job import _STEPS, _STEP_CATEGORY
 
 router = APIRouter()
 
@@ -179,7 +180,19 @@ def api_status(request: Request):
 
 @router.get("/queue")
 def queue_page(request: Request):
-    return deps.templates.TemplateResponse(request, "queue.html", {"queue": request.app.state.job.queue.snapshot()})
+    from ..deps import library
+
+    lib = library()
+    ebook_list = sorted(lib.ebooks.keys()) if lib.ebooks else []
+    return deps.templates.TemplateResponse(
+        request,
+        "queue.html",
+        {
+            "queue": request.app.state.job.queue.snapshot(),
+            "steps": list(_STEPS.keys()),
+            "ebooks": ebook_list,
+        },
+    )
 
 
 @router.get("/api/queue")
@@ -209,6 +222,54 @@ def api_queue_reorder(request: Request, job_id: str, before_id: str = Form("")):
     if not ok:
         raise HTTPException(status_code=400, detail="Không thể reorder job này.")
     return {"ok": True}
+
+
+@router.post("/api/queue/enqueue")
+def api_queue_enqueue(
+    request: Request,
+    step: str = Form(...),
+    ebook: str | None = Form(None),
+):
+    if step not in _STEPS:
+        raise HTTPException(status_code=400, detail=f"Step không hợp lệ: {step!r}")
+    category = _STEP_CATEGORY.get(step, "crawl")
+    if ebook:
+        cfg = deps.resolved_cfg(ebook)
+    else:
+        cfg = deps.cfg()
+    result = request.app.state.job.enqueue_step(step, cfg, label=step, ebook=ebook or "")
+    if result is None:
+        raise HTTPException(status_code=400, detail=f"Không thể enqueue step {step!r}.")
+    return result
+
+
+@router.get("/api/queue/{job_id}/log")
+def api_queue_log(request: Request, job_id: str):
+    log_lines = request.app.state.job.queue.job_log(job_id)
+    if log_lines is None:
+        raise HTTPException(status_code=404, detail="Job không tồn tại.")
+    return {"log": log_lines}
+
+
+@router.get("/api/logs")
+def api_logs(request: Request):
+    return request.app.state.job.queue.logs_snapshot(limit=30)
+
+
+@router.get("/logs")
+def logs_page(request: Request):
+    from ..deps import library
+
+    lib = library()
+    ebook_list = sorted(lib.ebooks.keys()) if lib.ebooks else []
+    return deps.templates.TemplateResponse(
+        request,
+        "logs.html",
+        {
+            "ebooks": ebook_list,
+            "steps": list(_STEPS.keys()),
+        },
+    )
 
 
 @router.get("/download")

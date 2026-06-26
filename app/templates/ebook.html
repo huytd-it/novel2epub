@@ -118,9 +118,6 @@
     <span class="muted status-hint">Crawl và dịch chạy độc lập — có thể dịch trong khi đang crawl.</span>
 </div>
 
-<details open><summary>Log crawl</summary><pre id="log-crawl">{{ job.crawl.log | join('\n') }}</pre></details>
-<details open><summary>Log dịch</summary><pre id="log-translate">{{ job.translate.log | join('\n') }}</pre></details>
-
 <div id="toc-region">
 <div class="section-head">
     <h3>Chương <span class="count-pill">{{ chapters|length }}</span></h3>
@@ -233,12 +230,6 @@
 {% block scripts %}
 <script>
 const SLUG = {{ slug | tojson }};
-const logPanels = {
-    crawl: initLogPanel("log-crawl"),
-    translate: initLogPanel("log-translate"),
-};
-logPanels.crawl.setLines({{ job.crawl.log | tojson }});
-logPanels.translate.setLines({{ job.translate.log | tojson }});
 let wasRunning = {
     crawl: {{ "true" if job.crawl.running else "false" }},
     translate: {{ "true" if job.translate.running else "false" }},
@@ -551,8 +542,6 @@ const STATUS_LABELS = { crawl: "Crawl", translate: "Dịch" };
 // Cập nhật badge + log của 1 category từ dữ liệu /api/status; trả về true
 // nếu job của category đó vừa chuyển từ "đang chạy" sang "xong".
 function updateCategoryUI(cat, data) {
-    logPanels[cat].setLines(data[cat].log);
-
     const container = document.getElementById(`status-badge-${cat}`);
     if (container) {
         let html = "";

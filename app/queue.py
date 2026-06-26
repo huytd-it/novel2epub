@@ -169,12 +169,35 @@ class JobQueue:
             running = [j.to_dict() for j in self._running.values()]
             pending = {cat: [j.to_dict() for j in q] for cat, q in self._pending.items()}
             history = [j.to_dict() for j in list(self._history)]
-        return {"categories": list(CATEGORIES), "running": running, "pending": pending, "history": history}
+        return {
+            "categories": list(CATEGORIES),
+            "running": running,
+            "pending": pending,
+            "history": history,
+            "workers": dict(self._workers),
+        }
 
     def job_log(self, job_id: str) -> list[str] | None:
         with self._lock:
             job = self._jobs.get(job_id)
             return None if job is None else list(job.log)
+
+    def logs_snapshot(self, limit: int = 30) -> dict:
+        with self._lock:
+            running = [j.to_dict(with_log=True) for j in self._running.values()]
+            seen: set[str] = set()
+            jobs_list: list[Job] = []
+            for j in self._history:
+                if j.id not in seen:
+                    seen.add(j.id)
+                    jobs_list.append(j)
+            for q in self._pending.values():
+                for j in q:
+                    if j.id not in seen:
+                        seen.add(j.id)
+                        jobs_list.append(j)
+            recent = [j.to_dict(with_log=True) for j in jobs_list[:limit]]
+        return {"running": running, "recent": recent}
 
     # ----- shim cho JobRunner cũ (status theo "crawl"/"translate") -----
 

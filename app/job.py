@@ -78,3 +78,16 @@ class JobRunner:
     ) -> bool:
         self.queue.enqueue(category, step, target_fn, label=step)
         return True
+
+    def enqueue_step(self, step: str, cfg: Config, *, label: str = "", ebook: str = "") -> dict | None:
+        fn = _STEPS.get(step)
+        category = _STEP_CATEGORY.get(step)
+        if fn is None or category is None:
+            return None
+        cancel_event = threading.Event()
+
+        def _target(log, _fn=fn, _cfg=cfg, _ev=cancel_event):
+            _fn(_cfg, log, should_cancel=_ev.is_set)
+
+        job = self.queue.enqueue(category, step, _target, label=label or step, ebook=ebook, cancel_event=cancel_event)
+        return {"job_id": job.id, "category": category}

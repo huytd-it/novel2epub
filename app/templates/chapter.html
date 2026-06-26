@@ -16,13 +16,11 @@
     <button type="submit">Chạy cho chương này</button>
 </form>
 
-<div id="job-status-section" style="margin: 1rem 0; padding: 1rem; border: 1px solid #ccc; border-radius: 8px; background: #fcfcfc; display: none;">
+<div id="job-status-section" style="margin: 1rem 0; padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 8px; background: #fcfcfc; display: none;">
     <p><strong>Trạng thái job:</strong>
         <span id="status-badge-crawl"><span class="badge ok">Crawl: rảnh</span></span>
         <span id="status-badge-translate"><span class="badge ok">Dịch: rảnh</span></span>
     </p>
-    <pre id="log-crawl" style="background: #111; color: #ddd; padding: 0.5rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.8rem; border-radius: 4px;"></pre>
-    <pre id="log-translate" style="background: #111; color: #ddd; padding: 0.5rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.8rem; border-radius: 4px;"></pre>
 </div>
 {% if meta %}
 <p class="muted">Prompt/profile: <code>{{ meta.profile }}</code> · Model: <code>{{ meta.model or "-" }}</code></p>
@@ -452,10 +450,6 @@ if (diffCurrent && diffPreview && rewriteText && translatedArea) {
 }
 
 // --- Job execution & polling ---
-const logPanels = {
-    crawl: initLogPanel("log-crawl"),
-    translate: initLogPanel("log-translate"),
-};
 const statusSection = document.getElementById("job-status-section");
 
 // Xác định job-category của 1 form/button: data-job-category gần nhất nếu
@@ -597,25 +591,15 @@ async function poll() {
         if (!res.ok) return;
         const data = await res.json();
 
-        // Show status section if running, or if there is log/error
-        if (statusSection) {
-            const anyActivity = data.crawl.running || data.translate.running
-                || data.crawl.log.length > 0 || data.translate.log.length > 0
-                || data.crawl.error || data.translate.error;
-            statusSection.style.display = anyActivity ? "block" : "none";
-        }
-
         const labels = { crawl: "Crawl", translate: "Dịch" };
         let anyJustFinished = false;
         for (const cat of ["crawl", "translate"]) {
-            if (data[cat].log.length > 0) {
-                logPanels[cat].setLines(data[cat].log);
-            }
             const container = document.getElementById(`status-badge-${cat}`);
             if (container) {
                 let html = "";
                 if (data[cat].running) {
                     html += `<span class="badge run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
+                    if (statusSection) statusSection.style.display = "block";
                 } else {
                     html += `<span class="badge ok">${labels[cat]}: rảnh</span> `;
                 }

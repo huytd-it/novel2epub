@@ -2,13 +2,42 @@
 {% block title %}Hàng đợi — novel2epub{% endblock %}
 {% block content %}
 <div class="section-head"><h2>Hàng đợi job</h2></div>
-<p class="muted">Tự động làm mới mỗi 2s. Job "build"/"run" chiếm độc quyền crawl + dịch (không chạy song song với job khác).</p>
+<p class="muted">Tự động làm mới mỗi 2s. Job "build"/"run" chiếm độc quyền crawl + dịch.</p>
+
+<div class="crawl-panel">
+<details>
+    <summary>➕ Thêm job vào hàng đợi</summary>
+    <form id="enqueue-form" class="form-row" style="margin-top:0.5rem">
+        <label>Step
+            <select name="step" required>
+                {% for s in steps %}
+                <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Ebook
+            <select name="ebook">
+                <option value="">(mặc định)</option>
+                {% for e in ebooks %}
+                <option value="{{ e }}">{{ e }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn-primary">Thêm vào hàng đợi</button>
+    </form>
+</details>
+</div>
+
+<div class="status-bar" id="worker-info">
+    <span>Worker: <strong id="worker-summary">crawl:1 · translate:1</strong></span>
+    <span class="status-hint muted" id="queue-usage"></span>
+</div>
 
 <div id="queue-region">
 <h3>Đang chạy</h3>
 <div class="table-wrap">
     <table class="data-table" id="queue-running">
-        <tr><th>Step</th><th>Category</th><th>Ebook</th><th>Bắt đầu</th><th></th></tr>
+        <tr><th>Step</th><th>Category</th><th>Ebook</th><th>Bắt đầu</th><th>Nhật ký</th><th></th></tr>
     </table>
 </div>
 
@@ -22,9 +51,19 @@
 <h3>Lịch sử</h3>
 <div class="table-wrap">
     <table class="data-table" id="queue-history">
-        <tr><th>Step</th><th>Category</th><th>Ebook</th><th>Trạng thái</th><th>Lỗi</th><th></th></tr>
+        <tr><th>Step</th><th>Category</th><th>Ebook</th><th>Trạng thái</th><th>Lỗi</th><th>Nhật ký</th><th></th></tr>
     </table>
 </div>
+</div>
+
+<div id="log-viewer" class="modal-backdrop" hidden onclick="if(event.target===this)closeLog()">
+    <div class="modal">
+        <h3>Nhật ký <span id="log-viewer-title"></span></h3>
+        <pre id="log-viewer-content" style="max-height:60vh;overflow-y:auto;background:#111;color:#ddd;padding:0.75rem;border-radius:4px;white-space:pre-wrap;font-size:0.85rem"></pre>
+        <div class="actions">
+            <button type="button" onclick="closeLog()">Đóng</button>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -47,15 +86,49 @@ function retryBtn(id) {
     return `<button type="button" class="q-retry" data-id="${id}">Retry</button>`;
 }
 
+function logBtn(id, label) {
+    return `<button type="button" class="q-log" data-id="${id}" data-label="${label}">Nhật ký</button>`;
+}
+
+async function openLog(jobId, label) {
+    document.getElementById("log-viewer-title").textContent = label || jobId;
+    const pre = document.getElementById("log-viewer-content");
+    pre.textContent = "Đang tải...";
+    document.getElementById("log-viewer").hidden = false;
+    try {
+        const res = await fetch(`/api/queue/${jobId}/log`);
+        if (!res.ok) { pre.textContent = "Không thể tải nhật ký."; return; }
+        const data = await res.json();
+        pre.textContent = (data.log || []).join("\n") || "(trống)";
+    } catch (e) {
+        pre.textContent = "Lỗi: " + e.message;
+    }
+}
+
+function closeLog() {
+    document.getElementById("log-viewer").hidden = true;
+}
+
 async function renderQueue() {
     const res = await fetch("/api/queue");
     if (!res.ok) return;
     const data = await res.json();
 
+    const totalPending = Object.values(data.pending || {}).reduce((n, arr) => n + arr.length, 0);
+    const workerEl = document.getElementById("worker-summary");
+    if (workerEl) {
+        workerEl.textContent = "crawl:" + (data.workers?.crawl || 1) + " · translate:" + (data.workers?.translate || 1);
+    }
+    const usageEl = document.getElementById("queue-usage");
+    if (usageEl) usageEl.textContent = data.running.length + " đang chạy · " + totalPending + " đang đợi";
+
     const runningEl = document.getElementById("queue-running");
-    runningEl.innerHTML = "<tr><th>Step</th><th>Category</th><th>Ebook</th><th>Bắt đầu</th><th></th></tr>" +
-        (data.running.length ? data.running.map((j) => row([j.label, j.category, j.ebook || "—", fmtTime(j.started_at), cancelBtn(j.id)])).join("") :
-            "<tr><td colspan='5' class='muted'>Không có job đang chạy.</td></tr>");
+    runningEl.innerHTML = "<tr><th>Step</th><th>Category</th><th>Ebook</th><th>Bắt đầu</th><th>Nhật ký</th><th></th></tr>" +
+        (data.running.length ? data.running.map((j) => row([
+            j.label, j.category, j.ebook || "—", fmtTime(j.started_at),
+            logBtn(j.id, j.label), cancelBtn(j.id)
+        ])).join("") :
+            "<tr><td colspan='6' class='muted'>Không có job đang chạy.</td></tr>");
 
     const pendingEl = document.getElementById("queue-pending");
     let pendingRows = "";
@@ -70,10 +143,10 @@ async function renderQueue() {
         (pendingRows || "<tr><td colspan='5' class='muted'>Không có job đang đợi.</td></tr>");
 
     const historyEl = document.getElementById("queue-history");
-    historyEl.innerHTML = "<tr><th>Step</th><th>Category</th><th>Ebook</th><th>Trạng thái</th><th>Lỗi</th><th></th></tr>" +
+    historyEl.innerHTML = "<tr><th>Step</th><th>Category</th><th>Ebook</th><th>Trạng thái</th><th>Lỗi</th><th>Nhật ký</th><th></th></tr>" +
         (data.history.length ? data.history.slice(0, 30).map((j) =>
-            row([j.label, j.category, j.ebook || "—", j.state, j.error || "—", retryBtn(j.id)])).join("") :
-            "<tr><td colspan='6' class='muted'>Chưa có lịch sử.</td></tr>");
+            row([j.label, j.category, j.ebook || "—", j.state, j.error || "—", logBtn(j.id, j.label), retryBtn(j.id)])).join("") :
+            "<tr><td colspan='7' class='muted'>Chưa có lịch sử.</td></tr>");
 
     document.querySelectorAll(".q-cancel").forEach((btn) => btn.addEventListener("click", async () => {
         await fetch(`/api/queue/${btn.dataset.id}/cancel`, { method: "POST" });
@@ -85,7 +158,29 @@ async function renderQueue() {
         if (res.ok) toast("Đã đưa job vào hàng đợi lại.");
         renderQueue();
     }));
+    document.querySelectorAll(".q-log").forEach((btn) => btn.addEventListener("click", () => {
+        openLog(btn.dataset.id, btn.dataset.label);
+    }));
 }
+
+document.getElementById("enqueue-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const data = new FormData(form);
+    const res = await fetch("/api/queue/enqueue", { method: "POST", body: data });
+    if (res.ok) {
+        toast("Đã thêm job vào hàng đợi.");
+        form.reset();
+        renderQueue();
+    } else {
+        const err = await res.json();
+        toast(err.detail || "Lỗi khi thêm job.", "error");
+    }
+});
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeLog();
+});
 
 renderQueue();
 setInterval(renderQueue, 2000);

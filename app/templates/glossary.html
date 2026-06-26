@@ -123,10 +123,8 @@
         {% if job.translate.error %}<span class="badge no">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
 </p>
-<pre id="log">{{ job.translate.log | join('\n') }}</pre>
 
 <script>
-const logEl = document.getElementById("log");
 
 // --- Asynchronous action button handler ---
 function setJobButtonsDisabled(disabled) {
@@ -193,11 +191,6 @@ async function poll() {
         if (!res.ok) return;
         const data = await res.json();
         const t = data.translate;
-
-        if (logEl) {
-            logEl.textContent = t.log.join("\n");
-            logEl.scrollTop = logEl.scrollHeight;
-        }
 
         const container = document.getElementById("status-badge-container");
         if (container) {

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Nhật ký — novel2epub{% endblock %}
+{% block content %}
+<div class="section-head"><h2>Nhật ký job</h2></div>
+<p class="muted">Nhật ký từ các job gần đây. Job đang chạy tự động làm mới mỗi 2s.</p>
+
+<div id="logs-region">
+<h3>Đang chạy</h3>
+<div id="logs-running"></div>
+
+<h3>Gần đây</h3>
+<div class="form-row">
+    <label>Tìm kiếm
+        <input type="search" id="log-search" placeholder="Lọc nhật ký..." oninput="filterLogs()">
+    </label>
+    <label>Step
+        <select id="log-filter-step" onchange="filterLogs()">
+            <option value="">Tất cả</option>
+            {% for s in steps %}
+            <option value="{{ s }}">{{ s }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Trạng thái
+        <select id="log-filter-state" onchange="filterLogs()">
+            <option value="">Tất cả</option>
+            <option value="running">Đang chạy</option>
+            <option value="done">Hoàn tất</option>
+            <option value="failed">Lỗi</option>
+            <option value="cancelled">Đã hủy</option>
+        </select>
+    </label>
+</div>
+<div id="logs-recent"></div>
+</div>
+
+<template id="log-entry-tpl">
+    <details class="log-entry" data-step="" data-state="">
+        <summary>
+            <span class="log-summary-left">
+                <span class="badge log-state-badge">state</span>
+                <strong class="log-step-label">step</strong>
+                <span class="muted log-ebook-label">ebook</span>
+                <span class="muted log-time-label">time</span>
+            </span>
+            <span class="log-summary-right">
+                <span class="log-line-count muted">0 dòng</span>
+            </span>
+        </summary>
+        <div class="log-body">
+            <pre class="log-content"></pre>
+        </div>
+    </details>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const tpl = document.getElementById("log-entry-tpl");
+
+function fmtTime(ts) {
+    if (!ts) return "—";
+    return new Date(ts * 1000).toLocaleString();
+}
+
+function stateBadge(state) {
+    const cls = state === "done" ? "ok" : state === "failed" ? "no" : state === "running" ? "run" : "";
+    return `<span class="badge ${cls}">${state}</span>`;
+}
+
+function renderLogEntry(j) {
+    const el = tpl.content.cloneNode(true);
+    const details = el.querySelector(".log-entry");
+    details.dataset.step = j.step || "";
+    details.dataset.state = j.state || "";
+    details.dataset.ebook = j.ebook || "";
+
+    el.querySelector(".log-state-badge").textContent = j.state;
+    el.querySelector(".log-step-label").textContent = j.label || j.step;
+    const ebookEl = el.querySelector(".log-ebook-label");
+    ebookEl.textContent = j.ebook ? `(${j.ebook})` : "";
+    el.querySelector(".log-time-label").textContent = fmtTime(j.started_at || j.enqueued_at);
+
+    const pre = el.querySelector(".log-content");
+    const lines = j.log || [];
+    pre.textContent = lines.join("\n") || "(không có nhật ký)";
+    el.querySelector(".log-line-count").textContent = lines.length + " dòng";
+
+    return details;
+}
+
+function filterLogs() {
+    const search = (document.getElementById("log-search").value || "").toLowerCase();
+    const step = document.getElementById("log-filter-step").value;
+    const state = document.getElementById("log-filter-state").value;
+
+    document.querySelectorAll(".log-entry").forEach(el => {
+        const text = el.textContent.toLowerCase();
+        const matchesSearch = !search || text.includes(search);
+        const matchesStep = !step || el.dataset.step === step;
+        const matchesState = !state || el.dataset.state === state;
+        el.style.display = matchesSearch && matchesStep && matchesState ? "" : "none";
+    });
+}
+
+async function renderLogs() {
+    const res = await fetch("/api/logs");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const runningEl = document.getElementById("logs-running");
+    if (data.running.length) {
+        runningEl.innerHTML = "";
+        data.running.forEach(j => runningEl.appendChild(renderLogEntry(j)));
+    } else {
+        runningEl.innerHTML = '<p class="muted">Không có job đang chạy.</p>';
+    }
+
+    const recentEl = document.getElementById("logs-recent");
+    recentEl.innerHTML = "";
+    if (data.recent.length) {
+        data.recent.forEach(j => recentEl.appendChild(renderLogEntry(j)));
+    } else {
+        recentEl.innerHTML = '<p class="muted">Chưa có lịch sử.</p>';
+    }
+
+    filterLogs();
+}
+
+renderLogs();
+setInterval(renderLogs, 2000);
+</script>
+{% endblock %}

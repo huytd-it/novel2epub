@@ -99,10 +99,17 @@ fieldset label.check, form p label.check { flex-direction: row; align-items: cen
 .badge.no { background: var(--n2e-no-bg); }
 .badge.run { background: var(--n2e-run-bg); }
 code { background: var(--n2e-surface-alt); padding: 0.1rem 0.3rem; border-radius: 4px; }
-pre#log {
+pre#log, .log-content {
     background: #111; color: #ddd; padding: 1rem; max-height: 320px;
     overflow-y: auto; white-space: pre-wrap; border-radius: 4px; font-size: 0.85rem;
 }
+.log-entry { border: 1px solid var(--n2e-border); border-radius: 8px; margin: 0.5rem 0; background: var(--n2e-surface-alt); }
+.log-entry summary { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.7rem; cursor: pointer; }
+.log-entry summary::-webkit-details-marker { color: var(--n2e-text-muted); }
+.log-summary-left { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.log-summary-right { font-size: 0.85rem; }
+.log-body { padding: 0 0.7rem 0.7rem; }
+.log-content { max-height: 50vh; margin: 0; }
 .log-wrap { margin: 0.5rem 0; }
 .log-toolbar {
     display: flex; gap: 0.5rem; align-items: center;

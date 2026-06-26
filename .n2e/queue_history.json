@@ -1,5 +1,31 @@
 [
   {
+    "id": "8672e139-2121-4d7f-ae34-a611328a6b67",
+    "category": "crawl",
+    "step": "fetch-toc",
+    "label": "fetch-toc",
+    "ebook": "",
+    "state": "done",
+    "enqueued_at": 1782469155.1357172,
+    "started_at": 1782469155.1358838,
+    "ended_at": 1782469155.428259,
+    "error": "",
+    "cancelling": false
+  },
+  {
+    "id": "5c9233f0-e021-4637-bc56-93f2a9996fe7",
+    "category": "crawl",
+    "step": "test-source-69shuba",
+    "label": "test-source-69shuba",
+    "ebook": "",
+    "state": "done",
+    "enqueued_at": 1782468965.0201502,
+    "started_at": 1782468965.0203214,
+    "ended_at": 1782468967.8870978,
+    "error": "",
+    "cancelling": false
+  },
+  {
     "id": "bdba905e-a33d-4955-adbd-58cfb188bdc0",
     "category": "crawl",
     "step": "crawl",

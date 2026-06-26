@@ -63,7 +63,7 @@
                     class="{% if not is_default(cfg.crawl.chapter_link_pattern, 'crawl', 'chapter_link_pattern') %}overridden{% endif %}">
             </label>
             {% if is_default(cfg.crawl.chapter_link_pattern, 'crawl', 'chapter_link_pattern') %}
-            <span class="default-badge">Mặc định: {{ r".*" }}</span>
+            <span class="default-badge">Mặc định: .*</span>
             {% endif %}
         </div>
         <div class="field-group">

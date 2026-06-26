@@ -112,6 +112,8 @@ def is_default(current: object, section: str, field: str) -> bool:
 
 templates.env.filters["default_value"] = defaults_for
 templates.env.filters["is_default"] = is_default
+templates.env.globals["default_value"] = defaults_for
+templates.env.globals["is_default"] = is_default
 
 
 def cfg():

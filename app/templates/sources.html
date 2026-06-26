@@ -17,8 +17,8 @@
             <th>Tên</th>
             <th>URL</th>
             <th>Engine</th>
-            <th>content_selector</th>
-            <th>pattern</th>
+            <th>Selector nội dung</th>
+            <th>Pattern link</th>
             <th>Đang dùng bởi</th>
             <th>Lần test gần nhất</th>
             <th></th>
@@ -125,80 +125,80 @@
                 <fieldset>
                     <legend>Thông tin cơ bản</legend>
                     <div class="form-row">
-                        <label>Tên (trùng tên = ghi đè) <input type="text" name="name" id="p-name" required></label>
-                        <label>Engine
+                        <label>Tên preset <span class="field-hint" title="Trùng tên sẽ ghi đè">?</span> <input type="text" name="name" id="p-name" required></label>
+                        <label>Trình crawl <span class="field-hint" title="http: requests+BS4, crawl4ai: Playwright, scrapling: anti-bot">?</span>
                             <select name="engine" id="p-engine">
                                 {% for opt in ["http", "crawl4ai", "scrapling"] %}
                                 <option value="{{ opt }}">{{ opt }}</option>
                                 {% endfor %}
                             </select>
                         </label>
-                        <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" id="p-delay_seconds" value="1.0" min="0"></label>
-                        <label>encoding <input type="text" name="encoding" id="p-encoding" size="8"></label>
+                        <label>Chờ giữa request (s) <span class="field-hint" title="Thời gian chờ (giây) giữa mỗi request để tránh bị chặn">?</span> <input type="number" step="0.1" name="delay_seconds" id="p-delay_seconds" value="1.0" min="0"></label>
+                        <label>Bảng mã <span class="field-hint" title="Bảng mã ký tự: UTF-8, GBK, BIG5...">?</span> <input type="text" name="encoding" id="p-encoding" size="8"></label>
                     </div>
                     <div class="form-row">
-                        <label>URL web <input type="url" name="url" id="p-url" size="50" placeholder="https://www.example.com"></label>
-                        <label>domains <input type="text" name="domains" id="p-domains" size="30" placeholder="example.com,example.net"></label>
+                        <label>URL gốc <span class="field-hint" title="Địa chỉ trang web gốc của nguồn">?</span> <input type="url" name="url" id="p-url" size="50" placeholder="https://www.example.com"></label>
+                        <label>Tên miền <span class="field-hint" title="Tên miền phân tách bằng dấu phẩy, dùng để tự nhận diện nguồn">?</span> <input type="text" name="domains" id="p-domains" size="30" placeholder="example.com,example.net"></label>
                     </div>
                     <div class="form-row">
-                        <label>chapter_link_pattern <input type="text" name="chapter_link_pattern" id="p-chapter_link_pattern" value=".*" size="50"></label>
-                    </div>
-                </fieldset>
-
-                <fieldset>
-                    <legend>Selector</legend>
-                    <div class="form-row">
-                        <label>content_selector <input type="text" name="content_selector" id="p-content_selector" size="30"></label>
-                        <label>toc_selector <input type="text" name="toc_selector" id="p-toc_selector" size="30"></label>
-                        <label>chapter_title_selector <input type="text" name="chapter_title_selector" id="p-chapter_title_selector" size="20"></label>
-                    </div>
-                    <div class="form-row">
-                        <label>title_selector <input type="text" name="title_selector" id="p-title_selector" size="20"></label>
-                        <label>author_selector <input type="text" name="author_selector" id="p-author_selector" size="20"></label>
-                        <label>desc_selector <input type="text" name="desc_selector" id="p-desc_selector" size="20"></label>
-                        <label>cover_selector <input type="text" name="cover_selector" id="p-cover_selector" size="20"></label>
+                        <label>Pattern link chương <span class="field-hint" title="Regex khớp URL chương (mặc định: .*)">?</span> <input type="text" name="chapter_link_pattern" id="p-chapter_link_pattern" value=".*" size="50"></label>
                     </div>
                 </fieldset>
 
                 <fieldset>
-                    <legend>Pagination (chương nhiều trang)</legend>
+                    <legend>CSS Selector</legend>
                     <div class="form-row">
-                        <label>next_page_selector <input type="text" name="next_page_selector" id="p-next_page_selector" size="30" placeholder="a#pager_next"></label>
-                        <label>next_page_url_pattern <input type="text" name="next_page_url_pattern" id="p-next_page_url_pattern" size="30" placeholder="regex có 1 group"></label>
-                        <label>max_pages_per_chapter <input type="number" name="max_pages_per_chapter" id="p-max_pages_per_chapter" value="10" min="1" size="4"></label>
+                        <label>Selector nội dung <span class="field-hint" title="CSS selector trỏ đến phần nội dung chương">?</span> <input type="text" name="content_selector" id="p-content_selector" size="30"></label>
+                        <label>Selector mục lục <span class="field-hint" title="CSS selector trỏ đến danh sách link chương">?</span> <input type="text" name="toc_selector" id="p-toc_selector" size="30"></label>
+                        <label>Selector tên chương <span class="field-hint" title="CSS selector trỏ đến tiêu đề chương">?</span> <input type="text" name="chapter_title_selector" id="p-chapter_title_selector" size="20"></label>
+                    </div>
+                    <div class="form-row">
+                        <label>Selector tên truyện <span class="field-hint" title="CSS selector trỏ đến tiêu đề truyện">?</span> <input type="text" name="title_selector" id="p-title_selector" size="20"></label>
+                        <label>Selector tác giả <span class="field-hint" title="CSS selector trỏ đến tên tác giả">?</span> <input type="text" name="author_selector" id="p-author_selector" size="20"></label>
+                        <label>Selector mô tả <span class="field-hint" title="CSS selector trỏ đến phần mô tả truyện">?</span> <input type="text" name="desc_selector" id="p-desc_selector" size="20"></label>
+                        <label>Selector ảnh bìa <span class="field-hint" title="CSS selector trỏ đến ảnh bìa">?</span> <input type="text" name="cover_selector" id="p-cover_selector" size="20"></label>
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Phân trang (chương nhiều trang)</legend>
+                    <div class="form-row">
+                        <label>Selector trang kế <span class="field-hint" title="CSS selector nút/link chuyển trang tiếp">?</span> <input type="text" name="next_page_selector" id="p-next_page_selector" size="30" placeholder="a#pager_next"></label>
+                        <label>Pattern URL trang kế <span class="field-hint" title="Regex trích xuất URL trang tiếp (đúng 1 group)">?</span> <input type="text" name="next_page_url_pattern" id="p-next_page_url_pattern" size="30" placeholder="regex có 1 group"></label>
+                        <label>Số trang tối đa <span class="field-hint" title="Số trang tối đa mỗi chương để tránh vòng lặp vô hạn">?</span> <input type="number" name="max_pages_per_chapter" id="p-max_pages_per_chapter" value="10" min="1" size="4"></label>
                     </div>
                 </fieldset>
 
                 <fieldset id="crawl4ai-options" style="display:none">
-                    <legend>crawl4ai</legend>
+                    <legend>crawl4ai (Playwright)</legend>
                     <div class="form-row">
-                        <label class="check"><input type="checkbox" name="headless" id="p-headless" value="true" checked> headless</label>
-                        <label class="check"><input type="checkbox" name="magic" id="p-magic" value="true" checked> magic</label>
-                        <label>js_code <input type="text" name="js_code" id="p-js_code" size="50"></label>
+                        <label class="check"><input type="checkbox" name="headless" id="p-headless" value="true" checked>Ẩn trình duyệt <span class="field-hint" title="Chạy Playwright không mở giao diện">?</span></label>
+                        <label class="check"><input type="checkbox" name="magic" id="p-magic" value="true" checked>Chế độ Magic <span class="field-hint" title="Tự xử lý anti-bot bằng JS injection">?</span></label>
+                        <label>Mã JS chạy trước <span class="field-hint" title="JavaScript thực thi trên trang trước khi crawl nội dung">?</span> <input type="text" name="js_code" id="p-js_code" size="50"></label>
                     </div>
                 </fieldset>
 
                 <fieldset id="scrapling-options" style="display:none">
-                    <legend>scrapling</legend>
+                    <legend>Scrapling (anti-bot)</legend>
                     <div class="form-row">
-                        <label>scrapling_mode
+                        <label>Chế độ scrapling <span class="field-hint" title="stealthy: ẩn danh, fetcher: HTTP thường, dynamic: trình duyệt">?</span>
                             <select name="scrapling_mode" id="p-scrapling_mode">
                                 {% for opt in ["stealthy", "fetcher", "dynamic"] %}
                                 <option value="{{ opt }}">{{ opt }}</option>
                                 {% endfor %}
                             </select>
                         </label>
-                        <label class="check"><input type="checkbox" name="solve_cloudflare" id="p-solve_cloudflare" value="true"> solve_cloudflare</label>
-                        <label class="check"><input type="checkbox" name="network_idle" id="p-network_idle" value="true" checked> network_idle</label>
-                        <label>impersonate <input type="text" name="impersonate" id="p-impersonate" size="20" placeholder="chrome, firefox135"></label>
+                        <label class="check"><input type="checkbox" name="solve_cloudflare" id="p-solve_cloudflare" value="true">Bỏ qua Cloudflare <span class="field-hint" title="Tự giải challenge Cloudflare/anti-bot">?</span></label>
+                        <label class="check"><input type="checkbox" name="network_idle" id="p-network_idle" value="true" checked>Chờ network idle <span class="field-hint" title="Đợi request mạng dừng hoàn toàn trước khi lấy nội dung">?</span></label>
+                        <label>Giả danh trình duyệt <span class="field-hint" title="User-agent giả lập: chrome, firefox135, safari...">?</span> <input type="text" name="impersonate" id="p-impersonate" size="20" placeholder="chrome, firefox135"></label>
                     </div>
                 </fieldset>
 
                 <fieldset>
-                    <legend>Network &amp; song song</legend>
+                    <legend>Mạng &amp; song song</legend>
                     <div class="form-row">
-                        <label>user_agent <input type="text" name="user_agent" id="p-user_agent" size="70"></label>
-                        <label>concurrency_cap <input type="number" name="concurrency_cap" id="p-concurrency_cap" value="0" min="0" size="6"></label>
+                        <label>User Agent <span class="field-hint" title="Chuỗi định danh trình duyệt gửiไป server">?</span> <input type="text" name="user_agent" id="p-user_agent" size="70"></label>
+                        <label>Giới hạn song song <span class="field-hint" title="Số request chạy đồng thời (0 = không giới hạn)">?</span> <input type="number" name="concurrency_cap" id="p-concurrency_cap" value="0" min="0" size="6"></label>
                     </div>
                 </fieldset>
 

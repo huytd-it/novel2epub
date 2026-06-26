@@ -90,6 +90,14 @@ def _chapter_context(storage: Storage, ch, raw: str, translated: str, slug: str,
     # Cột "VI" (bản dịch máy) trong editor 3 cột: snapshot bản máy nếu có; chương
     # cũ chưa có snapshot thì degrade an toàn về bản dịch hiện hành (read-only).
     translated_mt = storage.read_translated_mt(ch) if storage.has_translated_mt(ch) else translated
+    # Chuẩn bị dữ liệu paragraph để render table so sánh (raw || MT || biên tập)
+    raw_paras = raw.split("\n") if raw else [""]
+    mt_paras = translated_mt.split("\n") if translated_mt else [""]
+    edit_paras = translated.split("\n") if translated else [""]
+    num_paras = max(len(raw_paras), len(mt_paras), len(edit_paras))
+    raw_paras += [""] * (num_paras - len(raw_paras))
+    mt_paras += [""] * (num_paras - len(mt_paras))
+    edit_paras += [""] * (num_paras - len(edit_paras))
     return {
         "ch": ch,
         "raw": raw,
@@ -105,6 +113,10 @@ def _chapter_context(storage: Storage, ch, raw: str, translated: str, slug: str,
         "glossary_rows": glossary_rows,
         "glossary_relevant_count": sum(1 for row in glossary_rows if row["relevant"]),
         "CATEGORY_LABELS": _CATEGORY_LABELS,
+        "raw_paras": raw_paras,
+        "mt_paras": mt_paras,
+        "edit_paras": edit_paras,
+        "num_paras": num_paras,
     }
 
 

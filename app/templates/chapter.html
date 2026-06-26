@@ -168,32 +168,45 @@
 </details>
 {% endif %}
 
-<div class="cols cols-3">
-    <div>
-        <div class="section-head">
-            <h3>ZH — Gốc (Trung)</h3>
-            <label class="check muted"><input type="checkbox" id="highlight-toggle" checked> Tô sáng</label>
-        </div>
-        <div class="raw-view" id="raw-view">{{ raw }}</div>
+<form method="post" action="{{ base }}" id="chapter-form">
+    <div class="compare-wrap">
+        <table class="compare-table" id="compare-table">
+            <thead>
+                <tr>
+                    <th class="col-raw">
+                        <div class="section-head" style="margin:0;border:none">
+                            <h3>ZH — Gốc (Trung)</h3>
+                            <label class="check muted"><input type="checkbox" id="highlight-toggle" checked> Tô sáng</label>
+                        </div>
+                    </th>
+                    <th class="col-mt">
+                        <div class="section-head" style="margin:0;border:none">
+                            <h3>VI — Bản dịch máy</h3>
+                            <span class="muted">chỉ đọc · để đối chiếu</span>
+                        </div>
+                    </th>
+                    <th class="col-edit">
+                        <div class="section-head" style="margin:0;border:none">
+                            <h3>Biên tập — sửa &amp; lưu tại đây</h3>
+                            <form method="post" action="{{ base }}/ai/rewrite" class="ai-job-form" style="margin:0"><button type="submit" title="AI biên tập lại chương thành bản nháp để xem diff rồi áp dụng.">Biên tập bằng AI</button></form>
+                        </div>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for i in range(num_paras) %}
+                <tr>
+                    <td class="raw-cell" data-para="{{ i }}">{{ raw_paras[i] }}</td>
+                    <td class="mt-cell" data-para="{{ i }}">{{ mt_paras[i] }}</td>
+                    <td class="edit-cell"><textarea class="para-textarea" data-para="{{ i }}" rows="1">{{ edit_paras[i] }}</textarea></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
     </div>
-    <div>
-        <div class="section-head">
-            <h3>VI — Bản dịch máy</h3>
-            <span class="muted">chỉ đọc · để đối chiếu</span>
-        </div>
-        <div class="raw-view readonly-col" id="mt-view">{{ translated_mt }}</div>
-    </div>
-    <div>
-        <div class="section-head">
-            <h3>Biên tập — sửa &amp; lưu tại đây</h3>
-            <form method="post" action="{{ base }}/ai/rewrite" class="ai-job-form" style="margin:0"><button type="submit" title="AI biên tập lại chương thành bản nháp để xem diff rồi áp dụng.">Biên tập bằng AI</button></form>
-        </div>
-        <form method="post" action="{{ base }}">
-            <textarea name="translated" id="translated-area">{{ translated }}</textarea>
-            <p><button type="submit">Lưu bản dịch</button></p>
-        </form>
-    </div>
-</div>
+    <input type="hidden" name="translated" id="hidden-translated">
+    <p><button type="submit">Lưu bản dịch</button></p>
+</form>
 
 {% if footnote_list %}
 <div class="section-head">
@@ -282,27 +295,30 @@ function escapeHtml(s) {
 function escapeRegex(s) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-const rawView = document.getElementById("raw-view");
 const highlightToggle = document.getElementById("highlight-toggle");
 const glossaryTerms = Array.from(new Set(
     glossaryRows
         .map(row => (row.querySelector("strong") || {}).textContent || "")
         .map(t => t.trim())
         .filter(Boolean)
-)).sort((a, b) => b.length - a.length); // dài trước để không bị cắt cụm
+)).sort((a, b) => b.length - a.length);
 
 function renderRawView() {
-    if (!rawView) return;
-    const text = rawView.dataset.raw;
-    if (!highlightToggle || !highlightToggle.checked || glossaryTerms.length === 0) {
-        rawView.innerHTML = escapeHtml(text);
-        return;
+    const cells = document.querySelectorAll("#compare-table .raw-cell");
+    if (!cells.length) return;
+    const show = highlightToggle && highlightToggle.checked && glossaryTerms.length > 0;
+    const pattern = show ? new RegExp(glossaryTerms.map(escapeRegex).join("|"), "g") : null;
+    for (const cell of cells) {
+        const text = cell.dataset.rawText || cell.textContent;
+        cell.dataset.rawText = text;
+        if (!show) {
+            cell.innerHTML = escapeHtml(text);
+        } else {
+            cell.innerHTML = escapeHtml(text).replace(pattern, m => `<mark>${m}</mark>`);
+        }
     }
-    const pattern = new RegExp(glossaryTerms.map(escapeRegex).join("|"), "g");
-    rawView.innerHTML = escapeHtml(text).replace(pattern, m => `<mark>${m}</mark>`);
 }
-if (rawView) {
-    rawView.dataset.raw = rawView.textContent;
+if (document.querySelector("#compare-table")) {
     renderRawView();
     if (highlightToggle) highlightToggle.addEventListener("change", renderRawView);
 }
@@ -327,8 +343,8 @@ function termOccurrenceIndexes(haystack, term) {
 }
 
 function jumpRawTo(term, occurrence) {
-    if (!rawView || !term) return 0;
-    const marks = Array.from(rawView.querySelectorAll("mark")).filter(m => m.textContent === term);
+    if (!term) return 0;
+    const marks = Array.from(document.querySelectorAll("#compare-table .raw-cell mark")).filter(m => m.textContent === term);
     if (marks.length === 0) return 0;
     const target = marks[occurrence % marks.length];
     target.scrollIntoView({ block: "center" });
@@ -336,45 +352,33 @@ function jumpRawTo(term, occurrence) {
     return marks.length;
 }
 
-// Mirror-div: đo chiều cao pixel của text trước vị trí cần tới trong textarea,
-// vì textarea không cho đọc vị trí pixel của 1 ký tự trực tiếp.
-function mirrorScrollTopForIndex(textarea, index) {
-    const mirror = document.createElement("div");
-    const style = getComputedStyle(textarea);
-    const props = [
-        "boxSizing", "width", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
-        "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth",
-        "fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing",
-    ];
-    for (const p of props) mirror.style[p] = style[p];
-    mirror.style.position = "absolute";
-    mirror.style.visibility = "hidden";
-    mirror.style.whiteSpace = "pre-wrap";
-    mirror.style.wordWrap = "break-word";
-    mirror.style.overflowWrap = "break-word";
-    mirror.style.height = "auto";
-    mirror.style.top = "0";
-    mirror.style.left = "-9999px";
-    document.body.appendChild(mirror);
-    mirror.appendChild(document.createTextNode(textarea.value.substring(0, index)));
-    const marker = document.createElement("span");
-    marker.textContent = "​";
-    mirror.appendChild(marker);
-    const top = marker.offsetTop;
-    document.body.removeChild(mirror);
-    return top;
-}
-
 function jumpTranslatedTo(term, occurrence) {
-    if (!translatedArea || !term) return 0;
-    const idxs = termOccurrenceIndexes(translatedArea.value, term);
+    if (!term) return 0;
+    const input = document.getElementById("hidden-translated");
+    if (!input) return 0;
+    const fullText = input.value || "";
+    const idxs = termOccurrenceIndexes(fullText, term);
     if (idxs.length === 0) return 0;
     const charIndex = idxs[occurrence % idxs.length];
-    const top = mirrorScrollTopForIndex(translatedArea, charIndex);
-    translatedArea.scrollTop = Math.max(0, top - translatedArea.clientHeight / 2);
-    translatedArea.focus();
-    translatedArea.setSelectionRange(charIndex, charIndex + term.length);
-    flashElement(translatedArea);
+    const lines = fullText.split("\n");
+    let prefixLen = 0;
+    let paraIndex = 0;
+    for (let li = 0; li < lines.length; li++) {
+        if (charIndex >= prefixLen && charIndex <= prefixLen + lines[li].length) {
+            paraIndex = li;
+            break;
+        }
+        prefixLen += lines[li].length + 1;
+    }
+    const textareas = document.querySelectorAll(".para-textarea");
+    const target = textareas[Math.min(paraIndex, textareas.length - 1)];
+    if (target) {
+        const localStart = charIndex - prefixLen;
+        target.focus();
+        target.setSelectionRange(localStart, localStart + term.length);
+        target.scrollIntoView({ block: "center" });
+        flashElement(target);
+    }
     return idxs.length;
 }
 
@@ -442,9 +446,9 @@ function renderDiffCol(el, rows) {
 const diffCurrent = document.getElementById("diff-current");
 const diffPreview = document.getElementById("diff-preview");
 const rewriteText = document.getElementById("ai-rewrite-text");
-const translatedArea = document.getElementById("translated-area");
-if (diffCurrent && diffPreview && rewriteText && translatedArea) {
-    const [left, right] = lineDiff(translatedArea.value, rewriteText.value);
+const hiddenTranslated = document.getElementById("hidden-translated");
+if (diffCurrent && diffPreview && rewriteText && hiddenTranslated) {
+    const [left, right] = lineDiff(hiddenTranslated.value, rewriteText.value);
     renderDiffCol(diffCurrent, left);
     renderDiffCol(diffPreview, right);
 }
@@ -533,6 +537,13 @@ document.addEventListener("submit", async function(event) {
     }
 });
 
+// --- Form lưu bản dịch: gom các paragraph textarea vào hidden field ---
+document.getElementById("chapter-form")?.addEventListener("submit", function() {
+    const paras = this.querySelectorAll(".para-textarea");
+    const fullText = Array.from(paras).map(t => t.value).join("\n");
+    this.querySelector("#hidden-translated").value = fullText;
+});
+
 let wasRunning = { crawl: false, translate: false };
 
 // --- Poll nội dung dịch trong khi job translate đang chạy ---
@@ -568,11 +579,15 @@ async function pollTranslated() {
         const data = await res.json();
         if (data.mtime === lastTranslatedMtime) return;
         lastTranslatedMtime = data.mtime;
-        const area = document.getElementById("translated-area");
-        if (area && document.activeElement !== area) {
-            // Không ghi đè nếu user đang sửa trong textarea.
-            area.value = data.text || "";
-        }
+        const input = document.getElementById("hidden-translated");
+        if (input) input.value = data.text || "";
+        // Sync paragraph textareas, but don't overwrite the one being edited
+        const lines = (data.text || "").split("\n");
+        document.querySelectorAll(".para-textarea").forEach((t, i) => {
+            if (document.activeElement !== t) {
+                t.value = lines[i] || "";
+            }
+        });
         renderTranslatedPreview(data.text || "");
     } catch (e) {
         console.error("Lỗi khi poll translated:", e);

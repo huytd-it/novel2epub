@@ -5,7 +5,7 @@
 <h2>Cài đặt: {{ cfg.novel.title or slug }}</h2>
 <p class="muted">Ghi vào <code>{{ config_path }}</code> — chỉ đổi đúng các trường bên dưới, comment trong file được giữ nguyên.</p>
 
-<div id="settings-layout" class="settings-layout">
+<div id="settings-layout" class="settings-layout" data-slug="{{ slug }}">
     <nav class="settings-sidebar">
         <button class="settings-tab active" data-tab="tab-novel" onclick="switchSettingsTab('tab-novel')">
             <span class="tab-icon">📖</span> Truyện
@@ -44,7 +44,16 @@ function switchSettingsTab(tabName) {
     layout.querySelectorAll(".settings-tab").forEach(b => b.classList.remove("active"));
     document.getElementById(tabName).classList.add("active");
     layout.querySelector(`.settings-tab[data-tab="${tabName}"]`).classList.add("active");
+    sessionStorage.setItem("settings-tab-" + layout.dataset.slug, tabName);
 }
+
+document.addEventListener("DOMContentLoaded", function () {
+    const layout = document.getElementById("settings-layout");
+    var saved = sessionStorage.getItem("settings-tab-" + layout.dataset.slug);
+    if (saved && document.getElementById(saved)) {
+        switchSettingsTab(saved);
+    }
+});
 
 // Engine toggle
 document.addEventListener("change", function (e) {

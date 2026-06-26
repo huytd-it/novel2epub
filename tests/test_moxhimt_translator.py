@@ -1,0 +1,239 @@
+"""Test backend dịch cục bộ MoxhiMT (translate.type=moxhimt).
+
+Không tải model thật: inject module giả `ctranslate2`/`sentencepiece`/
+`huggingface_hub` vào sys.modules + tạo thư mục model giả (model.bin + *.spm) để
+kiểm tra logic chia chunk, glossary, on_chunk, và các đường lỗi.
+"""
+from __future__ import annotations
+
+import sys
+import types
+
+import pytest
+
+from novel2epub.config import MoxhiMTConfig, TranslateConfig
+from novel2epub.translator import (
+    MoxhiMTTranslator,
+    _hard_split,
+    _split_into_sentences,
+    make_translator,
+)
+
+
+# --- module giả ---
+
+
+class _FakeSP:
+    def __init__(self, model_file=None):
+        self.model_file = model_file
+
+    def encode(self, text, out_type=str):
+        # 1 token / ký tự — đủ để logic ngân sách token hoạt động xác định.
+        return list(text)
+
+    def decode(self, tokens):
+        return "".join(tokens)
+
+
+class _FakeResult:
+    def __init__(self, hyp):
+        self.hypotheses = [hyp]
+
+
+class _FakeCT2Translator:
+    # Ghi lại kích thước mỗi batch để test khẳng định cách chia chunk.
+    batch_calls: list[int] = []
+
+    def __init__(self, path, device="cpu"):
+        self.path = path
+        self.device = device
+
+    def translate_batch(self, batch, beam_size=1, max_decoding_length=512):
+        _FakeCT2Translator.batch_calls.append(len(batch))
+        # Echo: trả lại đúng token nguồn (decode → text gốc) để dễ assert.
+        return [_FakeResult(list(toks)) for toks in batch]
+
+
+@pytest.fixture
+def fake_model_env(tmp_path, monkeypatch):
+    """Inject module giả + thư mục model giả; trả factory tạo translator."""
+    _FakeCT2Translator.batch_calls = []
+
+    fake_ct2 = types.ModuleType("ctranslate2")
+    fake_ct2.Translator = _FakeCT2Translator
+    fake_spm = types.ModuleType("sentencepiece")
+    fake_spm.SentencePieceProcessor = _FakeSP
+    fake_hub = types.ModuleType("huggingface_hub")
+
+    # Thư mục model giả: ưu tiên ct2-int8/model.bin + tokenizer.model.
+    ct2_dir = tmp_path / "model" / "ct2-int8"
+    ct2_dir.mkdir(parents=True)
+    (ct2_dir / "model.bin").write_bytes(b"\x00")
+    (tmp_path / "model" / "tokenizer.model").write_bytes(b"\x00")
+    fake_hub.snapshot_download = lambda model_id, cache_dir=None: str(tmp_path / "model")
+
+    monkeypatch.setitem(sys.modules, "ctranslate2", fake_ct2)
+    monkeypatch.setitem(sys.modules, "sentencepiece", fake_spm)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+
+    def _make(**mox_kwargs):
+        cfg = TranslateConfig(type="moxhimt", moxhimt=MoxhiMTConfig(**mox_kwargs))
+        return MoxhiMTTranslator(cfg)
+
+    return _make
+
+
+# --- helper thuần (không cần model) ---
+
+
+def test_split_into_sentences_basic():
+    assert _split_into_sentences("第一句。第二句！第三句？") == ["第一句。", "第二句！", "第三句？"]
+    # ký tự đuôi không có dấu kết câu vẫn thành 1 phần
+    assert _split_into_sentences("không dấu cuối") == ["không dấu cuối"]
+    # dòng trắng → rỗng
+    assert _split_into_sentences("   ") == []
+
+
+def test_hard_split_chunks_by_chars():
+    assert _hard_split("abcdefg", 3) == ["abc", "def", "g"]
+    assert _hard_split("ab", 10) == ["ab"]
+
+
+# --- make_translator ---
+
+
+def test_make_translator_returns_moxhimt(fake_model_env):
+    t = make_translator(TranslateConfig(type="moxhimt"))
+    assert isinstance(t, MoxhiMTTranslator)
+
+
+def test_make_translator_invalid_type_raises():
+    with pytest.raises(ValueError, match="moxhimt"):
+        make_translator(TranslateConfig(type="khong-hop-le"))
+
+
+# --- chunking & dịch (model giả) ---
+
+
+def test_paragraph_mode_short_line_single_call(fake_model_env):
+    t = fake_model_env()  # mặc định paragraph, max_length=512
+    calls: list[tuple] = []
+    out = t.translate("第一句。第二句。", on_chunk=lambda i, n, txt, f: calls.append((i, n, f)))
+    assert out == "第一句。第二句。"  # echo, cả đoạn 1 lượt
+    assert calls == [(1, 1, True)]
+    # 1 dòng → đúng 1 batch, batch chứa nguyên cả đoạn (1 segment)
+    assert _FakeCT2Translator.batch_calls == [1]
+
+
+def test_multiline_calls_on_chunk_per_line(fake_model_env):
+    t = fake_model_env()
+    calls: list[tuple] = []
+    out = t.translate("dòng A\ndòng B\ndòng C", on_chunk=lambda i, n, txt, f: calls.append((i, n, f)))
+    assert out == "dòng A\ndòng B\ndòng C"
+    assert [c[0] for c in calls] == [1, 2, 3]
+    assert all(c[1] == 3 for c in calls)
+    assert [c[2] for c in calls] == [False, False, True]
+
+
+def test_blank_lines_preserved(fake_model_env):
+    t = fake_model_env()
+    out = t.translate("a\n\nb")
+    assert out == "a\n\nb"
+
+
+def test_long_paragraph_falls_back_to_sentences(fake_model_env):
+    # max_length=48 → budget = 48-32 = 16. Đoạn 20 ký tự > 16 → chia câu.
+    t = fake_model_env(max_length=48)
+    out = t.translate("AAAA。BBBB。CCCC。DDDD。")
+    # 4 câu mỗi cái 5 ký tự (<=16) → 1 batch 4 segment, nối bằng khoảng trắng
+    assert _FakeCT2Translator.batch_calls == [4]
+    assert out == "AAAA。 BBBB。 CCCC。 DDDD。"
+
+
+def test_oversized_sentence_hard_split(fake_model_env):
+    # budget 16; 1 câu 20 ký tự không dấu kết → cắt cứng theo ký tự (16 + 4)
+    t = fake_model_env(max_length=48)
+    t.translate("X" * 20)
+    assert _FakeCT2Translator.batch_calls == [2]
+
+
+def test_sentence_mode_splits_immediately(fake_model_env):
+    # chunk_mode=sentence: chia câu ngay cả khi đoạn vừa token
+    t = fake_model_env(chunk_mode="sentence")
+    t.translate("第一句。第二句。")
+    assert _FakeCT2Translator.batch_calls == [2]
+
+
+def test_glossary_applied_after_translate(fake_model_env, monkeypatch):
+    cfg = TranslateConfig(type="moxhimt", moxhimt=MoxhiMTConfig(), glossary={"猫": "Miêu"})
+    t = MoxhiMTTranslator(cfg)
+    out = t.translate("黑猫")  # echo "黑猫" → glossary thay 猫 → Miêu
+    assert out == "黑Miêu"
+
+
+def test_translate_title_returns_empty_note(fake_model_env):
+    t = fake_model_env()
+    title, note = t.translate_title("第一章 标题", kind="tên chương")
+    assert title == "第一章 标题"
+    assert note == ""
+
+
+def test_translate_empty_text_short_circuits(fake_model_env):
+    t = fake_model_env()
+    seen: list[bool] = []
+    assert t.translate("   ", on_chunk=lambda i, n, txt, f: seen.append(f)) == "   "
+    assert seen == [True]
+    # không gọi model cho text rỗng
+    assert _FakeCT2Translator.batch_calls == []
+
+
+# --- đường lỗi ---
+
+
+def test_missing_ctranslate2_raises_importerror(monkeypatch):
+    def _boom():
+        raise ImportError("Chưa cài ctranslate2 (cần cho translate.type=moxhimt).")
+
+    monkeypatch.setattr(MoxhiMTTranslator, "_import_ct2", staticmethod(_boom))
+    with pytest.raises(ImportError, match="ctranslate2"):
+        MoxhiMTTranslator(TranslateConfig(type="moxhimt"))
+
+
+def test_download_failure_raises_runtimeerror(tmp_path, monkeypatch):
+    fake_ct2 = types.ModuleType("ctranslate2")
+    fake_ct2.Translator = _FakeCT2Translator
+    fake_spm = types.ModuleType("sentencepiece")
+    fake_spm.SentencePieceProcessor = _FakeSP
+    fake_hub = types.ModuleType("huggingface_hub")
+
+    def _boom(model_id, cache_dir=None):
+        raise OSError("network down")
+
+    fake_hub.snapshot_download = _boom
+    monkeypatch.setitem(sys.modules, "ctranslate2", fake_ct2)
+    monkeypatch.setitem(sys.modules, "sentencepiece", fake_spm)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+
+    t = MoxhiMTTranslator(TranslateConfig(type="moxhimt"))
+    with pytest.raises(RuntimeError, match="Hugging Face Hub"):
+        t.translate("bất kỳ")
+
+
+def test_model_without_ct2_format_raises(tmp_path, monkeypatch):
+    """model_id trỏ tới repo không có model.bin (vd LoRA) → RuntimeError rõ ràng."""
+    fake_ct2 = types.ModuleType("ctranslate2")
+    fake_ct2.Translator = _FakeCT2Translator
+    fake_spm = types.ModuleType("sentencepiece")
+    fake_spm.SentencePieceProcessor = _FakeSP
+    fake_hub = types.ModuleType("huggingface_hub")
+    empty = tmp_path / "lora"
+    empty.mkdir()
+    (empty / "adapter_model.bin.txt").write_text("not a ct2 model")  # không có model.bin
+    fake_hub.snapshot_download = lambda model_id, cache_dir=None: str(empty)
+    monkeypatch.setitem(sys.modules, "ctranslate2", fake_ct2)
+    monkeypatch.setitem(sys.modules, "sentencepiece", fake_spm)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+
+    t = MoxhiMTTranslator(TranslateConfig(type="moxhimt"))
+    with pytest.raises(RuntimeError, match="CTranslate2"):
+        t.translate("bất kỳ")

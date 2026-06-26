@@ -13,3 +13,9 @@ pytest>=8.0.0
 # Optional: engine scrapling (anti-bot bypass, stealth browser)
 # pip install scrapling[fetchers] && scrapling install
 # scrapling[fetchers]>=0.2
+
+# Optional: backend dịch cục bộ MoxhiMT (translate.type=moxhimt) — chỉ cần khi dùng
+# pip install ctranslate2 sentencepiece huggingface_hub
+# ctranslate2>=4.0.0
+# sentencepiece>=0.2.0
+# huggingface_hub>=0.23.0

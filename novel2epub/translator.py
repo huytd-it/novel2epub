@@ -171,6 +171,29 @@ def _split_into_chunks(text: str, max_chars: int, overlap_paragraphs: int) -> li
     return chunks
 
 
+# Dấu kết câu Hán + Latin, dùng để chia câu khi một đoạn vượt giới hạn token.
+_SENTENCE_RE = re.compile(r"[^。！？…!?.\n]*[。！？…!?.]+|[^。！？…!?.\n]+")
+
+
+def _split_into_sentences(line: str) -> list[str]:
+    """Chia MỘT dòng (không chứa \\n) thành các câu, giữ dấu kết câu.
+
+    Dùng làm bước fallback cho MoxhiMT khi một đoạn văn quá dài so với giới hạn
+    512 token của model. Trả list rỗng nếu dòng chỉ có khoảng trắng.
+    """
+    return [m.group(0) for m in _SENTENCE_RE.finditer(line) if m.group(0).strip()]
+
+
+def _hard_split(text: str, max_chars: int) -> list[str]:
+    """Cắt cứng theo ký tự khi một câu vẫn dài hơn ngưỡng an toàn của model.
+
+    Tránh để model tự truncate âm thầm (mất nghĩa cuối câu). max_chars luôn
+    >= 1 nên hàm này kết thúc.
+    """
+    step = max(1, max_chars)
+    return [text[i:i + step] for i in range(0, len(text), step)]
+
+
 class CLITranslator:
     # Áp dụng khi translate.chunk.max_chars = 0 (mặc định) — tự chia chương dài
     # để tránh prompt quá tải/timeout CLI dịch.
@@ -335,15 +358,223 @@ class GoogleTranslator:
         return self.translate(text), ""
 
 
+class MoxhiMTTranslator:
+    """Dịch Trung→Việt cục bộ bằng model MoxhiMT (CTranslate2 + SentencePiece).
+
+    Khác `CLITranslator` (LLM theo prompt) và `GoogleTranslator` (API mạng),
+    đây là model NMT seq2seq chạy offline. Tự tải model từ Hugging Face Hub về
+    cache ở lần dùng đầu (lazy), tái sử dụng các lần sau.
+
+    Chia chunk: mặc định `chunk_mode="paragraph"` — gom trọn từng dòng/đoạn của
+    bản gốc cho model giữ ngữ cảnh liên câu (cẩn thận nhất). Khi một đoạn vượt
+    ngân sách token an toàn của `max_length`, fallback chia câu; câu vẫn quá dài
+    thì cắt cứng theo ký tự. Glossary áp dụng bằng string-replace sau dịch
+    (model không nhận "instruction" như LLM).
+    """
+
+    def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None):
+        self.cfg = cfg
+        self.mox = cfg.moxhimt
+        self.glossary = load_glossary_dict(cfg)
+        self.log = log or (lambda _: None)
+        # Kiểm tra package ngay khi khởi tạo (báo lỗi sớm, rõ ràng). Việc tải +
+        # load model để lazy tới lần dịch đầu (xem `_ensure_loaded`).
+        self._import_ct2()
+        self._import_spm()
+        self._import_hub()
+        self._ct2 = None
+        self._sp = None
+
+    # ----- lazy import (tránh ép cài nặng cho người không dùng backend này) -----
+    @staticmethod
+    def _import_ct2():
+        try:
+            import ctranslate2
+            return ctranslate2
+        except ImportError as e:  # pragma: no cover - phụ thuộc môi trường
+            raise ImportError(
+                "Chưa cài ctranslate2 (cần cho translate.type=moxhimt). "
+                "Chạy: pip install ctranslate2 sentencepiece huggingface_hub"
+            ) from e
+
+    @staticmethod
+    def _import_spm():
+        try:
+            import sentencepiece
+            return sentencepiece
+        except ImportError as e:  # pragma: no cover
+            raise ImportError(
+                "Chưa cài sentencepiece (cần cho translate.type=moxhimt). "
+                "Chạy: pip install ctranslate2 sentencepiece huggingface_hub"
+            ) from e
+
+    @staticmethod
+    def _import_hub():
+        try:
+            import huggingface_hub
+            return huggingface_hub
+        except ImportError as e:  # pragma: no cover
+            raise ImportError(
+                "Chưa cài huggingface_hub (cần cho translate.type=moxhimt). "
+                "Chạy: pip install ctranslate2 sentencepiece huggingface_hub"
+            ) from e
+
+    # ----- tải & định vị model -----
+    def _download_model(self) -> Path:
+        hub = self._import_hub()
+        try:
+            local = hub.snapshot_download(self.mox.model_id, cache_dir=(self.mox.cache_dir or None))
+        except Exception as e:  # noqa: BLE001 - gom mọi lỗi mạng/HTTP thành thông báo rõ
+            raise RuntimeError(
+                f"Không tải được model {self.mox.model_id!r} từ Hugging Face Hub: {e}. "
+                "Kiểm tra kết nối mạng, hoặc đặt biến môi trường HF_HOME / "
+                "translate.moxhimt.cache_dir tới thư mục cache hợp lệ."
+            ) from e
+        return Path(local)
+
+    def _locate_model_files(self, root: Path) -> tuple[Path, Path]:
+        """Tìm thư mục model CTranslate2 (chứa model.bin) + file SentencePiece.
+
+        Robust với nhiều layout repo trong họ model (ưu tiên bản INT8 `ct2-int8/`
+        cho tốc độ CPU). Raise RuntimeError rõ ràng nếu repo không đúng định dạng
+        (vd LoRA adapter — không được backend này hỗ trợ).
+        """
+        ct2_dirs = [p.parent for p in root.rglob("model.bin")]
+        if not ct2_dirs:
+            raise RuntimeError(
+                f"Không tìm thấy model CTranslate2 (model.bin) trong {root}. "
+                f"model_id {self.mox.model_id!r} có thể không phải định dạng CTranslate2 "
+                "(backend moxhimt chỉ hỗ trợ model SentencePiece + CTranslate2 Marian, "
+                "không hỗ trợ LoRA adapter)."
+            )
+
+        def _ct2_rank(p: Path) -> tuple:
+            name = p.name.lower()
+            return (0 if "int8" in name else 1, 0 if "ct2" in name else 1, len(str(p)))
+
+        ct2_dir = sorted(ct2_dirs, key=_ct2_rank)[0]
+
+        spm_files = [p for p in (*root.rglob("*.spm"), *root.rglob("*.model")) if p.is_file()]
+        if not spm_files:
+            raise RuntimeError(
+                f"Không tìm thấy SentencePiece tokenizer (*.spm/*.model) trong {root}. "
+                f"model_id {self.mox.model_id!r} thiếu file tokenizer."
+            )
+
+        def _spm_rank(p: Path) -> tuple:
+            name = p.name.lower()
+            if "source" in name or "src" in name:
+                score = 0
+            elif "shared" in name or "joint" in name or "spm" in name:
+                score = 1
+            elif name.endswith(".model"):
+                score = 2
+            else:
+                score = 3
+            return (score, len(str(p)))
+
+        spm_path = sorted(spm_files, key=_spm_rank)[0]
+        return ct2_dir, spm_path
+
+    def _ensure_loaded(self) -> None:
+        if self._ct2 is not None:
+            return
+        ct2 = self._import_ct2()
+        spm = self._import_spm()
+        model_dir = self._download_model()
+        ct2_dir, spm_path = self._locate_model_files(model_dir)
+        self.log(f"  … nạp model MoxhiMT {self.mox.model_id} (ct2={ct2_dir.name}, spm={spm_path.name})")
+        try:
+            self._ct2 = ct2.Translator(str(ct2_dir), device=self.mox.device)
+            self._sp = spm.SentencePieceProcessor(model_file=str(spm_path))
+        except Exception as e:  # noqa: BLE001
+            raise RuntimeError(
+                f"Không nạp được model MoxhiMT từ {model_dir}: {e}."
+            ) from e
+
+    # ----- chia chunk + dịch -----
+    def _token_budget(self) -> int:
+        # Chừa biên cho token đặc biệt + bản dịch VI thường dài hơn nguồn ZH.
+        return max(16, int(self.mox.max_length) - 32)
+
+    def _ntokens(self, text: str) -> int:
+        return len(self._sp.encode(text, out_type=str))
+
+    def _translate_texts(self, texts: list[str]) -> list[str]:
+        if not texts:
+            return []
+        batch = [self._sp.encode(t, out_type=str) for t in texts]
+        results = self._ct2.translate_batch(
+            batch,
+            beam_size=int(self.mox.beam_size),
+            max_decoding_length=int(self.mox.max_length),
+        )
+        return [self._sp.decode(r.hypotheses[0]) for r in results]
+
+    def _translate_line(self, line: str) -> str:
+        """Dịch một dòng (đoạn văn). Gom cả đoạn nếu vừa token; nếu không thì
+        fallback chia câu, câu quá dài thì cắt cứng theo ký tự."""
+        budget = self._token_budget()
+        if self.mox.chunk_mode != "sentence" and self._ntokens(line) <= budget:
+            return self._translate_texts([line])[0]
+
+        sentences = _split_into_sentences(line) or [line]
+        segments: list[str] = []
+        for sent in sentences:
+            if self._ntokens(sent) <= budget:
+                segments.append(sent)
+            else:
+                segments.extend(_hard_split(sent, budget))
+        outs = self._translate_texts(segments)
+        return " ".join(o.strip() for o in outs if o.strip())
+
+    def translate(
+        self,
+        text: str,
+        *,
+        on_chunk: Callable[[int, int, str, bool], None] | None = None,
+    ) -> str:
+        if not text.strip():
+            if on_chunk is not None:
+                on_chunk(1, 1, text, True)
+            return text
+        self._ensure_loaded()
+        # Mỗi dòng/đoạn gốc = 1 đơn vị tiến độ; on_chunk được pipeline append với
+        # "\n" nên giữ đúng cấu trúc dòng. Glossary áp dụng NGAY trên từng dòng
+        # để bản lưu (stream qua on_chunk) cũng có glossary, không chỉ giá trị
+        # trả về.
+        lines = text.split("\n")
+        total = len(lines)
+        out_lines: list[str] = []
+        for i, line in enumerate(lines):
+            if line.strip():
+                out = _apply_glossary(self._translate_line(line), self.glossary)
+            else:
+                out = line  # giữ nguyên dòng trống
+            out_lines.append(out)
+            if on_chunk is not None:
+                on_chunk(i + 1, total, out, i + 1 == total)
+        return "\n".join(out_lines)
+
+    def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
+        if not text.strip():
+            return text, ""
+        self._ensure_loaded()
+        out = _apply_glossary(self._translate_line(text.strip()), self.glossary)
+        return out, ""
+
+
 def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = None) -> Translator:
     kind = (cfg.type or "none").lower()
     if kind == "cli":
         return CLITranslator(cfg, log=log)
     if kind == "google":
         return GoogleTranslator(cfg)
+    if kind == "moxhimt":
+        return MoxhiMTTranslator(cfg, log=log)
     if kind == "none":
         return NoopTranslator()
-    raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (cli|google|none)")
+    raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (cli|google|moxhimt|none)")
 
 
 class RateLimited:

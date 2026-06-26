@@ -98,6 +98,9 @@ class Storage:
         self.root = Path(data_dir) / slug
         self.raw_dir = self.root / "raw"
         self.translated_dir = self.root / "translated"
+        # Snapshot bản dịch máy (cột "VI" trong editor 3 cột), bất biến để đối
+        # chiếu — tách khỏi `translated` (cột "Biên tập", bản lưu cuối vào EPUB).
+        self.translated_mt_dir = self.root / "translated_mt"
         self.meta_dir = self.root / "translation_meta"
         self.glossary_dir = self.root / "glossary"
         self.manifest_path = self.root / "manifest.json"
@@ -106,6 +109,7 @@ class Storage:
     def ensure_dirs(self) -> None:
         self.raw_dir.mkdir(parents=True, exist_ok=True)
         self.translated_dir.mkdir(parents=True, exist_ok=True)
+        self.translated_mt_dir.mkdir(parents=True, exist_ok=True)
         self.meta_dir.mkdir(parents=True, exist_ok=True)
         self.glossary_dir.mkdir(parents=True, exist_ok=True)
 
@@ -154,6 +158,9 @@ class Storage:
     def translated_path(self, ch: Chapter) -> Path:
         return self.translated_dir / f"{ch.stem}.md"
 
+    def translated_mt_path(self, ch: Chapter) -> Path:
+        return self.translated_mt_dir / f"{ch.stem}.md"
+
     def meta_path(self, ch: Chapter) -> Path:
         return self.meta_dir / f"{ch.stem}.json"
 
@@ -192,6 +199,25 @@ class Storage:
 
     def read_translated(self, ch: Chapter) -> str:
         return self.translated_path(ch).read_text(encoding="utf-8")
+
+    def has_translated_mt(self, ch: Chapter) -> bool:
+        p = self.translated_mt_path(ch)
+        return p.exists() and p.stat().st_size > 0
+
+    def write_translated_mt(self, ch: Chapter, content: str) -> None:
+        """Ghi snapshot bản dịch máy (cột VI). Gọi ở bước dịch, độc lập với
+        `write_translated` (cột Biên tập sửa tay/AI)."""
+        self.ensure_dirs()
+        self.translated_mt_path(ch).write_text(content, encoding="utf-8")
+
+    def read_translated_mt(self, ch: Chapter) -> str:
+        """Đọc snapshot bản dịch máy; fallback về `translated` (degrade an toàn)
+        cho chương cũ dịch trước khi có snapshot."""
+        p = self.translated_mt_path(ch)
+        if p.exists():
+            return p.read_text(encoding="utf-8")
+        tp = self.translated_path(ch)
+        return tp.read_text(encoding="utf-8") if tp.exists() else ""
 
     def has_meta(self, ch: Chapter) -> bool:
         return self.meta_path(ch).exists()

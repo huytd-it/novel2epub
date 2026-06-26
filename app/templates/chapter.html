@@ -170,16 +170,26 @@
 </details>
 {% endif %}
 
-<div class="cols">
+<div class="cols cols-3">
     <div>
         <div class="section-head">
-            <h3>Gốc (Trung)</h3>
-            <label class="check muted"><input type="checkbox" id="highlight-toggle" checked> Tô sáng thuật ngữ</label>
+            <h3>ZH — Gốc (Trung)</h3>
+            <label class="check muted"><input type="checkbox" id="highlight-toggle" checked> Tô sáng</label>
         </div>
         <div class="raw-view" id="raw-view">{{ raw }}</div>
     </div>
     <div>
-        <h3>Bản dịch (Việt) — sửa tay tại đây</h3>
+        <div class="section-head">
+            <h3>VI — Bản dịch máy</h3>
+            <span class="muted">chỉ đọc · để đối chiếu</span>
+        </div>
+        <div class="raw-view readonly-col" id="mt-view">{{ translated_mt }}</div>
+    </div>
+    <div>
+        <div class="section-head">
+            <h3>Biên tập — sửa &amp; lưu tại đây</h3>
+            <form method="post" action="{{ base }}/ai/rewrite" class="ai-job-form" style="margin:0"><button type="submit" title="AI biên tập lại chương thành bản nháp để xem diff rồi áp dụng.">Biên tập bằng AI</button></form>
+        </div>
         <form method="post" action="{{ base }}">
             <textarea name="translated" id="translated-area">{{ translated }}</textarea>
             <p><button type="submit">Lưu bản dịch</button></p>

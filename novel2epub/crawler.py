@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 from urllib.parse import urljoin
 
-from .config import CliTranslatorConfig, CrawlConfig
+from .config import CrawlConfig
 from .storage import Chapter
 from .toc import mark_duplicate_chapters, missing_metadata
 
@@ -351,7 +351,6 @@ class HttpCrawler:
 
     def __init__(self, cfg: CrawlConfig):
         self.cfg = cfg
-        self._fallback_cli: CliTranslatorConfig | None = None
         self._last_response_text: str = ""
         try:
             import requests  # noqa: F401
@@ -495,14 +494,14 @@ class HttpCrawler:
             extract_text=extract_text,
             next_page_url=next_page_url,
         )
-        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+        if text or not self.cfg.ai_fallback or self.cfg._openai_fallback is None:
             return text
         return self._ai_fallback_extract(ch.url)
 
     def _fetch_chapter_single(self, ch: Chapter) -> str:
         soup = self._get_soup(ch.url)
         text = self._extract_text(soup)
-        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+        if text or not self.cfg.ai_fallback or self.cfg._openai_fallback is None:
             return text
         return self._ai_fallback_extract(ch.url)
 
@@ -532,7 +531,7 @@ class HttpCrawler:
         return self._clean(text)
 
     def _ai_fallback_extract(self, url: str) -> str:
-        from . import cli_runner
+        from . import openai_client
         from .presets.go import GO_EXTRACT_PROMPT
 
         html = self._last_response_text
@@ -541,7 +540,7 @@ class HttpCrawler:
         html = html[:self.cfg.ai_fallback_max_html]
         prompt = GO_EXTRACT_PROMPT.format(html=html)
         try:
-            return cli_runner.run_cli(self.cfg._cli_fallback, prompt)
+            return openai_client.run_chat(self.cfg._openai_fallback, prompt)
         except Exception:
             return ""
 
@@ -700,7 +699,7 @@ class Crawl4AICrawler:
             extract_text=extract_text,
             next_page_url=next_page_url,
         )
-        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+        if text or not self.cfg.ai_fallback or self.cfg._openai_fallback is None:
             return text
         return self._ai_fallback_extract(ch.url)
 
@@ -716,12 +715,12 @@ class Crawl4AICrawler:
                 return text
         if not _result_success(self._last_result):
             _log_crawl4ai_failure(self._last_result, ch)
-        if self.cfg.ai_fallback and self.cfg._cli_fallback is not None:
+        if self.cfg.ai_fallback and self.cfg._openai_fallback is not None:
             return self._ai_fallback_extract(ch.url)
         return ""
 
     def _ai_fallback_extract(self, url: str) -> str:
-        from . import cli_runner
+        from . import openai_client
         from .presets.go import GO_EXTRACT_PROMPT
 
         raw = getattr(self._last_result, "raw_html", "") or ""
@@ -730,7 +729,7 @@ class Crawl4AICrawler:
         raw = raw[:self.cfg.ai_fallback_max_html]
         prompt = GO_EXTRACT_PROMPT.format(html=raw)
         try:
-            return cli_runner.run_cli(self.cfg._cli_fallback, prompt)
+            return openai_client.run_chat(self.cfg._openai_fallback, prompt)
         except Exception:
             return ""
 
@@ -971,14 +970,14 @@ class ScraplingCrawler:
             extract_text=extract_text,
             next_page_url=next_page_url,
         )
-        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+        if text or not self.cfg.ai_fallback or self.cfg._openai_fallback is None:
             return text
         return self._ai_fallback_extract(ch.url)
 
     def _fetch_chapter_single(self, ch: Chapter) -> str:
         page = self._fetch_page(ch.url)
         text = self._extract_text(page)
-        if text or not self.cfg.ai_fallback or self.cfg._cli_fallback is None:
+        if text or not self.cfg.ai_fallback or self.cfg._openai_fallback is None:
             return text
         return self._ai_fallback_extract(ch.url)
 
@@ -1018,7 +1017,7 @@ class ScraplingCrawler:
         return self._clean(text)
 
     def _ai_fallback_extract(self, url: str) -> str:
-        from . import cli_runner
+        from . import openai_client
         from .presets.go import GO_EXTRACT_PROMPT
 
         html = self._last_response_html
@@ -1027,7 +1026,7 @@ class ScraplingCrawler:
         html = html[:self.cfg.ai_fallback_max_html]
         prompt = GO_EXTRACT_PROMPT.format(html=html)
         try:
-            return cli_runner.run_cli(self.cfg._cli_fallback, prompt)
+            return openai_client.run_chat(self.cfg._openai_fallback, prompt)
         except Exception:
             return ""
 

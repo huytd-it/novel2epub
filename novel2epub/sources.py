@@ -54,6 +54,9 @@ class SourcePreset:
     solve_cloudflare: bool = False
     network_idle: bool = True
     impersonate: str = ""
+    # Trần song song hóa cứng cho nguồn này (xem CrawlConfig.concurrency_cap).
+    # 0 = dùng mặc định theo engine/scrapling_mode.
+    concurrency_cap: int = 0
 
     def crawl_overrides(self) -> dict[str, Any]:
         """Dict áp lên nhánh `crawl` của config (bỏ `name`, `domains`)."""
@@ -88,6 +91,11 @@ def _coerce(name: str, value: Any) -> Any:
             return int(value)
         except (TypeError, ValueError):
             return 10
+    if name == "concurrency_cap":
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
     return "" if value is None else value
 
 

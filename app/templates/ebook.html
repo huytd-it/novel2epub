@@ -8,7 +8,7 @@
         <h2>{{ cfg.novel.title or cfg.novel.slug }}</h2>
         <p class="muted">Slug: <code>{{ slug }}</code> · Tác giả: {{ cfg.novel.author or "-" }}</p>
         <p class="muted">Config: <code>{{ config_path }}</code></p>
-        <p class="muted">Crawl: <code>{{ cfg.crawl.engine }}</code> · Dịch: <code>{{ cfg.translate.type }}</code> · Model: <code>{{ cfg.translate.cli.model or "-" }}</code></p>
+        <p class="muted">Crawl: <code>{{ cfg.crawl.engine }}</code> · Dịch: <code>{{ cfg.translate.type }}</code> · Model: <code>{{ cfg.translate.openai.model or "-" }}</code></p>
     </div>
     <div class="stack actions">
         <div class="action-group" role="group" aria-label="Crawl & Dịch (chạy song song được)">
@@ -26,7 +26,7 @@
             <span class="action-group-label">Xuất bản</span>
             <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="both"><button {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB</button></form>
             <form method="post" action="/ebooks/{{ slug }}/jobs/run" data-job-category="both"><button {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Chạy tất cả</button></form>
-            {% if epub_exists %}<a class="button" href="/ebooks/{{ slug }}/download">Tải EPUB</a>{% endif %}
+            {% if epub_exists %}<a class="button" href="/ebooks/{{ slug }}/download">Tải EPUB</a> <span class="muted">({{ "%.1f"|format(epub_size / 1024 / 1024) }} MB)</span>{% endif %}
         </div>
         <div class="action-group" role="group" aria-label="Khác">
             <a class="button" href="/ebooks/{{ slug }}/glossary">Glossary</a>
@@ -65,6 +65,43 @@
         <button type="submit" {% if job.crawl.running %}disabled{% endif %}>Lấy toàn bộ danh mục</button>
         <label class="check"><input type="checkbox" name="force" value="true"> ghi đè metadata</label>
     </form>
+</div>
+
+<div class="crawl-panel">
+    <div class="section-head">
+        <h3>Crawl console</h3>
+        {% if crawl_problems %}
+        <span class="badge no">{{ crawl_problems|length }} chương thiếu/lỗi</span>
+        {% else %}
+        <span class="badge ok">Không có chương thiếu/lỗi</span>
+        {% endif %}
+    </div>
+    {% if crawl_problems %}
+    <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="inline-form">
+        <input type="hidden" name="action" value="crawl">
+        <input type="hidden" name="targeting_mode" value="checked">
+        {% for idx in crawl_problems %}<input type="hidden" name="checked_indexes" value="{{ idx }}">{% endfor %}
+        <input type="hidden" name="override" value="true">
+        <button type="submit" {% if job.crawl.running %}disabled{% endif %}>Retry {{ crawl_problems|length }} chương lỗi/thiếu</button>
+    </form>
+    {% endif %}
+    <details>
+        <summary>Tùy chọn crawl nâng cao (chỉ áp dụng cho lượt chạy này)</summary>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/crawl-range" class="form-row" data-job-category="crawl">
+            <label>Engine
+                <select name="engine">
+                    <option value="">(giữ nguyên: {{ cfg.crawl.engine }})</option>
+                    {% for opt in ["http", "crawl4ai", "scrapling"] %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+                </select>
+            </label>
+            <label>Delay (giây) <input type="number" step="0.1" name="delay" min="0" placeholder="{{ cfg.crawl.delay_seconds }}"></label>
+            <label>Số lần retry <input type="number" name="retries" min="0" max="10" value="0"></label>
+            <label>Từ <input type="number" name="start" min="1"></label>
+            <label>Đến <input type="number" name="end" min="1"></label>
+            <label class="check"><input type="checkbox" name="force" value="true"> ghi đè đã có</label>
+            <button type="submit" {% if job.crawl.running %}disabled{% endif %}>Chạy với tùy chọn này</button>
+        </form>
+    </details>
 </div>
 
 <div class="status-bar">

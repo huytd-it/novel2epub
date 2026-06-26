@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Hàng đợi — novel2epub{% endblock %}
+{% block content %}
+<div class="section-head"><h2>Hàng đợi job</h2></div>
+<p class="muted">Tự động làm mới mỗi 2s. Job "build"/"run" chiếm độc quyền crawl + dịch (không chạy song song với job khác).</p>
+
+<div id="queue-region">
+<h3>Đang chạy</h3>
+<div class="table-wrap">
+    <table class="data-table" id="queue-running">
+        <tr><th>Step</th><th>Category</th><th>Ebook</th><th>Bắt đầu</th><th></th></tr>
+    </table>
+</div>
+
+<h3>Đang đợi</h3>
+<div class="table-wrap">
+    <table class="data-table" id="queue-pending">
+        <tr><th>Vị trí</th><th>Step</th><th>Category</th><th>Ebook</th><th></th></tr>
+    </table>
+</div>
+
+<h3>Lịch sử</h3>
+<div class="table-wrap">
+    <table class="data-table" id="queue-history">
+        <tr><th>Step</th><th>Category</th><th>Ebook</th><th>Trạng thái</th><th>Lỗi</th><th></th></tr>
+    </table>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fmtTime(ts) {
+    if (!ts) return "—";
+    return new Date(ts * 1000).toLocaleTimeString();
+}
+
+function row(cells) {
+    return "<tr>" + cells.map((c) => "<td>" + c + "</td>").join("") + "</tr>";
+}
+
+function cancelBtn(id) {
+    return `<button type="button" class="q-cancel" data-id="${id}">Hủy</button>`;
+}
+
+function retryBtn(id) {
+    return `<button type="button" class="q-retry" data-id="${id}">Retry</button>`;
+}
+
+async function renderQueue() {
+    const res = await fetch("/api/queue");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const runningEl = document.getElementById("queue-running");
+    runningEl.innerHTML = "<tr><th>Step</th><th>Category</th><th>Ebook</th><th>Bắt đầu</th><th></th></tr>" +
+        (data.running.length ? data.running.map((j) => row([j.label, j.category, j.ebook || "—", fmtTime(j.started_at), cancelBtn(j.id)])).join("") :
+            "<tr><td colspan='5' class='muted'>Không có job đang chạy.</td></tr>");
+
+    const pendingEl = document.getElementById("queue-pending");
+    let pendingRows = "";
+    let pos = 0;
+    for (const cat of Object.keys(data.pending)) {
+        for (const j of data.pending[cat]) {
+            pos += 1;
+            pendingRows += row([pos, j.label, j.category, j.ebook || "—", cancelBtn(j.id)]);
+        }
+    }
+    pendingEl.innerHTML = "<tr><th>Vị trí</th><th>Step</th><th>Category</th><th>Ebook</th><th></th></tr>" +
+        (pendingRows || "<tr><td colspan='5' class='muted'>Không có job đang đợi.</td></tr>");
+
+    const historyEl = document.getElementById("queue-history");
+    historyEl.innerHTML = "<tr><th>Step</th><th>Category</th><th>Ebook</th><th>Trạng thái</th><th>Lỗi</th><th></th></tr>" +
+        (data.history.length ? data.history.slice(0, 30).map((j) =>
+            row([j.label, j.category, j.ebook || "—", j.state, j.error || "—", retryBtn(j.id)])).join("") :
+            "<tr><td colspan='6' class='muted'>Chưa có lịch sử.</td></tr>");
+
+    document.querySelectorAll(".q-cancel").forEach((btn) => btn.addEventListener("click", async () => {
+        await fetch(`/api/queue/${btn.dataset.id}/cancel`, { method: "POST" });
+        toast("Đã gửi yêu cầu hủy job.");
+        renderQueue();
+    }));
+    document.querySelectorAll(".q-retry").forEach((btn) => btn.addEventListener("click", async () => {
+        const res = await fetch(`/api/queue/${btn.dataset.id}/retry`, { method: "POST" });
+        if (res.ok) toast("Đã đưa job vào hàng đợi lại.");
+        renderQueue();
+    }));
+}
+
+renderQueue();
+setInterval(renderQueue, 2000);
+</script>
+{% endblock %}

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from novel2epub import pipeline
 from novel2epub.config import (
-    CliTranslatorConfig,
+    OpenAIConfig,
     Config,
     CrawlConfig,
     NovelConfig,
@@ -19,13 +19,12 @@ def _cfg(tmp_path):
         novel=NovelConfig(slug="t"),
         crawl=CrawlConfig(toc_url="http://x/book/1/", delay_seconds=0),
         translate=TranslateConfig(
-            type="cli",
+            type="openai",
             delay_seconds=0,
-            cli=CliTranslatorConfig(
-                command="dummy",
+            openai=OpenAIConfig(
+                base_url="https://api.test/v1",
                 prompt_template="{text}",
                 title_prompt_template="{text}",
-                mode="stdin",
             ),
             chunk=TranslationChunkConfig(max_chars=20, overlap_paragraphs=0),
         ),
@@ -62,7 +61,7 @@ def test_translate_one_writes_file_progressively(tmp_path, monkeypatch):
     storage, ch = _seed(tmp_path)
     translator = _ChunkingTranslator()
     cfg = _cfg(tmp_path)
-    cfg.translate.type = "cli"  # is_noop = False
+    cfg.translate.type = "openai"  # is_noop = False
 
     # Patch make_translator để trả translator giả.
     monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: translator)

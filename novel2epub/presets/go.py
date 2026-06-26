@@ -1,5 +1,6 @@
-"""OpenCode Go preset — uses `opencode run` as the CLI translation command
-with a cost-efficient default model and Go-optimised prompt templates.
+"""Go preset — ships Go-optimised prompt templates for the OpenAI-Compatible
+translator backend. Only overrides prompt templates; base_url/api_key/model
+still come from translate.openai config.
 """
 
 from __future__ import annotations
@@ -47,10 +48,6 @@ If no chapter content is found, return an empty string.
 
 def load_preset() -> dict[str, Any]:
     return {
-        "command": "opencode run",
-        "model": "opencode-go/deepseek-v4-flash",
         "prompt_template": GO_PROMPT,
         "title_prompt_template": GO_TITLE_PROMPT,
-        "timeout_seconds": 300,
-        "mode": "stdin",
     }

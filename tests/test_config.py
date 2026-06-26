@@ -46,8 +46,8 @@ def test_no_preset_backward_compat(tmp_path):
     config_path = _write_config(tmp_path, extra={"translate": {"type": "none"}})
     cfg = load_config(config_path)
     assert cfg.translate.preset == ""
-    assert cfg.translate.cli.command == "claude -p"
-    assert cfg.translate.cli.model == ""
+    assert cfg.translate.openai.base_url == "https://api.openai.com/v1"
+    assert cfg.translate.openai.model == "gpt-4o-mini"
 
 
 def test_go_preset_resolution(tmp_path):
@@ -57,11 +57,7 @@ def test_go_preset_resolution(tmp_path):
     )
     cfg = load_config(config_path)
     assert cfg.translate.preset == "go"
-    assert cfg.translate.type == "cli"
-    assert cfg.translate.cli.command == "opencode run"
-    assert cfg.translate.cli.model == "opencode-go/deepseek-v4-flash"
-    assert "Dịch đoạn văn" in cfg.translate.cli.prompt_template
-    assert cfg.translate.cli.mode == "stdin"
+    assert "Dịch đoạn văn" in cfg.translate.openai.prompt_template
 
 
 def test_go_preset_override(tmp_path):
@@ -70,8 +66,8 @@ def test_go_preset_override(tmp_path):
         extra={
             "translate": {
                 "preset": "go",
-                "cli": {
-                    "model": "opencode-go/qwen3.7-plus",
+                "openai": {
+                    "model": "custom-model",
                     "timeout_seconds": 600,
                 },
             }
@@ -79,9 +75,9 @@ def test_go_preset_override(tmp_path):
     )
     cfg = load_config(config_path)
     assert cfg.translate.preset == "go"
-    assert cfg.translate.cli.command == "opencode run"
-    assert cfg.translate.cli.model == "opencode-go/qwen3.7-plus"
-    assert cfg.translate.cli.timeout_seconds == 600
+    assert cfg.translate.openai.model == "custom-model"
+    assert cfg.translate.openai.timeout_seconds == 600
+    assert "Dịch đoạn văn" in cfg.translate.openai.prompt_template
 
 
 def test_unknown_preset_raises(tmp_path):
@@ -149,7 +145,7 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
             {
                 "defaults": {
                     "crawl": {"engine": "http", "content_selector": "#default"},
-                    "translate": {"type": "none", "cli": {"command": "claude -p"}},
+                    "translate": {"type": "none", "openai": {"base_url": "https://custom.test/v1"}},
                     "output": {"data_dir": "data"},
                 },
                 "ebooks": {
@@ -173,7 +169,7 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
     assert cfg_a.crawl.engine == "crawl4ai"          # override
     assert cfg_a.crawl.content_selector == "#default"  # kế thừa defaults
     assert cfg_a.crawl.toc_url == "https://a"
-    assert cfg_a.translate.cli.command == "claude -p"  # kế thừa defaults
+    assert cfg_a.translate.openai.base_url == "https://custom.test/v1"  # kế thừa defaults
 
     # Slug rỗng -> lấy ebook đầu tiên.
     assert load_config(path).novel.slug == "a"

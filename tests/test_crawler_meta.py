@@ -75,8 +75,8 @@ def _make_fake_response(html_text: str):
 
 
 def test_ai_fallback_triggers_when_content_empty(monkeypatch):
-    from novel2epub import cli_runner
-    from novel2epub.config import CliTranslatorConfig
+    from novel2epub import openai_client
+    from novel2epub.config import OpenAIConfig
     from novel2epub.storage import Chapter
 
     html = "<html><body><p>Chương một nội dung.</p></body></html>"
@@ -85,7 +85,7 @@ def test_ai_fallback_triggers_when_content_empty(monkeypatch):
         content_selector=".nonexistent",
         ai_fallback=True,
         ai_fallback_max_html=500,
-        _cli_fallback=CliTranslatorConfig(command="test-run", mode="stdin"),
+        _openai_fallback=OpenAIConfig(base_url="https://api.test/v1"),
     )
     c = HttpCrawler(cfg)
 
@@ -93,11 +93,11 @@ def test_ai_fallback_triggers_when_content_empty(monkeypatch):
 
     calls = []
 
-    def _mock_run(cli, prompt, argv=None):
-        calls.append({"cli": cli, "prompt": prompt})
+    def _mock_run(cfg_, prompt):
+        calls.append({"cfg": cfg_, "prompt": prompt})
         return "Nội dung chapter đã trích xuất."
 
-    monkeypatch.setattr(cli_runner, "run_cli", _mock_run)
+    monkeypatch.setattr(openai_client, "run_chat", _mock_run)
     ch = Chapter(index=1, url="http://site.com/ch1", title_zh="Chương 1")
     result = c.fetch_chapter(ch)
     assert result == "Nội dung chapter đã trích xuất."
@@ -112,7 +112,7 @@ def test_ai_fallback_skipped_when_cli_not_configured(monkeypatch):
         toc_url="http://site.com/",
         content_selector=".nonexistent",
         ai_fallback=True,
-        _cli_fallback=None,
+        _openai_fallback=None,
     )
     c = HttpCrawler(cfg)
     monkeypatch.setattr(c._session, "get", lambda url, **kw: _make_fake_response(html))
@@ -123,8 +123,8 @@ def test_ai_fallback_skipped_when_cli_not_configured(monkeypatch):
 
 
 def test_ai_fallback_skipped_when_primary_succeeds(monkeypatch):
-    from novel2epub import cli_runner
-    from novel2epub.config import CliTranslatorConfig
+    from novel2epub import openai_client
+    from novel2epub.config import OpenAIConfig
     from novel2epub.storage import Chapter
 
     html = "<html><body><div id='content'><p>Nội dung chính.</p></div></body></html>"
@@ -133,18 +133,18 @@ def test_ai_fallback_skipped_when_primary_succeeds(monkeypatch):
         content_selector="#content",
         ai_fallback=True,
         ai_fallback_max_html=5000,
-        _cli_fallback=CliTranslatorConfig(command="test-run", mode="stdin"),
+        _openai_fallback=OpenAIConfig(base_url="https://api.test/v1"),
     )
     c = HttpCrawler(cfg)
     monkeypatch.setattr(c._session, "get", lambda url, **kw: _make_fake_response(html))
 
     calls = []
 
-    def _mock_run(cli, prompt, argv=None):
+    def _mock_run(cfg_, prompt):
         calls.append(prompt)
         return ""
 
-    monkeypatch.setattr(cli_runner, "run_cli", _mock_run)
+    monkeypatch.setattr(openai_client, "run_chat", _mock_run)
     ch = Chapter(index=1, url="http://site.com/ch1", title_zh="Chương 1")
     result = c.fetch_chapter(ch)
     assert result == "Nội dung chính."

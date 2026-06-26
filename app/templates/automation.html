@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Tự động hóa — novel2epub{% endblock %}
+{% block content %}
+<div class="section-head"><h2>Tự động hóa</h2></div>
+<p class="muted">Chuỗi bước chạy theo lịch hàng ngày hoặc bấm tay, đẩy qua hàng đợi job (job "automation" chiếm độc quyền crawl + dịch trong lúc chạy).</p>
+
+<div class="table-wrap">
+    <table class="data-table">
+        <tr><th>Ebook</th><th>Các bước</th><th>Lịch</th><th>Bật</th><th>Lần chạy cuối</th><th>Kết quả</th><th></th></tr>
+        {% for a in automations %}
+        <tr>
+            <td>{{ a.ebook }}</td>
+            <td>{{ a.steps | join(' → ') }}</td>
+            <td><code>{{ a.schedule }}</code></td>
+            <td>{% if a.enabled %}<span class="badge ok">bật</span>{% else %}<span class="badge no">tắt</span>{% endif %}</td>
+            <td>{{ a.last_run_at or '—' }}</td>
+            <td>
+                {% if a.last_run_outcome == 'success' %}<span class="badge ok">thành công</span>
+                {% elif a.last_run_outcome == 'failure' %}<span class="badge no">lỗi</span>
+                {% elif a.last_run_outcome == 'partial' %}<span class="badge run">một phần</span>
+                {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td>
+                <div class="row-actions">
+                    <form method="post" action="/automation/{{ a.id }}/run-now"><button type="submit">Chạy ngay</button></form>
+                    <form method="post" action="/automation/{{ a.id }}/delete" onsubmit="return confirm('Xóa automation này?');"><button type="submit">Xóa</button></form>
+                </div>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="muted">Chưa có automation nào.</td></tr>
+        {% endfor %}
+    </table>
+</div>
+
+<hr>
+<div class="section-head"><h3>Thêm automation</h3></div>
+<form method="post" action="/automation">
+    <fieldset>
+        <p><label>Ebook
+            <select name="ebook" required>
+                {% for slug in ebooks %}<option value="{{ slug }}">{{ slug }}</option>{% endfor %}
+            </select>
+        </label></p>
+        <p>
+            {% for step in steps %}
+            <label class="check"><input type="checkbox" name="steps" value="{{ step }}" {% if step == 'build' %}checked{% endif %}> {{ step }}</label>
+            {% endfor %}
+        </p>
+        <p><label>Lịch chạy
+            <input type="text" name="schedule" value="manual" placeholder="manual hoặc daily@03:00">
+        </label></p>
+        <p><button type="submit">Tạo automation</button></p>
+    </fieldset>
+</form>
+{% endblock %}

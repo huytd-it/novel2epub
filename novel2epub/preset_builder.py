@@ -1,9 +1,9 @@
-"""Tạo `SourcePreset` tự động từ URL mục lục dùng AI CLI + preview validation.
+"""Tạo `SourcePreset` tự động từ URL mục lục dùng AI (OpenAI-Compatible) + preview validation.
 
 Flow chính:
   1. Thử fetch HTML bằng HttpCrawler trước (nhanh, free).
   2. Heuristic chọn engine http hoặc crawl4ai.
-  3. Gửi HTML cho AI CLI, yêu cầu JSON chứa các selector/pattern.
+  3. Gửi HTML cho AI, yêu cầu JSON chứa các selector/pattern.
   4. Validate `chapter_link_pattern` bằng cách đếm số link match trong phạm vi
      `toc_selector`; quá ít/quá nhiều thì yêu cầu AI refine (tối đa 3 vòng).
   5. Chạy `crawler.fetch_toc()` để preview danh sách chương.
@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
-from .config import CliTranslatorConfig, CrawlConfig, load_config
+from .config import OpenAIConfig, CrawlConfig, load_config
 from .crawler import TocResult, make_crawler
 from .sources import SourcePreset, load_presets, save_presets
 
@@ -307,17 +307,17 @@ def _build_source_preset(name: str, data: dict[str, Any], url: str) -> SourcePre
     )
 
 
-def _get_cli_config(config_path: str | None = None) -> CliTranslatorConfig | None:
-    """Load cli từ config. Trả None nếu không có AI CLI."""
+def _get_openai_config(config_path: str | None = None) -> OpenAIConfig | None:
+    """Load openai config từ file config. Trả None nếu không có AI cấu hình."""
     path = config_path or os.environ.get(
         "NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.yaml")
     )
     try:
         cfg = load_config(path)
-        cli = cfg.translate.cli
+        openai_cfg = cfg.translate.openai
         if cfg.translate.type.lower() == "none":
             return None
-        return cli
+        return openai_cfg
     except Exception:
         return None
 
@@ -351,22 +351,21 @@ def build_preset(
         result.engine = engine
 
         # 3. Gọi AI.
-        cli = _get_cli_config(config_path)
-        if cli is None:
+        openai_cfg = _get_openai_config(config_path)
+        if openai_cfg is None:
             result.error = (
-                "Chưa cấu hình AI CLI. "
-                "Set translate.type != none và translate.cli.command trong config "
-                "(vd translate.cli.command = 'opencode run')"
+                "Chưa cấu hình AI. "
+                "Set translate.type != none và translate.openai.base_url/api_key/model trong config."
             )
             return result
-        cli.timeout_seconds = timeout_seconds
-        html = str(soup)[: getattr(cli, "ai_fallback_max_html", 32000)]
+        openai_cfg.timeout_seconds = timeout_seconds
+        html = str(soup)[:32000]
         prompt = build_ai_suggestion_prompt(html, toc_url, novel_title)
 
-        from . import cli_runner
+        from . import openai_client
 
         def _ai_call(p: str) -> str:
-            return cli_runner.run_cli(cli, p)
+            return openai_client.run_chat(openai_cfg, p)
 
         raw = _ai_call(prompt)
         data = parse_ai_suggestion(raw)

@@ -86,6 +86,26 @@ def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterR
     return rows
 
 
+def chapter_crawl_status(ch: Chapter, storage: Storage, min_chars: int = 30) -> str:
+    """'missing' (chưa crawl) | 'empty' (đã fetch nhưng rỗng/quá ngắn) | 'ok'.
+
+    Phân biệt rõ "chưa crawl" với "đã crawl nhưng lỗi/rỗng" để crawl console
+    (xem spec crawl-management) gộp cả 2 vào 1 danh sách "cần retry" mà không
+    coi 2 trường hợp là như nhau khi hiển thị.
+    """
+    path = storage.raw_path(ch)
+    if not path.exists():
+        return "missing"
+    if path.stat().st_size < min_chars:
+        return "empty"
+    return "ok"
+
+
+def crawl_problem_indexes(chapters: Iterable[Chapter], storage: Storage, min_chars: int = 30) -> list[int]:
+    """Index các chương 'missing' hoặc 'empty' — dùng cho hành động "Retry lỗi"."""
+    return [ch.index for ch in chapters if chapter_crawl_status(ch, storage, min_chars) != "ok"]
+
+
 def _matches_filter(value: bool, flt: str) -> bool:
     flt = (flt or "any").lower()
     return flt == "any" or (flt == "yes" and value) or (flt == "no" and not value)

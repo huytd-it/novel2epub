@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from . import footnotes
+from .config import NovelConfig
 from .storage import Chapter, Manifest
 
 _CSS = """
@@ -51,12 +52,16 @@ def build_epub(
     language: str = "vi",
     cover_path: str | Path | None = None,
     footnotes_by_stem: dict[str, list[dict]] | None = None,
+    metadata: NovelConfig | None = None,
 ) -> Path:
     """chapters_html: danh sách (chapter, tiêu_đề_hiển_thị, nội_dung_markdown).
 
     Ưu tiên metadata tiếng Việt (title_vi/author_vi/description_vi) nếu có; nhúng
     ảnh bìa khi cover_path tồn tại. `footnotes_by_stem` (tùy chọn) map ch.stem ->
     danh sách footnote để render khối chú thích ở cuối chương tương ứng.
+    `metadata` (tùy chọn) cung cấp publisher/pubdate/subjects/series/series_index/
+    identifier/date_added — field rỗng bị bỏ qua, không ghi giá trị trống vào EPUB
+    (xem spec ebook-metadata).
     """
     footnotes_by_stem = footnotes_by_stem or {}
     try:
@@ -67,7 +72,8 @@ def build_epub(
         ) from e
 
     book = epub.EpubBook()
-    book.set_identifier(f"novel2epub-{manifest.slug}")
+    identifier = (metadata.identifier if metadata else "") or f"novel2epub-{manifest.slug}"
+    book.set_identifier(identifier)
     book.set_title(manifest.title_vi or manifest.title or manifest.slug)
     book.set_language(language)
     author = manifest.author_vi or manifest.author
@@ -76,6 +82,23 @@ def build_epub(
     description = manifest.description_vi or manifest.description
     if description:
         book.add_metadata("DC", "description", description)
+
+    if metadata is not None:
+        if metadata.publisher:
+            book.add_metadata("DC", "publisher", metadata.publisher)
+        if metadata.pubdate:
+            book.add_metadata("DC", "date", metadata.pubdate)
+        for subject in metadata.subjects:
+            if subject:
+                book.add_metadata("DC", "subject", subject)
+        if metadata.series:
+            book.add_metadata(None, "meta", "", {"name": "calibre:series", "content": metadata.series})
+            if metadata.series_index:
+                book.add_metadata(
+                    None, "meta", "", {"name": "calibre:series_index", "content": metadata.series_index}
+                )
+        if metadata.date_added:
+            book.add_metadata(None, "meta", "", {"name": "calibre:timestamp", "content": metadata.date_added})
 
     if cover_path is not None:
         cover_path = Path(cover_path)

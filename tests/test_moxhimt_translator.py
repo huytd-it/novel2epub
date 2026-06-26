@@ -44,9 +44,11 @@ class _FakeCT2Translator:
     # Ghi lại kích thước mỗi batch để test khẳng định cách chia chunk.
     batch_calls: list[int] = []
 
-    def __init__(self, path, device="cpu"):
+    def __init__(self, path, device="cpu", inter_threads=1, intra_threads=1):
         self.path = path
         self.device = device
+        self.inter_threads = inter_threads
+        self.intra_threads = intra_threads
 
     def translate_batch(self, batch, beam_size=1, max_decoding_length=512):
         _FakeCT2Translator.batch_calls.append(len(batch))
@@ -139,6 +141,44 @@ def test_blank_lines_preserved(fake_model_env):
     t = fake_model_env()
     out = t.translate("a\n\nb")
     assert out == "a\n\nb"
+
+
+def test_multiline_translates_in_one_batch_call(fake_model_env):
+    # 3 dòng vừa token -> gom CẢ 3 vào 1 lần gọi translate_batch (batch=3),
+    # không gọi translate_batch riêng cho mỗi dòng.
+    t = fake_model_env()
+    t.translate("dòng A\ndòng B\ndòng C")
+    assert _FakeCT2Translator.batch_calls == [3]
+
+
+def test_batched_result_equals_sequential_result(fake_model_env):
+    t = fake_model_env(max_length=48)
+    text = "AAAA。BBBB。\nCCCC。DDDD。EEEE。"
+    batched = t.translate(text)
+    sequential = "\n".join(t._translate_line(line) if line.strip() else line for line in text.split("\n"))
+    assert batched == sequential
+
+
+def test_resolved_threads_respects_core_count(monkeypatch):
+    monkeypatch.setattr("os.cpu_count", lambda: 8)
+    cfg = MoxhiMTConfig()
+    inter, intra = cfg.resolved_threads()
+    assert inter * intra <= 8
+    assert inter >= 1 and intra >= 1
+
+
+def test_resolved_threads_uses_explicit_override(monkeypatch):
+    monkeypatch.setattr("os.cpu_count", lambda: 8)
+    cfg = MoxhiMTConfig(inter_threads=4, intra_threads=4)
+    assert cfg.resolved_threads() == (4, 4)
+
+
+def test_ct2_translator_receives_resolved_threads(fake_model_env, monkeypatch):
+    monkeypatch.setattr("os.cpu_count", lambda: 8)
+    t = fake_model_env(inter_threads=2, intra_threads=2)
+    t.translate("第一句。")
+    assert t._ct2.inter_threads == 2
+    assert t._ct2.intra_threads == 2
 
 
 def test_long_paragraph_falls_back_to_sentences(fake_model_env):

@@ -38,10 +38,11 @@ defaults:
       respect_retry_after: true # ưu tiên header Retry-After của server nếu có
 
   translate:
-    # type: cli (gọi AI CLI bất kỳ) | google (deep-translator)
+    # type: openai (AI OpenAI-Compatible: OpenAI, OpenRouter, Ollama, LM Studio, vLLM...)
+    #     | google (deep-translator)
     #     | moxhimt (model NMT cục bộ, offline, miễn phí — xem khối `moxhimt`)
     #     | none (giữ gốc)
-    type: cli
+    type: openai
     style:
       tone: "mượt, tự nhiên, có chất cổ trang"
       pronoun_policy: contextual
@@ -51,11 +52,12 @@ defaults:
     retry: { attempts: 1, delay_seconds: 0.0 }
     chunk: { max_chars: 1500, overlap_paragraphs: 0 }
     delay_seconds: 0.5
-    cli:
-      command: "claude -p"      # vd "opencode run", "llm -m gpt-4o-mini"
-      model: ""
-      mode: stdin               # stdin | arg
+    openai:
+      base_url: "https://api.openai.com/v1"  # vd "https://openrouter.ai/api/v1", "http://localhost:11434/v1" (Ollama)
+      api_key: ""                # token Bearer — để trống nếu provider local không yêu cầu
+      model: "gpt-4o-mini"
       timeout_seconds: 300
+      temperature: 0.7
       # Bỏ trống prompt_template/title_prompt_template để dùng prompt mặc định
       # tích hợp sẵn trong code (novel2epub/config.py: DEFAULT_PROMPT/TITLE_PROMPT).
       # Chỉ khai ở đây hoặc trong từng ebook khi muốn ghi đè.
@@ -225,8 +227,23 @@ sources:
     headless: true
     magic: true
     delay_seconds: 1.5
+  # ----- scrapling: 3 mode, chọn theo mức độ chặn bot của site -----
+  # fetcher  = HTTP thuần + giả TLS fingerprint (nhanh/nhẹ, concurrency cao,
+  #            hợp site chỉ chặn theo fingerprint, không cần JS/Cloudflare)
+  # stealthy = browser Camoufox thật, vượt được Cloudflare Turnstile (nặng hơn,
+  #            concurrency nên thấp ~4-6 để tránh ngốn RAM)
+  # dynamic  = full Playwright (nặng nhất, chỉ dùng khi site cần JS phức tạp)
+  scrapling-fetcher:
+    name: Scrapling fetcher (mẫu — site chỉ chặn theo TLS, không cần browser)
+    url: ""
+    domains: ""
+    engine: scrapling
+    scrapling_mode: fetcher
+    impersonate: chrome
+    concurrency_cap: 20         # fetcher nhẹ -> chịu được nhiều luồng song song
+    delay_seconds: 0.5
   scrapling-stealth:
-    name: Scrapling stealth (ví dụ site có Cloudflare)
+    name: Scrapling stealth (mẫu — site có Cloudflare/anti-bot mạnh)
     url: ""
     domains: ""
     engine: scrapling
@@ -234,7 +251,41 @@ sources:
     solve_cloudflare: true
     network_idle: true
     headless: true
+    concurrency_cap: 4          # browser thật -> giữ thấp để không ngốn RAM
     delay_seconds: 2.0
+  qidian-scrapling:
+    name: 起点中文网 qua Scrapling (thay thế qidian/crawl4ai nếu vẫn bị chặn)
+    url: https://www.qidian.com/
+    domains: qidian.com
+    engine: scrapling
+    scrapling_mode: stealthy
+    solve_cloudflare: true
+    network_idle: true
+    content_selector: .read-content
+    concurrency_cap: 4
+    delay_seconds: 2.0
+  jjwxc-scrapling:
+    name: 晋江文学城 qua Scrapling (site hay chặn theo TLS fingerprint + Cloudflare)
+    url: https://www.jjwxc.net/
+    domains: jjwxc.net
+    engine: scrapling
+    scrapling_mode: stealthy
+    solve_cloudflare: true
+    network_idle: true
+    encoding: gb2312
+    concurrency_cap: 4
+    delay_seconds: 2.0
+  69shuba-scrapling:
+    name: 69书吧 qua Scrapling fetcher (thay thế bản crawl4ai — nhẹ hơn, crawl nhanh hơn nhiều)
+    url: https://www.69shuba.com/
+    domains: 69shuba.com,69shu.com,69yuedu.net
+    engine: scrapling
+    scrapling_mode: fetcher
+    impersonate: chrome
+    content_selector: .txtnav
+    chapter_link_pattern: /txt/\d+/\d+
+    concurrency_cap: 20
+    delay_seconds: 0.8
   baike:
     name: 百度百科 (metadata only)
     url: https://baike.baidu.com/

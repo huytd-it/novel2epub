@@ -1,48 +1,43 @@
-import subprocess
-
 import pytest
+import requests
 
-from novel2epub import cli_runner
+from novel2epub import openai_client
 from novel2epub.translator import _apply_glossary, _clean_output, _parse_title_response, load_glossary_dict
-from novel2epub.config import CliTranslatorConfig, TranslateConfig, GlossaryFilesConfig
+from novel2epub.config import OpenAIConfig, TranslateConfig, GlossaryFilesConfig
 
 
-def _fake_completed(returncode=0, stdout="", stderr=""):
-    return subprocess.CompletedProcess(args=["x"], returncode=returncode, stdout=stdout, stderr=stderr)
+class _FakeResponse:
+    def __init__(self, status_code=200, json_data=None, text=""):
+        self.status_code = status_code
+        self._json_data = json_data or {}
+        self.text = text
+
+    def json(self):
+        return self._json_data
 
 
-def test_run_cli_raises_on_nonzero_with_stderr(monkeypatch):
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _fake_completed(returncode=1, stderr="auth failed"))
-    cli = CliTranslatorConfig(command="dummy", mode="stdin")
+def _chat_response(content):
+    return _FakeResponse(200, {"choices": [{"message": {"content": content}}]})
+
+
+def test_run_chat_raises_on_http_error(monkeypatch):
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _FakeResponse(401, text="auth failed"))
+    cfg = OpenAIConfig(base_url="https://api.test/v1")
     with pytest.raises(RuntimeError, match="auth failed"):
-        cli_runner.run_cli(cli, "xin chào", argv=["dummy"])
+        openai_client.run_chat(cfg, "xin chào")
 
 
-def test_run_cli_surfaces_stdout_when_nonzero_and_no_stderr(monkeypatch):
-    # `claude -p` hay thoát mã != 0 mà in lỗi ra stdout, stderr rỗng -> phải lộ
-    # nội dung stdout thay vì báo "(không có stderr)".
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *a, **k: _fake_completed(returncode=1, stdout="Usage limit reached", stderr=""),
-    )
-    cli = CliTranslatorConfig(command="dummy", mode="stdin")
-    with pytest.raises(RuntimeError, match="Usage limit reached"):
-        cli_runner.run_cli(cli, "xin chào", argv=["dummy"])
+def test_run_chat_raises_when_content_empty(monkeypatch):
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _chat_response("   "))
+    cfg = OpenAIConfig(base_url="https://api.test/v1")
+    with pytest.raises(RuntimeError, match="rỗng"):
+        openai_client.run_chat(cfg, "xin chào")
 
 
-def test_run_cli_raises_when_exit0_but_empty_output(monkeypatch):
-    # AI CLI hay thoát mã 0 mà vẫn lỗi (rate-limit) -> stdout rỗng, stderr có lỗi.
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _fake_completed(returncode=0, stdout="  \n", stderr="rate limited"))
-    cli = CliTranslatorConfig(command="dummy", mode="stdin")
-    with pytest.raises(RuntimeError, match="rate limited"):
-        cli_runner.run_cli(cli, "xin chào", argv=["dummy"])
-
-
-def test_run_cli_returns_stdout_on_success(monkeypatch):
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _fake_completed(returncode=0, stdout="Xin chào"))
-    cli = CliTranslatorConfig(command="dummy", mode="stdin")
-    assert cli_runner.run_cli(cli, "hi", argv=["dummy"]) == "Xin chào"
+def test_run_chat_returns_content_on_success(monkeypatch):
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _chat_response("Xin chào"))
+    cfg = OpenAIConfig(base_url="https://api.test/v1")
+    assert openai_client.run_chat(cfg, "hi") == "Xin chào"
 
 
 def test_clean_output_strips_code_fence():
@@ -131,57 +126,55 @@ def test_parse_title_response_fallback_when_no_format():
     assert note == ""
 
 
-def test_go_preset_chapter_translation_uses_opencode(monkeypatch):
-    from novel2epub.translator import CLITranslator, make_translator
+def test_go_preset_chapter_translation_uses_openai(monkeypatch):
+    from novel2epub.translator import make_translator
 
     cfg = TranslateConfig(
-        type="cli",
+        type="openai",
         preset="go",
-        cli=CliTranslatorConfig(
-            command="opencode run",
-            model="opencode-go/deepseek-v4-flash",
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            model="test-model",
             prompt_template="",
             title_prompt_template="",
-            mode="stdin",
             timeout_seconds=300,
         ),
     )
     captured = {}
 
-    def _mock_run_cli(cli, prompt, argv=None):
-        captured["command"] = cli.command
-        captured["model"] = cli.model
+    def _mock_run_chat(cfg_, prompt):
+        captured["base_url"] = cfg_.base_url
+        captured["model"] = cfg_.model
         return "Bản dịch tiếng Việt."
 
-    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
     translator = make_translator(cfg)
     result = translator.translate("你好世界")
     assert result == "Bản dịch tiếng Việt."
-    assert captured["command"] == "opencode run"
-    assert captured["model"] == "opencode-go/deepseek-v4-flash"
+    assert captured["base_url"] == "https://api.test/v1"
+    assert captured["model"] == "test-model"
 
 
 def test_translate_retries_when_output_has_residual_chinese(monkeypatch):
-    from novel2epub.translator import CLITranslator, make_translator
+    from novel2epub.translator import make_translator
 
     cfg = TranslateConfig(
-        type="cli",
-        cli=CliTranslatorConfig(
-            command="dummy",
+        type="openai",
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
             prompt_template="{text}",
             title_prompt_template="{text}",
-            mode="stdin",
         ),
     )
     calls = []
 
-    def _mock_run_cli(cli, prompt, argv=None):
+    def _mock_run_chat(cfg_, prompt):
         calls.append(prompt)
         if len(calls) == 1:
             return "Xin chào 世界"
         return "Xin chào thế giới"
 
-    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
     translator = make_translator(cfg)
     result = translator.translate("你好世界")
     assert result == "Xin chào thế giới"
@@ -190,81 +183,73 @@ def test_translate_retries_when_output_has_residual_chinese(monkeypatch):
 
 
 def test_translate_stops_retrying_when_chinese_does_not_improve(monkeypatch):
-    from novel2epub.translator import CLITranslator, make_translator
+    from novel2epub.translator import make_translator
 
     cfg = TranslateConfig(
-        type="cli",
-        cli=CliTranslatorConfig(
-            command="dummy",
+        type="openai",
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
             prompt_template="{text}",
             title_prompt_template="{text}",
-            mode="stdin",
         ),
     )
     calls = []
 
-    def _mock_run_cli(cli, prompt, argv=None):
+    def _mock_run_chat(cfg_, prompt):
         calls.append(prompt)
         return "Xin chào 世界"
 
-    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
     translator = make_translator(cfg)
     result = translator.translate("你好世界")
     assert result == "Xin chào 世界"
     assert len(calls) == 2
 
 
-def test_go_preset_title_translation_uses_opencode(monkeypatch):
+def test_go_preset_title_translation_uses_openai(monkeypatch):
     from novel2epub.translator import make_translator
 
     cfg = TranslateConfig(
-        type="cli",
+        type="openai",
         preset="go",
-        cli=CliTranslatorConfig(
-            command="opencode run",
-            model="opencode-go/deepseek-v4-flash",
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            model="test-model",
             prompt_template="",
             title_prompt_template="",
-            mode="stdin",
             timeout_seconds=300,
         ),
     )
     captured = {}
 
-    def _mock_run_cli(cli, prompt, argv=None):
-        captured["command"] = cli.command
+    def _mock_run_chat(cfg_, prompt):
+        captured["base_url"] = cfg_.base_url
         captured["prompt"] = prompt
         return "TIÊU ĐỀ: Chương Một\nGIẢI THÍCH: "
 
-    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
     translator = make_translator(cfg)
     title, note = translator.translate_title("第一章", kind="tên chương")
     assert title == "Chương Một"
-    assert captured["command"] == "opencode run"
+    assert captured["base_url"] == "https://api.test/v1"
 
 
-def test_go_preset_error_guides_auth(monkeypatch):
+def test_translate_raises_when_ai_call_fails(monkeypatch):
     from novel2epub.translator import make_translator
 
     cfg = TranslateConfig(
-        type="cli",
-        preset="go",
-        cli=CliTranslatorConfig(
-            command="opencode run",
-            model="opencode-go/deepseek-v4-flash",
+        type="openai",
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
             prompt_template="{text}",
             title_prompt_template="",
-            mode="stdin",
-            timeout_seconds=300,
         ),
     )
 
-    def _mock_run_cli(cli, prompt, argv=None):
-        raise FileNotFoundError("opencode not found")
+    def _mock_run_chat(cfg_, prompt):
+        raise RuntimeError("AI trả về mã lỗi HTTP 401")
 
-    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
     translator = make_translator(cfg)
-    with pytest.raises(RuntimeError) as exc:
+    with pytest.raises(RuntimeError, match="401"):
         translator.translate("test")
-    msg = str(exc.value)
-    assert "opencode" in msg.lower() or "opencode" in msg

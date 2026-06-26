@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import cli_runner
+from . import openai_client
 from .config import TranslateConfig
 from .translator import _apply_glossary, _clean_output, _format_glossary, load_glossary_dict
 
@@ -147,7 +147,7 @@ def suggest_glossary(
     existing_text = _format_glossary(existing_glossary) or "(chưa có mục nào)"
     prompt = SUGGEST_PROMPT.format(existing=existing_text, raw=raw_combined, translated=translated_combined)
     try:
-        output = cli_runner.run_cli(cfg.cli, prompt)
+        output = openai_client.run_chat(cfg.openai, prompt)
     except Exception:
         return []
 
@@ -170,7 +170,7 @@ def rewrite_chapter(cfg: TranslateConfig, raw: str, current_translation: str, gl
         raw=raw,
         translated=current_translation,
     )
-    output = cli_runner.run_cli(cfg.cli, prompt)
+    output = openai_client.run_chat(cfg.openai, prompt)
     return _apply_glossary(_clean_output(output), glossary)
 
 
@@ -240,7 +240,7 @@ def evaluate_translation(
     glossary_text = _format_glossary(glossary) or "(chưa có mục nào)"
     prompt = EVALUATE_PROMPT.format(glossary=glossary_text, raw=raw_combined, translated=translated_combined)
     try:
-        output = cli_runner.run_cli(cfg.cli, prompt)
+        output = openai_client.run_chat(cfg.openai, prompt)
     except Exception:
         return dict(_EMPTY_REPORT)
 

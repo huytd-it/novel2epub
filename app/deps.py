@@ -22,6 +22,11 @@ WORKSPACE_PATH = os.environ.get(
 CONFIG_PATH = WORKSPACE_PATH
 LIBRARY_PATH = WORKSPACE_PATH
 SOURCES_PATH = WORKSPACE_PATH
+# Sidecar workspace state (lịch sử queue, automation, archived flags...) —
+# nằm cạnh file config gộp, không commit (xem design.md D3).
+WORKSPACE_DIR = Path(WORKSPACE_PATH).resolve().parent / ".n2e"
+AUTOMATIONS_PATH = WORKSPACE_DIR / "automations.yaml"
+LIBRARY_STATE_PATH = WORKSPACE_DIR / "library_state.json"
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 

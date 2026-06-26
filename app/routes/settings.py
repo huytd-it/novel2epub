@@ -1,9 +1,12 @@
-"""Cấu hình per-ebook: metadata truyện, nguồn crawl, AI CLI dịch."""
+"""Cấu hình per-ebook: metadata truyện, nguồn crawl, AI OpenAI-Compatible dịch."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+import re
 
+from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+
+from novel2epub import openai_client
 from novel2epub.config_writer import clean_prompt_text, update_ebook
 
 from .. import deps
@@ -34,13 +37,37 @@ def save_novel(
     title: str = Form(""),
     author: str = Form(""),
     language: str = Form("vi"),
+    publisher: str = Form(""),
+    pubdate: str = Form(""),
+    subjects: str = Form(""),  # textarea/input, 1 chủ đề / dòng hoặc phân tách bằng dấu phẩy
+    series: str = Form(""),
+    series_index: str = Form(""),
+    identifier: str = Form(""),
 ):
     path = deps.ebook_config_path(slug)
+    subject_list = [s.strip() for s in re.split(r"[\n,]", subjects) if s.strip()]
     logger.info(
-        "[config][NOVEL] slug=%s lưu vào %s: title=%r author=%r language=%r",
+        "[config][NOVEL] slug=%s lưu vào %s: title=%r author=%r language=%r "
+        "publisher=%r pubdate=%r subjects=%r series=%r series_index=%r",
         slug, path, title, author, language,
+        publisher, pubdate, subject_list, series, series_index,
     )
-    update_ebook(deps.WORKSPACE_PATH, slug, {"novel": {"title": title, "author": author, "language": language}})
+    update_ebook(deps.WORKSPACE_PATH, slug, {
+        "novel": {
+            "title": title,
+            "author": author,
+            "language": language,
+            "publisher": publisher,
+            "pubdate": pubdate,
+            "subjects": subject_list,
+            "series": series,
+            "series_index": series_index,
+            # identifier: chỉ ghi đè khi người dùng thật sự nhập — field rỗng
+            # không xóa identifier tự sinh trước đó (xem spec ebook-metadata
+            # "Identifier stable across rebuilds").
+            **({"identifier": identifier} if identifier.strip() else {}),
+        },
+    })
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -123,14 +150,29 @@ def apply_preset(slug: str, preset: str = Form("")):
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
+@router.get("/settings/ai/models")
+def list_ai_models(base_url: str, api_key: str = ""):
+    """Proxy GET {base_url}/models cho UI Settings hiển thị dropdown model id.
+
+    Trả {"models": [...]} hoặc {"error": "..."} (200 cả 2 trường hợp — lỗi do
+    provider không hỗ trợ /models là bình thường, để UI tự fallback input tự do).
+    """
+    try:
+        models = openai_client.list_models(base_url, api_key)
+        return JSONResponse({"models": models})
+    except Exception as e:
+        return JSONResponse({"models": [], "error": str(e)})
+
+
 @router.post("/ebooks/{slug}/settings/ai")
 def save_ai(
     slug: str,
-    type: str = Form("cli"),
-    command: str = Form("claude -p"),
+    type: str = Form("openai"),
+    base_url: str = Form("https://api.openai.com/v1"),
+    api_key: str = Form(""),
     model: str = Form(""),
-    mode: str = Form("stdin"),
     timeout_seconds: int = Form(300),
+    temperature: float = Form(0.7),
     prompt_template: str = Form(""),
     title_prompt_template: str = Form(""),
     tone: str = Form(""),
@@ -144,20 +186,21 @@ def save_ai(
     chunk_max_chars: int = Form(0),
     chunk_overlap_paragraphs: int = Form(0),
 ):
-    cli: dict = {
-        "command": command,
+    openai_cfg: dict = {
+        "base_url": base_url,
+        "api_key": api_key,
         "model": model,
-        "mode": mode,
         "timeout_seconds": timeout_seconds,
+        "temperature": temperature,
     }
     if prompt_template.strip():
-        cli["prompt_template"] = clean_prompt_text(prompt_template)
+        openai_cfg["prompt_template"] = clean_prompt_text(prompt_template)
     if title_prompt_template.strip():
-        cli["title_prompt_template"] = clean_prompt_text(title_prompt_template)
+        openai_cfg["title_prompt_template"] = clean_prompt_text(title_prompt_template)
 
     translate: dict = {
         "type": type,
-        "cli": cli,
+        "openai": openai_cfg,
         "style": {
             "tone": tone,
             "pronoun_policy": pronoun_policy,
@@ -174,12 +217,12 @@ def save_ai(
     }
     path = deps.ebook_config_path(slug)
     logger.info(
-        "[config][AI/DỊCH] slug=%s lưu vào %s: type=%s command=%r model=%r mode=%s "
-        "timeout=%ss tone=%r pronoun=%s title_mode=%s han_viet=%s keep_paragraphs=%s "
-        "retry=%s chunk_max_chars=%s delay=%ss",
-        slug, path, type, command, model, mode, timeout_seconds, tone, pronoun_policy,
-        title_mode, han_viet_level, keep_paragraphs, retry_attempts, chunk_max_chars,
-        delay_seconds,
+        "[config][AI/DỊCH] slug=%s lưu vào %s: type=%s base_url=%r model=%r "
+        "timeout=%ss temperature=%s tone=%r pronoun=%s title_mode=%s han_viet=%s "
+        "keep_paragraphs=%s retry=%s chunk_max_chars=%s delay=%ss",
+        slug, path, type, base_url, model, timeout_seconds, temperature, tone,
+        pronoun_policy, title_mode, han_viet_level, keep_paragraphs, retry_attempts,
+        chunk_max_chars, delay_seconds,
     )
     update_ebook(deps.WORKSPACE_PATH, slug, {"translate": translate})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)

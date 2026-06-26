@@ -46,8 +46,28 @@ class CrawlConfig:
     # Số chương tải song song (luồng riêng, mỗi luồng tự giữ 1 crawler/session).
     # 1 = tuần tự như trước. delay_seconds vẫn áp dụng riêng trong mỗi luồng.
     max_workers: int = 1
+    # Trần song song hóa cứng cho NGUỒN này, độc lập với max_workers job yêu
+    # cầu — vd job xin 100 luồng nhưng site chỉ chịu được 5 đồng thời. 0 =
+    # dùng mặc định theo engine/mode (xem `default_concurrency_cap`).
+    concurrency_cap: int = 0
     # Thử lại + lùi dần khi bị HTTP 429 / chặn anti-bot (xem CrawlRetryConfig).
     retry: CrawlRetryConfig = field(default_factory=CrawlRetryConfig)
+
+    def default_concurrency_cap(self) -> int:
+        """Trần song song mặc định theo engine/mode — cao cho HTTP/fetcher nhẹ,
+        thấp cho mode dùng browser thật (stealthy/dynamic/crawl4ai) để giới hạn
+        RAM (~300-600MB/instance)."""
+        if self.engine == "scrapling":
+            return 20 if self.scrapling_mode == "fetcher" else 5
+        if self.engine == "crawl4ai":
+            return 5
+        return 20
+
+    def effective_workers(self, requested: int) -> int:
+        """Số luồng thực sự được dùng = min(requested, trần của nguồn này)."""
+        requested = max(1, int(requested))
+        cap = self.concurrency_cap if self.concurrency_cap > 0 else self.default_concurrency_cap()
+        return min(requested, max(1, cap))
 
     # ----- multi-page chapter (pagination) -----
     # CSS selector cho link "trang tiếp" trong chương (vd "a#pager_next",
@@ -132,13 +152,13 @@ class CrawlConfig:
     impersonate: str = ""
 
     # ----- AI fallback crawl (experimental, cần translate.preset: go) -----
-    # Khi selector không trích được nội dung, gửi HTML thô cho AI CLI
-    # (opencode run) để trích xuất chương bằng LLM.
+    # Khi selector không trích được nội dung, gửi HTML thô cho AI
+    # OpenAI-Compatible để trích xuất chương bằng LLM.
     ai_fallback: bool = False
     # Giới hạn ký tự HTML gửi cho AI (tránh vượt context window).
     ai_fallback_max_html: int = 32000
-    # CLI config cho AI fallback (do pipeline gán khi tạo crawler).
-    _cli_fallback: Any = None  # CliTranslatorConfig | None
+    # Config OpenAI dùng cho AI fallback (do pipeline gán khi tạo crawler).
+    _openai_fallback: Any = None  # OpenAIConfig | None
 
 
 @dataclass
@@ -210,13 +230,20 @@ GIẢI THÍCH: <để trống nếu tên đã rõ nghĩa, tự nhiên; chỉ đi
 
 
 @dataclass
-class CliTranslatorConfig:
-    command: str = "claude -p"
-    model: str = ""
-    mode: str = "stdin"  # stdin | arg
+class OpenAIConfig:
+    """Cấu hình backend AI OpenAI-Compatible — dùng chung cho dịch chương,
+    dịch tiêu đề, review/suggest/rewrite/evaluate. Tương thích bất kỳ provider
+    nào lộ endpoint kiểu OpenAI (`POST {base_url}/chat/completions`,
+    `GET {base_url}/models`): OpenAI, OpenRouter, Ollama (`/v1`), LM Studio,
+    vLLM, llama.cpp server, v.v.
+    """
+    base_url: str = "https://api.openai.com/v1"
+    api_key: str = ""
+    model: str = "gpt-4o-mini"
     prompt_template: str = DEFAULT_PROMPT
     title_prompt_template: str = TITLE_PROMPT
     timeout_seconds: int = 300
+    temperature: float = 0.7
 
 
 @dataclass
@@ -243,11 +270,33 @@ class MoxhiMTConfig:
     # Thư mục cache model. Để trống = dùng cache mặc định của huggingface_hub.
     cache_dir: str = ""
     device: str = "cpu"
+    # Song song hóa CPU của CTranslate2: inter_threads = số batch dịch đồng
+    # thời, intra_threads = số luồng tính toán/batch. 0 = tự suy ra từ số
+    # nhân vật lý máy (inter * intra <= physical cores) — xem
+    # `resolved_threads()`. Không có GPU/CUDA trên máy mục tiêu nên song song
+    # hóa luôn qua CPU threads + batching, không qua device.
+    inter_threads: int = 0
+    intra_threads: int = 0
+
+    def resolved_threads(self) -> tuple[int, int]:
+        """Trả (inter_threads, intra_threads) đã áp dụng mặc định theo CPU.
+
+        Mặc định: intra=4 (đủ để vector hóa tốt/batch nhỏ), inter = số nhân
+        vật lý còn lại chia cho intra (>=1), giới hạn tổng tải <= số nhân vật
+        lý để tránh oversubscription trên máy không có GPU.
+        """
+        physical = os.cpu_count() or 4
+        intra = self.intra_threads if self.intra_threads > 0 else min(4, physical)
+        if self.inter_threads > 0:
+            inter = self.inter_threads
+        else:
+            inter = max(1, physical // max(1, intra))
+        return inter, intra
 
 
 @dataclass
 class TranslateConfig:
-    type: str = "cli"  # cli | google | none | moxhimt
+    type: str = "openai"  # openai | google | none | moxhimt
     preset: str = ""
     profile: str = "traditional_cn_novel"
     source_language: str = "zh-CN"
@@ -258,11 +307,11 @@ class TranslateConfig:
     glossary_files: GlossaryFilesConfig = field(default_factory=GlossaryFilesConfig)
     retry: TranslationRetryConfig = field(default_factory=TranslationRetryConfig)
     chunk: TranslationChunkConfig = field(default_factory=TranslationChunkConfig)
-    cli: CliTranslatorConfig = field(default_factory=CliTranslatorConfig)
+    openai: OpenAIConfig = field(default_factory=OpenAIConfig)
     moxhimt: MoxhiMTConfig = field(default_factory=MoxhiMTConfig)
     delay_seconds: float = 0.5
-    # Số chương dịch song song (luồng riêng, dùng chung 1 translator — CLI
-    # subprocess/Google request đều an toàn gọi đồng thời). 1 = tuần tự như trước.
+    # Số chương dịch song song (luồng riêng, dùng chung 1 translator — HTTP
+    # request/Google request đều an toàn gọi đồng thời). 1 = tuần tự như trước.
     max_workers: int = 1
 
 
@@ -272,6 +321,18 @@ class NovelConfig:
     author: str = ""
     language: str = "vi"
     slug: str = "novel"
+    # Metadata đóng gói EPUB (Dublin Core + Calibre series/collection) — xem
+    # epub_builder.py và spec ebook-metadata. Field rỗng bị epub_builder bỏ
+    # qua, không ghi giá trị trống vào EPUB.
+    publisher: str = ""
+    pubdate: str = ""  # ISO date "YYYY-MM-DD", do người dùng nhập
+    date_added: str = ""  # ISO date, tự ghi khi tạo ebook — không cho sửa qua UI
+    subjects: list[str] = field(default_factory=list)
+    series: str = ""
+    series_index: str = ""
+    # urn:uuid ổn định qua các lần build lại. Tự sinh khi rỗng (xem
+    # `ensure_identifier` trong config_writer.py), người dùng có thể override.
+    identifier: str = ""
 
 
 @dataclass
@@ -364,11 +425,12 @@ def load_config(path: str | Path, slug: str = "") -> Config:
 
     raw: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     base_dir = path.parent
+    is_unified = "ebooks" in raw
 
     # Chế độ "unified": file gộp có khối `ebooks:` -> config hiệu lực của một
     # ebook = deep_merge(defaults, ebooks[slug]). Không có `ebooks:` thì coi như
     # file phẳng cũ (novel/crawl/translate/output ở top-level), giữ nguyên hành vi.
-    if "ebooks" in raw:
+    if is_unified:
         defaults = _as_dict(raw.get("defaults"))
         ebooks = _as_dict(raw.get("ebooks"))
         if slug:
@@ -384,6 +446,12 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         raw = _deep_merge_raw(defaults, override)
 
     novel = NovelConfig(**(raw.get("novel") or {}))
+    if not novel.identifier and is_unified and slug:
+        # Sinh + lưu 1 lần urn:uuid ổn định cho ebook chưa có identifier (vd
+        # tạo trước khi field này tồn tại) — xem spec ebook-metadata.
+        from .config_writer import ensure_identifier
+
+        novel.identifier = ensure_identifier(path, slug, "")
 
     crawl_raw = dict(raw.get("crawl") or {})
     # api_key / api_url chỉ dùng cho firecrawl, đã bỏ engine này; bỏ qua cũ.
@@ -403,7 +471,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
 
     translate_raw = dict(raw.get("translate") or {})
     preset_name = translate_raw.get("preset", "")
-    cli_raw = translate_raw.pop("cli", None) or {}
+    openai_raw = translate_raw.pop("openai", None) or {}
     moxhimt_raw = _as_dict(translate_raw.pop("moxhimt", None))
     style = _build_style(translate_raw)
     glossary_files_raw = _as_dict(translate_raw.pop("glossary_files", None))
@@ -438,17 +506,11 @@ def load_config(path: str | Path, slug: str = "") -> Config:
 
         preset_overrides = _presets.load(preset_name)
         merged = dict(preset_overrides)
-        merged.update({k: v for k, v in cli_raw.items() if v != "" and v is not None})
-        cli_raw = merged
-        tr_type = translate_raw.get("type", "cli")
-        if tr_type and tr_type != "cli":
-            warnings.append(
-                f"translate.preset={preset_name!r} đã ép translate.type về 'cli' "
-                f"(translate.type={tr_type!r} trong file config bị bỏ qua)."
-            )
+        merged.update({k: v for k, v in openai_raw.items() if v != "" and v is not None})
+        openai_raw = merged
 
     translate = TranslateConfig(
-        type="cli" if preset_name else translate_raw.get("type", "cli"),
+        type=translate_raw.get("type", "openai"),
         preset=preset_name,
         profile=translate_raw.get("profile", "traditional_cn_novel"),
         source_language=translate_raw.get("source_language", "zh-CN"),
@@ -468,7 +530,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             max_chars=int(chunk_raw.get("max_chars", 0)),
             overlap_paragraphs=int(chunk_raw.get("overlap_paragraphs", 0)),
         ),
-        cli=CliTranslatorConfig(**cli_raw),
+        openai=OpenAIConfig(**openai_raw),
         moxhimt=MoxhiMTConfig(**moxhimt_raw) if moxhimt_raw else MoxhiMTConfig(),
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
@@ -494,7 +556,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         warnings.append(
             "crawl.ai_fallback=true nhưng translate.preset không phải 'go' "
             f"(hiện tại: {preset_name or '(trống)'!r}) — fallback vẫn dùng prompt "
-            "trích xuất HTML của preset 'go', kiểm tra translate.cli có phù hợp không."
+            "trích xuất HTML của preset 'go', kiểm tra translate.openai có phù hợp không."
         )
 
     return Config(novel=novel, crawl=crawl, translate=translate, output=output, warnings=warnings)

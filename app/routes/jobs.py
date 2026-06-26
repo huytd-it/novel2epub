@@ -30,9 +30,7 @@ def _parse_optional_int(value: str) -> int | None:
 @router.post("/jobs/{step}")
 def start_job(request: Request, step: str):
     cfg = deps.cfg()
-    started = request.app.state.job.start(step, cfg)
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    request.app.state.job.start(step, cfg)
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -74,9 +72,7 @@ def start_ebook_crawl_range(
             retries=retries,
         )
 
-    started = request.app.state.job.start_custom("crawl", _target, category="crawl")
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    request.app.state.job.start_custom("crawl", _target, category="crawl")
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -145,9 +141,7 @@ def start_ebook_chapter_action(
         else:
             raise ValueError(f"action không hợp lệ: {action!r}")
 
-    started = request.app.state.job.start_custom(f"chapter-{action}", _target, category=action)
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    request.app.state.job.start_custom(f"chapter-{action}", _target, category=action)
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -171,17 +165,50 @@ def start_ebook_job(request: Request, slug: str, step: str, force: bool = Form(F
 
             step_fetch_toc(cfg, log, force=True)
 
-        started = request.app.state.job.start_custom(step, _target, category="crawl")
+        request.app.state.job.start_custom(step, _target, category="crawl")
     else:
-        started = request.app.state.job.start(step, cfg)
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+        request.app.state.job.start(step, cfg)
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
 @router.get("/api/status")
 def api_status(request: Request):
+    """Shim tương thích: ánh xạ payload queue mới sang shape cũ {crawl, translate}."""
     return request.app.state.job.status()
+
+
+@router.get("/queue")
+def queue_page(request: Request):
+    return deps.templates.TemplateResponse(request, "queue.html", {"queue": request.app.state.job.queue.snapshot()})
+
+
+@router.get("/api/queue")
+def api_queue(request: Request):
+    return request.app.state.job.queue.snapshot()
+
+
+@router.post("/api/queue/{job_id}/cancel")
+def api_queue_cancel(request: Request, job_id: str):
+    ok = request.app.state.job.queue.cancel(job_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Job không tồn tại hoặc đã kết thúc.")
+    return {"ok": True}
+
+
+@router.post("/api/queue/{job_id}/retry")
+def api_queue_retry(request: Request, job_id: str):
+    job = request.app.state.job.queue.retry(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Không thể retry job này.")
+    return {"ok": True, "job_id": job.id}
+
+
+@router.post("/api/queue/{job_id}/reorder")
+def api_queue_reorder(request: Request, job_id: str, before_id: str = Form("")):
+    ok = request.app.state.job.queue.reorder(job_id, before_id or None)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Không thể reorder job này.")
+    return {"ok": True}
 
 
 @router.get("/download")

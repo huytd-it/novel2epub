@@ -1,11 +1,88 @@
-body { font-family: sans-serif; max-width: 1200px; margin: 2rem auto; padding: 0 1rem; background: #fafafa; color: #202020; }
-main { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1rem 1.25rem 1.5rem; box-shadow: 0 6px 24px rgba(0,0,0,0.04); }
+/* --- Design tokens (xem spec ui-design-system) --- */
+:root {
+    --n2e-bg: #fafafa;
+    --n2e-surface: #fff;
+    --n2e-surface-alt: #f7f7f7;
+    --n2e-border: #e5e5e5;
+    --n2e-text: #202020;
+    --n2e-text-muted: #777;
+    --n2e-link: #2563eb;
+    --n2e-link-hover: #1d4ed8;
+    --n2e-radius: 10px;
+    --n2e-shadow: 0 6px 24px rgba(0,0,0,0.04);
+    --n2e-ok-bg: #d3f3d3;
+    --n2e-no-bg: #f3d3d3;
+    --n2e-run-bg: #fff2b3;
+    --n2e-space-1: 0.5rem;
+    --n2e-space-2: 1rem;
+    --n2e-space-3: 1.5rem;
+}
+[data-theme="dark"] {
+    --n2e-bg: #14161a;
+    --n2e-surface: #1c1f24;
+    --n2e-surface-alt: #20242a;
+    --n2e-border: #2e3338;
+    --n2e-text: #e7e9ec;
+    --n2e-text-muted: #9aa2ad;
+    --n2e-link: #6ea8fe;
+    --n2e-link-hover: #8fbcff;
+    --n2e-shadow: 0 6px 24px rgba(0,0,0,0.3);
+    --n2e-ok-bg: #1f3a24;
+    --n2e-no-bg: #3a2020;
+    --n2e-run-bg: #4a3c10;
+}
+
+body {
+    font-family: sans-serif; margin: 0 auto; padding: 1.25rem 1.5rem 2rem;
+    background: var(--n2e-bg); color: var(--n2e-text);
+    max-width: 1320px;
+}
+/* Trang quản lý/data-dense (mặc định) dùng hết chiều ngang khả dụng trên màn
+   rộng — chỉ co lại bằng padding của body, không ép max-width hẹp. */
+main.fluid { max-width: none; }
+main {
+    background: var(--n2e-surface); border: 1px solid var(--n2e-border); border-radius: 12px;
+    padding: 1rem 1.25rem 1.5rem; box-shadow: var(--n2e-shadow);
+}
 table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
-th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+th, td { border: 1px solid var(--n2e-border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+a { color: var(--n2e-link); }
+a:hover { color: var(--n2e-link-hover); }
+.shell-header { display: flex; align-items: baseline; gap: 1.25rem; flex-wrap: wrap; }
+.shell-header-right { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
 header h1 a { text-decoration: none; color: inherit; }
 header nav { display: flex; gap: 1rem; margin: 0.25rem 0 0.75rem; font-size: 0.95rem; }
-header nav a { color: #555; text-decoration: none; }
-header nav a:hover { color: #000; text-decoration: underline; }
+header nav a { color: var(--n2e-text-muted); text-decoration: none; }
+header nav a:hover { color: var(--n2e-text); text-decoration: underline; }
+header nav a.active { color: var(--n2e-link); font-weight: 600; }
+.queue-indicator { text-decoration: none; color: var(--n2e-text-muted); font-size: 0.9rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: var(--n2e-surface-alt); border: 1px solid var(--n2e-border); }
+.queue-indicator.active { color: #92400e; background: var(--n2e-run-bg); border-color: #d5a23a; }
+.toast-region { position: fixed; right: 1rem; bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 50; }
+.toast {
+    background: var(--n2e-surface); color: var(--n2e-text); border: 1px solid var(--n2e-border);
+    border-radius: 8px; padding: 0.55rem 0.9rem; box-shadow: var(--n2e-shadow);
+    opacity: 0; transform: translateY(8px); transition: opacity .25s, transform .25s; font-size: 0.9rem;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast-error { border-color: #dc2626; }
+.toast-success { border-color: #16a34a; }
+.modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex;
+    align-items: center; justify-content: center; z-index: 40;
+}
+.modal-backdrop[hidden] { display: none; }
+.modal {
+    background: var(--n2e-surface); color: var(--n2e-text); border: 1px solid var(--n2e-border);
+    border-radius: var(--n2e-radius); padding: 1.25rem 1.5rem; max-width: min(32rem, 90vw);
+    box-shadow: var(--n2e-shadow);
+}
+.modal h3 { margin-top: 0; }
+.modal .actions { margin-top: 1rem; justify-content: flex-end; }
+@media (max-width: 720px) {
+    .shell-header { flex-direction: column; align-items: stretch; }
+    header nav { flex-wrap: wrap; }
+    .shell-header-right { margin-left: 0; }
+}
 fieldset { margin: 0.75rem 0; border: 1px solid #ddd; border-radius: 8px; padding: 0.5rem 0.75rem; }
 fieldset legend { font-weight: 600; font-size: 0.9rem; color: #555; padding: 0 0.3rem; }
 fieldset label, form p label { display: inline-flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; margin-right: 1rem; }
@@ -17,11 +94,11 @@ fieldset label.check, form p label.check { flex-direction: row; align-items: cen
     cursor: pointer; text-decoration: none; color: inherit; border-radius: 4px;
 }
 .actions button:disabled { opacity: 0.5; cursor: not-allowed; }
-.badge { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.8rem; }
-.badge.ok { background: #d3f3d3; }
-.badge.no { background: #f3d3d3; }
-.badge.run { background: #fff2b3; }
-code { background: #f3f3f3; padding: 0.1rem 0.3rem; border-radius: 4px; }
+.badge { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.8rem; color: var(--n2e-text); }
+.badge.ok { background: var(--n2e-ok-bg); }
+.badge.no { background: var(--n2e-no-bg); }
+.badge.run { background: var(--n2e-run-bg); }
+code { background: var(--n2e-surface-alt); padding: 0.1rem 0.3rem; border-radius: 4px; }
 pre#log {
     background: #111; color: #ddd; padding: 1rem; max-height: 320px;
     overflow-y: auto; white-space: pre-wrap; border-radius: 4px; font-size: 0.85rem;
@@ -49,7 +126,7 @@ mark.log-hit { background: #fff2b3; color: #111; border-radius: 2px; }
 .cols-3 .section-head h3 { font-size: 1rem; }
 .readonly-col { background: #f7f7f9; color: #333; }
 textarea { width: 100%; height: 60vh; font-family: monospace; font-size: 0.95rem; box-sizing: border-box; }
-.muted { color: #777; font-size: 0.9rem; }
+.muted { color: var(--n2e-text-muted); font-size: 0.9rem; }
 .hero { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
 .split { align-items: flex-start; }
 .section-head { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }
@@ -79,6 +156,18 @@ tr.in-range td { background: #fff7d6; }
     cursor: pointer; border-radius: 4px;
 }
 .bulk-bar button:disabled, .row-actions button:disabled, .toc-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* --- Thư viện ebook: card grid (xem spec ebook-management) --- */
+.ebook-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.9rem; margin: 0.75rem 0; }
+.ebook-card {
+    position: relative; border: 1px solid var(--n2e-border); border-radius: var(--n2e-radius);
+    background: var(--n2e-surface-alt); padding: 0.85rem 1rem; display: flex; gap: 0.5rem;
+}
+.ebook-card.archived { opacity: 0.65; }
+.ebook-card-select { position: absolute; top: 0.7rem; right: 0.7rem; }
+.ebook-card-body h4 { margin: 0 0.3rem 0.2rem 0; display: inline; }
+.ebook-card-body p { margin: 0.35rem 0; font-size: 0.9rem; }
+
 .compact-toolbar {
     display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
     margin: 0.5rem 0; padding: 0.55rem 0.65rem;

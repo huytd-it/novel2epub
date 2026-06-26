@@ -3,6 +3,9 @@
 {% block content %}
 <div class="section-head">
     <h2>Thư viện nguồn (site preset)</h2>
+    <div class="row-actions">
+        <a class="button" href="/sources/export">Export tất cả (.yaml)</a>
+    </div>
 </div>
 <p class="muted">Preset gom selector/pattern theo từng website để dùng lại khi thêm ebook hoặc cập nhật nguồn. Lưu trong <code>{{ sources_path }}</code>. Không chứa <code>toc_url</code> (đặc thù từng truyện). Engine: <strong>http</strong> = requests+BS4, <strong>crawl4ai</strong> = trình duyệt/JS, <strong>scrapling</strong> = stealth/anti-bot. <a href="/preset-builder">Tạo preset từ URL mục lục</a>.</p>
 
@@ -16,6 +19,7 @@
             <th>content_selector</th>
             <th>pattern</th>
             <th>Đang dùng bởi</th>
+            <th>Lần test gần nhất</th>
             <th></th>
         </tr>
         {% for name, p in presets.items() %}
@@ -40,9 +44,20 @@
                 {% else %}<span class="muted">—</span>{% endif %}
             </td>
             <td>
+                {% set v = validation.get(name) %}
+                {% if v %}
+                {% if v.ok %}<span class="badge ok" title="{{ v.message }}">OK</span>{% else %}<span class="badge no" title="{{ v.message }}">lỗi</span>{% endif %}
+                {% else %}<span class="muted">chưa test</span>{% endif %}
+            </td>
+            <td>
                 <div class="row-actions">
                     <a class="button" href="/sources?edit={{ name }}">Sửa</a>
-                    <form method="post" action="/sources/{{ name }}/delete" style="display:inline" onsubmit="return confirm('Xóa preset {{ name }}?');">
+                    <form method="post" action="/sources/{{ name }}/clone" style="display:inline">
+                        <button type="submit" title="Nhân bản preset này">Nhân bản</button>
+                    </form>
+                    <button type="button" class="btn-test-source" data-name="{{ name }}">Test</button>
+                    {% set used_list = usage.get(name, []) %}
+                    <form method="post" action="/sources/{{ name }}/delete" style="display:inline" onsubmit="return confirm('{% if used_list %}Nguồn này đang dùng bởi: {{ used_list | join(', ') }}. {% endif %}Xóa preset {{ name }}?');">
                         <button type="submit">Xóa</button>
                     </form>
                 </div>
@@ -54,6 +69,34 @@
 {% else %}
 <p class="muted">Chưa có preset nào — cuộn xuống để thêm preset mới.</p>
 {% endif %}
+
+<details>
+<summary>Import preset (.yaml)</summary>
+<form method="post" action="/sources/import" enctype="multipart/form-data" class="form-row">
+    <label>File <input type="file" name="file" accept=".yaml,.yml" required></label>
+    <label>Khi trùng tên
+        <select name="on_collision">
+            <option value="rename">Đổi tên (giữ cả 2)</option>
+            <option value="overwrite">Ghi đè</option>
+        </select>
+    </label>
+    <button type="submit">Nhập</button>
+</form>
+</details>
+
+<div id="source-test-modal" class="modal-backdrop" hidden>
+    <div class="modal">
+        <h3>Test nguồn</h3>
+        <p>Nhập URL mục lục mẫu để dry-run (không ghi gì xuống đĩa). Kết quả sẽ hiển thị lại ở cột "Lần test gần nhất" sau khi job nền chạy xong.</p>
+        <form id="source-test-form" method="post">
+            <p><label>URL mục lục <input type="url" name="toc_url" required size="50" placeholder="https://..."></label></p>
+            <div class="actions">
+                <button type="submit">Chạy test</button>
+                <button type="button" id="source-test-cancel">Hủy</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <hr>
 
@@ -134,9 +177,10 @@
     </fieldset>
 
     <fieldset>
-        <legend>Network</legend>
+        <legend>Network &amp; song song</legend>
         <div class="form-row">
             <label>user_agent (để trống = mặc định) <input type="text" name="user_agent" value="{{ edit.user_agent if edit else '' }}" size="70"></label>
+            <label>concurrency_cap (0 = mặc định theo engine/mode) <input type="number" name="concurrency_cap" value="{{ edit.concurrency_cap if edit else 0 }}" min="0" size="6"></label>
         </div>
         <div class="form-row">
             <button type="submit">{% if edit %}Cập nhật{% else %}Thêm{% endif %} preset</button>
@@ -159,6 +203,17 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     engineSelect.addEventListener("change", syncEngine);
     syncEngine();
+
+    const modal = document.getElementById("source-test-modal");
+    const form = document.getElementById("source-test-form");
+    const cancelBtn = document.getElementById("source-test-cancel");
+    document.querySelectorAll(".btn-test-source").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            form.action = `/sources/${btn.dataset.name}/test`;
+            modal.hidden = false;
+        });
+    });
+    cancelBtn?.addEventListener("click", () => { modal.hidden = true; });
 });
 </script>
 {% endblock %}

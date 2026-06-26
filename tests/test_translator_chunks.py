@@ -1,24 +1,23 @@
-"""Test callback on_chunk của CLITranslator (xem spec translate-chunk-streaming)."""
+"""Test callback on_chunk của OpenAITranslator (xem spec translate-chunk-streaming)."""
 from __future__ import annotations
 
 import pytest
 
-from novel2epub.config import CliTranslatorConfig, TranslationChunkConfig, TranslateConfig
-from novel2epub.translator import CLITranslator, make_translator
+from novel2epub.config import OpenAIConfig, TranslationChunkConfig, TranslateConfig
+from novel2epub.translator import make_translator
 
 
-def _cli_cfg(
+def _openai_cfg(
     *,
     max_chars: int = 6000,
     overlap: int = 0,
 ) -> TranslateConfig:
     return TranslateConfig(
-        type="cli",
-        cli=CliTranslatorConfig(
-            command="dummy",
+        type="openai",
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
             prompt_template="{text}",
             title_prompt_template="{text}",
-            mode="stdin",
         ),
         chunk=TranslationChunkConfig(max_chars=max_chars, overlap_paragraphs=overlap),
     )
@@ -26,10 +25,10 @@ def _cli_cfg(
 
 def test_on_chunk_called_once_for_short_text(monkeypatch):
     monkeypatch.setattr(
-        "novel2epub.translator.cli_runner.run_cli",
-        lambda cli, prompt, argv=None: "Xin chào thế giới",
+        "novel2epub.translator.openai_client.run_chat",
+        lambda cfg, prompt: "Xin chào thế giới",
     )
-    translator = make_translator(_cli_cfg())
+    translator = make_translator(_openai_cfg())
     calls: list[tuple[int, int, str, bool]] = []
 
     def _cb(index, total, text, is_final):
@@ -43,15 +42,14 @@ def test_on_chunk_called_once_for_short_text(monkeypatch):
 def test_on_chunk_called_per_chunk_in_order(monkeypatch):
     # 3 paragraphs, mỗi cái dài hơn max_chars để mỗi cái nằm trong 1 chunk riêng.
     text = "đoạn dài AAAAAAAAAA\nđoạn dài BBBBBBBBBB\nđoạn dài CCCCCCCCCC"
-    cfg = _cli_cfg(max_chars=10, overlap=0)
+    cfg = _openai_cfg(max_chars=10, overlap=0)
 
     responses = iter(["kết quả A", "kết quả B", "kết quả C"])
 
-    def _mock_run_cli(cli, prompt, argv=None):
-        # Mỗi lần gọi CLI trả về phần tử kế tiếp trong responses.
+    def _mock_run_chat(cfg_, prompt):
         return next(responses)
 
-    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
     translator = make_translator(cfg)
 
     calls: list[tuple[int, int, str, bool]] = []
@@ -73,10 +71,10 @@ def test_on_chunk_called_per_chunk_in_order(monkeypatch):
 def test_on_chunk_can_be_omitted(monkeypatch):
     """Backward compat: gọi không truyền on_chunk vẫn hoạt động như cũ."""
     monkeypatch.setattr(
-        "novel2epub.translator.cli_runner.run_cli",
-        lambda cli, prompt, argv=None: "Xin chào",
+        "novel2epub.translator.openai_client.run_chat",
+        lambda cfg, prompt: "Xin chào",
     )
-    translator = make_translator(_cli_cfg())
+    translator = make_translator(_openai_cfg())
     assert translator.translate("hi") == "Xin chào"
 
 
@@ -84,11 +82,11 @@ def test_callback_exception_propagates_and_aborts(monkeypatch):
     """Nếu callback raise, translator phải propagate và KHÔNG tiếp tục chunk sau."""
     responses = iter(["kết quả A", "kết quả B", "kết quả C"])
 
-    def _mock_run_cli(cli, prompt, argv=None):
+    def _mock_run_chat(cfg_, prompt):
         return next(responses)
 
-    monkeypatch.setattr("novel2epub.translator.cli_runner.run_cli", _mock_run_cli)
-    cfg = _cli_cfg(max_chars=10, overlap=0)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    cfg = _openai_cfg(max_chars=10, overlap=0)
     translator = make_translator(cfg)
 
     def _cb(index, total, text, is_final):
@@ -105,10 +103,10 @@ def test_callback_exception_propagates_and_aborts(monkeypatch):
 def test_callback_for_short_text_called_with_is_final_true(monkeypatch):
     """Văn bản ngắn (1 chunk) vẫn phải gọi callback với is_final=True."""
     monkeypatch.setattr(
-        "novel2epub.translator.cli_runner.run_cli",
-        lambda cli, prompt, argv=None: "OK",
+        "novel2epub.translator.openai_client.run_chat",
+        lambda cfg, prompt: "OK",
     )
-    cfg = _cli_cfg(max_chars=6000)
+    cfg = _openai_cfg(max_chars=6000)
     translator = make_translator(cfg)
     seen: list[bool] = []
     translator.translate("ngắn", on_chunk=lambda i, t, c, f: seen.append(f))

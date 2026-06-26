@@ -1,19 +1,18 @@
 """Các bộ dịch Trung -> Việt (pluggable).
 
-- CLITranslator: gọi một AI CLI bất kỳ (opencode, llm, ollama, claude...).
-  Văn bản có thể đưa qua stdin (mặc định) hoặc nối vào cuối lệnh.
+- OpenAITranslator: gọi AI qua HTTP theo chuẩn OpenAI-Compatible (OpenAI,
+  OpenRouter, Ollama, LM Studio, vLLM, llama.cpp server, ...).
 - GoogleTranslator: Google Translate miễn phí qua deep-translator (chunk 4500 ký tự).
 - NoopTranslator: trả nguyên văn (dùng để test pipeline mà không tốn chi phí).
 """
 from __future__ import annotations
 
 import re
-import subprocess
 import time
 from pathlib import Path
 from typing import Callable, Protocol
 
-from . import cli_runner
+from . import openai_client
 from .config import TranslateConfig
 from .storage import parse_glossary_line
 
@@ -102,7 +101,7 @@ def _merge_glossaries(*parts: dict[str, str]) -> dict[str, str]:
 def load_glossary_dict(cfg: TranslateConfig) -> dict[str, str]:
     """Gộp glossary inline trong config + 2 file names/vietphrase đang trỏ tới.
 
-    Dùng chung cho CLITranslator (dịch chương) và glossary_ai (gợi ý/rewrite).
+    Dùng chung cho OpenAITranslator (dịch chương) và glossary_ai (gợi ý/rewrite).
     """
     glossary: dict[str, str] = dict(cfg.glossary)
     for path in (cfg.glossary_files.names, cfg.glossary_files.vietphrase):
@@ -194,20 +193,19 @@ def _hard_split(text: str, max_chars: int) -> list[str]:
     return [text[i:i + step] for i in range(0, len(text), step)]
 
 
-class CLITranslator:
+class OpenAITranslator:
     # Áp dụng khi translate.chunk.max_chars = 0 (mặc định) — tự chia chương dài
-    # để tránh prompt quá tải/timeout CLI dịch.
+    # để tránh prompt quá tải/timeout request AI.
     DEFAULT_MAX_CHARS = 6000
 
     def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None):
         self.cfg = cfg
-        self.cli = cfg.cli
+        self.openai = cfg.openai
         self.glossary = load_glossary_dict(cfg)
-        self._argv = cli_runner.build_argv(cfg.cli)
         self.log = log or (lambda _: None)
 
     def _build_prompt(self, text: str) -> str:
-        return self.cli.prompt_template.format(
+        return self.openai.prompt_template.format(
             text=text,
             glossary=_format_glossary(self.glossary),
             tone=self.cfg.style.tone,
@@ -224,28 +222,18 @@ class CLITranslator:
         )
 
     def _build_title_prompt(self, text: str, kind: str) -> str:
-        return self.cli.title_prompt_template.format(
+        return self.openai.title_prompt_template.format(
             text=text,
             kind=kind,
             glossary=_format_glossary(self.glossary),
         )
 
-    def _run_cli_with_retry(self, prompt: str) -> str:
+    def _run_chat_with_retry(self, prompt: str) -> str:
         attempts = max(1, int(self.cfg.retry.attempts))
         last_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             try:
-                return cli_runner.run_cli(self.cli, prompt, argv=self._argv)
-            except FileNotFoundError as e:
-                hint = ""
-                if "opencode" in self._argv[0]:
-                    hint = " Cài đặt: https://opencode.ai/docs/go/ — chạy 'opencode auth' sau khi đăng ký."
-                raise RuntimeError(
-                    f"Không tìm thấy lệnh CLI: {self._argv[0]!r}."
-                    f"{hint}"
-                ) from e
-            except subprocess.TimeoutExpired:
-                last_error = RuntimeError(f"CLI dịch quá thời gian ({self.cli.timeout_seconds}s).")
+                return openai_client.run_chat(self.openai, prompt)
             except RuntimeError as e:
                 last_error = e
 
@@ -257,13 +245,13 @@ class CLITranslator:
 
     def _translate_chunk(self, chunk_text: str) -> str:
         """Dịch một đoạn và thử lại nếu kết quả còn sót chữ Hán chưa dịch."""
-        out = self._run_cli_with_retry(self._build_prompt(chunk_text))
+        out = self._run_chat_with_retry(self._build_prompt(chunk_text))
         cleaned = _clean_output(out)
         for _ in range(_RESIDUAL_HAN_RETRIES):
             residual = len(_HAN_RE.findall(cleaned))
             if residual == 0:
                 break
-            out = self._run_cli_with_retry(self._build_fixup_prompt(chunk_text))
+            out = self._run_chat_with_retry(self._build_fixup_prompt(chunk_text))
             retried = _clean_output(out)
             if len(_HAN_RE.findall(retried)) < residual:
                 cleaned = retried
@@ -306,7 +294,7 @@ class CLITranslator:
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
         if not text.strip():
             return text, ""
-        out = self._run_cli_with_retry(self._build_title_prompt(text, kind))
+        out = self._run_chat_with_retry(self._build_title_prompt(text, kind))
         title, note = _parse_title_response(out)
         return _apply_glossary(title, self.glossary), note
 
@@ -361,7 +349,7 @@ class GoogleTranslator:
 class MoxhiMTTranslator:
     """Dịch Trung→Việt cục bộ bằng model MoxhiMT (CTranslate2 + SentencePiece).
 
-    Khác `CLITranslator` (LLM theo prompt) và `GoogleTranslator` (API mạng),
+    Khác `OpenAITranslator` (LLM theo prompt) và `GoogleTranslator` (API mạng),
     đây là model NMT seq2seq chạy offline. Tự tải model từ Hugging Face Hub về
     cache ở lần dùng đầu (lazy), tái sử dụng các lần sau.
 
@@ -483,9 +471,18 @@ class MoxhiMTTranslator:
         spm = self._import_spm()
         model_dir = self._download_model()
         ct2_dir, spm_path = self._locate_model_files(model_dir)
-        self.log(f"  … nạp model MoxhiMT {self.mox.model_id} (ct2={ct2_dir.name}, spm={spm_path.name})")
+        inter_threads, intra_threads = self.mox.resolved_threads()
+        self.log(
+            f"  … nạp model MoxhiMT {self.mox.model_id} (ct2={ct2_dir.name}, spm={spm_path.name}, "
+            f"inter_threads={inter_threads}, intra_threads={intra_threads})"
+        )
         try:
-            self._ct2 = ct2.Translator(str(ct2_dir), device=self.mox.device)
+            self._ct2 = ct2.Translator(
+                str(ct2_dir),
+                device=self.mox.device,
+                inter_threads=inter_threads,
+                intra_threads=intra_threads,
+            )
             self._sp = spm.SentencePieceProcessor(model_file=str(spm_path))
         except Exception as e:  # noqa: BLE001
             raise RuntimeError(
@@ -539,18 +536,43 @@ class MoxhiMTTranslator:
                 on_chunk(1, 1, text, True)
             return text
         self._ensure_loaded()
-        # Mỗi dòng/đoạn gốc = 1 đơn vị tiến độ; on_chunk được pipeline append với
-        # "\n" nên giữ đúng cấu trúc dòng. Glossary áp dụng NGAY trên từng dòng
-        # để bản lưu (stream qua on_chunk) cũng có glossary, không chỉ giá trị
-        # trả về.
+        # Mỗi dòng được chia thành 1+ "đơn vị" dịch (cả đoạn nếu vừa token,
+        # ngược lại fallback câu/ký tự — xem _translate_line). TẤT CẢ đơn vị
+        # của toàn văn bản được gom thành 1 batch duy nhất, đưa vào CTranslate2
+        # qua translate_batch 1 lần để khai thác song song hóa nội bộ (CT2
+        # inter/intra threads) thay vì gọi tuần tự từng dòng. Kết quả ghép lại
+        # đúng theo span của mỗi dòng nên thứ tự/cấu trúc đoạn giữ nguyên như
+        # khi dịch tuần tự.
         lines = text.split("\n")
         total = len(lines)
-        out_lines: list[str] = []
-        for i, line in enumerate(lines):
-            if line.strip():
-                out = _apply_glossary(self._translate_line(line), self.glossary)
+        budget = self._token_budget()
+        units: list[str] = []
+        spans: list[tuple[int, int]] = []
+        for line in lines:
+            start = len(units)
+            if not line.strip():
+                spans.append((start, start))
+                continue
+            if self.mox.chunk_mode != "sentence" and self._ntokens(line) <= budget:
+                units.append(line)
             else:
+                sentences = _split_into_sentences(line) or [line]
+                for sent in sentences:
+                    if self._ntokens(sent) <= budget:
+                        units.append(sent)
+                    else:
+                        units.extend(_hard_split(sent, budget))
+            spans.append((start, len(units)))
+
+        outs = self._translate_texts(units)
+
+        out_lines: list[str] = []
+        for i, (line, (start, end)) in enumerate(zip(lines, spans)):
+            if start == end:
                 out = line  # giữ nguyên dòng trống
+            else:
+                joined = " ".join(o.strip() for o in outs[start:end] if o.strip())
+                out = _apply_glossary(joined, self.glossary)
             out_lines.append(out)
             if on_chunk is not None:
                 on_chunk(i + 1, total, out, i + 1 == total)
@@ -566,15 +588,15 @@ class MoxhiMTTranslator:
 
 def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = None) -> Translator:
     kind = (cfg.type or "none").lower()
-    if kind == "cli":
-        return CLITranslator(cfg, log=log)
+    if kind == "openai":
+        return OpenAITranslator(cfg, log=log)
     if kind == "google":
         return GoogleTranslator(cfg)
     if kind == "moxhimt":
         return MoxhiMTTranslator(cfg, log=log)
     if kind == "none":
         return NoopTranslator()
-    raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (cli|google|moxhimt|none)")
+    raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (openai|google|moxhimt|none)")
 
 
 class RateLimited:

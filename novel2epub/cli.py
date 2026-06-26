@@ -126,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     preset_build_parser.add_argument("--max-rounds", type=int, default=3, help="Số vòng refine pattern tối đa")
     preset_build_parser.add_argument("--low", type=int, default=5, help="Ngưỡng dưới số chương match")
     preset_build_parser.add_argument("--high", type=int, default=2000, help="Ngưỡng trên số chương match")
-    preset_build_parser.add_argument("--timeout", type=int, default=120, help="Timeout AI CLI (giây)")
+    preset_build_parser.add_argument("--timeout", type=int, default=120, help="Timeout gọi AI (giây)")
     preset_build_parser.add_argument("--encoding", default="", help="Override encoding")
     preset_build_parser.add_argument("--js-code", default="", help="Override js_code (tự động chọn crawl4ai)")
     preset_build_parser.add_argument("--engine", default="", choices=["http", "crawl4ai"], help="Override engine")

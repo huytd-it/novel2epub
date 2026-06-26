@@ -16,8 +16,8 @@ def _write_workspace(path):
         "  crawl:\n"
         "    content_selector: '#default'\n"
         "  translate:\n"
-        "    cli:\n"
-        "      command: claude -p\n"
+        "    openai:\n"
+        "      base_url: https://custom.test/v1\n"
         "ebooks:\n"
         "  a:\n"
         "    name: A  # giữ comment này\n"
@@ -46,7 +46,7 @@ def test_update_ebook_preserves_comments_and_inheritance(tmp_path):
     assert cfg.crawl.content_selector == "#new"   # override
     assert cfg.crawl.toc_url == "https://a"       # giữ nguyên
     assert cfg.novel.slug == "a"
-    assert cfg.translate.cli.command == "claude -p"  # kế thừa từ defaults
+    assert cfg.translate.openai.base_url == "https://custom.test/v1"  # kế thừa từ defaults
 
 
 def test_update_ebook_does_not_touch_siblings(tmp_path):
@@ -81,7 +81,7 @@ def test_add_ebook_minimal_override_inherits_defaults(tmp_path):
     assert cfg.crawl.toc_url == "https://x/book/1/"
     assert cfg.crawl.content_selector == "#chaptercontent"
     # Vẫn kế thừa phần dùng chung từ defaults.
-    assert cfg.translate.cli.command == "claude -p"
+    assert cfg.translate.openai.base_url == "https://custom.test/v1"
     assert "test-truyen" in load_library(path).ebooks
 
 
@@ -122,12 +122,12 @@ def test_update_ebook_cleans_crlf_prompt_no_blank_lines(tmp_path):
         "ebooks:\n  a:\n    crawl:\n      toc_url: https://a\n", encoding="utf-8"
     )
     template = clean_prompt_text("Dòng 1\r\nDòng 2\r\nDòng 3")
-    update_ebook(path, "a", {"translate": {"cli": {"prompt_template": template}}})
+    update_ebook(path, "a", {"translate": {"openai": {"prompt_template": template}}})
     text = path.read_text(encoding="utf-8")
     # Block scalar literal: 3 dòng liền nhau, KHÔNG chèn dòng trống khi round-trip.
     assert "\n\nDòng 2" not in text and "\r" not in text
     cfg = load_config(path, "a")
-    assert cfg.translate.cli.prompt_template == "Dòng 1\nDòng 2\nDòng 3"
+    assert cfg.translate.openai.prompt_template == "Dòng 1\nDòng 2\nDòng 3"
 
 
 def test_sources_round_trip(tmp_path):

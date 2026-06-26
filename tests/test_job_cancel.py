@@ -101,12 +101,27 @@ def test_step_translate_selected_stops_when_cancelled(tmp_path, monkeypatch):
 
 
 def test_job_runner_request_cancel_only_affects_running_category():
+    import threading
+    import time
+
     runner = JobRunner()
 
     # Không job nào chạy -> không có gì để dừng.
     assert runner.request_cancel("crawl") is False
 
-    runner._slots["crawl"].running = True
+    started = threading.Event()
+    release = threading.Event()
+
+    def _target(log):
+        started.set()
+        release.wait(timeout=5)
+
+    runner.start_custom("crawl", _target, category="crawl")
+    assert started.wait(timeout=5)
+
     assert runner.request_cancel("crawl") is True
     assert runner.status()["crawl"]["cancelling"] is True
     assert runner.status()["translate"]["cancelling"] is False
+
+    release.set()
+    time.sleep(0.1)

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Lưu trữ — novel2epub{% endblock %}
+{% block content %}
+<div class="section-head"><h2>Lưu trữ</h2></div>
+<p class="muted">Tổng dung lượng tất cả ebook: <strong>{{ "%.1f"|format(grand_total / 1024 / 1024) }} MB</strong></p>
+
+<div class="table-wrap">
+    <table class="data-table">
+        <tr>
+            <th>Ebook</th><th>Raw</th><th>MT</th><th>Biên tập</th><th>Glossary</th><th>EPUB</th><th>Tổng</th><th></th>
+        </tr>
+        {% for row in rows %}
+        <tr>
+            <td><a href="/ebooks/{{ row.slug }}">{{ row.name }}</a></td>
+            <td>{{ "%.1f"|format(row.report.raw / 1024 / 1024) }} MB</td>
+            <td>{{ "%.1f"|format(row.report.translated_mt / 1024 / 1024) }} MB</td>
+            <td>{{ "%.1f"|format(row.report.translated / 1024 / 1024) }} MB</td>
+            <td>{{ "%.1f"|format(row.report.glossary / 1024 / 1024) }} MB</td>
+            <td>{{ "%.1f"|format(row.report.epub / 1024 / 1024) }} MB</td>
+            <td><strong>{{ "%.1f"|format(row.report.total / 1024 / 1024) }} MB</strong></td>
+            <td>
+                <div class="row-actions">
+                    <form method="post" action="/storage/{{ row.slug }}/purge-raw" onsubmit="return confirm('Xóa toàn bộ raw/ của {{ row.slug }}? (giữ nguyên bản đã biên tập)');"><button type="submit">Xóa raw</button></form>
+                    <form method="post" action="/storage/{{ row.slug }}/purge-mt" onsubmit="return confirm('Xóa snapshot máy dịch (VI) của {{ row.slug }}? (giữ nguyên bản đã biên tập)');"><button type="submit">Xóa MT</button></form>
+                    <form method="post" action="/storage/{{ row.slug }}/remove-epub" onsubmit="return confirm('Xóa file EPUB đã build của {{ row.slug }}?');"><button type="submit">Xóa EPUB</button></form>
+                    <a class="button" href="/storage/{{ row.slug }}/archive">Đóng gói .zip</a>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

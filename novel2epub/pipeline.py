@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from .config import Config, CrawlRetryConfig
+from .crawl_throttle import AdaptiveConcurrency, DomainRateLimiter
 from .crawler import is_rate_limited, make_crawler
 from .epub_builder import build_epub
 from .storage import Chapter, Manifest, Storage
@@ -82,7 +83,7 @@ def _emit_crawl_config(cfg: Config, log: LogFn) -> None:
             f"| author={_fmt(c.author_selector)} | desc={_fmt(c.desc_selector)} "
             f"| cover={_fmt(c.cover_selector)}")
     if c.ai_fallback:
-        log(f"[config] CRAWL AI fallback: ON (≤{c.ai_fallback_max_html} ký tự HTML gửi CLI)")
+        log(f"[config] CRAWL AI fallback: ON (≤{c.ai_fallback_max_html} ký tự HTML gửi AI)")
     else:
         log("[config] CRAWL AI fallback: off")
 
@@ -93,10 +94,10 @@ def _emit_translate_config(cfg: Config, log: LogFn, *, feature: str = "DỊCH") 
     t = cfg.translate
     log(f"[config] {feature} dùng: type={t.type} | preset={_fmt(t.preset, '(không)')} "
         f"| profile={t.profile} | delay={t.delay_seconds}s | max_workers={t.max_workers}")
-    if t.type.lower() == "cli":
-        log(f"[config] {feature} CLI: command={t.cli.command!r} "
-            f"| model={_fmt(t.cli.model, '(mặc định CLI)')} | mode={t.cli.mode} "
-            f"| timeout={t.cli.timeout_seconds}s")
+    if t.type.lower() == "openai":
+        log(f"[config] {feature} OpenAI-Compatible: base_url={t.openai.base_url!r} "
+            f"| model={_fmt(t.openai.model, '(chưa cấu hình)')} "
+            f"| timeout={t.openai.timeout_seconds}s")
     elif t.type.lower() == "none":
         log(f"[config] {feature}: type=none — KHÔNG gọi AI, giữ nguyên bản gốc.")
     s = t.style
@@ -120,7 +121,7 @@ def _emit_build_config(cfg: Config, log: LogFn) -> None:
 def _run_with_heartbeat(log: LogFn, prefix: str, fn: Callable[[], object], *, interval: float = 5.0):
     """Chạy fn ở thread phụ, định kỳ log một nhịp 'vẫn đang chạy' để UI biết job còn sống.
 
-    Nhiều bộ dịch (AI CLI) xử lý một chương mất hàng chục giây mà không in gì ra;
+    Nhiều bộ dịch (AI) xử lý một chương mất hàng chục giây mà không in gì ra;
     nếu không có nhịp này, người dùng nhìn log đứng yên sẽ tưởng job bị treo hoặc
     đã lỗi. Lỗi phát sinh trong fn được ném lại nguyên vẹn ở thread chính.
     """
@@ -231,7 +232,7 @@ def _build_meta(cfg: Config, ch: Chapter, translated: str, warnings: list[str]) 
         "title_zh": ch.title_zh,
         "title_vi": ch.title_vi,
         "translator": cfg.translate.type,
-        "model": cfg.translate.cli.model,
+        "model": cfg.translate.openai.model,
         "profile": cfg.translate.profile,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "warnings": warnings,
@@ -439,6 +440,8 @@ def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapt
     progress_lock = threading.Lock()
     counters = {"crawled": 0, "failed": 0, "replaced": 0}
     counters_lock = threading.Lock()
+    limiter = DomainRateLimiter(cfg.crawl.delay_seconds)
+    throttle = AdaptiveConcurrency(workers)
 
     def _get_crawler():
         crawler = getattr(local, "crawler", None)
@@ -452,15 +455,24 @@ def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapt
     def _work(ch: Chapter) -> None:
         if should_cancel and should_cancel():
             return
-        with progress_lock:
-            progress["done"] += 1
-            i = progress["done"]
+        throttle.acquire()
         try:
-            status = _crawl_one(_get_crawler(), storage, ch, force, retry, log, i, total)
-        except Exception as e:  # noqa: BLE001 - 1 chương lỗi không được giết cả batch song song
-            ch.last_action_status = "failed"
-            log(f"[crawl]   ! Lỗi không lường được ở chương {ch.stem}: {e}")
-            status = "failed"
+            with progress_lock:
+                progress["done"] += 1
+                i = progress["done"]
+            limiter.acquire()
+            try:
+                status = _crawl_one(_get_crawler(), storage, ch, force, retry, log, i, total)
+            except Exception as e:  # noqa: BLE001 - 1 chương lỗi không được giết cả batch song song
+                ch.last_action_status = "failed"
+                log(f"[crawl]   ! Lỗi không lường được ở chương {ch.stem}: {e}")
+                status = "failed"
+            if status == "failed":
+                throttle.report_failure(log)
+            else:
+                throttle.report_success(log)
+        finally:
+            throttle.release()
         with counters_lock:
             if status == "failed":
                 counters["failed"] += 1
@@ -511,7 +523,7 @@ def step_crawl_selected(
     retry = _resolve_crawl_retry(cfg.crawl.retry, retries, retry_delay)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     if cfg.crawl.ai_fallback:
-        cfg.crawl._cli_fallback = cfg.translate.cli
+        cfg.crawl._openai_fallback = cfg.translate.openai
         _emit_translate_config(cfg, log, feature="CRAWL AI fallback")
     crawler = make_crawler(cfg.crawl)
     try:
@@ -533,7 +545,7 @@ def step_crawl_selected(
             else:
                 to_fetch.append(ch)
 
-        workers = max(1, int(cfg.crawl.max_workers))
+        workers = cfg.crawl.effective_workers(cfg.crawl.max_workers)
         if workers > 1 and len(to_fetch) > 1:
             crawler.close()
             crawled, failed, replaced = _crawl_chapters_parallel(
@@ -563,7 +575,7 @@ def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False, sho
     _emit_crawl_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     if cfg.crawl.ai_fallback:
-        cfg.crawl._cli_fallback = cfg.translate.cli
+        cfg.crawl._openai_fallback = cfg.translate.openai
         _emit_translate_config(cfg, log, feature="CRAWL AI fallback")
     crawler = make_crawler(cfg.crawl)
     try:
@@ -601,7 +613,7 @@ def _translate_meta_inplace(
 
 
 def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False, should_cancel: CancelFn | None = None) -> Manifest:
-    """Dịch metadata truyện (title/author/description) sang tiếng Việt bằng AI CLI."""
+    """Dịch metadata truyện (title/author/description) sang tiếng Việt bằng AI."""
     _emit_config_warnings(cfg, log)
     _emit_translate_config(cfg, log, feature="DỊCH METADATA")
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -726,7 +738,7 @@ def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Mani
 
 def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool, should_cancel: CancelFn | None = None) -> tuple[int, int, int, bool]:
     """Dịch nhiều chương song song. Translator được dùng chung giữa các luồng:
-    CLITranslator chỉ spawn subprocess riêng mỗi lần gọi (không state dùng
+    OpenAITranslator chỉ gửi 1 HTTP request riêng mỗi lần gọi (không state dùng
     chung), GoogleTranslator gọi HTTP riêng mỗi lần — cả hai an toàn gọi đồng
     thời. Không dừng sớm khi 1 chương lỗi (các chương khác đã đang chạy song
     song); chỉ raise nếu TẤT CẢ chương trong batch đều lỗi.
@@ -820,7 +832,13 @@ def step_translate_selected(
             continue
         to_translate.append(ch)
 
-    workers = max(1, int(cfg.translate.max_workers))
+    # moxhimt song song hóa qua CT2 inter/intra threads + translate_batch nội
+    # bộ mỗi chương (xem MoxhiMTTranslator.translate); không fan-out luồng
+    # Python mỗi chương như cli/google để tránh oversubscription nhân CPU.
+    if cfg.translate.type.lower() == "moxhimt":
+        workers = 1
+    else:
+        workers = max(1, int(cfg.translate.max_workers))
     if workers > 1 and len(to_translate) > 1:
         translated_count, failed, replaced, changed = _translate_chapters_parallel(
             cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed, should_cancel
@@ -948,7 +966,7 @@ def step_evaluate_translation(
 ) -> dict:
     """Đánh giá glossary + bản dịch của các chương trong phạm vi (chỉ đọc, không sửa).
 
-    Trả về report (dict). Lỗi gọi CLI không raise — report rỗng được log lại.
+    Trả về report (dict). Lỗi gọi AI không raise — report rỗng được log lại.
     """
     from . import glossary_ai
 
@@ -1109,6 +1127,7 @@ def step_build(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | No
         cfg.novel.language,
         cover_path=cover_path,
         footnotes_by_stem=footnotes_by_stem,
+        metadata=cfg.novel,
     )
     log(f"[build] Đã tạo EPUB: {out}  ({len(chapters_html)} chương)")
     return str(out)

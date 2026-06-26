@@ -7,6 +7,9 @@ dump lại toàn bộ object Config (tránh ghi đè đường dẫn glossary đ
 """
 from __future__ import annotations
 
+import uuid
+from datetime import date
+
 import re
 from pathlib import Path
 from typing import Any
@@ -135,6 +138,10 @@ def add_ebook(
         novel["title"] = title
     if author:
         novel["author"] = author
+    # Ghi 1 lần khi tạo ebook — không cho sửa qua UI (xem spec ebook-metadata
+    # "Auto-recorded date added" / "Stable urn:uuid identifier").
+    novel["date_added"] = date.today().isoformat()
+    novel["identifier"] = f"urn:uuid:{uuid.uuid4()}"
 
     crawl = CommentedMap()
     crawl["engine"] = engine
@@ -154,6 +161,17 @@ def add_ebook(
     item["crawl"] = crawl
     ebooks[slug] = item
     _dump(path, data)
+
+
+def ensure_identifier(path: str | Path, slug: str, current: str) -> str:
+    """Trả `current` nếu đã có, ngược lại sinh + lưu 1 urn:uuid mới (ổn định
+    qua các lần build sau — xem spec ebook-metadata 'Identifier stable
+    across rebuilds'). Dùng cho ebook tạo trước khi field này tồn tại."""
+    if current:
+        return current
+    new_id = f"urn:uuid:{uuid.uuid4()}"
+    update_ebook(path, slug, {"novel": {"identifier": new_id}})
+    return new_id
 
 
 def remove_ebook(path: str | Path, slug: str) -> None:

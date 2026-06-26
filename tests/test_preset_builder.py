@@ -76,27 +76,27 @@ def test_refine_pattern_loop_terminates_within_budget():
 def test_build_preset_returns_clear_error_when_no_ai_cli(monkeypatch):
     import novel2epub.preset_builder as pb
 
-    monkeypatch.setattr(pb, "_get_cli_config", lambda config_path=None: None)
+    monkeypatch.setattr(pb, "_get_openai_config", lambda config_path=None: None)
 
     result = build_preset("http://site.com/book/1/", timeout_seconds=10)
     assert result.error is not None
-    assert "Chưa cấu hình AI CLI" in result.error
+    assert "Chưa cấu hình AI" in result.error
 
 
 def test_build_preset_applies_overrides(monkeypatch):
     import novel2epub.preset_builder as pb
-    from novel2epub import cli_runner
+    from novel2epub import openai_client
 
     # Mock AI to return a deterministic JSON.
     def fake_ai(prompt: str) -> str:
         return '{"toc_selector": "#list", "chapter_link_pattern": "/book/1/\\\\d+\\\\.html", "content_selector": "#content", "engine": "http"}'
 
-    from novel2epub.config import CliTranslatorConfig
+    from novel2epub.config import OpenAIConfig
 
     monkeypatch.setattr(
-        pb, "_get_cli_config", lambda config_path=None: CliTranslatorConfig(command="test-run", timeout_seconds=10)
+        pb, "_get_openai_config", lambda config_path=None: OpenAIConfig(base_url="https://api.test/v1", timeout_seconds=10)
     )
-    monkeypatch.setattr(cli_runner, "run_cli", lambda _cli, prompt: fake_ai(prompt))
+    monkeypatch.setattr(openai_client, "run_chat", lambda _cfg, prompt: fake_ai(prompt))
 
     result = build_preset(
         "http://site.com/book/1/",

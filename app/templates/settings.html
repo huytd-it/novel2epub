@@ -10,6 +10,14 @@
     <p><label>Tiêu đề <input type="text" name="title" value="{{ cfg.novel.title }}" size="50"></label></p>
     <p><label>Tác giả <input type="text" name="author" value="{{ cfg.novel.author }}" size="40"></label></p>
     <p><label>Ngôn ngữ <input type="text" name="language" value="{{ cfg.novel.language }}" size="8"></label></p>
+    <p><label>Nhà xuất bản <input type="text" name="publisher" value="{{ cfg.novel.publisher }}" size="40"></label></p>
+    <p><label>Ngày xuất bản <input type="text" name="pubdate" value="{{ cfg.novel.pubdate }}" placeholder="YYYY-MM-DD" size="14"></label></p>
+    <p><label>Chủ đề (mỗi dòng hoặc phẩy 1 chủ đề)<br>
+        <textarea name="subjects" rows="2" cols="50">{{ cfg.novel.subjects | join('\n') }}</textarea></label></p>
+    <p><label>Bộ sách <input type="text" name="series" value="{{ cfg.novel.series }}" size="30"></label>
+       <label>Số thứ tự <input type="text" name="series_index" value="{{ cfg.novel.series_index }}" size="6"></label></p>
+    <p><label>Định danh (urn:uuid) <input type="text" name="identifier" value="{{ cfg.novel.identifier }}" size="50" placeholder="tự sinh nếu để trống"></label></p>
+    <p class="muted">Đã thêm: {{ cfg.novel.date_added or '(chưa rõ)' }}</p>
     <p><button type="submit">Lưu thông tin truyện</button></p>
 </form>
 
@@ -82,55 +90,69 @@
 
 <hr>
 
-<div class="section-head"><h3>AI CLI (dịch)</h3></div>
+<div class="section-head"><h3>AI OpenAI-Compatible (dịch)</h3></div>
 <form method="post" action="/ebooks/{{ slug }}/settings/ai">
     <p>
         <label>type
             <select name="type">
-                {% for opt in ["cli", "google", "none"] %}
+                {% for opt in ["openai", "google", "none"] %}
                 <option value="{{ opt }}" {% if cfg.translate.type == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
         </label>
     </p>
     <fieldset>
-        <legend>CLI</legend>
-        <p><label>command <input type="text" name="command" value="{{ cfg.translate.cli.command }}" size="30" list="command-options"></label>
-           <label>model <input type="text" name="model" value="{{ cfg.translate.cli.model }}" size="20" list="model-options"></label>
-           <label>mode
-                <select name="mode">
-                    {% for opt in ["stdin", "arg"] %}<option value="{{ opt }}" {% if cfg.translate.cli.mode == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}
-                </select>
-           </label>
-           <label>timeout_seconds <input type="number" name="timeout_seconds" value="{{ cfg.translate.cli.timeout_seconds }}" min="1"></label></p>
-        <p class="muted">command: lệnh CLI gọi AI dịch (ví dụ <code>claude -p</code>, <code>opencode run</code>, <code>gemini -p</code>, <code>codex exec</code>). model: tên model truyền cho lệnh trên — để trống dùng model mặc định của CLI. mode: <code>stdin</code> gửi văn bản qua input chuẩn, <code>arg</code> gửi qua tham số dòng lệnh.</p>
-        <datalist id="command-options">
-            <option value="claude -p">
-            <option value="opencode run">
-            <option value="gemini -p">
-            <option value="codex exec">
+        <legend>OpenAI-Compatible</legend>
+        <p><label>base_url <input type="text" id="ai-base-url" name="base_url" value="{{ cfg.translate.openai.base_url }}" size="40" list="base-url-options"></label>
+           <label>api_key <input type="password" id="ai-api-key" name="api_key" value="{{ cfg.translate.openai.api_key }}" size="30" autocomplete="off"></label>
+           <label>timeout_seconds <input type="number" name="timeout_seconds" value="{{ cfg.translate.openai.timeout_seconds }}" min="1"></label>
+           <label>temperature <input type="number" step="0.1" name="temperature" value="{{ cfg.translate.openai.temperature }}" min="0" max="2"></label></p>
+        <p><label>model <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" size="30" list="model-options"></label>
+           <button type="button" id="ai-load-models">Tải danh sách model</button>
+           <span id="ai-models-status" class="muted"></span></p>
+        <p class="muted">base_url: endpoint gốc kiểu OpenAI (vd <code>https://api.openai.com/v1</code>, <code>https://openrouter.ai/api/v1</code>, <code>http://localhost:11434/v1</code> cho Ollama, <code>http://localhost:1234/v1</code> cho LM Studio). api_key: token Bearer — để trống nếu provider local không yêu cầu. Bấm "Tải danh sách model" để gọi <code>GET {base_url}/models</code> và chọn model id từ dropdown; nếu provider không hỗ trợ endpoint này, gõ model id trực tiếp vào ô model.</p>
+        <datalist id="base-url-options">
+            <option value="https://api.openai.com/v1">
+            <option value="https://openrouter.ai/api/v1">
+            <option value="http://localhost:11434/v1">
+            <option value="http://localhost:1234/v1">
         </datalist>
         <datalist id="model-options">
-            <option value="">
-            <option value="opencode-go/glm-5.2">
-            <option value="opencode-go/glm-5.1">
-            <option value="opencode-go/kimi-k2.7">
-            <option value="opencode-go/kimi-k2.6">
-            <option value="opencode-go/deepseek-v4-pro">
-            <option value="opencode-go/deepseek-v4-flash">
-            <option value="opencode-go/mimo-v2.5">
-            <option value="opencode-go/mimo-v2.5-pro">
-            <option value="opencode-go/minimax-m3">
-            <option value="opencode-go/minimax-m2.7">
-            <option value="opencode-go/minimax-m2.5">
-            <option value="opencode-go/qwen3.7-max">
-            <option value="opencode-go/qwen3.7-plus">
-            <option value="opencode-go/qwen3.6-plus">
+            <option value="gpt-4o-mini">
+            <option value="gpt-4o">
         </datalist>
-        <p><label>prompt_template (để trống = giữ nguyên)<br><textarea name="prompt_template" rows="10" cols="80">{{ cfg.translate.cli.prompt_template }}</textarea></label></p>
-        <p><label>title_prompt_template (để trống = giữ nguyên)<br><textarea name="title_prompt_template" rows="6" cols="80">{{ cfg.translate.cli.title_prompt_template }}</textarea></label></p>
+        <p><label>prompt_template (để trống = giữ nguyên)<br><textarea name="prompt_template" rows="10" cols="80">{{ cfg.translate.openai.prompt_template }}</textarea></label></p>
+        <p><label>title_prompt_template (để trống = giữ nguyên)<br><textarea name="title_prompt_template" rows="6" cols="80">{{ cfg.translate.openai.title_prompt_template }}</textarea></label></p>
         <p class="muted">Khi lưu, prompt sẽ được làm sạch tự động: bỏ khoảng trắng cuối dòng, gộp dòng trống thừa và cắt dòng trống đầu/cuối (giữ nguyên các placeholder như <code>{text}</code>, <code>{glossary}</code>).</p>
     </fieldset>
+    <script>
+    document.getElementById("ai-load-models").addEventListener("click", async function () {
+        const baseUrl = document.getElementById("ai-base-url").value.trim();
+        const apiKey = document.getElementById("ai-api-key").value.trim();
+        const status = document.getElementById("ai-models-status");
+        const datalist = document.getElementById("model-options");
+        if (!baseUrl) { status.textContent = "Nhập base_url trước."; return; }
+        status.textContent = "Đang tải...";
+        try {
+            const url = "/settings/ai/models?base_url=" + encodeURIComponent(baseUrl) + "&api_key=" + encodeURIComponent(apiKey);
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (data.error) {
+                status.textContent = "Provider không hỗ trợ /models (" + data.error + ") — nhập model id trực tiếp.";
+                return;
+            }
+            datalist.innerHTML = "";
+            (data.models || []).forEach(function (m) {
+                const opt = document.createElement("option");
+                opt.value = m;
+                datalist.appendChild(opt);
+            });
+            status.textContent = "Đã tải " + (data.models || []).length + " model.";
+        } catch (e) {
+            status.textContent = "Lỗi: " + e;
+        }
+    });
+    </script>
     <fieldset>
         <legend>Style</legend>
         <p><label>tone <input type="text" name="tone" value="{{ cfg.translate.style.tone }}" size="40" list="tone-options"></label></p>

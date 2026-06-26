@@ -1,8 +1,8 @@
-"""Named presets for CLI translator configuration.
+"""Named presets for the OpenAI-Compatible translator configuration.
 
 Each module exports a `load_preset(name: str) -> dict` that returns a flat
-dictionary of CliTranslatorConfig overrides.  Loaded by `config.load_config()`
-when `translate.preset` is set.
+dictionary of OpenAIConfig overrides (typically prompt templates).  Loaded by
+`config.load_config()` when `translate.preset` is set.
 """
 
 from __future__ import annotations

@@ -25,35 +25,69 @@
 
 <div id="library-region">
 {% if ebooks %}
-<h3>Ebooks ({{ ebooks|length }})</h3>
-<table>
-    <tr><th>Slug</th><th>Tên</th><th>Chương</th><th>Raw</th><th>Dịch</th><th>EPUB</th><th></th></tr>
+<div class="section-head">
+    <h3>Ebooks ({{ ebooks|length }})</h3>
+    {% if archived_count %}
+    <a href="/?show_archived={{ 0 if show_archived else 1 }}">{{ 'Ẩn đã lưu trữ' if show_archived else 'Hiện ' + archived_count|string + ' đã lưu trữ' }}</a>
+    {% endif %}
+</div>
+<form method="post" action="/library/ebooks/bulk-action" id="bulk-form">
+<div class="bulk-bar">
+    <label class="check"><input type="checkbox" id="bulk-select-all"> Chọn tất cả</label>
+    <select name="action">
+        <option value="crawl">Crawl</option>
+        <option value="translate">Dịch</option>
+        <option value="build">Build EPUB</option>
+        <option value="run">Chạy tất cả</option>
+    </select>
+    <button type="submit">Áp dụng cho đã chọn</button>
+</div>
+<div class="ebook-grid">
     {% for ebook in ebooks %}
-    <tr>
-        <td><code>{{ ebook.slug }}</code></td>
-        <td>
-            <strong>{{ ebook.name }}</strong><br>
-            <span class="muted">{{ ebook.cfg.novel.author }}</span>
-        </td>
-        <td>{{ ebook.manifest.chapters|length if ebook.manifest else 0 }}</td>
-        <td>{{ ebook.raw_count }}</td>
-        <td>{{ ebook.translated_count }}</td>
-        <td>{% if ebook.epub_exists %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
-        <td>
-            <a href="/ebooks/{{ ebook.slug }}">mở</a> · <a href="/ebooks/{{ ebook.slug }}/settings">cài đặt</a>
-            {% if ebook.in_library %}
-            · <form method="post" action="/library/ebooks/{{ ebook.slug }}/delete" style="display:inline" onsubmit="return confirm('Gỡ ebook {{ ebook.slug }} khỏi thư viện?');">
-                <button type="submit">Gỡ</button>
-            </form>
-            {% endif %}
-        </td>
-    </tr>
+    <div class="ebook-card{% if ebook.archived %} archived{% endif %}">
+        <label class="check ebook-card-select"><input type="checkbox" name="slugs" value="{{ ebook.slug }}"></label>
+        <div class="ebook-card-body">
+            <h4><a href="/ebooks/{{ ebook.slug }}">{{ ebook.name }}</a> {% if ebook.archived %}<span class="badge">lưu trữ</span>{% endif %}</h4>
+            <p class="muted">{{ ebook.cfg.novel.author }} · <code>{{ ebook.slug }}</code></p>
+            <p>
+                Chương: {{ ebook.manifest.chapters|length if ebook.manifest else 0 }} ·
+                Raw: {{ ebook.raw_count }} ·
+                Dịch: {{ ebook.translated_count }} ·
+                EPUB: {% if ebook.epub_exists %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}
+            </p>
+            <div class="row-actions">
+                <a class="button" href="/ebooks/{{ ebook.slug }}">Mở</a>
+                <a class="button" href="/ebooks/{{ ebook.slug }}/settings">Cài đặt</a>
+                <a class="button" href="/ebooks/{{ ebook.slug }}/config/export">Export config</a>
+                {% if ebook.epub_exists %}<a class="button" href="/ebooks/{{ ebook.slug }}/download">Tải EPUB</a>{% endif %}
+                {% if ebook.in_library %}
+                {% if ebook.archived %}
+                <form method="post" action="/library/ebooks/{{ ebook.slug }}/unarchive" style="display:inline"><button type="submit">Bỏ lưu trữ</button></form>
+                {% else %}
+                <form method="post" action="/library/ebooks/{{ ebook.slug }}/archive" style="display:inline"><button type="submit">Lưu trữ</button></form>
+                {% endif %}
+                <form method="post" action="/library/ebooks/{{ ebook.slug }}/delete" style="display:inline" onsubmit="return confirm('Gỡ ebook {{ ebook.slug }} khỏi thư viện?');">
+                    <button type="submit">Gỡ</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
     {% endfor %}
-</table>
+</div>
+</form>
 {% else %}
 <p class="muted">Chưa có ebook nào trong thư viện.</p>
 {% endif %}
 </div>
+
+<hr>
+<div class="section-head"><h3>Nhập config ebook (.yaml)</h3></div>
+<form method="post" action="/library/ebooks/import" enctype="multipart/form-data" class="form-row">
+    <label>Slug <input type="text" name="slug" required size="20"></label>
+    <label>File config <input type="file" name="file" accept=".yaml,.yml" required></label>
+    <button type="submit">Nhập</button>
+</form>
 
 <hr>
 
@@ -106,6 +140,10 @@
 
 {% block scripts %}
 <script>
+document.getElementById("bulk-select-all")?.addEventListener("change", function () {
+    document.querySelectorAll('#bulk-form input[name="slugs"]').forEach((cb) => { cb.checked = this.checked; });
+});
+
 const logPanels = {
     crawl: initLogPanel("log-crawl"),
     translate: initLogPanel("log-translate"),

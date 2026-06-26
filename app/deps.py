@@ -70,12 +70,24 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "retry": {"attempts": 1, "delay_seconds": 0.0},
         "chunk": {"max_chars": 0, "overlap_paragraphs": 0},
         "openai": {"base_url": "https://api.openai.com/v1", "api_key": "", "model": "gpt-4o-mini", "timeout_seconds": 300, "temperature": 0.7},
+        "moxhimt": {"model_id": "DanVP/MoxhiMT-60", "device": "auto", "beam_size": 4, "max_length": 512, "max_input_tokens": 0, "chunk_mode": "paragraph", "inter_threads": 0, "intra_threads": 0, "cache_dir": ""},
         "delay_seconds": 0.5,
         "max_workers": 1,
     },
     "output": {
         "data_dir": "data",
         "epub_path": "",
+    },
+    "moxhimt": {
+        "model_id": "DanVP/MoxhiMT-60",
+        "device": "auto",
+        "beam_size": 4,
+        "max_length": 512,
+        "max_input_tokens": 0,
+        "chunk_mode": "paragraph",
+        "inter_threads": 0,
+        "intra_threads": 0,
+        "cache_dir": "",
     },
 }
 

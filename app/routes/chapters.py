@@ -9,6 +9,8 @@ import html
 from novel2epub import footnotes
 from novel2epub.pipeline import (
     step_crawl_selected,
+    step_delete_translation_selected,
+    step_retranslate_title,
     step_review_chapter,
     step_rewrite_preview,
     step_suggest_chapter,
@@ -222,12 +224,31 @@ def ebook_chapter_action(request: Request, slug: str, index: int, action: str = 
 
 
 @router.post("/ebooks/{slug}/chapters/{index}/delete-translation")
-def ebook_chapter_delete_translation(slug: str, index: int):
+def ebook_chapter_delete_translation(request: Request, slug: str, index: int):
     cfg = deps.resolved_cfg(slug)
-    storage, ch = _load_chapter_or_404(cfg, index)
-    storage.write_translated(ch, "")
-    storage.write_meta(ch, {})
+
+    def _target(log):
+        step_delete_translation_selected(cfg, log, selected_indexes=[index])
+
+    started = request.app.state.job.start_custom(f"delete-translation-{index}", _target, category="translate")
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/retranslate-title")
+def api_ebook_chapter_retranslate_title(slug: str, index: int):
+    """Dịch lại tiêu đề chương dùng nội dung đã dịch làm ngữ cảnh.
+
+    Yêu cầu chương đã có bản dịch. Chỉ hoạt động với translate.type=openai.
+    Trả JSON {title_vi, title_note, title_zh}.
+    """
+    cfg = deps.resolved_cfg(slug)
+    try:
+        result = step_retranslate_title(cfg, slug=slug, index=index)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return JSONResponse(result)
 
 
 # --- AI hỗ trợ ngay trong editor: review / rewrite-preview / suggest glossary ---

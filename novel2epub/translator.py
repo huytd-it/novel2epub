@@ -469,12 +469,22 @@ class MoxhiMTTranslator:
     def _ensure_loaded(self) -> None:
         if self._ct2 is not None:
             return
+        # Import torch trước (nếu có) để nạp DLL cuBLAS/cuDNN của nó vào process.
+        # CTranslate2 (wheel pip) yêu cầu cublas64_12.dll từ CUDA 12; trên hệ thống
+        # chỉ có CUDA 13+ (cublas64_13.dll), torch-CUDA ship DLL phù hợp và giúp CT2
+        # tìm được thư viện. Pattern này copy từ HachimiMT-demo (src/hardware.py).
+        try:
+            import torch
+            if torch.cuda.is_available():
+                self.log("  … torch CUDA sẵn sàng, sẽ dùng DLL cuBLAS từ torch")
+        except Exception:
+            pass
         ct2 = self._import_ct2()
         spm = self._import_spm()
         model_dir = self._download_model()
         ct2_dir, src_path, tgt_path = self._locate_model_files(model_dir)
 
-        # GPU auto-detect
+        # GPU auto-detect — thử CUDA trước, fallback CPU nếu thiếu DLL/thư viện
         device = self.mox.device
         if device == "auto":
             try:
@@ -491,23 +501,44 @@ class MoxhiMTTranslator:
             f"  … nạp model {self.mox.model_id} (ct2={ct2_dir.name}, spm={tokenizer_label}, "
             f"device={device}, inter_threads={inter_threads}, intra_threads={intra_threads})"
         )
-        try:
-            self._ct2 = ct2.Translator(
-                str(ct2_dir),
-                device=device,
-                inter_threads=inter_threads,
-                intra_threads=intra_threads,
-            )
-            self._sp_src = spm.SentencePieceProcessor(model_file=str(src_path))
-            self._sp_tgt = (
-                spm.SentencePieceProcessor(model_file=str(tgt_path))
-                if tgt_path
-                else self._sp_src
-            )
-        except Exception as e:  # noqa: BLE001
+
+        # Nạp SentencePiece trước (không phụ thuộc CUDA) để có tokenizer cho test inference
+        self._sp_src = spm.SentencePieceProcessor(model_file=str(src_path))
+        self._sp_tgt = (
+            spm.SentencePieceProcessor(model_file=str(tgt_path))
+            if tgt_path
+            else self._sp_src
+        )
+
+        # Thử tạo Translator; nếu CUDA lỗi (thiếu cublas/cuDNN...) → fallback CPU
+        # Một số hệ thống thiếu cuBLAS nhưng ct2.Translator() vẫn tạo được — lỗi chỉ
+        # xuất hiện ở lần translate_batch đầu tiên. Do đó ta chủ động chạy test inference
+        # để phát hiện sớm và fallback.
+        last_err: Exception | None = None
+        for dev in ([device, "cpu"] if device == "cuda" else [device]):
+            try:
+                self._ct2 = ct2.Translator(
+                    str(ct2_dir),
+                    device=dev,
+                    inter_threads=inter_threads,
+                    intra_threads=intra_threads,
+                )
+                if dev == "cuda":
+                    # Verify GPU inference thực sự hoạt động
+                    test_tokens = self._sp_src.encode("test dịch", out_type=str)
+                    self._ct2.translate_batch([test_tokens])
+                if dev != device:
+                    self.log(f"  … Fallback từ {device} sang {dev}")
+                break
+            except Exception as e:  # noqa: BLE001
+                last_err = e
+                if dev == "cpu":
+                    break
+        else:
+            assert last_err is not None
             raise RuntimeError(
-                f"Không nạp được model MoxhiMT từ {model_dir}: {e}."
-            ) from e
+                f"Không nạp được model MoxhiMT từ {model_dir}: {last_err}."
+            ) from last_err
 
     # ----- chia chunk + dịch -----
     def _token_budget(self) -> int:
@@ -527,6 +558,8 @@ class MoxhiMTTranslator:
             batch,
             beam_size=int(self.mox.beam_size),
             max_decoding_length=int(self.mox.max_length),
+            no_repeat_ngram_size=int(self.mox.no_repeat_ngram_size),
+            repetition_penalty=float(self.mox.repetition_penalty),
         )
         return [self._sp_tgt.decode(r.hypotheses[0]) for r in results]
 
@@ -596,8 +629,26 @@ class MoxhiMTTranslator:
                 joined = " ".join(o.strip() for o in outs[start:end] if o.strip())
                 out = _apply_glossary(joined, self.glossary)
             out_lines.append(out)
-            if on_chunk is not None:
-                on_chunk(i + 1, total, out, i + 1 == total)
+
+        if on_chunk is not None:
+            max_chars = self.cfg.chunk.max_chars or 2000
+            chunk_groups: list[str] = []
+            temp_group: list[str] = []
+            temp_len = 0
+            for line in out_lines:
+                if temp_group and temp_len + len(line) + 1 > max_chars:
+                    chunk_groups.append("\n".join(temp_group))
+                    temp_group = []
+                    temp_len = 0
+                temp_group.append(line)
+                temp_len += len(line) + 1
+            if temp_group:
+                chunk_groups.append("\n".join(temp_group))
+
+            total_chunks = len(chunk_groups)
+            for idx, chunk_text in enumerate(chunk_groups, 1):
+                on_chunk(idx, total_chunks, chunk_text, idx == total_chunks)
+
         return "\n".join(out_lines)
 
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:

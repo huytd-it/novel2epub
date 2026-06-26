@@ -39,6 +39,20 @@ Backend dịch cục bộ `moxhimt` (offline, miễn phí, chạy trên CPU):
 pip install ctranslate2 sentencepiece huggingface_hub
 ```
 
+Model mặc định là **MoxhiMT-60**. Có thể chuyển sang **HachimiMT** (cùng backend,
+chất lượng tốt hơn cho một số nguồn) bằng cách đổi `model_id`:
+
+```yaml
+translate:
+  type: moxhimt
+  moxhimt:
+    model_id: "ngocdang83/HachimiMT-60-zh-vi"
+```
+
+Khi detect model name chứa `hachimimt`, tự đặt `beam_size: 2` và
+`max_input_tokens: 160` (khuyến nghị cho HachimiMT). Có thể override thủ công nếu
+cần.
+
 `fastapi`/`uvicorn`/`jinja2`/`python-multipart` chỉ cần nếu dùng Web UI (xem dưới):
 ```bash
 python -m pip install fastapi uvicorn jinja2 python-multipart
@@ -112,7 +126,15 @@ dung → Inspect → xem `id`/`class` của thẻ bao quanh.
 
 - **`moxhimt`** *(mặc định)* — model NMT cục bộ (CTranslate2 + SentencePiece), **chạy offline
   hoàn toàn trên CPU**, không cần API/key, không cần GPU. Miễn phí, tối ưu cho
-  tiểu thuyết mạng/tiên hiệp.
+  tiểu thuyết mạng/tiên hiệp. Hỗ trợ 2 model:
+
+  | Model | model_id | Chất lượng | Ghi chú |
+  |-------|----------|-----------|---------|
+  | MoxhiMT-60 | `DanVP/MoxhiMT-60` | Tốt | Mặc định, beam_size=4 |
+  | HachimiMT-60 | `ngocdang83/HachimiMT-60-zh-vi` | Tốt+ | Tự set beam_size=2, max_input_tokens=160 |
+
+  Đổi model chỉ cần thay `moxhimt.model_id` trong config. Model tự tải từ Hugging Face
+  Hub về cache ở lần dùng đầu.
 
 - **`openai`** — gọi AI qua HTTP theo chuẩn OpenAI-Compatible (OpenAI, OpenRouter, Ollama, LM Studio, vLLM, llama.cpp server...):
 

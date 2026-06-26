@@ -29,6 +29,7 @@
     <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/delete-translation">
         <button type="submit">Xóa bản dịch</button>
     </form>
+    <button type="button" id="retranslate-title-btn" title="Dịch lại tiêu đề dựa trên nội dung đã dịch.">Dịch lại tiêu đề</button>
     <form method="post" action="{{ base }}/ai/suggest" class="ai-job-form"><button type="submit" title="AI gợi ý tên riêng/thuật ngữ trong chương để thêm vào glossary.">Gợi ý glossary</button></form>
 </div>
 
@@ -479,6 +480,28 @@ document.getElementById("chapter-form")?.addEventListener("submit", function() {
     this.querySelector("#hidden-translated").value = fullText;
 });
 
+// Tự động thay đổi chiều cao của textarea theo nội dung (auto-resize textarea)
+function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+document.addEventListener("input", function(e) {
+    if (e.target && e.target.classList.contains("para-textarea")) {
+        autoResizeTextarea(e.target);
+    }
+});
+
+// Chạy khởi tạo chiều cao ban đầu cho tất cả các para-textarea
+function initTextareaHeights() {
+    document.querySelectorAll(".para-textarea").forEach(t => {
+        autoResizeTextarea(t);
+    });
+}
+document.addEventListener("DOMContentLoaded", initTextareaHeights);
+// Chạy thêm một lần nữa sau khi load xong hoàn toàn hoặc ở cuối script đề phòng DOMContentLoaded đã kích hoạt
+setTimeout(initTextareaHeights, 100);
+
 let wasRunning = { crawl: false, translate: false };
 
 // --- Poll nội dung dịch trong khi job translate đang chạy ---
@@ -521,6 +544,7 @@ async function pollTranslated() {
         document.querySelectorAll(".para-textarea").forEach((t, i) => {
             if (document.activeElement !== t) {
                 t.value = lines[i] || "";
+                autoResizeTextarea(t);
             }
         });
         renderTranslatedPreview(data.text || "");
@@ -576,6 +600,27 @@ async function poll() {
         console.error("Lỗi khi poll status:", e);
     }
 }
+// --- Dịch lại tiêu đề dùng nội dung đã dịch làm ngữ cảnh ---
+document.getElementById("retranslate-title-btn")?.addEventListener("click", async function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = "Đang dịch...";
+    try {
+        const res = await fetch(`/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/chapters/${CHAPTER_INDEX}/retranslate-title`, { method: "POST" });
+        if (!res.ok) {
+            const err = await res.json();
+            alert(err.detail || "Có lỗi xảy ra.");
+            return;
+        }
+        const data = await res.json();
+        location.reload();
+    } catch (e) {
+        alert("Lỗi kết nối mạng.");
+        btn.disabled = false;
+        btn.textContent = "Dịch lại tiêu đề";
+    }
+});
+
 // Start polling immediately to check if a job is already running
 poll();
 setInterval(poll, 1500);

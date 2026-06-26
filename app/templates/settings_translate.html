@@ -6,7 +6,7 @@
         <label> Loại backend
             <select name="type"
                 class="{% if not is_default(cfg.translate.type, 'translate', 'type') %}overridden{% endif %}">
-                {% for opt in ["openai", "moxhimt", "google", "none"] %}
+                {% for opt in ["moxhimt", "openai"] %}
                 <option value="{{ opt }}" {% if cfg.translate.type == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
@@ -22,7 +22,7 @@
             {% endif %}
         </label>
         <label> max_workers
-            <input type="number" name="trans_max_workers" value="{{ cfg.translate.max_workers }}" min="1" max="20"
+            <input type="number" name="max_workers" value="{{ cfg.translate.max_workers }}" min="1" max="20"
                 class="{% if not is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}overridden{% endif %}">
             {% if is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}
             <span class="default-hint">Mặc định: 1</span>
@@ -31,6 +31,94 @@
     </div>
 </details>
 
+{# --- MoxhiMT section --- #}
+<div id="section-moxhimt">
+<details class="settings-group" open>
+    <summary>MoxhiMT (NMT cục bộ)</summary>
+    <div class="settings-grid cols-2">
+        <label> model_id (Hugging Face)
+            <input type="text" name="moxhimt_model_id" value="{{ cfg.translate.moxhimt.model_id }}" list="moxhimt-model-options" placeholder="DanVP/MoxhiMT-60"
+                class="{% if not is_default(cfg.translate.moxhimt.model_id, 'moxhimt', 'model_id') %}overridden{% endif %}">
+            <datalist id="moxhimt-model-options">
+                <option value="DanVP/MoxhiMT-60">
+                <option value="DanVP/MoxhiMT-30">
+                <option value="ngocdang83/HachimiMT-60-zh-vi">
+            </datalist>
+            {% if is_default(cfg.translate.moxhimt.model_id, 'moxhimt', 'model_id') %}
+            <span class="default-hint">Mặc định: DanVP/MoxhiMT-60</span>
+            {% endif %}
+        </label>
+        <label> device
+            <select name="moxhimt_device"
+                class="{% if not is_default(cfg.translate.moxhimt.device, 'moxhimt', 'device') %}overridden{% endif %}">
+                {% for opt in ["auto", "cpu", "cuda"] %}
+                <option value="{{ opt }}" {% if cfg.translate.moxhimt.device == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+            </select>
+            {% if is_default(cfg.translate.moxhimt.device, 'moxhimt', 'device') %}
+            <span class="default-hint">Mặc định: auto</span>
+            {% endif %}
+        </label>
+    </div>
+    <div class="settings-grid cols-3">
+        <label> beam_size
+            <input type="number" name="moxhimt_beam_size" value="{{ cfg.translate.moxhimt.beam_size }}" min="1" max="20"
+                class="{% if not is_default(cfg.translate.moxhimt.beam_size, 'moxhimt', 'beam_size') %}overridden{% endif %}">
+            {% if is_default(cfg.translate.moxhimt.beam_size, 'moxhimt', 'beam_size') %}
+            <span class="default-hint">Mặc định: 4</span>
+            {% endif %}
+        </label>
+        <label> max_length (token)
+            <input type="number" name="moxhimt_max_length" value="{{ cfg.translate.moxhimt.max_length }}" min="32" max="2048"
+                class="{% if not is_default(cfg.translate.moxhimt.max_length, 'moxhimt', 'max_length') %}overridden{% endif %}">
+            {% if is_default(cfg.translate.moxhimt.max_length, 'moxhimt', 'max_length') %}
+            <span class="default-hint">Mặc định: 512</span>
+            {% endif %}
+        </label>
+        <label> max_input_tokens (0 = auto)
+            <input type="number" name="moxhimt_max_input_tokens" value="{{ cfg.translate.moxhimt.max_input_tokens }}" min="0"
+                class="{% if not is_default(cfg.translate.moxhimt.max_input_tokens, 'moxhimt', 'max_input_tokens') %}overridden{% endif %}">
+            {% if is_default(cfg.translate.moxhimt.max_input_tokens, 'moxhimt', 'max_input_tokens') %}
+            <span class="default-hint">Mặc định: 0</span>
+            {% endif %}
+        </label>
+    </div>
+    <div class="settings-grid cols-3">
+        <label> chunk_mode
+            <select name="moxhimt_chunk_mode"
+                class="{% if not is_default(cfg.translate.moxhimt.chunk_mode, 'moxhimt', 'chunk_mode') %}overridden{% endif %}">
+                {% for opt in ["paragraph", "sentence"] %}
+                <option value="{{ opt }}" {% if cfg.translate.moxhimt.chunk_mode == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+            </select>
+            {% if is_default(cfg.translate.moxhimt.chunk_mode, 'moxhimt', 'chunk_mode') %}
+            <span class="default-hint">Mặc định: paragraph</span>
+            {% endif %}
+        </label>
+        <label> inter_threads (0 = auto)
+            <input type="number" name="moxhimt_inter_threads" value="{{ cfg.translate.moxhimt.inter_threads }}" min="0"
+                class="{% if not is_default(cfg.translate.moxhimt.inter_threads, 'moxhimt', 'inter_threads') %}overridden{% endif %}">
+            {% if is_default(cfg.translate.moxhimt.inter_threads, 'moxhimt', 'inter_threads') %}
+            <span class="default-hint">Mặc định: 0</span>
+            {% endif %}
+        </label>
+        <label> intra_threads (0 = auto)
+            <input type="number" name="moxhimt_intra_threads" value="{{ cfg.translate.moxhimt.intra_threads }}" min="0"
+                class="{% if not is_default(cfg.translate.moxhimt.intra_threads, 'moxhimt', 'intra_threads') %}overridden{% endif %}">
+            {% if is_default(cfg.translate.moxhimt.intra_threads, 'moxhimt', 'intra_threads') %}
+            <span class="default-hint">Mặc định: 0</span>
+            {% endif %}
+        </label>
+    </div>
+    <label> cache_dir (để trống = HF cache mặc định)
+        <input type="text" name="moxhimt_cache_dir" value="{{ cfg.translate.moxhimt.cache_dir }}" placeholder="tự dùng HF cache"
+            class="{% if not is_default(cfg.translate.moxhimt.cache_dir, 'moxhimt', 'cache_dir') %}overridden{% endif %}">
+    </label>
+</details>
+</div>
+
+{# --- OpenAI section --- #}
+<div id="section-openai">
 <details class="settings-group" open>
     <summary>OpenAI-Compatible</summary>
     <div class="settings-grid cols-2">
@@ -46,7 +134,7 @@
         <label> model
             <div class="input-with-btn">
                 <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" list="model-options">
-                <button type="button" id="ai-load-models" class="btn-util">Tải models</button>
+                <button type="button" id="ai-load-models" class="btn-util no-autosave">Tải models</button>
             </div>
             <span id="ai-models-status" class="default-hint"></span>
         </label>
@@ -69,6 +157,13 @@
     <datalist id="model-options">
         <option value="gpt-4o-mini">
         <option value="gpt-4o">
+        <option value="gpt-4.1-mini">
+        <option value="gpt-4.1">
+        <option value="o4-mini">
+        <option value="claude-sonnet-4-20250514">
+        <option value="claude-3-5-haiku-20241022">
+        <option value="deepseek-chat">
+        <option value="deepseek-reasoner">
     </datalist>
     <label> prompt_template (để trống = giữ nguyên)
         <textarea name="prompt_template" rows="8">{{ cfg.translate.openai.prompt_template }}</textarea>
@@ -77,6 +172,7 @@
         <textarea name="title_prompt_template" rows="4">{{ cfg.translate.openai.title_prompt_template }}</textarea>
     </label>
 </details>
+</div>
 
 <details class="settings-group" open>
     <summary>Style dịch</summary>
@@ -154,7 +250,7 @@
         </label>
     </div>
     <div class="settings-grid cols-2">
-        <label> chunk max_chars
+        <label> chunk max_chars (0 = auto)
             <input type="number" name="chunk_max_chars" value="{{ cfg.translate.chunk.max_chars }}" min="0" list="chunk-max-chars-options"
                 class="{% if not is_default(cfg.translate.chunk.max_chars, 'translate', 'chunk') %}overridden{% endif %}">
             <datalist id="chunk-max-chars-options">
@@ -172,7 +268,6 @@
 </details>
 
 <div class="form-actions">
-    <button type="submit">Lưu cấu hình dịch</button>
     <button type="button" class="btn-raw" onclick="toggleRawYaml('raw-translate')">YAML</button>
 </div>
 
@@ -180,6 +275,17 @@
 <pre><code>translate:
   type: {{ cfg.translate.type }}
   delay_seconds: {{ cfg.translate.delay_seconds }}
+  max_workers: {{ cfg.translate.max_workers }}
+  openai:
+    base_url: {{ cfg.translate.openai.base_url }}
+    model: {{ cfg.translate.openai.model }}
+    timeout_seconds: {{ cfg.translate.openai.timeout_seconds }}
+    temperature: {{ cfg.translate.openai.temperature }}
+  moxhimt:
+    model_id: {{ cfg.translate.moxhimt.model_id }}
+    device: {{ cfg.translate.moxhimt.device }}
+    beam_size: {{ cfg.translate.moxhimt.beam_size }}
+    max_length: {{ cfg.translate.moxhimt.max_length }}
   style:
     tone: {{ cfg.translate.style.tone }}
     pronoun_policy: {{ cfg.translate.style.pronoun_policy }}

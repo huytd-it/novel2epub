@@ -191,26 +191,30 @@ class OpenAIConfig:
 class MoxhiMTConfig:
     """Cấu hình backend dịch cục bộ MoxhiMT (CTranslate2 + SentencePiece).
 
-    Toàn bộ giá trị mặc định là bộ tham số chất lượng cao nhất (cẩn thận nhất) —
-    người dùng không cần chỉnh gì để đạt chất lượng tốt nhất. Xem
-    `MoxhiMTTranslator` trong translator.py.
+    Toàn bộ giá trị mặc định được tinh chỉnh theo khuyến nghị từ HachimiMT-demo
+    (model HachimiMT-60/MoxhiMT-60) — chất lượng cao, chống lặp, ổn định entity.
     """
     # Repo Hugging Face chứa SentencePiece tokenizer + model CTranslate2. Đổi
     # sang model cùng kiến trúc Marian khác chỉ cần đổi field này (vd
     # DanVP/MoxhiMT-30, ngocdang83/HachimiMT-60-zh-vi).
-    model_id: str = "DanVP/MoxhiMT-60"
+    model_id: str = "ngocdang83/HachimiMT-60-zh-vi"
     backend: str = "ctranslate2"
-    # Beam search rộng hơn = chất lượng tốt hơn (chậm hơn). 4 theo model card.
-    beam_size: int = 4
-    # Trần token mỗi lượt dịch của model (giới hạn cứng kiến trúc).
-    max_length: int = 512
-    # Giới hạn token đầu vào riêng (0 = auto từ max_length). Một số model nhỏ
-    # (HachimiMT-60) cần input cap thấp hơn output để tránh drift entity.
-    max_input_tokens: int = 0
-    # "paragraph" = gom trọn đoạn cho model giữ ngữ cảnh (mặc định, cẩn thận
-    # nhất), tự fallback chia câu khi đoạn vượt token. "sentence" = chia câu
-    # ngay từ đầu (nhanh hơn, mất ngữ cảnh đoạn).
-    chunk_mode: str = "paragraph"
+    # Beam = 1 (greedy) cho tốc độ, 2 cho chất lượng (mặc định HachimiMT-demo).
+    # Beam > 2 dễ gây lặp trên model seq2seq nhỏ.
+    beam_size: int = 2
+    # Trần token đầu ra. Model 60M drift khi decode dài → giới hạn 300 (HachimiMT-demo).
+    max_length: int = 300
+    # Giới hạn token đầu vào. Model 60M mất context trên chunk dài → drift entity &
+    # lặp. HachimiMT-demo khuyến nghị 160 để giữ ổn định tên riêng.
+    max_input_tokens: int = 160
+    # "sentence" = chia từng câu (mặc định HachimiMT-demo, chống lặp tốt nhất).
+    # "paragraph" = gom trọn đoạn (ngữ cảnh tốt hơn nhưng dễ lặp trên chunk dài).
+    chunk_mode: str = "sentence"
+    # Cấm lặp n-gram trùng (mặc định HachimiMT-demo). 2 = không cho phép 2 gram
+    # nào xuất hiện >1 lần trong bản dịch.
+    no_repeat_ngram_size: int = 2
+    # Phạt điểm các token đã xuất hiện (mặc định HachimiMT-demo). >1 = giảm lặp.
+    repetition_penalty: float = 1.2
     # Thư mục cache model. Để trống = dùng cache mặc định của huggingface_hub.
     cache_dir: str = ""
     device: str = "auto"

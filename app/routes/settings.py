@@ -81,6 +81,7 @@ def save_source(
     chapter_link_pattern: str = Form(".*"),
     max_chapters: int = Form(0),
     delay_seconds: float = Form(1.0),
+    max_workers: int = Form(1),
     content_selector: str = Form(""),
     scrapling_mode: str = Form("fetcher"),
     solve_cloudflare: bool = Form(False),
@@ -101,6 +102,7 @@ def save_source(
         "toc_url": toc_url,
         "chapter_link_pattern": chapter_link_pattern,
         "max_chapters": max_chapters,
+        "max_workers": max(1, max_workers),
         "delay_seconds": delay_seconds,
         "content_selector": content_selector,
         "headless": headless,
@@ -163,10 +165,23 @@ def save_ai(
     han_viet_level: str = Form(""),
     keep_paragraphs: bool = Form(False),
     delay_seconds: float = Form(0.5),
+    max_workers: int = Form(1),
     retry_attempts: int = Form(1),
     retry_delay_seconds: float = Form(0.0),
     chunk_max_chars: int = Form(0),
     chunk_overlap_paragraphs: int = Form(0),
+    # MoxhiMT fields
+    moxhimt_model_id: str = Form("ngocdang83/HachimiMT-60-zh-vi"),
+    moxhimt_device: str = Form("auto"),
+    moxhimt_beam_size: int = Form(2),
+    moxhimt_max_length: int = Form(300),
+    moxhimt_max_input_tokens: int = Form(160),
+    moxhimt_chunk_mode: str = Form("sentence"),
+    moxhimt_no_repeat_ngram_size: int = Form(2),
+    moxhimt_repetition_penalty: float = Form(1.2),
+    moxhimt_inter_threads: int = Form(0),
+    moxhimt_intra_threads: int = Form(0),
+    moxhimt_cache_dir: str = Form(""),
 ):
     openai_cfg: dict = {
         "base_url": base_url,
@@ -180,9 +195,24 @@ def save_ai(
     if title_prompt_template.strip():
         openai_cfg["title_prompt_template"] = clean_prompt_text(title_prompt_template)
 
+    moxhimt_cfg: dict = {
+        "model_id": moxhimt_model_id,
+        "device": moxhimt_device,
+        "beam_size": moxhimt_beam_size,
+        "max_length": moxhimt_max_length,
+        "max_input_tokens": moxhimt_max_input_tokens,
+        "chunk_mode": moxhimt_chunk_mode,
+        "no_repeat_ngram_size": moxhimt_no_repeat_ngram_size,
+        "repetition_penalty": moxhimt_repetition_penalty,
+        "inter_threads": moxhimt_inter_threads,
+        "intra_threads": moxhimt_intra_threads,
+        "cache_dir": moxhimt_cache_dir,
+    }
+
     translate: dict = {
         "type": type,
         "openai": openai_cfg,
+        "moxhimt": moxhimt_cfg,
         "style": {
             "tone": tone,
             "pronoun_policy": pronoun_policy,
@@ -196,6 +226,7 @@ def save_ai(
             "overlap_paragraphs": chunk_overlap_paragraphs,
         },
         "delay_seconds": delay_seconds,
+        "max_workers": max(1, max_workers),
     }
     path = deps.ebook_config_path(slug)
     logger.info(

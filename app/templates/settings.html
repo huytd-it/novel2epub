@@ -6,9 +6,6 @@
     <a href="/ebooks/{{ slug }}" class="settings-back">&larr; {{ cfg.novel.title or slug }}</a>
     <div class="settings-header-right">
         <span class="settings-save-status" id="save-status"></span>
-        <button type="button" class="settings-save-all" id="btn-save-all" onclick="saveActiveForm()" disabled>
-            Lưu
-        </button>
     </div>
 </div>
 
@@ -55,56 +52,44 @@ function switchSettingsTab(tabName) {
     sessionStorage.setItem("settings-tab-" + layout.dataset.slug, tabName);
 }
 
-// --- Unsaved changes tracking ---
-let formDirty = false;
+// --- Auto-save with debounce ---
+let saveTimer = null;
 const saveStatus = document.getElementById("save-status");
-const btnSave = document.getElementById("btn-save-all");
+const DEBOUNCE_MS = 800;
 
-function markDirty() {
-    if (!formDirty) {
-        formDirty = true;
-        saveStatus.textContent = "Chưa lưu";
-        saveStatus.classList.add("dirty");
-        btnSave.disabled = false;
-    }
-}
-
-function markClean() {
-    formDirty = false;
-    saveStatus.textContent = "Đã lưu";
-    saveStatus.classList.remove("dirty");
-    setTimeout(() => { saveStatus.textContent = ""; }, 2000);
-    btnSave.disabled = true;
+function scheduleSave(form) {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveStatus.textContent = "Đang lưu...";
+    saveStatus.className = "settings-save-status saving";
+    saveTimer = setTimeout(() => {
+        const fd = new FormData(form);
+        fetch(form.action, { method: "POST", body: fd })
+            .then(r => {
+                if (r.ok || r.redirected) {
+                    saveStatus.textContent = "Đã lưu";
+                    saveStatus.className = "settings-save-status saved";
+                    setTimeout(() => { saveStatus.textContent = ""; saveStatus.className = "settings-save-status"; }, 1500);
+                } else {
+                    saveStatus.textContent = "Lỗi lưu";
+                    saveStatus.className = "settings-save-status error";
+                }
+            })
+            .catch(() => {
+                saveStatus.textContent = "Lỗi mạng";
+                saveStatus.className = "settings-save-status error";
+            });
+    }, DEBOUNCE_MS);
 }
 
 document.querySelectorAll(".settings-form").forEach(form => {
-    form.addEventListener("input", markDirty);
-    form.addEventListener("change", markDirty);
-    form.addEventListener("submit", function () {
-        setTimeout(markClean, 300);
+    form.addEventListener("input", function (e) {
+        if (e.target.closest(".no-autosave")) return;
+        scheduleSave(form);
     });
-});
-
-// --- Save active form ---
-function saveActiveForm() {
-    const active = document.querySelector(".settings-panel.active .settings-form");
-    if (active) active.requestSubmit();
-}
-
-// --- Ctrl+S shortcut ---
-document.addEventListener("keydown", function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-        e.preventDefault();
-        saveActiveForm();
-    }
-});
-
-// --- Warn before leaving with unsaved changes ---
-window.addEventListener("beforeunload", function (e) {
-    if (formDirty) {
-        e.preventDefault();
-        e.returnValue = "";
-    }
+    form.addEventListener("change", function (e) {
+        if (e.target.closest(".no-autosave")) return;
+        scheduleSave(form);
+    });
 });
 
 // --- Restore saved tab ---
@@ -116,18 +101,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 });
 
-// --- Collapsible fieldsets ---
-document.querySelectorAll("details.settings-group").forEach(d => {
-    d.addEventListener("toggle", function () {
-        if (this.open) {
-            this.setAttribute("data-open", "");
-        } else {
-            this.removeAttribute("data-open");
-        }
-    });
-});
-
-// Tone custom toggle
+// --- Tone custom toggle ---
 document.addEventListener("change", function (e) {
     if (e.target.name === "tone" && e.target.value === "__custom__") {
         const input = document.getElementById("tone-custom");
@@ -138,7 +112,7 @@ document.addEventListener("change", function (e) {
     }
 });
 
-// Pronoun custom toggle
+// --- Pronoun custom toggle ---
 document.addEventListener("change", function (e) {
     if (e.target.name === "pronoun_policy" && e.target.value === "__custom__") {
         const input = document.getElementById("pronoun-custom");
@@ -148,6 +122,21 @@ document.addEventListener("change", function (e) {
         if (input) { input.style.display = "none"; }
     }
 });
+
+// --- Translate type conditional visibility ---
+function updateTranslateTypeUI() {
+    const typeSelect = document.querySelector('select[name="type"]');
+    if (!typeSelect) return;
+    const type = typeSelect.value;
+    const openaiSection = document.getElementById("section-openai");
+    const moxhimtSection = document.getElementById("section-moxhimt");
+    if (openaiSection) openaiSection.style.display = type === "openai" ? "" : "none";
+    if (moxhimtSection) moxhimtSection.style.display = type === "moxhimt" ? "" : "none";
+}
+document.addEventListener("change", function (e) {
+    if (e.target.name === "type") updateTranslateTypeUI();
+});
+document.addEventListener("DOMContentLoaded", updateTranslateTypeUI);
 </script>
 {% endblock %}
 

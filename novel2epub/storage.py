@@ -317,6 +317,12 @@ class Storage:
                     notes[target] = note
         return notes
 
+    def delete_translated(self, ch: Chapter) -> None:
+        """Xóa toàn bộ dữ liệu bản dịch: translated, translated_mt, meta."""
+        for path in (self.translated_path(ch), self.translated_mt_path(ch), self.meta_path(ch)):
+            if path.exists():
+                path.unlink()
+
     def write_glossary_file(self, name: str, content: str) -> None:
         self.ensure_dirs()
         self.glossary_path(name).write_text(content, encoding="utf-8")

@@ -1111,6 +1111,126 @@ def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> str
     return rewritten
 
 
+def step_delete_translation_selected(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    selected_indexes: list[int] | None = None,
+    should_cancel: CancelFn | None = None,
+) -> Manifest:
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    selected = _chapter_selection(manifest.chapters, None, None, None, selected_indexes)
+    total = len(selected)
+    deleted = 0
+    for ch in selected:
+        if should_cancel and should_cancel():
+            log("[xóa-dịch] Đã dừng theo yêu cầu.")
+            break
+        has_any = (
+            storage.translated_path(ch).exists()
+            or storage.translated_mt_path(ch).exists()
+            or storage.meta_path(ch).exists()
+        )
+        if not has_any:
+            continue
+        storage.delete_translated(ch)
+        ch.last_action_status = ""
+        deleted += 1
+        log(f"[xóa-dịch] ({deleted}/{total}) {ch.stem}")
+
+    if deleted:
+        storage.save_manifest(manifest)
+    log(f"[xóa-dịch] Hoàn tất. Đã xóa {deleted} chương.")
+    return manifest
+
+
+_RETRANSLATE_TITLE_PROMPT = """Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt.
+
+Tôi cần bạn dịch lại tiêu đề chương sau, dựa vào nội dung đã dịch của chương đó để có ngữ cảnh, giúp bản dịch tiêu đề HAY, CÓ HỒN, phù hợp với nội dung bên trong.
+
+Nguyên tắc bắt buộc:
+1. Không bê nguyên âm Hán Việt nếu người đọc Việt không hiểu nghĩa.
+2. Có thể đảo cấu trúc, dùng hình ảnh/ẩn dụ tương đương trong tiếng Việt, miễn giữ đúng tinh thần và nội dung cốt lõi.
+3. Dùng nội dung tóm tắt bên dưới để hiểu bối cảnh và chọn từ ngữ phù hợp nhất.
+4. Nếu thực sự không tìm được cách chuyển ngữ hay mà vẫn giữ đúng nghĩa, hãy dịch nghĩa rõ ràng dù kém mượt hơn là giữ Hán Việt khó hiểu, và điền dòng GIẢI THÍCH để người đọc hiểu nghĩa gốc/lý do chọn từ.
+
+{glossary}
+Trả lời ĐÚNG 2 dòng theo định dạng sau, không thêm gì khác:
+TIÊU ĐỀ: <bản dịch tiếng Việt>
+GIẢI THÍCH: <để trống nếu tên đã rõ nghĩa, tự nhiên; chỉ điền nếu cần giải thích thêm cho người đọc>
+
+--- Tiêu đề gốc (chữ Hán) ---
+{title_zh}
+
+--- Tóm tắt nội dung đã dịch (để tham khảo ngữ cảnh) ---
+{summary}"""
+
+
+def step_retranslate_title(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    slug: str,
+    index: int,
+    summary_max_chars: int = 800,
+) -> dict:
+    """Dịch lại tiêu đề chương dùng nội dung đã dịch làm ngữ cảnh.
+
+    Chỉ hoạt động với translate.type=openai. Trả dict {title_vi, title_note, title_zh}.
+    """
+    if cfg.translate.type.lower() != "openai":
+        raise RuntimeError(
+            "Dịch lại tiêu đề (retranslate-title) chỉ hỗ trợ với translate.type=openai. "
+            f"Backend hiện tại: {cfg.translate.type!r}"
+        )
+
+    from .openai_client import run_chat
+    from .translator import _format_glossary, _parse_title_response, load_glossary_dict
+
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise RuntimeError(f"Không tìm thấy chương {index}.")
+
+    if not ch.title_zh:
+        raise RuntimeError(f"Chương {index} không có tiêu đề gốc (title_zh).")
+
+    if not storage.has_translated(ch):
+        raise RuntimeError(f"Chương {index} chưa có bản dịch. Hãy dịch chương trước.")
+
+    translated = storage.read_translated(ch)
+    summary = translated.strip()[:summary_max_chars]
+    if len(translated) > summary_max_chars:
+        summary = summary.rsplit("\n", 1)[0] or summary
+
+    glossary = load_glossary_dict(cfg.translate)
+    prompt = _RETRANSLATE_TITLE_PROMPT.format(
+        title_zh=ch.title_zh,
+        summary=summary,
+        glossary=_format_glossary(glossary),
+    )
+
+    log(f"[dịch-tiêu-đề] Chương {index}: {ch.title_zh}")
+    raw = run_chat(cfg.translate.openai, prompt)
+    title_vi, title_note = _parse_title_response(raw)
+    title_vi = _clean_title(title_vi)
+
+    ch.title_vi = title_vi
+    ch.title_note = title_note
+    storage.save_manifest(manifest)
+    log(f"[dịch-tiêu-đề] → {title_vi}" + (f" ({title_note})" if title_note else ""))
+
+    return {"title_vi": title_vi, "title_note": title_note, "title_zh": ch.title_zh}
+
+
 def step_build(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> str:
     _emit_build_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)

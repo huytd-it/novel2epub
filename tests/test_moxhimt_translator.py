@@ -50,7 +50,15 @@ class _FakeCT2Translator:
         self.inter_threads = inter_threads
         self.intra_threads = intra_threads
 
-    def translate_batch(self, batch, beam_size=1, max_decoding_length=512):
+    def translate_batch(
+        self,
+        batch,
+        beam_size=1,
+        max_decoding_length=512,
+        no_repeat_ngram_size=0,
+        repetition_penalty=1.0,
+        **_kwargs,
+    ):
         _FakeCT2Translator.batch_calls.append(len(batch))
         # Echo: trả lại đúng token nguồn (decode → text gốc) để dễ assert.
         return [_FakeResult(list(toks)) for toks in batch]
@@ -118,7 +126,7 @@ def test_make_translator_invalid_type_raises():
 
 
 def test_paragraph_mode_short_line_single_call(fake_model_env):
-    t = fake_model_env()  # mặc định paragraph, max_length=512
+    t = fake_model_env(chunk_mode="paragraph", max_length=512, max_input_tokens=0)
     calls: list[tuple] = []
     out = t.translate("第一句。第二句。", on_chunk=lambda i, n, txt, f: calls.append((i, n, f)))
     assert out == "第一句。第二句。"  # echo, cả đoạn 1 lượt
@@ -129,6 +137,7 @@ def test_paragraph_mode_short_line_single_call(fake_model_env):
 
 def test_multiline_calls_on_chunk_per_line(fake_model_env):
     t = fake_model_env()
+    t.cfg.chunk.max_chars = 5
     calls: list[tuple] = []
     out = t.translate("dòng A\ndòng B\ndòng C", on_chunk=lambda i, n, txt, f: calls.append((i, n, f)))
     assert out == "dòng A\ndòng B\ndòng C"
@@ -183,7 +192,7 @@ def test_ct2_translator_receives_resolved_threads(fake_model_env, monkeypatch):
 
 def test_long_paragraph_falls_back_to_sentences(fake_model_env):
     # max_length=48 → budget = 48-32 = 16. Đoạn 20 ký tự > 16 → chia câu.
-    t = fake_model_env(max_length=48)
+    t = fake_model_env(max_length=48, max_input_tokens=0)
     out = t.translate("AAAA。BBBB。CCCC。DDDD。")
     # 4 câu mỗi cái 5 ký tự (<=16) → 1 batch 4 segment, nối bằng khoảng trắng
     assert _FakeCT2Translator.batch_calls == [4]
@@ -192,7 +201,7 @@ def test_long_paragraph_falls_back_to_sentences(fake_model_env):
 
 def test_oversized_sentence_hard_split(fake_model_env):
     # budget 16; 1 câu 20 ký tự không dấu kết → cắt cứng theo ký tự (16 + 4)
-    t = fake_model_env(max_length=48)
+    t = fake_model_env(max_length=48, max_input_tokens=0)
     t.translate("X" * 20)
     assert _FakeCT2Translator.batch_calls == [2]
 

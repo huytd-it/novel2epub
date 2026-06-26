@@ -1,0 +1,260 @@
+<div class="section-head"><h3>Dịch (AI / Google / MoxhiMT)</h3></div>
+
+<form method="post" action="/ebooks/{{ slug }}/settings/ai" class="settings-form">
+    <div class="field-row">
+        <div class="field-group">
+            <label>Loại backend
+                <select name="type"
+                    class="{% if not is_default(cfg.translate.type, 'translate', 'type') %}overridden{% endif %}">
+                    {% for opt in ["openai", "moxhimt", "google", "none"] %}
+                    <option value="{{ opt }}" {% if cfg.translate.type == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            {% if is_default(cfg.translate.type, 'translate', 'type') %}
+            <span class="default-badge">Mặc định: moxhimt</span>
+            {% endif %}
+        </div>
+        <div class="field-group">
+            <label>delay_seconds
+                <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.translate.delay_seconds }}" min="0"
+                    class="{% if not is_default(cfg.translate.delay_seconds, 'translate', 'delay_seconds') %}overridden{% endif %}">
+            </label>
+            {% if is_default(cfg.translate.delay_seconds, 'translate', 'delay_seconds') %}
+            <span class="default-badge">Mặc định: 0.5</span>
+            {% endif %}
+        </div>
+        <div class="field-group">
+            <label>max_workers
+                <input type="number" name="trans_max_workers" value="{{ cfg.translate.max_workers }}" min="1" max="20"
+                    class="{% if not is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}overridden{% endif %}">
+            </label>
+            {% if is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}
+            <span class="default-badge">Mặc định: 1</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <fieldset>
+        <legend>OpenAI-Compatible</legend>
+        <div class="field-row">
+            <div class="field-group">
+                <label>base_url
+                    <input type="text" id="ai-base-url" name="base_url" value="{{ cfg.translate.openai.base_url }}" size="40" list="base-url-options"
+                        class="{% if not is_default(cfg.translate.openai.base_url, 'translate', 'openai') %}overridden{% endif %}">
+                </label>
+            </div>
+            <div class="field-group">
+                <label>api_key
+                    <input type="password" id="ai-api-key" name="api_key" value="{{ cfg.translate.openai.api_key }}" size="30" autocomplete="off">
+                </label>
+            </div>
+        </div>
+        <div class="field-row">
+            <div class="field-group">
+                <label>timeout_seconds
+                    <input type="number" name="timeout_seconds" value="{{ cfg.translate.openai.timeout_seconds }}" min="1"
+                        class="{% if not is_default(cfg.translate.openai.timeout_seconds, 'translate', 'openai') %}overridden{% endif %}">
+                </label>
+            </div>
+            <div class="field-group">
+                <label>temperature
+                    <input type="number" step="0.1" name="temperature" value="{{ cfg.translate.openai.temperature }}" min="0" max="2"
+                        class="{% if not is_default(cfg.translate.openai.temperature, 'translate', 'openai') %}overridden{% endif %}">
+                </label>
+            </div>
+            <div class="field-group">
+                <label>model
+                    <div class="input-with-btn">
+                        <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" size="30" list="model-options">
+                        <button type="button" id="ai-load-models" class="btn-util">Kiểm tra kết nối</button>
+                    </div>
+                    <span id="ai-models-status" class="muted"></span>
+                </label>
+            </div>
+        </div>
+        <p class="muted">base_url: endpoint kiểu OpenAI. Bấm "Kiểm tra kết nối" để tải danh sách model từ <code>GET {{ '{base_url}' }}/models</code>.</p>
+        <datalist id="base-url-options">
+            <option value="https://api.openai.com/v1">
+            <option value="https://openrouter.ai/api/v1">
+            <option value="http://localhost:11434/v1">
+            <option value="http://localhost:1234/v1">
+        </datalist>
+        <datalist id="model-options">
+            <option value="gpt-4o-mini">
+            <option value="gpt-4o">
+        </datalist>
+        <div class="field-row">
+            <div class="field-group full-width">
+                <label>prompt_template (để trống = giữ nguyên)
+                    <textarea name="prompt_template" rows="10" cols="80">{{ cfg.translate.openai.prompt_template }}</textarea>
+                </label>
+            </div>
+        </div>
+        <div class="field-row">
+            <div class="field-group full-width">
+                <label>title_prompt_template (để trống = giữ nguyên)
+                    <textarea name="title_prompt_template" rows="6" cols="80">{{ cfg.translate.openai.title_prompt_template }}</textarea>
+                </label>
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Style</legend>
+        <div class="field-row">
+            <div class="field-group">
+                <label>Tone
+                    <select name="tone"
+                        class="{% if not is_default(cfg.translate.style.tone, 'translate', 'style') %}overridden{% endif %}">
+                        <option value="mượt, tự nhiên, có chất cổ trang" {% if cfg.translate.style.tone == "mượt, tự nhiên, có chất cổ trang" %}selected{% endif %}>Mượt, tự nhiên, cổ trang</option>
+                        <option value="trang trọng, cổ điển, văn chương" {% if cfg.translate.style.tone == "trang trọng, cổ điển, văn chương" %}selected{% endif %}>Trang trọng, cổ điển</option>
+                        <option value="hiện đại, gần gũi, đời thường" {% if cfg.translate.style.tone == "hiện đại, gần gũi, đời thường" %}selected{% endif %}>Hiện đại, gần gũi</option>
+                        <option value="dí dỏm, hài hước, trẻ trung" {% if cfg.translate.style.tone == "dí dỏm, hài hước, trẻ trung" %}selected{% endif %}>Dí dỏm, hài hước</option>
+                        <option value="khốc liệt, gân guốc, dồn nén (action/huyết chiến)" {% if cfg.translate.style.tone == "khốc liệt, gân guốc, dồn nén (action/huyết chiến)" %}selected{% endif %}>Khốc liệt, action</option>
+                        <option value="__custom__" {% if cfg.translate.style.tone not in ["mượt, tự nhiên, có chất cổ trang", "trang trọng, cổ điển, văn chương", "hiện đại, gần gũi, đời thường", "dí dỏm, hài hước, trẻ trung", "khốc liệt, gân guốc, dồn nén (action/huyết chiến)"] %}selected{% endif %}>Tùy chỉnh...</option>
+                    </select>
+                </label>
+                <input type="text" id="tone-custom" name="tone_custom" value="{{ cfg.translate.style.tone if cfg.translate.style.tone not in ['mượt, tự nhiên, có chất cổ trang', 'trang trọng, cổ điển, văn chương', 'hiện đại, gần gũi, đời thường', 'dí dỏm, hài hước, trẻ trung', 'khốc liệt, gân guốc, dồn nén (action/huyết chiến)'] else '' }}" size="40" placeholder="Nhập tone tùy chỉnh..." style="display:none">
+                {% if is_default(cfg.translate.style.tone, 'translate', 'style') %}
+                <span class="default-badge">Mặc định: mượt, tự nhiên</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="field-row">
+            <div class="field-group">
+                <label>pronoun_policy
+                    <select name="pronoun_policy"
+                        class="{% if not is_default(cfg.translate.style.pronoun_policy, 'translate', 'style') %}overridden{% endif %}">
+                        {% for opt, label in [("contextual", "Contextual (linh hoạt)"), ("formal", "Formal (trang trọng)"), ("modern_casual", "Modern Casual (thân mật)")] %}
+                        <option value="{{ opt }}" {% if cfg.translate.style.pronoun_policy == opt %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                        <option value="__custom__" {% if cfg.translate.style.pronoun_policy not in ["contextual", "formal", "modern_casual"] %}selected{% endif %}>Tùy chỉnh...</option>
+                    </select>
+                </label>
+                <input type="text" id="pronoun-custom" name="pronoun_custom" value="{{ cfg.translate.style.pronoun_policy if cfg.translate.style.pronoun_policy not in ['contextual', 'formal', 'modern_casual'] else '' }}" size="20" placeholder="Nhập policy tùy chỉnh..." style="display:none">
+            </div>
+            <div class="field-group">
+                <label>title_mode
+                    <select name="title_mode"
+                        class="{% if not is_default(cfg.translate.style.title_mode, 'translate', 'style') %}overridden{% endif %}">
+                        {% for opt in ["creative", "literal"] %}
+                        <option value="{{ opt }}" {% if cfg.translate.style.title_mode == opt %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                {% if is_default(cfg.translate.style.title_mode, 'translate', 'style') %}
+                <span class="default-badge">Mặc định: creative</span>
+                {% endif %}
+            </div>
+            <div class="field-group">
+                <label>han_viet_level
+                    <select name="han_viet_level"
+                        class="{% if not is_default(cfg.translate.style.han_viet_level, 'translate', 'style') %}overridden{% endif %}">
+                        {% for opt in ["balanced", "heavy", "light"] %}
+                        <option value="{{ opt }}" {% if cfg.translate.style.han_viet_level == opt %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                {% if is_default(cfg.translate.style.han_viet_level, 'translate', 'style') %}
+                <span class="default-badge">Mặc định: balanced</span>
+                {% endif %}
+            </div>
+            <div class="field-group">
+                <label class="check">
+                    <input type="checkbox" name="keep_paragraphs" value="true" {% if cfg.translate.style.keep_paragraphs %}checked{% endif %}
+                        class="{% if not is_default(cfg.translate.style.keep_paragraphs, 'translate', 'style') %}overridden{% endif %}">
+                    keep_paragraphs
+                </label>
+                {% if is_default(cfg.translate.style.keep_paragraphs, 'translate', 'style') %}
+                <span class="default-badge">Mặc định: bật</span>
+                {% endif %}
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Retry / Chunk / Rate</legend>
+        <div class="field-row">
+            <div class="field-group">
+                <label>retry attempts
+                    <input type="number" name="retry_attempts" value="{{ cfg.translate.retry.attempts }}" min="1"
+                        class="{% if not is_default(cfg.translate.retry.attempts, 'translate', 'retry') %}overridden{% endif %}">
+                </label>
+            </div>
+            <div class="field-group">
+                <label>retry delay_seconds
+                    <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.translate.retry.delay_seconds }}" min="0"
+                        class="{% if not is_default(cfg.translate.retry.delay_seconds, 'translate', 'retry') %}overridden{% endif %}">
+                </label>
+            </div>
+        </div>
+        <div class="field-row">
+            <div class="field-group">
+                <label>chunk max_chars
+                    <input type="number" name="chunk_max_chars" value="{{ cfg.translate.chunk.max_chars }}" min="0" list="chunk-max-chars-options"
+                        class="{% if not is_default(cfg.translate.chunk.max_chars, 'translate', 'chunk') %}overridden{% endif %}">
+                </label>
+            </div>
+            <div class="field-group">
+                <label>chunk overlap_paragraphs
+                    <input type="number" name="chunk_overlap_paragraphs" value="{{ cfg.translate.chunk.overlap_paragraphs }}" min="0"
+                        class="{% if not is_default(cfg.translate.chunk.overlap_paragraphs, 'translate', 'chunk') %}overridden{% endif %}">
+                </label>
+            </div>
+        </div>
+        <datalist id="chunk-max-chars-options">
+            <option value="0">
+            <option value="2000">
+            <option value="4000">
+            <option value="8000">
+        </datalist>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="submit">Lưu cấu hình dịch</button>
+        <button type="button" class="btn-raw" onclick="toggleRawYaml('raw-translate')">Xem raw YAML</button>
+    </div>
+
+    <div id="raw-translate" class="raw-yaml" hidden>
+        <h4>Cấu hình Dịch</h4>
+        <pre><code>translate:
+  type: {{ cfg.translate.type }}
+  delay_seconds: {{ cfg.translate.delay_seconds }}
+  style:
+    tone: {{ cfg.translate.style.tone }}
+    pronoun_policy: {{ cfg.translate.style.pronoun_policy }}
+    title_mode: {{ cfg.translate.style.title_mode }}
+    han_viet_level: {{ cfg.translate.style.han_viet_level }}
+    keep_paragraphs: {{ cfg.translate.style.keep_paragraphs }}</code></pre>
+    </div>
+</form>
+
+<script>
+document.getElementById("ai-load-models").addEventListener("click", async function () {
+    const baseUrl = document.getElementById("ai-base-url").value.trim();
+    const apiKey = document.getElementById("ai-api-key").value.trim();
+    const status = document.getElementById("ai-models-status");
+    const datalist = document.getElementById("model-options");
+    if (!baseUrl) { status.textContent = "Nhập base_url trước."; return; }
+    status.textContent = "Đang tải...";
+    try {
+        const url = "/settings/ai/models?base_url=" + encodeURIComponent(baseUrl) + "&api_key=" + encodeURIComponent(apiKey);
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.error) {
+            status.textContent = "Lỗi: " + data.error;
+            return;
+        }
+        datalist.innerHTML = "";
+        (data.models || []).forEach(function (m) {
+            const opt = document.createElement("option");
+            opt.value = m;
+            datalist.appendChild(opt);
+        });
+        status.textContent = "Đã tải " + (data.models || []).length + " model.";
+    } catch (e) {
+        status.textContent = "Lỗi: " + e;
+    }
+});
+</script>

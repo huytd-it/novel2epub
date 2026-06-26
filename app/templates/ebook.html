@@ -179,25 +179,6 @@
 <table id="chapter-table" class="data-table">
     <thead><tr><th><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th>#</th><th>Tiêu đề</th><th>Raw</th><th>Dịch</th><th>Số từ</th><th>Thiếu</th><th>Action</th><th></th></tr></thead>
     <tbody>
-    {% for ch in chapters %}
-    <tr data-index="{{ ch.index }}">
-        <td><input type="checkbox" class="chapter-check" name="checked_indexes" form="bulk-action-form" value="{{ ch.index }}" aria-label="Chọn chương {{ ch.index }}"></td>
-        <td>{{ ch.index }}</td>
-        <td><a href="{{ ch.url }}" target="_blank">{{ ch.visible_title }}</a></td>
-        <td>{% if ch.has_raw %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
-        <td>{% if ch.has_translated %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</td>
-        <td>{{ ch.word_count if ch.has_translated else '-' }}</td>
-        <td>{{ ch.missing_fields|join(', ') if ch.missing_fields else '-' }}</td>
-        <td>
-            <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="row-actions">
-                <button type="submit" name="action" value="crawl" {% if job.crawl.running %}disabled{% endif %}>Crawl</button>
-                <button type="submit" name="action" value="translate" {% if job.translate.running %}disabled{% endif %}>Dịch</button>
-            </form>
-            {% if ch.last_action_status %}<span class="muted">{{ ch.last_action_status }}</span>{% endif %}
-        </td>
-        <td><a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}">xem / sửa</a></td>
-    </tr>
-    {% endfor %}
     </tbody>
 </table>
 </div>
@@ -515,7 +496,7 @@ document.addEventListener("submit", async function(event) {
 
     if (form.matches(".compact-toolbar")) {
         event.preventDefault();
-        loadToc();
+        renderToc();
         return;
     }
 
@@ -619,7 +600,7 @@ async function poll() {
                 pendingFetchToc = false;
                 location.reload();
             } else {
-                loadToc(undefined, { push: false, reset: false });
+                renderToc();
             }
         }
 
@@ -650,7 +631,7 @@ async function refreshCategory(cat) {
                 pendingFetchToc = false;
                 location.reload();
             } else {
-                loadToc(undefined, { push: false, reset: false });
+                renderToc();
             }
         }
     } catch (e) {
@@ -660,15 +641,12 @@ async function refreshCategory(cat) {
     }
 }
 
-// --- Khởi tạo: khôi phục filter/sort/search đã lưu rồi phân trang ---
+// --- Khởi tạo: khôi phục filter/sort/search đã lưu rồi dựng bảng ---
 (function initToc() {
     const region = document.getElementById("toc-region");
-    if (applySavedControls()) {
-        loadToc(undefined, { push: false, reset: true });
-    } else {
-        paginate({ reset: true });
-        if (region) region.classList.remove("toc-loading");
-    }
+    applySavedControls();
+    renderToc();
+    if (region) region.classList.remove("toc-loading");
 })();
 
 poll();

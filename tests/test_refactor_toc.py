@@ -203,10 +203,15 @@ def test_ebook_route_applies_query_controls(tmp_path, monkeypatch):
     assert res.status_code == 200
     assert "书名" in res.text
     assert "A" in res.text
-    assert "http://x/1" not in res.text
-    assert 'class="chapter-check"' in res.text
+    # All chapter data embedded as JSON (client-side rendering), not in table rows
+    assert "CHAPTERS_DATA" in res.text
+    assert '"http://x/1"' in res.text  # all data in JSON, filtering is client-side
+    assert '"http://x/2"' in res.text
+    # Server-rendered <tbody> is empty (JS populates from CHAPTERS_DATA)
+    assert "<tbody>\n    </tbody>" in res.text
+    assert 'class="chapter-check"' in res.text  # in buildChapterRow JS template
     assert 'form="bulk-action-form"' in res.text
-    assert 'class="row-actions"' in res.text
+    assert 'class="row-actions"' in res.text  # in buildChapterRow JS template
     assert 'class="compact-toolbar"' in res.text
     assert "simpleDatatables.DataTable" not in res.text
     assert 'value="crawl"' in res.text

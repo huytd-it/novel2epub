@@ -1,0 +1,61 @@
+<div class="section-head"><h3>Đầu ra (output)</h3></div>
+
+<form method="post" action="/ebooks/{{ slug }}/settings/output" class="settings-form">
+    <div class="field-row">
+        <div class="field-group">
+            <label>data_dir
+                <input type="text" name="data_dir" value="{{ cfg.output.data_dir }}" size="40"
+                    class="{% if not is_default(cfg.output.data_dir, 'output', 'data_dir') %}overridden{% endif %}">
+            </label>
+            {% if is_default(cfg.output.data_dir, 'output', 'data_dir') %}
+            <span class="default-badge">Mặc định: data</span>
+            {% endif %}
+            <p class="muted">Thư mục chứa dữ liệu crawl và glossary.</p>
+        </div>
+        <div class="field-group">
+            <label>epub_path
+                <input type="text" name="epub_path" value="{{ cfg.output.epub_path }}" size="40"
+                    class="{% if not is_default(cfg.output.epub_path, 'output', 'epub_path') %}overridden{% endif %}">
+            </label>
+            {% if is_default(cfg.output.epub_path, 'output', 'epub_path') %}
+            <span class="default-badge">Mặc định: tự sinh</span>
+            {% endif %}
+            <p class="muted">Đường dẫn file EPUB đầu ra. Để trống = tự sinh từ slug.</p>
+        </div>
+    </div>
+
+    <div class="field-row">
+        <div class="field-group">
+            <label>crawl.max_workers
+                <input type="number" name="crawl_max_workers" value="{{ cfg.crawl.max_workers }}" min="1" max="20"
+                    class="{% if not is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}overridden{% endif %}">
+            </label>
+            {% if is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}
+            <span class="default-badge">Mặc định: 1</span>
+            {% endif %}
+            <p class="muted">Số luồng crawl song song.</p>
+        </div>
+        <div class="field-group">
+            <label>translate.max_workers
+                <input type="number" name="translate_max_workers" value="{{ cfg.translate.max_workers }}" min="1" max="20"
+                    class="{% if not is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}overridden{% endif %}">
+            </label>
+            {% if is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}
+            <span class="default-badge">Mặc định: 1</span>
+            {% endif %}
+            <p class="muted">Số luồng dịch song song.</p>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit">Lưu cấu hình đầu ra</button>
+        <button type="button" class="btn-raw" onclick="toggleRawYaml('raw-output')">Xem raw YAML</button>
+    </div>
+
+    <div id="raw-output" class="raw-yaml" hidden>
+        <h4>Cấu hình Output</h4>
+        <pre><code>output:
+  data_dir: {{ cfg.output.data_dir }}
+  epub_path: {{ cfg.output.epub_path }}</code></pre>
+    </div>
+</form>

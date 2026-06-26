@@ -30,6 +30,89 @@ LIBRARY_STATE_PATH = WORKSPACE_DIR / "library_state.json"
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+# ── Config default values ───────────────────────────────────────────
+# Mirrors dataclass defaults from novel2epub/config.py for UI display.
+# Keyed: section -> field -> default_value
+_CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
+    "novel": {
+        "title": "",
+        "author": "",
+        "language": "vi",
+        "publisher": "",
+        "pubdate": "",
+        "subjects": [],
+        "series": "",
+        "series_index": "",
+        "identifier": "",
+    },
+    "crawl": {
+        "engine": "http",
+        "toc_url": "",
+        "chapter_link_pattern": r".*",
+        "max_chapters": 0,
+        "delay_seconds": 1.0,
+        "encoding": "",
+        "content_selector": "",
+        "toc_selector": "",
+        "chapter_title_selector": "",
+        "title_selector": "",
+        "author_selector": "",
+        "desc_selector": "",
+        "cover_selector": "",
+        "headless": True,
+        "magic": True,
+        "stealth": True,
+        "js_code": "",
+        "scrapling_mode": "stealthy",
+        "solve_cloudflare": False,
+        "network_idle": True,
+        "impersonate": "",
+        "next_page_selector": "",
+        "next_page_url_pattern": "",
+        "max_pages_per_chapter": 10,
+        "retry": {"attempts": 3, "delay_seconds": 5.0, "backoff": 2.0, "max_delay_seconds": 120.0, "respect_retry_after": True},
+        "max_workers": 1,
+        "concurrency_cap": 0,
+        "ai_fallback": False,
+        "ai_fallback_max_html": 32000,
+    },
+    "translate": {
+        "type": "moxhimt",
+        "preset": "",
+        "source_language": "zh-CN",
+        "target_language": "vi",
+        "genre": "",
+        "style": {"tone": "mượt, tự nhiên, có chất cổ trang", "pronoun_policy": "contextual", "title_mode": "creative", "han_viet_level": "balanced", "keep_paragraphs": True},
+        "retry": {"attempts": 1, "delay_seconds": 0.0},
+        "chunk": {"max_chars": 0, "overlap_paragraphs": 0},
+        "openai": {"base_url": "https://api.openai.com/v1", "api_key": "", "model": "gpt-4o-mini", "timeout_seconds": 300, "temperature": 0.7},
+        "delay_seconds": 0.5,
+        "max_workers": 1,
+    },
+    "output": {
+        "data_dir": "data",
+        "epub_path": "",
+    },
+}
+
+
+def defaults_for(section: str, field: str) -> object:
+    """Return the default value for a config field, or None if unknown."""
+    sec = _CONFIG_DEFAULTS.get(section)
+    if sec is None:
+        return None
+    return sec.get(field)
+
+
+def is_default(current: object, section: str, field: str) -> bool:
+    """Check if a config field currently holds its default value."""
+    default = defaults_for(section, field)
+    return current == default
+
+
+templates.env.filters["default_value"] = defaults_for
+templates.env.filters["is_default"] = is_default
+
 
 def cfg():
     try:

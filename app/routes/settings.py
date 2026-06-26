@@ -12,6 +12,10 @@ from novel2epub.config_writer import clean_prompt_text, update_ebook
 from .. import deps
 from ..logging_config import logger
 
+# Default values for OutputConfig fields
+DEFAULT_DATA_DIR = "data"
+DEFAULT_EPUB_PATH = ""
+
 router = APIRouter()
 
 
@@ -225,4 +229,36 @@ def save_ai(
         chunk_max_chars, delay_seconds,
     )
     update_ebook(deps.WORKSPACE_PATH, slug, {"translate": translate})
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+@router.post("/ebooks/{slug}/settings/output")
+def save_output(
+    slug: str,
+    data_dir: str = Form(""),
+    epub_path: str = Form(""),
+    crawl_max_workers: int = Form(1),
+    translate_max_workers: int = Form(1),
+):
+    output: dict = {
+        "data_dir": data_dir or DEFAULT_DATA_DIR,
+        "epub_path": epub_path,
+    }
+    crawl: dict = {
+        "max_workers": max(1, crawl_max_workers),
+    }
+    translate: dict = {
+        "max_workers": max(1, translate_max_workers),
+    }
+    path = deps.ebook_config_path(slug)
+    logger.info(
+        "[config][OUTPUT] slug=%s lưu vào %s: data_dir=%r epub_path=%r "
+        "crawl.max_workers=%s translate.max_workers=%s",
+        slug, path, data_dir, epub_path, crawl_max_workers, translate_max_workers,
+    )
+    update_ebook(deps.WORKSPACE_PATH, slug, {
+        "output": output,
+        "crawl": crawl,
+        "translate": translate,
+    })
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)

@@ -38,11 +38,11 @@ defaults:
       respect_retry_after: true # ưu tiên header Retry-After của server nếu có
 
   translate:
-    # type: openai (AI OpenAI-Compatible: OpenAI, OpenRouter, Ollama, LM Studio, vLLM...)
+    # type: moxhimt (model NMT cục bộ, offline, miễn phí — mặc định)
+    #     | openai (AI OpenAI-Compatible: OpenAI, OpenRouter, Ollama, LM Studio, vLLM...)
     #     | google (deep-translator)
-    #     | moxhimt (model NMT cục bộ, offline, miễn phí — xem khối `moxhimt`)
     #     | none (giữ gốc)
-    type: openai
+    type: moxhimt
     style:
       tone: "mượt, tự nhiên, có chất cổ trang"
       pronoun_policy: contextual

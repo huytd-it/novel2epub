@@ -52,9 +52,13 @@ def test_sources_table_shows_usage_and_data_table(tmp_path, monkeypatch):
     assert 'badge ok' in html
     # usage shows the matching slug link
     assert '<a href="/ebooks/demo">demo</a>' in html
-    # row actions replaced inline text links
     assert 'class="row-actions"' in html
-    assert 'class="button" href="/sources?edit=sto9"' in html
+    # edit button uses canvas modal with data attributes
+    assert 'btn-edit-preset' in html
+    assert 'data-name="sto9"' in html
+    assert 'data-engine="http"' in html
+    # add preset button
+    assert 'add-preset-btn' in html
 
 
 def test_sources_empty_state_renders_muted_message_no_table(monkeypatch):
@@ -86,21 +90,23 @@ def test_sources_crawl4ai_fieldset_hidden_by_default_visible_in_edit(monkeypatch
     app.state.job = _fake_job()
     client = TestClient(app)
 
-    # Add mode: engine defaults to http -> crawl4ai fieldset hidden
+    # crawl4ai fieldset lives in the preset canvas, hidden by default (JS shows it on engine select)
     res = client.get("/sources")
     assert res.status_code == 200
     assert 'id="crawl4ai-options"' in res.text
-    assert 'style="display:none"' in res.text
+    assert 'style="display:none"' in res.text  # hidden by default in canvas
     # Engine select no longer contains firecrawl
     assert '>firecrawl<' not in res.text
 
-    # Edit a crawl4ai preset -> crawl4ai fieldset visible (no display:none on the fieldset)
+    # Edit a crawl4ai preset: verify the edit button carries data-engine="crawl4ai"
     presets_c4 = {"c4": SourcePreset(name="c4", engine="crawl4ai", js_code="window.scrollTo(...)")}
     monkeypatch.setattr(deps, "presets", lambda: presets_c4)
-    res = client.get("/sources?edit=c4")
+    res = client.get("/sources")
     assert res.status_code == 200
-    # fieldset exists and is NOT hidden (no display:none inside its opening tag)
+    # crawl4ai fieldset still in canvas (hidden by default)
     assert 'id="crawl4ai-options"' in res.text
-    assert 'crawl4ai-options" style="display:none"' not in res.text
-    assert 'crawl4ai-options"' in res.text or 'crawl4ai-options ' in res.text
+    assert 'style="display:none"' in res.text
+    # edit button carries engine as data attribute
+    assert 'data-engine="crawl4ai"' in res.text
+    assert 'data-name="c4"' in res.text
     assert '>firecrawl<' not in res.text

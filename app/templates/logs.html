@@ -57,15 +57,12 @@
 {% block scripts %}
 <script>
 const tpl = document.getElementById("log-entry-tpl");
+let _prevSnapshot = "";
+let _pollTimer = null;
 
 function fmtTime(ts) {
     if (!ts) return "—";
     return new Date(ts * 1000).toLocaleString();
-}
-
-function stateBadge(state) {
-    const cls = state === "done" ? "ok" : state === "failed" ? "no" : state === "running" ? "run" : "";
-    return `<span class="badge ${cls}">${state}</span>`;
 }
 
 function renderLogEntry(j) {
@@ -103,11 +100,11 @@ function filterLogs() {
     });
 }
 
-async function renderLogs() {
-    const res = await fetch("/api/logs");
-    if (!res.ok) return;
-    const data = await res.json();
+function snapshotKey(data) {
+    return JSON.stringify({ r: data.running.map(j => j.id + ":" + (j.log||[]).length), h: data.recent.map(j => j.id) });
+}
 
+function rebuild(data) {
     const runningEl = document.getElementById("logs-running");
     if (data.running.length) {
         runningEl.innerHTML = "";
@@ -115,7 +112,6 @@ async function renderLogs() {
     } else {
         runningEl.innerHTML = '<p class="muted">Không có job đang chạy.</p>';
     }
-
     const recentEl = document.getElementById("logs-recent");
     recentEl.innerHTML = "";
     if (data.recent.length) {
@@ -123,11 +119,30 @@ async function renderLogs() {
     } else {
         recentEl.innerHTML = '<p class="muted">Chưa có lịch sử.</p>';
     }
-
     filterLogs();
 }
 
+async function renderLogs() {
+    try {
+        const res = await fetch("/api/logs");
+        if (!res.ok) return;
+        const data = await res.json();
+        const key = snapshotKey(data);
+        if (key !== _prevSnapshot) {
+            _prevSnapshot = key;
+            rebuild(data);
+        }
+        // Dừng poll nếu không có job nào đang chạy
+        if (!data.running.length) {
+            if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+        } else if (!_pollTimer) {
+            _pollTimer = setInterval(renderLogs, 2000);
+        }
+    } catch (e) {
+        console.error("Poll logs error:", e);
+    }
+}
+
 renderLogs();
-setInterval(renderLogs, 2000);
 </script>
 {% endblock %}

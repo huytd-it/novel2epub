@@ -48,3 +48,61 @@ function toast(message, kind) {
     poll();
     setInterval(poll, 3000);
 })();
+
+// --- Modal helpers ---
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = false;
+}
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
+}
+document.addEventListener('click', (e) => {
+    const backdrop = e.target.closest('.modal-backdrop');
+    if (backdrop && e.target === backdrop) backdrop.hidden = true;
+});
+
+// --- Canvas (slide-in panel) helpers ---
+function openCanvas(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('open');
+        el.hidden = false;
+        requestAnimationFrame(() => el.classList.add('open'));
+    }
+}
+function closeCanvas(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('open');
+        setTimeout(() => el.hidden = true, 250);
+    }
+}
+document.addEventListener('click', (e) => {
+    const backdrop = e.target.closest('.canvas-backdrop');
+    if (backdrop && e.target === backdrop) {
+        const id = backdrop.id;
+        closeCanvas(id);
+    }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.canvas-backdrop.open').forEach(el => {
+            closeCanvas(el.id);
+        });
+        document.querySelectorAll('.modal-backdrop:not([hidden])').forEach(el => {
+            el.hidden = true;
+        });
+    }
+});
+
+// --- Tab helpers ---
+function switchTab(containerId, tabName) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const panels = container.querySelectorAll('.tab-content');
+    const buttons = container.querySelectorAll('.tab-bar button');
+    panels.forEach(p => p.classList.toggle('active', p.id === tabName));
+    buttons.forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+}

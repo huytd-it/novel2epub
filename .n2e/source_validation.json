@@ -2,6 +2,6 @@
   "69shuba": {
     "ok": false,
     "message": "Page.goto: net::ERR_CONNECTION_RESET at https://www.69shuba.com/book/58851/\nCall log:\n  - navigating to \"https://www.69shuba.com/book/58851/\", waiting until \"load\"\n",
-    "checked_at": 1782468967.8862886
+    "checked_at": 1782469794.2155995
   }
 }

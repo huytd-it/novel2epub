@@ -85,7 +85,8 @@ Auto-stops when: next link missing, URL visited, content unchanged, or limit rea
 
 | Type | Backend | Config Field |
 |------|---------|-------------|
-| `cli` | External AI CLI (opencode, ollama) | `translate.cli.command` |
+| `moxhimt` | Local NMT model (CTranslate2, offline, **default**) | `translate.moxhimt.*` |
+| `openai` | OpenAI-Compatible HTTP (OpenAI, Ollama, LM Studio...) | `translate.openai.*` |
 | `google` | deep-translator (Google Translate) | `translate.type: google` |
 | `none` | Passthrough (noop) | `translate.type: none` |
 

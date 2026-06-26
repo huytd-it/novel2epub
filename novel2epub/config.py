@@ -296,7 +296,7 @@ class MoxhiMTConfig:
 
 @dataclass
 class TranslateConfig:
-    type: str = "openai"  # openai | google | none | moxhimt
+    type: str = "moxhimt"  # moxhimt | openai | google | none
     preset: str = ""
     profile: str = "traditional_cn_novel"
     source_language: str = "zh-CN"

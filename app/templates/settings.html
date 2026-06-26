@@ -5,201 +5,211 @@
 <h2>Cài đặt: {{ cfg.novel.title or slug }}</h2>
 <p class="muted">Ghi vào <code>{{ config_path }}</code> — chỉ đổi đúng các trường bên dưới, comment trong file được giữ nguyên.</p>
 
-<div class="section-head"><h3>Truyện</h3></div>
-<form method="post" action="/ebooks/{{ slug }}/settings/novel">
-    <p><label>Tiêu đề <input type="text" name="title" value="{{ cfg.novel.title }}" size="50"></label></p>
-    <p><label>Tác giả <input type="text" name="author" value="{{ cfg.novel.author }}" size="40"></label></p>
-    <p><label>Ngôn ngữ <input type="text" name="language" value="{{ cfg.novel.language }}" size="8"></label></p>
-    <p><label>Nhà xuất bản <input type="text" name="publisher" value="{{ cfg.novel.publisher }}" size="40"></label></p>
-    <p><label>Ngày xuất bản <input type="text" name="pubdate" value="{{ cfg.novel.pubdate }}" placeholder="YYYY-MM-DD" size="14"></label></p>
-    <p><label>Chủ đề (mỗi dòng hoặc phẩy 1 chủ đề)<br>
-        <textarea name="subjects" rows="2" cols="50">{{ cfg.novel.subjects | join('\n') }}</textarea></label></p>
-    <p><label>Bộ sách <input type="text" name="series" value="{{ cfg.novel.series }}" size="30"></label>
-       <label>Số thứ tự <input type="text" name="series_index" value="{{ cfg.novel.series_index }}" size="6"></label></p>
-    <p><label>Định danh (urn:uuid) <input type="text" name="identifier" value="{{ cfg.novel.identifier }}" size="50" placeholder="tự sinh nếu để trống"></label></p>
-    <p class="muted">Đã thêm: {{ cfg.novel.date_added or '(chưa rõ)' }}</p>
-    <p><button type="submit">Lưu thông tin truyện</button></p>
-</form>
+<div id="settings-tabs" class="tab-panel">
+    <div class="tab-bar">
+        <button class="active" data-tab="tab-novel" onclick="switchTab('settings-tabs', 'tab-novel')">Truyện</button>
+        <button data-tab="tab-source" onclick="switchTab('settings-tabs', 'tab-source')">Nguồn</button>
+        <button data-tab="tab-ai" onclick="switchTab('settings-tabs', 'tab-ai')">AI / Dịch</button>
+    </div>
 
-<hr>
+    <div id="tab-novel" class="tab-content active">
+        <div class="section-head"><h3>Truyện</h3></div>
+        <form method="post" action="/ebooks/{{ slug }}/settings/novel">
+            <p><label>Tiêu đề <input type="text" name="title" value="{{ cfg.novel.title }}" size="50"></label></p>
+            <p><label>Tác giả <input type="text" name="author" value="{{ cfg.novel.author }}" size="40"></label></p>
+            <p><label>Ngôn ngữ <input type="text" name="language" value="{{ cfg.novel.language }}" size="8"></label></p>
+            <p><label>Nhà xuất bản <input type="text" name="publisher" value="{{ cfg.novel.publisher }}" size="40"></label></p>
+            <p><label>Ngày xuất bản <input type="text" name="pubdate" value="{{ cfg.novel.pubdate }}" placeholder="YYYY-MM-DD" size="14"></label></p>
+            <p><label>Chủ đề (mỗi dòng hoặc phẩy 1 chủ đề)<br>
+                <textarea name="subjects" rows="2" cols="50">{{ cfg.novel.subjects | join('\n') }}</textarea></label></p>
+            <p><label>Bộ sách <input type="text" name="series" value="{{ cfg.novel.series }}" size="30"></label>
+               <label>Số thứ tự <input type="text" name="series_index" value="{{ cfg.novel.series_index }}" size="6"></label></p>
+            <p><label>Định danh (urn:uuid) <input type="text" name="identifier" value="{{ cfg.novel.identifier }}" size="50" placeholder="tự sinh nếu để trống"></label></p>
+            <p class="muted">Đã thêm: {{ cfg.novel.date_added or '(chưa rõ)' }}</p>
+            <p><button type="submit">Lưu thông tin truyện</button></p>
+        </form>
+    </div>
 
-<div class="section-head">
-    <h3>Nguồn truyện (crawl)</h3>
-    <p class="muted">Áp nhanh một <a href="/sources">site preset</a> rồi tinh chỉnh.</p>
-</div>
-{% if presets %}
-<form method="post" action="/ebooks/{{ slug }}/settings/source/apply-preset" class="form-row">
-    <label>Preset
-        <select name="preset">
-            {% for name in presets.keys() %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
-        </select>
-    </label>
-    <button type="submit">Áp preset</button>
-</form>
-{% endif %}
-<form method="post" action="/ebooks/{{ slug }}/settings/source">
-    <p>
-        <label>Engine
-            <select name="engine">
-                {% for opt in ["http", "crawl4ai"] %}
-                <option value="{{ opt }}" {% if cfg.crawl.engine == opt %}selected{% endif %}>{{ opt }}</option>
-                {% endfor %}
-            </select>
-        </label>
-    </p>
-    <p><label>URL mục lục (toc_url) <input type="text" name="toc_url" value="{{ cfg.crawl.toc_url }}" size="60"></label></p>
-    <p><label>Regex lọc link chương <input type="text" name="chapter_link_pattern" value="{{ cfg.crawl.chapter_link_pattern }}" size="50"></label></p>
-    <p>
-        <label>max_chapters <input type="number" name="max_chapters" value="{{ cfg.crawl.max_chapters }}" min="0"></label>
-        <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.crawl.delay_seconds }}" min="0"></label>
-        <label>encoding <input type="text" name="encoding" value="{{ cfg.crawl.encoding }}" size="8" placeholder="auto"></label>
-    </p>
-    <fieldset>
-        <legend>Selector (engine http)</legend>
-        <p><label>content_selector <input type="text" name="content_selector" value="{{ cfg.crawl.content_selector }}" size="30"></label>
-           <label>toc_selector <input type="text" name="toc_selector" value="{{ cfg.crawl.toc_selector }}" size="30"></label>
-           <label>chapter_title_selector <input type="text" name="chapter_title_selector" value="{{ cfg.crawl.chapter_title_selector }}" size="20"></label></p>
-        <p><label>title_selector <input type="text" name="title_selector" value="{{ cfg.crawl.title_selector }}" size="20"></label>
-           <label>author_selector <input type="text" name="author_selector" value="{{ cfg.crawl.author_selector }}" size="20"></label>
-           <label>desc_selector <input type="text" name="desc_selector" value="{{ cfg.crawl.desc_selector }}" size="20"></label>
-           <label>cover_selector <input type="text" name="cover_selector" value="{{ cfg.crawl.cover_selector }}" size="20"></label></p>
-    </fieldset>
-    <fieldset>
-        <legend>crawl4ai</legend>
-        <p><label class="check"><input type="checkbox" name="headless" value="true" {% if cfg.crawl.headless %}checked{% endif %}> headless</label>
-           <label class="check"><input type="checkbox" name="magic" value="true" {% if cfg.crawl.magic %}checked{% endif %}> magic</label></p>
-        <p><label>js_code <input type="text" name="js_code" value="{{ cfg.crawl.js_code }}" size="50"></label></p>
-    </fieldset>
-    <fieldset>
-        <legend>Pagination (chương nhiều trang)</legend>
-        <p><label>next_page_selector <input type="text" name="next_page_selector" value="{{ cfg.crawl.next_page_selector }}" size="30" placeholder="a#pager_next"></label>
-           <label>next_page_url_pattern <input type="text" name="next_page_url_pattern" value="{{ cfg.crawl.next_page_url_pattern }}" size="30" placeholder="regex có 1 group"></label>
-           <label>max_pages_per_chapter <input type="number" name="max_pages_per_chapter" value="{{ cfg.crawl.max_pages_per_chapter }}" min="1" size="4"></label></p>
-    </fieldset>
-    <fieldset>
-        <legend>Chống lỗi 429 / anti-bot (thử lại + lùi dần)</legend>
-        <p><label>retry attempts <input type="number" name="retry_attempts" value="{{ cfg.crawl.retry.attempts }}" min="0" size="4"></label>
-           <label>retry delay_seconds <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.crawl.retry.delay_seconds }}" min="0" size="5"></label>
-           <label>backoff <input type="number" step="0.1" name="retry_backoff" value="{{ cfg.crawl.retry.backoff }}" min="1" size="4"></label>
-           <label>max_delay_seconds <input type="number" step="0.1" name="retry_max_delay_seconds" value="{{ cfg.crawl.retry.max_delay_seconds }}" min="0" size="5"></label>
-           <label class="check"><input type="checkbox" name="retry_respect_retry_after" value="true" {% if cfg.crawl.retry.respect_retry_after %}checked{% endif %}> respect_retry_after</label></p>
-        <p class="muted">Khi một chương tải lỗi HTTP 429 (Too Many Requests) / bị chặn anti-bot, hệ thống chờ rồi thử lại: attempts = số lần thử lại, delay_seconds = chờ ban đầu, backoff = hệ số nhân thời gian chờ mỗi lần (5s→10s→20s…), max_delay_seconds = trần thời gian chờ, respect_retry_after = tôn trọng header Retry-After server gửi. Bị 429 nhiều thì tăng delay_seconds (mục Nguồn ở trên) và giảm max_workers.</p>
-    </fieldset>
-    <p><button type="submit">Lưu nguồn</button></p>
-</form>
+    <div id="tab-source" class="tab-content">
+        <div class="section-head">
+            <h3>Nguồn truyện (crawl)</h3>
+            <p class="muted">Áp nhanh một <a href="/sources">site preset</a> rồi tinh chỉnh.</p>
+        </div>
+        {% if presets %}
+        <form method="post" action="/ebooks/{{ slug }}/settings/source/apply-preset" class="form-row">
+            <label>Preset
+                <select name="preset">
+                    {% for name in presets.keys() %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+                </select>
+            </label>
+            <button type="submit">Áp preset</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/ebooks/{{ slug }}/settings/source">
+            <p>
+                <label>Engine
+                    <select name="engine">
+                        {% for opt in ["http", "crawl4ai"] %}
+                        <option value="{{ opt }}" {% if cfg.crawl.engine == opt %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </p>
+            <p><label>URL mục lục (toc_url) <input type="text" name="toc_url" value="{{ cfg.crawl.toc_url }}" size="60"></label></p>
+            <p><label>Regex lọc link chương <input type="text" name="chapter_link_pattern" value="{{ cfg.crawl.chapter_link_pattern }}" size="50"></label></p>
+            <p>
+                <label>max_chapters <input type="number" name="max_chapters" value="{{ cfg.crawl.max_chapters }}" min="0"></label>
+                <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.crawl.delay_seconds }}" min="0"></label>
+                <label>encoding <input type="text" name="encoding" value="{{ cfg.crawl.encoding }}" size="8" placeholder="auto"></label>
+            </p>
+            <fieldset>
+                <legend>Selector (engine http)</legend>
+                <p><label>content_selector <input type="text" name="content_selector" value="{{ cfg.crawl.content_selector }}" size="30"></label>
+                   <label>toc_selector <input type="text" name="toc_selector" value="{{ cfg.crawl.toc_selector }}" size="30"></label>
+                   <label>chapter_title_selector <input type="text" name="chapter_title_selector" value="{{ cfg.crawl.chapter_title_selector }}" size="20"></label></p>
+                <p><label>title_selector <input type="text" name="title_selector" value="{{ cfg.crawl.title_selector }}" size="20"></label>
+                   <label>author_selector <input type="text" name="author_selector" value="{{ cfg.crawl.author_selector }}" size="20"></label>
+                   <label>desc_selector <input type="text" name="desc_selector" value="{{ cfg.crawl.desc_selector }}" size="20"></label>
+                   <label>cover_selector <input type="text" name="cover_selector" value="{{ cfg.crawl.cover_selector }}" size="20"></label></p>
+            </fieldset>
+            <fieldset>
+                <legend>crawl4ai</legend>
+                <p><label class="check"><input type="checkbox" name="headless" value="true" {% if cfg.crawl.headless %}checked{% endif %}> headless</label>
+                   <label class="check"><input type="checkbox" name="magic" value="true" {% if cfg.crawl.magic %}checked{% endif %}> magic</label></p>
+                <p><label>js_code <input type="text" name="js_code" value="{{ cfg.crawl.js_code }}" size="50"></label></p>
+            </fieldset>
+            <fieldset>
+                <legend>Pagination (chương nhiều trang)</legend>
+                <p><label>next_page_selector <input type="text" name="next_page_selector" value="{{ cfg.crawl.next_page_selector }}" size="30" placeholder="a#pager_next"></label>
+                   <label>next_page_url_pattern <input type="text" name="next_page_url_pattern" value="{{ cfg.crawl.next_page_url_pattern }}" size="30" placeholder="regex có 1 group"></label>
+                   <label>max_pages_per_chapter <input type="number" name="max_pages_per_chapter" value="{{ cfg.crawl.max_pages_per_chapter }}" min="1" size="4"></label></p>
+            </fieldset>
+            <fieldset>
+                <legend>Chống lỗi 429 / anti-bot (thử lại + lùi dần)</legend>
+                <p><label>retry attempts <input type="number" name="retry_attempts" value="{{ cfg.crawl.retry.attempts }}" min="0" size="4"></label>
+                   <label>retry delay_seconds <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.crawl.retry.delay_seconds }}" min="0" size="5"></label>
+                   <label>backoff <input type="number" step="0.1" name="retry_backoff" value="{{ cfg.crawl.retry.backoff }}" min="1" size="4"></label>
+                   <label>max_delay_seconds <input type="number" step="0.1" name="retry_max_delay_seconds" value="{{ cfg.crawl.retry.max_delay_seconds }}" min="0" size="5"></label>
+                   <label class="check"><input type="checkbox" name="retry_respect_retry_after" value="true" {% if cfg.crawl.retry.respect_retry_after %}checked{% endif %}> respect_retry_after</label></p>
+                <p class="muted">Khi một chương tải lỗi HTTP 429 (Too Many Requests) / bị chặn anti-bot, hệ thống chờ rồi thử lại: attempts = số lần thử lại, delay_seconds = chờ ban đầu, backoff = hệ số nhân thời gian chờ mỗi lần (5s→10s→20s…), max_delay_seconds = trần thời gian chờ, respect_retry_after = tôn trọng header Retry-After server gửi. Bị 429 nhiều thì tăng delay_seconds (mục Nguồn ở trên) và giảm max_workers.</p>
+            </fieldset>
+            <p><button type="submit">Lưu nguồn</button></p>
+        </form>
+    </div>
 
-<hr>
-
-<div class="section-head"><h3>AI OpenAI-Compatible (dịch)</h3></div>
-<form method="post" action="/ebooks/{{ slug }}/settings/ai">
-    <p>
-        <label>type
-            <select name="type">
-                {% for opt in ["openai", "google", "none"] %}
-                <option value="{{ opt }}" {% if cfg.translate.type == opt %}selected{% endif %}>{{ opt }}</option>
-                {% endfor %}
-            </select>
-        </label>
-    </p>
-    <fieldset>
-        <legend>OpenAI-Compatible</legend>
-        <p><label>base_url <input type="text" id="ai-base-url" name="base_url" value="{{ cfg.translate.openai.base_url }}" size="40" list="base-url-options"></label>
-           <label>api_key <input type="password" id="ai-api-key" name="api_key" value="{{ cfg.translate.openai.api_key }}" size="30" autocomplete="off"></label>
-           <label>timeout_seconds <input type="number" name="timeout_seconds" value="{{ cfg.translate.openai.timeout_seconds }}" min="1"></label>
-           <label>temperature <input type="number" step="0.1" name="temperature" value="{{ cfg.translate.openai.temperature }}" min="0" max="2"></label></p>
-        <p><label>model <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" size="30" list="model-options"></label>
-           <button type="button" id="ai-load-models">Tải danh sách model</button>
-           <span id="ai-models-status" class="muted"></span></p>
-        <p class="muted">base_url: endpoint gốc kiểu OpenAI (vd <code>https://api.openai.com/v1</code>, <code>https://openrouter.ai/api/v1</code>, <code>http://localhost:11434/v1</code> cho Ollama, <code>http://localhost:1234/v1</code> cho LM Studio). api_key: token Bearer — để trống nếu provider local không yêu cầu. Bấm "Tải danh sách model" để gọi <code>GET {base_url}/models</code> và chọn model id từ dropdown; nếu provider không hỗ trợ endpoint này, gõ model id trực tiếp vào ô model.</p>
-        <datalist id="base-url-options">
-            <option value="https://api.openai.com/v1">
-            <option value="https://openrouter.ai/api/v1">
-            <option value="http://localhost:11434/v1">
-            <option value="http://localhost:1234/v1">
-        </datalist>
-        <datalist id="model-options">
-            <option value="gpt-4o-mini">
-            <option value="gpt-4o">
-        </datalist>
-        <p><label>prompt_template (để trống = giữ nguyên)<br><textarea name="prompt_template" rows="10" cols="80">{{ cfg.translate.openai.prompt_template }}</textarea></label></p>
-        <p><label>title_prompt_template (để trống = giữ nguyên)<br><textarea name="title_prompt_template" rows="6" cols="80">{{ cfg.translate.openai.title_prompt_template }}</textarea></label></p>
-        <p class="muted">Khi lưu, prompt sẽ được làm sạch tự động: bỏ khoảng trắng cuối dòng, gộp dòng trống thừa và cắt dòng trống đầu/cuối (giữ nguyên các placeholder như <code>{text}</code>, <code>{glossary}</code>).</p>
-    </fieldset>
-    <script>
-    document.getElementById("ai-load-models").addEventListener("click", async function () {
-        const baseUrl = document.getElementById("ai-base-url").value.trim();
-        const apiKey = document.getElementById("ai-api-key").value.trim();
-        const status = document.getElementById("ai-models-status");
-        const datalist = document.getElementById("model-options");
-        if (!baseUrl) { status.textContent = "Nhập base_url trước."; return; }
-        status.textContent = "Đang tải...";
-        try {
-            const url = "/settings/ai/models?base_url=" + encodeURIComponent(baseUrl) + "&api_key=" + encodeURIComponent(apiKey);
-            const resp = await fetch(url);
-            const data = await resp.json();
-            if (data.error) {
-                status.textContent = "Provider không hỗ trợ /models (" + data.error + ") — nhập model id trực tiếp.";
-                return;
-            }
-            datalist.innerHTML = "";
-            (data.models || []).forEach(function (m) {
-                const opt = document.createElement("option");
-                opt.value = m;
-                datalist.appendChild(opt);
+    <div id="tab-ai" class="tab-content">
+        <div class="section-head"><h3>AI OpenAI-Compatible (dịch)</h3></div>
+        <form method="post" action="/ebooks/{{ slug }}/settings/ai">
+            <p>
+                <label>type
+                    <select name="type">
+                        {% for opt in ["openai", "google", "none"] %}
+                        <option value="{{ opt }}" {% if cfg.translate.type == opt %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </p>
+            <fieldset>
+                <legend>OpenAI-Compatible</legend>
+                <p><label>base_url <input type="text" id="ai-base-url" name="base_url" value="{{ cfg.translate.openai.base_url }}" size="40" list="base-url-options"></label>
+                   <label>api_key <input type="password" id="ai-api-key" name="api_key" value="{{ cfg.translate.openai.api_key }}" size="30" autocomplete="off"></label>
+                   <label>timeout_seconds <input type="number" name="timeout_seconds" value="{{ cfg.translate.openai.timeout_seconds }}" min="1"></label>
+                   <label>temperature <input type="number" step="0.1" name="temperature" value="{{ cfg.translate.openai.temperature }}" min="0" max="2"></label></p>
+                <p><label>model <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" size="30" list="model-options"></label>
+                   <button type="button" id="ai-load-models">Tải danh sách model</button>
+                   <span id="ai-models-status" class="muted"></span></p>
+                <p class="muted">base_url: endpoint gốc kiểu OpenAI (vd <code>https://api.openai.com/v1</code>, <code>https://openrouter.ai/api/v1</code>, <code>http://localhost:11434/v1</code> cho Ollama, <code>http://localhost:1234/v1</code> cho LM Studio). api_key: token Bearer — để trống nếu provider local không yêu cầu. Bấm "Tải danh sách model" để gọi <code>GET {base_url}/models</code> và chọn model id từ dropdown; nếu provider không hỗ trợ endpoint này, gõ model id trực tiếp vào ô model.</p>
+                <datalist id="base-url-options">
+                    <option value="https://api.openai.com/v1">
+                    <option value="https://openrouter.ai/api/v1">
+                    <option value="http://localhost:11434/v1">
+                    <option value="http://localhost:1234/v1">
+                </datalist>
+                <datalist id="model-options">
+                    <option value="gpt-4o-mini">
+                    <option value="gpt-4o">
+                </datalist>
+                <p><label>prompt_template (để trống = giữ nguyên)<br><textarea name="prompt_template" rows="10" cols="80">{{ cfg.translate.openai.prompt_template }}</textarea></label></p>
+                <p><label>title_prompt_template (để trống = giữ nguyên)<br><textarea name="title_prompt_template" rows="6" cols="80">{{ cfg.translate.openai.title_prompt_template }}</textarea></label></p>
+                <p class="muted">Khi lưu, prompt sẽ được làm sạch tự động: bỏ khoảng trắng cuối dòng, gộp dòng trống thừa và cắt dòng trống đầu/cuối (giữ nguyên các placeholder như <code>{text}</code>, <code>{glossary}</code>).</p>
+            </fieldset>
+            <script>
+            document.getElementById("ai-load-models").addEventListener("click", async function () {
+                const baseUrl = document.getElementById("ai-base-url").value.trim();
+                const apiKey = document.getElementById("ai-api-key").value.trim();
+                const status = document.getElementById("ai-models-status");
+                const datalist = document.getElementById("model-options");
+                if (!baseUrl) { status.textContent = "Nhập base_url trước."; return; }
+                status.textContent = "Đang tải...";
+                try {
+                    const url = "/settings/ai/models?base_url=" + encodeURIComponent(baseUrl) + "&api_key=" + encodeURIComponent(apiKey);
+                    const resp = await fetch(url);
+                    const data = await resp.json();
+                    if (data.error) {
+                        status.textContent = "Provider không hỗ trợ /models (" + data.error + ") — nhập model id trực tiếp.";
+                        return;
+                    }
+                    datalist.innerHTML = "";
+                    (data.models || []).forEach(function (m) {
+                        const opt = document.createElement("option");
+                        opt.value = m;
+                        datalist.appendChild(opt);
+                    });
+                    status.textContent = "Đã tải " + (data.models || []).length + " model.";
+                } catch (e) {
+                    status.textContent = "Lỗi: " + e;
+                }
             });
-            status.textContent = "Đã tải " + (data.models || []).length + " model.";
-        } catch (e) {
-            status.textContent = "Lỗi: " + e;
-        }
-    });
-    </script>
-    <fieldset>
-        <legend>Style</legend>
-        <p><label>tone <input type="text" name="tone" value="{{ cfg.translate.style.tone }}" size="40" list="tone-options"></label></p>
-        <p class="muted">tone: tông giọng văn dịch, chèn vào prompt để AI bám theo phong cách này.</p>
-        <datalist id="tone-options">
-            <option value="mượt, tự nhiên, có chất cổ trang">
-            <option value="trang trọng, cổ điển, văn chương">
-            <option value="hiện đại, gần gũi, đời thường">
-            <option value="dí dỏm, hài hước, trẻ trung">
-            <option value="khốc liệt, gân guốc, dồn nén (action/huyết chiến)">
-        </datalist>
-        <p><label>pronoun_policy <input type="text" name="pronoun_policy" value="{{ cfg.translate.style.pronoun_policy }}" size="20" list="pronoun-options"></label>
-           <label>title_mode <input type="text" name="title_mode" value="{{ cfg.translate.style.title_mode }}" size="15" list="title-mode-options"></label>
-           <label>han_viet_level <input type="text" name="han_viet_level" value="{{ cfg.translate.style.han_viet_level }}" size="15" list="han-viet-options"></label>
-           <label class="check"><input type="checkbox" name="keep_paragraphs" value="true" {% if cfg.translate.style.keep_paragraphs %}checked{% endif %}> keep_paragraphs</label></p>
-        <p class="muted">pronoun_policy: cách chọn đại từ xưng hô (ta/ngươi, con/cháu...). title_mode: cách dịch tiêu đề chương. han_viet_level: mức độ dùng từ Hán Việt thay từ thuần Việt. keep_paragraphs: giữ nguyên cách chia đoạn của bản gốc.</p>
-        <datalist id="pronoun-options">
-            <option value="contextual">
-            <option value="formal">
-            <option value="modern_casual">
-        </datalist>
-        <datalist id="title-mode-options">
-            <option value="creative">
-            <option value="literal">
-        </datalist>
-        <datalist id="han-viet-options">
-            <option value="balanced">
-            <option value="heavy">
-            <option value="light">
-        </datalist>
-    </fieldset>
-    <fieldset>
-        <legend>Retry / Chunk / Rate</legend>
-        <p><label>retry attempts <input type="number" name="retry_attempts" value="{{ cfg.translate.retry.attempts }}" min="1"></label>
-           <label>retry delay_seconds <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.translate.retry.delay_seconds }}" min="0"></label></p>
-        <p class="muted">retry attempts: số lần thử lại khi gọi AI thất bại. retry delay_seconds: thời gian chờ giữa các lần thử lại.</p>
-        <p><label>chunk max_chars <input type="number" name="chunk_max_chars" value="{{ cfg.translate.chunk.max_chars }}" min="0" list="chunk-max-chars-options"></label>
-           <label>chunk overlap_paragraphs <input type="number" name="chunk_overlap_paragraphs" value="{{ cfg.translate.chunk.overlap_paragraphs }}" min="0"></label>
-           <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.translate.delay_seconds }}" min="0"></label></p>
-        <p class="muted">chunk max_chars: cắt chương dài thành nhiều đoạn theo số ký tự tối đa trước khi gửi AI (0 = không cắt). chunk overlap_paragraphs: số đoạn lặp lại giữa các phần cắt để giữ mạch văn. delay_seconds: thời gian nghỉ giữa các lần gọi AI (tránh rate limit).</p>
-        <datalist id="chunk-max-chars-options">
-            <option value="0">
-            <option value="2000">
-            <option value="4000">
-            <option value="8000">
-        </datalist>
-    </fieldset>
-    <p><button type="submit">Lưu cấu hình AI</button></p>
-</form>
+            </script>
+            <fieldset>
+                <legend>Style</legend>
+                <p><label>tone <input type="text" name="tone" value="{{ cfg.translate.style.tone }}" size="40" list="tone-options"></label></p>
+                <p class="muted">tone: tông giọng văn dịch, chèn vào prompt để AI bám theo phong cách này.</p>
+                <datalist id="tone-options">
+                    <option value="mượt, tự nhiên, có chất cổ trang">
+                    <option value="trang trọng, cổ điển, văn chương">
+                    <option value="hiện đại, gần gũi, đời thường">
+                    <option value="dí dỏm, hài hước, trẻ trung">
+                    <option value="khốc liệt, gân guốc, dồn nén (action/huyết chiến)">
+                </datalist>
+                <p><label>pronoun_policy <input type="text" name="pronoun_policy" value="{{ cfg.translate.style.pronoun_policy }}" size="20" list="pronoun-options"></label>
+                   <label>title_mode <input type="text" name="title_mode" value="{{ cfg.translate.style.title_mode }}" size="15" list="title-mode-options"></label>
+                   <label>han_viet_level <input type="text" name="han_viet_level" value="{{ cfg.translate.style.han_viet_level }}" size="15" list="han-viet-options"></label>
+                   <label class="check"><input type="checkbox" name="keep_paragraphs" value="true" {% if cfg.translate.style.keep_paragraphs %}checked{% endif %}> keep_paragraphs</label></p>
+                <p class="muted">pronoun_policy: cách chọn đại từ xưng hô (ta/ngươi, con/cháu...). title_mode: cách dịch tiêu đề chương. han_viet_level: mức độ dùng từ Hán Việt thay từ thuần Việt. keep_paragraphs: giữ nguyên cách chia đoạn của bản gốc.</p>
+                <datalist id="pronoun-options">
+                    <option value="contextual">
+                    <option value="formal">
+                    <option value="modern_casual">
+                </datalist>
+                <datalist id="title-mode-options">
+                    <option value="creative">
+                    <option value="literal">
+                </datalist>
+                <datalist id="han-viet-options">
+                    <option value="balanced">
+                    <option value="heavy">
+                    <option value="light">
+                </datalist>
+            </fieldset>
+            <fieldset>
+                <legend>Retry / Chunk / Rate</legend>
+                <p><label>retry attempts <input type="number" name="retry_attempts" value="{{ cfg.translate.retry.attempts }}" min="1"></label>
+                   <label>retry delay_seconds <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.translate.retry.delay_seconds }}" min="0"></label></p>
+                <p class="muted">retry attempts: số lần thử lại khi gọi AI thất bại. retry delay_seconds: thời gian chờ giữa các lần thử lại.</p>
+                <p><label>chunk max_chars <input type="number" name="chunk_max_chars" value="{{ cfg.translate.chunk.max_chars }}" min="0" list="chunk-max-chars-options"></label>
+                   <label>chunk overlap_paragraphs <input type="number" name="chunk_overlap_paragraphs" value="{{ cfg.translate.chunk.overlap_paragraphs }}" min="0"></label>
+                   <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.translate.delay_seconds }}" min="0"></label></p>
+                <p class="muted">chunk max_chars: cắt chương dài thành nhiều đoạn theo số ký tự tối đa trước khi gửi AI (0 = không cắt). chunk overlap_paragraphs: số đoạn lặp lại giữa các phần cắt để giữ mạch văn. delay_seconds: thời gian nghỉ giữa các lần gọi AI (tránh rate limit).</p>
+                <datalist id="chunk-max-chars-options">
+                    <option value="0">
+                    <option value="2000">
+                    <option value="4000">
+                    <option value="8000">
+                </datalist>
+            </fieldset>
+            <p><button type="submit">Lưu cấu hình AI</button></p>
+        </form>
+    </div>
+</div>
 {% endblock %}

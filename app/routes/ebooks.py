@@ -1,6 +1,7 @@
 """Trang chủ (danh sách ebook) + trang tổng quan 1 ebook."""
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from typing import Annotated
 
@@ -178,6 +179,8 @@ def ebook_home(
     manifest = storage.load_manifest()
     epub_path = Path(cfg.epub_path)
     crawl_problems = crawl_problem_indexes(manifest.chapters, storage) if manifest else []
+    all_chapters = _chapter_rows(cfg)
+    chapters_json = [dataclasses.asdict(r) for r in all_chapters]
     return deps.templates.TemplateResponse(
         request,
         "ebook.html",
@@ -187,15 +190,8 @@ def ebook_home(
             "cfg": cfg,
             "manifest": manifest,
             "crawl_problems": crawl_problems,
-            "chapters": _chapter_rows(
-                cfg,
-                sort=sort,
-                direction=direction,
-                search=search,
-                filter_raw=filter_raw,
-                filter_translated=filter_translated,
-                filter_missing=filter_missing,
-            ),
+            "chapters": all_chapters,
+            "chapters_json": chapters_json,
             "controls": {
                 "sort": sort,
                 "direction": direction,

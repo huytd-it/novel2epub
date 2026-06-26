@@ -4,6 +4,7 @@
 <div class="section-head">
     <h2>Thư viện nguồn (site preset)</h2>
     <div class="row-actions">
+        <button type="button" class="button" id="add-preset-btn">+ Thêm preset</button>
         <a class="button" href="/sources/export">Export tất cả (.yaml)</a>
     </div>
 </div>
@@ -51,7 +52,20 @@
             </td>
             <td>
                 <div class="row-actions">
-                    <a class="button" href="/sources?edit={{ name }}">Sửa</a>
+                    <button type="button" class="button btn-edit-preset" data-name="{{ name }}"
+                        data-engine="{{ p.engine }}" data-url="{{ p.url or '' }}" data-domains="{{ p.domains or '' }}"
+                        data-delay_seconds="{{ p.delay_seconds }}" data-encoding="{{ p.encoding or '' }}"
+                        data-content_selector="{{ p.content_selector or '' }}" data-toc_selector="{{ p.toc_selector or '' }}"
+                        data-chapter_title_selector="{{ p.chapter_title_selector or '' }}" data-title_selector="{{ p.title_selector or '' }}"
+                        data-author_selector="{{ p.author_selector or '' }}" data-desc_selector="{{ p.desc_selector or '' }}"
+                        data-cover_selector="{{ p.cover_selector or '' }}" data-chapter_link_pattern="{{ p.chapter_link_pattern or '' }}"
+                        data-next_page_selector="{{ p.next_page_selector or '' }}" data-next_page_url_pattern="{{ p.next_page_url_pattern or '' }}"
+                        data-max_pages_per_chapter="{{ p.max_pages_per_chapter }}"
+                        data-headless="{{ 'true' if p.headless else '' }}" data-magic="{{ 'true' if p.magic else '' }}"
+                        data-js_code="{{ p.js_code or '' }}" data-scrapling_mode="{{ p.scrapling_mode or '' }}"
+                        data-solve_cloudflare="{{ 'true' if p.solve_cloudflare else '' }}" data-network_idle="{{ 'true' if p.network_idle else '' }}"
+                        data-impersonate="{{ p.impersonate or '' }}" data-user_agent="{{ p.user_agent or '' }}"
+                        data-concurrency_cap="{{ p.concurrency_cap }}">Sửa</button>
                     <form method="post" action="/sources/{{ name }}/clone" style="display:inline">
                         <button type="submit" title="Nhân bản preset này">Nhân bản</button>
                     </form>
@@ -67,7 +81,7 @@
     </table>
 </div>
 {% else %}
-<p class="muted">Chưa có preset nào — cuộn xuống để thêm preset mới.</p>
+<p class="muted">Chưa có preset nào — bấm "Thêm preset" để thêm mới.</p>
 {% endif %}
 
 <details>
@@ -98,122 +112,188 @@
     </div>
 </div>
 
-<hr>
+<!-- Canvas: Preset Editor (Add/Edit) -->
+<div id="preset-canvas" class="canvas-backdrop" hidden>
+    <div class="canvas">
+        <div class="canvas-header">
+            <h3 id="preset-canvas-title">Thêm preset</h3>
+            <button type="button" class="canvas-close" onclick="closeCanvas('preset-canvas')">✕</button>
+        </div>
+        <div class="canvas-body">
+            <form method="post" action="/sources" id="preset-form">
+                <input type="hidden" name="original_name" id="original_name" value="">
+                <fieldset>
+                    <legend>Thông tin cơ bản</legend>
+                    <div class="form-row">
+                        <label>Tên (trùng tên = ghi đè) <input type="text" name="name" id="p-name" required></label>
+                        <label>Engine
+                            <select name="engine" id="p-engine">
+                                {% for opt in ["http", "crawl4ai", "scrapling"] %}
+                                <option value="{{ opt }}">{{ opt }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" id="p-delay_seconds" value="1.0" min="0"></label>
+                        <label>encoding <input type="text" name="encoding" id="p-encoding" size="8"></label>
+                    </div>
+                    <div class="form-row">
+                        <label>URL web <input type="url" name="url" id="p-url" size="50" placeholder="https://www.example.com"></label>
+                        <label>domains <input type="text" name="domains" id="p-domains" size="30" placeholder="example.com,example.net"></label>
+                    </div>
+                    <div class="form-row">
+                        <label>chapter_link_pattern <input type="text" name="chapter_link_pattern" id="p-chapter_link_pattern" value=".*" size="50"></label>
+                    </div>
+                </fieldset>
 
-<div class="section-head"><h3>{% if edit %}Sửa preset: {{ edit.name }}{% else %}Thêm preset{% endif %}</h3></div>
-<form method="post" action="/sources">
-    <fieldset>
-        <legend>Thông tin cơ bản</legend>
-        <div class="form-row">
-            <label>Tên (trùng tên = ghi đè) <input type="text" name="name" value="{{ edit.name if edit else '' }}" {% if not edit %}required{% endif %}></label>
-            <label>Engine
-                <select name="engine" id="engine-select">
-                    {% for opt in ["http", "crawl4ai", "scrapling"] %}
-                    <option value="{{ opt }}" {% if edit and edit.engine == opt %}selected{% endif %}>{{ opt }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>delay_seconds <input type="number" step="0.1" name="delay_seconds" value="{{ edit.delay_seconds if edit else 1.0 }}" min="0"></label>
-            <label>encoding <input type="text" name="encoding" value="{{ edit.encoding if edit else '' }}" size="8"></label>
-        </div>
-        <div class="form-row">
-            <label>URL web (trang chủ/mục lục mẫu) <input type="url" name="url" value="{{ edit.url if edit else '' }}" size="50" placeholder="https://www.example.com"></label>
-            <label>domains (để trống = tự suy từ URL) <input type="text" name="domains" value="{{ edit.domains if edit else '' }}" size="30" placeholder="example.com,example.net"></label>
-        </div>
-        <div class="form-row">
-            <label>chapter_link_pattern <input type="text" name="chapter_link_pattern" value="{{ edit.chapter_link_pattern if edit else '.*' }}" size="50"></label>
-        </div>
-    </fieldset>
+                <fieldset>
+                    <legend>Selector</legend>
+                    <div class="form-row">
+                        <label>content_selector <input type="text" name="content_selector" id="p-content_selector" size="30"></label>
+                        <label>toc_selector <input type="text" name="toc_selector" id="p-toc_selector" size="30"></label>
+                        <label>chapter_title_selector <input type="text" name="chapter_title_selector" id="p-chapter_title_selector" size="20"></label>
+                    </div>
+                    <div class="form-row">
+                        <label>title_selector <input type="text" name="title_selector" id="p-title_selector" size="20"></label>
+                        <label>author_selector <input type="text" name="author_selector" id="p-author_selector" size="20"></label>
+                        <label>desc_selector <input type="text" name="desc_selector" id="p-desc_selector" size="20"></label>
+                        <label>cover_selector <input type="text" name="cover_selector" id="p-cover_selector" size="20"></label>
+                    </div>
+                </fieldset>
 
-    <fieldset>
-        <legend>Selector</legend>
-        <div class="form-row">
-            <label>content_selector <input type="text" name="content_selector" value="{{ edit.content_selector if edit else '' }}" size="30"></label>
-            <label>toc_selector <input type="text" name="toc_selector" value="{{ edit.toc_selector if edit else '' }}" size="30"></label>
-            <label>chapter_title_selector <input type="text" name="chapter_title_selector" value="{{ edit.chapter_title_selector if edit else '' }}" size="20"></label>
-        </div>
-        <div class="form-row">
-            <label>title_selector <input type="text" name="title_selector" value="{{ edit.title_selector if edit else '' }}" size="20"></label>
-            <label>author_selector <input type="text" name="author_selector" value="{{ edit.author_selector if edit else '' }}" size="20"></label>
-            <label>desc_selector <input type="text" name="desc_selector" value="{{ edit.desc_selector if edit else '' }}" size="20"></label>
-            <label>cover_selector <input type="text" name="cover_selector" value="{{ edit.cover_selector if edit else '' }}" size="20"></label>
-        </div>
-    </fieldset>
+                <fieldset>
+                    <legend>Pagination (chương nhiều trang)</legend>
+                    <div class="form-row">
+                        <label>next_page_selector <input type="text" name="next_page_selector" id="p-next_page_selector" size="30" placeholder="a#pager_next"></label>
+                        <label>next_page_url_pattern <input type="text" name="next_page_url_pattern" id="p-next_page_url_pattern" size="30" placeholder="regex có 1 group"></label>
+                        <label>max_pages_per_chapter <input type="number" name="max_pages_per_chapter" id="p-max_pages_per_chapter" value="10" min="1" size="4"></label>
+                    </div>
+                </fieldset>
 
-    <fieldset>
-        <legend>Pagination (chương nhiều trang)</legend>
-        <div class="form-row">
-            <label>next_page_selector <input type="text" name="next_page_selector" value="{{ edit.next_page_selector if edit else '' }}" size="30" placeholder="a#pager_next"></label>
-            <label>next_page_url_pattern <input type="text" name="next_page_url_pattern" value="{{ edit.next_page_url_pattern if edit else '' }}" size="30" placeholder="regex có 1 group"></label>
-            <label>max_pages_per_chapter <input type="number" name="max_pages_per_chapter" value="{{ edit.max_pages_per_chapter if edit else 10 }}" min="1" size="4"></label>
-        </div>
-    </fieldset>
+                <fieldset id="crawl4ai-options" style="display:none">
+                    <legend>crawl4ai</legend>
+                    <div class="form-row">
+                        <label class="check"><input type="checkbox" name="headless" id="p-headless" value="true" checked> headless</label>
+                        <label class="check"><input type="checkbox" name="magic" id="p-magic" value="true" checked> magic</label>
+                        <label>js_code <input type="text" name="js_code" id="p-js_code" size="50"></label>
+                    </div>
+                </fieldset>
 
-    {% set is_crawl4ai = edit and edit.engine == "crawl4ai" %}
-    <fieldset id="crawl4ai-options"{% if not is_crawl4ai %} style="display:none"{% endif %}>
-        <legend>crawl4ai</legend>
-        <div class="form-row">
-            <label class="check"><input type="checkbox" name="headless" value="true" {% if not edit or edit.headless %}checked{% endif %}> headless</label>
-            <label class="check"><input type="checkbox" name="magic" value="true" {% if not edit or edit.magic %}checked{% endif %}> magic</label>
-            <label>js_code <input type="text" name="js_code" value="{{ edit.js_code if edit else '' }}" size="50"></label>
-        </div>
-    </fieldset>
+                <fieldset id="scrapling-options" style="display:none">
+                    <legend>scrapling</legend>
+                    <div class="form-row">
+                        <label>scrapling_mode
+                            <select name="scrapling_mode" id="p-scrapling_mode">
+                                {% for opt in ["stealthy", "fetcher", "dynamic"] %}
+                                <option value="{{ opt }}">{{ opt }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label class="check"><input type="checkbox" name="solve_cloudflare" id="p-solve_cloudflare" value="true"> solve_cloudflare</label>
+                        <label class="check"><input type="checkbox" name="network_idle" id="p-network_idle" value="true" checked> network_idle</label>
+                        <label>impersonate <input type="text" name="impersonate" id="p-impersonate" size="20" placeholder="chrome, firefox135"></label>
+                    </div>
+                </fieldset>
 
-    {% set is_scrapling = edit and edit.engine == "scrapling" %}
-    <fieldset id="scrapling-options"{% if not is_scrapling %} style="display:none"{% endif %}>
-        <legend>scrapling</legend>
-        <div class="form-row">
-            <label>scrapling_mode
-                <select name="scrapling_mode">
-                    {% for opt in ["stealthy", "fetcher", "dynamic"] %}
-                    <option value="{{ opt }}" {% if edit and edit.scrapling_mode == opt %}selected{% endif %}>{{ opt }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label class="check"><input type="checkbox" name="solve_cloudflare" value="true" {% if edit and edit.solve_cloudflare %}checked{% endif %}> solve_cloudflare</label>
-            <label class="check"><input type="checkbox" name="network_idle" value="true" {% if not edit or edit.network_idle %}checked{% endif %}> network_idle</label>
-            <label>impersonate <input type="text" name="impersonate" value="{{ edit.impersonate if edit else '' }}" size="20" placeholder="chrome, firefox135"></label>
-        </div>
-    </fieldset>
+                <fieldset>
+                    <legend>Network &amp; song song</legend>
+                    <div class="form-row">
+                        <label>user_agent <input type="text" name="user_agent" id="p-user_agent" size="70"></label>
+                        <label>concurrency_cap <input type="number" name="concurrency_cap" id="p-concurrency_cap" value="0" min="0" size="6"></label>
+                    </div>
+                </fieldset>
 
-    <fieldset>
-        <legend>Network &amp; song song</legend>
-        <div class="form-row">
-            <label>user_agent (để trống = mặc định) <input type="text" name="user_agent" value="{{ edit.user_agent if edit else '' }}" size="70"></label>
-            <label>concurrency_cap (0 = mặc định theo engine/mode) <input type="number" name="concurrency_cap" value="{{ edit.concurrency_cap if edit else 0 }}" min="0" size="6"></label>
+                <div class="canvas-footer">
+                    <div class="form-row">
+                        <button type="submit" id="preset-submit-btn">Thêm preset</button>
+                        <button type="button" onclick="closeCanvas('preset-canvas')">Hủy</button>
+                    </div>
+                </div>
+            </form>
         </div>
-        <div class="form-row">
-            <button type="submit">{% if edit %}Cập nhật{% else %}Thêm{% endif %} preset</button>
-        </div>
-    </fieldset>
-</form>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    const engineSelect = document.getElementById("engine-select");
+    // --- Engine toggle for crawl4ai/scrapling options ---
+    const engineSelect = document.getElementById("p-engine");
     const crawl4ai = document.getElementById("crawl4ai-options");
     const scrapling = document.getElementById("scrapling-options");
-    if (!engineSelect) return;
     function syncEngine() {
         var v = engineSelect.value;
         if (crawl4ai) crawl4ai.style.display = v === "crawl4ai" ? "" : "none";
         if (scrapling) scrapling.style.display = v === "scrapling" ? "" : "none";
     }
     engineSelect.addEventListener("change", syncEngine);
-    syncEngine();
 
+    // --- Add preset button ---
+    document.getElementById("add-preset-btn").addEventListener("click", function () {
+        document.getElementById("preset-canvas-title").textContent = "Thêm preset";
+        document.getElementById("preset-submit-btn").textContent = "Thêm preset";
+        document.getElementById("preset-form").reset();
+        document.getElementById("original_name").value = "";
+        document.getElementById("p-name").required = true;
+        document.getElementById("p-delay_seconds").value = "1.0";
+        document.getElementById("p-chapter_link_pattern").value = ".*";
+        document.getElementById("p-max_pages_per_chapter").value = "10";
+        document.getElementById("p-headless").checked = true;
+        document.getElementById("p-magic").checked = true;
+        document.getElementById("p-network_idle").checked = true;
+        syncEngine();
+        openCanvas('preset-canvas');
+    });
+
+    // --- Edit preset buttons ---
+    document.querySelectorAll(".btn-edit-preset").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            document.getElementById("preset-canvas-title").textContent = "Sửa preset: " + btn.dataset.name;
+            document.getElementById("preset-submit-btn").textContent = "Cập nhật preset";
+            document.getElementById("original_name").value = btn.dataset.name;
+            document.getElementById("p-name").value = btn.dataset.name;
+            document.getElementById("p-name").required = false;
+            document.getElementById("p-engine").value = btn.dataset.engine;
+            document.getElementById("p-url").value = btn.dataset.url;
+            document.getElementById("p-domains").value = btn.dataset.domains;
+            document.getElementById("p-delay_seconds").value = btn.dataset.delay_seconds;
+            document.getElementById("p-encoding").value = btn.dataset.encoding;
+            document.getElementById("p-content_selector").value = btn.dataset.content_selector;
+            document.getElementById("p-toc_selector").value = btn.dataset.toc_selector;
+            document.getElementById("p-chapter_title_selector").value = btn.dataset.chapter_title_selector;
+            document.getElementById("p-title_selector").value = btn.dataset.title_selector;
+            document.getElementById("p-author_selector").value = btn.dataset.author_selector;
+            document.getElementById("p-desc_selector").value = btn.dataset.desc_selector;
+            document.getElementById("p-cover_selector").value = btn.dataset.cover_selector;
+            document.getElementById("p-chapter_link_pattern").value = btn.dataset.chapter_link_pattern;
+            document.getElementById("p-next_page_selector").value = btn.dataset.next_page_selector;
+            document.getElementById("p-next_page_url_pattern").value = btn.dataset.next_page_url_pattern;
+            document.getElementById("p-max_pages_per_chapter").value = btn.dataset.max_pages_per_chapter;
+            document.getElementById("p-headless").checked = btn.dataset.headless === "true";
+            document.getElementById("p-magic").checked = btn.dataset.magic === "true";
+            document.getElementById("p-js_code").value = btn.dataset.js_code;
+            document.getElementById("p-scrapling_mode").value = btn.dataset.scrapling_mode;
+            document.getElementById("p-solve_cloudflare").checked = btn.dataset.solve_cloudflare === "true";
+            document.getElementById("p-network_idle").checked = btn.dataset.network_idle !== "false";
+            document.getElementById("p-impersonate").value = btn.dataset.impersonate;
+            document.getElementById("p-user_agent").value = btn.dataset.user_agent;
+            document.getElementById("p-concurrency_cap").value = btn.dataset.concurrency_cap;
+            syncEngine();
+            openCanvas('preset-canvas');
+        });
+    });
+
+    // --- Test source modal ---
     const modal = document.getElementById("source-test-modal");
     const form = document.getElementById("source-test-form");
     const cancelBtn = document.getElementById("source-test-cancel");
     document.querySelectorAll(".btn-test-source").forEach((btn) => {
         btn.addEventListener("click", () => {
             form.action = `/sources/${btn.dataset.name}/test`;
-            modal.hidden = false;
+            openModal('source-test-modal');
         });
     });
-    cancelBtn?.addEventListener("click", () => { modal.hidden = true; });
+    cancelBtn?.addEventListener("click", () => { closeModal('source-test-modal'); });
 });
 </script>
 {% endblock %}

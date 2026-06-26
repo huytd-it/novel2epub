@@ -141,15 +141,19 @@ chương cùng lúc** mà không cần browser nặng. Xem chi tiết 3 mode ở
 
 `type` chọn engine dịch:
 
-- **`cli`** *(mặc định)* — gọi một **AI CLI bất kỳ**, rẻ/miễn phí:
+- **`moxhimt`** *(mặc định)* — model NMT cục bộ (CTranslate2 + SentencePiece), **chạy offline
+  hoàn toàn trên CPU**, không cần API/key, không cần GPU. Miễn phí, tối ưu cho
+  tiểu thuyết mạng/tiên hiệp. Xem [Dịch song song trên CPU](#dịch-song-song-trên-cpu-moxhimt).
+
+- **`openai`** — gọi AI qua HTTP theo chuẩn OpenAI-Compatible (OpenAI, OpenRouter, Ollama, LM Studio, vLLM, llama.cpp server...):
 
   ```yaml
   translate:
-    type: cli
-    cli:
-      command: "opencode run"     # hoặc: llm -m gpt-4o-mini  /  ollama run qwen2.5
-      model: "cliproxyapi/gpt-5.5" # tùy chọn; opencode nhận dạng provider/model
-      mode: stdin                 # prompt đưa vào qua stdin (hợp văn bản dài)
+    type: openai
+    openai:
+      base_url: "http://localhost:11434/v1"  # Ollama local
+      api_key: ""
+      model: "gpt-4o-mini"
       prompt_template: |          # đã có sẵn prompt "edit" chuẩn convert truyện
         ...
   ```
@@ -157,19 +161,13 @@ chương cùng lúc** mà không cần browser nặng. Xem chi tiết 3 mode ở
   `prompt_template` mặc định đã mã hóa các **nguyên tắc edit truyền thống**
   (tên riêng để Hán Việt, chọn ngôi xưng tiếng Việt, đảo trật tự câu cho tự
   nhiên...). `{text}` = nội dung cần dịch, `{glossary}` = bảng thuật ngữ.
-  Với `opencode`, dùng `command: "opencode run"`; nếu đặt `model`, chương trình
-  sẽ tự thêm `--model <provider/model>` vào lệnh.
 
   Bạn cũng có thể cấu hình thêm `style`, `glossary_files`, `retry`, `chunk` để
   phù hợp từng truyện và từng model. `max_workers > 1` sẽ dịch nhiều chương
-  song song (mỗi luồng gọi CLI riêng).
+  song song (mỗi luồng gọi API riêng).
 
 - **`google`** — Google Translate miễn phí (`deep-translator`), nhanh nhưng văn
   phong kém tự nhiên, hay sai tên riêng. Cũng tôn trọng `max_workers`.
-
-- **`moxhimt`** — model NMT cục bộ (CTranslate2 + SentencePiece), **chạy offline
-  hoàn toàn trên CPU**, không cần API/key, không cần GPU. Xem
-  [Dịch song song trên CPU](#dịch-song-song-trên-cpu-moxhimt).
 
 - **`none`** — không dịch, giữ tiếng Trung (để test bước crawl/build).
 
@@ -384,7 +382,7 @@ nhập tay.
    `raw/*.md` lấy đúng nội dung (chỉnh `content_selector`/`encoding` nếu cần).
    Nếu dùng Web UI: thử **Test (dry-run)** trên preset nguồn trước khi gắn vào
    ebook, tránh tốn thời gian crawl cả truyện chỉ để phát hiện sai selector.
-2. Đổi `translate.type: cli` (hoặc `moxhimt` nếu muốn offline/miễn phí), chạy
+2. Đổi `translate.type: openai` (hoặc `moxhimt` nếu muốn offline/miễn phí), chạy
    `translate` 2 chương → xem chất lượng dịch, bổ sung `glossary` cho tên
    riêng hay bị sai.
 3. Đặt `max_chapters: 0` (toàn bộ); nếu nguồn ổn định, tăng `crawl.max_workers`
@@ -399,8 +397,8 @@ console → Retry), build lại ngay sau khi sửa tay, hoặc đặt **automati
 
 - Engine `http` chỉ đọc HTML tĩnh; site dùng JavaScript/chống bot nên thử
   `engine: crawl4ai` hoặc `scrapling`; chương VIP/cần đăng nhập cần nguồn khác.
-- Chất lượng dịch phụ thuộc model của AI CLI bạn cắm vào (với `type: cli`),
+- Chất lượng dịch phụ thuộc model AI bạn dùng (với `type: openai`),
   hoặc giới hạn của model NMT cục bộ (với `type: moxhimt`).
 - `moxhimt` chỉ tối ưu cho CPU — không có đường chạy GPU/CUDA theo thiết kế;
-  máy có GPU mạnh nên dùng `type: cli` qua 1 AI CLI để tận dụng GPU đó.
+  máy có GPU mạnh nên dùng `type: openai` với provider có GPU để tận dụng.
 - Tôn trọng bản quyền & điều khoản của trang nguồn; chỉ dùng cho mục đích cá nhân.

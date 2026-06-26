@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Tự động hóa — novel2epub{% endblock %}
 {% block content %}
-<div class="section-head"><h2>Tự động hóa</h2></div>
+<div class="section-head">
+    <h2>Tự động hóa</h2>
+    <button type="button" class="button" id="add-automation-btn">+ Thêm automation</button>
+</div>
 <p class="muted">Chuỗi bước chạy theo lịch hàng ngày hoặc bấm tay, đẩy qua hàng đợi job (job "automation" chiếm độc quyền crawl + dịch trong lúc chạy).</p>
 
 <div class="table-wrap">
@@ -33,24 +36,40 @@
     </table>
 </div>
 
-<hr>
-<div class="section-head"><h3>Thêm automation</h3></div>
-<form method="post" action="/automation">
-    <fieldset>
-        <p><label>Ebook
-            <select name="ebook" required>
-                {% for slug in ebooks %}<option value="{{ slug }}">{{ slug }}</option>{% endfor %}
-            </select>
-        </label></p>
-        <p>
-            {% for step in steps %}
-            <label class="check"><input type="checkbox" name="steps" value="{{ step }}" {% if step == 'build' %}checked{% endif %}> {{ step }}</label>
-            {% endfor %}
-        </p>
-        <p><label>Lịch chạy
-            <input type="text" name="schedule" value="manual" placeholder="manual hoặc daily@03:00">
-        </label></p>
-        <p><button type="submit">Tạo automation</button></p>
-    </fieldset>
-</form>
+<!-- Modal: Add automation -->
+<div id="add-automation-modal" class="modal-backdrop" hidden>
+    <div class="modal modal-large">
+        <div class="section-head">
+            <h3>Thêm automation</h3>
+            <button type="button" class="canvas-close" onclick="closeModal('add-automation-modal')">✕</button>
+        </div>
+        <form method="post" action="/automation">
+            <fieldset>
+                <p><label>Ebook
+                    <select name="ebook" required>
+                        {% for slug in ebooks %}<option value="{{ slug }}">{{ slug }}</option>{% endfor %}
+                    </select>
+                </label></p>
+                <p>
+                    {% for step in steps %}
+                    <label class="check"><input type="checkbox" name="steps" value="{{ step }}" {% if step == 'build' %}checked{% endif %}> {{ step }}</label>
+                    {% endfor %}
+                </p>
+                <p><label>Lịch chạy
+                    <input type="text" name="schedule" value="manual" placeholder="manual hoặc daily@03:00">
+                </label></p>
+            </fieldset>
+            <div class="form-row">
+                <button type="submit">Tạo automation</button>
+                <button type="button" onclick="closeModal('add-automation-modal')">Hủy</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById("add-automation-btn").addEventListener("click", function () {
+    openModal('add-automation-modal');
+});
+</script>
 {% endblock %}

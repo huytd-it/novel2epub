@@ -6,6 +6,10 @@
         <h2>Thư viện ebook</h2>
         <p class="muted">Library: <code>{{ library_path }}</code> · Config mặc định: <code>{{ config_path }}</code></p>
     </div>
+    <div class="row-actions">
+        <button type="button" class="button" id="add-ebook-btn">+ Thêm ebook</button>
+        <button type="button" class="button" id="import-config-btn">Nhập config</button>
+    </div>
 </div>
 
 <p>
@@ -42,30 +46,37 @@
 <div class="ebook-grid">
     {% for ebook in ebooks %}
     <div class="ebook-card{% if ebook.archived %} archived{% endif %}">
-        <label class="check ebook-card-select"><input type="checkbox" name="slugs" value="{{ ebook.slug }}"></label>
+        <label class="ebook-card-select"><input type="checkbox" name="slugs" value="{{ ebook.slug }}"></label>
         <div class="ebook-card-body">
-            <h4><a href="/ebooks/{{ ebook.slug }}">{{ ebook.name }}</a> {% if ebook.archived %}<span class="badge">lưu trữ</span>{% endif %}</h4>
-            <p class="muted">{{ ebook.cfg.novel.author }} · <code>{{ ebook.slug }}</code></p>
-            <p>
-                Chương: {{ ebook.manifest.chapters|length if ebook.manifest else 0 }} ·
-                Raw: {{ ebook.raw_count }} ·
-                Dịch: {{ ebook.translated_count }} ·
-                EPUB: {% if ebook.epub_exists %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}
-            </p>
-            <div class="row-actions">
-                <a class="button" href="/ebooks/{{ ebook.slug }}">Mở</a>
-                <a class="button" href="/ebooks/{{ ebook.slug }}/settings">Cài đặt</a>
-                <a class="button" href="/ebooks/{{ ebook.slug }}/config/export">Export config</a>
-                {% if ebook.epub_exists %}<a class="button" href="/ebooks/{{ ebook.slug }}/download">Tải EPUB</a>{% endif %}
+            <div class="ebook-card-head">
+                <a href="/ebooks/{{ ebook.slug }}">{{ ebook.name }}</a>
+                {% if ebook.archived %}<span class="badge">lưu trữ</span>{% endif %}
+            </div>
+            <div class="ebook-card-meta">{{ ebook.cfg.novel.author }} · <code>{{ ebook.slug }}</code></div>
+            <div class="ebook-card-stats">
+                <span>{{ ebook.manifest.chapters|length if ebook.manifest else 0 }} chương</span>
+                <span>{{ ebook.raw_count }} raw</span>
+                <span>{{ ebook.translated_count }} dịch</span>
+                <span>EPUB {% if ebook.epub_exists %}<span class="badge ok">có</span>{% else %}<span class="badge no">chưa</span>{% endif %}</span>
+            </div>
+            <div class="ebook-card-actions">
+                <div class="action-group">
+                    <a class="button" href="/ebooks/{{ ebook.slug }}">Mở</a>
+                    <a class="button outline" href="/ebooks/{{ ebook.slug }}/settings">Cài đặt</a>
+                    <a class="button outline" href="/ebooks/{{ ebook.slug }}/config/export">Export</a>
+                    {% if ebook.epub_exists %}<a class="button outline" href="/ebooks/{{ ebook.slug }}/download">EPUB</a>{% endif %}
+                </div>
                 {% if ebook.in_library %}
-                {% if ebook.archived %}
-                <form method="post" action="/library/ebooks/{{ ebook.slug }}/unarchive" style="display:inline"><button type="submit">Bỏ lưu trữ</button></form>
-                {% else %}
-                <form method="post" action="/library/ebooks/{{ ebook.slug }}/archive" style="display:inline"><button type="submit">Lưu trữ</button></form>
-                {% endif %}
-                <form method="post" action="/library/ebooks/{{ ebook.slug }}/delete" style="display:inline" onsubmit="return confirm('Gỡ ebook {{ ebook.slug }} khỏi thư viện?');">
-                    <button type="submit">Gỡ</button>
-                </form>
+                <div class="action-group">
+                    {% if ebook.archived %}
+                    <form method="post" action="/library/ebooks/{{ ebook.slug }}/unarchive"><button type="submit" class="outline contrast">Bỏ lưu trữ</button></form>
+                    {% else %}
+                    <form method="post" action="/library/ebooks/{{ ebook.slug }}/archive"><button type="submit" class="outline contrast">Lưu trữ</button></form>
+                    {% endif %}
+                    <form method="post" action="/library/ebooks/{{ ebook.slug }}/delete" onsubmit="return confirm('Gỡ ebook {{ ebook.slug }} khỏi thư viện?');">
+                        <button type="submit" class="outline contrast">Gỡ</button>
+                    </form>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -78,61 +89,74 @@
 {% endif %}
 </div>
 
-<hr>
-<div class="section-head"><h3>Nhập config ebook (.yaml)</h3></div>
-<form method="post" action="/library/ebooks/import" enctype="multipart/form-data" class="form-row">
-    <label>Slug <input type="text" name="slug" required size="20"></label>
-    <label>File config <input type="file" name="file" accept=".yaml,.yml" required></label>
-    <button type="submit">Nhập</button>
-</form>
-
-<hr>
-
-<div class="section-head">
-    <h3>Thêm ebook mới</h3>
-    <p class="muted">① Chọn <strong>nguồn</strong> · ② Paste <strong>link mục lục</strong> truyện · ③ <strong>Xem trước</strong> → ④ <strong>Tạo ebook</strong>. Chưa có nguồn phù hợp? <a href="/sources">Quản lý nguồn</a>.</p>
+<!-- Modal: Import config -->
+<div id="import-modal" class="modal-backdrop" hidden>
+    <div class="modal">
+        <div class="section-head">
+            <h3>Nhập config ebook (.yaml)</h3>
+            <button type="button" class="canvas-close" onclick="closeModal('import-modal')">✕</button>
+        </div>
+        <form method="post" action="/library/ebooks/import" enctype="multipart/form-data" class="form-row">
+            <label>Slug <input type="text" name="slug" required size="20"></label>
+            <label>File config <input type="file" name="file" accept=".yaml,.yml" required></label>
+            <button type="submit">Nhập</button>
+            <button type="button" onclick="closeModal('import-modal')">Hủy</button>
+        </form>
+    </div>
 </div>
-<form method="post" action="/library/ebooks" id="create-form">
-    <input type="hidden" name="name" id="name">
-    <input type="hidden" name="author" id="author">
-    <fieldset>
-        <legend>① Chọn nguồn &amp; ② Link truyện</legend>
-        <div class="form-row">
-            <label>Nguồn (site preset)
-                <select name="preset" id="preset" required>
-                    <option value="">— chọn nguồn —</option>
-                    {% for name, p in presets.items() %}
-                    <option value="{{ name }}" data-engine="{{ p.engine }}" data-url="{{ p.url }}">{{ name }} · {{ p.engine }}{% if p.url %} · {{ p.url }}{% endif %}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>URL mục lục <input type="text" name="toc_url" id="toc_url" size="50" required placeholder="https://..."></label>
-        </div>
-        <div class="form-row">
-            <button type="button" id="preview-btn">🔍 Xem trước</button>
-            <span id="fetch-status" class="muted"></span>
-        </div>
-        <div class="form-row" id="preset-suggest-row" style="display:none">
-            <span id="preset-suggest" class="muted"></span>
-        </div>
-    </fieldset>
 
-    <fieldset id="preview-box" style="display:none">
-        <legend>③ Xem trước</legend>
-        <div class="preview-card">
-            <img id="pv-cover" alt="bìa" style="max-height:120px;display:none">
-            <div class="preview-meta">
-                <div><strong id="pv-name"></strong></div>
-                <div class="muted" id="pv-author"></div>
-                <div class="muted" id="pv-chapters"></div>
-                <label>Slug <input type="text" name="slug" id="slug" placeholder="tự sinh từ tên"></label>
-            </div>
+<!-- Modal: Thêm ebook mới -->
+<div id="add-ebook-modal" class="modal-backdrop" hidden>
+    <div class="modal modal-large">
+        <div class="section-head">
+            <h3>Thêm ebook mới</h3>
+            <button type="button" class="canvas-close" onclick="closeModal('add-ebook-modal')">✕</button>
         </div>
-        <div class="form-row">
-            <button type="submit" id="create-btn">💾 Tạo ebook</button>
-        </div>
-    </fieldset>
-</form>
+        <p class="muted">① Chọn <strong>nguồn</strong> · ② Paste <strong>link mục lục</strong> truyện · ③ <strong>Xem trước</strong> → ④ <strong>Tạo ebook</strong>. Chưa có nguồn phù hợp? <a href="/sources">Quản lý nguồn</a>.</p>
+        <form method="post" action="/library/ebooks" id="create-form">
+            <input type="hidden" name="name" id="name">
+            <input type="hidden" name="author" id="author">
+            <fieldset>
+                <legend>① Chọn nguồn &amp; ② Link truyện</legend>
+                <div class="form-row">
+                    <label>Nguồn (site preset)
+                        <select name="preset" id="preset" required>
+                            <option value="">— chọn nguồn —</option>
+                            {% for name, p in presets.items() %}
+                            <option value="{{ name }}" data-engine="{{ p.engine }}" data-url="{{ p.url }}">{{ name }} · {{ p.engine }}{% if p.url %} · {{ p.url }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>URL mục lục <input type="text" name="toc_url" id="toc_url" size="50" required placeholder="https://..."></label>
+                </div>
+                <div class="form-row">
+                    <button type="button" id="preview-btn">🔍 Xem trước</button>
+                    <span id="fetch-status" class="muted"></span>
+                </div>
+                <div class="form-row" id="preset-suggest-row" style="display:none">
+                    <span id="preset-suggest" class="muted"></span>
+                </div>
+            </fieldset>
+
+            <fieldset id="preview-box" style="display:none">
+                <legend>③ Xem trước</legend>
+                <div class="preview-card">
+                    <img id="pv-cover" alt="bìa" style="max-height:120px;display:none">
+                    <div class="preview-meta">
+                        <div><strong id="pv-name"></strong></div>
+                        <div class="muted" id="pv-author"></div>
+                        <div class="muted" id="pv-chapters"></div>
+                        <label>Slug <input type="text" name="slug" id="slug" placeholder="tự sinh từ tên"></label>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <button type="submit" id="create-btn">💾 Tạo ebook</button>
+                    <button type="button" onclick="closeModal('add-ebook-modal')">Hủy</button>
+                </div>
+            </fieldset>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -173,7 +197,6 @@ async function poll() {
         }
 
         if (anyJustFinished) {
-            // 1 trong 2 job vừa xong: làm mới danh sách ebook qua fetch thay vì reload cả trang
             await loadLibrary();
         }
     } catch (e) {
@@ -217,6 +240,14 @@ function escapeHtml(text) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
+    // --- Modal triggers ---
+    document.getElementById("add-ebook-btn").addEventListener("click", function () {
+        openModal('add-ebook-modal');
+    });
+    document.getElementById("import-config-btn").addEventListener("click", function () {
+        openModal('import-modal');
+    });
+
     const nameEl = document.getElementById("name");
     const authorEl = document.getElementById("author");
     const slugEl = document.getElementById("slug");
@@ -230,12 +261,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const previewBox = document.getElementById("preview-box");
     const form = document.getElementById("create-form");
 
-    // Slug: tự sinh từ tên đã preview, trừ khi người dùng tự sửa.
     slugEl.addEventListener("input", function () {
         slugEl.dataset.userEdited = slugEl.value !== slugify(nameEl.value);
     });
 
-    // Đổi nguồn / sửa link ⇒ ẩn preview cũ (buộc xem trước lại).
     function resetPreview() {
         previewBox.style.display = "none";
     }
@@ -278,7 +307,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            // Đổ metadata vào hidden field + vùng preview.
             nameEl.value = data.name || "";
             authorEl.value = data.author || "";
             if (!slugEl.dataset.userEdited) slugEl.value = data.slug || "";
@@ -302,7 +330,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Chặn submit nếu chưa xem trước (chưa có tên) — buộc bấm Xem trước.
     form.addEventListener("submit", function (e) {
         if (previewBox.style.display === "none") {
             e.preventDefault();

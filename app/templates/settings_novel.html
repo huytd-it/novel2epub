@@ -1,111 +1,98 @@
-<div class="section-head"><h3>Truyện</h3></div>
 <form method="post" action="/ebooks/{{ slug }}/settings/novel" class="settings-form">
-    <div class="field-row">
-        <div class="field-group">
-            <label>Tiêu đề
-                <input type="text" name="title" value="{{ cfg.novel.title }}" size="50"
-                    class="{% if not is_default(cfg.novel.title, 'novel', 'title') %}overridden{% endif %}">
-            </label>
+
+<details class="settings-group" open>
+    <summary>Thông tin cơ bản</summary>
+    <div class="settings-grid cols-2">
+        <label> Tiêu đề
+            <input type="text" name="title" value="{{ cfg.novel.title }}"
+                class="{% if not is_default(cfg.novel.title, 'novel', 'title') %}overridden{% endif %}">
             {% if is_default(cfg.novel.title, 'novel', 'title') %}
-            <span class="default-badge">Mặc định: "{{ '' }}"</span>
+            <span class="default-hint">Mặc định: ""</span>
             {% endif %}
-        </div>
-        <div class="field-group">
-            <label>Tác giả
-                <input type="text" name="author" value="{{ cfg.novel.author }}" size="40"
-                    class="{% if not is_default(cfg.novel.author, 'novel', 'author') %}overridden{% endif %}">
-            </label>
+        </label>
+        <label> Tác giả
+            <input type="text" name="author" value="{{ cfg.novel.author }}"
+                class="{% if not is_default(cfg.novel.author, 'novel', 'author') %}overridden{% endif %}">
             {% if is_default(cfg.novel.author, 'novel', 'author') %}
-            <span class="default-badge">Mặc định: "{{ '' }}"</span>
+            <span class="default-hint">Mặc định: ""</span>
             {% endif %}
-        </div>
+        </label>
     </div>
-
-    <div class="field-row">
-        <div class="field-group">
-            <label>Ngôn ngữ
-                <select name="language"
-                    class="{% if not is_default(cfg.novel.language, 'novel', 'language') %}overridden{% endif %}">
-                    {% for code, name in [("vi", "Tiếng Việt"), ("zh-CN", "中文 (Trung)"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"), ("fr", "Français"), ("de", "Deutsch"), ("es", "Español"), ("pt", "Português"), ("ru", "Русский"), ("ar", "العربية"), ("hi", "हिन्दी"), ("th", "ไทย"), ("id", "Bahasa Indonesia"), ("ms", "Bahasa Melayu"), ("tl", "Filipino"), ("mn", "Монгол"), ("my", "မြန်မာ"), ("lo", "ລາວ"), ("km", "ភាសាខ្មែរ")] %}
-                    <option value="{{ code }}" {% if cfg.novel.language == code %}selected{% endif %}>{{ name }} ({{ code }})</option>
-                    {% endfor %}
-                </select>
-            </label>
+    <div class="settings-grid cols-2">
+        <label> Ngôn ngữ
+            <select name="language"
+                class="{% if not is_default(cfg.novel.language, 'novel', 'language') %}overridden{% endif %}">
+                {% for code, name in [("vi", "Tiếng Việt"), ("zh-CN", "中文 (Trung)"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"), ("fr", "Français"), ("de", "Deutsch"), ("es", "Español"), ("pt", "Português"), ("ru", "Русский"), ("ar", "العربية"), ("hi", "हिन्दी"), ("th", "ไทย"), ("id", "Bahasa Indonesia"), ("ms", "Bahasa Melayu"), ("tl", "Filipino"), ("mn", "Монгол"), ("my", "မြန်မာ"), ("lo", "ລາວ"), ("km", "ភាសាខ្មែរ")] %}
+                <option value="{{ code }}" {% if cfg.novel.language == code %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
             {% if is_default(cfg.novel.language, 'novel', 'language') %}
-            <span class="default-badge">Mặc định: vi</span>
+            <span class="default-hint">Mặc định: vi</span>
             {% endif %}
-        </div>
-        <div class="field-group">
-            <label>Nhà xuất bản
-                <input type="text" name="publisher" value="{{ cfg.novel.publisher }}" size="40"
-                    class="{% if not is_default(cfg.novel.publisher, 'novel', 'publisher') %}overridden{% endif %}">
-            </label>
+        </label>
+        <label> Nhà xuất bản
+            <input type="text" name="publisher" value="{{ cfg.novel.publisher }}"
+                class="{% if not is_default(cfg.novel.publisher, 'novel', 'publisher') %}overridden{% endif %}">
             {% if is_default(cfg.novel.publisher, 'novel', 'publisher') %}
-            <span class="default-badge">Mặc định: ""</span>
+            <span class="default-hint">Mặc định: ""</span>
             {% endif %}
-        </div>
+        </label>
     </div>
+</details>
 
-    <div class="field-row">
-        <div class="field-group">
-            <label>Ngày xuất bản
-                <input type="text" name="pubdate" value="{{ cfg.novel.pubdate }}" placeholder="YYYY-MM-DD" size="14"
-                    class="{% if not is_default(cfg.novel.pubdate, 'novel', 'pubdate') %}overridden{% endif %}">
-            </label>
+<details class="settings-group" open>
+    <summary>Xuất bản</summary>
+    <div class="settings-grid cols-3">
+        <label> Ngày xuất bản
+            <input type="date" name="pubdate" value="{{ cfg.novel.pubdate }}"
+                class="{% if not is_default(cfg.novel.pubdate, 'novel', 'pubdate') %}overridden{% endif %}">
             {% if is_default(cfg.novel.pubdate, 'novel', 'pubdate') %}
-            <span class="default-badge">Mặc định: ""</span>
+            <span class="default-hint">Mặc định: ""</span>
             {% endif %}
-        </div>
-        <div class="field-group">
-            <label>Định danh (urn:uuid)
-                <input type="text" name="identifier" value="{{ cfg.novel.identifier }}" size="50" placeholder="tự sinh nếu để trống"
-                    class="{% if not is_default(cfg.novel.identifier, 'novel', 'identifier') %}overridden{% endif %}">
-            </label>
+        </label>
+        <label> Định danh (ISBN/UUID)
+            <input type="text" name="identifier" value="{{ cfg.novel.identifier }}" placeholder="tự sinh nếu để trống"
+                class="{% if not is_default(cfg.novel.identifier, 'novel', 'identifier') %}overridden{% endif %}">
             {% if is_default(cfg.novel.identifier, 'novel', 'identifier') %}
-            <span class="default-badge">Mặc định: tự sinh</span>
+            <span class="default-hint">Mặc định: tự sinh</span>
             {% endif %}
-        </div>
+        </label>
+        <label> Đã thêm
+            <input type="text" value="{{ cfg.novel.date_added or '(chưa rõ)' }}" disabled>
+        </label>
     </div>
+</details>
 
-    <div class="field-row">
-        <div class="field-group full-width">
-            <label>Chủ đề (mỗi dòng hoặc phẩy 1 chủ đề)
-                <textarea name="subjects" rows="2" cols="50">{{ cfg.novel.subjects | join('\n') }}</textarea>
-            </label>
-        </div>
-    </div>
-
-    <div class="field-row">
-        <div class="field-group">
-            <label>Bộ sách
-                <input type="text" name="series" value="{{ cfg.novel.series }}" size="30"
-                    class="{% if not is_default(cfg.novel.series, 'novel', 'series') %}overridden{% endif %}">
-            </label>
+<details class="settings-group">
+    <summary>Bộ sách &amp; Chủ đề</summary>
+    <div class="settings-grid cols-2">
+        <label> Bộ sách
+            <input type="text" name="series" value="{{ cfg.novel.series }}"
+                class="{% if not is_default(cfg.novel.series, 'novel', 'series') %}overridden{% endif %}">
             {% if is_default(cfg.novel.series, 'novel', 'series') %}
-            <span class="default-badge">Mặc định: ""</span>
+            <span class="default-hint">Mặc định: ""</span>
             {% endif %}
-        </div>
-        <div class="field-group">
-            <label>Số thứ tự
-                <input type="text" name="series_index" value="{{ cfg.novel.series_index }}" size="6"
-                    class="{% if not is_default(cfg.novel.series_index, 'novel', 'series_index') %}overridden{% endif %}">
-            </label>
+        </label>
+        <label> Số thứ tự
+            <input type="number" name="series_index" value="{{ cfg.novel.series_index }}" min="0"
+                class="{% if not is_default(cfg.novel.series_index, 'novel', 'series_index') %}overridden{% endif %}">
             {% if is_default(cfg.novel.series_index, 'novel', 'series_index') %}
-            <span class="default-badge">Mặc định: ""</span>
+            <span class="default-hint">Mặc định: ""</span>
             {% endif %}
-        </div>
+        </label>
     </div>
+    <label> Chủ đề (mỗi dòng hoặc phẩy 1 chủ đề)
+        <textarea name="subjects" rows="2">{{ cfg.novel.subjects | join('\n') }}</textarea>
+    </label>
+</details>
 
-    <p class="muted">Đã thêm: {{ cfg.novel.date_added or '(chưa rõ)' }}</p>
+<div class="form-actions">
+    <button type="submit">Lưu thông tin truyện</button>
+    <button type="button" class="btn-raw" onclick="toggleRawYaml('raw-novel')">YAML</button>
+</div>
 
-    <div class="form-actions">
-        <button type="submit">Lưu thông tin truyện</button>
-        <button type="button" class="btn-raw" onclick="toggleRawYaml('raw-novel')">Xem raw YAML</button>
-    </div>
-
-    <div id="raw-novel" class="raw-yaml" hidden>
-        <h4>Cấu hình Novel</h4>
-        <pre><code>novel:
+<div id="raw-novel" class="raw-yaml" hidden>
+<pre><code>novel:
   title: {{ cfg.novel.title }}
   author: {{ cfg.novel.author }}
   language: {{ cfg.novel.language }}
@@ -115,5 +102,6 @@
   series: {{ cfg.novel.series }}
   series_index: {{ cfg.novel.series_index }}
   identifier: {{ cfg.novel.identifier }}</code></pre>
-    </div>
+</div>
+
 </form>

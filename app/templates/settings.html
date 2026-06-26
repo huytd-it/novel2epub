@@ -1,12 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Cài đặt {{ slug }} — novel2epub{% endblock %}
 {% block content %}
-<p><a href="/ebooks/{{ slug }}">&larr; Quay lại ebook</a></p>
-<h2>Cài đặt: {{ cfg.novel.title or slug }}</h2>
-<p class="muted">Ghi vào <code>{{ config_path }}</code> — chỉ đổi đúng các trường bên dưới, comment trong file được giữ nguyên.</p>
+
+<div class="settings-header">
+    <a href="/ebooks/{{ slug }}" class="settings-back">&larr; {{ cfg.novel.title or slug }}</a>
+    <div class="settings-header-right">
+        <span class="settings-save-status" id="save-status"></span>
+        <button type="button" class="settings-save-all" id="btn-save-all" onclick="saveActiveForm()" disabled>
+            Lưu
+        </button>
+    </div>
+</div>
 
 <div id="settings-layout" class="settings-layout" data-slug="{{ slug }}">
-    <nav class="settings-sidebar">
+    <nav class="settings-tabs">
         <button class="settings-tab active" data-tab="tab-novel" onclick="switchSettingsTab('tab-novel')">
             <span class="tab-icon">📖</span> Truyện
         </button>
@@ -38,6 +45,7 @@
 </div>
 
 <script>
+// --- Tab switching ---
 function switchSettingsTab(tabName) {
     const layout = document.getElementById("settings-layout");
     layout.querySelectorAll(".settings-panel").forEach(p => p.classList.remove("active"));
@@ -47,6 +55,59 @@ function switchSettingsTab(tabName) {
     sessionStorage.setItem("settings-tab-" + layout.dataset.slug, tabName);
 }
 
+// --- Unsaved changes tracking ---
+let formDirty = false;
+const saveStatus = document.getElementById("save-status");
+const btnSave = document.getElementById("btn-save-all");
+
+function markDirty() {
+    if (!formDirty) {
+        formDirty = true;
+        saveStatus.textContent = "Chưa lưu";
+        saveStatus.classList.add("dirty");
+        btnSave.disabled = false;
+    }
+}
+
+function markClean() {
+    formDirty = false;
+    saveStatus.textContent = "Đã lưu";
+    saveStatus.classList.remove("dirty");
+    setTimeout(() => { saveStatus.textContent = ""; }, 2000);
+    btnSave.disabled = true;
+}
+
+document.querySelectorAll(".settings-form").forEach(form => {
+    form.addEventListener("input", markDirty);
+    form.addEventListener("change", markDirty);
+    form.addEventListener("submit", function () {
+        setTimeout(markClean, 300);
+    });
+});
+
+// --- Save active form ---
+function saveActiveForm() {
+    const active = document.querySelector(".settings-panel.active .settings-form");
+    if (active) active.requestSubmit();
+}
+
+// --- Ctrl+S shortcut ---
+document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        saveActiveForm();
+    }
+});
+
+// --- Warn before leaving with unsaved changes ---
+window.addEventListener("beforeunload", function (e) {
+    if (formDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+    }
+});
+
+// --- Restore saved tab ---
 document.addEventListener("DOMContentLoaded", function () {
     const layout = document.getElementById("settings-layout");
     var saved = sessionStorage.getItem("settings-tab-" + layout.dataset.slug);
@@ -55,20 +116,15 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 });
 
-// Engine toggle
-document.addEventListener("change", function (e) {
-    if (e.target.name === "engine") {
-        const val = e.target.value;
-        document.querySelectorAll(".engine-specific").forEach(el => {
-            el.style.display = el.dataset.engine === val ? "" : "none";
-        });
-    }
-});
-document.addEventListener("DOMContentLoaded", function () {
-    const engineSel = document.querySelector("select[name='engine']");
-    if (engineSel) {
-        engineSel.dispatchEvent(new Event("change"));
-    }
+// --- Collapsible fieldsets ---
+document.querySelectorAll("details.settings-group").forEach(d => {
+    d.addEventListener("toggle", function () {
+        if (this.open) {
+            this.setAttribute("data-open", "");
+        } else {
+            this.removeAttribute("data-open");
+        }
+    });
 });
 
 // Tone custom toggle
@@ -97,7 +153,6 @@ document.addEventListener("change", function (e) {
 
 {% block scripts %}
 <script>
-// Override to hide the raw config blocks
 function toggleRawYaml(id) {
     const el = document.getElementById(id);
     if (el) el.hidden = !el.hidden;

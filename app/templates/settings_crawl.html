@@ -1,308 +1,155 @@
-<div class="section-head"><h3>Nguồn truyện (crawl)</h3></div>
-
-{% if presets %}
-<form method="post" action="/ebooks/{{ slug }}/settings/source/apply-preset" class="form-row">
-    <label>Preset
-        <select name="preset">
-            {% for name in presets.keys() %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
-        </select>
-    </label>
-    <button type="submit">Áp preset</button>
-</form>
-{% endif %}
-
 <form method="post" action="/ebooks/{{ slug }}/settings/source" class="settings-form">
-    <div class="field-row">
-        <div class="field-group">
-            <label>Engine
-                <select name="engine"
-                    class="{% if not is_default(cfg.crawl.engine, 'crawl', 'engine') %}overridden{% endif %}">
-                    {% for opt in ["http", "crawl4ai", "scrapling"] %}
-                    <option value="{{ opt }}" {% if cfg.crawl.engine == opt %}selected{% endif %}>{{ opt }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            {% if is_default(cfg.crawl.engine, 'crawl', 'engine') %}
-            <span class="default-badge">Mặc định: http</span>
-            {% endif %}
-        </div>
-        <div class="field-group">
-            <label>Encoding
-                <select name="encoding"
-                    class="{% if not is_default(cfg.crawl.encoding, 'crawl', 'encoding') %}overridden{% endif %}">
-                    {% for opt in ["", "utf-8", "gbk", "gb2312", "big5", "euc-kr", "shift-jis"] %}
-                    <option value="{{ opt }}" {% if cfg.crawl.encoding == opt %}selected{% endif %}>{{ opt or "auto" }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            {% if is_default(cfg.crawl.encoding, 'crawl', 'encoding') %}
-            <span class="default-badge">Mặc định: auto</span>
-            {% endif %}
-        </div>
-    </div>
 
-    <div class="field-row">
-        <div class="field-group full-width">
-            <label>URL mục lục (toc_url)
-                <div class="input-with-btn">
-                    <input type="text" name="toc_url" value="{{ cfg.crawl.toc_url }}" size="60"
-                        class="{% if not is_default(cfg.crawl.toc_url, 'crawl', 'toc_url') %}overridden{% endif %}">
-                    <button type="button" class="btn-util" onclick="toast('Tính năng đang phát triển', '')">Thử crawl TOC</button>
-                </div>
-            </label>
-            {% if is_default(cfg.crawl.toc_url, 'crawl', 'toc_url') %}
-            <span class="default-badge">Mặc định: ""</span>
-            {% endif %}
+<details class="settings-group" open>
+    <summary>URL &amp; Lọc chương</summary>
+    <label> URL mục lục (toc_url)
+        <div class="input-with-btn">
+            <input type="text" name="toc_url" value="{{ cfg.crawl.toc_url }}" placeholder="https://..."
+                class="{% if not is_default(cfg.crawl.toc_url, 'crawl', 'toc_url') %}overridden{% endif %}">
+            <button type="button" class="btn-util" onclick="toast('Tính năng đang phát triển', '')">Thử crawl</button>
         </div>
-    </div>
-
-    <div class="field-row">
-        <div class="field-group">
-            <label>Regex lọc link chương
-                <input type="text" name="chapter_link_pattern" value="{{ cfg.crawl.chapter_link_pattern }}" size="50"
-                    class="{% if not is_default(cfg.crawl.chapter_link_pattern, 'crawl', 'chapter_link_pattern') %}overridden{% endif %}">
-            </label>
+        {% if is_default(cfg.crawl.toc_url, 'crawl', 'toc_url') %}
+        <span class="default-hint">Mặc định: ""</span>
+        {% endif %}
+    </label>
+    <div class="settings-grid cols-3">
+        <label> Regex lọc link chương
+            <input type="text" name="chapter_link_pattern" value="{{ cfg.crawl.chapter_link_pattern }}" placeholder=".*"
+                class="{% if not is_default(cfg.crawl.chapter_link_pattern, 'crawl', 'chapter_link_pattern') %}overridden{% endif %}">
             {% if is_default(cfg.crawl.chapter_link_pattern, 'crawl', 'chapter_link_pattern') %}
-            <span class="default-badge">Mặc định: .*</span>
+            <span class="default-hint">Mặc định: .*</span>
             {% endif %}
-        </div>
-        <div class="field-group">
-            <label>max_chapters
-                <input type="number" name="max_chapters" value="{{ cfg.crawl.max_chapters }}" min="0"
-                    class="{% if not is_default(cfg.crawl.max_chapters, 'crawl', 'max_chapters') %}overridden{% endif %}">
-            </label>
+        </label>
+        <label> max_chapters (0 = vô hạn)
+            <input type="number" name="max_chapters" value="{{ cfg.crawl.max_chapters }}" min="0"
+                class="{% if not is_default(cfg.crawl.max_chapters, 'crawl', 'max_chapters') %}overridden{% endif %}">
             {% if is_default(cfg.crawl.max_chapters, 'crawl', 'max_chapters') %}
-            <span class="default-badge">Mặc định: 0 (không giới hạn)</span>
+            <span class="default-hint">Mặc định: 0</span>
             {% endif %}
-        </div>
+        </label>
+        <label> content_selector
+            <input type="text" name="content_selector" value="{{ cfg.crawl.content_selector }}" placeholder="tự detect"
+                class="{% if not is_default(cfg.crawl.content_selector, 'crawl', 'content_selector') %}overridden{% endif %}">
+        </label>
     </div>
+</details>
 
-    <div class="field-row">
-        <div class="field-group">
-            <label>delay_seconds
-                <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.crawl.delay_seconds }}" min="0"
-                    class="{% if not is_default(cfg.crawl.delay_seconds, 'crawl', 'delay_seconds') %}overridden{% endif %}">
-            </label>
+<details class="settings-group" open>
+    <summary>Hiệu suất</summary>
+    <div class="settings-grid cols-3">
+        <label> delay_seconds
+            <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.crawl.delay_seconds }}" min="0"
+                class="{% if not is_default(cfg.crawl.delay_seconds, 'crawl', 'delay_seconds') %}overridden{% endif %}">
             {% if is_default(cfg.crawl.delay_seconds, 'crawl', 'delay_seconds') %}
-            <span class="default-badge">Mặc định: 1.0</span>
+            <span class="default-hint">Mặc định: 1.0</span>
             {% endif %}
-        </div>
-        <div class="field-group">
-            <label>max_workers
-                <input type="number" name="max_workers" value="{{ cfg.crawl.max_workers }}" min="1" max="20"
-                    class="{% if not is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}overridden{% endif %}">
-            </label>
+        </label>
+        <label> max_workers
+            <input type="number" name="max_workers" value="{{ cfg.crawl.max_workers }}" min="1" max="20"
+                class="{% if not is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}overridden{% endif %}">
             {% if is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}
-            <span class="default-badge">Mặc định: 1</span>
+            <span class="default-hint">Mặc định: 1</span>
             {% endif %}
-        </div>
+        </label>
     </div>
+</details>
 
-    {# ── Engine-specific fieldsets ── #}
-    <fieldset class="engine-specific" data-engine="http">
-        <legend>Selector (engine http)</legend>
-        <div class="field-row">
-            <div class="field-group">
-                <label>content_selector
-                    <input type="text" name="content_selector" value="{{ cfg.crawl.content_selector }}" size="30"
-                        class="{% if not is_default(cfg.crawl.content_selector, 'crawl', 'content_selector') %}overridden{% endif %}">
-                </label>
-            </div>
-            <div class="field-group">
-                <label>toc_selector
-                    <input type="text" name="toc_selector" value="{{ cfg.crawl.toc_selector }}" size="30"
-                        class="{% if not is_default(cfg.crawl.toc_selector, 'crawl', 'toc_selector') %}overridden{% endif %}">
-                </label>
-            </div>
-            <div class="field-group">
-                <label>chapter_title_selector
-                    <input type="text" name="chapter_title_selector" value="{{ cfg.crawl.chapter_title_selector }}" size="20"
-                        class="{% if not is_default(cfg.crawl.chapter_title_selector, 'crawl', 'chapter_title_selector') %}overridden{% endif %}">
-                </label>
-            </div>
-        </div>
-        <div class="field-row">
-            <div class="field-group">
-                <label>title_selector
-                    <input type="text" name="title_selector" value="{{ cfg.crawl.title_selector }}" size="20">
-                </label>
-            </div>
-            <div class="field-group">
-                <label>author_selector
-                    <input type="text" name="author_selector" value="{{ cfg.crawl.author_selector }}" size="20">
-                </label>
-            </div>
-            <div class="field-group">
-                <label>desc_selector
-                    <input type="text" name="desc_selector" value="{{ cfg.crawl.desc_selector }}" size="20">
-                </label>
-            </div>
-            <div class="field-group">
-                <label>cover_selector
-                    <input type="text" name="cover_selector" value="{{ cfg.crawl.cover_selector }}" size="20">
-                </label>
-            </div>
-        </div>
-    </fieldset>
-
-    <fieldset class="engine-specific" data-engine="crawl4ai">
-        <legend>crawl4ai</legend>
-        <div class="field-row">
-            <div class="field-group">
-                <label class="check">
-                    <input type="checkbox" name="headless" value="true" {% if cfg.crawl.headless %}checked{% endif %}
-                        class="{% if not is_default(cfg.crawl.headless, 'crawl', 'headless') %}overridden{% endif %}">
-                    headless
-                </label>
-                {% if is_default(cfg.crawl.headless, 'crawl', 'headless') %}
-                <span class="default-badge">Mặc định: bật</span>
-                {% endif %}
-            </div>
-            <div class="field-group">
-                <label class="check">
-                    <input type="checkbox" name="magic" value="true" {% if cfg.crawl.magic %}checked{% endif %}
-                        class="{% if not is_default(cfg.crawl.magic, 'crawl', 'magic') %}overridden{% endif %}">
-                    magic
-                </label>
-                {% if is_default(cfg.crawl.magic, 'crawl', 'magic') %}
-                <span class="default-badge">Mặc định: bật</span>
-                {% endif %}
-            </div>
-            <div class="field-group">
-                <label class="check">
-                    <input type="checkbox" name="stealth" value="true" {% if cfg.crawl.stealth %}checked{% endif %}
-                        class="{% if not is_default(cfg.crawl.stealth, 'crawl', 'stealth') %}overridden{% endif %}">
-                    stealth
-                </label>
-                {% if is_default(cfg.crawl.stealth, 'crawl', 'stealth') %}
-                <span class="default-badge">Mặc định: bật</span>
-                {% endif %}
-            </div>
-        </div>
-        <div class="field-group full-width">
-            <label>js_code
-                <input type="text" name="js_code" value="{{ cfg.crawl.js_code }}" size="50"
-                    class="{% if not is_default(cfg.crawl.js_code, 'crawl', 'js_code') %}overridden{% endif %}">
-            </label>
-        </div>
-    </fieldset>
-
-    <fieldset class="engine-specific" data-engine="scrapling">
-        <legend>Scrapling</legend>
-        <div class="field-row">
-            <div class="field-group">
-                <label>scrapling_mode
-                    <select name="scrapling_mode"
-                        class="{% if not is_default(cfg.crawl.scrapling_mode, 'crawl', 'scrapling_mode') %}overridden{% endif %}">
-                        {% for opt in ["stealthy", "fetcher", "dynamic"] %}
-                        <option value="{{ opt }}" {% if cfg.crawl.scrapling_mode == opt %}selected{% endif %}>{{ opt }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-                {% if is_default(cfg.crawl.scrapling_mode, 'crawl', 'scrapling_mode') %}
-                <span class="default-badge">Mặc định: stealthy</span>
-                {% endif %}
-            </div>
-            <div class="field-group">
-                <label class="check">
-                    <input type="checkbox" name="solve_cloudflare" value="true" {% if cfg.crawl.solve_cloudflare %}checked{% endif %}
-                        class="{% if not is_default(cfg.crawl.solve_cloudflare, 'crawl', 'solve_cloudflare') %}overridden{% endif %}">
-                    solve_cloudflare
-                </label>
-            </div>
-            <div class="field-group">
-                <label class="check">
-                    <input type="checkbox" name="network_idle" value="true" {% if cfg.crawl.network_idle %}checked{% endif %}
-                        class="{% if not is_default(cfg.crawl.network_idle, 'crawl', 'network_idle') %}overridden{% endif %}">
-                    network_idle
-                </label>
-            </div>
-        </div>
-        <div class="field-group">
-            <label>impersonate
-                <input type="text" name="impersonate" value="{{ cfg.crawl.impersonate }}" size="20" placeholder="vd: chrome, firefox135"
-                    class="{% if not is_default(cfg.crawl.impersonate, 'crawl', 'impersonate') %}overridden{% endif %}">
-            </label>
-        </div>
-    </fieldset>
-
-    <fieldset>
-        <legend>Pagination (chương nhiều trang)</legend>
-        <div class="field-row">
-            <div class="field-group">
-                <label>next_page_selector
-                    <input type="text" name="next_page_selector" value="{{ cfg.crawl.next_page_selector }}" size="30" placeholder="a#pager_next"
-                        class="{% if not is_default(cfg.crawl.next_page_selector, 'crawl', 'next_page_selector') %}overridden{% endif %}">
-                </label>
-            </div>
-            <div class="field-group">
-                <label>next_page_url_pattern
-                    <input type="text" name="next_page_url_pattern" value="{{ cfg.crawl.next_page_url_pattern }}" size="30" placeholder="regex có 1 group"
-                        class="{% if not is_default(cfg.crawl.next_page_url_pattern, 'crawl', 'next_page_url_pattern') %}overridden{% endif %}">
-                </label>
-            </div>
-            <div class="field-group">
-                <label>max_pages_per_chapter
-                    <input type="number" name="max_pages_per_chapter" value="{{ cfg.crawl.max_pages_per_chapter }}" min="1" size="4"
-                        class="{% if not is_default(cfg.crawl.max_pages_per_chapter, 'crawl', 'max_pages_per_chapter') %}overridden{% endif %}">
-                </label>
-                {% if is_default(cfg.crawl.max_pages_per_chapter, 'crawl', 'max_pages_per_chapter') %}
-                <span class="default-badge">Mặc định: 10</span>
-                {% endif %}
-            </div>
-        </div>
-    </fieldset>
-
-    <fieldset>
-        <legend>Chống lỗi 429 / anti-bot (thử lại + lùi dần)</legend>
-        <div class="field-row">
-            <div class="field-group">
-                <label>retry attempts
-                    <input type="number" name="retry_attempts" value="{{ cfg.crawl.retry.attempts }}" min="0" size="4"
-                        class="{% if not is_default(cfg.crawl.retry.attempts, 'crawl', 'retry') %}overridden{% endif %}">
-                </label>
-            </div>
-            <div class="field-group">
-                <label>retry delay_seconds
-                    <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.crawl.retry.delay_seconds }}" min="0" size="5"
-                        class="{% if not is_default(cfg.crawl.retry.delay_seconds, 'crawl', 'retry') %}overridden{% endif %}">
-                </label>
-            </div>
-            <div class="field-group">
-                <label>backoff
-                    <input type="number" step="0.1" name="retry_backoff" value="{{ cfg.crawl.retry.backoff }}" min="1" size="4"
-                        class="{% if not is_default(cfg.crawl.retry.backoff, 'crawl', 'retry') %}overridden{% endif %}">
-                </label>
-            </div>
-            <div class="field-group">
-                <label>max_delay_seconds
-                    <input type="number" step="0.1" name="retry_max_delay_seconds" value="{{ cfg.crawl.retry.max_delay_seconds }}" min="0" size="5"
-                        class="{% if not is_default(cfg.crawl.retry.max_delay_seconds, 'crawl', 'retry') %}overridden{% endif %}">
-                </label>
-            </div>
-            <div class="field-group">
-                <label class="check">
-                    <input type="checkbox" name="retry_respect_retry_after" value="true" {% if cfg.crawl.retry.respect_retry_after %}checked{% endif %}
-                        class="{% if not is_default(cfg.crawl.retry.respect_retry_after, 'crawl', 'retry') %}overridden{% endif %}">
-                    respect_retry_after
-                </label>
-            </div>
-        </div>
-        <p class="muted">Khi một chương tải lỗi HTTP 429 (Too Many Requests) / bị chặn anti-bot, hệ thống chờ rồi thử lại.</p>
-    </fieldset>
-
-    <div class="form-actions">
-        <button type="submit">Lưu nguồn</button>
-        <button type="button" class="btn-raw" onclick="toggleRawYaml('raw-crawl')">Xem raw YAML</button>
+<details class="settings-group">
+    <summary>Scrapling engine</summary>
+    <div class="settings-grid cols-2">
+        <label> mode
+            <select name="scrapling_mode"
+                class="{% if not is_default(cfg.crawl.scrapling.mode, 'crawl', 'scrapling') %}overridden{% endif %}">
+                {% for opt in ["fetcher", "stealthy", "dynamic"] %}
+                <option value="{{ opt }}" {% if cfg.crawl.scrapling.mode == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+            </select>
+            {% if is_default(cfg.crawl.scrapling.mode, 'crawl', 'scrapling') %}
+            <span class="default-hint">Mặc định: fetcher</span>
+            {% endif %}
+        </label>
+        <label> impersonate
+            <input type="text" name="impersonate" value="{{ cfg.crawl.scrapling.impersonate }}" placeholder="chrome, firefox135"
+                class="{% if not is_default(cfg.crawl.scrapling.impersonate, 'crawl', 'scrapling') %}overridden{% endif %}">
+        </label>
     </div>
+    <div class="settings-grid cols-2">
+        <label class="check">
+            <input type="checkbox" name="solve_cloudflare" value="true" {% if cfg.crawl.scrapling.solve_cloudflare %}checked{% endif %}
+                class="{% if not is_default(cfg.crawl.scrapling.solve_cloudflare, 'crawl', 'scrapling') %}overridden{% endif %}">
+            solve_cloudflare
+        </label>
+        <label class="check">
+            <input type="checkbox" name="network_idle" value="true" {% if cfg.crawl.scrapling.network_idle %}checked{% endif %}
+                class="{% if not is_default(cfg.crawl.scrapling.network_idle, 'crawl', 'scrapling') %}overridden{% endif %}">
+            network_idle
+        </label>
+    </div>
+</details>
 
-    <div id="raw-crawl" class="raw-yaml" hidden>
-        <h4>Cấu hình Crawl</h4>
-        <pre><code>crawl:
-  engine: {{ cfg.crawl.engine }}
+<details class="settings-group">
+    <summary>Pagination (chương nhiều trang)</summary>
+    <div class="settings-grid cols-3">
+        <label> next_page_selector
+            <input type="text" name="next_page_selector" value="{{ cfg.crawl.next_page_selector }}" placeholder="a#pager_next"
+                class="{% if not is_default(cfg.crawl.next_page_selector, 'crawl', 'next_page_selector') %}overridden{% endif %}">
+        </label>
+        <label> next_page_url_pattern
+            <input type="text" name="next_page_url_pattern" value="{{ cfg.crawl.next_page_url_pattern }}" placeholder="regex có 1 group"
+                class="{% if not is_default(cfg.crawl.next_page_url_pattern, 'crawl', 'next_page_selector') %}overridden{% endif %}">
+        </label>
+        <label> max_pages_per_chapter
+            <input type="number" name="max_pages_per_chapter" value="{{ cfg.crawl.max_pages_per_chapter }}" min="1"
+                class="{% if not is_default(cfg.crawl.max_pages_per_chapter, 'crawl', 'max_pages_per_chapter') %}overridden{% endif %}">
+            {% if is_default(cfg.crawl.max_pages_per_chapter, 'crawl', 'max_pages_per_chapter') %}
+            <span class="default-hint">Mặc định: 10</span>
+            {% endif %}
+        </label>
+    </div>
+</details>
+
+<details class="settings-group">
+    <summary>Retry / Chống lỗi 429</summary>
+    <div class="settings-grid cols-3">
+        <label> retry attempts
+            <input type="number" name="retry_attempts" value="{{ cfg.crawl.retry.attempts }}" min="0"
+                class="{% if not is_default(cfg.crawl.retry.attempts, 'crawl', 'retry') %}overridden{% endif %}">
+        </label>
+        <label> retry delay_seconds
+            <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.crawl.retry.delay_seconds }}" min="0"
+                class="{% if not is_default(cfg.crawl.retry.delay_seconds, 'crawl', 'retry') %}overridden{% endif %}">
+        </label>
+        <label> backoff
+            <input type="number" step="0.1" name="retry_backoff" value="{{ cfg.crawl.retry.backoff }}" min="1"
+                class="{% if not is_default(cfg.crawl.retry.backoff, 'crawl', 'retry') %}overridden{% endif %}">
+        </label>
+    </div>
+    <div class="settings-grid cols-2">
+        <label> max_delay_seconds
+            <input type="number" step="0.1" name="retry_max_delay_seconds" value="{{ cfg.crawl.retry.max_delay_seconds }}" min="0"
+                class="{% if not is_default(cfg.crawl.retry.max_delay_seconds, 'crawl', 'retry') %}overridden{% endif %}">
+        </label>
+        <label class="check">
+            <input type="checkbox" name="retry_respect_retry_after" value="true" {% if cfg.crawl.retry.respect_retry_after %}checked{% endif %}
+                class="{% if not is_default(cfg.crawl.retry.respect_retry_after, 'crawl', 'retry') %}overridden{% endif %}">
+            respect_retry_after
+        </label>
+    </div>
+</details>
+
+<div class="form-actions">
+    <button type="submit">Lưu nguồn</button>
+    <button type="button" class="btn-raw" onclick="toggleRawYaml('raw-crawl')">YAML</button>
+</div>
+
+<div id="raw-crawl" class="raw-yaml" hidden>
+<pre><code>crawl:
+  engine: scrapling
   toc_url: {{ cfg.crawl.toc_url }}
   chapter_link_pattern: {{ cfg.crawl.chapter_link_pattern }}
-  encoding: {{ cfg.crawl.encoding }}
-  content_selector: {{ cfg.crawl.content_selector }}</code></pre>
-    </div>
+  content_selector: {{ cfg.crawl.content_selector }}
+  scrapling:
+    mode: {{ cfg.crawl.scrapling.mode }}</code></pre>
+</div>
+
 </form>

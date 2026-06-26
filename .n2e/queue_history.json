@@ -1,5 +1,44 @@
 [
   {
+    "id": "9e6002c0-54cd-439a-90ab-672393e81c63",
+    "category": "translate",
+    "step": "chapter-translate",
+    "label": "chapter-translate",
+    "ebook": "",
+    "state": "done",
+    "enqueued_at": 1782488806.0245917,
+    "started_at": 1782488806.0245917,
+    "ended_at": 1782488806.40216,
+    "error": "",
+    "cancelling": false
+  },
+  {
+    "id": "f8171c3c-7504-4e3b-ac18-fa062db775cd",
+    "category": "crawl",
+    "step": "chapter-crawl",
+    "label": "chapter-crawl",
+    "ebook": "",
+    "state": "done",
+    "enqueued_at": 1782488676.6744874,
+    "started_at": 1782488676.6744874,
+    "ended_at": 1782488694.690332,
+    "error": "",
+    "cancelling": false
+  },
+  {
+    "id": "e32cd322-6080-48ad-93db-85cc42c608f6",
+    "category": "crawl",
+    "step": "chapter-crawl",
+    "label": "chapter-crawl",
+    "ebook": "",
+    "state": "failed",
+    "enqueued_at": 1782488645.737406,
+    "started_at": 1782488645.737406,
+    "ended_at": 1782488645.8162477,
+    "error": "crawl.engine='http' đã bị loại bỏ. Engine duy nhất hiện tại là 'scrapling'. Xem README.md để biết cách migration.",
+    "cancelling": false
+  },
+  {
     "id": "a064fcfe-2a4f-4107-9036-5046e06067cb",
     "category": "crawl",
     "step": "chapter-crawl",

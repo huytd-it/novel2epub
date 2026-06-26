@@ -98,6 +98,14 @@ def _chapter_context(storage: Storage, ch, raw: str, translated: str, slug: str,
     raw_paras += [""] * (num_paras - len(raw_paras))
     mt_paras += [""] * (num_paras - len(mt_paras))
     edit_paras += [""] * (num_paras - len(edit_paras))
+    # Loại bỏ các row có raw trống (blank line, trailing newline)
+    filtered = [(r, m, e) for r, m, e in zip(raw_paras, mt_paras, edit_paras) if r.strip()]
+    if not filtered:
+        filtered = [("", "", "")]
+    raw_paras = [f[0] for f in filtered]
+    mt_paras = [f[1] for f in filtered]
+    edit_paras = [f[2] for f in filtered]
+    num_paras = len(raw_paras)
     return {
         "ch": ch,
         "raw": raw,
@@ -194,8 +202,10 @@ def ebook_chapter_save(slug: str, index: int, translated: str = Form(...)):
 
 
 @router.post("/ebooks/{slug}/chapters/{index}/action")
-def ebook_chapter_action(request: Request, slug: str, index: int, action: str = Form(...), override: bool = Form(False)):
+def ebook_chapter_action(request: Request, slug: str, index: int, action: str = Form(...), override: bool = Form(False), translate_backend: str = Form("moxhimt")):
     cfg = deps.resolved_cfg(slug)
+    if action == "translate" and translate_backend:
+        cfg.translate.type = translate_backend
 
     def _target(log):
         if action == "crawl":
@@ -208,6 +218,15 @@ def ebook_chapter_action(request: Request, slug: str, index: int, action: str = 
     started = request.app.state.job.start_custom(f"chapter-{action}", _target, category=action)
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
+
+
+@router.post("/ebooks/{slug}/chapters/{index}/delete-translation")
+def ebook_chapter_delete_translation(slug: str, index: int):
+    cfg = deps.resolved_cfg(slug)
+    storage, ch = _load_chapter_or_404(cfg, index)
+    storage.write_translated(ch, "")
+    storage.write_meta(ch, {})
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
 
 

@@ -8,13 +8,29 @@
 {% if ch.missing_fields %}<p class="muted">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}
 <p class="muted">Số từ bản dịch: {{ translated_word_count }} từ{% if raw %} · raw: {{ raw_char_count }} ký tự{% endif %}</p>
 {% if ch.last_action_status %}<p class="muted">Action gần nhất: {{ ch.last_action_status }}</p>{% endif %}
-<form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="form-row">
-    <label>Action
-        <select name="action"><option value="crawl">Crawl</option><option value="translate">Dịch</option></select>
-    </label>
-    <label class="check"><input type="checkbox" name="override" value="true"> Override old</label>
-    <button type="submit">Chạy cho chương này</button>
-</form>
+<div class="chapter-actions">
+    <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action">
+        <input type="hidden" name="action" value="crawl">
+        <input type="hidden" name="override" value="true">
+        <button type="submit">Crawl</button>
+    </form>
+    <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action">
+        <input type="hidden" name="action" value="translate">
+        <input type="hidden" name="override" value="true">
+        <span class="btn-group">
+            <select name="translate_backend">
+                <option value="moxhimt">MoxhiMT</option>
+                <option value="openai">OpenAI</option>
+                <option value="google">Google</option>
+            </select>
+            <button type="submit">Dịch</button>
+        </span>
+    </form>
+    <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/delete-translation">
+        <button type="submit">Xóa bản dịch</button>
+    </form>
+    <form method="post" action="{{ base }}/ai/suggest" class="ai-job-form"><button type="submit" title="AI gợi ý tên riêng/thuật ngữ trong chương để thêm vào glossary.">Gợi ý glossary</button></form>
+</div>
 
 <div id="job-status-section" style="margin: 1rem 0; padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 8px; background: #fcfcfc; display: none;">
     <p><strong>Trạng thái job:</strong>
@@ -26,59 +42,9 @@
 <p class="muted">Prompt/profile: <code>{{ meta.profile }}</code> · Model: <code>{{ meta.model or "-" }}</code></p>
 {% endif %}
 
-<div class="review-shell">
-    <aside class="quick-guide">
-        <div class="section-head">
-            <h3>Chú giải nhanh</h3>
-            <a class="muted" href="/ebooks/{{ slug }}/glossary">Mở glossary</a>
-        </div>
-        <p class="muted">Ưu tiên hiện các mục xuất hiện trong chương. Dùng khi đọc/sửa để thống nhất tên riêng, thuật ngữ và cách xưng hô.</p>
-        <input id="glossary-search" class="quick-search" type="search" placeholder="Lọc chú giải...">
-        <p class="muted">{{ glossary_relevant_count }}/{{ glossary_rows|length }} mục khớp chương này.</p>
-        <div class="quick-glossary" id="quick-glossary">
-            {% for row in glossary_rows[:80] %}
-            <div class="glossary-chip{% if row.relevant %} relevant{% endif %}{% if row.mismatch %} mismatch{% endif %}" data-search="{{ row.source }} {{ row.suggested }} {{ row.type }} {{ row.file }}" data-source="{{ row.source }}" data-suggested="{{ row.suggested }}">
-                <div><strong>{{ row.source }}</strong> <span class="muted">→</span> {{ row.suggested }}
-                    {% if row.relevant %}<button type="button" class="jump-btn" title="Soi vị trí trong raw + bản dịch">🔎</button>{% endif %}
-                </div>
-                {% if row.note %}<div class="muted">📝 {{ row.note }} <em>· → footnote khi build</em></div>{% endif %}
-                <div class="muted">{{ row.type }} · {{ row.file }}{% if row.relevant %} · trong chương{% endif %}
-                    {% if row.relevant %} · raw {{ row.raw_count }} lần · dịch {{ row.translated_count }} lần{% endif %}
-                    {% if row.mismatch %} · <strong class="warn">thiếu trong bản dịch?</strong>{% endif %}
-                </div>
-            </div>
-            {% else %}
-            <p class="muted">Chưa có glossary. Thêm nhanh ở cuối trang khi gặp tên riêng/thuật ngữ cần thống nhất.</p>
-            {% endfor %}
-        </div>
-        {% if glossary_rows|length > 80 %}
-        <p class="muted">Đang hiện 80 mục đầu. Vào trang Glossary để xem toàn bộ.</p>
-        {% endif %}
-
-        <details class="edit-rules" open>
-            <summary>Checklist edit hay</summary>
-            <ul>
-                <li>Đổi câu máy thành tiếng Việt tự nhiên, không bê nguyên Quick Translator.</li>
-                <li>Chọn ngôi xưng theo quan hệ, tuổi tác, thân phận và cảm xúc.</li>
-                <li>Dùng từ đồng nghĩa linh hoạt, đúng giọng truyện và nhân vật.</li>
-                <li>Cân bằng Hán Việt với thuần Việt để vừa có sắc thái vừa dễ hiểu.</li>
-                <li>Tra lại tên riêng, thành ngữ, thơ từ, điển cố trước khi đoán nghĩa.</li>
-            </ul>
-            <p class="muted">Tham chiếu: <code>docs/rule.md</code>, mục III.</p>
-        </details>
-    </aside>
-
-    <section class="chapter-workspace">
+<section class="chapter-workspace" style="grid-column: 1 / -1;">
 
 {% set base = "/ebooks/" ~ slug ~ "/chapters/" ~ ch.index %}
-
-<div class="ai-toolbar" data-job-category="translate">
-    <strong>AI hỗ trợ:</strong>
-    <form method="post" action="{{ base }}/ai/review" class="ai-job-form"><button type="submit" title="AI đọc bản dịch và liệt kê vấn đề theo mục III của rule.md — bạn tự sửa tay.">Review chương này</button></form>
-    <form method="post" action="{{ base }}/ai/rewrite" class="ai-job-form"><button type="submit" title="AI biên tập lại cả chương thành bản nháp để bạn xem diff rồi quyết định áp dụng.">Đề xuất bản biên tập</button></form>
-    <form method="post" action="{{ base }}/ai/suggest" class="ai-job-form"><button type="submit" title="AI gợi ý tên riêng/thuật ngữ trong chương để thêm vào glossary.">Gợi ý glossary</button></form>
-    <span class="muted">AI gợi ý, bạn là người quyết định.</span>
-</div>
 
 {% if meta and meta.ai_review and meta.ai_review.report %}
 {% set report = meta.ai_review.report %}
@@ -170,27 +136,15 @@
 
 <form method="post" action="{{ base }}" id="chapter-form">
     <div class="compare-wrap">
+        <div class="compare-toolbar">
+            <label class="check muted"><input type="checkbox" id="highlight-toggle" checked> Tô sáng glossary</label>
+        </div>
         <table class="compare-table" id="compare-table">
             <thead>
                 <tr>
-                    <th class="col-raw">
-                        <div class="section-head" style="margin:0;border:none">
-                            <h3>ZH — Gốc (Trung)</h3>
-                            <label class="check muted"><input type="checkbox" id="highlight-toggle" checked> Tô sáng</label>
-                        </div>
-                    </th>
-                    <th class="col-mt">
-                        <div class="section-head" style="margin:0;border:none">
-                            <h3>VI — Bản dịch máy</h3>
-                            <span class="muted">chỉ đọc · để đối chiếu</span>
-                        </div>
-                    </th>
-                    <th class="col-edit">
-                        <div class="section-head" style="margin:0;border:none">
-                            <h3>Biên tập — sửa &amp; lưu tại đây</h3>
-                            <form method="post" action="{{ base }}/ai/rewrite" class="ai-job-form" style="margin:0"><button type="submit" title="AI biên tập lại chương thành bản nháp để xem diff rồi áp dụng.">Biên tập bằng AI</button></form>
-                        </div>
-                    </th>
+                    <th class="col-raw">ZH — Gốc</th>
+                    <th class="col-mt">VI — Bản dịch máy</th>
+                    <th class="col-edit">Biên tập</th>
                 </tr>
             </thead>
             <tbody>
@@ -250,25 +204,6 @@
 {% endif %}
 
     </section>
-</div>
-
-<div class="section-head">
-    <h3>Thêm nhanh vào Glossary</h3>
-    <p class="muted">Thấy tên riêng/thuật ngữ cần thống nhất khi đọc bản dịch? Thêm ngay tại đây, không cần qua trang Glossary.</p>
-</div>
-<form method="post" action="/ebooks/{{ slug }}/glossary/quick-add" class="form-row">
-    <input type="hidden" name="chapter_index" value="{{ ch.index }}">
-    <label>Hán <input type="text" name="source" placeholder="庄国" required></label>
-    <label>Việt <input type="text" name="suggested" placeholder="Trang Quốc" required></label>
-    <label>Ghi chú (tùy chọn) <input type="text" name="note" placeholder="Sẽ thành footnote khi build"></label>
-    <label>File đích
-        <select name="target_file">
-            <option value="names.txt">names.txt (tên riêng)</option>
-            <option value="vietphrase.txt" selected>vietphrase.txt (thuật ngữ)</option>
-        </select>
-    </label>
-    <button type="submit">Thêm vào Glossary</button>
-</form>
 {% endblock %}
 
 {% block scripts %}
@@ -461,9 +396,9 @@ const statusSection = document.getElementById("job-status-section");
 // đọc giá trị đang chọn; mặc định "both" (an toàn, disable cả 2 khi không
 // xác định được).
 function jobCategoryFor(form) {
-    const select = form && form.querySelector ? form.querySelector('select[name="action"]') : null;
-    if (select && (select.value === "crawl" || select.value === "translate")) {
-        return select.value;
+    const input = form && form.querySelector ? form.querySelector('input[name="action"]') : null;
+    if (input && (input.value === "crawl" || input.value === "translate")) {
+        return input.value;
     }
     const el = form && form.closest ? form.closest("[data-job-category]") : null;
     return (el && el.dataset.jobCategory) || "both";

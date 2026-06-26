@@ -68,7 +68,7 @@ def test_chapter_page_renders_three_columns(tmp_path, monkeypatch):
     body = res.text
     assert "VI MÁY" in body          # cột VI (snapshot máy)
     assert "VI ĐÃ SỬA" in body       # cột Biên tập
-    assert "Biên tập bằng AI" in body  # nút AI trên cột Biên tập
+    assert "Crawl" in body                # nút crawl
 
 
 def test_save_edit_column_keeps_mt_snapshot(tmp_path, monkeypatch):

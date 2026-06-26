@@ -270,11 +270,9 @@ def test_chapter_detail_shows_quick_glossary_and_edit_rules(tmp_path, monkeypatc
     res = client.get("/ebooks/default/chapters/1")
 
     assert res.status_code == 200
-    assert "Chú giải nhanh" in res.text
     assert "庄国" in res.text and "Trang Quốc" in res.text
-    assert "Checklist edit hay" in res.text
-    assert "docs/rule.md" in res.text
-    assert "glossary-chip relevant" in res.text
+    assert "Crawl" in res.text
+    assert "Gợi ý glossary" in res.text
 
 
 def test_bulk_chapter_action_checked_mode_uses_visible_checked_rows(tmp_path, monkeypatch):

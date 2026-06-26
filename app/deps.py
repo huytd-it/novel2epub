@@ -10,7 +10,6 @@ from fastapi import HTTPException
 from fastapi.templating import Jinja2Templates
 
 from novel2epub.config import load_config, load_library
-from novel2epub.sources import load_presets
 
 BASE_DIR = Path(__file__).resolve().parent
 # File cấu hình gộp duy nhất (defaults + sources + ebooks). NOVEL2EPUB_CONFIG
@@ -18,10 +17,8 @@ BASE_DIR = Path(__file__).resolve().parent
 WORKSPACE_PATH = os.environ.get(
     "NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.yaml")
 )
-# Alias: nhiều route/template còn tham chiếu 3 tên cũ — đều trỏ về 1 file gộp.
 CONFIG_PATH = WORKSPACE_PATH
 LIBRARY_PATH = WORKSPACE_PATH
-SOURCES_PATH = WORKSPACE_PATH
 # Sidecar workspace state (lịch sử queue, automation, archived flags...) —
 # nằm cạnh file config gộp, không commit (xem design.md D3).
 WORKSPACE_DIR = Path(WORKSPACE_PATH).resolve().parent / ".n2e"
@@ -46,27 +43,14 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "identifier": "",
     },
     "crawl": {
-        "engine": "http",
+        "engine": "scrapling",
         "toc_url": "",
         "chapter_link_pattern": r".*",
         "max_chapters": 0,
         "delay_seconds": 1.0,
-        "encoding": "",
         "content_selector": "",
-        "toc_selector": "",
-        "chapter_title_selector": "",
-        "title_selector": "",
-        "author_selector": "",
-        "desc_selector": "",
-        "cover_selector": "",
         "headless": True,
-        "magic": True,
-        "stealth": True,
-        "js_code": "",
-        "scrapling_mode": "stealthy",
-        "solve_cloudflare": False,
-        "network_idle": True,
-        "impersonate": "",
+        "scrapling": {"mode": "fetcher", "solve_cloudflare": False, "network_idle": True, "impersonate": ""},
         "next_page_selector": "",
         "next_page_url_pattern": "",
         "max_pages_per_chapter": 10,
@@ -128,10 +112,6 @@ def cfg():
 
 def library():
     return load_library(WORKSPACE_PATH)
-
-
-def presets():
-    return load_presets(WORKSPACE_PATH)
 
 
 def resolve_path(base: Path, value: str) -> str:

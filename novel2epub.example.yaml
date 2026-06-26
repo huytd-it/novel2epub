@@ -2,9 +2,8 @@
 # novel2epub — file cấu hình GỘP duy nhất
 # Copy thành `novel2epub.yaml` rồi chỉnh sửa.
 #
-# 3 khối:
+# 2 khối:
 #   defaults: phần DÙNG CHUNG cho mọi ebook (prompt dịch, style, output...).
-#   sources : preset theo website (selector/pattern) để tái dùng khi thêm ebook.
 #   ebooks  : mỗi ebook CHỈ khai phần KHÁC với defaults (deep-merge lên defaults).
 #
 # Config hiệu lực của 1 ebook = deep_merge(defaults, ebooks[<slug>]).
@@ -14,35 +13,28 @@
 
 defaults:
   crawl:
-    # engine: http (requests+BS4, free) | crawl4ai (browser thật, render JS) | scrapling (stealth, anti-bot)
-    engine: http
+    # Scrapling là engine duy nhất. 3 mode: fetcher (mặc định), stealthy, dynamic.
+    engine: scrapling
+    scrapling:
+      mode: fetcher
+      solve_cloudflare: false   # chỉ dùng cho mode stealthy
+      network_idle: true        # stealthy/dynamic
+      impersonate: ""           # TLS fingerprint cho fetcher (vd "chrome")
     delay_seconds: 1.0
     content_selector: ""        # CSS vùng nội dung chương, vd "#content"
-    toc_selector: ""            # CSS vùng danh sách link chương (chỉ engine http)
-    chapter_title_selector: ""
-    encoding: ""                # "" = tự đoán; site Trung hay dùng "gbk"
-    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    headless: true              # chỉ crawl4ai
-    magic: true                 # chỉ crawl4ai — vượt bot detection
+    headless: true              # stealthy/dynamic mode
     next_page_selector: ""      # phân trang trong 1 chương (vd "a#pager_next")
     max_pages_per_chapter: 10
     max_chapters: 0             # 0 = tải tất cả
-    # Thử lại + lùi dần khi bị HTTP 429 (Too Many Requests) / chặn anti-bot.
-    # Chỉ kích hoạt khi chương tải LỖI; tôn trọng header Retry-After nếu server gửi.
-    # Bị 429 nhiều? Tăng delay_seconds (giãn cách đều), giảm max_workers, tăng retry dưới đây.
     retry:
-      attempts: 3               # số lần thử lại sau lần đầu thất bại (0 = tắt)
-      delay_seconds: 5.0        # chờ ban đầu trước lần thử lại đầu tiên
-      backoff: 2.0              # nhân thời gian chờ mỗi lần (5s -> 10s -> 20s ...)
-      max_delay_seconds: 120.0  # trần thời gian chờ một lần
-      respect_retry_after: true # ưu tiên header Retry-After của server nếu có
+      attempts: 3
+      delay_seconds: 5.0
+      backoff: 2.0
+      max_delay_seconds: 120.0
+      respect_retry_after: true
 
   translate:
-    # type: moxhimt (model NMT cục bộ, offline, miễn phí — mặc định)
-    #     | openai (AI OpenAI-Compatible: OpenAI, OpenRouter, Ollama, LM Studio, vLLM...)
-    #     | google (deep-translator)
-    #     | none (giữ gốc)
-    type: moxhimt
+    type: moxhimt              # moxhimt | openai | google | none
     style:
       tone: "mượt, tự nhiên, có chất cổ trang"
       pronoun_policy: contextual
@@ -53,251 +45,22 @@ defaults:
     chunk: { max_chars: 1500, overlap_paragraphs: 0 }
     delay_seconds: 0.5
     openai:
-      base_url: "https://api.openai.com/v1"  # vd "https://openrouter.ai/api/v1", "http://localhost:11434/v1" (Ollama)
-      api_key: ""                # token Bearer — để trống nếu provider local không yêu cầu
+      base_url: "https://api.openai.com/v1"
+      api_key: ""
       model: "gpt-4o-mini"
       timeout_seconds: 300
       temperature: 0.7
-      # Bỏ trống prompt_template/title_prompt_template để dùng prompt mặc định
-      # tích hợp sẵn trong code (novel2epub/config.py: DEFAULT_PROMPT/TITLE_PROMPT).
-      # Chỉ khai ở đây hoặc trong từng ebook khi muốn ghi đè.
-    # Backend dịch cục bộ MoxhiMT (chỉ dùng khi type: moxhimt). Chạy offline,
-    # miễn phí, tối ưu cho tiểu thuyết mạng/tiên hiệp. Model tự tải từ Hugging
-    # Face Hub lần đầu. Cần: pip install ctranslate2 sentencepiece huggingface_hub
-    # MẶC ĐỊNH bên dưới đã là cấu hình chất lượng cao nhất — không cần chỉnh gì.
     moxhimt:
-      # model_id cùng kiến trúc SentencePiece + CTranslate2 Marian (đổi 1 dòng):
-      #   DanVP/MoxhiMT-60          (mặc định — bản 60, chất lượng cao nhất)
-      #   DanVP/MoxhiMT-30          (nhẹ/nhanh hơn)
-      #   DanVP/MoxhiMT-30-web
-      #   ngocdang83/HachimiMT-60-zh-vi
-      #   ngocdang83/HachimiMT-30-zh-vi
-      # KHÔNG hỗ trợ: hy-mt-xianxia-lora-vi (LoRA), moxhimt-pronoun-clf (classifier).
       model_id: "DanVP/MoxhiMT-60"
-      beam_size: 4              # rộng hơn = tốt hơn (chậm hơn)
-      max_length: 512           # trần token/lượt dịch của model
-      chunk_mode: paragraph     # paragraph (cẩn thận nhất) | sentence (nhanh hơn)
-      cache_dir: ""             # trống = cache mặc định của huggingface_hub
-      device: cpu
+      beam_size: 4
+      max_length: 512
+      max_input_tokens: 0
+      chunk_mode: paragraph
+      cache_dir: ""
+      device: auto
 
   output:
-    data_dir: data              # thư mục cache raw + bản dịch
-
-sources:
-  biquge:
-    name: 笔趣阁 (generic biquge clone)
-    url: https://www.biquge.co/
-    domains: biquge,biqu,bqg,biqudu,biqun,xbiqug,biquwo,biqooge,paoshu8,ddxs,b520
-    engine: http
-    toc_selector: '#list'
-    content_selector: '#content'
-    chapter_title_selector: .bookname h1
-    title_selector: '#info h1'
-    desc_selector: '#intro'
-    cover_selector: '#fmimg img'
-    chapter_link_pattern: /\w+/\d+\.html$
-    delay_seconds: 1.0
-  shuhaige:
-    name: 书海阁 (shuhaige.net)
-    url: https://www.shuhaige.net/
-    domains: shuhaige.net
-    engine: http
-    toc_selector: '#list'
-    content_selector: '#content'
-    chapter_title_selector: .bookname h1
-    title_selector: '#info h1'
-    desc_selector: '#intro'
-    cover_selector: '#fmimg img'
-    chapter_link_pattern: /\w+/\d+\.html$
-    next_page_selector: a#pager_next
-    max_pages_per_chapter: 10
-    delay_seconds: 1.0
-  bqg128:
-    name: 笔趣阁 (bqg128.com)
-    url: https://www.bqg128.com/
-    domains: bqg128.com
-    engine: http
-    toc_selector: '#list'
-    content_selector: '#content'
-    chapter_title_selector: .bookname h1
-    title_selector: '#info h1'
-    desc_selector: '#intro'
-    cover_selector: '#fmimg img'
-    chapter_link_pattern: /\w+/\d+\.html$
-    delay_seconds: 1.0
-  xbiquge:
-    name: 新笔趣阁 (xbiqugu.la)
-    url: http://www.xbiqugu.la/
-    domains: xbiqugu.la,xbiquge.la,xbiquge.so
-    engine: http
-    toc_selector: '#list'
-    content_selector: '#content'
-    chapter_title_selector: .bookname h1
-    title_selector: '#info h1'
-    desc_selector: '#intro'
-    cover_selector: '#fmimg img'
-    chapter_link_pattern: /\w+/\d+\.html$
-    encoding: gbk
-    delay_seconds: 1.0
-  aixdzs:
-    name: 爱下电子书 (aixdzs)
-    url: https://www.aixdzs.com/
-    domains: aixdzs.com,aixdzs.org
-    engine: http
-    toc_selector: '#i-chapter'
-    content_selector: .content
-    encoding: utf-8
-    delay_seconds: 1.0
-  69shuba:
-    name: 69书吧 (69shuba)
-    url: https://www.69shuba.com/
-    domains: 69shuba.com,69shu.com,69yuedu.net
-    engine: crawl4ai
-    content_selector: .txtnav
-    chapter_link_pattern: /txt/\d+/\d+
-    headless: true
-    magic: true
-    delay_seconds: 1.5
-  biqudu:
-    name: 笔趣读 (biqudu.net)
-    url: https://www.biqudu.net/
-    domains: biqudu.net
-    engine: crawl4ai
-    content_selector: '#content'
-    headless: true
-    magic: true
-    delay_seconds: 1.5
-  qidian:
-    name: 起点中文网 (qidian)
-    url: https://www.qidian.com/
-    domains: qidian.com
-    engine: crawl4ai
-    content_selector: .read-content
-    headless: true
-    magic: true
-    delay_seconds: 2.0
-  jjwxc:
-    name: 晋江文学城 (jjwxc.net)
-    url: https://www.jjwxc.net/
-    domains: jjwxc.net
-    engine: crawl4ai
-    encoding: gb2312
-    headless: true
-    magic: true
-    delay_seconds: 2.0
-  ciweimao:
-    name: 刺猬猫 (ciweimao.com)
-    url: https://www.ciweimao.com/
-    domains: ciweimao.com
-    engine: crawl4ai
-    headless: true
-    magic: true
-    delay_seconds: 2.0
-  hetushu:
-    name: 和图书 (hetushu.com)
-    url: https://www.hetushu.com/
-    domains: hetushu.com,hetubook.com
-    engine: crawl4ai
-    content_selector: '#content'
-    headless: true
-    magic: true
-    delay_seconds: 1.5
-  sto9:
-    name: 思兔 (sto9.com)
-    url: https://www.sto9.com/
-    domains: sto9.com
-    engine: crawl4ai
-    toc_selector: '#allchapter'
-    headless: true
-    magic: true
-    delay_seconds: 1.0
-  shuqi:
-    name: 书旗小说 (shuqi.com)
-    url: https://www.shuqi.com/
-    domains: shuqi.com
-    engine: crawl4ai
-    headless: true
-    magic: true
-    delay_seconds: 1.5
-  qqread:
-    name: QQ阅读 (read.qq.com)
-    url: https://book.qq.com/
-    domains: read.qq.com,book.qq.com
-    engine: crawl4ai
-    headless: true
-    magic: true
-    delay_seconds: 1.5
-  # ----- scrapling: 3 mode, chọn theo mức độ chặn bot của site -----
-  # fetcher  = HTTP thuần + giả TLS fingerprint (nhanh/nhẹ, concurrency cao,
-  #            hợp site chỉ chặn theo fingerprint, không cần JS/Cloudflare)
-  # stealthy = browser Camoufox thật, vượt được Cloudflare Turnstile (nặng hơn,
-  #            concurrency nên thấp ~4-6 để tránh ngốn RAM)
-  # dynamic  = full Playwright (nặng nhất, chỉ dùng khi site cần JS phức tạp)
-  scrapling-fetcher:
-    name: Scrapling fetcher (mẫu — site chỉ chặn theo TLS, không cần browser)
-    url: ""
-    domains: ""
-    engine: scrapling
-    scrapling_mode: fetcher
-    impersonate: chrome
-    concurrency_cap: 20         # fetcher nhẹ -> chịu được nhiều luồng song song
-    delay_seconds: 0.5
-  scrapling-stealth:
-    name: Scrapling stealth (mẫu — site có Cloudflare/anti-bot mạnh)
-    url: ""
-    domains: ""
-    engine: scrapling
-    scrapling_mode: stealthy
-    solve_cloudflare: true
-    network_idle: true
-    headless: true
-    concurrency_cap: 4          # browser thật -> giữ thấp để không ngốn RAM
-    delay_seconds: 2.0
-  qidian-scrapling:
-    name: 起点中文网 qua Scrapling (thay thế qidian/crawl4ai nếu vẫn bị chặn)
-    url: https://www.qidian.com/
-    domains: qidian.com
-    engine: scrapling
-    scrapling_mode: stealthy
-    solve_cloudflare: true
-    network_idle: true
-    content_selector: .read-content
-    concurrency_cap: 4
-    delay_seconds: 2.0
-  jjwxc-scrapling:
-    name: 晋江文学城 qua Scrapling (site hay chặn theo TLS fingerprint + Cloudflare)
-    url: https://www.jjwxc.net/
-    domains: jjwxc.net
-    engine: scrapling
-    scrapling_mode: stealthy
-    solve_cloudflare: true
-    network_idle: true
-    encoding: gb2312
-    concurrency_cap: 4
-    delay_seconds: 2.0
-  69shuba-scrapling:
-    name: 69书吧 qua Scrapling fetcher (thay thế bản crawl4ai — nhẹ hơn, crawl nhanh hơn nhiều)
-    url: https://www.69shuba.com/
-    domains: 69shuba.com,69shu.com,69yuedu.net
-    engine: scrapling
-    scrapling_mode: fetcher
-    impersonate: chrome
-    content_selector: .txtnav
-    chapter_link_pattern: /txt/\d+/\d+
-    concurrency_cap: 20
-    delay_seconds: 0.8
-  baike:
-    name: 百度百科 (metadata only)
-    url: https://baike.baidu.com/
-    domains: baike.baidu.com
-    engine: crawl4ai
-    content_selector: .para
-    title_selector: .lemmaTitle_list h1
-    desc_selector: .para
-    cover_selector: .summary-pic img
-    headless: true
-    magic: true
-    delay_seconds: 0.5
+    data_dir: data
 
 ebooks:
   vi-du-truyen:
@@ -306,9 +69,11 @@ ebooks:
       title: "Tên truyện (tiếng Việt)"
       author: "Tác giả"
       language: vi
-      slug: vi-du-truyen          # = tên thư mục data/<slug>/
+      slug: vi-du-truyen
     crawl:
       toc_url: "https://www.shuhaige.net/17619/"
       chapter_link_pattern: '/17619/\d+\.html'
-    # translate: { glossary: { "元宵": "Nguyên Tiêu" } }   # override riêng nếu cần
-    # output: { epub_path: "Ten-Truyen.epub" }            # "" = "<slug>.epub"
+      content_selector: '#content'
+      scrapling:
+        mode: fetcher
+        impersonate: chrome

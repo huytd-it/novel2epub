@@ -11,7 +11,6 @@ from novel2epub.config import CrawlConfig, load_config
 from novel2epub.config_writer import add_ebook, remove_ebook
 from novel2epub.crawler import make_crawler
 from novel2epub.pipeline import _clean_title
-from novel2epub.sources import detect_preset, preset_matches_url
 from novel2epub.translator import RateLimited, make_translator
 
 from .. import deps
@@ -26,15 +25,8 @@ def slugify(value: str) -> str:
 
 
 def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
-    """Crawl TOC URL và trả về metadata detect được + slug gợi ý.
-    Tự động detect preset nếu chưa có.
-    """
-    all_presets = deps.presets()
-    preset_name = preset_name or detect_preset(toc_url, all_presets) or ""
-    p = all_presets.get(preset_name)
-    overrides = p.crawl_overrides() if p else {}
-    overrides.pop("chapter_link_pattern", None)
-    crawl_cfg = CrawlConfig(toc_url=toc_url, **overrides)
+    """Crawl TOC URL và trả về metadata detect được + slug gợi ý."""
+    crawl_cfg = CrawlConfig(toc_url=toc_url)
 
     crawler = make_crawler(crawl_cfg)
     try:
@@ -63,18 +55,12 @@ def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
             pass
 
     slug = slugify(name or slugify(toc_url))
-    suggest_url = ""
-    if not preset_name:
-        suggest_url = f"/preset-builder?toc_url={toc_url}"
     return {
         "name": name,
         "author": author,
         "slug": slug,
         "cover_url": cover_url,
         "chapter_count": chapter_count,
-        "preset": preset_name,
-        "suggested_preset": None,
-        "suggest_url": suggest_url,
     }
 
 
@@ -87,36 +73,14 @@ def library_page():
 @router.post("/library/ebooks/preview")
 def preview_ebook_api(
     toc_url: str = Form(""),
-    preset: str = Form(""),
 ):
-    """API: validate link khớp nguồn đã chọn rồi fetch metadata, trả JSON.
-
-    Luồng thêm ebook: chọn nguồn (preset) trước → paste link. Link phải khớp
-    domain của nguồn đã chọn mới fetch metadata để preview.
-    """
+    """API: fetch metadata từ URL mục lục, trả JSON."""
     toc_url = toc_url.strip()
     if not toc_url:
         return JSONResponse({"error": "Thiếu URL mục lục."}, status_code=400)
-    if not preset:
-        return JSONResponse({"error": "Hãy chọn nguồn trước."}, status_code=400)
-
-    p = deps.presets().get(preset)
-    if p is None:
-        return JSONResponse({"error": f"Không tìm thấy nguồn '{preset}'."}, status_code=400)
-
-    if not preset_matches_url(p, toc_url):
-        return JSONResponse(
-            {
-                "error": f"Link không thuộc nguồn '{preset}' (domain: {p.domains}). "
-                "Nếu đây là nguồn mới, hãy tạo preset trước.",
-                "suggest_url": f"/preset-builder?toc_url={toc_url}",
-            },
-            status_code=400,
-        )
 
     try:
-        data = _fetch_meta(toc_url, preset)
-        data["engine"] = p.engine
+        data = _fetch_meta(toc_url)
         return JSONResponse(data)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -128,25 +92,15 @@ def create_ebook(
     name: str = Form(""),
     author: str = Form(""),
     toc_url: str = Form(""),
-    preset: str = Form(""),
 ):
     toc_url = toc_url.strip()
-    preset = preset.strip()
-    if not preset:
-        raise HTTPException(status_code=400, detail="Hãy chọn nguồn trước.")
-    p = deps.presets().get(preset)
-    if p is None:
-        raise HTTPException(status_code=400, detail=f"Không tìm thấy nguồn '{preset}'.")
-    if not preset_matches_url(p, toc_url):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Link không thuộc nguồn '{preset}' (domain: {p.domains}).",
-        )
+    if not toc_url:
+        raise HTTPException(status_code=400, detail="Thiếu URL mục lục.")
 
     # name/author/slug thường gửi từ bước preview. Nếu thiếu (vd JS tắt) thì tự fetch.
     if not name and toc_url:
         try:
-            fetched = _fetch_meta(toc_url, preset)
+            fetched = _fetch_meta(toc_url)
             name = fetched.get("name", "")
             author = author or fetched.get("author", "")
             slug = slug or fetched.get("slug", "")
@@ -166,8 +120,7 @@ def create_ebook(
         title=name,
         author=author,
         toc_url=toc_url,
-        engine=p.engine,
-        preset=p.crawl_overrides(),
+        engine="scrapling",
     )
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 

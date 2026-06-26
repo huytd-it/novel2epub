@@ -144,7 +144,7 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
         yaml.safe_dump(
             {
                 "defaults": {
-                    "crawl": {"engine": "http", "content_selector": "#default"},
+                    "crawl": {"engine": "scrapling", "content_selector": "#default"},
                     "translate": {"type": "none", "openai": {"base_url": "https://custom.test/v1"}},
                     "output": {"data_dir": "data"},
                 },
@@ -152,7 +152,7 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
                     "a": {
                         "name": "Truyện A",
                         "novel": {"slug": "a", "title": "A"},
-                        "crawl": {"toc_url": "https://a", "engine": "crawl4ai"},
+                        "crawl": {"toc_url": "https://a", "scrapling": {"mode": "stealthy"}},
                     },
                     "b": {
                         "novel": {"slug": "b"},
@@ -166,7 +166,8 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
 
     cfg_a = load_config(path, "a")
     assert cfg_a.novel.title == "A"
-    assert cfg_a.crawl.engine == "crawl4ai"          # override
+    assert cfg_a.crawl.engine == "scrapling"          # từ defaults (không override)
+    assert cfg_a.crawl.scrapling.mode == "stealthy"   # override từ ebook a
     assert cfg_a.crawl.content_selector == "#default"  # kế thừa defaults
     assert cfg_a.crawl.toc_url == "https://a"
     assert cfg_a.translate.openai.base_url == "https://custom.test/v1"  # kế thừa defaults
@@ -175,7 +176,7 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
     assert load_config(path).novel.slug == "a"
     # Ebook 'b' chỉ override toc_url, mọi thứ khác từ defaults.
     cfg_b = load_config(path, "b")
-    assert cfg_b.crawl.engine == "http"
+    assert cfg_b.crawl.engine == "scrapling"
     assert cfg_b.crawl.content_selector == "#default"
 
 
@@ -187,3 +188,64 @@ def test_unified_file_unknown_slug_raises(tmp_path):
     )
     with pytest.raises(KeyError, match="nonexistent"):
         load_config(path, "nonexistent")
+
+
+def test_default_translate_type_is_moxhimt(tmp_path):
+    """Không khai báo translate.type → mặc định type=moxhimt."""
+    path = tmp_path / "novel2epub.yaml"
+    path.write_text(
+        yaml.safe_dump({
+            "novel": {"slug": "test"},
+            "crawl": {"toc_url": "https://example.com"},
+            "translate": {},
+            "output": {"data_dir": "data"},
+        }),
+        encoding="utf-8",
+    )
+    cfg = load_config(path)
+    assert cfg.translate.type == "moxhimt"
+
+
+def test_hachimimt_auto_preset(tmp_path):
+    """model_id chứa HachimiMT → beam_size=2, max_input_tokens=160 nếu chưa override."""
+    path = tmp_path / "novel2epub.yaml"
+    path.write_text(
+        yaml.safe_dump({
+            "novel": {"slug": "test"},
+            "crawl": {"toc_url": "https://example.com"},
+            "translate": {
+                "type": "moxhimt",
+                "moxhimt": {
+                    "model_id": "ngocdang83/HachimiMT-60-zh-vi",
+                },
+            },
+            "output": {"data_dir": "data"},
+        }),
+        encoding="utf-8",
+    )
+    cfg = load_config(path)
+    assert cfg.translate.moxhimt.beam_size == 2
+    assert cfg.translate.moxhimt.max_input_tokens == 160
+
+
+def test_hachimimt_auto_preset_respects_user_override(tmp_path):
+    """User override beam_size → không bị auto-preset ghi đè."""
+    path = tmp_path / "novel2epub.yaml"
+    path.write_text(
+        yaml.safe_dump({
+            "novel": {"slug": "test"},
+            "crawl": {"toc_url": "https://example.com"},
+            "translate": {
+                "type": "moxhimt",
+                "moxhimt": {
+                    "model_id": "ngocdang83/HachimiMT-60-zh-vi",
+                    "beam_size": 4,
+                },
+            },
+            "output": {"data_dir": "data"},
+        }),
+        encoding="utf-8",
+    )
+    cfg = load_config(path)
+    assert cfg.translate.moxhimt.beam_size == 4
+    assert cfg.translate.moxhimt.max_input_tokens == 160  # vẫn áp dụng vì chưa override

@@ -6,7 +6,7 @@ import threading
 import time
 
 from novel2epub import pipeline
-from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig, TranslateConfig
+from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig, ScraplingConfig, TranslateConfig
 from novel2epub.crawl_throttle import AdaptiveConcurrency, DomainRateLimiter
 from novel2epub.crawler import TocResult
 from novel2epub.storage import Chapter, Storage
@@ -15,33 +15,28 @@ from novel2epub.storage import Chapter, Storage
 # ---------- CrawlConfig.effective_workers / default_concurrency_cap ----------
 
 
-def test_default_cap_high_for_http_engine():
-    cfg = CrawlConfig(toc_url="http://x/", engine="http")
-    assert cfg.default_concurrency_cap() == 20
-
-
 def test_default_cap_high_for_scrapling_fetcher():
-    cfg = CrawlConfig(toc_url="http://x/", engine="scrapling", scrapling_mode="fetcher")
+    cfg = CrawlConfig(toc_url="http://x/", scrapling=ScraplingConfig(mode="fetcher"))
     assert cfg.default_concurrency_cap() == 20
 
 
 def test_default_cap_low_for_scrapling_stealthy():
-    cfg = CrawlConfig(toc_url="http://x/", engine="scrapling", scrapling_mode="stealthy")
+    cfg = CrawlConfig(toc_url="http://x/", scrapling=ScraplingConfig(mode="stealthy"))
     assert cfg.default_concurrency_cap() == 5
 
 
-def test_default_cap_low_for_crawl4ai():
-    cfg = CrawlConfig(toc_url="http://x/", engine="crawl4ai")
+def test_default_cap_low_for_scrapling_dynamic():
+    cfg = CrawlConfig(toc_url="http://x/", scrapling=ScraplingConfig(mode="dynamic"))
     assert cfg.default_concurrency_cap() == 5
 
 
 def test_effective_workers_never_exceeds_source_cap():
-    cfg = CrawlConfig(toc_url="http://x/", engine="scrapling", scrapling_mode="stealthy")
+    cfg = CrawlConfig(toc_url="http://x/", scrapling=ScraplingConfig(mode="stealthy"))
     assert cfg.effective_workers(100) == 5
 
 
 def test_effective_workers_honors_explicit_override():
-    cfg = CrawlConfig(toc_url="http://x/", engine="http", concurrency_cap=3)
+    cfg = CrawlConfig(toc_url="http://x/", concurrency_cap=3)
     assert cfg.effective_workers(100) == 3
 
 
@@ -159,8 +154,8 @@ def test_step_crawl_selected_caps_concurrency_to_source_default(tmp_path, monkey
     cfg = Config(
         novel=NovelConfig(slug="t"),
         crawl=CrawlConfig(
-            toc_url="http://x/book/1/", delay_seconds=0, engine="scrapling",
-            scrapling_mode="stealthy", max_workers=20,
+            toc_url="http://x/book/1/", delay_seconds=0,
+            scrapling=ScraplingConfig(mode="stealthy"), max_workers=20,
         ),
         translate=TranslateConfig(type="none"),
         output=OutputConfig(data_dir=str(tmp_path)),

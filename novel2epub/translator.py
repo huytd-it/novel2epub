@@ -371,7 +371,8 @@ class MoxhiMTTranslator:
         self._import_spm()
         self._import_hub()
         self._ct2 = None
-        self._sp = None
+        self._sp_src = None
+        self._sp_tgt = None
 
     # ----- lazy import (tránh ép cài nặng cho người không dùng backend này) -----
     @staticmethod
@@ -420,8 +421,12 @@ class MoxhiMTTranslator:
             ) from e
         return Path(local)
 
-    def _locate_model_files(self, root: Path) -> tuple[Path, Path]:
+    def _locate_model_files(self, root: Path) -> tuple[Path, Path, Path | None]:
         """Tìm thư mục model CTranslate2 (chứa model.bin) + file SentencePiece.
+
+        Trả (ct2_dir, source_spm, target_spm_or_none):
+        - Nếu root có cả source.spm + target.spm → separate tokenizer (HachimiMT)
+        - Nếu chỉ có 1 file .model/.spm → shared tokenizer (MoxhiMT), target = None
 
         Robust với nhiều layout repo trong họ model (ưu tiên bản INT8 `ct2-int8/`
         cho tốc độ CPU). Raise RuntimeError rõ ràng nếu repo không đúng định dạng
@@ -449,20 +454,17 @@ class MoxhiMTTranslator:
                 f"model_id {self.mox.model_id!r} thiếu file tokenizer."
             )
 
-        def _spm_rank(p: Path) -> tuple:
-            name = p.name.lower()
-            if "source" in name or "src" in name:
-                score = 0
-            elif "shared" in name or "joint" in name or "spm" in name:
-                score = 1
-            elif name.endswith(".model"):
-                score = 2
-            else:
-                score = 3
-            return (score, len(str(p)))
+        # Detect separate source.spm + target.spm pair (HachimiMT layout)
+        source_spm = next((p for p in spm_files if p.name.lower() in ("source.spm", "src.spm")), None)
+        target_spm = next((p for p in spm_files if p.name.lower() in ("target.spm", "tgt.spm")), None)
+        if source_spm and target_spm:
+            return ct2_dir, source_spm, target_spm
 
-        spm_path = sorted(spm_files, key=_spm_rank)[0]
-        return ct2_dir, spm_path
+        # Fallback: shared tokenizer (MoxhiMT layout — single .model or .spm)
+        spm_path = sorted(spm_files, key=lambda p: (
+            0 if p.name.lower().endswith(".model") else 1, len(str(p))
+        ))[0]
+        return ct2_dir, spm_path, None
 
     def _ensure_loaded(self) -> None:
         if self._ct2 is not None:
@@ -470,20 +472,38 @@ class MoxhiMTTranslator:
         ct2 = self._import_ct2()
         spm = self._import_spm()
         model_dir = self._download_model()
-        ct2_dir, spm_path = self._locate_model_files(model_dir)
+        ct2_dir, src_path, tgt_path = self._locate_model_files(model_dir)
+
+        # GPU auto-detect
+        device = self.mox.device
+        if device == "auto":
+            try:
+                if ct2.get_cuda_device_count() > 0:
+                    device = "cuda"
+                else:
+                    device = "cpu"
+            except Exception:
+                device = "cpu"
+
         inter_threads, intra_threads = self.mox.resolved_threads()
+        tokenizer_label = "source+target" if tgt_path else src_path.name
         self.log(
-            f"  … nạp model MoxhiMT {self.mox.model_id} (ct2={ct2_dir.name}, spm={spm_path.name}, "
-            f"inter_threads={inter_threads}, intra_threads={intra_threads})"
+            f"  … nạp model {self.mox.model_id} (ct2={ct2_dir.name}, spm={tokenizer_label}, "
+            f"device={device}, inter_threads={inter_threads}, intra_threads={intra_threads})"
         )
         try:
             self._ct2 = ct2.Translator(
                 str(ct2_dir),
-                device=self.mox.device,
+                device=device,
                 inter_threads=inter_threads,
                 intra_threads=intra_threads,
             )
-            self._sp = spm.SentencePieceProcessor(model_file=str(spm_path))
+            self._sp_src = spm.SentencePieceProcessor(model_file=str(src_path))
+            self._sp_tgt = (
+                spm.SentencePieceProcessor(model_file=str(tgt_path))
+                if tgt_path
+                else self._sp_src
+            )
         except Exception as e:  # noqa: BLE001
             raise RuntimeError(
                 f"Không nạp được model MoxhiMT từ {model_dir}: {e}."
@@ -491,22 +511,24 @@ class MoxhiMTTranslator:
 
     # ----- chia chunk + dịch -----
     def _token_budget(self) -> int:
+        if self.mox.max_input_tokens > 0:
+            return self.mox.max_input_tokens
         # Chừa biên cho token đặc biệt + bản dịch VI thường dài hơn nguồn ZH.
         return max(16, int(self.mox.max_length) - 32)
 
     def _ntokens(self, text: str) -> int:
-        return len(self._sp.encode(text, out_type=str))
+        return len(self._sp_src.encode(text, out_type=str))
 
     def _translate_texts(self, texts: list[str]) -> list[str]:
         if not texts:
             return []
-        batch = [self._sp.encode(t, out_type=str) for t in texts]
+        batch = [self._sp_src.encode(t, out_type=str) for t in texts]
         results = self._ct2.translate_batch(
             batch,
             beam_size=int(self.mox.beam_size),
             max_decoding_length=int(self.mox.max_length),
         )
-        return [self._sp.decode(r.hypotheses[0]) for r in results]
+        return [self._sp_tgt.decode(r.hypotheses[0]) for r in results]
 
     def _translate_line(self, line: str) -> str:
         """Dịch một dòng (đoạn văn). Gom cả đoạn nếu vừa token; nếu không thì
@@ -585,6 +607,25 @@ class MoxhiMTTranslator:
         out = _apply_glossary(self._translate_line(text.strip()), self.glossary)
         return out, ""
 
+    def translate_titles(self, titles: list[str]) -> list[str]:
+        """Dịch hàng loạt tiêu đề bằng 1 lần gọi translate_batch.
+
+        Entry rỗng/whitespace được giữ nguyên, không tốn inference.
+        Trả list kết quả đúng thứ tự input (không đảo).
+        """
+        if not titles:
+            return []
+        self._ensure_loaded()
+        non_empty_idx = [(i, t.strip()) for i, t in enumerate(titles) if t.strip()]
+        if not non_empty_idx:
+            return list(titles)
+        texts = [t for _, t in non_empty_idx]
+        outs = self._translate_texts(texts)
+        result = list(titles)
+        for (i, _), translated in zip(non_empty_idx, outs):
+            result[i] = _apply_glossary(translated, self.glossary)
+        return result
+
 
 def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = None) -> Translator:
     kind = (cfg.type or "none").lower()
@@ -620,5 +661,11 @@ class RateLimited:
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
         out = self.inner.translate_title(text, kind)
         if self.delay > 0:
+            time.sleep(self.delay)
+        return out
+
+    def translate_titles(self, titles: list[str]) -> list[str]:
+        out = self.inner.translate_titles(titles)
+        if self.delay > 0 and len(titles) > 0:
             time.sleep(self.delay)
         return out

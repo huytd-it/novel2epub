@@ -259,6 +259,61 @@ def test_download_failure_raises_runtimeerror(tmp_path, monkeypatch):
         t.translate("bất kỳ")
 
 
+def test_separate_source_target_spm_detected(tmp_path, monkeypatch):
+    """Model layout source.spm + target.spm → _locate_model_files trả đúng cặp."""
+    fake_ct2 = types.ModuleType("ctranslate2")
+    fake_ct2.Translator = _FakeCT2Translator
+    fake_spm = types.ModuleType("sentencepiece")
+    fake_spm.SentencePieceProcessor = _FakeSP
+    fake_hub = types.ModuleType("huggingface_hub")
+
+    model_root = tmp_path / "hachimi"
+    ct2_dir = model_root / "ct2-int8_float32"
+    ct2_dir.mkdir(parents=True)
+    (ct2_dir / "model.bin").write_bytes(b"\x00")
+    (model_root / "source.spm").write_bytes(b"\x00")
+    (model_root / "target.spm").write_bytes(b"\x00")
+    fake_hub.snapshot_download = lambda model_id, cache_dir=None: str(model_root)
+
+    monkeypatch.setitem(sys.modules, "ctranslate2", fake_ct2)
+    monkeypatch.setitem(sys.modules, "sentencepiece", fake_spm)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+
+    t = MoxhiMTTranslator(TranslateConfig(type="moxhimt"))
+    t.translate("dịch thử")
+
+    assert t._sp_src is not None
+    assert t._sp_tgt is not None
+    assert t._sp_src.model_file.endswith("source.spm")
+    assert t._sp_tgt.model_file.endswith("target.spm")
+
+
+def test_shared_spm_when_no_source_target(tmp_path, monkeypatch):
+    """Model layout chỉ có 1 file .model → _sp_src và _sp_tgt giống nhau."""
+    fake_ct2 = types.ModuleType("ctranslate2")
+    fake_ct2.Translator = _FakeCT2Translator
+    fake_spm = types.ModuleType("sentencepiece")
+    fake_spm.SentencePieceProcessor = _FakeSP
+    fake_hub = types.ModuleType("huggingface_hub")
+
+    model_root = tmp_path / "moxhi"
+    ct2_dir = model_root / "ct2-int8"
+    ct2_dir.mkdir(parents=True)
+    (ct2_dir / "model.bin").write_bytes(b"\x00")
+    (model_root / "tokenizer.model").write_bytes(b"\x00")
+    fake_hub.snapshot_download = lambda model_id, cache_dir=None: str(model_root)
+
+    monkeypatch.setitem(sys.modules, "ctranslate2", fake_ct2)
+    monkeypatch.setitem(sys.modules, "sentencepiece", fake_spm)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+
+    t = MoxhiMTTranslator(TranslateConfig(type="moxhimt"))
+    t.translate("dịch thử")
+
+    assert t._sp_src is not None
+    assert t._sp_tgt is t._sp_src  # shared — cùng object
+
+
 def test_model_without_ct2_format_raises(tmp_path, monkeypatch):
     """model_id trỏ tới repo không có model.bin (vd LoRA) → RuntimeError rõ ràng."""
     fake_ct2 = types.ModuleType("ctranslate2")
@@ -277,3 +332,40 @@ def test_model_without_ct2_format_raises(tmp_path, monkeypatch):
     t = MoxhiMTTranslator(TranslateConfig(type="moxhimt"))
     with pytest.raises(RuntimeError, match="CTranslate2"):
         t.translate("bất kỳ")
+
+
+def test_translate_titles_batch_all_non_empty(fake_model_env):
+    t = fake_model_env()
+    titles = ["第一章 龙王出世", "第二章 凤舞九天", "第三章 剑指苍穹"]
+    out = t.translate_titles(titles)
+    assert len(out) == 3
+    # echo: model giả trả lại token nguồn
+    assert out == titles
+
+
+def test_translate_titles_preserves_empty_entries(fake_model_env):
+    t = fake_model_env()
+    titles = ["第一章 龙王出世", "", "第三章 剑指苍穹"]
+    out = t.translate_titles(titles)
+    assert len(out) == 3
+    assert out[1] == ""  # entry rỗng giữ nguyên
+
+
+def test_translate_titles_empty_list(fake_model_env):
+    t = fake_model_env()
+    out = t.translate_titles([])
+    assert out == []
+
+
+def test_translate_titles_single_batch_call(fake_model_env):
+    _FakeCT2Translator.batch_calls = []
+    t = fake_model_env()
+    t.translate_titles(["A", "B", "C"])
+    # 3 titles → 1 batch call với batch size = 3
+    assert _FakeCT2Translator.batch_calls == [3]
+
+
+def test_translate_titles_all_empty_returns_original(fake_model_env):
+    t = fake_model_env()
+    out = t.translate_titles(["", "  "])
+    assert list(out) == ["", "  "]

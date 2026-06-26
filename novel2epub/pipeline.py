@@ -54,38 +54,34 @@ def _fmt(value: object, empty: str = "(trống)") -> str:
 
 
 def _emit_crawl_config(cfg: Config, log: LogFn) -> None:
-    """Echo config thực sự dùng cho tính năng CRAWL — để soi log đối chiếu
-    với cài đặt trong settings.html (engine nào, selector nào, có paginate
-    không, AI fallback bật chưa...) mà không cần mở file config."""
+    """Echo config thực sự dùng cho tính năng CRAWL."""
     c = cfg.crawl
-    log(f"[config] CRAWL dùng: engine={c.engine} | toc_url={_fmt(c.toc_url)} "
+    s = c.scrapling
+    log(f"[config] CRAWL dùng: engine={c.engine} scrapling.mode={s.mode} "
+        f"| toc_url={_fmt(c.toc_url)} "
         f"| content_selector={_fmt(c.content_selector, '(auto OG/body)')} "
         f"| chapter_link_pattern={c.chapter_link_pattern} "
         f"| max_chapters={_fmt(c.max_chapters, '∞')} | delay={c.delay_seconds}s "
-        f"| encoding={_fmt(c.encoding, '(auto)')} | max_workers={c.max_workers}")
+        f"| max_workers={c.max_workers}")
     if c.next_page_selector or c.next_page_url_pattern:
         rule = c.next_page_selector or f"url~{c.next_page_url_pattern}"
         log(f"[config] CRAWL pagination: {rule} (tối đa {c.max_pages_per_chapter} trang/chương)")
     else:
         log("[config] CRAWL pagination: off")
+    if s.mode == "stealthy" and s.solve_cloudflare:
+        log("[config] CRAWL scrapling: stealth + solve_cloudflare")
+    if s.mode == "fetcher" and s.impersonate:
+        log(f"[config] CRAWL scrapling: fetcher impersonate={s.impersonate}")
+    if c.ai_fallback:
+        log(f"[config] CRAWL AI fallback: ON (≤{c.ai_fallback_max_html} ký tự HTML gửi AI)")
+    else:
+        log("[config] CRAWL AI fallback: off")
     r = c.retry
     if r.attempts > 0:
         log(f"[config] CRAWL retry (429/anti-bot): {r.attempts} lần | chờ {r.delay_seconds}s "
             f"×{r.backoff} (trần {r.max_delay_seconds}s) | respect_retry_after={_fmt(r.respect_retry_after)}")
     else:
         log("[config] CRAWL retry (429/anti-bot): off (attempts=0)")
-    if c.engine == "crawl4ai":
-        log(f"[config] CRAWL crawl4ai: headless={_fmt(c.headless)} | magic={_fmt(c.magic)} "
-            f"| stealth={_fmt(c.stealth)} | js_code={'có' if c.js_code else 'không'}")
-    elif c.engine == "http":
-        log(f"[config] CRAWL http selectors: toc={_fmt(c.toc_selector)} "
-            f"| chapter_title={_fmt(c.chapter_title_selector)} | title={_fmt(c.title_selector)} "
-            f"| author={_fmt(c.author_selector)} | desc={_fmt(c.desc_selector)} "
-            f"| cover={_fmt(c.cover_selector)}")
-    if c.ai_fallback:
-        log(f"[config] CRAWL AI fallback: ON (≤{c.ai_fallback_max_html} ký tự HTML gửi AI)")
-    else:
-        log("[config] CRAWL AI fallback: off")
 
 
 def _emit_translate_config(cfg: Config, log: LogFn, *, feature: str = "DỊCH") -> None:
@@ -428,9 +424,7 @@ def _crawl_chapters_sequential(crawler, storage: Storage, chapters: list[Chapter
 def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapter], force: bool, retry: CrawlRetryConfig, log: LogFn, total: int, workers: int, should_cancel: CancelFn | None = None) -> tuple[int, int, int]:
     """Tải nhiều chương song song bằng ThreadPoolExecutor.
 
-    Mỗi luồng tự tạo + giữ riêng 1 crawler (Crawl4AICrawler không thread-safe vì
-    dùng 1 event loop/browser cố định; HttpCrawler cũng tách session riêng cho
-    gọn, dù requests.Session vốn chịu được dùng chung). Crawler được đóng lại
+    Mỗi luồng tự tạo + giữ riêng 1 ScraplingCrawler. Crawler được đóng lại
     khi luồng kết thúc qua thread-local cleanup.
     """
     local = threading.local()
@@ -639,7 +633,26 @@ def step_translate(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn 
     return step_translate_selected(cfg, log, should_cancel=should_cancel)
 
 
-def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int) -> tuple[str, bool]:
+def _batch_translate_titles(
+    translator, chapters: list[Chapter], log: LogFn,
+) -> dict[str, str]:
+    """Dịch hàng loạt tiêu đề chương bằng 1 lần gọi translate_batch.
+
+    Chỉ dịch các tiêu đề chưa có `title_vi`. Trả dict mapping title_zh → title_vi.
+    Fallback về dịch từng cái nếu translator không hỗ trợ batch.
+    """
+    inner = translator.inner if hasattr(translator, "inner") else translator
+    if not hasattr(inner, "translate_titles"):
+        return {}
+    to_translate = [ch.title_zh for ch in chapters if ch.title_zh and not ch.title_vi]
+    if not to_translate:
+        return {}
+    log(f"[dịch] Đang dịch hàng loạt {len(to_translate)} tiêu đề…")
+    translated = inner.translate_titles(to_translate)
+    return dict(zip(to_translate, translated))
+
+
+def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, title_lookup: dict[str, str] | None = None) -> tuple[str, bool]:
     """Dịch tiêu đề + nội dung 1 chương, ghi translated+meta.
 
     Trả (status, title_changed) với status 'completed'/'replaced'/'failed'.
@@ -667,14 +680,19 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
 
     try:
         if ch.title_zh and not is_noop:
-            log(f"[dịch]   ({i}/{total}) → đang dịch tiêu đề…")
-            title, note = _run_with_heartbeat(
-                log, f"[dịch]   ({i}/{total})",
-                lambda: translator.translate_title(ch.title_zh, kind="tên chương"),
-            )
-            ch.title_vi = _clean_title(title)
-            ch.title_note = note
-            title_changed = True
+            if title_lookup and ch.title_zh in title_lookup:
+                ch.title_vi = _clean_title(title_lookup[ch.title_zh])
+                ch.title_note = ""
+                title_changed = True
+            else:
+                log(f"[dịch]   ({i}/{total}) → đang dịch tiêu đề…")
+                title, note = _run_with_heartbeat(
+                    log, f"[dịch]   ({i}/{total})",
+                    lambda: translator.translate_title(ch.title_zh, kind="tên chương"),
+                )
+                ch.title_vi = _clean_title(title)
+                ch.title_note = note
+                title_changed = True
         _run_with_heartbeat(
             log, f"[dịch]   ({i}/{total})",
             lambda: translator.translate(raw, on_chunk=_on_chunk),
@@ -711,14 +729,14 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     return ch.last_action_status, title_changed
 
 
-def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool, should_cancel: CancelFn | None = None) -> tuple[int, int, int, bool]:
+def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool, should_cancel: CancelFn | None = None, title_lookup: dict[str, str] | None = None) -> tuple[int, int, int, bool]:
     translated_count = failed = replaced = 0
     for i, ch in enumerate(chapters, 1):
         if should_cancel and should_cancel():
             log(f"[dịch] Đã dừng theo yêu cầu — còn {total - i + 1} chương chưa xử lý.")
             break
         try:
-            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total)
+            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, title_lookup=title_lookup)
         except Exception as e:
             failed += 1
             changed = changed or getattr(e, "title_changed", False)
@@ -736,7 +754,7 @@ def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Mani
     return translated_count, failed, replaced, changed
 
 
-def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool, should_cancel: CancelFn | None = None) -> tuple[int, int, int, bool]:
+def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool, should_cancel: CancelFn | None = None, title_lookup: dict[str, str] | None = None) -> tuple[int, int, int, bool]:
     """Dịch nhiều chương song song. Translator được dùng chung giữa các luồng:
     OpenAITranslator chỉ gửi 1 HTTP request riêng mỗi lần gọi (không state dùng
     chung), GoogleTranslator gọi HTTP riêng mỗi lần — cả hai an toàn gọi đồng
@@ -762,7 +780,7 @@ def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manife
             progress["done"] += 1
             i = progress["done"]
         try:
-            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total)
+            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, title_lookup=title_lookup)
         except Exception as e:  # noqa: BLE001 - đã log trong _translate_one, gom lại để quyết định ở cuối
             with counters_lock:
                 counters["failed"] += 1
@@ -839,13 +857,17 @@ def step_translate_selected(
         workers = 1
     else:
         workers = max(1, int(cfg.translate.max_workers))
+
+    # Batch translate all chapter titles before the content loop.
+    title_lookup = _batch_translate_titles(translator, to_translate, log)
+
     if workers > 1 and len(to_translate) > 1:
         translated_count, failed, replaced, changed = _translate_chapters_parallel(
-            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed, should_cancel
+            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed, should_cancel, title_lookup=title_lookup
         )
     else:
         translated_count, failed, replaced, changed = _translate_chapters_sequential(
-            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, changed, should_cancel
+            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, changed, should_cancel, title_lookup=title_lookup
         )
 
     if changed or translated_count or skipped or failed:

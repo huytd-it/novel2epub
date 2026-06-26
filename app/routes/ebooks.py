@@ -88,7 +88,6 @@ def index(request: Request, show_archived: bool = False):
             "library_path": deps.LIBRARY_PATH,
             "ebooks": ebooks,
             "job": request.app.state.job.status(),
-            "presets": deps.presets(),
             "show_archived": show_archived,
             "archived_count": len(archived),
         },

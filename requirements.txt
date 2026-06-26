@@ -1,18 +1,16 @@
-requests>=2.31.0
 ebooklib>=0.18
 deep-translator>=1.11.4
 PyYAML>=6.0.1
 ruamel.yaml>=0.18.0
-beautifulsoup4>=4.12.0
 fastapi>=0.110.0
 uvicorn>=0.29.0
 jinja2>=3.1.0
 python-multipart>=0.0.9
 pytest>=8.0.0
 
-# Optional: engine scrapling (anti-bot bypass, stealth browser)
+# Engine crawl: Scrapling (anti-bot bypass, stealth browser)
 # pip install scrapling[fetchers] && scrapling install
-# scrapling[fetchers]>=0.2
+scrapling[fetchers]>=0.2
 
 # Optional: backend dịch cục bộ MoxhiMT (translate.type=moxhimt) — chỉ cần khi dùng
 # pip install ctranslate2 sentencepiece huggingface_hub

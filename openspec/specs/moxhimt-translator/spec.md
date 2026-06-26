@@ -85,11 +85,11 @@ Config `translate.moxhimt` SHALL cho phép cấu hình `model_id` (mặc định
 - **THEN** model được load/dịch dùng đúng các giá trị đã override
 
 ### Requirement: Swappable compatible model_id
-`MoxhiMTTranslator` SHALL không hardcode một model_id cụ thể trong logic load/dịch — mọi model HF cùng kiến trúc (SentencePiece tokenizer + CTranslate2 Marian model) SHALL chạy được chỉ bằng cách đổi `translate.moxhimt.model_id`, không cần sửa code. Danh sách model đã kiểm chứng tương thích (`DanVP/MoxhiMT-60`, `DanVP/MoxhiMT-30`, `DanVP/MoxhiMT-30-web`, `ngocdang83/HachimiMT-60-zh-vi`, `ngocdang83/HachimiMT-30-zh-vi`) SHALL được ghi trong docs/example config.
+`MoxhiMTTranslator` SHALL không hardcode một model_id cụ thể trong logic load/dịch — mọi model HF cùng kiến trúc (SentencePiece tokenizer + CTranslate2 Marian model) SHALL chạy được chỉ bằng cách đổi `translate.moxhimt.model_id`, không cần sửa code. Hỗ trợ cả hai layout tokenizer: shared `.model` file (MoxhiMT) và separate `source.spm`/`target.spm` files (HachimiMT). Danh sách model đã kiểm chứng tương thích (`DanVP/MoxhiMT-60`, `DanVP/MoxhiMT-30`, `ngocdang83/HachimiMT-60-zh-vi`, `ngocdang83/HachimiMT-30-zh-vi`) SHALL được ghi trong docs/example config.
 
 #### Scenario: Đổi sang model HachimiMT cùng kiến trúc
 - **WHEN** file config đặt `translate.moxhimt.model_id: "ngocdang83/HachimiMT-60-zh-vi"`
-- **THEN** `MoxhiMTTranslator` tải và dùng đúng model đó để dịch, không raise lỗi do hardcode tên model khác
+- **THEN** `MoxhiMTTranslator` tải và dùng đúng model đó để dịch, tự detect và load separate `source.spm`/`target.spm` tokenizer, không raise lỗi
 
 #### Scenario: Model_id không tương thích kiến trúc
 - **WHEN** `model_id` trỏ tới một repo không có cấu trúc SentencePiece + CTranslate2 mong đợi (ví dụ LoRA adapter như `hy-mt-xianxia-lora-vi`)

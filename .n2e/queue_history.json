@@ -1,5 +1,44 @@
 [
   {
+    "id": "a064fcfe-2a4f-4107-9036-5046e06067cb",
+    "category": "crawl",
+    "step": "chapter-crawl",
+    "label": "chapter-crawl",
+    "ebook": "",
+    "state": "failed",
+    "enqueued_at": 1782488025.219453,
+    "started_at": 1782488025.219453,
+    "ended_at": 1782488025.2234707,
+    "error": "crawl.engine='http' đã bị loại bỏ. Engine duy nhất hiện tại là 'scrapling'. Xem README.md để biết cách migration.",
+    "cancelling": false
+  },
+  {
+    "id": "c0cc7b4a-e348-4303-b015-f11ea1f43d2c",
+    "category": "crawl",
+    "step": "chapter-crawl",
+    "label": "chapter-crawl",
+    "ebook": "",
+    "state": "failed",
+    "enqueued_at": 1782487955.7869878,
+    "started_at": 1782487955.7869878,
+    "ended_at": 1782487955.8278515,
+    "error": "crawl.engine='http' đã bị loại bỏ. Engine duy nhất hiện tại là 'scrapling'. Xem README.md để biết cách migration.",
+    "cancelling": false
+  },
+  {
+    "id": "1622dbb5-81fb-40d9-9381-636b9585444d",
+    "category": "translate",
+    "step": "chapter-translate",
+    "label": "chapter-translate",
+    "ebook": "",
+    "state": "failed",
+    "enqueued_at": 1782487804.7309191,
+    "started_at": 1782487804.731919,
+    "ended_at": 1782487808.1722548,
+    "error": "Dịch lỗi ngay chương đầu (0019): Library cublas64_12.dll is not found or cannot be loaded",
+    "cancelling": false
+  },
+  {
     "id": "5a59f8a2-42e8-4c11-b170-95a97022ff2a",
     "category": "translate",
     "step": "chapter-translate",

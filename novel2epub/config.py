@@ -35,50 +35,43 @@ class CrawlRetryConfig:
 
 
 @dataclass
+class ScraplingConfig:
+    """Cấu hình Scrapling engine. Gom trong `crawl.scrapling:` block."""
+    mode: str = "fetcher"                # fetcher | stealthy | dynamic
+    solve_cloudflare: bool = False       # chỉ scrapling_mode=stealthy
+    network_idle: bool = True            # stealthy/dynamic mode
+    impersonate: str = ""                # TLS fingerprint cho fetcher
+
+
+@dataclass
 class CrawlConfig:
     toc_url: str
-    # engine: http (requests+BS4) | crawl4ai (browser, JS) | scrapling (stealth)
-    engine: str = "http"
+    engine: str = "scrapling"
     chapter_link_pattern: str = r".*"
     max_chapters: int = 0
     strip_patterns: list[str] = field(default_factory=list)
     delay_seconds: float = 1.0
-    # Số chương tải song song (luồng riêng, mỗi luồng tự giữ 1 crawler/session).
-    # 1 = tuần tự như trước. delay_seconds vẫn áp dụng riêng trong mỗi luồng.
     max_workers: int = 1
-    # Trần song song hóa cứng cho NGUỒN này, độc lập với max_workers job yêu
-    # cầu — vd job xin 100 luồng nhưng site chỉ chịu được 5 đồng thời. 0 =
-    # dùng mặc định theo engine/mode (xem `default_concurrency_cap`).
     concurrency_cap: int = 0
-    # Thử lại + lùi dần khi bị HTTP 429 / chặn anti-bot (xem CrawlRetryConfig).
     retry: CrawlRetryConfig = field(default_factory=CrawlRetryConfig)
+    scrapling: ScraplingConfig = field(default_factory=ScraplingConfig)
 
     def default_concurrency_cap(self) -> int:
-        """Trần song song mặc định theo engine/mode — cao cho HTTP/fetcher nhẹ,
-        thấp cho mode dùng browser thật (stealthy/dynamic/crawl4ai) để giới hạn
-        RAM (~300-600MB/instance)."""
-        if self.engine == "scrapling":
-            return 20 if self.scrapling_mode == "fetcher" else 5
-        if self.engine == "crawl4ai":
+        """Trần song song mặc định theo scrapling mode."""
+        if self.scrapling.mode == "fetcher":
+            return 20
+        if self.scrapling.mode in ("stealthy", "dynamic"):
             return 5
         return 20
 
     def effective_workers(self, requested: int) -> int:
-        """Số luồng thực sự được dùng = min(requested, trần của nguồn này)."""
         requested = max(1, int(requested))
         cap = self.concurrency_cap if self.concurrency_cap > 0 else self.default_concurrency_cap()
         return min(requested, max(1, cap))
 
     # ----- multi-page chapter (pagination) -----
-    # CSS selector cho link "trang tiếp" trong chương (vd "a#pager_next",
-    # "a.next"). Khi tìm thấy, crawler tải nội dung trang đó rồi nối vào
-    # chương hiện tại. Để trống = không paginate.
     next_page_selector: str = ""
-    # Regex fallback cho site không có link "trang tiếp" rõ ràng (vd JS
-    # navigation). Phải chứa đúng 1 capturing group; group sẽ được thay
-    # bằng hậu tố tăng dần ("_2", "_3", ...) để dò URL trang kế tiếp.
     next_page_url_pattern: str = ""
-    # Số trang tối đa cho 1 chương (an toàn, tránh loop vô hạn).
     max_pages_per_chapter: int = 10
 
     def __post_init__(self) -> None:
@@ -98,66 +91,14 @@ class CrawlConfig:
                     f"group, hiện có {total}."
                 )
 
-    # CSS selector vùng chứa nội dung chương (vd "#content", ".read-content").
-    # Dùng cho cả 2 engine: engine "http" dùng để bóc text trực tiếp; engine
-    # "crawl4ai" dùng làm css_selector cho CrawlerRunConfig (giới hạn vùng
-    # crawl4ai render Markdown).
     content_selector: str = ""
 
-    # ----- chỉ dùng cho engine = "http" -----
-    # CSS selector vùng chứa danh sách link chương ở trang mục lục (tùy chọn,
-    # giúp loại bỏ link rác ở header/footer). Vd "#list", ".listmain".
-    # KHÔNG áp dụng cho engine "crawl4ai" (fetch_toc của engine đó quét toàn
-    # trang theo chapter_link_pattern, không scope theo toc_selector).
-    toc_selector: str = ""
-    # CSS selector tiêu đề chương (tùy chọn). Vd "h1".
-    chapter_title_selector: str = ""
-    # ----- selector metadata truyện ở trang mục lục/giới thiệu, chỉ dùng cho
-    # engine = "http" (tùy chọn) -----
-    # Để trống thì crawler tự lấy từ thẻ OG/meta chuẩn (og:title, og:novel:author,
-    # og:description, og:image...). Đặt selector khi trang không có thẻ OG.
-    # KHÔNG áp dụng cho engine "crawl4ai" (engine đó chỉ đọc og:meta, bỏ qua
-    # các selector này).
-    title_selector: str = ""
-    author_selector: str = ""
-    desc_selector: str = ""
-    cover_selector: str = ""
-    # Bảng mã trang. Để trống = tự đoán (apparent_encoding). Vd "gbk", "utf-8".
-    encoding: str = ""
-    user_agent: str = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    )
-
-    # ----- chỉ dùng cho engine = "crawl4ai" -----
-    # Chạy trình duyệt ẩn (headless). Đặt False để debug bằng cửa sổ thật.
+    # ----- browser settings (Scrapling stealthy/dynamic) -----
     headless: bool = True
-    # JS để chờ/điều khiển trang (vd cuộn lazy-load). Tùy chọn.
-    js_code: str = ""
-    # Vượt bot detection tốt hơn (Crawl4AI undetected/magic mode).
-    magic: bool = True
-    # Chống phát hiện trình duyệt tự động (Crawl4AI stealth mode, chặn Cloudflare).
-    stealth: bool = True
-
-    # ----- chỉ dùng cho engine = "scrapling" -----
-    # Chọn fetcher class: "stealthy" (bypass anti-bot, mặc định) | "fetcher"
-    # (HTTP thuần, TLS fingerprint) | "dynamic" (full Playwright).
-    scrapling_mode: str = "stealthy"
-    # Bật bypass Cloudflare Turnstile (chỉ scrapling_mode=stealthy).
-    solve_cloudflare: bool = False
-    # Chờ network idle trước khi scrape (stealthy/dynamic mode).
-    network_idle: bool = True
-    # Giả lập TLS fingerprint của browser cụ thể (vd "chrome", "firefox135").
-    # Chỉ dùng cho scrapling_mode=fetcher. Để trống = mặc định.
-    impersonate: str = ""
 
     # ----- AI fallback crawl (experimental, cần translate.preset: go) -----
-    # Khi selector không trích được nội dung, gửi HTML thô cho AI
-    # OpenAI-Compatible để trích xuất chương bằng LLM.
     ai_fallback: bool = False
-    # Giới hạn ký tự HTML gửi cho AI (tránh vượt context window).
     ai_fallback_max_html: int = 32000
-    # Config OpenAI dùng cho AI fallback (do pipeline gán khi tạo crawler).
     _openai_fallback: Any = None  # OpenAIConfig | None
 
 
@@ -263,13 +204,16 @@ class MoxhiMTConfig:
     beam_size: int = 4
     # Trần token mỗi lượt dịch của model (giới hạn cứng kiến trúc).
     max_length: int = 512
+    # Giới hạn token đầu vào riêng (0 = auto từ max_length). Một số model nhỏ
+    # (HachimiMT-60) cần input cap thấp hơn output để tránh drift entity.
+    max_input_tokens: int = 0
     # "paragraph" = gom trọn đoạn cho model giữ ngữ cảnh (mặc định, cẩn thận
     # nhất), tự fallback chia câu khi đoạn vượt token. "sentence" = chia câu
     # ngay từ đầu (nhanh hơn, mất ngữ cảnh đoạn).
     chunk_mode: str = "paragraph"
     # Thư mục cache model. Để trống = dùng cache mặc định của huggingface_hub.
     cache_dir: str = ""
-    device: str = "cpu"
+    device: str = "auto"
     # Song song hóa CPU của CTranslate2: inter_threads = số batch dịch đồng
     # thời, intra_threads = số luồng tính toán/batch. 0 = tự suy ra từ số
     # nhân vật lý máy (inter * intra <= physical cores) — xem
@@ -457,8 +401,29 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     # api_key / api_url chỉ dùng cho firecrawl, đã bỏ engine này; bỏ qua cũ.
     crawl_raw.pop("api_key", None)
     crawl_raw.pop("api_url", None)
+    # Field cũ (http/crawl4ai) — bỏ qua không báo lỗi để migration mượt.
+    for old in ("toc_selector", "chapter_title_selector", "title_selector",
+                "author_selector", "desc_selector", "cover_selector",
+                "encoding", "user_agent", "js_code", "magic", "stealth"):
+        crawl_raw.pop(old, None)
+    # Legacy scrapling fields → map vào ScraplingConfig
+    legacy_scrapling_mode = crawl_raw.pop("scrapling_mode", None)
+    legacy_solve_cf = crawl_raw.pop("solve_cloudflare", None)
+    legacy_network_idle = crawl_raw.pop("network_idle", None)
+    legacy_impersonate = crawl_raw.pop("impersonate", None)
+    scrapling_raw = _as_dict(crawl_raw.pop("scrapling", None))
+    if legacy_scrapling_mode and "mode" not in scrapling_raw:
+        scrapling_raw["mode"] = legacy_scrapling_mode
+    if legacy_solve_cf is not None and "solve_cloudflare" not in scrapling_raw:
+        scrapling_raw["solve_cloudflare"] = legacy_solve_cf
+    if legacy_network_idle is not None and "network_idle" not in scrapling_raw:
+        scrapling_raw["network_idle"] = legacy_network_idle
+    if legacy_impersonate and "impersonate" not in scrapling_raw:
+        scrapling_raw["impersonate"] = legacy_impersonate
     crawl_retry_raw = _as_dict(crawl_raw.pop("retry", None))
     crawl = CrawlConfig(**crawl_raw)
+    if scrapling_raw:
+        crawl.scrapling = ScraplingConfig(**scrapling_raw)
     if crawl_retry_raw:
         defaults_rc = CrawlRetryConfig()
         crawl.retry = CrawlRetryConfig(
@@ -509,8 +474,15 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         merged.update({k: v for k, v in openai_raw.items() if v != "" and v is not None})
         openai_raw = merged
 
+    moxhimt = MoxhiMTConfig(**moxhimt_raw) if moxhimt_raw else MoxhiMTConfig()
+    if "hachimimt" in moxhimt.model_id.lower():
+        if "beam_size" not in moxhimt_raw:
+            moxhimt.beam_size = 2
+        if "max_input_tokens" not in moxhimt_raw:
+            moxhimt.max_input_tokens = 160
+
     translate = TranslateConfig(
-        type=translate_raw.get("type", "openai"),
+        type=translate_raw.get("type", "moxhimt"),
         preset=preset_name,
         profile=translate_raw.get("profile", "traditional_cn_novel"),
         source_language=translate_raw.get("source_language", "zh-CN"),
@@ -531,27 +503,13 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             overlap_paragraphs=int(chunk_raw.get("overlap_paragraphs", 0)),
         ),
         openai=OpenAIConfig(**openai_raw),
-        moxhimt=MoxhiMTConfig(**moxhimt_raw) if moxhimt_raw else MoxhiMTConfig(),
+        moxhimt=moxhimt,
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
     )
 
     output = OutputConfig(**(raw.get("output") or {}))
 
-    if crawl.engine == "crawl4ai":
-        ignored_selectors = [
-            name for name in (
-                "toc_selector", "title_selector", "author_selector",
-                "desc_selector", "cover_selector",
-            )
-            if getattr(crawl, name)
-        ]
-        if ignored_selectors:
-            warnings.append(
-                "crawl.engine='crawl4ai' không dùng "
-                f"{', '.join(f'crawl.{n}' for n in ignored_selectors)} "
-                "(các selector này chỉ áp dụng cho engine 'http')."
-            )
     if crawl.ai_fallback and preset_name != "go":
         warnings.append(
             "crawl.ai_fallback=true nhưng translate.preset không phải 'go' "

@@ -1,79 +1,69 @@
-"""Tests cho ScraplingCrawler engine — lazy import, make_crawler, fetch_toc,
-fetch_chapter, SourcePreset fields."""
+"""Tests cho ScraplingCrawler engine — make_crawler, fetch_toc, fetch_chapter."""
 from __future__ import annotations
 
 import sys
-from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from novel2epub.config import CrawlConfig
-from novel2epub.crawler import make_crawler
-from novel2epub.sources import SourcePreset
+from novel2epub.config import CrawlConfig, ScraplingConfig
+from novel2epub.crawler import ScraplingCrawler, make_crawler
 
-
-# ---------------------------------------------------------------------------
-# 6.1 — __init__ lazy import + ImportError message
-# ---------------------------------------------------------------------------
 
 class TestScraplingImport:
     def test_import_error_when_scrapling_missing(self):
         """Khi scrapling chưa cài, ScraplingCrawler raise ImportError rõ ràng."""
-        cfg = CrawlConfig(toc_url="http://example.com/toc", engine="scrapling")
+        cfg = CrawlConfig(toc_url="http://example.com/toc")
         with patch.dict(sys.modules, {"scrapling": None, "scrapling.fetchers": None}):
             with pytest.raises(ImportError, match="scrapling"):
                 make_crawler(cfg)
 
 
-# ---------------------------------------------------------------------------
-# 6.5 — make_crawler dispatch "scrapling"
-# ---------------------------------------------------------------------------
-
 class TestMakeCrawlerScrapling:
     def test_make_crawler_scrapling_returns_scrapling_crawler(self):
         """make_crawler(engine='scrapling') trả về ScraplingCrawler."""
-        # Mock scrapling imports
-        mock_fetcher = MagicMock()
-        mock_stealthy = MagicMock()
-        mock_dynamic = MagicMock()
         mock_fetchers_module = MagicMock()
-        mock_fetchers_module.Fetcher = mock_fetcher
-        mock_fetchers_module.StealthyFetcher = mock_stealthy
-        mock_fetchers_module.DynamicFetcher = mock_dynamic
+        mock_fetchers_module.Fetcher = MagicMock()
+        mock_fetchers_module.StealthyFetcher = MagicMock()
+        mock_fetchers_module.DynamicFetcher = MagicMock()
 
         with patch.dict(sys.modules, {"scrapling": MagicMock(), "scrapling.fetchers": mock_fetchers_module}):
-            cfg = CrawlConfig(toc_url="http://example.com/toc", engine="scrapling")
+            cfg = CrawlConfig(toc_url="http://example.com/toc")
             crawler = make_crawler(cfg)
             from novel2epub.crawler import ScraplingCrawler
             assert isinstance(crawler, ScraplingCrawler)
 
-    def test_make_crawler_invalid_engine_includes_scrapling(self):
-        """Error message cho engine không hợp lệ bao gồm 'scrapling'."""
+    def test_make_crawler_rejects_http(self):
+        """engine='http' bị từ chối với thông báo rõ ràng."""
+        cfg = CrawlConfig(toc_url="http://example.com/toc", engine="http")
+        with pytest.raises(ValueError, match="đã bị loại bỏ"):
+            make_crawler(cfg)
+
+    def test_make_crawler_rejects_crawl4ai(self):
+        """engine='crawl4ai' bị từ chối."""
+        cfg = CrawlConfig(toc_url="http://example.com/toc", engine="crawl4ai")
+        with pytest.raises(ValueError, match="đã bị loại bỏ"):
+            make_crawler(cfg)
+
+    def test_make_crawler_rejects_firecrawl(self):
+        """engine='firecrawl' bị từ chối."""
+        cfg = CrawlConfig(toc_url="http://example.com/toc", engine="firecrawl")
+        with pytest.raises(ValueError, match="đã bị loại bỏ"):
+            make_crawler(cfg)
+
+    def test_make_crawler_invalid_engine_message(self):
+        """Error message cho engine không hợp lệ."""
         cfg = CrawlConfig(toc_url="http://example.com/toc", engine="invalid")
         with pytest.raises(ValueError, match="scrapling"):
             make_crawler(cfg)
 
-    def test_make_crawler_http_still_works(self):
-        """engine='http' vẫn hoạt động bình thường."""
-        from novel2epub.crawler import HttpCrawler
-        cfg = CrawlConfig(toc_url="http://example.com/toc", engine="http")
-        crawler = make_crawler(cfg)
-        assert isinstance(crawler, HttpCrawler)
-
-
-# ---------------------------------------------------------------------------
-# 6.2 — fetch_toc (mock Scrapling response)
-# ---------------------------------------------------------------------------
 
 def _make_mock_page(html_links=None, meta_tags=None):
     """Tạo mock Adaptor object cho ScraplingCrawler."""
     page = MagicMock()
 
-    # Mock css() calls
     def mock_css(selector):
         if selector.startswith("meta["):
-            # Parse property/name from selector
             if meta_tags:
                 for key, val in meta_tags.items():
                     if key in selector:
@@ -130,10 +120,9 @@ class TestScraplingFetchToc:
         }):
             cfg = CrawlConfig(
                 toc_url="http://example.com/book/1/",
-                engine="scrapling",
                 chapter_link_pattern=r"/book/1/ch\d+\.html",
+                scrapling=ScraplingConfig(mode="stealthy"),
             )
-            from novel2epub.crawler import ScraplingCrawler
             crawler = ScraplingCrawler(cfg)
             result = crawler.fetch_toc()
             assert len(result.chapters) == 3
@@ -141,10 +130,6 @@ class TestScraplingFetchToc:
             assert result.title == "Test Novel"
             assert result.author == "Author"
 
-
-# ---------------------------------------------------------------------------
-# 6.3 — fetch_chapter (text extraction + clean)
-# ---------------------------------------------------------------------------
 
 class TestScraplingFetchChapter:
     def test_fetch_chapter_extracts_text(self):
@@ -155,7 +140,7 @@ class TestScraplingFetchChapter:
         page = MagicMock()
         content_node = MagicMock()
         content_node.text = "Nội dung chương 1.\n\nĐoạn thứ hai."
-        content_node.css = MagicMock(return_value=[])  # no <p> tags
+        content_node.css = MagicMock(return_value=[])
 
         def mock_css(selector):
             if selector == "#content":
@@ -179,8 +164,8 @@ class TestScraplingFetchChapter:
             from novel2epub.storage import Chapter
             cfg = CrawlConfig(
                 toc_url="http://example.com/",
-                engine="scrapling",
                 content_selector="#content",
+                scrapling=ScraplingConfig(mode="stealthy"),
             )
             crawler = ScraplingCrawler(cfg)
             ch = Chapter(index=1, url="http://example.com/ch1.html", title_zh="第一章")
@@ -188,55 +173,35 @@ class TestScraplingFetchChapter:
             assert "Nội dung chương 1" in text
 
 
-# ---------------------------------------------------------------------------
-# 6.6 — SourcePreset với scrapling fields
-# ---------------------------------------------------------------------------
+class TestScraplingConfig:
+    def test_scrapling_config_defaults(self):
+        """ScraplingConfig có default hợp lý."""
+        sc = ScraplingConfig()
+        assert sc.mode == "fetcher"
+        assert sc.solve_cloudflare is False
+        assert sc.network_idle is True
+        assert sc.impersonate == ""
 
-class TestSourcePresetScrapling:
-    def test_crawl_overrides_includes_scrapling_fields(self):
-        """SourcePreset.crawl_overrides() bao gồm scrapling fields."""
-        preset = SourcePreset(
-            name="test",
-            engine="scrapling",
-            scrapling_mode="stealthy",
-            solve_cloudflare=True,
-            network_idle=True,
-            impersonate="chrome",
-        )
-        overrides = preset.crawl_overrides()
-        assert overrides["engine"] == "scrapling"
-        assert overrides["scrapling_mode"] == "stealthy"
-        assert overrides["solve_cloudflare"] is True
-        assert overrides["network_idle"] is True
-        assert overrides["impersonate"] == "chrome"
-        # name, url, domains should be excluded
-        assert "name" not in overrides
-        assert "url" not in overrides
-        assert "domains" not in overrides
+    def test_scrapling_config_custom(self):
+        """ScraplingConfig nhận giá trị custom."""
+        sc = ScraplingConfig(mode="stealthy", solve_cloudflare=True)
+        assert sc.mode == "stealthy"
+        assert sc.solve_cloudflare is True
 
-    def test_scrapling_fields_default_values(self):
-        """SourcePreset scrapling fields có default hợp lý."""
-        preset = SourcePreset(name="test")
-        assert preset.scrapling_mode == "stealthy"
-        assert preset.solve_cloudflare is False
-        assert preset.network_idle is True
-        assert preset.impersonate == ""
-
-
-# ---------------------------------------------------------------------------
-# CrawlConfig scrapling fields
-# ---------------------------------------------------------------------------
-
-class TestCrawlConfigScraplingFields:
-    def test_crawl_config_scrapling_defaults(self):
-        """CrawlConfig scrapling fields có default hợp lý."""
+    def test_crawl_config_default_concurrency_cap_fetcher(self):
+        """default_concurrency_cap cho fetcher = 20."""
         cfg = CrawlConfig(toc_url="http://example.com/")
-        assert cfg.scrapling_mode == "stealthy"
-        assert cfg.solve_cloudflare is False
-        assert cfg.network_idle is True
-        assert cfg.impersonate == ""
+        cfg.scrapling = ScraplingConfig(mode="fetcher")
+        assert cfg.default_concurrency_cap() == 20
 
-    def test_crawl_config_engine_comment(self):
-        """engine field chấp nhận 'scrapling'."""
-        cfg = CrawlConfig(toc_url="http://example.com/", engine="scrapling")
-        assert cfg.engine == "scrapling"
+    def test_crawl_config_default_concurrency_cap_stealthy(self):
+        """default_concurrency_cap cho stealthy = 5."""
+        cfg = CrawlConfig(toc_url="http://example.com/")
+        cfg.scrapling = ScraplingConfig(mode="stealthy")
+        assert cfg.default_concurrency_cap() == 5
+
+    def test_crawl_config_default_concurrency_cap_dynamic(self):
+        """default_concurrency_cap cho dynamic = 5."""
+        cfg = CrawlConfig(toc_url="http://example.com/")
+        cfg.scrapling = ScraplingConfig(mode="dynamic")
+        assert cfg.default_concurrency_cap() == 5

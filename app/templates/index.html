@@ -112,29 +112,18 @@
             <h3>Thêm ebook mới</h3>
             <button type="button" class="canvas-close" onclick="closeModal('add-ebook-modal')">✕</button>
         </div>
-        <p class="muted">① Chọn <strong>nguồn</strong> · ② Paste <strong>link mục lục</strong> truyện · ③ <strong>Xem trước</strong> → ④ <strong>Tạo ebook</strong>. Chưa có nguồn phù hợp? <a href="/sources">Quản lý nguồn</a>.</p>
+        <p class="muted">① Paste <strong>link mục lục</strong> truyện · ② <strong>Xem trước</strong> → ③ <strong>Tạo ebook</strong>.</p>
         <form method="post" action="/library/ebooks" id="create-form">
             <input type="hidden" name="name" id="name">
             <input type="hidden" name="author" id="author">
             <fieldset>
-                <legend>① Chọn nguồn &amp; ② Link truyện</legend>
+                <legend>Link mục lục truyện</legend>
                 <div class="form-row">
-                    <label>Nguồn (site preset)
-                        <select name="preset" id="preset" required>
-                            <option value="">— chọn nguồn —</option>
-                            {% for name, p in presets.items() %}
-                            <option value="{{ name }}" data-engine="{{ p.engine }}" data-url="{{ p.url }}">{{ name }} · {{ p.engine }}{% if p.url %} · {{ p.url }}{% endif %}</option>
-                            {% endfor %}
-                        </select>
-                    </label>
                     <label>URL mục lục <input type="text" name="toc_url" id="toc_url" size="50" required placeholder="https://..."></label>
                 </div>
                 <div class="form-row">
                     <button type="button" id="preview-btn">🔍 Xem trước</button>
                     <span id="fetch-status" class="muted"></span>
-                </div>
-                <div class="form-row" id="preset-suggest-row" style="display:none">
-                    <span id="preset-suggest" class="muted"></span>
                 </div>
             </fieldset>
 
@@ -240,7 +229,6 @@ function escapeHtml(text) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    // --- Modal triggers ---
     document.getElementById("add-ebook-btn").addEventListener("click", function () {
         openModal('add-ebook-modal');
     });
@@ -251,13 +239,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const nameEl = document.getElementById("name");
     const authorEl = document.getElementById("author");
     const slugEl = document.getElementById("slug");
-    const presetEl = document.getElementById("preset");
     const tocUrlEl = document.getElementById("toc_url");
     const previewBtn = document.getElementById("preview-btn");
     const createBtn = document.getElementById("create-btn");
     const fetchStatus = document.getElementById("fetch-status");
-    const suggestEl = document.getElementById("preset-suggest");
-    const suggestRow = document.getElementById("preset-suggest-row");
     const previewBox = document.getElementById("preview-box");
     const form = document.getElementById("create-form");
 
@@ -268,18 +253,11 @@ document.addEventListener("DOMContentLoaded", function () {
     function resetPreview() {
         previewBox.style.display = "none";
     }
-    presetEl.addEventListener("change", resetPreview);
     tocUrlEl.addEventListener("input", resetPreview);
 
     previewBtn.addEventListener("click", async function () {
         const url = tocUrlEl.value.trim();
-        suggestRow.style.display = "none";
-        suggestEl.innerHTML = "";
         previewBox.style.display = "none";
-        if (!presetEl.value) {
-            fetchStatus.textContent = "⚠️ Hãy chọn nguồn trước.";
-            return;
-        }
         if (!url) {
             fetchStatus.textContent = "⚠️ Nhập URL mục lục trước.";
             return;
@@ -290,7 +268,6 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
             const formData = new FormData();
             formData.append("toc_url", url);
-            formData.append("preset", presetEl.value);
 
             const res = await fetch("/library/ebooks/preview", {
                 method: "POST",
@@ -300,10 +277,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (data.error) {
                 fetchStatus.textContent = "⚠️ " + data.error;
-                if (data.suggest_url) {
-                    suggestEl.innerHTML = 'Chưa có nguồn cho domain này — <a href="' + escapeHtml(data.suggest_url) + '">Tạo preset</a>';
-                    suggestRow.style.display = "";
-                }
                 return;
             }
 

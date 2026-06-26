@@ -6,7 +6,7 @@ from novel2epub.config_writer import (
     save_library,
     update_ebook,
 )
-from novel2epub.sources import SourcePreset, load_presets, save_presets
+
 
 
 def _write_workspace(path):
@@ -53,7 +53,7 @@ def test_update_ebook_does_not_touch_siblings(tmp_path):
     path = tmp_path / "novel2epub.yaml"
     _write_workspace(path)
     # Thêm ebook thứ 2 rồi sửa ebook 'a' -> 'b' phải nguyên vẹn.
-    add_ebook(path, "b", name="B", title="Bê", toc_url="https://b", engine="http")
+    add_ebook(path, "b", name="B", title="Bê", toc_url="https://b", engine="scrapling")
     update_ebook(path, "a", {"novel": {"title": "Mới"}})
 
     cfg_b = load_config(path, "b")
@@ -65,21 +65,18 @@ def test_update_ebook_does_not_touch_siblings(tmp_path):
 def test_add_ebook_minimal_override_inherits_defaults(tmp_path):
     path = tmp_path / "novel2epub.yaml"
     _write_workspace(path)
-    preset = SourcePreset(name="biquge", content_selector="#chaptercontent")
     add_ebook(
         path,
         "test-truyen",
         name="Tên Truyện",
         title="Tên Truyện",
         toc_url="https://x/book/1/",
-        engine="http",
-        preset=preset.crawl_overrides(),
+        engine="scrapling",
     )
     cfg = load_config(path, "test-truyen")
     assert cfg.novel.slug == "test-truyen"
     assert cfg.novel.title == "Tên Truyện"
     assert cfg.crawl.toc_url == "https://x/book/1/"
-    assert cfg.crawl.content_selector == "#chaptercontent"
     # Vẫn kế thừa phần dùng chung từ defaults.
     assert cfg.translate.openai.base_url == "https://custom.test/v1"
     assert "test-truyen" in load_library(path).ebooks
@@ -130,11 +127,4 @@ def test_update_ebook_cleans_crlf_prompt_no_blank_lines(tmp_path):
     assert cfg.translate.openai.prompt_template == "Dòng 1\nDòng 2\nDòng 3"
 
 
-def test_sources_round_trip(tmp_path):
-    path = tmp_path / "novel2epub.yaml"
-    presets = {"biquge": SourcePreset(name="biquge", engine="http", content_selector="#content", headless=False)}
-    save_presets(path, presets)
-    loaded = load_presets(path)
-    assert loaded["biquge"].content_selector == "#content"
-    assert loaded["biquge"].headless is False
-    assert "toc_url" not in loaded["biquge"].crawl_overrides()
+

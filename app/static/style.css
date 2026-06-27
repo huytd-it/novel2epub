@@ -642,6 +642,10 @@ pre#log, .log-content {
 .log-wrap pre#log { border-radius: 0 0 4px 4px; margin: 0; }
 mark.log-hit { background: #fff2b3; color: #111; border-radius: 2px; }
 
+/* Search results */
+#search-results-list .ebook-card { cursor: default; }
+#search-results-list .ebook-card:hover { border-color: var(--n2e-link); }
+
 @media (max-width: 900px) {
     .cols, .hero { flex-direction: column; }
     .compare-wrap { overflow-x: auto; }

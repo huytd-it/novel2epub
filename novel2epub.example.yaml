@@ -66,9 +66,47 @@ defaults:
       backend: "ctranslate2"
       beam_size: 2
       chunk_mode: "sentence"
+    # LibreTranslate: self-hosted translation API (https://github.com/LibreTranslate/LibreTranslate)
+    # type: libretranslate
+    # libretranslate:
+    #   base_url: "http://localhost:5000"
+    #   api_key: ""
+    #   source_language: "zh"
+    #   target_language: "vi"
 
   output:
     data_dir: data
+
+sources:
+  sto9:
+    engine: scrapling
+    url: "https://sto9.com"
+    domains: "sto9.com"
+    chapter_link_pattern: '/book/\d+/\d+\.html'
+    content_selector: '#content'
+    scrapling:
+      mode: stealthy
+    search_url_pattern: "https://sto9.com/search/?q={query}"
+    search_result_selector: ".book-item, .search-result"
+    search_title_selector: ".book-title, h3 a"
+    search_link_selector: "a[href*='/book/']"
+    search_cover_selector: "img"
+    max_search_results: 5
+
+  aixdzs:
+    engine: scrapling
+    url: "https://www.aixdzs.com"
+    domains: "aixdzs.com"
+    chapter_link_pattern: '/novel/.*?/\d+\.html'
+    content_selector: '#content'
+    scrapling:
+      mode: fetcher
+    search_url_pattern: "https://www.aixdzs.com/search/?q={query}"
+    search_result_selector: ".search-item, .book-item"
+    search_title_selector: ".book-title, h3"
+    search_link_selector: "a[href*='/novel/']"
+    search_cover_selector: "img"
+    max_search_results: 5
 
 ebooks:
   vi-du-truyen:

@@ -461,6 +461,8 @@ class ScraplingCrawler:
         results = page.css(selector)
         if results:
             el = results[0] if hasattr(results, '__getitem__') else results
+            if hasattr(el, "get_all_text"):
+                return el.get_all_text(strip=True)
             text = el.text if hasattr(el, 'text') else ""
             return text.strip() if text else ""
         return ""
@@ -573,22 +575,26 @@ class ScraplingCrawler:
         if node is None:
             return ""
 
-        # Lấy text từ node, dọn thẻ rác
-        # Scrapling Adaptor hỗ trợ .text (text gộp) và .get_text()
         text = ""
-        # Thử lấy từ các thẻ <p>
         paras = node.css("p")
         if paras:
             parts = []
             for p in paras:
-                p_text = p.text if hasattr(p, 'text') else ""
-                if p_text and p_text.strip():
-                    parts.append(p_text.strip())
+                if hasattr(p, "get_all_text"):
+                    p_text = p.get_all_text(strip=True)
+                else:
+                    p_text = p.text if hasattr(p, 'text') else ""
+                    p_text = p_text.strip() if p_text else ""
+                if p_text:
+                    parts.append(p_text)
             if parts:
                 text = "\n\n".join(parts)
         if not text:
-            text = node.text if hasattr(node, 'text') else ""
-            text = text or ""
+            if hasattr(node, "get_all_text"):
+                text = node.get_all_text(strip=True)
+            else:
+                text = node.text if hasattr(node, 'text') else ""
+                text = text.strip() if text else ""
 
         return self._clean(text)
 

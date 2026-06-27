@@ -11,6 +11,8 @@ from novel2epub.config import CrawlConfig, load_config
 from novel2epub.config_writer import add_ebook, remove_ebook
 from novel2epub.crawler import make_crawler
 from novel2epub.pipeline import _clean_title
+from novel2epub.search import search_all
+from novel2epub.sources import load_presets
 from novel2epub.translator import RateLimited, make_translator
 
 from .. import deps
@@ -84,6 +86,47 @@ def preview_ebook_api(
         return JSONResponse(data)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@router.post("/library/ebooks/search")
+def search_ebooks(
+    query: str = Form(""),
+    sources: str = Form(""),
+    limit: int = Form(5),
+):
+    """API: tìm kiếm tiểu thuyết trên các source đã cấu hình search, trả JSON."""
+    query = query.strip()
+    if not query:
+        return JSONResponse({"error": "Thiếu từ khóa tìm kiếm."}, status_code=400)
+
+    presets = load_presets(deps.SOURCES_PATH)
+    source_names = [s.strip() for s in sources.split(",") if s.strip()] if sources else None
+
+    try:
+        response = search_all(
+            presets,
+            query,
+            source_names=source_names,
+            enrich=True,
+            max_workers=5,
+        )
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    results = []
+    for r in response.results[:limit * len(presets)]:
+        results.append({
+            "title": r.title,
+            "author": r.author,
+            "url": r.url,
+            "source_name": r.source_name,
+            "cover_url": r.cover_url,
+            "chapter_count": r.chapter_count,
+            "description": r.description,
+        })
+
+    errors = [{"source": e.source_name, "message": e.message} for e in response.errors]
+    return JSONResponse({"results": results, "errors": errors})
 
 
 @router.post("/library/ebooks")

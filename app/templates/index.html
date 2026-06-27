@@ -24,6 +24,22 @@
     </span>
 </p>
 
+<!-- Tìm kiếm tiểu thuyết -->
+<div id="search-region">
+    <div class="section-head">
+        <h3>Tìm kiếm tiểu thuyết</h3>
+    </div>
+    <div class="form-row" style="align-items:end">
+        <label style="flex:1">Tên truyện <input type="text" id="search_query" placeholder="Nhập tên tiểu thuyết cần tìm..."></label>
+        <button type="button" id="search-btn" class="button">🔍 Tìm kiếm</button>
+        <label class="check" style="margin-left:1em"><input type="checkbox" id="translate-meta"> Dịch metadata</label>
+    </div>
+    <span id="search-status" class="muted"></span>
+    <div id="search-results" style="display:none">
+        <div id="search-results-list"></div>
+    </div>
+</div>
+
 <div id="library-region">
 {% if ebooks %}
 <div class="section-head">
@@ -105,21 +121,21 @@
     </div>
 </div>
 
-<!-- Modal: Thêm ebook mới -->
+<!-- Modal: Thêm ebook mới (chỉ nhập URL) -->
 <div id="add-ebook-modal" class="modal-backdrop" hidden>
-    <div class="modal modal-large">
+    <div class="modal">
         <div class="section-head">
             <h3>Thêm ebook mới</h3>
             <button type="button" class="canvas-close" onclick="closeModal('add-ebook-modal')">✕</button>
         </div>
-        <p class="muted">① Paste <strong>link mục lục</strong> truyện · ② <strong>Xem trước</strong> → ③ <strong>Tạo ebook</strong>.</p>
         <form method="post" action="/library/ebooks" id="create-form">
             <input type="hidden" name="name" id="name">
             <input type="hidden" name="author" id="author">
+            <input type="hidden" name="toc_url" id="toc_url">
             <fieldset>
                 <legend>Link mục lục truyện</legend>
                 <div class="form-row">
-                    <label>URL mục lục <input type="text" name="toc_url" id="toc_url" size="50" required placeholder="https://..."></label>
+                    <label>URL mục lục <input type="text" name="toc_url_display" id="toc_url_display" size="50" required placeholder="https://..."></label>
                 </div>
                 <div class="form-row">
                     <button type="button" id="preview-btn">🔍 Xem trước</button>
@@ -128,7 +144,7 @@
             </fieldset>
 
             <fieldset id="preview-box" style="display:none">
-                <legend>③ Xem trước</legend>
+                <legend>Xem trước</legend>
                 <div class="preview-card">
                     <img id="pv-cover" alt="bìa" style="max-height:120px;display:none">
                     <div class="preview-meta">
@@ -236,15 +252,16 @@ document.addEventListener("DOMContentLoaded", function () {
         openModal('import-modal');
     });
 
-    const nameEl = document.getElementById("name");
-    const authorEl = document.getElementById("author");
-    const slugEl = document.getElementById("slug");
-    const tocUrlEl = document.getElementById("toc_url");
-    const previewBtn = document.getElementById("preview-btn");
-    const createBtn = document.getElementById("create-btn");
-    const fetchStatus = document.getElementById("fetch-status");
-    const previewBox = document.getElementById("preview-box");
-    const form = document.getElementById("create-form");
+    var nameEl = document.getElementById("name");
+    var authorEl = document.getElementById("author");
+    var slugEl = document.getElementById("slug");
+    var tocUrlEl = document.getElementById("toc_url");
+    var tocUrlDisplay = document.getElementById("toc_url_display");
+    var previewBtn = document.getElementById("preview-btn");
+    var createBtn = document.getElementById("create-btn");
+    var fetchStatus = document.getElementById("fetch-status");
+    var previewBox = document.getElementById("preview-box");
+    var form = document.getElementById("create-form");
 
     slugEl.addEventListener("input", function () {
         slugEl.dataset.userEdited = slugEl.value !== slugify(nameEl.value);
@@ -253,55 +270,58 @@ document.addEventListener("DOMContentLoaded", function () {
     function resetPreview() {
         previewBox.style.display = "none";
     }
-    tocUrlEl.addEventListener("input", resetPreview);
+    if (tocUrlDisplay) tocUrlDisplay.addEventListener("input", resetPreview);
 
-    previewBtn.addEventListener("click", async function () {
-        const url = tocUrlEl.value.trim();
-        previewBox.style.display = "none";
-        if (!url) {
-            fetchStatus.textContent = "⚠️ Nhập URL mục lục trước.";
-            return;
-        }
-        previewBtn.disabled = true;
-        fetchStatus.textContent = "⏳ Đang lấy thông tin...";
-
-        try {
-            const formData = new FormData();
-            formData.append("toc_url", url);
-
-            const res = await fetch("/library/ebooks/preview", {
-                method: "POST",
-                body: formData,
-            });
-            const data = await res.json();
-
-            if (data.error) {
-                fetchStatus.textContent = "⚠️ " + data.error;
+    // --- URL preview (modal) ---
+    if (previewBtn) {
+        previewBtn.addEventListener("click", async function () {
+            var url = tocUrlDisplay.value.trim();
+            previewBox.style.display = "none";
+            if (!url) {
+                fetchStatus.textContent = "⚠️ Nhập URL mục lục trước.";
                 return;
             }
+            tocUrlEl.value = url;
+            previewBtn.disabled = true;
+            fetchStatus.textContent = "⏳ Đang lấy thông tin...";
 
-            nameEl.value = data.name || "";
-            authorEl.value = data.author || "";
-            if (!slugEl.dataset.userEdited) slugEl.value = data.slug || "";
+            try {
+                var formData = new FormData();
+                formData.append("toc_url", url);
+                var res = await fetch("/library/ebooks/preview", {
+                    method: "POST",
+                    body: formData,
+                });
+                var data = await res.json();
 
-            document.getElementById("pv-name").textContent = data.name || "(không lấy được tên)";
-            document.getElementById("pv-author").textContent = data.author ? ("Tác giả: " + data.author) : "";
-            document.getElementById("pv-chapters").textContent = "Số chương: " + (data.chapter_count || 0);
-            const coverEl = document.getElementById("pv-cover");
-            if (data.cover_url) {
-                coverEl.src = data.cover_url;
-                coverEl.style.display = "";
-            } else {
-                coverEl.style.display = "none";
+                if (data.error) {
+                    fetchStatus.textContent = "⚠️ " + data.error;
+                    return;
+                }
+
+                nameEl.value = data.name || "";
+                authorEl.value = data.author || "";
+                if (!slugEl.dataset.userEdited) slugEl.value = data.slug || "";
+
+                document.getElementById("pv-name").textContent = data.name || "(không lấy được tên)";
+                document.getElementById("pv-author").textContent = data.author ? ("Tác giả: " + data.author) : "";
+                document.getElementById("pv-chapters").textContent = "Số chương: " + (data.chapter_count || 0);
+                var coverEl = document.getElementById("pv-cover");
+                if (data.cover_url) {
+                    coverEl.src = data.cover_url;
+                    coverEl.style.display = "";
+                } else {
+                    coverEl.style.display = "none";
+                }
+                previewBox.style.display = "";
+                fetchStatus.textContent = "✅ " + (data.name || "Đã lấy thông tin");
+            } catch (e) {
+                fetchStatus.textContent = "⚠️ Lỗi: " + e.message;
+            } finally {
+                previewBtn.disabled = false;
             }
-            previewBox.style.display = "";
-            fetchStatus.textContent = "✅ " + (data.name || "Đã lấy thông tin");
-        } catch (e) {
-            fetchStatus.textContent = "⚠️ Lỗi: " + e.message;
-        } finally {
-            previewBtn.disabled = false;
-        }
-    });
+        });
+    }
 
     form.addEventListener("submit", function (e) {
         if (previewBox.style.display === "none") {
@@ -309,6 +329,111 @@ document.addEventListener("DOMContentLoaded", function () {
             fetchStatus.textContent = "⚠️ Hãy bấm Xem trước trước khi tạo.";
         }
     });
+
+    // --- Search on main page ---
+    var searchBtn = document.getElementById("search-btn");
+    var searchQuery = document.getElementById("search_query");
+    var searchStatus = document.getElementById("search-status");
+    var searchResults = document.getElementById("search-results");
+    var searchResultsList = document.getElementById("search-results-list");
+
+    searchBtn.addEventListener("click", doSearch);
+    searchQuery.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); doSearch(); }
+    });
+
+    async function doSearch() {
+        var query = searchQuery.value.trim();
+        if (!query) {
+            searchStatus.textContent = "⚠️ Nhập tên tiểu thuyết trước.";
+            return;
+        }
+        searchBtn.disabled = true;
+        searchStatus.textContent = "⏳ Đang tìm kiếm...";
+        searchResults.style.display = "none";
+
+        try {
+            var formData = new FormData();
+            formData.append("query", query);
+            var res = await fetch("/library/ebooks/search", {
+                method: "POST",
+                body: formData,
+            });
+            var data = await res.json();
+
+            if (data.error) {
+                searchStatus.textContent = "⚠️ " + data.error;
+                return;
+            }
+
+            if (!data.results || data.results.length === 0) {
+                searchStatus.textContent = "Không tìm thấy kết quả nào.";
+                if (data.errors && data.errors.length > 0) {
+                    searchStatus.textContent += " (" + data.errors.map(function (e) { return e.source + ": " + e.message; }).join("; ") + ")";
+                }
+                return;
+            }
+
+            searchResultsList.innerHTML = "";
+            data.results.forEach(function (r, idx) {
+                var card = document.createElement("div");
+                card.className = "ebook-card";
+                card.style.marginBottom = "0.5em";
+                var coverHtml = r.cover_url ? '<img src="' + escapeHtml(r.cover_url) + '" alt="bìa" style="max-height:80px;margin-right:1em;border-radius:4px">' : '';
+                card.innerHTML =
+                    '<div class="ebook-card-body" style="display:flex;align-items:center">' +
+                    coverHtml +
+                    '<div style="flex:1">' +
+                    '<div><strong>' + escapeHtml(r.title) + '</strong> <span class="badge">' + escapeHtml(r.source_name) + '</span></div>' +
+                    '<div class="muted">' + (r.author ? 'Tác giả: ' + escapeHtml(r.author) : '') +
+                    (r.chapter_count ? ' · ' + r.chapter_count + ' chương' : '') + '</div>' +
+                    '<div class="muted" style="font-size:0.85em;word-break:break-all">' + escapeHtml(r.url) + '</div>' +
+                    '</div>' +
+                    '<button type="button" class="button select-result-btn" data-idx="' + idx + '">Chọn</button>' +
+                    '</div>';
+                searchResultsList.appendChild(card);
+            });
+
+            searchResults.style.display = "";
+            searchStatus.textContent = "Tìm thấy " + data.results.length + " kết quả.";
+
+            searchResultsList.querySelectorAll(".select-result-btn").forEach(function (btn) {
+                btn.addEventListener("click", function () {
+                    var idx = parseInt(btn.dataset.idx);
+                    var r = data.results[idx];
+                    openAddEbookModal(r);
+                });
+            });
+        } catch (e) {
+            searchStatus.textContent = "⚠️ Lỗi: " + e.message;
+        } finally {
+            searchBtn.disabled = false;
+        }
+    }
+
+    function openAddEbookModal(result) {
+        tocUrlEl.value = result.url;
+        tocUrlDisplay.value = result.url;
+        nameEl.value = result.title || "";
+        authorEl.value = result.author || "";
+        slugEl.dataset.userEdited = "";
+        slugEl.value = slugify(result.title || "");
+
+        document.getElementById("pv-name").textContent = result.title || "(không lấy được tên)";
+        document.getElementById("pv-author").textContent = result.author ? ("Tác giả: " + result.author) : "";
+        document.getElementById("pv-chapters").textContent = result.chapter_count ? ("Số chương: " + result.chapter_count) : "";
+        var coverEl = document.getElementById("pv-cover");
+        if (result.cover_url) {
+            coverEl.src = result.cover_url;
+            coverEl.style.display = "";
+        } else {
+            coverEl.style.display = "none";
+        }
+        previewBox.style.display = "";
+        fetchStatus.textContent = result.title + " (" + result.source_name + ")";
+
+        openModal('add-ebook-modal');
+    }
 });
 </script>
 {% endblock %}

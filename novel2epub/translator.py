@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Callable, Protocol
 
 from . import openai_client
-from .config import TranslateConfig
+from .config import LibreTranslateConfig, TranslateConfig
 from .storage import parse_glossary_line
 
 # Một số mẫu "lời mở đầu" mà LLM hay tự thêm dù đã bảo đừng.
@@ -388,6 +388,60 @@ class HachimiMTTranslator:
         return result
 
 
+class LibreTranslateTranslator:
+    """Dịch bằng LibreTranslate API (self-hosted).
+
+    Gọi `POST /translate` của LibreTranslate server. Phù hợp cho dịch metadata
+    ngắn (title, author, description) — nhanh, không tốn token LLM.
+    """
+
+    def __init__(self, cfg: TranslateConfig):
+        self.cfg = cfg
+        self.lt = cfg.libretranslate
+        self.glossary = _merge_glossaries(cfg.glossary)
+
+    def _translate_text(self, text: str) -> str:
+        import requests
+
+        url = f"{self.lt.base_url.rstrip('/')}/translate"
+        payload: dict[str, Any] = {
+            "q": text,
+            "source": self.lt.source_language,
+            "target": self.lt.target_language,
+            "format": "text",
+        }
+        headers: dict[str, str] = {}
+        if self.lt.api_key:
+            headers["Authorization"] = f"Bearer {self.lt.api_key}"
+
+        resp = requests.post(url, json=payload, headers=headers, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("translatedText", "")
+
+    def translate(
+        self,
+        text: str,
+        *,
+        on_chunk: Callable[[int, int, str, bool], None] | None = None,
+    ) -> str:
+        if not text.strip():
+            if on_chunk is not None:
+                on_chunk(1, 1, text, True)
+            return text
+        translated = self._translate_text(text)
+        out = _apply_glossary(translated, self.glossary)
+        if on_chunk is not None:
+            on_chunk(1, 1, out, True)
+        return out
+
+    def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
+        if not text.strip():
+            return text, ""
+        translated = self._translate_text(text)
+        return _apply_glossary(translated, self.glossary), ""
+
+
 def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = None) -> Translator:
     kind = (cfg.type or "none").lower()
     if kind == "openai":
@@ -396,6 +450,8 @@ def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = No
         return GoogleTranslator(cfg)
     if kind in ("hachimimt", "moxhimt"):
         return HachimiMTTranslator(cfg, log=log)
+    if kind == "libretranslate":
+        return LibreTranslateTranslator(cfg)
     if kind == "none":
         return NoopTranslator()
     raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (openai|google|hachimimt|none)")

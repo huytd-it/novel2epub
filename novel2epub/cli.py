@@ -6,7 +6,7 @@ import sys
 
 import os
 
-from .config import load_config, load_library
+from .config import load_config, load_library, CrawlConfig
 from .pipeline import (
     run_all,
     step_build,
@@ -111,6 +111,13 @@ def main(argv: list[str] | None = None) -> int:
     evaluate_parser = sub.add_parser("evaluate", help="AI đánh giá glossary + bản dịch (chỉ xem, không sửa)")
     evaluate_parser.add_argument("--from", dest="start", type=int, default=None, help="Đánh giá từ chương số")
     evaluate_parser.add_argument("--to", dest="end", type=int, default=None, help="Đánh giá đến chương số")
+    search_parser = sub.add_parser("search", help="Tìm kiếm tiểu thuyết trên các source")
+    search_parser.add_argument("query", help="Tên tiểu thuyết cần tìm")
+    search_parser.add_argument("--sources", default="", help="Chỉ tìm trên các source cụ thể (phân tách bằng dấu phẩy)")
+    search_parser.add_argument("--limit", type=int, default=5, help="Số kết quả tối đa mỗi source (mặc định: 5)")
+    search_parser.add_argument("--format", dest="output_format", default="text", choices=["text", "json"], help="Định dạng output")
+    search_parser.add_argument("--select", type=int, default=None, help="Chọn kết quả theo số thứ tự (1-based) để tạo ebook")
+    search_parser.add_argument("--translate", action="store_true", help="Dịch metadata sang tiếng Việt khi dùng --select")
     sub.add_parser("build", help="Đóng gói EPUB từ các chương đã dịch")
     sub.add_parser("run", help="Chạy toàn bộ: crawl -> translate -> build")
     sub.add_parser("list", help="Liệt kê các ebook trong library")
@@ -136,6 +143,96 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         for slug, entry in library.ebooks.items():
             print(f"{slug}\t{entry.name or slug}")
+        return 0
+
+    if args.command == "search":
+        from .search import search_all
+        from .sources import load_presets
+
+        config_path = args.config
+        import os
+        sources_path = os.path.join(os.path.dirname(config_path) if os.path.dirname(config_path) else ".", "novel2epub.yaml")
+        if not os.path.exists(sources_path):
+            sources_path = config_path
+
+        presets = load_presets(sources_path)
+        source_names = [s.strip() for s in args.sources.split(",") if s.strip()] if args.sources else None
+
+        response = search_all(
+            presets,
+            args.query,
+            source_names=source_names,
+            enrich=args.select is not None,
+            max_workers=5,
+        )
+
+        if response.errors:
+            for err in response.errors:
+                print(f"[{err.source_name}] Lỗi: {err.message}", file=sys.stderr)
+
+        if not response.results:
+            print("Không tìm thấy kết quả nào.")
+            return 1
+
+        if args.output_format == "json":
+            import json
+            results = []
+            for r in response.results:
+                results.append({
+                    "title": r.title,
+                    "author": r.author,
+                    "url": r.url,
+                    "source_name": r.source_name,
+                    "cover_url": r.cover_url,
+                    "chapter_count": r.chapter_count,
+                    "description": r.description,
+                })
+            print(json.dumps(results, ensure_ascii=False, indent=2))
+            return 0
+
+        for i, r in enumerate(response.results, 1):
+            author = f" — {r.author}" if r.author else ""
+            chapters = f" ({r.chapter_count} ch)" if r.chapter_count else ""
+            print(f"[{r.source_name}] {r.title}{author}{chapters} — {r.url}")
+
+        if args.select is not None:
+            idx = args.select - 1
+            if idx < 0 or idx >= len(response.results):
+                print(f"Lỗi: --select {args.select} không hợp lệ (có {len(response.results)} kết quả).", file=sys.stderr)
+                return 1
+
+            selected = response.results[idx]
+            print(f"\nĐã chọn: {selected.title} ({selected.source_name})")
+
+            if args.translate:
+                try:
+                    global_cfg = load_config(args.config)
+                    if global_cfg.translate.type.lower() != "none":
+                        from .translator import RateLimited, make_translator
+                        translator = RateLimited(
+                            make_translator(global_cfg.translate),
+                            global_cfg.translate.delay_seconds,
+                        )
+                        if selected.title:
+                            title_vi, _ = translator.translate_title(selected.title, kind="tên truyện")
+                            if title_vi:
+                                selected.title = title_vi
+                                print(f"  Tên (dịch): {title_vi}")
+                except Exception as e:
+                    print(f"  Cảnh báo: Không thể dịch metadata: {e}", file=sys.stderr)
+
+            print(f"  URL: {selected.url}")
+            print(f"  Tác giả: {selected.author or 'N/A'}")
+            print(f"  Số chương: {selected.chapter_count or 'N/A'}")
+            print("\nĐể tạo ebook mới, hãy thêm vào novel2epub.yaml:")
+            print(f"  ebooks:")
+            print(f"    <slug>:")
+            print(f"      novel:")
+            print(f"        title: \"{selected.title}\"")
+            print(f"        author: \"{selected.author}\"")
+            print(f"      crawl:")
+            print(f"        toc_url: \"{selected.url}\"")
+
         return 0
 
     try:

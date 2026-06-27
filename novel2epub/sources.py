@@ -57,6 +57,14 @@ class SourcePreset:
     # Trần song song hóa cứng cho nguồn này (xem CrawlConfig.concurrency_cap).
     # 0 = dùng mặc định theo engine/scrapling_mode.
     concurrency_cap: int = 0
+    # ----- search configuration -----
+    search_url_pattern: str = ""
+    search_result_selector: str = ""
+    search_title_selector: str = ""
+    search_author_selector: str = ""
+    search_link_selector: str = ""
+    search_cover_selector: str = ""
+    max_search_results: int = 5
 
     def crawl_overrides(self) -> dict[str, Any]:
         """Dict áp lên nhánh `crawl` của config (bỏ `name`, `domains`)."""
@@ -91,11 +99,11 @@ def _coerce(name: str, value: Any) -> Any:
             return int(value)
         except (TypeError, ValueError):
             return 10
-    if name == "concurrency_cap":
+    if name in {"concurrency_cap", "max_search_results"}:
         try:
             return int(value)
         except (TypeError, ValueError):
-            return 0
+            return 5 if name == "max_search_results" else 0
     return "" if value is None else value
 
 

@@ -229,8 +229,21 @@ class HachimiMTConfig:
 
 
 @dataclass
+class LibreTranslateConfig:
+    """Cấu hình backend LibreTranslate (self-hosted translation API).
+
+    Gọi HTTP API `POST /translate` của LibreTranslate server.
+    Tương thích với LibreTranslate community instance hoặc self-hosted.
+    """
+    base_url: str = "http://localhost:5000"
+    api_key: str = ""
+    source_language: str = "zh"
+    target_language: str = "vi"
+
+
+@dataclass
 class TranslateConfig:
-    type: str = "hachimimt"  # hachimimt | openai | google | none
+    type: str = "hachimimt"  # hachimimt | openai | google | libretranslate | none
     preset: str = ""
     # Local NMT model: "hachimimt-60" | "hachimimt-30" | "moxhimt-60" | ...
     # Khi set, tự động gán model_key cho HachimiMTConfig.
@@ -247,6 +260,7 @@ class TranslateConfig:
     chunk: TranslationChunkConfig = field(default_factory=TranslationChunkConfig)
     openai: OpenAIConfig = field(default_factory=OpenAIConfig)
     hachimimt: HachimiMTConfig = field(default_factory=HachimiMTConfig)
+    libretranslate: LibreTranslateConfig = field(default_factory=LibreTranslateConfig)
     delay_seconds: float = 0.5
     # Số chương dịch song song (luồng riêng, dùng chung 1 translator — HTTP
     # request/Google request đều an toàn gọi đồng thời). 1 = tuần tự như trước.
@@ -440,6 +454,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     preset_name = translate_raw.get("preset", "")
     openai_raw = translate_raw.pop("openai", None) or {}
     hachimimt_raw = _as_dict(translate_raw.pop("hachimimt", None))
+    libretranslate_raw = _as_dict(translate_raw.pop("libretranslate", None))
     style = _build_style(translate_raw)
     glossary_files_raw = _as_dict(translate_raw.pop("glossary_files", None))
     retry_raw = _as_dict(translate_raw.pop("retry", None))
@@ -515,6 +530,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         ),
         openai=OpenAIConfig(**openai_raw),
         hachimimt=hachimimt,
+        libretranslate=LibreTranslateConfig(**libretranslate_raw) if libretranslate_raw else LibreTranslateConfig(),
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
     )

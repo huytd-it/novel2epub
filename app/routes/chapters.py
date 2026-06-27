@@ -19,6 +19,8 @@ from novel2epub.pipeline import (
 from novel2epub.storage import Storage
 from novel2epub.toc import count_words
 
+from novel2epub.openai_client import run_chat as openai_run_chat
+
 from .. import deps
 from .glossary import _append_glossary_entry
 
@@ -380,6 +382,59 @@ def api_ebook_chapter_translated(slug: str, index: int):
     if ch is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
     return JSONResponse(_chapter_translated_payload(storage, ch))
+
+
+_POLISH_PROMPT = """Bạn là biên tập viên truyện dịch Trung → Việt.
+Hãy BIÊN TẬP LẠI đoạn văn sau cho mượt mà, dễ hiểu, tự nhiên hơn.
+Giữ nguyên nội dung, KHÔNG thêm bớt hay giải thích.
+Chỉ trả về đoạn văn đã biên tập, không kèm lời dẫn hay code fence.
+
+Đoạn văn:
+{text}"""
+
+_EXPLAIN_PROMPT = """Bạn là trợ lý dịch thuật Trung → Việt.
+Hãy GIẢI THÍCH đoạn văn dịch sau: các từ Hán Việt khó, thành ngữ, điển tích,
+hoặc cách hiểu câu văn. Trả lời ngắn gọn bằng tiếng Việt, phù hợp với người
+đang review bản dịch.
+
+Đoạn văn:
+{text}"""
+
+
+def _call_openai(cfg, prompt: str) -> str:
+    result = openai_run_chat(cfg.translate.openai, prompt).strip()
+    lines = result.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip().startswith("```"):
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/parapolish")
+def api_ebook_chapter_parapolish(slug: str, index: int, text: str = Form(...)):
+    """Biên tập 1 đoạn văn bằng AI — mượt/dễ hiểu hơn, không thay đổi nội dung."""
+    cfg = deps.resolved_cfg(slug)
+    if not cfg.translate.openai.api_key and not cfg.translate.openai.base_url:
+        raise HTTPException(status_code=400, detail="Chưa cấu hình OpenAI.")
+    try:
+        polished = _call_openai(cfg, _POLISH_PROMPT.format(text=text))
+        return JSONResponse({"polished": polished})
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/paraexplain")
+def api_ebook_chapter_paraexplain(slug: str, index: int, text: str = Form(...)):
+    """Giải thích từ ngữ/ý nghĩa 1 đoạn văn — hỗ trợ review bản dịch."""
+    cfg = deps.resolved_cfg(slug)
+    if not cfg.translate.openai.api_key and not cfg.translate.openai.base_url:
+        raise HTTPException(status_code=400, detail="Chưa cấu hình OpenAI.")
+    try:
+        explanation = _call_openai(cfg, _EXPLAIN_PROMPT.format(text=text))
+        return JSONResponse({"explanation": explanation})
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.get("/api/chapters/{index}/translated")

@@ -80,6 +80,7 @@ class JobQueue:
         self._active: dict[str, int] = {c: 0 for c in CATEGORIES}
         self._both_active = False
         self._both_waiting = False
+        self._ebook_locks: dict[str, set[str]] = {c: set() for c in (*CATEGORIES, "both")}
         self._history: deque[Job] = deque(maxlen=history_limit)
         self._jobs: dict[str, Job] = {}
         self._history_path = Path(history_path) if history_path else None
@@ -210,20 +211,31 @@ class JobQueue:
 
     def category_status(self, category: str) -> dict:
         with self._lock:
-            current = next((j for j in self._running.values() if category in _categories_for(j.category)), None)
+            running_jobs = [j for j in self._running.values() if category in _categories_for(j.category)]
+            current = running_jobs[0] if running_jobs else None
             if current is None:
                 current = next((j for j in self._history if category in _categories_for(j.category)), None)
             if current is None:
-                return {"running": False, "step": "", "error": "", "log": [], "cancelling": False}
+                return {"running": False, "step": "", "error": "", "log": [], "cancelling": False, "ebook_slug": "", "running_ebooks": []}
             return {
                 "running": current.state == "running",
                 "step": current.step,
                 "error": current.error,
                 "log": list(current.log),
                 "cancelling": current.cancel_event.is_set(),
+                "ebook_slug": current.ebook,
+                "running_ebooks": [j.ebook for j in running_jobs if j.ebook],
             }
 
     # ---------- worker loop ----------
+
+    def is_ebook_busy(self, category: str, ebook: str) -> bool:
+        """Kiểm tra có job đang chạy cho ebook cụ thể trong category này không."""
+        with self._lock:
+            return any(
+                j.ebook == ebook and category in _categories_for(j.category)
+                for j in self._running.values()
+            )
 
     def _can_start(self, category: str) -> Job | None:
         """Gọi khi đã giữ self._cv. Trả job kế tiếp có thể chạy ngay, hoặc None."""
@@ -235,9 +247,14 @@ class JobQueue:
             return self._pending["both"][0]
         if self._both_active or self._both_waiting:
             return None
+        if self._active[category] >= self._workers[category]:
+            return None
         if not self._pending[category]:
             return None
-        return self._pending[category][0]
+        candidate = self._pending[category][0]
+        if candidate.ebook and candidate.ebook in self._ebook_locks.get(category, set()):
+            return None
+        return candidate
 
     def _worker_loop(self, category: str) -> None:
         while True:
@@ -256,6 +273,8 @@ class JobQueue:
                     self._both_waiting = False
                 else:
                     self._active[category] += 1
+                if job.ebook:
+                    self._ebook_locks[category].add(job.ebook)
                 job.state = "running"
                 job.started_at = time.time()
                 self._running[job.id] = job
@@ -268,6 +287,8 @@ class JobQueue:
                     self._both_active = False
                 else:
                     self._active[category] -= 1
+                if job.ebook:
+                    self._ebook_locks[category].discard(job.ebook)
                 self._push_history(job)
                 self._cv.notify_all()
 

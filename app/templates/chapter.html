@@ -139,6 +139,25 @@
     <div class="compare-wrap">
         <div class="compare-toolbar">
             <label class="check muted"><input type="checkbox" id="highlight-toggle" checked> Tô sáng glossary</label>
+            <span class="font-controls">
+                <label>Font:
+                    <select id="font-family-select">
+                        <option value="monospace">Monospace</option>
+                        <option value="'Noto Serif', serif">Noto Serif</option>
+                        <option value="Georgia, serif">Georgia</option>
+                        <option value="'Times New Roman', serif">Times New Roman</option>
+                    </select>
+                </label>
+                <label>Cỡ:
+                    <select id="font-size-select">
+                        <option value="14px">14</option>
+                        <option value="15px">15</option>
+                        <option value="16px">16</option>
+                        <option value="18px">18</option>
+                        <option value="20px">20</option>
+                    </select>
+                </label>
+            </span>
         </div>
         <table class="compare-table" id="compare-table">
             <thead>
@@ -146,6 +165,7 @@
                     <th class="col-raw">ZH — Gốc</th>
                     <th class="col-mt">VI — Bản dịch máy</th>
                     <th class="col-edit">Biên tập</th>
+                    <th class="col-ai">AI</th>
                 </tr>
             </thead>
             <tbody>
@@ -154,6 +174,13 @@
                     <td class="raw-cell" data-para="{{ i }}">{{ raw_paras[i] }}</td>
                     <td class="mt-cell" data-para="{{ i }}">{{ mt_paras[i] }}</td>
                     <td class="edit-cell"><textarea class="para-textarea" data-para="{{ i }}" rows="1">{{ edit_paras[i] }}</textarea></td>
+                    <td class="ai-cell">
+                        <div class="ai-cell-actions">
+                            <button type="button" class="ai-polish-btn" data-para="{{ i }}" title="Biên tập lại đoạn này">✏️</button>
+                            <button type="button" class="ai-explain-btn" data-para="{{ i }}" title="Giải thích từ ngữ">💡</button>
+                        </div>
+                        <div class="ai-explain-box" id="explain-{{ i }}" hidden></div>
+                    </td>
                 </tr>
             {% endfor %}
             </tbody>
@@ -405,8 +432,13 @@ function jobCategoryFor(form) {
     return (el && el.dataset.jobCategory) || "both";
 }
 
-function isCategoryRunning(status, category) {
+function isCategoryRunning(status, category, slug) {
     if (category === "both") return status.crawl.running || status.translate.running;
+    if (category === "translate") {
+        if (!status.translate.running) return false;
+        if (slug) return (status.translate.running_ebooks || []).includes(slug);
+        return status.translate.running;
+    }
     return status[category].running;
 }
 
@@ -416,7 +448,8 @@ function setJobButtonsDisabled(status) {
     );
     for (const btn of jobButtons) {
         const form = btn.closest("form");
-        btn.disabled = isCategoryRunning(status, jobCategoryFor(form));
+        const category = jobCategoryFor(form);
+        btn.disabled = isCategoryRunning(status, category, CHAPTER_SLUG);
     }
 }
 
@@ -571,11 +604,23 @@ async function poll() {
             const container = document.getElementById(`status-badge-${cat}`);
             if (container) {
                 let html = "";
-                if (data[cat].running) {
-                    html += `<span class="badge run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
-                    if (statusSection) statusSection.style.display = "block";
+                if (cat === "translate") {
+                    const busyHere = data.translate.running && (data.translate.running_ebooks || []).includes(CHAPTER_SLUG);
+                    if (busyHere) {
+                        html += `<span class="badge run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
+                        if (statusSection) statusSection.style.display = "block";
+                    } else if (data[cat].running) {
+                        html += `<span class="badge run">${labels[cat]}: đang chạy (ebook khác)</span> `;
+                    } else {
+                        html += `<span class="badge ok">${labels[cat]}: rảnh</span> `;
+                    }
                 } else {
-                    html += `<span class="badge ok">${labels[cat]}: rảnh</span> `;
+                    if (data[cat].running) {
+                        html += `<span class="badge run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
+                        if (statusSection) statusSection.style.display = "block";
+                    } else {
+                        html += `<span class="badge ok">${labels[cat]}: rảnh</span> `;
+                    }
                 }
                 if (data[cat].error) {
                     html += `<span class="badge no">lỗi: ${data[cat].error}</span>`;
@@ -624,5 +669,117 @@ document.getElementById("retranslate-title-btn")?.addEventListener("click", asyn
 // Start polling immediately to check if a job is already running
 poll();
 setInterval(poll, 1500);
+
+// --- AI biên tập & giải thích từng paragraph ---
+(function() {
+    const BASE_URL = `/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/chapters/${CHAPTER_INDEX}`;
+
+    document.querySelectorAll('.ai-polish-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const para = this.dataset.para;
+            const textarea = document.querySelector(`.para-textarea[data-para="${para}"]`);
+            if (!textarea) return;
+            const text = textarea.value.trim();
+            if (!text) return;
+
+            this.disabled = true;
+            this.textContent = '⏳';
+
+            try {
+                const formData = new FormData();
+                formData.append('text', text);
+                const res = await fetch(`${BASE_URL}/parapolish`, { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert(err.detail || 'Lỗi khi biên tập AI.');
+                    return;
+                }
+                const data = await res.json();
+                textarea.value = data.polished;
+                autoResizeTextarea(textarea);
+            } catch (e) {
+                alert('Lỗi kết nối mạng khi gọi AI biên tập.');
+            } finally {
+                this.disabled = false;
+                this.textContent = '✏️';
+            }
+        });
+    });
+
+    document.querySelectorAll('.ai-explain-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const para = this.dataset.para;
+            const textarea = document.querySelector(`.para-textarea[data-para="${para}"]`);
+            if (!textarea) return;
+            const text = textarea.value.trim();
+            if (!text) return;
+
+            const box = document.getElementById(`explain-${para}`);
+            if (!box) return;
+
+            if (!box.hidden) {
+                box.hidden = true;
+                return;
+            }
+
+            this.disabled = true;
+            this.textContent = '⏳';
+            box.innerHTML = 'Đang tải...';
+            box.hidden = false;
+
+            try {
+                const formData = new FormData();
+                formData.append('text', text);
+                const res = await fetch(`${BASE_URL}/paraexplain`, { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    box.innerHTML = `Lỗi: ${err.detail || 'Không xác định'}`;
+                    return;
+                }
+                const data = await res.json();
+                box.innerHTML = data.explanation;
+            } catch (e) {
+                box.innerHTML = 'Lỗi kết nối mạng.';
+            } finally {
+                this.disabled = false;
+                this.textContent = '💡';
+            }
+        });
+    });
+})();
+
+// --- Font/font-size tuỳ chỉnh (lưu localStorage) ---
+(function() {
+    const FAMILY_KEY = 'n2e-font-family';
+    const SIZE_KEY = 'n2e-font-size';
+    const familySel = document.getElementById('font-family-select');
+    const sizeSel = document.getElementById('font-size-select');
+    if (!familySel || !sizeSel) return;
+
+    function apply(family, size) {
+        document.querySelectorAll('.compare-table td, .compare-table textarea').forEach(el => {
+            el.style.fontFamily = family;
+            el.style.fontSize = size;
+        });
+    }
+
+    const savedFamily = localStorage.getItem(FAMILY_KEY) || 'monospace';
+    const savedSize = localStorage.getItem(SIZE_KEY) || '15px';
+    familySel.value = savedFamily;
+    sizeSel.value = savedSize;
+    apply(savedFamily, savedSize);
+
+    familySel.addEventListener('change', () => {
+        const v = familySel.value;
+        localStorage.setItem(FAMILY_KEY, v);
+        apply(v, sizeSel.value);
+    });
+
+    sizeSel.addEventListener('change', () => {
+        const v = sizeSel.value;
+        localStorage.setItem(SIZE_KEY, v);
+        apply(familySel.value, v);
+    });
+})();
 </script>
 {% endblock %}

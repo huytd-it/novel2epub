@@ -111,7 +111,7 @@
             <label>Từ chương <input type="number" name="chapter_from" value="0" min="0"></label>
             <label>đến chương <input type="number" name="chapter_to" value="0" min="0"></label>
             <label class="check"><input type="checkbox" name="also_raw" value="true"> Cả bản gốc (raw)</label>
-            <button type="submit" {% if job.translate.running %}disabled{% endif %}>Tìm &amp; thay thế</button>
+            <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Tìm &amp; thay thế</button>
         </form>
     </div>
 
@@ -123,7 +123,7 @@
         <form method="post" action="/ebooks/{{ slug }}/glossary/rewrite" class="form-row">
             <label>Từ chương <input type="number" name="chapter_from" value="1" min="0" required></label>
             <label>đến chương <input type="number" name="chapter_to" value="1" min="0" required></label>
-            <button type="submit" {% if job.translate.running %}disabled{% endif %}>AI rewrite</button>
+            <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>AI rewrite</button>
         </form>
     </div>
 </div>
@@ -131,12 +131,18 @@
 <p>
     Trạng thái job dịch:
     <span id="status-badge-container">
-        {% if job.translate.running %}<span class="badge run">đang chạy: {{ job.translate.step }}</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
+        {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="badge run">đang chạy: {{ job.translate.step }}</span>{% elif job.translate.running %}<span class="badge run">đang chạy (ebook khác)</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
         {% if job.translate.error %}<span class="badge no">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
 </p>
 
 <script>
+const GLOSSARY_SLUG = {{ slug | tojson }};
+
+function isTranslateBusyHere(data) {
+    if (!data.translate.running) return false;
+    return (data.translate.running_ebooks || []).includes(GLOSSARY_SLUG);
+}
 
 // --- Asynchronous action button handler ---
 function setJobButtonsDisabled(disabled) {
@@ -203,12 +209,15 @@ async function poll() {
         if (!res.ok) return;
         const data = await res.json();
         const t = data.translate;
+        const busyHere = isTranslateBusyHere(data);
 
         const container = document.getElementById("status-badge-container");
         if (container) {
             let html = "";
-            if (t.running) {
+            if (busyHere) {
                 html += `<span class="badge run">đang chạy: ${t.step}</span> `;
+            } else if (t.running) {
+                html += '<span class="badge run">đang chạy (ebook khác)</span> ';
             } else {
                 html += '<span class="badge ok">rảnh</span> ';
             }
@@ -218,11 +227,11 @@ async function poll() {
             container.innerHTML = html;
         }
 
-        setJobButtonsDisabled(t.running);
+        setJobButtonsDisabled(busyHere);
 
         // Job rewrite ghi vào file chương, không đụng tới form glossary nên
         // không reload trang (tránh mất nội dung đang gõ trong textarea).
-        wasRunning = t.running;
+        wasRunning = busyHere;
     } catch (e) {
         console.error("Lỗi khi poll status:", e);
     }

@@ -18,9 +18,9 @@
         </div>
         <div class="action-group" role="group" aria-label="Dịch">
             <span class="action-group-label">Dịch</span>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/translate" data-job-category="translate"><button class="btn-primary" {% if job.translate.running %}disabled{% endif %}>Dịch tất cả</button></form>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate"><button {% if job.translate.running %}disabled{% endif %}>Dịch metadata (AI)</button></form>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/translate/cancel" data-job-category="translate"><button class="btn-stop" {% if not job.translate.running %}disabled{% endif %}>Dừng</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/translate" data-job-category="translate"><button class="btn-primary" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch tất cả</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate"><button {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch metadata (AI)</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/translate/cancel" data-job-category="translate"><button class="btn-stop" {% if not (job.translate.running and slug in job.translate.running_ebooks) %}disabled{% endif %}>Dừng</button></form>
         </div>
         <div class="action-group" role="group" aria-label="Hoàn thiện">
             <span class="action-group-label">Xuất bản</span>
@@ -111,7 +111,7 @@
     </span>
     <button type="button" class="btn-refresh" data-refresh-cat="crawl" title="Làm mới trạng thái Crawl">⟳</button>
     <span id="status-badge-translate">
-        {% if job.translate.running %}<span class="badge run">Dịch: đang chạy ({{ job.translate.step }})</span>{% else %}<span class="badge ok">Dịch: rảnh</span>{% endif %}
+        {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="badge run">Dịch: đang chạy ({{ job.translate.step }})</span>{% elif job.translate.running %}<span class="badge run">Dịch: đang chạy (ebook khác)</span>{% else %}<span class="badge ok">Dịch: rảnh</span>{% endif %}
         {% if job.translate.error %}<span class="badge no">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
     <button type="button" class="btn-refresh" data-refresh-cat="translate" title="Làm mới trạng thái Dịch">⟳</button>
@@ -167,13 +167,13 @@
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate">
         <input type="hidden" name="action" value="translate">
         <input type="hidden" name="targeting_mode" value="checked">
-        <button type="submit" {% if job.translate.running %}disabled{% endif %}>Dịch selected</button>
+        <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch selected</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta-selected" class="selected-action-form" data-selected-action="translate">
-        <button type="submit" {% if job.translate.running %}disabled{% endif %}>Dịch meta selected</button>
+        <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch meta selected</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
-        <button type="submit" {% if job.translate.running %}disabled{% endif %}>Dịch TOC selected</button>
+        <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch TOC selected</button>
     </form>
     <label class="check"><input type="checkbox" id="selected-override" value="true"> Ghi đè</label>
     <span id="checked-info" class="muted">Đã tick 0 chương.</span>
@@ -218,6 +218,10 @@ const CHAPTERS_DATA = {{ chapters_json | tojson }};
 let wasRunning = {
     crawl: {{ "true" if job.crawl.running else "false" }},
     translate: {{ "true" if job.translate.running else "false" }},
+};
+let lastStatusData = {
+    crawl: { running: wasRunning.crawl, running_ebooks: {{ job.crawl.running_ebooks | tojson }} },
+    translate: { running: wasRunning.translate, running_ebooks: {{ job.translate.running_ebooks | tojson }} },
 };
 let searchTimer = null; // debounce cho ô tìm kiếm
 let pendingFetchToc = false; // fetch-toc cần reload toàn trang sau khi xong
@@ -341,13 +345,18 @@ function jobCategoryFor(form, btn) {
     return (el && el.dataset.jobCategory) || "both";
 }
 
-function isCategoryRunning(status, category) {
+function isCategoryRunning(status, category, slug) {
     if (category === "both") return status.crawl.running || status.translate.running;
+    if (category === "translate") {
+        if (!status.translate.running) return false;
+        if (slug) return (status.translate.running_ebooks || []).includes(slug);
+        return status.translate.running;
+    }
     return status[category].running;
 }
 
 function lastStatus() {
-    return { crawl: { running: wasRunning.crawl }, translate: { running: wasRunning.translate } };
+    return lastStatusData;
 }
 
 function refreshCheckedInfo() {
@@ -363,7 +372,8 @@ function setJobButtonsDisabled(status) {
     );
     for (const btn of jobButtons) {
         const form = btn.closest("form");
-        const running = isCategoryRunning(status, jobCategoryFor(form, btn));
+        const category = jobCategoryFor(form, btn);
+        const running = isCategoryRunning(status, category, SLUG);
         // Nút Dừng đảo ngược logic: chỉ bật khi job đang chạy.
         btn.disabled = btn.classList.contains("btn-stop") ? !running : running;
     }
@@ -579,16 +589,32 @@ document.addEventListener("submit", async function(event) {
 
 const STATUS_LABELS = { crawl: "Crawl", translate: "Dịch" };
 
+// Kiểm tra category translate có job đang chạy cho ebook hiện tại không.
+function isTranslateBusyForCurrent(data) {
+    if (!data.translate.running) return false;
+    return (data.translate.running_ebooks || []).includes(SLUG);
+}
+
 // Cập nhật badge + log của 1 category từ dữ liệu /api/status; trả về true
 // nếu job của category đó vừa chuyển từ "đang chạy" sang "xong".
 function updateCategoryUI(cat, data) {
     const container = document.getElementById(`status-badge-${cat}`);
     if (container) {
         let html = "";
-        if (data[cat].running) {
-            html += `<span class="badge run">${STATUS_LABELS[cat]}: đang chạy (${data[cat].step})</span> `;
+        if (cat === "translate") {
+            if (isTranslateBusyForCurrent(data)) {
+                html += `<span class="badge run">${STATUS_LABELS[cat]}: đang chạy (${data[cat].step})</span> `;
+            } else if (data[cat].running) {
+                html += `<span class="badge run">${STATUS_LABELS[cat]}: đang chạy (ebook khác)</span> `;
+            } else {
+                html += `<span class="badge ok">${STATUS_LABELS[cat]}: rảnh</span> `;
+            }
         } else {
-            html += `<span class="badge ok">${STATUS_LABELS[cat]}: rảnh</span> `;
+            if (data[cat].running) {
+                html += `<span class="badge run">${STATUS_LABELS[cat]}: đang chạy (${data[cat].step})</span> `;
+            } else {
+                html += `<span class="badge ok">${STATUS_LABELS[cat]}: rảnh</span> `;
+            }
         }
         if (data[cat].error) {
             html += `<span class="badge no">lỗi: ${data[cat].error}</span>`;
@@ -614,6 +640,7 @@ async function poll() {
         if (!res.ok) return;
         const data = await res.json();
 
+        lastStatusData = data;
         let anyJustFinished = false;
         for (const cat of ["crawl", "translate"]) {
             if (updateCategoryUI(cat, data)) anyJustFinished = true;

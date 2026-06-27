@@ -177,3 +177,116 @@ def test_history_cap_bounded():
         assert _wait_until(lambda: done.is_set())
     time.sleep(0.1)
     assert len(q.snapshot()["history"]) <= 2
+
+
+def test_multi_worker_different_ebooks_run_in_parallel():
+    q = JobQueue(workers={"translate": 2, "crawl": 1})
+    started = {"a": threading.Event(), "b": threading.Event()}
+    gate = threading.Event()
+
+    def make_target(name):
+        def _target(log):
+            started[name].set()
+            gate.wait(timeout=5)
+        return _target
+
+    q.enqueue("translate", "translate", make_target("a"), ebook="ebook-a")
+    q.enqueue("translate", "translate", make_target("b"), ebook="ebook-b")
+
+    assert started["a"].wait(timeout=5)
+    assert started["b"].wait(timeout=5)
+    gate.set()
+
+
+def test_same_ebook_translate_queued_not_parallel():
+    q = JobQueue(workers={"translate": 2, "crawl": 1})
+    started_1 = threading.Event()
+    gate = threading.Event()
+    order = []
+
+    def target_1(log):
+        order.append("start-1")
+        started_1.set()
+        gate.wait(timeout=5)
+        order.append("end-1")
+
+    def target_2(log):
+        order.append("start-2")
+
+    q.enqueue("translate", "translate", target_1, ebook="ebook-a")
+    assert started_1.wait(timeout=5)
+
+    q.enqueue("translate", "translate", target_2, ebook="ebook-a")
+    time.sleep(0.3)
+    assert "start-2" not in order, "Job 2 không được chạy khi cùng ebook đang dịch"
+
+    assert q.is_ebook_busy("translate", "ebook-a") is True
+    assert q.is_ebook_busy("translate", "ebook-b") is False
+
+    gate.set()
+    assert _wait_until(lambda: "start-2" in order)
+
+
+def test_crawl_and_translate_same_ebook_parallel():
+    q = JobQueue(workers={"crawl": 1, "translate": 1})
+    crawl_started = threading.Event()
+    translate_started = threading.Event()
+    gate = threading.Event()
+
+    def _crawl(log):
+        crawl_started.set()
+        gate.wait(timeout=5)
+
+    def _translate(log):
+        translate_started.set()
+        gate.wait(timeout=5)
+
+    q.enqueue("crawl", "crawl", _crawl, ebook="ebook-a")
+    q.enqueue("translate", "translate", _translate, ebook="ebook-a")
+
+    assert crawl_started.wait(timeout=5)
+    assert translate_started.wait(timeout=5)
+    gate.set()
+
+
+def test_worker_full_third_job_pending():
+    q = JobQueue(workers={"translate": 2, "crawl": 1})
+    started_1 = threading.Event()
+    started_2 = threading.Event()
+    gate = threading.Event()
+
+    def _target_1(log):
+        started_1.set()
+        gate.wait(timeout=5)
+
+    def _target_2(log):
+        started_2.set()
+        gate.wait(timeout=5)
+
+    def _target_3(log):
+        pass  # không nên chạy
+
+    j1 = q.enqueue("translate", "translate", _target_1, ebook="ebook-a")
+    j2 = q.enqueue("translate", "translate", _target_2, ebook="ebook-b")
+    assert started_1.wait(timeout=5)
+    assert started_2.wait(timeout=5)
+
+    j3 = q.enqueue("translate", "translate", _target_3, ebook="ebook-c")
+    time.sleep(0.3)
+    snap = q.snapshot()
+    pending_ids = [j["id"] for j in snap["pending"]["translate"]]
+    assert j3.id in pending_ids, "Job thứ 3 phải ở pending khi workers=2 đã đầy"
+
+    gate.set()
+
+
+def test_default_workers_in_job_runner():
+    from app.job import JobRunner
+
+    runner = JobRunner()
+    assert runner.queue._workers["translate"] == 2
+    assert runner.queue._workers["crawl"] == 1
+
+    runner2 = JobRunner(workers={"translate": 4, "crawl": 2})
+    assert runner2.queue._workers["translate"] == 4
+    assert runner2.queue._workers["crawl"] == 2

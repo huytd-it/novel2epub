@@ -546,9 +546,28 @@ textarea.jump-flash { outline: 2px solid #d97706; }
     white-space: pre-wrap;
     word-break: break-word;
 }
+.compare-table .col-ai { width: 80px; text-align: center; }
 .compare-table .raw-cell { background: #fff; }
 .compare-table .mt-cell { background: #f7f7f9; color: #333; }
 .compare-table .edit-cell { padding: 0; height: 100%; }
+.compare-table .ai-cell { padding: 0.35rem 0.3rem; vertical-align: middle; text-align: center; }
+.ai-cell-actions { display: flex; gap: 0.2rem; justify-content: center; }
+.ai-polish-btn, .ai-explain-btn {
+    padding: 0.15rem 0.3rem; font-size: 0.8rem; line-height: 1.2;
+    border: 1px solid var(--n2e-border); border-radius: 4px;
+    background: var(--n2e-surface); color: var(--n2e-text-muted);
+    cursor: pointer; transition: background 0.15s;
+}
+.ai-polish-btn:hover, .ai-explain-btn:hover { background: var(--n2e-surface-alt); color: var(--n2e-text); }
+.ai-polish-btn:disabled, .ai-explain-btn:disabled { opacity: 0.4; cursor: wait; }
+.ai-explain-box {
+    margin-top: 0.35rem; padding: 0.35rem 0.5rem;
+    font-size: 0.82rem; line-height: 1.5; text-align: left; white-space: normal;
+    background: #fffdf3; border: 1px solid #e0c36b; border-radius: 6px; color: var(--n2e-text);
+}
+.font-controls { display: flex; gap: 0.4rem; align-items: center; margin-left: auto; }
+.font-controls label { display: flex; align-items: center; gap: 0.25rem; font-size: 0.82rem; color: var(--n2e-text-muted); white-space: nowrap; }
+.font-controls select { font-size: 0.8rem; padding: 0.1rem 0.2rem; border: 1px solid var(--n2e-border); border-radius: 4px; background: var(--n2e-surface); color: var(--n2e-text); }
 .compare-table .edit-cell textarea {
     display: block;
     width: 100%;

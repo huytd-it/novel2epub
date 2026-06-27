@@ -12,6 +12,17 @@
 # ============================================================
 
 defaults:
+  # AI backend cho biên tập (glossary suggest/rewrite/evaluate).
+  # Tách riêng khỏi translate.openai để dùng provider/model khác với backend dịch.
+  # Nếu không khai báo, mặc định dùng translate.openai (tương thích ngược).
+  ai:
+    openai:
+      base_url: "https://api.openai.com/v1"
+      api_key: ""
+      model: "gpt-4o-mini"
+      timeout_seconds: 300
+      temperature: 0.7
+
   crawl:
     # Scrapling là engine duy nhất. 3 mode: fetcher (mặc định), stealthy, dynamic.
     engine: scrapling

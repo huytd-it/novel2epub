@@ -274,6 +274,13 @@ class NovelConfig:
 
 
 @dataclass
+class AIConfig:
+    """Cấu hình AI cho biên tập (glossary suggest/rewrite/evaluate), tách riêng
+    khỏi translate.openai để dùng backend khác với backend dịch chương."""
+    openai: OpenAIConfig = field(default_factory=OpenAIConfig)
+
+
+@dataclass
 class OutputConfig:
     data_dir: str = "data"
     epub_path: str = ""
@@ -285,6 +292,7 @@ class Config:
     crawl: CrawlConfig
     translate: TranslateConfig
     output: OutputConfig
+    ai: AIConfig = field(default_factory=AIConfig)
     # Cảnh báo xung đột tính năng phát hiện lúc load config (vd preset ép đổi
     # type, selector không áp dụng cho engine hiện tại...). pipeline.py log
     # các dòng này ra job log để hiện trên web UI thay vì chỉ ghi logging nội bộ.
@@ -513,6 +521,14 @@ def load_config(path: str | Path, slug: str = "") -> Config:
 
     output = OutputConfig(**(raw.get("output") or {}))
 
+    # --- AI (biên tập) config — fallback về translate.openai nếu không có khối `ai:` ---
+    ai_raw = raw.get("ai") or {}
+    ai_openai_raw = _as_dict(ai_raw.get("openai"))
+    if not ai_openai_raw:
+        # Chưa có ai.openai → dùng translate.openai làm mặc định (backward-compat)
+        ai_openai_raw = openai_raw
+    ai = AIConfig(openai=OpenAIConfig(**ai_openai_raw))
+
     if crawl.ai_fallback and preset_name != "go":
         warnings.append(
             "crawl.ai_fallback=true nhưng translate.preset không phải 'go' "
@@ -520,4 +536,4 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             "trích xuất HTML của preset 'go', kiểm tra translate.openai có phù hợp không."
         )
 
-    return Config(novel=novel, crawl=crawl, translate=translate, output=output, warnings=warnings)
+    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, warnings=warnings)

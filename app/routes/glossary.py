@@ -92,7 +92,7 @@ def ebook_glossary_suggest(
                 for c in selected
             ]
             existing = glossary_ai.load_glossary(cfg.translate)
-            suggestions = glossary_ai.suggest_glossary(cfg.translate, chapters_text, existing)
+            suggestions = glossary_ai.suggest_glossary(cfg.ai.openai, chapters_text, existing)
             if not suggestions:
                 error = "AI không đề xuất được gì (hoặc gọi CLI lỗi) — kiểm tra log server."
 
@@ -142,7 +142,7 @@ def ebook_glossary_evaluate(
                 for c in selected
             ]
             glossary = glossary_ai.load_glossary(cfg.translate)
-            report = glossary_ai.evaluate_translation(cfg.translate, chapters_text, glossary)
+            report = glossary_ai.evaluate_translation(cfg.ai.openai, chapters_text, glossary)
             if not report.get("summary") and not report.get("issues"):
                 error = "AI không trả về đánh giá (hoặc gọi CLI lỗi) — kiểm tra log server."
 

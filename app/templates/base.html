@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <title>{% block title %}novel2epub{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Literata:wght@400;700&family=Noto+Serif:wght@400;700&display=swap&subset=vietnamese" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
     <script>
         // Pre-paint: áp theme trước khi render để tránh nháy sáng/tối (FOUC).
@@ -20,6 +23,7 @@
         <h1><a href="/">novel2epub</a></h1>
         <nav>
             <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Thư viện</a>
+            <a href="/sources" class="{{ 'active' if request.url.path.startswith('/sources') else '' }}">Nguồn</a>
             <a href="/storage" class="{{ 'active' if request.url.path.startswith('/storage') else '' }}">Lưu trữ</a>
             <a href="/automation" class="{{ 'active' if request.url.path.startswith('/automation') else '' }}">Tự động hóa</a>
             <a href="/logs" class="{{ 'active' if request.url.path.startswith('/logs') else '' }}">Nhật ký</a>

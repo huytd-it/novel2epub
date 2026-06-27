@@ -967,7 +967,7 @@ def step_rewrite_chapters(
         raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
         current = storage.read_translated(ch)
         try:
-            rewritten = glossary_ai.rewrite_chapter(cfg.translate, raw, current, glossary)
+            rewritten = glossary_ai.rewrite_chapter(cfg.ai.openai, raw, current, glossary)
         except Exception as e:
             log(f"[rewrite]   ! Lỗi chương {ch.stem}: {e}")
             continue
@@ -1122,7 +1122,7 @@ def step_review_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> dict
     translated = storage.read_translated(ch)
     glossary = glossary_ai.load_glossary(cfg.translate)
     log(f"[review] Đang phân tích chương {ch.index}: {ch.title_vi or ch.title_zh or ch.stem}")
-    report = glossary_ai.evaluate_translation(cfg.translate, [(raw, translated)], glossary)
+    report = glossary_ai.evaluate_translation(cfg.ai.openai, [(raw, translated)], glossary)
     _update_chapter_meta(storage, ch, ai_review={"report": report, "generated_at": _now_iso()})
     log(glossary_ai.format_evaluation_text(report))
     log("[review] Hoàn tất. Mở lại trang chương để xem báo cáo.")
@@ -1139,7 +1139,7 @@ def step_suggest_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> lis
     translated = storage.read_translated(ch) if storage.has_translated(ch) else ""
     existing = glossary_ai.load_glossary(cfg.translate)
     log(f"[gợi ý] Đang phân tích chương {ch.index}: {ch.title_vi or ch.title_zh or ch.stem}")
-    suggestions = glossary_ai.suggest_glossary(cfg.translate, [(raw, translated)], existing)
+    suggestions = glossary_ai.suggest_glossary(cfg.ai.openai, [(raw, translated)], existing)
     _update_chapter_meta(storage, ch, ai_suggestions=suggestions)
     log(f"[gợi ý] Hoàn tất. {len(suggestions)} đề xuất. Mở lại trang chương để chọn áp dụng.")
     return suggestions
@@ -1160,7 +1160,7 @@ def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> str
     current = storage.read_translated(ch)
     glossary = glossary_ai.load_glossary(cfg.translate)
     log(f"[rewrite] Đang biên tập lại chương {ch.index}: {ch.title_vi or ch.title_zh or ch.stem}")
-    rewritten = glossary_ai.rewrite_chapter(cfg.translate, raw, current, glossary)
+    rewritten = glossary_ai.rewrite_chapter(cfg.ai.openai, raw, current, glossary)
     if not rewritten.strip():
         log("[rewrite] AI trả về rỗng — giữ nguyên, không tạo bản nháp.")
         return ""

@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from fastapi.templating import Jinja2Templates
 
 from novel2epub.config import load_config, load_library
+from novel2epub.sources import load_presets
 
 BASE_DIR = Path(__file__).resolve().parent
 # File cấu hình gộp duy nhất (defaults + sources + ebooks). NOVEL2EPUB_CONFIG
@@ -19,6 +20,7 @@ WORKSPACE_PATH = os.environ.get(
 )
 CONFIG_PATH = WORKSPACE_PATH
 LIBRARY_PATH = WORKSPACE_PATH
+SOURCES_PATH = WORKSPACE_PATH
 # Sidecar workspace state (lịch sử queue, automation, archived flags...) —
 # nằm cạnh file config gộp, không commit (xem design.md D3).
 WORKSPACE_DIR = Path(WORKSPACE_PATH).resolve().parent / ".n2e"
@@ -59,6 +61,9 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "concurrency_cap": 0,
         "ai_fallback": False,
         "ai_fallback_max_html": 32000,
+    },
+    "ai": {
+        "openai": {"base_url": "https://api.openai.com/v1", "api_key": "", "model": "gpt-4o-mini", "timeout_seconds": 300, "temperature": 0.7},
     },
     "translate": {
         "type": "hachimimt",
@@ -114,6 +119,10 @@ def cfg():
 
 def library():
     return load_library(WORKSPACE_PATH)
+
+
+def presets():
+    return load_presets(WORKSPACE_PATH)
 
 
 def resolve_path(base: Path, value: str) -> str:

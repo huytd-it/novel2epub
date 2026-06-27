@@ -8,7 +8,7 @@ import json
 import re
 
 from . import openai_client
-from .config import TranslateConfig
+from .config import OpenAIConfig
 from .translator import _apply_glossary, _clean_output, _format_glossary, load_glossary_dict
 
 SUGGEST_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, chuyên xây dựng glossary nhất quán.
@@ -130,7 +130,7 @@ def _parse_suggestions(text: str) -> list[dict]:
 
 
 def suggest_glossary(
-    cfg: TranslateConfig,
+    ai_cfg: OpenAIConfig,
     chapters: list[tuple[str, str]],
     existing_glossary: dict[str, str],
 ) -> list[dict]:
@@ -147,7 +147,7 @@ def suggest_glossary(
     existing_text = _format_glossary(existing_glossary) or "(chưa có mục nào)"
     prompt = SUGGEST_PROMPT.format(existing=existing_text, raw=raw_combined, translated=translated_combined)
     try:
-        output = openai_client.run_chat(cfg.openai, prompt)
+        output = openai_client.run_chat(ai_cfg, prompt)
     except Exception:
         return []
 
@@ -160,7 +160,7 @@ def suggest_glossary(
 load_glossary = load_glossary_dict
 
 
-def rewrite_chapter(cfg: TranslateConfig, raw: str, current_translation: str, glossary: dict[str, str]) -> str:
+def rewrite_chapter(ai_cfg: OpenAIConfig, raw: str, current_translation: str, glossary: dict[str, str]) -> str:
     """Biên tập lại 1 chương đã dịch theo glossary + nguyên tắc 'edit hay'."""
     if not current_translation.strip():
         return current_translation
@@ -170,7 +170,7 @@ def rewrite_chapter(cfg: TranslateConfig, raw: str, current_translation: str, gl
         raw=raw,
         translated=current_translation,
     )
-    output = openai_client.run_chat(cfg.openai, prompt)
+    output = openai_client.run_chat(ai_cfg, prompt)
     return _apply_glossary(_clean_output(output), glossary)
 
 
@@ -223,7 +223,7 @@ def _parse_evaluation(text: str) -> dict:
 
 
 def evaluate_translation(
-    cfg: TranslateConfig,
+    ai_cfg: OpenAIConfig,
     chapters: list[tuple[str, str]],
     glossary: dict[str, str],
 ) -> dict:
@@ -240,7 +240,7 @@ def evaluate_translation(
     glossary_text = _format_glossary(glossary) or "(chưa có mục nào)"
     prompt = EVALUATE_PROMPT.format(glossary=glossary_text, raw=raw_combined, translated=translated_combined)
     try:
-        output = openai_client.run_chat(cfg.openai, prompt)
+        output = openai_client.run_chat(ai_cfg, prompt)
     except Exception:
         return dict(_EMPTY_REPORT)
 

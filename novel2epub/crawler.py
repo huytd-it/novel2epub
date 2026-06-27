@@ -15,6 +15,35 @@ from .storage import Chapter
 from .toc import mark_duplicate_chapters, missing_metadata
 
 
+def _detect_encoding(raw: bytes) -> str:
+    """Detect HTML encoding from meta charset / BOM, falling back to charset_normalizer."""
+    import re as _re
+
+    head = raw[:4096]
+    # <meta charset="gbk">
+    m = _re.search(rb'<meta[^>]*\bcharset=["\']?([^"\'\s;>]+)', head, _re.IGNORECASE)
+    if m:
+        return m.group(1).decode("ascii", errors="ignore").strip()
+    # <meta content="text/html; charset=gbk">
+    m = _re.search(rb'content=["\'][^"\']*charset=([^"\'\s;]+)', head, _re.IGNORECASE)
+    if m:
+        return m.group(1).decode("ascii", errors="ignore").strip()
+    if head[:3] == b'\xef\xbb\xbf':
+        return "utf-8-sig"
+    if head[:2] in (b'\xff\xfe', b'\xfe\xff'):
+        return "utf-16"
+    try:
+        from charset_normalizer import from_bytes
+        results = from_bytes(raw[:8192])
+        if results:
+            best = results.best()
+            if best:
+                return best.encoding
+    except ImportError:
+        pass
+    return "utf-8"
+
+
 class RateLimitError(Exception):
     """Trang chặn do quá nhiều request (HTTP 429) hoặc anti-bot protection.
 
@@ -336,6 +365,36 @@ class ScraplingCrawler:
         self._mode = mode
 
     # ---------- internal ----------
+    def _reparse_with_detected_encoding(self, url: str, **kwargs):
+        """Bypass scrapling parsing: fetch raw bytes via curl_cffi, detect encoding, build Selector."""
+        from curl_cffi.requests import Session as CurlSession
+        from scrapling.parser import Selector
+
+        impersonate = kwargs.get("impersonate", "chrome")
+        with CurlSession() as s:
+            resp = s.get(url, impersonate=impersonate or "chrome")
+            body = resp.content
+        if not body:
+            return Selector(content=b"<html/>", url=url, encoding="utf-8")
+        encoding = _detect_encoding(body)
+        return Selector(content=body, url=url, encoding=encoding)
+
+    def _fetch_with_encoding(self, page):
+        """Re-parse page with detected encoding when UTF-8 decode fails."""
+        from scrapling.parser import Selector
+
+        body = getattr(page, "body", None)
+        if body is None:
+            body = getattr(page, "_raw_body", b"")
+        if not isinstance(body, bytes) or not body:
+            return page
+
+        encoding = _detect_encoding(body)
+        if encoding and encoding.lower() not in ("utf-8", "ascii", ""):
+            url = getattr(page, "url", "")
+            return Selector(content=body, url=url, encoding=encoding)
+        return page
+
     def _fetch_page(self, url: str):
         """Fetch 1 URL bằng Scrapling fetcher, trả về Adaptor.
 
@@ -359,6 +418,8 @@ class ScraplingCrawler:
                 page = self._fetcher_cls.get(url, **kwargs)
             else:
                 page = self._fetcher_cls.fetch(url, **kwargs)
+        except UnicodeDecodeError:
+            page = self._reparse_with_detected_encoding(url, **kwargs)
         except Exception as e:
             msg = str(e).lower()
             if "429" in msg or "too many" in msg or "rate" in msg or "blocked" in msg:
@@ -368,7 +429,11 @@ class ScraplingCrawler:
             raise
 
         # Lưu raw HTML cho AI fallback
-        self._last_response_html = getattr(page, "html_content", "") or ""
+        try:
+            self._last_response_html = getattr(page, "html_content", "") or ""
+        except UnicodeDecodeError:
+            page = self._fetch_with_encoding(page)
+            self._last_response_html = getattr(page, "html_content", "") or ""
         if not self._last_response_html:
             self._last_response_html = str(page) if page else ""
 

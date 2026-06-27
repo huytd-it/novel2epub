@@ -8,7 +8,7 @@
         <h2>{{ cfg.novel.title or cfg.novel.slug }}</h2>
         <p class="muted">Slug: <code>{{ slug }}</code> · Tác giả: {{ cfg.novel.author or "-" }}</p>
         <p class="muted">Config: <code>{{ config_path }}</code></p>
-        <p class="muted">Crawl: <code>{{ cfg.crawl.engine }}</code> · Dịch: <code>{{ cfg.translate.type }}</code> · Model: <code>{{ cfg.translate.openai.model or "-" }}</code></p>
+        <p class="muted">Crawl: <code>{{ cfg.crawl.engine }}</code> · Dịch: <code>{{ cfg.translate.type }}</code> · AI model: <code>{{ cfg.translate.openai.model or "-" }}</code>{% if cfg.translate.model %} · NMT: <code>{{ cfg.translate.model }}</code>{% endif %}</p>
     </div>
     <div class="stack actions">
         <div class="action-group" role="group" aria-label="Crawl & Dịch (chạy song song được)">
@@ -121,7 +121,7 @@
 <div id="toc-region" class="toc-loading">
 <div class="section-head">
     <h3>Chương <span class="count-pill">{{ chapters|length }}</span></h3>
-    <p class="muted">Search / sort / lọc chạy ngầm (không reload), được nhớ trong trình duyệt. Tick dòng để chạy bulk action.</p>
+    <p class="muted">Search / sort / lọc chạy ngầm (không reload), được nhớ trong trình duyệt. Tick dòng rồi chọn hành động.</p>
 </div>
 <form method="get" action="/ebooks/{{ slug }}" class="compact-toolbar">
     <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL">
@@ -152,28 +152,31 @@
     <button type="submit">Lọc</button>
 </form>
 {% if chapters %}
-<form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" id="bulk-action-form"></form>
-<div class="bulk-bar">
-    <input type="hidden" name="sort" form="bulk-action-form" value="{{ controls.sort }}">
-    <input type="hidden" name="direction" form="bulk-action-form" value="{{ controls.direction }}">
-    <input type="hidden" name="search" form="bulk-action-form" value="{{ controls.search }}">
-    <input type="hidden" name="filter_raw" form="bulk-action-form" value="{{ controls.filter_raw }}">
-    <input type="hidden" name="filter_translated" form="bulk-action-form" value="{{ controls.filter_translated }}">
-    <input type="hidden" name="filter_missing" form="bulk-action-form" value="{{ controls.filter_missing }}">
-    <label>Bulk action
-        <select name="action" form="bulk-action-form"><option value="crawl">Crawl</option><option value="translate">Dịch</option></select>
-    </label>
-    <label>Target
-        <select name="targeting_mode" id="targeting-mode" form="bulk-action-form">
-            <option value="checked">Dòng đã tick</option>
-            <option value="range">Range đang hiển thị</option>
-        </select>
-    </label>
-    <label>Từ <input type="number" name="range_start" form="bulk-action-form" min="1" value="{{ chapters[0].index if chapters else '' }}"></label>
-    <label>Đến <input type="number" name="range_end" form="bulk-action-form" min="1" value="{{ chapters[-1].index if chapters else '' }}"></label>
-    <label class="check"><input type="checkbox" name="override" form="bulk-action-form" value="true"> Override old</label>
+<div class="selected-actions">
+    <input type="hidden" name="sort" id="act-sort" value="{{ controls.sort }}">
+    <input type="hidden" name="direction" id="act-direction" value="{{ controls.direction }}">
+    <input type="hidden" name="search" id="act-search" value="{{ controls.search }}">
+    <input type="hidden" name="filter_raw" id="act-filter_raw" value="{{ controls.filter_raw }}">
+    <input type="hidden" name="filter_translated" id="act-filter_translated" value="{{ controls.filter_translated }}">
+    <input type="hidden" name="filter_missing" id="act-filter_missing" value="{{ controls.filter_missing }}">
+    <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="crawl">
+        <input type="hidden" name="action" value="crawl">
+        <input type="hidden" name="targeting_mode" value="checked">
+        <button type="submit" {% if job.crawl.running %}disabled{% endif %}>Crawl selected</button>
+    </form>
+    <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate">
+        <input type="hidden" name="action" value="translate">
+        <input type="hidden" name="targeting_mode" value="checked">
+        <button type="submit" {% if job.translate.running %}disabled{% endif %}>Dịch selected</button>
+    </form>
+    <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta-selected" class="selected-action-form" data-selected-action="translate">
+        <button type="submit" {% if job.translate.running %}disabled{% endif %}>Dịch meta selected</button>
+    </form>
+    <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
+        <button type="submit" {% if job.translate.running %}disabled{% endif %}>Dịch TOC selected</button>
+    </form>
+    <label class="check"><input type="checkbox" id="selected-override" value="true"> Ghi đè</label>
     <span id="checked-info" class="muted">Đã tick 0 chương.</span>
-    <button type="submit" id="bulk-run-btn" form="bulk-action-form">Chạy</button>
 </div>
 <div class="table-wrap">
 <table id="chapter-table" class="data-table">
@@ -236,7 +239,11 @@ function persistControls() {
     if (!form) return;
     const data = new FormData(form);
     const patch = {};
-    for (const f of CONTROL_FIELDS) patch[f] = data.get(f) || "";
+    for (const f of CONTROL_FIELDS) {
+        patch[f] = data.get(f) || "";
+        const h = document.getElementById("act-" + f);
+        if (h) h.value = patch[f];
+    }
     writeSaved(patch);
 }
 // Áp giá trị đã lưu vào toolbar; trả true nếu có field khác mặc định (cần fetch lại).
@@ -320,16 +327,15 @@ function gotoPage(target) {
     paginate();
 }
 
-// Xác định job-category của 1 form/button: nút bulk dùng select action;
-// nút row-action (name="action") dùng chính value của nó; còn lại đọc
-// data-job-category trên form gần nhất.
+// Xác định job-category của 1 form/button: nút selected-action dùng
+// data-selected-action; nút row-action (name="action") dùng chính value
+// của nó; còn lại đọc data-job-category trên form gần nhất.
 function jobCategoryFor(form, btn) {
     if (btn && btn.name === "action" && (btn.value === "crawl" || btn.value === "translate")) {
         return btn.value;
     }
-    if (form && form.id === "bulk-action-form") {
-        const a = form.elements && form.elements["action"];
-        if (a && (a.value === "crawl" || a.value === "translate")) return a.value;
+    if (form && form.classList && form.classList.contains("selected-action-form")) {
+        return form.dataset.selectedAction || "translate";
     }
     const el = form && form.closest ? form.closest("[data-job-category]") : null;
     return (el && el.dataset.jobCategory) || "both";
@@ -361,12 +367,6 @@ function setJobButtonsDisabled(status) {
         // Nút Dừng đảo ngược logic: chỉ bật khi job đang chạy.
         btn.disabled = btn.classList.contains("btn-stop") ? !running : running;
     }
-    // Nút bulk nằm ngoài <form> (gắn qua form=) — chỉ khoá theo slot của action đang chọn.
-    const bulkBtn = document.getElementById("bulk-run-btn");
-    const bulkForm = document.getElementById("bulk-action-form");
-    if (bulkBtn && bulkForm) {
-        bulkBtn.disabled = isCategoryRunning(status, jobCategoryFor(bulkForm, null));
-    }
 }
 
 // --- Dựng bảng chương hoàn toàn từ dữ liệu JSON ở client, không fetch server ---
@@ -379,7 +379,7 @@ function buildChapterRow(ch) {
     const hasMissing = ch.missing_fields && ch.missing_fields.length > 0;
     const statusHtml = ch.last_action_status ? `<span class="muted">${escapeHtml(ch.last_action_status)}</span>` : '';
     return `<tr data-index="${ch.index}">
-        <td><input type="checkbox" class="chapter-check" name="checked_indexes" form="bulk-action-form" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
+        <td><input type="checkbox" class="chapter-check" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
         <td>${ch.index}</td>
         <td><a href="${escapeHtml(ch.url)}" target="_blank">${escapeHtml(ch.visible_title)}</a></td>
         <td>${ch.has_raw ? '<span class="badge ok">có</span>' : '<span class="badge no">chưa</span>'}</td>
@@ -463,8 +463,6 @@ document.addEventListener("change", (event) => {
         paginate({ reset: true });
     } else if (t.id === "pager-current") {
         gotoPage(t.value);
-    } else if (t.name === "action" && t.getAttribute("form") === "bulk-action-form") {
-        setJobButtonsDisabled(lastStatus());
     } else if (t.matches && t.matches(".compact-toolbar select")) {
         renderToc();
     }
@@ -503,6 +501,34 @@ document.addEventListener("submit", async function(event) {
     const action = form.getAttribute("action") || "";
     if (action.includes("/jobs/") || action.includes("/action")) {
         event.preventDefault();
+
+        if (form.classList && form.classList.contains("selected-action-form")) {
+            for (const cb of document.querySelectorAll(".chapter-check:checked")) {
+                const h = document.createElement("input");
+                h.type = "hidden";
+                h.name = "checked_indexes";
+                h.value = cb.value;
+                form.appendChild(h);
+            }
+            const overrideEl = document.getElementById("selected-override");
+            if (overrideEl && overrideEl.checked) {
+                const h = document.createElement("input");
+                h.type = "hidden";
+                h.name = "override";
+                h.value = "true";
+                form.appendChild(h);
+            }
+            for (const f of ["sort", "direction", "search", "filter_raw", "filter_translated", "filter_missing"]) {
+                const src = document.getElementById("act-" + f);
+                if (src) {
+                    const h = document.createElement("input");
+                    h.type = "hidden";
+                    h.name = f;
+                    h.value = src.value;
+                    form.appendChild(h);
+                }
+            }
+        }
 
         if (action.endsWith("fetch-toc")) {
             pendingFetchToc = true;

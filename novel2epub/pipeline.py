@@ -106,6 +106,10 @@ def _emit_translate_config(cfg: Config, log: LogFn, *, feature: str = "DỊCH") 
         f"(chờ {t.retry.delay_seconds}s)")
     log(f"[config] {feature} glossary: names={_fmt(t.glossary_files.names)} "
         f"| vietphrase={_fmt(t.glossary_files.vietphrase)}")
+    if t.type.lower() in ("hachimimt", "moxhimt"):
+        m = t.hachimimt
+        log(f"[config] {feature} hachimimt: model_key={m.model_key} | beam={m.beam_size} "
+            f"| backend={m.backend} | chunk_mode={m.chunk_mode}")
 
 
 def _emit_build_config(cfg: Config, log: LogFn) -> None:
@@ -850,10 +854,10 @@ def step_translate_selected(
             continue
         to_translate.append(ch)
 
-    # moxhimt song song hóa qua CT2 inter/intra threads + translate_batch nội
-    # bộ mỗi chương (xem MoxhiMTTranslator.translate); không fan-out luồng
-    # Python mỗi chương như cli/google để tránh oversubscription nhân CPU.
-    if cfg.translate.type.lower() == "moxhimt":
+    # Local NMT song song hóa qua CT2 inter/intra threads + translate_batch nội
+    # bộ mỗi chương; không fan-out luồng Python mỗi chương để tránh
+    # oversubscription nhân CPU.
+    if cfg.translate.type.lower() in ("hachimimt", "moxhimt"):
         workers = 1
     else:
         workers = max(1, int(cfg.translate.max_workers))
@@ -873,6 +877,60 @@ def step_translate_selected(
     if changed or translated_count or skipped or failed:
         storage.save_manifest(manifest)
     log(f"[dịch] Hoàn tất. Đã dịch {translated_count} chương, bỏ qua {skipped}, lỗi {failed}, ghi đè {replaced}.")
+    return manifest
+
+
+def step_translate_toc_selected(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    force: bool = False,
+    selected_indexes: list[int] | None = None,
+    should_cancel: CancelFn | None = None,
+) -> Manifest:
+    """Dịch tiêu đề chương (TOC) cho các chương đã chọn, không đụng nội dung.
+
+    Nếu force=True, xoá `title_vi` cũ trước khi dịch để ghi đè.
+    Không dùng prompt template — gọi trực tiếp translator.translate_title().
+    """
+    _emit_translate_config(cfg, log, feature="DỊCH TIÊU ĐỀ TOC")
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    translator = RateLimited(make_translator(cfg.translate, log), cfg.translate.delay_seconds)
+    selected = _chapter_selection(manifest.chapters, None, None, None, selected_indexes)
+    total = len(selected)
+    if total == 0:
+        log("[toc] Không có chương nào được chọn.")
+        return manifest
+
+    log(f"[toc] Xử lý {total} tiêu đề chương.")
+    if force:
+        for ch in selected:
+            ch.title_vi = ""
+            ch.title_note = ""
+        log("[toc] Đã xoá title_vi cũ (force).")
+
+    to_translate = [ch for ch in selected if ch.title_zh and not ch.title_vi]
+    if not to_translate:
+        log("[toc] Không có tiêu đề nào cần dịch (đã có sẵn — dùng 'force' để dịch lại).")
+        return manifest
+
+    title_lookup = _batch_translate_titles(translator, to_translate, log)
+    changed = 0
+    for ch in selected:
+        if ch.title_zh and ch.title_zh in title_lookup:
+            ch.title_vi = _clean_title(title_lookup[ch.title_zh])
+            ch.title_note = ""
+            changed += 1
+
+    if changed:
+        storage.save_manifest(manifest)
+        log(f"[toc] Đã dịch {changed}/{total} tiêu đề.")
+    else:
+        log("[toc] Không có tiêu đề nào thay đổi.")
     return manifest
 
 

@@ -389,15 +389,13 @@ tr.in-range td { background: #fff7d6; }
 /* Avoid flash-of-unpaginated-table: hidden until JS paginates */
 #toc-region.toc-loading { visibility: hidden; }
 
-/* --- Bulk bar --- */
-.bulk-bar {
-    position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 0.65rem;
-    flex-wrap: wrap; margin: 0.5rem 0; padding: 0.65rem 0.75rem;
-    background: #fffdf5; border: 1px solid #eadca8; border-radius: 8px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+/* --- Selected actions bar (thay thế bulk-bar) --- */
+.selected-actions {
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    margin: 0.5rem 0; padding: 0.55rem 0.65rem;
+    background: #f0f7ff; border: 1px solid #b8d4f0; border-radius: 8px;
 }
-.bulk-bar label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; --pico-font-size: 0.88rem; }
-.bulk-bar input[type="number"] { width: 5rem; }
+.selected-actions .check { margin-left: 0.25rem; }
 
 /* --- Status bar --- */
 .status-bar {
@@ -452,7 +450,7 @@ tr.in-range td { background: #fff7d6; }
 
 /* --- Buttons variants (overlay Pico) --- */
 /* Reset Pico button cho các nút inline/compact */
-.bulk-bar button, .bulk-bar a.button,
+.selected-actions button,
 .row-actions button, .row-actions a.button,
 .ebook-card-actions button, .ebook-card-actions a.button,
 .toc-actions button, .toc-actions a.button,
@@ -629,6 +627,6 @@ mark.log-hit { background: #fff2b3; color: #111; border-radius: 2px; }
     .cols, .hero { flex-direction: column; }
     .compare-wrap { overflow-x: auto; }
     .compare-wrap .compare-table { min-width: 700px; }
-    .bulk-bar { position: static; }
+    .selected-actions { position: static; }
     textarea { height: 40vh; }
 }

@@ -6,12 +6,12 @@
         <label> Loại backend
             <select name="type"
                 class="{% if not is_default(cfg.translate.type, 'translate', 'type') %}overridden{% endif %}">
-                {% for opt in ["moxhimt", "openai"] %}
+                {% for opt in ["hachimimt", "openai"] %}
                 <option value="{{ opt }}" {% if cfg.translate.type == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
             {% if is_default(cfg.translate.type, 'translate', 'type') %}
-            <span class="default-hint">Mặc định: moxhimt</span>
+            <span class="default-hint">Mặc định: hachimimt</span>
             {% endif %}
         </label>
         <label> delay_seconds
@@ -31,89 +31,50 @@
     </div>
 </details>
 
-{# --- MoxhiMT section --- #}
-<div id="section-moxhimt">
+{# --- Local NMT section --- #}
+<div id="section-hachimimt">
 <details class="settings-group" open>
-    <summary>MoxhiMT (NMT cục bộ)</summary>
+    <summary>NMT cục bộ (HachimiMT / MoxhiMT / Hirashiba)</summary>
     <div class="settings-grid cols-2">
-        <label> model_id (Hugging Face)
-            <input type="text" name="moxhimt_model_id" value="{{ cfg.translate.moxhimt.model_id }}" list="moxhimt-model-options" placeholder="DanVP/MoxhiMT-60"
-                class="{% if not is_default(cfg.translate.moxhimt.model_id, 'moxhimt', 'model_id') %}overridden{% endif %}">
-            <datalist id="moxhimt-model-options">
-                <option value="DanVP/MoxhiMT-60">
-                <option value="DanVP/MoxhiMT-30">
-                <option value="ngocdang83/HachimiMT-60-zh-vi">
-            </datalist>
-            {% if is_default(cfg.translate.moxhimt.model_id, 'moxhimt', 'model_id') %}
-            <span class="default-hint">Mặc định: DanVP/MoxhiMT-60</span>
-            {% endif %}
+        <label> Model preset
+            <select name="local_model" id="local-model-select"
+                class="{% if not is_default(cfg.translate.model, 'translate', 'model') %}overridden{% endif %}">
+                <option value="" {% if not cfg.translate.model %}selected{% endif %}>(tuỳ chỉnh)</option>
+                <option value="hachimimt-60" {% if cfg.translate.model == "hachimimt-60" %}selected{% endif %}>HachimiMT-60</option>
+                <option value="hachimimt-30" {% if cfg.translate.model == "hachimimt-30" %}selected{% endif %}>HachimiMT-30</option>
+                <option value="moxhimt-60" {% if cfg.translate.model == "moxhimt-60" %}selected{% endif %}>MoxhiMT-60</option>
+                <option value="moxhimt-30" {% if cfg.translate.model == "moxhimt-30" %}selected{% endif %}>MoxhiMT-30</option>
+                <option value="hirashiba-medium" {% if cfg.translate.model == "hirashiba-medium" %}selected{% endif %}>HirashibaMT-Medium</option>
+                <option value="hirashiba-tiny" {% if cfg.translate.model == "hirashiba-tiny" %}selected{% endif %}>HirashibaMT-Tiny</option>
+            </select>
         </label>
-        <label> device
-            <select name="moxhimt_device"
-                class="{% if not is_default(cfg.translate.moxhimt.device, 'moxhimt', 'device') %}overridden{% endif %}">
-                {% for opt in ["auto", "cpu", "cuda"] %}
-                <option value="{{ opt }}" {% if cfg.translate.moxhimt.device == opt %}selected{% endif %}>{{ opt }}</option>
+        <label> backend
+            <select name="hachimimt_backend"
+                class="{% if not is_default(cfg.translate.hachimimt.backend, 'hachimimt', 'backend') %}overridden{% endif %}">
+                {% for opt in ["ctranslate2", "transformers"] %}
+                <option value="{{ opt }}" {% if cfg.translate.hachimimt.backend == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
-            {% if is_default(cfg.translate.moxhimt.device, 'moxhimt', 'device') %}
-            <span class="default-hint">Mặc định: auto</span>
-            {% endif %}
         </label>
     </div>
     <div class="settings-grid cols-3">
+        <label> model_key
+            <input type="text" name="hachimimt_model_key" value="{{ cfg.translate.hachimimt.model_key }}"
+                class="{% if not is_default(cfg.translate.hachimimt.model_key, 'hachimimt', 'model_key') %}overridden{% endif %}">
+        </label>
         <label> beam_size
-            <input type="number" name="moxhimt_beam_size" value="{{ cfg.translate.moxhimt.beam_size }}" min="1" max="20"
-                class="{% if not is_default(cfg.translate.moxhimt.beam_size, 'moxhimt', 'beam_size') %}overridden{% endif %}">
-            {% if is_default(cfg.translate.moxhimt.beam_size, 'moxhimt', 'beam_size') %}
-            <span class="default-hint">Mặc định: 4</span>
-            {% endif %}
+            <input type="number" name="hachimimt_beam_size" value="{{ cfg.translate.hachimimt.beam_size }}" min="1" max="4"
+                class="{% if not is_default(cfg.translate.hachimimt.beam_size, 'hachimimt', 'beam_size') %}overridden{% endif %}">
         </label>
-        <label> max_length (token)
-            <input type="number" name="moxhimt_max_length" value="{{ cfg.translate.moxhimt.max_length }}" min="32" max="2048"
-                class="{% if not is_default(cfg.translate.moxhimt.max_length, 'moxhimt', 'max_length') %}overridden{% endif %}">
-            {% if is_default(cfg.translate.moxhimt.max_length, 'moxhimt', 'max_length') %}
-            <span class="default-hint">Mặc định: 512</span>
-            {% endif %}
-        </label>
-        <label> max_input_tokens (0 = auto)
-            <input type="number" name="moxhimt_max_input_tokens" value="{{ cfg.translate.moxhimt.max_input_tokens }}" min="0"
-                class="{% if not is_default(cfg.translate.moxhimt.max_input_tokens, 'moxhimt', 'max_input_tokens') %}overridden{% endif %}">
-            {% if is_default(cfg.translate.moxhimt.max_input_tokens, 'moxhimt', 'max_input_tokens') %}
-            <span class="default-hint">Mặc định: 0</span>
-            {% endif %}
-        </label>
-    </div>
-    <div class="settings-grid cols-3">
         <label> chunk_mode
-            <select name="moxhimt_chunk_mode"
-                class="{% if not is_default(cfg.translate.moxhimt.chunk_mode, 'moxhimt', 'chunk_mode') %}overridden{% endif %}">
-                {% for opt in ["paragraph", "sentence"] %}
-                <option value="{{ opt }}" {% if cfg.translate.moxhimt.chunk_mode == opt %}selected{% endif %}>{{ opt }}</option>
+            <select name="hachimimt_chunk_mode"
+                class="{% if not is_default(cfg.translate.hachimimt.chunk_mode, 'hachimimt', 'chunk_mode') %}overridden{% endif %}">
+                {% for opt in ["sentence", "paragraph"] %}
+                <option value="{{ opt }}" {% if cfg.translate.hachimimt.chunk_mode == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
-            {% if is_default(cfg.translate.moxhimt.chunk_mode, 'moxhimt', 'chunk_mode') %}
-            <span class="default-hint">Mặc định: paragraph</span>
-            {% endif %}
-        </label>
-        <label> inter_threads (0 = auto)
-            <input type="number" name="moxhimt_inter_threads" value="{{ cfg.translate.moxhimt.inter_threads }}" min="0"
-                class="{% if not is_default(cfg.translate.moxhimt.inter_threads, 'moxhimt', 'inter_threads') %}overridden{% endif %}">
-            {% if is_default(cfg.translate.moxhimt.inter_threads, 'moxhimt', 'inter_threads') %}
-            <span class="default-hint">Mặc định: 0</span>
-            {% endif %}
-        </label>
-        <label> intra_threads (0 = auto)
-            <input type="number" name="moxhimt_intra_threads" value="{{ cfg.translate.moxhimt.intra_threads }}" min="0"
-                class="{% if not is_default(cfg.translate.moxhimt.intra_threads, 'moxhimt', 'intra_threads') %}overridden{% endif %}">
-            {% if is_default(cfg.translate.moxhimt.intra_threads, 'moxhimt', 'intra_threads') %}
-            <span class="default-hint">Mặc định: 0</span>
-            {% endif %}
         </label>
     </div>
-    <label> cache_dir (để trống = HF cache mặc định)
-        <input type="text" name="moxhimt_cache_dir" value="{{ cfg.translate.moxhimt.cache_dir }}" placeholder="tự dùng HF cache"
-            class="{% if not is_default(cfg.translate.moxhimt.cache_dir, 'moxhimt', 'cache_dir') %}overridden{% endif %}">
-    </label>
 </details>
 </div>
 
@@ -281,11 +242,11 @@
     model: {{ cfg.translate.openai.model }}
     timeout_seconds: {{ cfg.translate.openai.timeout_seconds }}
     temperature: {{ cfg.translate.openai.temperature }}
-  moxhimt:
-    model_id: {{ cfg.translate.moxhimt.model_id }}
-    device: {{ cfg.translate.moxhimt.device }}
-    beam_size: {{ cfg.translate.moxhimt.beam_size }}
-    max_length: {{ cfg.translate.moxhimt.max_length }}
+  hachimimt:
+    model_key: {{ cfg.translate.hachimimt.model_key }}
+    backend: {{ cfg.translate.hachimimt.backend }}
+    beam_size: {{ cfg.translate.hachimimt.beam_size }}
+    chunk_mode: {{ cfg.translate.hachimimt.chunk_mode }}
   style:
     tone: {{ cfg.translate.style.tone }}
     pronoun_policy: {{ cfg.translate.style.pronoun_policy }}

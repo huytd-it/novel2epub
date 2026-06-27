@@ -190,8 +190,8 @@ def test_unified_file_unknown_slug_raises(tmp_path):
         load_config(path, "nonexistent")
 
 
-def test_default_translate_type_is_moxhimt(tmp_path):
-    """Không khai báo translate.type → mặc định type=moxhimt."""
+def test_default_translate_type_is_hachimimt(tmp_path):
+    """Không khai báo translate.type → mặc định type=hachimimt."""
     path = tmp_path / "novel2epub.yaml"
     path.write_text(
         yaml.safe_dump({
@@ -203,42 +203,40 @@ def test_default_translate_type_is_moxhimt(tmp_path):
         encoding="utf-8",
     )
     cfg = load_config(path)
-    assert cfg.translate.type == "moxhimt"
+    assert cfg.translate.type == "hachimimt"
 
 
 def test_hachimimt_auto_preset(tmp_path):
-    """model_id chứa HachimiMT → beam_size=2, max_input_tokens=160 nếu chưa override."""
+    """model preset HachimiMT-60 → model_key được gán đúng."""
     path = tmp_path / "novel2epub.yaml"
     path.write_text(
         yaml.safe_dump({
             "novel": {"slug": "test"},
             "crawl": {"toc_url": "https://example.com"},
             "translate": {
-                "type": "moxhimt",
-                "moxhimt": {
-                    "model_id": "ngocdang83/HachimiMT-60-zh-vi",
-                },
+                "type": "hachimimt",
+                "model": "hachimimt-60",
             },
             "output": {"data_dir": "data"},
         }),
         encoding="utf-8",
     )
     cfg = load_config(path)
-    assert cfg.translate.moxhimt.beam_size == 2
-    assert cfg.translate.moxhimt.max_input_tokens == 160
+    assert cfg.translate.hachimimt.model_key == "HachimiMT-60"
 
 
 def test_hachimimt_auto_preset_respects_user_override(tmp_path):
-    """User override beam_size → không bị auto-preset ghi đè."""
+    """User override model_key → không bị preset ghi đè."""
     path = tmp_path / "novel2epub.yaml"
     path.write_text(
         yaml.safe_dump({
             "novel": {"slug": "test"},
             "crawl": {"toc_url": "https://example.com"},
             "translate": {
-                "type": "moxhimt",
-                "moxhimt": {
-                    "model_id": "ngocdang83/HachimiMT-60-zh-vi",
+                "type": "hachimimt",
+                "model": "hachimimt-60",
+                "hachimimt": {
+                    "model_key": "MoxhiMT-60",
                     "beam_size": 4,
                 },
             },
@@ -247,5 +245,5 @@ def test_hachimimt_auto_preset_respects_user_override(tmp_path):
         encoding="utf-8",
     )
     cfg = load_config(path)
-    assert cfg.translate.moxhimt.beam_size == 4
-    assert cfg.translate.moxhimt.max_input_tokens == 160  # vẫn áp dụng vì chưa override
+    assert cfg.translate.hachimimt.model_key == "MoxhiMT-60"  # user override wins
+    assert cfg.translate.hachimimt.beam_size == 4

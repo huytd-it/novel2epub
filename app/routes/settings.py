@@ -166,22 +166,17 @@ def save_ai(
     keep_paragraphs: bool = Form(False),
     delay_seconds: float = Form(0.5),
     max_workers: int = Form(1),
+    # Local NMT model selector
+    local_model: str = Form(""),
     retry_attempts: int = Form(1),
     retry_delay_seconds: float = Form(0.0),
     chunk_max_chars: int = Form(0),
     chunk_overlap_paragraphs: int = Form(0),
-    # MoxhiMT fields
-    moxhimt_model_id: str = Form("ngocdang83/HachimiMT-60-zh-vi"),
-    moxhimt_device: str = Form("auto"),
-    moxhimt_beam_size: int = Form(2),
-    moxhimt_max_length: int = Form(300),
-    moxhimt_max_input_tokens: int = Form(160),
-    moxhimt_chunk_mode: str = Form("sentence"),
-    moxhimt_no_repeat_ngram_size: int = Form(2),
-    moxhimt_repetition_penalty: float = Form(1.2),
-    moxhimt_inter_threads: int = Form(0),
-    moxhimt_intra_threads: int = Form(0),
-    moxhimt_cache_dir: str = Form(""),
+    # HachimiMT fields
+    hachimimt_model_key: str = Form("HachimiMT-60"),
+    hachimimt_backend: str = Form("ctranslate2"),
+    hachimimt_beam_size: int = Form(2),
+    hachimimt_chunk_mode: str = Form("sentence"),
 ):
     openai_cfg: dict = {
         "base_url": base_url,
@@ -195,24 +190,18 @@ def save_ai(
     if title_prompt_template.strip():
         openai_cfg["title_prompt_template"] = clean_prompt_text(title_prompt_template)
 
-    moxhimt_cfg: dict = {
-        "model_id": moxhimt_model_id,
-        "device": moxhimt_device,
-        "beam_size": moxhimt_beam_size,
-        "max_length": moxhimt_max_length,
-        "max_input_tokens": moxhimt_max_input_tokens,
-        "chunk_mode": moxhimt_chunk_mode,
-        "no_repeat_ngram_size": moxhimt_no_repeat_ngram_size,
-        "repetition_penalty": moxhimt_repetition_penalty,
-        "inter_threads": moxhimt_inter_threads,
-        "intra_threads": moxhimt_intra_threads,
-        "cache_dir": moxhimt_cache_dir,
+    hachimimt_cfg: dict = {
+        "model_key": hachimimt_model_key,
+        "backend": hachimimt_backend,
+        "beam_size": hachimimt_beam_size,
+        "chunk_mode": hachimimt_chunk_mode,
     }
 
     translate: dict = {
         "type": type,
+        "model": local_model,
         "openai": openai_cfg,
-        "moxhimt": moxhimt_cfg,
+        "hachimimt": hachimimt_cfg,
         "style": {
             "tone": tone,
             "pronoun_policy": pronoun_policy,
@@ -230,10 +219,11 @@ def save_ai(
     }
     path = deps.ebook_config_path(slug)
     logger.info(
-        "[config][AI/DỊCH] slug=%s lưu vào %s: type=%s base_url=%r model=%r "
-        "timeout=%ss temperature=%s tone=%r pronoun=%s title_mode=%s han_viet=%s "
+        "[config][AI/DỊCH] slug=%s lưu vào %s: type=%s local_model=%s base_url=%r model=%r "
+        "hachimimt=%s timeout=%ss temperature=%s tone=%r pronoun=%s title_mode=%s han_viet=%s "
         "keep_paragraphs=%s retry=%s chunk_max_chars=%s delay=%ss",
-        slug, path, type, base_url, model, timeout_seconds, temperature, tone,
+        slug, path, type, local_model, base_url, model,
+        hachimimt_model_key, timeout_seconds, temperature, tone,
         pronoun_policy, title_mode, han_viet_level, keep_paragraphs, retry_attempts,
         chunk_max_chars, delay_seconds,
     )

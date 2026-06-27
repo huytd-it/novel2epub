@@ -204,7 +204,7 @@ def ebook_chapter_save(slug: str, index: int, translated: str = Form(...)):
 
 
 @router.post("/ebooks/{slug}/chapters/{index}/action")
-def ebook_chapter_action(request: Request, slug: str, index: int, action: str = Form(...), override: bool = Form(False), translate_backend: str = Form("moxhimt")):
+def ebook_chapter_action(request: Request, slug: str, index: int, action: str = Form(...), override: bool = Form(False), translate_backend: str = Form("hachimimt")):
     cfg = deps.resolved_cfg(slug)
     if action == "translate" and translate_backend:
         cfg.translate.type = translate_backend

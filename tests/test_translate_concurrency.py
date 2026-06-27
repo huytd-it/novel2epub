@@ -1,6 +1,6 @@
-"""moxhimt không fan-out luồng-mỗi-chương (song song hóa qua CT2 batching/
+"""hachimimt không fan-out luồng-mỗi-chương (song song hóa qua CT2 batching/
 threads); cli/google vẫn tôn trọng translate.max_workers như trước (xem
-spec moxhimt-translator: 'CPU thread pool over thread-per-chapter')."""
+spec hachimimt-translator: 'CPU thread pool over thread-per-chapter')."""
 from __future__ import annotations
 
 from novel2epub import pipeline
@@ -52,7 +52,7 @@ def _toc(n):
     )
 
 
-def test_moxhimt_ignores_max_workers_and_runs_sequential(tmp_path, monkeypatch):
+def test_hachimimt_ignores_max_workers_and_runs_sequential(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(_toc(3)))
     monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: _EchoTranslator())
 
@@ -71,7 +71,7 @@ def test_moxhimt_ignores_max_workers_and_runs_sequential(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "_translate_chapters_parallel", _wrap_parallel)
     monkeypatch.setattr(pipeline, "_translate_chapters_sequential", _wrap_sequential)
 
-    cfg = _cfg(tmp_path, "moxhimt", max_workers=4)
+    cfg = _cfg(tmp_path, "hachimimt", max_workers=4)
     pipeline.step_crawl_selected(cfg, lambda m: None)
     pipeline.step_translate_selected(cfg, lambda m: None)
 

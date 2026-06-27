@@ -7,6 +7,30 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+# ── Local NMT model presets ─────────────────────────────────────────
+# Key: model_key in novel2epub.hachimimt.translator.MODELS.
+# Used when translate.model is set; auto-populates model_key.
+LOCAL_MT_MODEL_PRESETS: dict[str, dict[str, Any]] = {
+    "hachimimt-60": {
+        "model_key": "HachimiMT-60",
+    },
+    "hachimimt-30": {
+        "model_key": "HachimiMT-30",
+    },
+    "moxhimt-60": {
+        "model_key": "MoxhiMT-60",
+    },
+    "moxhimt-30": {
+        "model_key": "MoxhiMT-30",
+    },
+    "hirashiba-medium": {
+        "model_key": "HirashibaMT-Medium",
+    },
+    "hirashiba-tiny": {
+        "model_key": "HirashibaMT-Tiny",
+    },
+}
+
 import yaml
 
 
@@ -188,64 +212,30 @@ class OpenAIConfig:
 
 
 @dataclass
-class MoxhiMTConfig:
-    """Cấu hình backend dịch cục bộ MoxhiMT (CTranslate2 + SentencePiece).
+class HachimiMTConfig:
+    """Cấu hình backend dịch cục bộ HachimiMT (CTranslate2 + SentencePiece).
 
-    Toàn bộ giá trị mặc định được tinh chỉnh theo khuyến nghị từ HachimiMT-demo
-    (model HachimiMT-60/MoxhiMT-60) — chất lượng cao, chống lặp, ổn định entity.
+    Sử dụng HachimiTranslator từ novel2epub.hachimimt — model được cấu hình
+    qua `model_key` (một trong các key của MODELS dict). Backend tự động phát
+    hiện CPU/GPU, batch size, thread count qua HardwareProfile.
     """
-    # Repo Hugging Face chứa SentencePiece tokenizer + model CTranslate2. Đổi
-    # sang model cùng kiến trúc Marian khác chỉ cần đổi field này (vd
-    # DanVP/MoxhiMT-30, ngocdang83/HachimiMT-60-zh-vi).
-    model_id: str = "ngocdang83/HachimiMT-60-zh-vi"
+    # Key trong MODELS dict của HachimiTranslator:
+    # "HachimiMT-60" | "HachimiMT-30" | "MoxhiMT-60" | "MoxhiMT-30" |
+    # "HirashibaMT-Medium" | "HirashibaMT-Tiny"
+    model_key: str = "HachimiMT-60"
     backend: str = "ctranslate2"
-    # Beam = 1 (greedy) cho tốc độ, 2 cho chất lượng (mặc định HachimiMT-demo).
-    # Beam > 2 dễ gây lặp trên model seq2seq nhỏ.
     beam_size: int = 2
-    # Trần token đầu ra. Model 60M drift khi decode dài → giới hạn 300 (HachimiMT-demo).
-    max_length: int = 300
-    # Giới hạn token đầu vào. Model 60M mất context trên chunk dài → drift entity &
-    # lặp. HachimiMT-demo khuyến nghị 160 để giữ ổn định tên riêng.
-    max_input_tokens: int = 160
-    # "sentence" = chia từng câu (mặc định HachimiMT-demo, chống lặp tốt nhất).
-    # "paragraph" = gom trọn đoạn (ngữ cảnh tốt hơn nhưng dễ lặp trên chunk dài).
     chunk_mode: str = "sentence"
-    # Cấm lặp n-gram trùng (mặc định HachimiMT-demo). 2 = không cho phép 2 gram
-    # nào xuất hiện >1 lần trong bản dịch.
-    no_repeat_ngram_size: int = 2
-    # Phạt điểm các token đã xuất hiện (mặc định HachimiMT-demo). >1 = giảm lặp.
-    repetition_penalty: float = 1.2
-    # Thư mục cache model. Để trống = dùng cache mặc định của huggingface_hub.
-    cache_dir: str = ""
-    device: str = "auto"
-    # Song song hóa CPU của CTranslate2: inter_threads = số batch dịch đồng
-    # thời, intra_threads = số luồng tính toán/batch. 0 = tự suy ra từ số
-    # nhân vật lý máy (inter * intra <= physical cores) — xem
-    # `resolved_threads()`. Không có GPU/CUDA trên máy mục tiêu nên song song
-    # hóa luôn qua CPU threads + batching, không qua device.
-    inter_threads: int = 0
-    intra_threads: int = 0
-
-    def resolved_threads(self) -> tuple[int, int]:
-        """Trả (inter_threads, intra_threads) đã áp dụng mặc định theo CPU.
-
-        Mặc định: intra=4 (đủ để vector hóa tốt/batch nhỏ), inter = số nhân
-        vật lý còn lại chia cho intra (>=1), giới hạn tổng tải <= số nhân vật
-        lý để tránh oversubscription trên máy không có GPU.
-        """
-        physical = os.cpu_count() or 4
-        intra = self.intra_threads if self.intra_threads > 0 else min(4, physical)
-        if self.inter_threads > 0:
-            inter = self.inter_threads
-        else:
-            inter = max(1, physical // max(1, intra))
-        return inter, intra
 
 
 @dataclass
 class TranslateConfig:
-    type: str = "moxhimt"  # moxhimt | openai | google | none
+    type: str = "hachimimt"  # hachimimt | openai | google | none
     preset: str = ""
+    # Local NMT model: "hachimimt-60" | "hachimimt-30" | "moxhimt-60" | ...
+    # Khi set, tự động gán model_key cho HachimiMTConfig.
+    # Để trống = dùng model_key mặc định từ hachimimt config.
+    model: str = ""
     profile: str = "traditional_cn_novel"
     source_language: str = "zh-CN"
     target_language: str = "vi"
@@ -256,7 +246,7 @@ class TranslateConfig:
     retry: TranslationRetryConfig = field(default_factory=TranslationRetryConfig)
     chunk: TranslationChunkConfig = field(default_factory=TranslationChunkConfig)
     openai: OpenAIConfig = field(default_factory=OpenAIConfig)
-    moxhimt: MoxhiMTConfig = field(default_factory=MoxhiMTConfig)
+    hachimimt: HachimiMTConfig = field(default_factory=HachimiMTConfig)
     delay_seconds: float = 0.5
     # Số chương dịch song song (luồng riêng, dùng chung 1 translator — HTTP
     # request/Google request đều an toàn gọi đồng thời). 1 = tuần tự như trước.
@@ -441,7 +431,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     translate_raw = dict(raw.get("translate") or {})
     preset_name = translate_raw.get("preset", "")
     openai_raw = translate_raw.pop("openai", None) or {}
-    moxhimt_raw = _as_dict(translate_raw.pop("moxhimt", None))
+    hachimimt_raw = _as_dict(translate_raw.pop("hachimimt", None))
     style = _build_style(translate_raw)
     glossary_files_raw = _as_dict(translate_raw.pop("glossary_files", None))
     retry_raw = _as_dict(translate_raw.pop("retry", None))
@@ -478,15 +468,24 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         merged.update({k: v for k, v in openai_raw.items() if v != "" and v is not None})
         openai_raw = merged
 
-    moxhimt = MoxhiMTConfig(**moxhimt_raw) if moxhimt_raw else MoxhiMTConfig()
-    if "hachimimt" in moxhimt.model_id.lower():
-        if "beam_size" not in moxhimt_raw:
-            moxhimt.beam_size = 2
-        if "max_input_tokens" not in moxhimt_raw:
-            moxhimt.max_input_tokens = 160
+    # Resolve local NMT model preset: translate.model tên preset → model_key.
+    translate_model = translate_raw.get("model", "") or ""
+    hachimimt = HachimiMTConfig(**hachimimt_raw) if hachimimt_raw else HachimiMTConfig()
+    if translate_model:
+        preset = LOCAL_MT_MODEL_PRESETS.get(translate_model)
+        if preset:
+            mk = preset.get("model_key")
+            if mk and "model_key" not in hachimimt_raw:
+                hachimimt.model_key = mk
+        else:
+            warnings.append(
+                f"translate.model {translate_model!r} không hợp lệ "
+                f"(chọn: {', '.join(LOCAL_MT_MODEL_PRESETS)}). Dùng raw config."
+            )
 
     translate = TranslateConfig(
-        type=translate_raw.get("type", "moxhimt"),
+        type=translate_raw.get("type", "hachimimt"),
+        model=translate_model,
         preset=preset_name,
         profile=translate_raw.get("profile", "traditional_cn_novel"),
         source_language=translate_raw.get("source_language", "zh-CN"),
@@ -507,7 +506,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             overlap_paragraphs=int(chunk_raw.get("overlap_paragraphs", 0)),
         ),
         openai=OpenAIConfig(**openai_raw),
-        moxhimt=moxhimt,
+        hachimimt=hachimimt,
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
     )

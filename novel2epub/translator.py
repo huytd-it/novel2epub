@@ -170,29 +170,6 @@ def _split_into_chunks(text: str, max_chars: int, overlap_paragraphs: int) -> li
     return chunks
 
 
-# Dấu kết câu Hán + Latin, dùng để chia câu khi một đoạn vượt giới hạn token.
-_SENTENCE_RE = re.compile(r"[^。！？…!?.\n]*[。！？…!?.]+|[^。！？…!?.\n]+")
-
-
-def _split_into_sentences(line: str) -> list[str]:
-    """Chia MỘT dòng (không chứa \\n) thành các câu, giữ dấu kết câu.
-
-    Dùng làm bước fallback cho MoxhiMT khi một đoạn văn quá dài so với giới hạn
-    512 token của model. Trả list rỗng nếu dòng chỉ có khoảng trắng.
-    """
-    return [m.group(0) for m in _SENTENCE_RE.finditer(line) if m.group(0).strip()]
-
-
-def _hard_split(text: str, max_chars: int) -> list[str]:
-    """Cắt cứng theo ký tự khi một câu vẫn dài hơn ngưỡng an toàn của model.
-
-    Tránh để model tự truncate âm thầm (mất nghĩa cuối câu). max_chars luôn
-    >= 1 nên hàm này kết thúc.
-    """
-    step = max(1, max_chars)
-    return [text[i:i + step] for i in range(0, len(text), step)]
-
-
 class OpenAITranslator:
     # Áp dụng khi translate.chunk.max_chars = 0 (mặc định) — tự chia chương dài
     # để tránh prompt quá tải/timeout request AI.
@@ -346,239 +323,31 @@ class GoogleTranslator:
         return self.translate(text), ""
 
 
-class MoxhiMTTranslator:
-    """Dịch Trung→Việt cục bộ bằng model MoxhiMT (CTranslate2 + SentencePiece).
+class HachimiMTTranslator:
+    """Dịch Trung→Việt cục bộ bằng NMT (CTranslate2 + SentencePiece).
 
-    Khác `OpenAITranslator` (LLM theo prompt) và `GoogleTranslator` (API mạng),
-    đây là model NMT seq2seq chạy offline. Tự tải model từ Hugging Face Hub về
-    cache ở lần dùng đầu (lazy), tái sử dụng các lần sau.
+    Wrapper xung quanh HachimiTranslator từ novel2epub.hachimimt, cung cấp
+    giao diện Translator (translate/translate_title/translate_titles) tương
+    thích với các backend khác trong novel2epub.
 
-    Chia chunk: mặc định `chunk_mode="paragraph"` — gom trọn từng dòng/đoạn của
-    bản gốc cho model giữ ngữ cảnh liên câu (cẩn thận nhất). Khi một đoạn vượt
-    ngân sách token an toàn của `max_length`, fallback chia câu; câu vẫn quá dài
-    thì cắt cứng theo ký tự. Glossary áp dụng bằng string-replace sau dịch
-    (model không nhận "instruction" như LLM).
+    Glossary áp dụng bằng string-replace sau dịch (model NMT không nhận
+    "instruction" như LLM).
     """
 
     def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None):
         self.cfg = cfg
-        self.mox = cfg.moxhimt
+        self.hmt = cfg.hachimimt
         self.glossary = load_glossary_dict(cfg)
         self.log = log or (lambda _: None)
-        # Kiểm tra package ngay khi khởi tạo (báo lỗi sớm, rõ ràng). Việc tải +
-        # load model để lazy tới lần dịch đầu (xem `_ensure_loaded`).
-        self._import_ct2()
-        self._import_spm()
-        self._import_hub()
-        self._ct2 = None
-        self._sp_src = None
-        self._sp_tgt = None
+        self._inner: HachimiTranslator | None = None
 
-    # ----- lazy import (tránh ép cài nặng cho người không dùng backend này) -----
-    @staticmethod
-    def _import_ct2():
-        try:
-            import ctranslate2
-            return ctranslate2
-        except ImportError as e:  # pragma: no cover - phụ thuộc môi trường
-            raise ImportError(
-                "Chưa cài ctranslate2 (cần cho translate.type=moxhimt). "
-                "Chạy: pip install ctranslate2 sentencepiece huggingface_hub"
-            ) from e
-
-    @staticmethod
-    def _import_spm():
-        try:
-            import sentencepiece
-            return sentencepiece
-        except ImportError as e:  # pragma: no cover
-            raise ImportError(
-                "Chưa cài sentencepiece (cần cho translate.type=moxhimt). "
-                "Chạy: pip install ctranslate2 sentencepiece huggingface_hub"
-            ) from e
-
-    @staticmethod
-    def _import_hub():
-        try:
-            import huggingface_hub
-            return huggingface_hub
-        except ImportError as e:  # pragma: no cover
-            raise ImportError(
-                "Chưa cài huggingface_hub (cần cho translate.type=moxhimt). "
-                "Chạy: pip install ctranslate2 sentencepiece huggingface_hub"
-            ) from e
-
-    # ----- tải & định vị model -----
-    def _download_model(self) -> Path:
-        hub = self._import_hub()
-        try:
-            local = hub.snapshot_download(self.mox.model_id, cache_dir=(self.mox.cache_dir or None))
-        except Exception as e:  # noqa: BLE001 - gom mọi lỗi mạng/HTTP thành thông báo rõ
-            raise RuntimeError(
-                f"Không tải được model {self.mox.model_id!r} từ Hugging Face Hub: {e}. "
-                "Kiểm tra kết nối mạng, hoặc đặt biến môi trường HF_HOME / "
-                "translate.moxhimt.cache_dir tới thư mục cache hợp lệ."
-            ) from e
-        return Path(local)
-
-    def _locate_model_files(self, root: Path) -> tuple[Path, Path, Path | None]:
-        """Tìm thư mục model CTranslate2 (chứa model.bin) + file SentencePiece.
-
-        Trả (ct2_dir, source_spm, target_spm_or_none):
-        - Nếu root có cả source.spm + target.spm → separate tokenizer (HachimiMT)
-        - Nếu chỉ có 1 file .model/.spm → shared tokenizer (MoxhiMT), target = None
-
-        Robust với nhiều layout repo trong họ model (ưu tiên bản INT8 `ct2-int8/`
-        cho tốc độ CPU). Raise RuntimeError rõ ràng nếu repo không đúng định dạng
-        (vd LoRA adapter — không được backend này hỗ trợ).
-        """
-        ct2_dirs = [p.parent for p in root.rglob("model.bin")]
-        if not ct2_dirs:
-            raise RuntimeError(
-                f"Không tìm thấy model CTranslate2 (model.bin) trong {root}. "
-                f"model_id {self.mox.model_id!r} có thể không phải định dạng CTranslate2 "
-                "(backend moxhimt chỉ hỗ trợ model SentencePiece + CTranslate2 Marian, "
-                "không hỗ trợ LoRA adapter)."
-            )
-
-        def _ct2_rank(p: Path) -> tuple:
-            name = p.name.lower()
-            return (0 if "int8" in name else 1, 0 if "ct2" in name else 1, len(str(p)))
-
-        ct2_dir = sorted(ct2_dirs, key=_ct2_rank)[0]
-
-        spm_files = [p for p in (*root.rglob("*.spm"), *root.rglob("*.model")) if p.is_file()]
-        if not spm_files:
-            raise RuntimeError(
-                f"Không tìm thấy SentencePiece tokenizer (*.spm/*.model) trong {root}. "
-                f"model_id {self.mox.model_id!r} thiếu file tokenizer."
-            )
-
-        # Detect separate source.spm + target.spm pair (HachimiMT layout)
-        source_spm = next((p for p in spm_files if p.name.lower() in ("source.spm", "src.spm")), None)
-        target_spm = next((p for p in spm_files if p.name.lower() in ("target.spm", "tgt.spm")), None)
-        if source_spm and target_spm:
-            return ct2_dir, source_spm, target_spm
-
-        # Fallback: shared tokenizer (MoxhiMT layout — single .model or .spm)
-        spm_path = sorted(spm_files, key=lambda p: (
-            0 if p.name.lower().endswith(".model") else 1, len(str(p))
-        ))[0]
-        return ct2_dir, spm_path, None
-
-    def _ensure_loaded(self) -> None:
-        if self._ct2 is not None:
+    def _ensure_loaded(self):
+        if self._inner is not None:
             return
-        # Import torch trước (nếu có) để nạp DLL cuBLAS/cuDNN của nó vào process.
-        # CTranslate2 (wheel pip) yêu cầu cublas64_12.dll từ CUDA 12; trên hệ thống
-        # chỉ có CUDA 13+ (cublas64_13.dll), torch-CUDA ship DLL phù hợp và giúp CT2
-        # tìm được thư viện. Pattern này copy từ HachimiMT-demo (src/hardware.py).
-        try:
-            import torch
-            if torch.cuda.is_available():
-                self.log("  … torch CUDA sẵn sàng, sẽ dùng DLL cuBLAS từ torch")
-        except Exception:
-            pass
-        ct2 = self._import_ct2()
-        spm = self._import_spm()
-        model_dir = self._download_model()
-        ct2_dir, src_path, tgt_path = self._locate_model_files(model_dir)
+        from .hachimimt.translator import HachimiTranslator, Backend
 
-        # GPU auto-detect — thử CUDA trước, fallback CPU nếu thiếu DLL/thư viện
-        device = self.mox.device
-        if device == "auto":
-            try:
-                if ct2.get_cuda_device_count() > 0:
-                    device = "cuda"
-                else:
-                    device = "cpu"
-            except Exception:
-                device = "cpu"
-
-        inter_threads, intra_threads = self.mox.resolved_threads()
-        tokenizer_label = "source+target" if tgt_path else src_path.name
-        self.log(
-            f"  … nạp model {self.mox.model_id} (ct2={ct2_dir.name}, spm={tokenizer_label}, "
-            f"device={device}, inter_threads={inter_threads}, intra_threads={intra_threads})"
-        )
-
-        # Nạp SentencePiece trước (không phụ thuộc CUDA) để có tokenizer cho test inference
-        self._sp_src = spm.SentencePieceProcessor(model_file=str(src_path))
-        self._sp_tgt = (
-            spm.SentencePieceProcessor(model_file=str(tgt_path))
-            if tgt_path
-            else self._sp_src
-        )
-
-        # Thử tạo Translator; nếu CUDA lỗi (thiếu cublas/cuDNN...) → fallback CPU
-        # Một số hệ thống thiếu cuBLAS nhưng ct2.Translator() vẫn tạo được — lỗi chỉ
-        # xuất hiện ở lần translate_batch đầu tiên. Do đó ta chủ động chạy test inference
-        # để phát hiện sớm và fallback.
-        last_err: Exception | None = None
-        for dev in ([device, "cpu"] if device == "cuda" else [device]):
-            try:
-                self._ct2 = ct2.Translator(
-                    str(ct2_dir),
-                    device=dev,
-                    inter_threads=inter_threads,
-                    intra_threads=intra_threads,
-                )
-                if dev == "cuda":
-                    # Verify GPU inference thực sự hoạt động
-                    test_tokens = self._sp_src.encode("test dịch", out_type=str)
-                    self._ct2.translate_batch([test_tokens])
-                if dev != device:
-                    self.log(f"  … Fallback từ {device} sang {dev}")
-                break
-            except Exception as e:  # noqa: BLE001
-                last_err = e
-                if dev == "cpu":
-                    break
-        else:
-            assert last_err is not None
-            raise RuntimeError(
-                f"Không nạp được model MoxhiMT từ {model_dir}: {last_err}."
-            ) from last_err
-
-    # ----- chia chunk + dịch -----
-    def _token_budget(self) -> int:
-        if self.mox.max_input_tokens > 0:
-            return self.mox.max_input_tokens
-        # Chừa biên cho token đặc biệt + bản dịch VI thường dài hơn nguồn ZH.
-        return max(16, int(self.mox.max_length) - 32)
-
-    def _ntokens(self, text: str) -> int:
-        return len(self._sp_src.encode(text, out_type=str))
-
-    def _translate_texts(self, texts: list[str]) -> list[str]:
-        if not texts:
-            return []
-        batch = [self._sp_src.encode(t, out_type=str) for t in texts]
-        results = self._ct2.translate_batch(
-            batch,
-            beam_size=int(self.mox.beam_size),
-            max_decoding_length=int(self.mox.max_length),
-            no_repeat_ngram_size=int(self.mox.no_repeat_ngram_size),
-            repetition_penalty=float(self.mox.repetition_penalty),
-        )
-        return [self._sp_tgt.decode(r.hypotheses[0]) for r in results]
-
-    def _translate_line(self, line: str) -> str:
-        """Dịch một dòng (đoạn văn). Gom cả đoạn nếu vừa token; nếu không thì
-        fallback chia câu, câu quá dài thì cắt cứng theo ký tự."""
-        budget = self._token_budget()
-        if self.mox.chunk_mode != "sentence" and self._ntokens(line) <= budget:
-            return self._translate_texts([line])[0]
-
-        sentences = _split_into_sentences(line) or [line]
-        segments: list[str] = []
-        for sent in sentences:
-            if self._ntokens(sent) <= budget:
-                segments.append(sent)
-            else:
-                segments.extend(_hard_split(sent, budget))
-        outs = self._translate_texts(segments)
-        return " ".join(o.strip() for o in outs if o.strip())
+        self._inner = HachimiTranslator(profile=None)
+        self._inner.load(self.hmt.model_key, backend=Backend.CT2)
 
     def translate(
         self,
@@ -591,90 +360,31 @@ class MoxhiMTTranslator:
                 on_chunk(1, 1, text, True)
             return text
         self._ensure_loaded()
-        # Mỗi dòng được chia thành 1+ "đơn vị" dịch (cả đoạn nếu vừa token,
-        # ngược lại fallback câu/ký tự — xem _translate_line). TẤT CẢ đơn vị
-        # của toàn văn bản được gom thành 1 batch duy nhất, đưa vào CTranslate2
-        # qua translate_batch 1 lần để khai thác song song hóa nội bộ (CT2
-        # inter/intra threads) thay vì gọi tuần tự từng dòng. Kết quả ghép lại
-        # đúng theo span của mỗi dòng nên thứ tự/cấu trúc đoạn giữ nguyên như
-        # khi dịch tuần tự.
-        lines = text.split("\n")
-        total = len(lines)
-        budget = self._token_budget()
-        units: list[str] = []
-        spans: list[tuple[int, int]] = []
-        for line in lines:
-            start = len(units)
-            if not line.strip():
-                spans.append((start, start))
-                continue
-            if self.mox.chunk_mode != "sentence" and self._ntokens(line) <= budget:
-                units.append(line)
-            else:
-                sentences = _split_into_sentences(line) or [line]
-                for sent in sentences:
-                    if self._ntokens(sent) <= budget:
-                        units.append(sent)
-                    else:
-                        units.extend(_hard_split(sent, budget))
-            spans.append((start, len(units)))
-
-        outs = self._translate_texts(units)
-
-        out_lines: list[str] = []
-        for i, (line, (start, end)) in enumerate(zip(lines, spans)):
-            if start == end:
-                out = line  # giữ nguyên dòng trống
-            else:
-                joined = " ".join(o.strip() for o in outs[start:end] if o.strip())
-                out = _apply_glossary(joined, self.glossary)
-            out_lines.append(out)
-
+        assert self._inner is not None
+        translated = self._inner.translate_text(text, beam_size=self.hmt.beam_size, chunk_mode=self.hmt.chunk_mode)
+        out = _apply_glossary(translated, self.glossary)
         if on_chunk is not None:
-            max_chars = self.cfg.chunk.max_chars or 2000
-            chunk_groups: list[str] = []
-            temp_group: list[str] = []
-            temp_len = 0
-            for line in out_lines:
-                if temp_group and temp_len + len(line) + 1 > max_chars:
-                    chunk_groups.append("\n".join(temp_group))
-                    temp_group = []
-                    temp_len = 0
-                temp_group.append(line)
-                temp_len += len(line) + 1
-            if temp_group:
-                chunk_groups.append("\n".join(temp_group))
-
-            total_chunks = len(chunk_groups)
-            for idx, chunk_text in enumerate(chunk_groups, 1):
-                on_chunk(idx, total_chunks, chunk_text, idx == total_chunks)
-
-        return "\n".join(out_lines)
+            on_chunk(1, 1, out, True)
+        return out
 
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
+        self._ensure_loaded()
+        assert self._inner is not None
         if not text.strip():
             return text, ""
-        self._ensure_loaded()
-        out = _apply_glossary(self._translate_line(text.strip()), self.glossary)
-        return out, ""
+        translated = self._inner.translate_chunk(text.strip(), beam_size=self.hmt.beam_size)
+        return _apply_glossary(translated, self.glossary), ""
 
     def translate_titles(self, titles: list[str]) -> list[str]:
-        """Dịch hàng loạt tiêu đề bằng 1 lần gọi translate_batch.
-
-        Entry rỗng/whitespace được giữ nguyên, không tốn inference.
-        Trả list kết quả đúng thứ tự input (không đảo).
-        """
-        if not titles:
-            return []
         self._ensure_loaded()
-        non_empty_idx = [(i, t.strip()) for i, t in enumerate(titles) if t.strip()]
-        if not non_empty_idx:
-            return list(titles)
-        texts = [t for _, t in non_empty_idx]
-        outs = self._translate_texts(texts)
-        result = list(titles)
-        for (i, _), translated in zip(non_empty_idx, outs):
-            result[i] = _apply_glossary(translated, self.glossary)
+        assert self._inner is not None
+        result: list[str] = []
+        for t in titles:
+            if not t.strip():
+                result.append(t)
+            else:
+                translated = self._inner.translate_chunk(t.strip(), beam_size=self.hmt.beam_size)
+                result.append(_apply_glossary(translated, self.glossary))
         return result
 
 
@@ -684,11 +394,11 @@ def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = No
         return OpenAITranslator(cfg, log=log)
     if kind == "google":
         return GoogleTranslator(cfg)
-    if kind == "moxhimt":
-        return MoxhiMTTranslator(cfg, log=log)
+    if kind in ("hachimimt", "moxhimt"):
+        return HachimiMTTranslator(cfg, log=log)
     if kind == "none":
         return NoopTranslator()
-    raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (openai|google|moxhimt|none)")
+    raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (openai|google|hachimimt|none)")
 
 
 class RateLimited:

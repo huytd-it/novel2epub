@@ -129,9 +129,9 @@ function updateTranslateTypeUI() {
     if (!typeSelect) return;
     const type = typeSelect.value;
     const openaiSection = document.getElementById("section-openai");
-    const moxhimtSection = document.getElementById("section-moxhimt");
+    const hachimimtSection = document.getElementById("section-hachimimt");
     if (openaiSection) openaiSection.style.display = type === "openai" ? "" : "none";
-    if (moxhimtSection) moxhimtSection.style.display = type === "moxhimt" ? "" : "none";
+    if (hachimimtSection) hachimimtSection.style.display = type === "hachimimt" || type === "moxhimt" ? "" : "none";
 }
 document.addEventListener("change", function (e) {
     if (e.target.name === "type") updateTranslateTypeUI();

@@ -136,7 +136,7 @@ def export_ebook_config(slug: str):
     data = {
         "novel": asdict(cfg.novel),
         "crawl": {k: v for k, v in asdict(cfg.crawl).items() if not k.startswith("_") and k != "retry"},
-        "translate": {k: v for k, v in asdict(cfg.translate).items() if k not in ("openai", "moxhimt", "style", "chunk", "retry", "glossary_files")},
+        "translate": {k: v for k, v in asdict(cfg.translate).items() if k not in ("openai", "hachimimt", "style", "chunk", "retry", "glossary_files")},
         "output": asdict(cfg.output),
     }
     text = yaml.safe_dump(data, allow_unicode=True, sort_keys=False)

@@ -34,23 +34,24 @@ pip install -r requirements.txt
 pip install "scrapling[fetchers]" && scrapling install
 ```
 
-Backend dịch cục bộ `moxhimt` (offline, miễn phí, chạy trên CPU):
+Backend dịch cục bộ `hachimimt` (offline, miễn phí, chạy trên CPU/GPU):
 ```bash
 pip install ctranslate2 sentencepiece huggingface_hub
 ```
 
-Model mặc định là **MoxhiMT-60**. Có thể chuyển sang **HachimiMT** (cùng backend,
-chất lượng tốt hơn cho một số nguồn) bằng cách đổi `model_id`:
+Model mặc định là **HachimiMT-60** (dựa trên HachimiMT-demo của ngocdang83):
 
 ```yaml
 translate:
-  type: moxhimt
-  moxhimt:
-    model_id: "ngocdang83/HachimiMT-60-zh-vi"
+  type: hachimimt
+  hachimimt:
+    model_key: "HachimiMT-60"
+    beam_size: 2
+    chunk_mode: "sentence"
 ```
 
-Khi detect model name chứa `hachimimt`, tự đặt `beam_size: 2` và
-`max_input_tokens: 160` (khuyến nghị cho HachimiMT). Có thể override thủ công nếu
+Có thể đổi model qua preset `translate.model` (vd `hachimimt-60`, `moxhimt-60`, `hirashiba-medium`).
+Khi không chỉ định model_key, mặc định là `HachimiMT-60`. Có thể override thủ công nếu
 cần.
 
 `fastapi`/`uvicorn`/`jinja2`/`python-multipart` chỉ cần nếu dùng Web UI (xem dưới):
@@ -124,7 +125,7 @@ dung → Inspect → xem `id`/`class` của thẻ bao quanh.
 
 `type` chọn engine dịch:
 
-- **`moxhimt`** *(mặc định)* — model NMT cục bộ (CTranslate2 + SentencePiece), **chạy offline
+- **`hachimimt`** *(mặc định)* — model NMT cục bộ (CTranslate2 + SentencePiece), **chạy offline
   hoàn toàn trên CPU**, không cần API/key, không cần GPU. Miễn phí, tối ưu cho
   tiểu thuyết mạng/tiên hiệp. Hỗ trợ 2 model:
 
@@ -133,7 +134,7 @@ dung → Inspect → xem `id`/`class` của thẻ bao quanh.
   | MoxhiMT-60 | `DanVP/MoxhiMT-60` | Tốt | Mặc định, beam_size=4 |
   | HachimiMT-60 | `ngocdang83/HachimiMT-60-zh-vi` | Tốt+ | Tự set beam_size=2, max_input_tokens=160 |
 
-  Đổi model chỉ cần thay `moxhimt.model_id` trong config. Model tự tải từ Hugging Face
+  Đổi model chỉ cần thay `hachimimt.model_key` hoặc chọn preset qua `translate.model`. Model tự tải từ Hugging Face
   Hub về cache ở lần dùng đầu.
 
 - **`openai`** — gọi AI qua HTTP theo chuẩn OpenAI-Compatible (OpenAI, OpenRouter, Ollama, LM Studio, vLLM, llama.cpp server...):
@@ -224,9 +225,9 @@ Trong trang ebook, Crawl console tính số chương thiếu/lỗi và cho Retry
 chương đó bằng 1 nút. Crawl song song có bộ điều tiết thích ứng: tự giảm số luồng
 khi gặp lỗi 429/anti-bot, rồi tăng dần lại khi ổn định.
 
-### Dịch song song trên CPU (moxhimt)
+### Dịch song song trên CPU (hachimimt)
 
-Máy không có GPU vẫn dịch nhanh nhờ CTranslate2 chạy trên CPU. `moxhimt` gom toàn
+Máy không có GPU vẫn dịch nhanh nhờ CTranslate2 chạy trên CPU. `hachimimt` gom toàn
 bộ đoạn của 1 chương thành 1 lượt `translate_batch` và để CTranslate2 tự song
 song hóa nội bộ.
 
@@ -250,7 +251,7 @@ xuất bản, chủ đề, bộ sách, định danh, miêu tả.
 
 1. Đặt `max_chapters: 2` và `translate.type: none`, chạy `crawl` → kiểm tra
    `raw/*.md` lấy đúng nội dung (chỉnh `content_selector` nếu cần).
-2. Đổi `translate.type: openai` (hoặc `moxhimt`), chạy `translate` 2 chương →
+2. Đổi `translate.type: openai` (hoặc `hachimimt`), chạy `translate` 2 chương →
    xem chất lượng dịch, bổ sung `glossary`.
 3. Đặt `max_chapters: 0` (toàn bộ), tăng `crawl.max_workers` (vd 10–30 cho
    `fetcher` mode). Chạy `run`.
@@ -262,7 +263,7 @@ hoặc đặt automation `daily@HH:MM` để tự crawl chương mới + dịch 
 
 - Chương VIP/cần đăng nhập cần nguồn khác.
 - Chất lượng dịch phụ thuộc model AI bạn dùng (với `type: openai`),
-  hoặc giới hạn của model NMT cục bộ (với `type: moxhimt`).
-- `moxhimt` chỉ tối ưu cho CPU — không có đường chạy GPU/CUDA theo thiết kế;
+  hoặc giới hạn của model NMT cục bộ (với `type: hachimimt`).
+- `hachimimt` hỗ trợ cả CPU và GPU (CUDA) — tự động phát hiện phần cứng;
   máy có GPU mạnh nên dùng `type: openai` với provider có GPU để tận dụng.
 - Tôn trọng bản quyền & điều khoản của trang nguồn; chỉ dùng cho mục đích cá nhân.

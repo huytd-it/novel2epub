@@ -34,7 +34,7 @@ defaults:
       respect_retry_after: true
 
   translate:
-    type: moxhimt              # moxhimt | openai | google | none
+    type: hachimimt            # hachimimt | openai | google | none
     style:
       tone: "mượt, tự nhiên, có chất cổ trang"
       pronoun_policy: contextual
@@ -50,14 +50,11 @@ defaults:
       model: "gpt-4o-mini"
       timeout_seconds: 300
       temperature: 0.7
-    moxhimt:
-      model_id: "DanVP/MoxhiMT-60"
-      beam_size: 4
-      max_length: 512
-      max_input_tokens: 0
-      chunk_mode: paragraph
-      cache_dir: ""
-      device: auto
+    hachimimt:
+      model_key: "HachimiMT-60"
+      backend: "ctranslate2"
+      beam_size: 2
+      chunk_mode: "sentence"
 
   output:
     data_dir: data

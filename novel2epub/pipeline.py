@@ -1227,6 +1227,72 @@ GIẢI THÍCH: <để trống nếu tên đã rõ nghĩa, tự nhiên; chỉ đi
 --- Tóm tắt nội dung đã dịch (để tham khảo ngữ cảnh) ---
 {summary}"""
 
+_RETRANSLATE_TITLE_SIMPLE_PROMPT = """Dịch tiêu đề sau sang tiếng Việt. Chỉ trả về bản dịch, không giải thích:
+
+{title_zh}"""
+
+_TITLE_DESCRIPTION_PROMPT = """Bạn là biên tập viên truyện dịch Trung → Việt.
+
+Hãy giải thích vì sao chương sau được đặt tên như vậy, dựa vào tiêu đề gốc (chữ Hán) và nội dung đã dịch.
+
+Nguyên tắc:
+1. Giải thích nguồn gốc ý nghĩa của tên chương (địa danh, nhân vật, sự kiện, ẩn dụ...)
+2. Giải thích tại sao tên này phù hợp với nội dung chương
+3. Nếu có Hán Việt khó hiểu, giải thích nghĩa gốc
+4. Trả lời bằng tiếng Việt, ngắn gọn (2-4 câu)
+
+{glossary}
+
+--- Tiêu đề gốc (chữ Hán) ---
+{title_zh}
+
+--- Tiêu đề đã dịch ---
+{title_vi}
+
+--- Tóm tắt nội dung chương ---
+{summary}
+
+Trả lời ĐÚNG 1 dòng theo định dạng:
+GIẢI THÍCH: <giải thích>"""
+
+
+def _generate_title_description(
+    cfg: Config,
+    title_zh: str,
+    title_vi: str,
+    translated_content: str,
+    glossary: dict,
+    log: LogFn = _print,
+    summary_max_chars: int = 800,
+) -> str | None:
+    """Generate description explaining why the chapter title is named so."""
+    from .openai_client import run_chat
+    from .translator import _format_glossary
+
+    if cfg.translate.type.lower() != "openai":
+        log("[mô-tả-tiêu-đề] Chỉ hỗ trợ OpenAI. Bỏ qua.")
+        return None
+
+    summary = translated_content.strip()[:summary_max_chars]
+    if len(translated_content) > summary_max_chars:
+        summary = summary.rsplit("\n", 1)[0] or summary
+
+    prompt = _TITLE_DESCRIPTION_PROMPT.format(
+        title_zh=title_zh,
+        title_vi=title_vi,
+        summary=summary,
+        glossary=_format_glossary(glossary),
+    )
+
+    raw = run_chat(cfg.translate.openai, prompt)
+    # Parse response: look for "GIẢI THÍCH:" prefix
+    if "GIẢI THÍCH:" in raw:
+        description = raw.split("GIẢI THÍCH:", 1)[1].strip()
+    else:
+        description = raw.strip()
+
+    return description if description else None
+
 
 def step_retranslate_title(
     cfg: Config,
@@ -1235,20 +1301,23 @@ def step_retranslate_title(
     slug: str,
     index: int,
     summary_max_chars: int = 800,
+    engine: str | None = None,
+    model: str | None = None,
+    custom_prompt: str | None = None,
+    generate_description: bool = True,
 ) -> dict:
     """Dịch lại tiêu đề chương dùng nội dung đã dịch làm ngữ cảnh.
 
-    Chỉ hoạt động với translate.type=openai. Trả dict {title_vi, title_note, title_zh}.
+    Trả dict {title_vi, title_note, title_zh, title_description}.
+    engine: "openai" | "google" | "hachimimt" (default: cfg.translate.type)
     """
-    if cfg.translate.type.lower() != "openai":
-        raise RuntimeError(
-            "Dịch lại tiêu đề (retranslate-title) chỉ hỗ trợ với translate.type=openai. "
-            f"Backend hiện tại: {cfg.translate.type!r}"
-        )
 
     from .openai_client import run_chat
-    from .translator import _format_glossary, _parse_title_response, load_glossary_dict
+    from .translator import _format_glossary, _parse_title_response, load_glossary_dict, make_translator
 
+    # Resolve engine (default: cfg.translate.type)
+    selected_engine = (engine or cfg.translate.type).lower()
+    
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -1270,23 +1339,66 @@ def step_retranslate_title(
         summary = summary.rsplit("\n", 1)[0] or summary
 
     glossary = load_glossary_dict(cfg.translate)
-    prompt = _RETRANSLATE_TITLE_PROMPT.format(
-        title_zh=ch.title_zh,
-        summary=summary,
-        glossary=_format_glossary(glossary),
-    )
+    
+    # Use custom prompt if provided, otherwise use default
+    if custom_prompt:
+        prompt = custom_prompt.format(
+            title_zh=ch.title_zh,
+            summary=summary,
+            glossary=_format_glossary(glossary),
+        )
+    else:
+        prompt = _RETRANSLATE_TITLE_PROMPT.format(
+            title_zh=ch.title_zh,
+            summary=summary,
+            glossary=_format_glossary(glossary),
+        )
 
-    log(f"[dịch-tiêu-đề] Chương {index}: {ch.title_zh}")
-    raw = run_chat(cfg.translate.openai, prompt)
-    title_vi, title_note = _parse_title_response(raw)
-    title_vi = _clean_title(title_vi)
+    log(f"[dịch-tiêu-đề] Chương {index}: {ch.title_zh} (engine: {selected_engine})")
+    
+    if selected_engine == "openai":
+        # OpenAI supports prompt-based translation with context
+        # Temporarily override model if specified
+        orig_model = cfg.translate.openai.model
+        if model:
+            cfg.translate.openai.model = model
+        try:
+            raw = run_chat(cfg.translate.openai, prompt)
+        finally:
+            cfg.translate.openai.model = orig_model
+        title_vi, title_note = _parse_title_response(raw)
+        title_vi = _clean_title(title_vi)
+    elif selected_engine in ("google", "hachimimt"):
+        # Google/HachimiMT: literal translation without context
+        # Use simple prompt for these engines
+        simple_prompt = _RETRANSLATE_TITLE_SIMPLE_PROMPT.format(title_zh=ch.title_zh)
+        translator = make_translator(cfg.translate)
+        title_vi = translator.translate(simple_prompt)
+        title_vi = _clean_title(title_vi)
+        title_note = ""  # No explanation for simple translation
+        log(f"[dịch-tiêu-đề] Backend {selected_engine} không hỗ trợ context-based. Dịch literal.")
+    else:
+        raise RuntimeError(f"Engine không hỗ trợ: {selected_engine!r}")
 
     ch.title_vi = title_vi
     ch.title_note = title_note
     storage.save_manifest(manifest)
     log(f"[dịch-tiêu-đề] → {title_vi}" + (f" ({title_note})" if title_note else ""))
 
-    return {"title_vi": title_vi, "title_note": title_note, "title_zh": ch.title_zh}
+    result = {"title_vi": title_vi, "title_note": title_note, "title_zh": ch.title_zh}
+    
+    # Generate description if requested
+    if generate_description and selected_engine == "openai":
+        description = _generate_title_description(
+            cfg, ch.title_zh, title_vi, translated, glossary, log
+        )
+        if description:
+            ch.title_note = description
+            storage.save_manifest(manifest)
+            result["title_description"] = description
+            log(f"[dịch-tiêu-đề] Description: {description[:50]}...")
+
+    return result
 
 
 def step_build(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> str:

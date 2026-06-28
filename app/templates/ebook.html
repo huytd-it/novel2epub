@@ -41,20 +41,26 @@
     <img class="cover" src="/ebooks/{{ slug }}/cover" alt="bìa">
     {% endif %}
     <div class="meta-body">
-        <h3>{{ manifest.title_vi or manifest.title or "(chưa có tên)" }}</h3>
-        {% if manifest.title_vi and manifest.title %}<p class="muted">Gốc: {{ manifest.title }}</p>{% endif %}
-        {% if manifest.title_note %}<p class="muted">{{ manifest.title_note }}</p>{% endif %}
-        <p class="muted">Tác giả: {{ manifest.author_vi or manifest.author or "-" }}</p>
-        {% if manifest.author_vi and manifest.author %}<p class="muted">Tác giả gốc: {{ manifest.author }}</p>{% endif %}
-        <p class="muted">Nguồn: <a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank">{{ manifest.source_url or cfg.crawl.toc_url }}</a></p>
-        <p class="muted">Số chương: {{ manifest.chapters|length }}</p>
-        {% if manifest.metadata_missing %}<p class="muted">Thiếu metadata: {{ manifest.metadata_missing|join(', ') }}</p>{% endif %}
-        {% if manifest.description or manifest.description_vi %}
-        <p class="desc">{{ manifest.description_vi or manifest.description }}</p>
-        {% if manifest.description_vi and manifest.description %}<details><summary>Mô tả gốc</summary><p class="desc">{{ manifest.description }}</p></details>{% endif %}
-        {% endif %}
+        <div class="section-head">
+            <h3>{{ manifest.title_vi or manifest.title or "(chưa có tên)" }}</h3>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate" class="inline-form">
+                <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch meta</button>
+            </form>
+        </div>
+        <table class="meta-table data-table">
+            <thead><tr><th>Field</th><th>ZH</th><th>VI</th></tr></thead>
+            <tbody>
+                <tr><td>Tiêu đề</td><td>{{ manifest.title or "-" }}</td><td class="meta-vi" data-field="title_vi">{{ manifest.title_vi or "" }}</td></tr>
+                <tr><td>Tác giả</td><td>{{ manifest.author or "-" }}</td><td class="meta-vi" data-field="author_vi">{{ manifest.author_vi or "" }}</td></tr>
+                <tr><td>Mô tả</td><td class="desc-cell">{{ manifest.description or "-" }}</td><td class="meta-vi desc-cell" data-field="description_vi">{{ manifest.description_vi or "" }}</td></tr>
+                {% if manifest.title_note %}<tr><td>Ghi chú</td><td colspan="2">{{ manifest.title_note }}</td></tr>{% endif %}
+                <tr><td>Nguồn</td><td colspan="2"><a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank">{{ manifest.source_url or cfg.crawl.toc_url }}</a></td></tr>
+                <tr><td>Số chương</td><td colspan="2">{{ manifest.chapters|length }}</td></tr>
+                {% if manifest.metadata_missing %}<tr><td>Thiếu</td><td colspan="2">{{ manifest.metadata_missing|join(', ') }}</td></tr>{% endif %}
+            </tbody>
+        </table>
         {% if not (manifest.title_vi or manifest.author_vi or manifest.description_vi) and manifest.title %}
-        <p class="muted"><em>Metadata chưa dịch — bấm "Dịch metadata (AI)" để dịch sang tiếng Việt.</em></p>
+        <p class="muted"><em>Metadata chưa dịch — bấm "Dịch meta" để dịch sang tiếng Việt.</em></p>
         {% endif %}
     </div>
 </div>
@@ -67,54 +73,15 @@
     </form>
 </div>
 
-<div class="crawl-panel">
-    <div class="section-head">
-        <h3>Crawl console</h3>
-        {% if crawl_problems %}
-        <span class="badge no">{{ crawl_problems|length }} chương thiếu/lỗi</span>
-        {% else %}
-        <span class="badge ok">Không có chương thiếu/lỗi</span>
-        {% endif %}
-    </div>
-    {% if crawl_problems %}
-    <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="inline-form">
-        <input type="hidden" name="action" value="crawl">
-        <input type="hidden" name="targeting_mode" value="checked">
-        {% for idx in crawl_problems %}<input type="hidden" name="checked_indexes" value="{{ idx }}">{% endfor %}
-        <input type="hidden" name="override" value="true">
-        <button type="submit" {% if job.crawl.running %}disabled{% endif %}>Retry {{ crawl_problems|length }} chương lỗi/thiếu</button>
-    </form>
-    {% endif %}
-    <details>
-        <summary>Tùy chọn crawl nâng cao (chỉ áp dụng cho lượt chạy này)</summary>
-        <form method="post" action="/ebooks/{{ slug }}/jobs/crawl-range" class="form-row" data-job-category="crawl">
-            <label>Engine
-                <select name="engine">
-                    <option value="">(giữ nguyên: {{ cfg.crawl.engine }})</option>
-                    {% for opt in ["http", "crawl4ai", "scrapling"] %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
-                </select>
-            </label>
-            <label>Delay (giây) <input type="number" step="0.1" name="delay" min="0" placeholder="{{ cfg.crawl.delay_seconds }}"></label>
-            <label>Số lần retry <input type="number" name="retries" min="0" max="10" value="0"></label>
-            <label>Từ <input type="number" name="start" min="1"></label>
-            <label>Đến <input type="number" name="end" min="1"></label>
-            <label class="check"><input type="checkbox" name="force" value="true"> ghi đè đã có</label>
-            <button type="submit" {% if job.crawl.running %}disabled{% endif %}>Chạy với tùy chọn này</button>
-        </form>
-    </details>
-</div>
-
 <div class="status-bar">
     <span id="status-badge-crawl">
         {% if job.crawl.running %}<span class="badge run">Crawl: đang chạy ({{ job.crawl.step }})</span>{% else %}<span class="badge ok">Crawl: rảnh</span>{% endif %}
         {% if job.crawl.error %}<span class="badge no">lỗi: {{ job.crawl.error }}</span>{% endif %}
     </span>
-    <button type="button" class="btn-refresh" data-refresh-cat="crawl" title="Làm mới trạng thái Crawl">⟳</button>
     <span id="status-badge-translate">
         {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="badge run">Dịch: đang chạy ({{ job.translate.step }})</span>{% elif job.translate.running %}<span class="badge run">Dịch: đang chạy (ebook khác)</span>{% else %}<span class="badge ok">Dịch: rảnh</span>{% endif %}
         {% if job.translate.error %}<span class="badge no">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
-    <button type="button" class="btn-refresh" data-refresh-cat="translate" title="Làm mới trạng thái Dịch">⟳</button>
     <span class="muted status-hint">Crawl và dịch chạy độc lập — có thể dịch trong khi đang crawl.</span>
 </div>
 
@@ -174,6 +141,14 @@
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
         <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch TOC selected</button>
+    </form>
+    <form method="post" action="/api/ebooks/{{ slug }}/batch/translate-titles" class="selected-action-form batch-form" data-selected-action="translate">
+        <input type="hidden" name="indexes" id="batch-indexes-titles" value="">
+        <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch tiêu đề selected</button>
+    </form>
+    <form method="post" action="/api/ebooks/{{ slug }}/batch/suggest-glossary" class="selected-action-form batch-form" data-selected-action="translate">
+        <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
+        <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Glossary suggest selected</button>
     </form>
     <label class="check"><input type="checkbox" id="selected-override" value="true"> Ghi đè</label>
     <span id="checked-info" class="muted">Đã tick 0 chương.</span>
@@ -484,12 +459,6 @@ document.addEventListener("click", (event) => {
     if (btn) { event.preventDefault(); gotoPage(btn.dataset.page); }
 });
 
-// --- Click làm mới chủ động trạng thái crawl/dịch ---
-document.addEventListener("click", (event) => {
-    const btn = event.target.closest && event.target.closest("[data-refresh-cat]");
-    if (btn) { event.preventDefault(); refreshCategory(btn.dataset.refreshCat); }
-});
-
 // --- Ô tìm kiếm: debounce rồi filter ngầm ---
 document.addEventListener("input", (event) => {
     if (event.target.matches && event.target.matches('.compact-toolbar input[type="search"]')) {
@@ -509,16 +478,33 @@ document.addEventListener("submit", async function(event) {
     }
 
     const action = form.getAttribute("action") || "";
-    if (action.includes("/jobs/") || action.includes("/action")) {
+    if (action.includes("/jobs/") || action.includes("/action") || action.includes("/batch/")) {
         event.preventDefault();
 
         if (form.classList && form.classList.contains("selected-action-form")) {
-            for (const cb of document.querySelectorAll(".chapter-check:checked")) {
-                const h = document.createElement("input");
-                h.type = "hidden";
-                h.name = "checked_indexes";
-                h.value = cb.value;
-                form.appendChild(h);
+            // Handle batch forms (comma-separated indexes)
+            if (form.classList.contains("batch-form")) {
+                const indexes = [];
+                for (const cb of document.querySelectorAll(".chapter-check:checked")) {
+                    indexes.push(cb.value);
+                }
+                if (indexes.length === 0) {
+                    alert("Chưa chọn chương nào. Hãy tick checkbox trước.");
+                    return;
+                }
+                const indexesInput = form.querySelector('input[name="indexes"]');
+                if (indexesInput) {
+                    indexesInput.value = indexes.join(",");
+                }
+            } else {
+                // Standard forms (separate hidden inputs)
+                for (const cb of document.querySelectorAll(".chapter-check:checked")) {
+                    const h = document.createElement("input");
+                    h.type = "hidden";
+                    h.name = "checked_indexes";
+                    h.value = cb.value;
+                    form.appendChild(h);
+                }
             }
             const overrideEl = document.getElementById("selected-override");
             if (overrideEl && overrideEl.checked) {
@@ -668,31 +654,46 @@ async function poll() {
     }
 }
 
-// Làm mới chủ động (do người bấm nút) — chỉ cập nhật UI của 1 category,
-// tránh nhấp nháy category còn lại không liên quan tới nút vừa bấm.
-async function refreshCategory(cat) {
-    const btn = document.querySelector(`[data-refresh-cat="${cat}"]`);
-    if (btn) btn.disabled = true;
-    try {
-        const res = await fetch("/api/status");
-        if (!res.ok) return;
-        const data = await res.json();
-        const justFinished = updateCategoryUI(cat, data);
-        setJobButtonsDisabled(data);
-        if (justFinished) {
-            if (pendingFetchToc) {
-                pendingFetchToc = false;
-                location.reload();
-            } else {
-                renderToc();
-            }
+// --- Double-click edit meta vi cells ---
+document.addEventListener("dblclick", (event) => {
+    const td = event.target.closest && event.target.closest(".meta-vi");
+    if (!td || td.querySelector("input,textarea")) return;
+    const field = td.dataset.field;
+    const oldVal = td.textContent.trim();
+    const isDesc = field === "description_vi";
+    const el = isDesc
+        ? document.createElement("textarea")
+        : document.createElement("input");
+    if (!isDesc) el.type = "text";
+    el.value = oldVal;
+    el.style.width = "100%";
+    if (isDesc) el.rows = 3;
+    td.textContent = "";
+    td.appendChild(el);
+    el.focus();
+    el.select();
+    async function save() {
+        const newVal = el.value.trim();
+        if (newVal === oldVal) { td.textContent = oldVal; return; }
+        try {
+            const res = await fetch(`/api/ebooks/${SLUG}/meta`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ [field]: newVal }),
+            });
+            if (!res.ok) throw new Error("save failed");
+            td.textContent = newVal;
+        } catch (e) {
+            alert("Lưu thất bại");
+            td.textContent = oldVal;
         }
-    } catch (e) {
-        console.error(`Lỗi khi làm mới trạng thái ${cat}:`, e);
-    } finally {
-        if (btn) btn.disabled = false;
     }
-}
+    el.addEventListener("blur", save, { once: true });
+    el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !isDesc) { e.preventDefault(); el.blur(); }
+        if (e.key === "Escape") { el.value = oldVal; el.blur(); }
+    });
+});
 
 // --- Khởi tạo: khôi phục filter/sort/search đã lưu rồi dựng bảng ---
 (function initToc() {

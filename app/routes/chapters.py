@@ -239,15 +239,31 @@ def ebook_chapter_delete_translation(request: Request, slug: str, index: int):
 
 
 @router.post("/api/ebooks/{slug}/chapters/{index}/retranslate-title")
-def api_ebook_chapter_retranslate_title(slug: str, index: int):
+async def api_ebook_chapter_retranslate_title(
+    request: Request,
+    slug: str,
+    index: int,
+    engine: str = Form(None),
+    model: str = Form(None),
+    custom_prompt: str = Form(None),
+    generate_description: bool = Form(True),
+):
     """Dịch lại tiêu đề chương dùng nội dung đã dịch làm ngữ cảnh.
 
-    Yêu cầu chương đã có bản dịch. Chỉ hoạt động với translate.type=openai.
-    Trả JSON {title_vi, title_note, title_zh}.
+    Yêu cầu chương đã có bản dịch.
+    Trả JSON {title_vi, title_note, title_zh, title_description}.
     """
     cfg = deps.resolved_cfg(slug)
     try:
-        result = step_retranslate_title(cfg, slug=slug, index=index)
+        result = step_retranslate_title(
+            cfg,
+            slug=slug,
+            index=index,
+            engine=engine,
+            model=model,
+            custom_prompt=custom_prompt,
+            generate_description=generate_description,
+        )
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return JSONResponse(result)
@@ -385,17 +401,39 @@ def api_ebook_chapter_translated(slug: str, index: int):
 
 
 _POLISH_PROMPT = """Bạn là biên tập viên truyện dịch Trung → Việt.
-Hãy BIÊN TẬP LẠI đoạn văn sau cho mượt mà, dễ hiểu, tự nhiên hơn.
-Giữ nguyên nội dung, KHÔNG thêm bớt hay giải thích.
-Chỉ trả về đoạn văn đã biên tập, không kèm lời dẫn hay code fence.
+Hãy BIÊN TẬP LẠI bản dịch Việt sau cho mượt mà, dễ hiểu, tự nhiên hơn.
+Tham khảo bản gốc Trung để hiểu đúng ngữ cảnh và nghĩa.
 
-Đoạn văn:
+Nguyên tắc:
+- Giữ nguyên nội dung, KHÔNG thêm bớt hay giải thích
+- Đối chiếu với bản gốc để đảm bảo nghĩa không bị sai lệch
+- Chỉ trả về đoạn văn đã biên tập, không kèm lời dẫn hay code fence
+
+--- Bản gốc (Trung) ---
+{text_zh}
+
+--- Bản dịch cần biên tập ---
 {text}"""
 
 _EXPLAIN_PROMPT = """Bạn là trợ lý dịch thuật Trung → Việt.
 Hãy GIẢI THÍCH đoạn văn dịch sau: các từ Hán Việt khó, thành ngữ, điển tích,
 hoặc cách hiểu câu văn. Trả lời ngắn gọn bằng tiếng Việt, phù hợp với người
 đang review bản dịch.
+
+Đoạn văn:
+{text}"""
+
+_EXPLAIN_TERMS_PROMPT = """Bạn là trợ lý dịch thuật Trung → Việt.
+Hãy liệt kê và giải thích ngắn gọn các từ ngữ QUAN TRỌNG trong đoạn văn sau:
+
+1. **Tên riêng Hán-Việt**: nhân vật, địa danh, môn phái, chức danh
+2. **Thành ngữ/điển tích**: các cụm từ có nghĩa ẩn dụ
+3. **Thuật ngữ đặc thù**: từ liên quan đến martial arts, võ công, tôn giáo...
+
+Định dạng mỗi mục:
+**Từ gốc** (Hán): giải thích ngắn gọn
+
+KHÔNG tóm tắt nội dung đoạn văn. Chỉ liệt kê và giải thích từ ngữ.
 
 Đoạn văn:
 {text}"""
@@ -412,27 +450,40 @@ def _call_openai(cfg, prompt: str) -> str:
 
 
 @router.post("/api/ebooks/{slug}/chapters/{index}/parapolish")
-def api_ebook_chapter_parapolish(slug: str, index: int, text: str = Form(...)):
-    """Biên tập 1 đoạn văn bằng AI — mượt/dễ hiểu hơn, không thay đổi nội dung."""
+def api_ebook_chapter_parapolish(slug: str, index: int, text: str = Form(...), text_zh: str = Form("")):
+    """Biên tập 1 đoạn văn bằng AI — mượt/dễ hiểu hơn, không thay đổi nội dung.
+    
+    text: bản dịch Việt cần biên tập
+    text_zh: bản gốc Trung (để AI tham khảo ngữ cảnh)
+    """
     cfg = deps.resolved_cfg(slug)
     if not cfg.translate.openai.api_key and not cfg.translate.openai.base_url:
         raise HTTPException(status_code=400, detail="Chưa cấu hình OpenAI.")
     try:
-        polished = _call_openai(cfg, _POLISH_PROMPT.format(text=text))
+        polished = _call_openai(cfg, _POLISH_PROMPT.format(text=text, text_zh=text_zh or "(không có)"))
         return JSONResponse({"polished": polished})
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/api/ebooks/{slug}/chapters/{index}/paraexplain")
-def api_ebook_chapter_paraexplain(slug: str, index: int, text: str = Form(...)):
-    """Giải thích từ ngữ/ý nghĩa 1 đoạn văn — hỗ trợ review bản dịch."""
+def api_ebook_chapter_paraexplain(
+    slug: str,
+    index: int,
+    text: str = Form(...),
+    type: str = Form("terms"),  # "terms" | "full"
+):
+    """Giải thích từ ngữ tập trung vào tên riêng, thành ngữ — hỗ trợ review bản dịch.
+    
+    type: "terms" = giải thích tập trung (mặc định), "full" = giải thích toàn bộ (cũ)
+    """
     cfg = deps.resolved_cfg(slug)
     if not cfg.translate.openai.api_key and not cfg.translate.openai.base_url:
         raise HTTPException(status_code=400, detail="Chưa cấu hình OpenAI.")
     try:
-        explanation = _call_openai(cfg, _EXPLAIN_PROMPT.format(text=text))
-        return JSONResponse({"explanation": explanation})
+        prompt = _EXPLAIN_TERMS_PROMPT if type == "terms" else _EXPLAIN_PROMPT
+        explanation = _call_openai(cfg, prompt.format(text=text))
+        return JSONResponse({"explanation": explanation, "type": type})
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -449,3 +500,86 @@ def api_chapter_translated(index: int):
     if ch is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
     return JSONResponse(_chapter_translated_payload(storage, ch))
+
+
+# --- Batch Operations ---
+
+
+@router.post("/api/ebooks/{slug}/batch/translate-titles")
+async def api_batch_translate_titles(
+    request: Request,
+    slug: str,
+    indexes: str = Form(...),  # Comma-separated list of indexes
+    engine: str = Form(None),
+    model: str = Form(None),
+    custom_prompt: str = Form(None),
+):
+    """Batch translate titles for multiple chapters."""
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+
+    def _target(log):
+        for idx in index_list:
+            try:
+                step_retranslate_title(
+                    cfg,
+                    log,
+                    slug=slug,
+                    index=idx,
+                    engine=engine,
+                    model=model,
+                    custom_prompt=custom_prompt,
+                )
+            except RuntimeError as e:
+                log(f"[batch-tiêu-đề] Lỗi chương {idx}: {e}")
+
+    started = request.app.state.job.start_custom(
+        f"batch-translate-titles-{len(index_list)}", _target, category="translate"
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "total": len(index_list)})
+
+
+@router.post("/api/ebooks/{slug}/batch/suggest-glossary")
+async def api_batch_suggest_glossary(
+    request: Request,
+    slug: str,
+    indexes: str = Form(...),  # Comma-separated list of indexes
+):
+    """Batch suggest glossary for multiple chapters."""
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+
+    def _target(log):
+        for idx in index_list:
+            try:
+                step_suggest_chapter(cfg, log, index=idx)
+            except RuntimeError as e:
+                log(f"[batch-glossary] Lỗi chương {idx}: {e}")
+
+    started = request.app.state.job.start_custom(
+        f"batch-suggest-glossary-{len(index_list)}", _target, category="translate"
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "total": len(index_list)})
+
+
+@router.patch("/api/ebooks/{slug}/meta")
+async def api_patch_meta(request: Request, slug: str):
+    """Update manifest metadata fields (title_vi, author_vi, description_vi)."""
+    body = await request.json()
+    allowed = {"title_vi", "author_vi", "description_vi"}
+    updates = {k: v for k, v in body.items() if k in allowed}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No valid fields to update.")
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.data_dir, slug)
+    manifest = storage.load_manifest()
+    if not manifest:
+        raise HTTPException(status_code=404, detail="Manifest not found.")
+    for k, v in updates.items():
+        setattr(manifest, k, v)
+    storage.save_manifest(manifest)
+    return JSONResponse({"ok": True, "updated": list(updates.keys())})

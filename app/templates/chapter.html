@@ -8,6 +8,7 @@
 {% if ch.missing_fields %}<p class="muted">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}
 <p class="muted">Số từ bản dịch: {{ translated_word_count }} từ{% if raw %} · raw: {{ raw_char_count }} ký tự{% endif %}</p>
 {% if ch.last_action_status %}<p class="muted">Action gần nhất: {{ ch.last_action_status }}</p>{% endif %}
+
 <div class="chapter-actions">
     <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action">
         <input type="hidden" name="action" value="crawl">
@@ -29,11 +30,35 @@
     <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/delete-translation">
         <button type="submit">Xóa bản dịch</button>
     </form>
-    <button type="button" id="retranslate-title-btn" title="Dịch lại tiêu đề dựa trên nội dung đã dịch.">Dịch lại tiêu đề</button>
     <form method="post" action="{{ base }}/ai/suggest" class="ai-job-form"><button type="submit" title="AI gợi ý tên riêng/thuật ngữ trong chương để thêm vào glossary.">Gợi ý glossary</button></form>
 </div>
 
-<div id="job-status-section" style="margin: 1rem 0; padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 8px; background: #fcfcfc; display: none;">
+<div class="retranslate-title-panel">
+    <div class="section-head">
+        <h4>Dịch lại tiêu đề</h4>
+    </div>
+    <div class="retranslate-controls">
+        <div class="retranslate-row">
+            <button type="button" id="retranslate-title-btn" class="btn-primary" title="Dịch lại tiêu đề dựa trên nội dung đã dịch.">Dịch lại tiêu đề</button>
+            <select id="retranslate-engine" title="Chọn engine dịch tiêu đề">
+                <option value="openai">OpenAI</option>
+                <option value="google">Google</option>
+                <option value="hachimimt">HachimiMT</option>
+            </select>
+            <select id="retranslate-model" title="Chọn model" style="display:none;"></select>
+            <label class="check muted" title="Tạo description giải thích tên chương">
+                <input type="checkbox" id="retranslate-gen-desc" checked> Tạo mô tả
+            </label>
+        </div>
+        <details class="prompt-preview-section">
+            <summary>Xem / chỉnh sửa prompt</summary>
+            <textarea id="retranslate-prompt" rows="8" placeholder="Custom prompt (để trống dùng mặc định)">{{ default_title_prompt or '' }}</textarea>
+            <button type="button" id="retranslate-reset-prompt" class="link-btn">Reset prompt mặc định</button>
+        </details>
+    </div>
+</div>
+
+<div id="job-status-section" style="display: none;">
     <p><strong>Trạng thái job:</strong>
         <span id="status-badge-crawl"><span class="badge ok">Crawl: rảnh</span></span>
         <span id="status-badge-translate"><span class="badge ok">Dịch: rảnh</span></span>
@@ -174,21 +199,27 @@
             </thead>
             <tbody>
             {% for i in range(num_paras) %}
-                <tr>
+                <tr data-para="{{ i }}">
                     <td class="raw-cell" data-para="{{ i }}">{{ raw_paras[i] }}</td>
                     <td class="mt-cell" data-para="{{ i }}">{{ mt_paras[i] }}</td>
                     <td class="edit-cell"><textarea class="para-textarea" data-para="{{ i }}" rows="1">{{ edit_paras[i] }}</textarea></td>
                     <td class="ai-cell">
                         <div class="ai-cell-actions">
                             <button type="button" class="ai-polish-btn" data-para="{{ i }}" title="Biên tập lại đoạn này">✏️</button>
-                            <button type="button" class="ai-explain-btn" data-para="{{ i }}" title="Giải thích từ ngữ">💡</button>
+                            <button type="button" class="ai-explain-btn" data-para="{{ i }}" title="Giải thích từ riêng/thành ngữ">💡</button>
                         </div>
-                        <div class="ai-explain-box" id="explain-{{ i }}" hidden></div>
                     </td>
                 </tr>
             {% endfor %}
             </tbody>
         </table>
+        <div class="ai-explain-popover" id="ai-explain-popover" hidden>
+            <div class="ai-explain-header">
+                <span class="ai-explain-title">Giải thích từ riêng / thành ngữ</span>
+                <button type="button" class="ai-explain-close" id="ai-explain-close">&times;</button>
+            </div>
+            <div class="ai-explain-body" id="ai-explain-body"></div>
+        </div>
     </div>
     <input type="hidden" name="translated" id="hidden-translated">
     <p><button type="submit">Lưu bản dịch</button></p>
@@ -654,8 +685,23 @@ document.getElementById("retranslate-title-btn")?.addEventListener("click", asyn
     const btn = this;
     btn.disabled = true;
     btn.textContent = "Đang dịch...";
+    
+    const engine = document.getElementById("retranslate-engine")?.value || "";
+    const model = document.getElementById("retranslate-model")?.value || "";
+    const customPrompt = document.getElementById("retranslate-prompt")?.value || "";
+    const generateDesc = document.getElementById("retranslate-gen-desc")?.checked ?? true;
+    
+    const formData = new FormData();
+    if (engine) formData.append("engine", engine);
+    if (model) formData.append("model", model);
+    if (customPrompt) formData.append("custom_prompt", customPrompt);
+    formData.append("generate_description", generateDesc);
+    
     try {
-        const res = await fetch(`/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/chapters/${CHAPTER_INDEX}/retranslate-title`, { method: "POST" });
+        const res = await fetch(`/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/chapters/${CHAPTER_INDEX}/retranslate-title`, {
+            method: "POST",
+            body: formData
+        });
         if (!res.ok) {
             const err = await res.json();
             alert(err.detail || "Có lỗi xảy ra.");
@@ -670,6 +716,30 @@ document.getElementById("retranslate-title-btn")?.addEventListener("click", asyn
     }
 });
 
+// --- Engine/Model dropdown dynamic update ---
+const ENGINE_MODELS = {
+    openai: ["gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"],
+    google: [],
+    hachimimt: []
+};
+
+document.getElementById("retranslate-engine")?.addEventListener("change", function() {
+    const modelSelect = document.getElementById("retranslate-model");
+    const models = ENGINE_MODELS[this.value] || [];
+    if (models.length === 0) {
+        modelSelect.style.display = "none";
+    } else {
+        modelSelect.style.display = "";
+        modelSelect.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join("");
+    }
+});
+
+// --- Reset prompt ---
+document.getElementById("retranslate-reset-prompt")?.addEventListener("click", function() {
+    const textarea = document.getElementById("retranslate-prompt");
+    if (textarea) textarea.value = "";
+});
+
 // Start polling immediately to check if a job is already running
 poll();
 setInterval(poll, 1500);
@@ -681,10 +751,16 @@ setInterval(poll, 1500);
     document.querySelectorAll('.ai-polish-btn').forEach(btn => {
         btn.addEventListener('click', async function() {
             const para = this.dataset.para;
-            const textarea = document.querySelector(`.para-textarea[data-para="${para}"]`);
+            const row = this.closest('tr');
+            if (!row) return;
+            const textarea = row.querySelector(`.para-textarea[data-para="${para}"]`);
             if (!textarea) return;
             const text = textarea.value.trim();
             if (!text) return;
+
+            // Get ZH raw text from the same row
+            const rawCell = row.querySelector(`.raw-cell[data-para="${para}"]`);
+            const textZh = rawCell ? rawCell.textContent.trim() : '';
 
             this.disabled = true;
             this.textContent = '⏳';
@@ -692,6 +768,7 @@ setInterval(poll, 1500);
             try {
                 const formData = new FormData();
                 formData.append('text', text);
+                formData.append('text_zh', textZh);
                 const res = await fetch(`${BASE_URL}/parapolish`, { method: 'POST', body: formData });
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
@@ -718,37 +795,66 @@ setInterval(poll, 1500);
             const text = textarea.value.trim();
             if (!text) return;
 
-            const box = document.getElementById(`explain-${para}`);
-            if (!box) return;
+            const popover = document.getElementById('ai-explain-popover');
+            const body = document.getElementById('ai-explain-body');
+            if (!popover || !body) return;
 
-            if (!box.hidden) {
-                box.hidden = true;
+            // Toggle if same para clicked again
+            if (!popover.hidden && popover.dataset.para === para) {
+                popover.hidden = true;
                 return;
             }
 
+            // Position popover near the clicked row
+            const row = this.closest('tr');
+            if (row) {
+                const rowRect = row.getBoundingClientRect();
+                const tableWrap = row.closest('.compare-wrap');
+                const wrapRect = tableWrap ? tableWrap.getBoundingClientRect() : { top: 0, left: 0 };
+                popover.style.top = (rowRect.bottom - wrapRect.top + 4) + 'px';
+            }
+
+            popover.dataset.para = para;
+            popover.hidden = false;
+            body.innerHTML = '<div class="ai-loading">Đang tải...</div>';
+
             this.disabled = true;
             this.textContent = '⏳';
-            box.innerHTML = 'Đang tải...';
-            box.hidden = false;
 
             try {
                 const formData = new FormData();
                 formData.append('text', text);
+                formData.append('type', 'terms');
                 const res = await fetch(`${BASE_URL}/paraexplain`, { method: 'POST', body: formData });
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    box.innerHTML = `Lỗi: ${err.detail || 'Không xác định'}`;
+                    body.innerHTML = `<div class="ai-error">Lỗi: ${err.detail || 'Không xác định'}</div>`;
                     return;
                 }
                 const data = await res.json();
-                box.innerHTML = data.explanation;
+                
+                // Parse and format explanation lines
+                const lines = data.explanation.split('\n').filter(l => l.trim());
+                const formattedLines = lines.map(line => {
+                    if (line.includes('**') && (line.includes('：') || line.includes(':'))) {
+                        return `<div class="explain-item">${line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>`;
+                    }
+                    return line.trim() ? `<div class="explain-item">${line}</div>` : '';
+                }).filter(Boolean).join('');
+                
+                body.innerHTML = formattedLines || '<div class="muted">Không có giải thích.</div>';
             } catch (e) {
-                box.innerHTML = 'Lỗi kết nối mạng.';
+                body.innerHTML = '<div class="ai-error">Lỗi kết nối mạng.</div>';
             } finally {
                 this.disabled = false;
                 this.textContent = '💡';
             }
         });
+    });
+
+    // Close popover
+    document.getElementById('ai-explain-close')?.addEventListener('click', () => {
+        document.getElementById('ai-explain-popover').hidden = true;
     });
 })();
 

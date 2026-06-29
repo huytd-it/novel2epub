@@ -185,6 +185,26 @@ def start_ebook_translate_toc_selected(
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
+@router.post("/ebooks/{slug}/jobs/build-selected")
+def start_ebook_build_selected(
+    request: Request,
+    slug: str,
+    checked_indexes: Annotated[list[int], Form()] = [],
+):
+    """Build EPUB chỉ từ các chương đã tick."""
+    cfg = deps.resolved_cfg(slug)
+    if not checked_indexes:
+        raise HTTPException(status_code=400, detail="Không có chương nào được chọn.")
+
+    def _target(log):
+        from novel2epub.pipeline import step_build_selected
+
+        step_build_selected(cfg, log, selected_indexes=checked_indexes)
+
+    request.app.state.job.start_custom("build-selected", _target, category="both")
+    return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
+
+
 @router.post("/ebooks/{slug}/jobs/{category}/cancel")
 def cancel_ebook_job(request: Request, slug: str, category: str):
     """Yêu cầu dừng job crawl/dịch đang chạy (job tự kiểm tra cờ này giữa các chương)."""

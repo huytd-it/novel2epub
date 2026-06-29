@@ -136,9 +136,6 @@
         <input type="hidden" name="targeting_mode" value="checked">
         <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch selected</button>
     </form>
-    <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta-selected" class="selected-action-form" data-selected-action="translate">
-        <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch meta selected</button>
-    </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
         <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch TOC selected</button>
     </form>
@@ -149,6 +146,9 @@
     <form method="post" action="/api/ebooks/{{ slug }}/batch/suggest-glossary" class="selected-action-form batch-form" data-selected-action="translate">
         <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
         <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Glossary suggest selected</button>
+    </form>
+    <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="both">
+        <button type="submit" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB selected</button>
     </form>
     <label class="check"><input type="checkbox" id="selected-override" value="true"> Ghi đè</label>
     <span id="checked-info" class="muted">Đã tick 0 chương.</span>

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from .deps import AUTOMATIONS_PATH, BASE_DIR, WORKSPACE_DIR, WORKSPACE_PATH
 from .job import JobRunner
 from .logging_config import setup_logging
-from .routes import automation, chapters, ebooks, glossary, jobs, library, settings, sources, storage
+from .routes import automation, chapters, ebooks, glossary, jobs, library, reader, settings, sources, storage
 from .scheduler import AutomationScheduler
 
 setup_logging()
@@ -41,4 +41,5 @@ app.include_router(library.router)
 app.include_router(settings.router)
 app.include_router(sources.router)
 app.include_router(storage.router)
+app.include_router(reader.router)
 app.include_router(automation.router)

@@ -1402,6 +1402,16 @@ def step_retranslate_title(
 
 
 def step_build(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> str:
+    return step_build_selected(cfg, log, should_cancel=should_cancel)
+
+
+def step_build_selected(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    selected_indexes: list[int] | None = None,
+    should_cancel: CancelFn | None = None,
+) -> str:
     _emit_build_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -1410,14 +1420,20 @@ def step_build(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | No
 
     from . import footnotes as _footnotes
 
+    if selected_indexes is not None:
+        wanted = set(selected_indexes)
+        chapters = [c for c in manifest.chapters if c.index in wanted]
+        log(f"[build] Phạm vi: {len(chapters)} chương được chọn (tổng {len(manifest.chapters)}).")
+    else:
+        chapters = manifest.chapters
+
     notes = storage.read_glossary_notes()
     chapters_html = []
     footnotes_by_stem: dict[str, list[dict]] = {}
-    for ch in manifest.chapters:
+    for ch in chapters:
         if storage.has_translated(ch):
             md = storage.read_translated(ch)
             title = ch.title_vi or ch.title_zh or f"Chương {ch.index}"
-            # Chỉ sinh footnote cho bản dịch (glossary target là tiếng Việt).
             md, fns = _footnotes.annotate(md, notes)
             if fns:
                 footnotes_by_stem[ch.stem] = fns

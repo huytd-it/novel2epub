@@ -952,3 +952,171 @@ mark.log-hit { background: #fff2b3; color: #111; border-radius: 2px; }
     .retranslate-title-section { flex-direction: column; align-items: flex-start; }
     .retranslate-options { flex-wrap: wrap; }
 }
+
+/* === Page Reader === */
+.reader-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+.reader-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--n2e-border);
+    flex-wrap: wrap;
+}
+.reader-nav-bottom {
+    border-bottom: none;
+    border-top: 1px solid var(--n2e-border);
+    justify-content: center;
+    gap: 1.5rem;
+    padding: 1rem 0 2rem;
+}
+.reader-nav-left, .reader-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.reader-nav-center {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.reader-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 0.5rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.95rem;
+    background: var(--n2e-surface-alt);
+    color: var(--n2e-text);
+    border: 1px solid var(--n2e-border);
+    transition: background 0.15s;
+}
+.reader-nav-btn:hover {
+    background: var(--n2e-border);
+}
+.reader-nav-btn.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+.reader-chapter-select {
+    max-width: 320px;
+    font-size: 0.9rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    background: var(--n2e-surface);
+    color: var(--n2e-text);
+    border: 1px solid var(--n2e-border);
+}
+.reader-toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 6px;
+    font-size: 1rem;
+    background: var(--n2e-surface-alt);
+    color: var(--n2e-text);
+    border: 1px solid var(--n2e-border);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+.reader-toolbar-btn:hover {
+    background: var(--n2e-border);
+}
+.bookmark-indicator {
+    font-size: 1rem;
+    opacity: 0.8;
+}
+
+/* Settings panel */
+.reader-settings-panel {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--n2e-border);
+}
+.settings-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.settings-row label {
+    font-size: 0.85rem;
+    color: var(--n2e-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.settings-row select {
+    font-size: 0.85rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    background: var(--n2e-surface);
+    color: var(--n2e-text);
+    border: 1px solid var(--n2e-border);
+}
+
+/* Reader content — book-like */
+.reader-content {
+    max-width: 720px;
+    margin: 1.5rem auto;
+    line-height: 1.8;
+    font-size: 18px;
+    font-family: 'Literata', 'Georgia', serif;
+}
+.reader-para {
+    position: relative;
+    margin: 0 0 0.8em;
+    text-align: justify;
+}
+.para-copy-btn {
+    position: absolute;
+    right: -2rem;
+    top: 0.1em;
+    opacity: 0;
+    font-size: 0.75rem;
+    padding: 0.15rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--n2e-text-muted);
+    transition: opacity 0.15s;
+}
+.reader-para:hover .para-copy-btn {
+    opacity: 0.6;
+}
+.para-copy-btn:hover {
+    opacity: 1 !important;
+}
+
+/* Empty state */
+.reader-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--n2e-text-muted);
+}
+.reader-empty a {
+    display: inline-block;
+    margin-top: 0.75rem;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .reader-wrap { padding: 0 0.5rem; }
+    .reader-nav { gap: 0.4rem; }
+    .reader-nav-right { gap: 0.25rem; }
+    .reader-chapter-select { max-width: 180px; font-size: 0.8rem; }
+    .reader-content { font-size: 16px; max-width: 100%; }
+    .para-copy-btn { right: 0; top: auto; bottom: -0.3em; opacity: 0.4; }
+    .settings-row { gap: 0.5rem; }
+}

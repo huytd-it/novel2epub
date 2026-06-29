@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block title %}Đọc: {{ ch.title_vi or ch.title_zh }} — novel2epub{% endblock %}
+{% block content %}
+<div class="reader-wrap">
+    <nav class="reader-nav">
+        <div class="reader-nav-left">
+            <a href="/ebooks/{{ slug }}">&larr; Quay lại</a>
+        </div>
+        <div class="reader-nav-center">
+            {% if prev_ch %}
+            <a href="/ebooks/{{ slug }}/read/{{ prev_ch.index }}" class="reader-nav-btn" title="Chương trước">&larr;</a>
+            {% else %}
+            <span class="reader-nav-btn disabled">&larr;</span>
+            {% endif %}
+            <select id="chapter-select" class="reader-chapter-select">
+                {% for c in chapters_info %}
+                <option value="{{ c.index }}" {% if c.index == ch.index %}selected{% endif %} {% if not c.has_translated %}class="muted"{% endif %}>
+                    {{ c.title }}
+                </option>
+                {% endfor %}
+            </select>
+            {% if next_ch %}
+            <a href="/ebooks/{{ slug }}/read/{{ next_ch.index }}" class="reader-nav-btn" title="Chương tiếp">&rarr;</a>
+            {% else %}
+            <span class="reader-nav-btn disabled">&rarr;</span>
+            {% endif %}
+        </div>
+        <div class="reader-nav-right">
+            <span id="bookmark-indicator" class="bookmark-indicator" hidden title="Có bookmark">&#128278;</span>
+            <button type="button" id="bookmark-toggle-btn" class="reader-toolbar-btn" title="Bookmark (B)">&#128278;</button>
+            <button type="button" id="copy-all-btn" class="reader-toolbar-btn" title="Copy tất cả (C)">&#128203;</button>
+            <a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}" class="reader-toolbar-btn" title="Sửa bản dịch">&#9998;</a>
+            <button type="button" id="settings-toggle-btn" class="reader-toolbar-btn" title="Tuỳ chỉnh hiển thị">&#9881;</button>
+        </div>
+    </nav>
+
+    <div id="reader-settings-panel" class="reader-settings-panel" hidden>
+        <div class="settings-row">
+            <label>Theme:
+                <select id="reader-theme-select">
+                    <option value="light">Sáng</option>
+                    <option value="dark">Tối</option>
+                </select>
+            </label>
+            <label>Font:
+                <select id="reader-font-select">
+                    <option value="'Literata', 'Georgia', serif">Literata</option>
+                    <option value="'Noto Serif', serif">Noto Serif</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="monospace">Monospace</option>
+                </select>
+            </label>
+            <label>Cỡ:
+                <select id="reader-size-select">
+                    <option value="16px">16</option>
+                    <option value="18px">18</option>
+                    <option value="20px">20</option>
+                    <option value="22px">22</option>
+                    <option value="24px">24</option>
+                </select>
+            </label>
+            <label>Chiều rộng:
+                <select id="reader-width-select">
+                    <option value="600px">Hẹp</option>
+                    <option value="720px">Vừa</option>
+                    <option value="860px">Rộng</option>
+                    <option value="100%">Toàn màn hình</option>
+                </select>
+            </label>
+        </div>
+    </div>
+
+    <article class="reader-content" id="reader-content">
+        {% if has_translated %}
+            {% for para in translated_paras %}
+            <p class="reader-para" data-para="{{ loop.index0 }}">{{ para }}<button type="button" class="para-copy-btn" title="Copy đoạn" data-para="{{ loop.index0 }}">&#128203;</button></p>
+            {% endfor %}
+        {% else %}
+            <div class="reader-empty">
+                <p>Chương chưa có bản dịch.</p>
+                <a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}">Đi tới editor để dịch</a>
+            </div>
+        {% endif %}
+    </article>
+
+    <nav class="reader-nav reader-nav-bottom">
+        {% if prev_ch %}
+        <a href="/ebooks/{{ slug }}/read/{{ prev_ch.index }}" class="reader-nav-btn">&larr; Chương trước</a>
+        {% endif %}
+        {% if next_ch %}
+        <a href="/ebooks/{{ slug }}/read/{{ next_ch.index }}" class="reader-nav-btn">Chương tiếp &rarr;</a>
+        {% endif %}
+    </nav>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const SLUG = {{ slug | tojson }};
+    const INDEX = {{ ch.index | tojson }};
+    const STORAGE_KEY = `n2e-read-${SLUG}-${INDEX}`;
+    const BOOKMARK_KEY = `n2e-bookmark-${SLUG}`;
+
+    // --- Settings panel toggle ---
+    const settingsPanel = document.getElementById('reader-settings-panel');
+    document.getElementById('settings-toggle-btn')?.addEventListener('click', () => {
+        settingsPanel.hidden = !settingsPanel.hidden;
+    });
+
+    // --- Theme ---
+    const themeSel = document.getElementById('reader-theme-select');
+    const savedTheme = localStorage.getItem('n2e-theme') || 'light';
+    themeSel.value = savedTheme;
+    themeSel.addEventListener('change', () => {
+        const v = themeSel.value;
+        document.documentElement.setAttribute('data-theme', v);
+        localStorage.setItem('n2e-theme', v);
+    });
+
+    // --- Font / Size / Width ---
+    const fontSel = document.getElementById('reader-font-select');
+    const sizeSel = document.getElementById('reader-size-select');
+    const widthSel = document.getElementById('reader-width-select');
+    const content = document.getElementById('reader-content');
+
+    function applyTypography() {
+        if (!content) return;
+        content.style.fontFamily = fontSel.value;
+        content.style.fontSize = sizeSel.value;
+        content.style.maxWidth = widthSel.value;
+    }
+    fontSel.value = localStorage.getItem('n2e-reader-font') || "'Literata', 'Georgia', serif";
+    sizeSel.value = localStorage.getItem('n2e-reader-size') || '18px';
+    widthSel.value = localStorage.getItem('n2e-reader-width') || '720px';
+    applyTypography();
+    fontSel.addEventListener('change', () => { localStorage.setItem('n2e-reader-font', fontSel.value); applyTypography(); });
+    sizeSel.addEventListener('change', () => { localStorage.setItem('n2e-reader-size', sizeSel.value); applyTypography(); });
+    widthSel.addEventListener('change', () => { localStorage.setItem('n2e-reader-width', widthSel.value); applyTypography(); });
+
+    // --- Copy all ---
+    document.getElementById('copy-all-btn')?.addEventListener('click', () => {
+        const paras = document.querySelectorAll('.reader-para');
+        const text = Array.from(paras).map(p => p.textContent).join('\n');
+        copyToClipboard(text);
+    });
+
+    // --- Copy per paragraph ---
+    document.querySelectorAll('.para-copy-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const para = btn.closest('.reader-para');
+            if (para) copyToClipboard(para.textContent);
+        });
+    });
+
+    function copyToClipboard(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => toast('Đã copy', 'success')).catch(() => fallbackCopy(text));
+        } else {
+            fallbackCopy(text);
+        }
+    }
+    function fallbackCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); toast('Đã copy', 'success'); } catch(e) { toast('Lỗi copy', 'error'); }
+        document.body.removeChild(ta);
+    }
+
+    // --- Scroll position save/restore ---
+    let scrollTimer = null;
+    window.addEventListener('scroll', () => {
+        if (scrollTimer) clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+            localStorage.setItem(STORAGE_KEY, String(window.scrollY));
+        }, 300);
+    });
+    const savedScroll = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+    if (savedScroll > 0) {
+        requestAnimationFrame(() => window.scrollTo(0, savedScroll));
+    }
+
+    // --- Bookmark ---
+    const bookmarkIndicator = document.getElementById('bookmark-indicator');
+    const bookmarkBtn = document.getElementById('bookmark-toggle-btn');
+
+    function loadBookmark() {
+        try { return JSON.parse(localStorage.getItem(BOOKMARK_KEY) || 'null'); } catch { return null; }
+    }
+    function saveBookmark(data) {
+        localStorage.setItem(BOOKMARK_KEY, JSON.stringify(data));
+    }
+    function updateBookmarkUI() {
+        const bm = loadBookmark();
+        if (bm && bm.index === INDEX) {
+            bookmarkIndicator.hidden = false;
+            bookmarkBtn.title = `Bookmark: Chương ${bm.index} · Vị trí ${bm.scrollY}px — Bấm để xóa`;
+        } else if (bm) {
+            bookmarkIndicator.hidden = true;
+            bookmarkBtn.title = `Bookmark: Chương ${bm.index} — Bấm để đặt lại`;
+        } else {
+            bookmarkIndicator.hidden = true;
+            bookmarkBtn.title = 'Đặt bookmark (B)';
+        }
+    }
+    updateBookmarkUI();
+
+    bookmarkBtn?.addEventListener('click', () => {
+        const bm = loadBookmark();
+        if (bm && bm.index === INDEX) {
+            localStorage.removeItem(BOOKMARK_KEY);
+            toast('Đã xóa bookmark', 'success');
+        } else {
+            saveBookmark({ index: INDEX, scrollY: window.scrollY, slug: SLUG });
+            toast('Đã đặt bookmark', 'success');
+        }
+        updateBookmarkUI();
+    });
+
+    // --- Chapter dropdown ---
+    document.getElementById('chapter-select')?.addEventListener('change', function() {
+        window.location.href = `/ebooks/${encodeURIComponent(SLUG)}/read/${this.value}`;
+    });
+
+    // --- Keyboard shortcuts ---
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        if (e.key === 'ArrowLeft' && {{ prev_ch.index if prev_ch else 'null' }} !== null) {
+            window.location.href = `/ebooks/${encodeURIComponent(SLUG)}/read/{{ prev_ch.index if prev_ch else '' }}`;
+        } else if (e.key === 'ArrowRight' && {{ next_ch.index if next_ch else 'null' }} !== null) {
+            window.location.href = `/ebooks/${encodeURIComponent(SLUG)}/read/{{ next_ch.index if next_ch else '' }}`;
+        } else if (e.key === 'b' || e.key === 'B') {
+            bookmarkBtn?.click();
+        } else if (e.key === 'c' || e.key === 'C') {
+            document.getElementById('copy-all-btn')?.click();
+        }
+    });
+})();
+</script>
+{% endblock %}

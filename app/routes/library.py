@@ -1,6 +1,7 @@
 """Quản lý thư viện ebook: liệt kê, thêm (scaffold config), gỡ khỏi library."""
 from __future__ import annotations
 
+import dataclasses
 import re
 import unicodedata
 
@@ -36,33 +37,89 @@ def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
     finally:
         crawler.close()
 
-    name = toc.title or ""
+    title_raw = toc.title or ""
     author = toc.author or ""
+    description = toc.description or ""
     cover_url = toc.cover_url or ""
     chapter_count = len(toc.chapters)
 
-    # Dịch title nếu có AI CLI
-    if name:
+    # Dịch title/author/description nếu có AI
+    name = title_raw
+    title_vi = ""
+    author_vi = ""
+    description_vi = ""
+    if title_raw or author or description:
         try:
             global_cfg = load_config(deps.CONFIG_PATH)
             if global_cfg.translate.type.lower() != "none":
+                # Preview: dùng prompt đơn giản để tránh lặp với metadata ngắn
+                preview_cfg = dataclasses.replace(global_cfg.translate)
+                if preview_cfg.type == "openai":
+                    preview_cfg.openai = dataclasses.replace(preview_cfg.openai)
+                    preview_cfg.openai.title_prompt_template = (
+                        "Dịch {kind} sau từ Trung sang Việt, chỉ trả lời phần dịch:\n\n{text}"
+                    )
+                    preview_cfg.openai.prompt_template = (
+                        "Dịch đoạn văn sau từ Trung sang Việt, chỉ trả lời phần dịch:\n\n{text}"
+                    )
                 translator = RateLimited(
-                    make_translator(global_cfg.translate),
+                    make_translator(preview_cfg),
                     global_cfg.translate.delay_seconds,
                 )
-                title_vi, _note = translator.translate_title(name, kind="tên truyện")
-                if title_vi:
-                    name = _clean_title(title_vi)
+                if title_raw:
+                    t, _n = translator.translate_title(title_raw, kind="tên truyện")
+                    if t:
+                        name = _clean_title(t)
+                        title_vi = name
+                if author:
+                    try:
+                        author_vi = translator.translate(author).strip()
+                    except Exception:
+                        pass
+                if description:
+                    try:
+                        description_vi = translator.translate(description).strip()
+                    except Exception:
+                        pass
         except Exception:
             pass
+
+    # Lấy thông tin model dịch
+    translate_type = ""
+    translate_model = ""
+    try:
+        global_cfg = load_config(deps.CONFIG_PATH)
+        tc = global_cfg.translate
+        translate_type = tc.type
+        if tc.type == "hachimimt":
+            translate_model = tc.hachimimt.model_key or "HachimiMT-60"
+        elif tc.type == "openai":
+            translate_model = tc.openai.model
+        elif tc.type == "google":
+            translate_model = "Google Translate"
+        elif tc.type == "libretranslate":
+            translate_model = "LibreTranslate"
+        elif tc.type == "none":
+            translate_model = "Không dịch"
+        if tc.preset:
+            translate_model = (translate_model + " · preset: " + tc.preset) if translate_model else tc.preset
+    except Exception:
+        pass
 
     slug = slugify(name or slugify(toc_url))
     return {
         "name": name,
+        "title_raw": title_raw,
+        "title_vi": title_vi,
         "author": author,
+        "author_vi": author_vi,
+        "description": description,
+        "description_vi": description_vi,
         "slug": slug,
         "cover_url": cover_url,
         "chapter_count": chapter_count,
+        "translate_type": translate_type,
+        "translate_model": translate_model,
     }
 
 

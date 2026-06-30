@@ -121,44 +121,107 @@
     </div>
 </div>
 
-<!-- Modal: Thêm ebook mới (chỉ nhập URL) -->
+<!-- Modal: Thêm ebook mới -->
 <div id="add-ebook-modal" class="modal-backdrop" hidden>
-    <div class="modal">
+    <div class="modal modal-large">
         <div class="section-head">
             <h3>Thêm ebook mới</h3>
             <button type="button" class="canvas-close" onclick="closeModal('add-ebook-modal')">✕</button>
         </div>
+
+        <!-- Step indicator -->
+        <div class="step-indicator" id="step-indicator">
+            <div class="step active" data-step="1">
+                <span class="step-num">1</span>
+                <span class="step-label">Nhập link</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step" data-step="2">
+                <span class="step-num">2</span>
+                <span class="step-label">Xem trước &amp; Tạo</span>
+            </div>
+        </div>
+
         <form method="post" action="/library/ebooks" id="create-form">
             <input type="hidden" name="name" id="name">
             <input type="hidden" name="author" id="author">
             <input type="hidden" name="toc_url" id="toc_url">
-            <fieldset>
-                <legend>Link mục lục truyện</legend>
-                <div class="form-row">
-                    <label>URL mục lục <input type="text" name="toc_url_display" id="toc_url_display" size="50" required placeholder="https://..."></label>
-                </div>
-                <div class="form-row">
-                    <button type="button" id="preview-btn">🔍 Xem trước</button>
-                    <span id="fetch-status" class="muted"></span>
-                </div>
-            </fieldset>
 
-            <fieldset id="preview-box" style="display:none">
-                <legend>Xem trước</legend>
-                <div class="preview-card">
-                    <img id="pv-cover" alt="bìa" style="max-height:120px;display:none">
-                    <div class="preview-meta">
-                        <div><strong id="pv-name"></strong></div>
-                        <div class="muted" id="pv-author"></div>
-                        <div class="muted" id="pv-chapters"></div>
-                        <label>Slug <input type="text" name="slug" id="slug" placeholder="tự sinh từ tên"></label>
+            <!-- Step 1: URL input -->
+            <div class="step-panel" data-step="1">
+                <fieldset>
+                    <legend>Nhập link mục lục truyện</legend>
+                    <div class="form-row">
+                        <label class="full">URL mục lục
+                            <input type="text" name="toc_url_display" id="toc_url_display" size="50" required placeholder="https://..." autocomplete="off">
+                        </label>
                     </div>
+                    <div class="form-row">
+                        <button type="button" id="preview-btn" class="button">🔍 Xem trước</button>
+                        <span id="fetch-status" class="muted"></span>
+                    </div>
+                </fieldset>
+                <div class="step-nav">
+                    <span></span>
+                    <button type="button" class="step-next button" data-goto="2">Tiếp theo →</button>
                 </div>
-                <div class="form-row">
-                    <button type="submit" id="create-btn">💾 Tạo ebook</button>
-                    <button type="button" onclick="closeModal('add-ebook-modal')">Hủy</button>
+            </div>
+
+            <!-- Step 2: Preview & Create -->
+            <div class="step-panel" data-step="2" style="display:none">
+                <fieldset>
+                    <legend>Xem trước thông tin</legend>
+                    <div id="preview-box">
+                        <div class="pv-header">
+                            <div class="pv-cover-wrap">
+                                <img id="pv-cover" alt="bìa" style="display:none">
+                            </div>
+                            <div class="pv-header-body">
+                                <div class="pv-chapters" id="pv-chapters"></div>
+                                <div class="pv-slug">
+                                    <label>Slug <input type="text" name="slug" id="slug" class="slug-input" placeholder="tự sinh từ tên"></label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <table class="pv-table">
+                            <thead>
+                                <tr>
+                                    <th class="pv-col-field">Trường</th>
+                                    <th class="pv-col-raw">Raw (gốc)</th>
+                                    <th class="pv-col-vi">Dịch</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr id="pv-row-title">
+                                    <td class="pv-cell-label">Tên</td>
+                                    <td class="pv-cell-raw" id="pv-title-raw"></td>
+                                    <td class="pv-cell-vi" id="pv-title-vi"></td>
+                                </tr>
+                                <tr id="pv-row-author">
+                                    <td class="pv-cell-label">Tác giả</td>
+                                    <td class="pv-cell-raw" id="pv-author-raw"></td>
+                                    <td class="pv-cell-vi" id="pv-author-vi"></td>
+                                </tr>
+                                <tr id="pv-row-desc">
+                                    <td class="pv-cell-label">Mô tả</td>
+                                    <td class="pv-cell-raw" id="pv-desc-raw"></td>
+                                    <td class="pv-cell-vi" id="pv-desc-vi"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="pv-translate-info" id="pv-translate-info"></div>
+                    </div>
+                    <div id="preview-placeholder" class="pv-placeholder">
+                        <div class="pv-placeholder-icon">📖</div>
+                        <div class="pv-placeholder-text">Bấm <strong>Xem trước</strong> để lấy thông tin truyện</div>
+                    </div>
+                </fieldset>
+                <div class="step-nav">
+                    <button type="button" class="step-back button outline" data-goto="1">← Quay lại</button>
+                    <button type="submit" id="create-btn" class="button">💾 Tạo ebook</button>
                 </div>
-            </fieldset>
+            </div>
         </form>
     </div>
 </div>
@@ -261,7 +324,50 @@ document.addEventListener("DOMContentLoaded", function () {
     var createBtn = document.getElementById("create-btn");
     var fetchStatus = document.getElementById("fetch-status");
     var previewBox = document.getElementById("preview-box");
+    var previewPlaceholder = document.getElementById("preview-placeholder");
     var form = document.getElementById("create-form");
+
+    // —— Step navigation ——
+    function goToStep(step) {
+        document.querySelectorAll('.step-panel').forEach(function (el) {
+            el.style.display = el.dataset.step === String(step) ? '' : 'none';
+        });
+        document.querySelectorAll('.step').forEach(function (el) {
+            var s = parseInt(el.dataset.step, 10);
+            el.classList.toggle('active', s === step);
+            el.classList.toggle('completed', s < step);
+        });
+        document.querySelectorAll('.step-connector').forEach(function (el) {
+            el.classList.toggle('done', true);
+        });
+    }
+
+    document.querySelectorAll('.step-next').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            goToStep(parseInt(btn.dataset.goto, 10));
+            if (nameEl.value) previewBox.style.display = "";
+        });
+    });
+    document.querySelectorAll('.step-back').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            goToStep(parseInt(btn.dataset.goto, 10));
+        });
+    });
+
+    // Khi mở modal → reset
+    var modal = document.getElementById('add-ebook-modal');
+    var observer = new MutationObserver(function () {
+        if (!modal.hidden) {
+            goToStep(1);
+            form.reset && form.reset();
+            nameEl.value = '';
+            authorEl.value = '';
+            slugEl.value = '';
+            fetchStatus.textContent = '';
+            previewPlaceholder.style.display = '';
+        }
+    });
+    observer.observe(modal, { attributes: true, attributeFilter: ['hidden'] });
 
     slugEl.addEventListener("input", function () {
         slugEl.dataset.userEdited = slugEl.value !== slugify(nameEl.value);
@@ -269,16 +375,27 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function resetPreview() {
         previewBox.style.display = "none";
+        previewPlaceholder.style.display = '';
     }
     if (tocUrlDisplay) tocUrlDisplay.addEventListener("input", resetPreview);
+
+    // —— Helper fill bảng ——
+    function fillCell(id, val) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = val || "";
+        el.classList.toggle('empty', !val);
+    }
 
     // --- URL preview (modal) ---
     if (previewBtn) {
         previewBtn.addEventListener("click", async function () {
             var url = tocUrlDisplay.value.trim();
             previewBox.style.display = "none";
+            previewPlaceholder.style.display = 'none';
             if (!url) {
                 fetchStatus.textContent = "⚠️ Nhập URL mục lục trước.";
+                previewPlaceholder.style.display = '';
                 return;
             }
             tocUrlEl.value = url;
@@ -296,6 +413,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 if (data.error) {
                     fetchStatus.textContent = "⚠️ " + data.error;
+                    previewPlaceholder.style.display = '';
                     return;
                 }
 
@@ -303,9 +421,26 @@ document.addEventListener("DOMContentLoaded", function () {
                 authorEl.value = data.author || "";
                 if (!slugEl.dataset.userEdited) slugEl.value = data.slug || "";
 
-                document.getElementById("pv-name").textContent = data.name || "(không lấy được tên)";
-                document.getElementById("pv-author").textContent = data.author ? ("Tác giả: " + data.author) : "";
-                document.getElementById("pv-chapters").textContent = "Số chương: " + (data.chapter_count || 0);
+                // Bảng 3 cột
+                fillCell('pv-title-raw', data.title_raw || data.name || "");
+                fillCell('pv-title-vi', data.title_vi || "");
+                fillCell('pv-author-raw', data.author || "");
+                fillCell('pv-author-vi', data.author_vi || "");
+                fillCell('pv-desc-raw', data.description || "");
+                fillCell('pv-desc-vi', data.description_vi || "");
+                document.getElementById('pv-desc-raw')?.classList.toggle('pv-desc-truncate', (data.description || '').length > 120);
+                document.getElementById('pv-desc-vi')?.classList.toggle('pv-desc-truncate', (data.description_vi || '').length > 120);
+
+                // Model dịch
+                var infoEl = document.getElementById('pv-translate-info');
+                if (data.translate_model) {
+                    infoEl.textContent = '🤖 ' + data.translate_model;
+                    infoEl.style.display = '';
+                } else {
+                    infoEl.style.display = 'none';
+                }
+
+                document.getElementById("pv-chapters").textContent = "📄 " + (data.chapter_count || 0) + " chương";
                 var coverEl = document.getElementById("pv-cover");
                 if (data.cover_url) {
                     coverEl.src = data.cover_url;
@@ -314,9 +449,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     coverEl.style.display = "none";
                 }
                 previewBox.style.display = "";
-                fetchStatus.textContent = "✅ " + (data.name || "Đã lấy thông tin");
+                previewPlaceholder.style.display = 'none';
+                fetchStatus.textContent = "✅ Đã lấy thông tin";
+                goToStep(2);
             } catch (e) {
                 fetchStatus.textContent = "⚠️ Lỗi: " + e.message;
+                previewPlaceholder.style.display = '';
             } finally {
                 previewBtn.disabled = false;
             }
@@ -324,7 +462,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     form.addEventListener("submit", function (e) {
-        if (previewBox.style.display === "none") {
+        if (!nameEl.value) {
             e.preventDefault();
             fetchStatus.textContent = "⚠️ Hãy bấm Xem trước trước khi tạo.";
         }

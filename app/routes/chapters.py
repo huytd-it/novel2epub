@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 import html
 
-from novel2epub import footnotes
+from novel2epub import bulk_transfer, footnotes
 from novel2epub.pipeline import (
     step_crawl_selected,
     step_delete_translation_selected,
@@ -564,6 +564,146 @@ async def api_batch_suggest_glossary(
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return JSONResponse({"started": True, "total": len(index_list)})
+
+
+_EXPORT_PROMPTS = {"translated": bulk_transfer.EDIT_PROMPT, "raw": bulk_transfer.TRANSLATE_PROMPT}
+
+
+@router.post("/api/ebooks/{slug}/batch/export")
+async def api_batch_export(slug: str, indexes: str = Form(""), source: str = Form("translated")):
+    """Xuất chương đã chọn thành một khối text (prompt + glossary + chương có
+    marker) để dán lên web chat AI. `source=translated` (mặc định) xuất bản
+    dịch hiện hành để AI BIÊN TẬP; `source=raw` xuất bản gốc tiếng Trung
+    (chương chưa dịch hoặc muốn dịch lại) để AI DỊCH."""
+    if source not in _EXPORT_PROMPTS:
+        raise HTTPException(status_code=400, detail=f"source không hợp lệ: {source!r}")
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào. Hãy tick checkbox trước.")
+
+    by_index = {c.index: c for c in manifest.chapters}
+    items: list[tuple[int, str, str]] = []
+    skipped: list[int] = []
+    for idx in index_list:
+        ch = by_index.get(idx)
+        if source == "raw":
+            ok = ch is not None and storage.has_raw(ch)
+        else:
+            ok = ch is not None and storage.has_translated(ch)
+        if not ok:
+            skipped.append(idx)
+            continue
+        if source == "raw":
+            items.append((idx, ch.title_zh, storage.read_raw(ch)))
+        else:
+            items.append((idx, ch.title_vi or ch.title_zh, storage.read_translated(ch)))
+
+    if not items:
+        detail = "Không có chương nào đã crawl raw trong số đã chọn." if source == "raw" \
+            else "Không có chương đã dịch nào trong số đã chọn."
+        raise HTTPException(status_code=400, detail=detail)
+
+    text = bulk_transfer.build_export(
+        items,
+        names=storage.read_glossary_file("names.txt"),
+        vietphrase=storage.read_glossary_file("vietphrase.txt"),
+        prompt=_EXPORT_PROMPTS[source],
+    )
+    return JSONResponse({"text": text, "skipped": skipped, "total": len(items), "source": source})
+
+
+@router.post("/api/ebooks/{slug}/batch/import")
+async def api_batch_import(
+    slug: str,
+    text: str = Form(...),
+    indexes: str = Form(""),
+    mode: str = Form("preview"),  # "preview" | "confirm"
+):
+    """Nhập văn bản đã biên tập: parse theo marker, preview diff theo chương +
+    glossary; mode `confirm` mới ghi đè `translated/` và merge glossary."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+
+    parsed = bulk_transfer.parse_import(text)
+    if not parsed:
+        raise HTTPException(
+            status_code=400,
+            detail="Không tìm thấy marker chương nào (========== CHƯƠNG N ==========).",
+        )
+
+    expected = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    by_index = {c.index: c for c in manifest.chapters}
+    content_by_index = dict(parsed)
+    report = bulk_transfer.validate_import(
+        list(content_by_index.keys()), expected, list(by_index.keys())
+    )
+    glossary = bulk_transfer.parse_glossary(text)
+
+    # Mục glossary thực sự mới (chưa có hoặc khác giá trị) — để preview/báo cáo.
+    existing_names = storage.read_glossary_file("names.txt")
+    existing_vp = storage.read_glossary_file("vietphrase.txt")
+    new_names = {s: t for s, t in glossary["names"].items() if existing_names.get(s) != t}
+    new_vp = {s: t for s, t in glossary["vietphrase"].items() if existing_vp.get(s) != t}
+
+    chapters_info = []
+    for idx in report["matched"]:
+        ch = by_index[idx]
+        old = storage.read_translated(ch) if storage.has_translated(ch) else ""
+        new = content_by_index[idx]
+        chapters_info.append({
+            "index": idx,
+            "changed": new.strip() != old.strip(),
+            "old_len": len(old),
+            "new_len": len(new),
+        })
+
+    if mode != "confirm":
+        return JSONResponse({
+            "mode": "preview",
+            "chapters": chapters_info,
+            "missing": report["missing"],
+            "unknown": report["unknown"],
+            "extra": report["extra"],
+            "glossary_names": new_names,
+            "glossary_vietphrase": new_vp,
+        })
+
+    # confirm: ghi đè translated/ + merge glossary. translated_mt/ (snapshot
+    # bản máy) chỉ được ghi nếu chương CHƯA có — coi đây là lần dịch đầu (vd
+    # luồng "xuất raw để dịch") thì backfill snapshot; nếu đã có (đang biên
+    # tập/dịch lại) thì giữ nguyên để còn so sánh trong editor 3 cột.
+    written: list[int] = []
+    for idx in report["matched"]:
+        ch = by_index[idx]
+        if not storage.has_translated_mt(ch):
+            storage.write_translated_mt(ch, content_by_index[idx])
+        storage.write_translated(ch, content_by_index[idx])
+        written.append(idx)
+
+    glossary_added = 0
+    for source, target in glossary["names"].items():
+        if _append_glossary_entry(storage, "names.txt", source, target):
+            glossary_added += 1
+    for source, target in glossary["vietphrase"].items():
+        if _append_glossary_entry(storage, "vietphrase.txt", source, target):
+            glossary_added += 1
+
+    return JSONResponse({
+        "mode": "confirm",
+        "written": written,
+        "glossary_added": glossary_added,
+        "missing": report["missing"],
+        "unknown": report["unknown"],
+    })
 
 
 @router.patch("/api/ebooks/{slug}/meta")

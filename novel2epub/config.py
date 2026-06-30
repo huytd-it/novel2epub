@@ -69,7 +69,7 @@ class ScraplingConfig:
 
 @dataclass
 class CrawlConfig:
-    toc_url: str
+    toc_url: str = ""
     engine: str = "scrapling"
     chapter_link_pattern: str = r".*"
     max_chapters: int = 0

@@ -1120,3 +1120,66 @@ mark.log-hit { background: #fff2b3; color: #111; border-radius: 2px; }
     .para-copy-btn { right: 0; top: auto; bottom: -0.3em; opacity: 0.4; }
     .settings-row { gap: 0.5rem; }
 }
+
+/* === Step indicator (wizard) === */
+.step-indicator {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin: 0 0 1.25rem;
+}
+.step { display: flex; align-items: center; gap: 0.4rem; }
+.step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.8rem; height: 1.8rem; border-radius: 50%;
+    font-size: 0.8rem; font-weight: 700;
+    background: var(--n2e-border); color: var(--n2e-text-muted);
+    transition: background 0.2s, color 0.2s;
+}
+.step.active .step-num { background: var(--n2e-link); color: #fff; }
+.step.completed .step-num { background: var(--n2e-ok-bg); color: #166534; }
+.step-label { font-size: 0.85rem; color: var(--n2e-text-muted); font-weight: 500; }
+.step.active .step-label { color: var(--n2e-text); font-weight: 600; }
+.step-connector { flex: 1; height: 2px; background: var(--n2e-border); min-width: 2rem; }
+.step-connector.done { background: var(--n2e-ok-bg); }
+
+/* Wizard panels */
+.step-panel fieldset { border: 1px solid var(--n2e-border); border-radius: 8px; padding: 0.8rem 1rem; margin: 0 0 0.75rem; }
+.step-panel fieldset legend { font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--n2e-text-muted); padding: 0 0.4rem; }
+.step-panel .full { width: 100%; }
+.step-panel .full input { width: 100%; box-sizing: border-box; }
+.step-nav { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+
+/* Preview placeholder */
+.pv-placeholder { text-align: center; padding: 2rem 1rem; color: var(--n2e-text-muted); }
+.pv-placeholder-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+.pv-placeholder-text { font-size: 0.9rem; }
+
+/* Preview header */
+.pv-header { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 0.75rem; }
+.pv-cover-wrap { flex-shrink: 0; }
+.pv-cover-wrap img { max-height: 100px; border-radius: 4px; border: 1px solid var(--n2e-border); }
+.pv-header-body { min-width: 0; }
+.pv-chapters { font-size: 0.85rem; color: var(--n2e-text-muted); margin-bottom: 0.35rem; }
+.pv-slug label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+.slug-input { width: auto; min-width: 200px; }
+
+/* Preview 3-column table */
+.pv-table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; table-layout: fixed; }
+.pv-table th, .pv-table td { padding: 0.4rem 0.5rem; border: 1px solid var(--n2e-border); vertical-align: top; text-align: left; }
+.pv-table thead th { background: var(--n2e-surface-alt); font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--n2e-text-muted); }
+.pv-col-field { width: 15%; }
+.pv-col-raw { width: 40%; }
+.pv-col-vi { width: 45%; }
+.pv-cell-label { font-weight: 600; font-size: 0.85rem; background: var(--n2e-surface-alt); }
+.pv-cell-raw { font-size: 0.85rem; word-break: break-word; }
+.pv-cell-vi { font-size: 0.85rem; word-break: break-word; background: #f8fffe; }
+[data-theme="dark"] .pv-cell-vi { background: #1a2a24; }
+.pv-cell-raw.empty, .pv-cell-vi.empty { color: var(--n2e-text-muted); font-style: italic; }
+.pv-desc-truncate { max-height: 4.5rem; overflow: hidden; position: relative; }
+.pv-desc-truncate::after { content: "..."; position: absolute; bottom: 0; right: 0.5rem; background: inherit; padding-left: 0.3rem; }
+
+/* Badge thông tin model dịch */
+.pv-translate-info {
+    font-size: 0.8rem; color: var(--n2e-text-muted); text-align: right;
+    margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid var(--n2e-border);
+}
+.button { display: inline-flex; align-items: center; gap: 0.3rem; }

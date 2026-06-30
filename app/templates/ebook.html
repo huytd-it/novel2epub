@@ -150,9 +150,13 @@
     <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="both">
         <button type="submit" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB selected</button>
     </form>
+    <button type="button" id="btn-export-chapters" data-export-source="translated">Xuất để biên tập</button>
+    <button type="button" id="btn-export-raw" data-export-source="raw">Xuất RAW để dịch</button>
+    <button type="button" id="btn-import-chapters">Nhập bản biên tập/dịch</button>
     <label class="check"><input type="checkbox" id="selected-override" value="true"> Ghi đè</label>
     <span id="checked-info" class="muted">Đã tick 0 chương.</span>
 </div>
+
 <div class="table-wrap">
 <table id="chapter-table" class="data-table">
     <thead><tr><th><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th>#</th><th>Tiêu đề</th><th>Raw</th><th>Dịch</th><th>Số từ</th><th>Thiếu</th><th>Action</th><th></th></tr></thead>
@@ -424,6 +428,8 @@ function renderToc() {
     persistControls();
     const data = getFilteredData();
     tbody.innerHTML = data.map(buildChapterRow).join("");
+    const pill = document.querySelector(".count-pill");
+    if (pill) pill.textContent = String(data.length);
     paginate({ reset: true });
     setJobButtonsDisabled(lastStatus());
     refreshCheckedInfo();
@@ -695,11 +701,229 @@ document.addEventListener("dblclick", (event) => {
     });
 });
 
+// --- Xuất/Nhập biên tập hàng loạt (web chat AI) — mở cửa sổ riêng để dễ review
+// (thay vì <dialog>: Pico CSS buộc <dialog> phải bọc trong <article> mới render
+// đúng, nếu không nó sẽ kéo dài full viewport và trống trơn).
+function checkedIndexes() {
+    return Array.from(document.querySelectorAll(".chapter-check:checked")).map((cb) => cb.value);
+}
+
+const BULK_WINDOW_STYLE = `
+    body { margin:0; font-family: ui-monospace, Consolas, monospace; background:#0f172a; color:#e2e8f0;
+        display:flex; flex-direction:column; height:100vh; box-sizing:border-box; }
+    header { padding:0.75rem 1rem; border-bottom:1px solid #334155; background:#111827; flex-shrink:0; }
+    header h2 { margin:0 0 0.3rem; font-family: ui-sans-serif, system-ui, sans-serif; font-size:1.05rem; }
+    header p { margin:0.2rem 0 0; font-size:0.85rem; color:#94a3b8; }
+    main { flex:1; display:flex; flex-direction:column; padding:0.75rem 1rem; gap:0.5rem; min-height:0; }
+    textarea { flex:1; width:100%; box-sizing:border-box; resize:none; font:inherit; font-size:0.85rem;
+        background:#0b1220; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:0.6rem; }
+    .bulk-actions { display:flex; gap:0.5rem; flex-wrap:wrap; flex-shrink:0; }
+    button { font-family: ui-sans-serif, system-ui, sans-serif; font-size:0.9rem; padding:0.4rem 0.8rem;
+        border-radius:6px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; cursor:pointer; }
+    button:hover { background:#334155; }
+    button:disabled { opacity:0.5; cursor:not-allowed; }
+    .bulk-report { flex-shrink:0; max-height:30vh; overflow-y:auto; }
+    .bulk-report p { margin:0.3rem 0; font-size:0.85rem; }
+    .bulk-bad { color:#fca5a5; }
+`;
+
+function openBulkWindow(title) {
+    const win = window.open("", "_blank");
+    if (!win) { alert("Trình duyệt chặn pop-up — hãy cho phép pop-up cho trang này."); return null; }
+    win.document.title = title;
+    const style = win.document.createElement("style");
+    style.textContent = BULK_WINDOW_STYLE;
+    win.document.head.appendChild(style);
+    return win;
+}
+
+const EXPORT_COPY = {
+    translated: {
+        title: "Xuất chương để biên tập bằng web chat AI (Markdown)",
+        intro: 'Copy hoặc tải file .md rồi đưa vào ChatGPT/Claude/Gemini (markdown giúp AI hiểu cấu trúc chương tốt hơn). AI biên tập xong, dán/upload kết quả vào "Nhập bản biên tập/dịch".',
+        skipNote: (n, list) => ` · Bỏ qua ${n} chương chưa dịch (${list})`,
+        filenameSuffix: "bien-tap",
+    },
+    raw: {
+        title: "Xuất bản gốc (raw) để dịch bằng web chat AI (Markdown)",
+        intro: 'Copy hoặc tải file .md rồi đưa vào ChatGPT/Claude/Gemini để DỊCH. AI dịch xong, dán/upload kết quả vào "Nhập bản biên tập/dịch".',
+        skipNote: (n, list) => ` · Bỏ qua ${n} chương chưa có raw (${list})`,
+        filenameSuffix: "dich",
+    },
+};
+
+async function doExport(source) {
+    const indexes = checkedIndexes();
+    if (indexes.length === 0) { alert("Chưa chọn chương nào. Hãy tick checkbox trước."); return; }
+    const fd = new FormData();
+    fd.set("indexes", indexes.join(","));
+    fd.set("source", source);
+    let data;
+    try {
+        const res = await fetch(`/api/ebooks/${SLUG}/batch/export`, { method: "POST", body: fd });
+        data = await res.json();
+        if (!res.ok) { alert(data.detail || "Lỗi khi xuất."); return; }
+    } catch (err) { alert("Lỗi kết nối mạng."); return; }
+
+    const copy = EXPORT_COPY[source];
+    const win = openBulkWindow(`Xuất chương — ${SLUG}`);
+    if (!win) return;
+    const skipped = data.skipped && data.skipped.length
+        ? copy.skipNote(data.skipped.length, data.skipped.join(", ")) : "";
+    const header = win.document.createElement("header");
+    header.innerHTML = `<h2>${copy.title}</h2>
+        <p>${data.total} chương · ${data.text.length.toLocaleString()} ký tự${skipped}</p>
+        <p>${copy.intro}</p>`;
+    win.document.body.appendChild(header);
+
+    const main = win.document.createElement("main");
+    const actions = win.document.createElement("div");
+    actions.className = "bulk-actions";
+    const copyBtn = win.document.createElement("button");
+    copyBtn.textContent = "Copy toàn bộ";
+    const downloadBtn = win.document.createElement("button");
+    downloadBtn.textContent = "Tải file .md";
+    const ta = win.document.createElement("textarea");
+    ta.readOnly = true;
+    ta.spellcheck = false;
+    ta.value = data.text;
+    copyBtn.addEventListener("click", async () => {
+        try { await win.navigator.clipboard.writeText(ta.value); }
+        catch (e) { ta.focus(); ta.select(); win.document.execCommand("copy"); }
+        const old = copyBtn.textContent; copyBtn.textContent = "Đã copy ✓";
+        setTimeout(() => { copyBtn.textContent = old; }, 1500);
+    });
+    downloadBtn.addEventListener("click", () => {
+        const range = indexes.length ? `-${Math.min(...indexes.map(Number))}-${Math.max(...indexes.map(Number))}` : "";
+        const blob = new win.Blob([ta.value], { type: "text/markdown;charset=utf-8" });
+        const url = win.URL.createObjectURL(blob);
+        const a = win.document.createElement("a");
+        a.href = url;
+        a.download = `${SLUG}${range}-${copy.filenameSuffix}.md`;
+        win.document.body.appendChild(a);
+        a.click();
+        a.remove();
+        win.URL.revokeObjectURL(url);
+    });
+    actions.appendChild(copyBtn);
+    actions.appendChild(downloadBtn);
+    main.appendChild(actions);
+    main.appendChild(ta);
+    win.document.body.appendChild(main);
+    ta.focus();
+    ta.select();
+}
+
+document.getElementById("btn-export-chapters").addEventListener("click", () => doExport("translated"));
+document.getElementById("btn-export-raw").addEventListener("click", () => doExport("raw"));
+
+document.getElementById("btn-import-chapters").addEventListener("click", () => {
+    const win = openBulkWindow(`Nhập bản biên tập/dịch — ${SLUG}`);
+    if (!win) return;
+
+    const header = win.document.createElement("header");
+    header.innerHTML = `<h2>Nhập bản biên tập/dịch từ AI</h2>
+        <p>Dán hoặc chọn file .md kết quả web chat trả về (giữ tiêu đề <code>## Chương N</code>), dù là bản AI biên tập hay AI dịch từ raw. Xem trước rồi mới ghi đè.</p>`;
+    win.document.body.appendChild(header);
+
+    const main = win.document.createElement("main");
+    const actions = win.document.createElement("div");
+    actions.className = "bulk-actions";
+    const fileBtn = win.document.createElement("button");
+    fileBtn.textContent = "Chọn file .md...";
+    const fileInput = win.document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".md,.markdown,.txt,text/markdown,text/plain";
+    fileInput.style.display = "none";
+    const previewBtn = win.document.createElement("button");
+    previewBtn.textContent = "Xem trước";
+    const confirmBtn = win.document.createElement("button");
+    confirmBtn.textContent = "Xác nhận ghi đè";
+    confirmBtn.disabled = true;
+    actions.appendChild(fileBtn);
+    actions.appendChild(fileInput);
+    actions.appendChild(previewBtn);
+    actions.appendChild(confirmBtn);
+
+    const ta = win.document.createElement("textarea");
+    ta.spellcheck = false;
+    ta.placeholder = "Dán nội dung đã biên tập vào đây, hoặc bấm \"Chọn file .md...\"";
+
+    fileBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        const reader = new win.FileReader();
+        reader.addEventListener("load", () => { ta.value = reader.result; });
+        reader.readAsText(file, "utf-8");
+    });
+
+    const report = win.document.createElement("div");
+    report.className = "bulk-report";
+
+    function renderReport(data) {
+        const changed = data.chapters.filter((c) => c.changed);
+        const unchanged = data.chapters.filter((c) => !c.changed);
+        const gNames = Object.entries(data.glossary_names || {});
+        const gVp = Object.entries(data.glossary_vietphrase || {});
+        let html = `<p><strong>${data.chapters.length}</strong> chương khớp — ${changed.length} thay đổi, ${unchanged.length} không đổi.</p>`;
+        if (data.missing && data.missing.length) html += `<p class="bulk-bad">Thiếu (AI bỏ sót): ${data.missing.join(", ")}</p>`;
+        if (data.unknown && data.unknown.length) html += `<p class="bulk-bad">Index lạ (không thuộc truyện, sẽ bỏ): ${data.unknown.join(", ")}</p>`;
+        if (data.extra && data.extra.length) html += `<p>Ngoài tập đã chọn: ${data.extra.join(", ")}</p>`;
+        if (gNames.length || gVp.length) {
+            html += `<p>Glossary mới sẽ thêm: <strong>${gNames.length}</strong> tên riêng, <strong>${gVp.length}</strong> thuật ngữ.</p>`;
+        }
+        report.innerHTML = html;
+    }
+
+    previewBtn.addEventListener("click", async () => {
+        const text = ta.value;
+        if (!text.trim()) { alert("Chưa dán nội dung."); return; }
+        const fd = new FormData();
+        fd.set("text", text);
+        fd.set("indexes", checkedIndexes().join(","));
+        fd.set("mode", "preview");
+        try {
+            const res = await fetch(`/api/ebooks/${SLUG}/batch/import`, { method: "POST", body: fd });
+            const data = await res.json();
+            if (!res.ok) { report.innerHTML = `<p class="bulk-bad">${data.detail || "Lỗi"}</p>`; return; }
+            renderReport(data);
+            confirmBtn.disabled = data.chapters.length === 0;
+        } catch (err) { alert("Lỗi kết nối mạng."); }
+    });
+
+    confirmBtn.addEventListener("click", async () => {
+        const text = ta.value;
+        const fd = new FormData();
+        fd.set("text", text);
+        fd.set("indexes", checkedIndexes().join(","));
+        fd.set("mode", "confirm");
+        try {
+            const res = await fetch(`/api/ebooks/${SLUG}/batch/import`, { method: "POST", body: fd });
+            const data = await res.json();
+            if (!res.ok) { alert(data.detail || "Lỗi khi ghi."); return; }
+            alert(`Đã ghi đè ${data.written.length} chương · thêm ${data.glossary_added} mục glossary.`);
+            win.close();
+            location.reload();
+        } catch (err) { alert("Lỗi kết nối mạng."); }
+    });
+
+    main.appendChild(actions);
+    main.appendChild(ta);
+    main.appendChild(report);
+    win.document.body.appendChild(main);
+    ta.focus();
+});
+
 // --- Khởi tạo: khôi phục filter/sort/search đã lưu rồi dựng bảng ---
 (function initToc() {
+    try {
+        applySavedControls();
+        renderToc();
+    } catch (e) {
+        console.error("initToc error:", e);
+    }
     const region = document.getElementById("toc-region");
-    applySavedControls();
-    renderToc();
     if (region) region.classList.remove("toc-loading");
 })();
 

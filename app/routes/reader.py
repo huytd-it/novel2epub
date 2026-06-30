@@ -54,7 +54,7 @@ def reader_chapter(request: Request, slug: str, index: int):
     for c in manifest.chapters:
         chapters_info.append({
             "index": c.index,
-            "title": c.title_vi or c.title_zh or f"Chương {c.index}",
+            "title": c.title or f"Chương {c.index}",
             "has_translated": storage.has_translated(c),
         })
 

@@ -114,26 +114,20 @@
     {% endif %}
     <div class="meta-body">
         <div class="flex items-baseline justify-between gap-4 mb-1">
-            <h3 class="m-0 text-base font-semibold">{{ manifest.title_vi or manifest.title or "(chưa có tên)" }}</h3>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate" class="inline-form">
-                <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch meta</button>
-            </form>
+            <h3 class="m-0 text-base font-semibold">{{ manifest.title or "(chưa có tên)" }}</h3>
         </div>
         <table class="meta-table w-full text-sm">
-            <thead><tr class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide"><th class="text-left px-2 py-1 border-b border-border-light dark:border-border-dark">Field</th><th class="text-left px-2 py-1 border-b border-border-light dark:border-border-dark">ZH</th><th class="text-left px-2 py-1 border-b border-border-light dark:border-border-dark">VI</th></tr></thead>
+            <thead><tr class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide"><th class="text-left px-2 py-1 border-b border-border-light dark:border-border-dark">Field</th><th class="text-left px-2 py-1 border-b border-border-light dark:border-border-dark">Giá trị</th></tr></thead>
             <tbody>
-                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Tiêu đề</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.title or "-" }}</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark meta-vi" data-field="title_vi">{{ manifest.title_vi or "" }}</td></tr>
-                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Tác giả</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.author or "-" }}</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark meta-vi" data-field="author_vi">{{ manifest.author_vi or "" }}</td></tr>
-                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Mô tả</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark desc-cell">{{ manifest.description or "-" }}</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark meta-vi desc-cell" data-field="description_vi">{{ manifest.description_vi or "" }}</td></tr>
-                {% if manifest.title_note %}<tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Ghi chú</td><td colspan="2" class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.title_note }}</td></tr>{% endif %}
-                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Nguồn</td><td colspan="2" class="px-2 py-1 border-b border-border-light dark:border-border-dark"><a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank" class="text-link-light dark:text-link-dark hover:underline">{{ manifest.source_url or cfg.crawl.toc_url }}</a></td></tr>
-                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Số chương</td><td colspan="2" class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.chapters|length }}</td></tr>
-                {% if manifest.metadata_missing %}<tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Thiếu</td><td colspan="2" class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.metadata_missing|join(', ') }}</td></tr>{% endif %}
+                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Tiêu đề</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.title or "-" }}</td></tr>
+                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Tác giả</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.author or "-" }}</td></tr>
+                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Mô tả</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark desc-cell">{{ manifest.description or "-" }}</td></tr>
+                {% if manifest.title_note %}<tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Ghi chú</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.title_note }}</td></tr>{% endif %}
+                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Nguồn</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark"><a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank" class="text-link-light dark:text-link-dark hover:underline">{{ manifest.source_url or cfg.crawl.toc_url }}</a></td></tr>
+                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Số chương</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.chapters|length }}</td></tr>
+                {% if manifest.metadata_missing %}<tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Thiếu</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.metadata_missing|join(', ') }}</td></tr>{% endif %}
             </tbody>
         </table>
-        {% if not (manifest.title_vi or manifest.author_vi or manifest.description_vi) and manifest.title %}
-        <p class="text-sm text-muted-light dark:text-muted-dark italic mt-1"><em>Metadata chưa dịch — bấm "Dịch meta" để dịch sang tiếng Việt.</em></p>
-        {% endif %}
     </div>
 </div>
 {% endif %}
@@ -714,46 +708,6 @@ async function poll() {
         }
     }
 }
-
-document.addEventListener("dblclick", (event) => {
-    const td = event.target.closest && event.target.closest(".meta-vi");
-    if (!td || td.querySelector("input,textarea")) return;
-    const field = td.dataset.field;
-    const oldVal = td.textContent.trim();
-    const isDesc = field === "description_vi";
-    const el = isDesc
-        ? document.createElement("textarea")
-        : document.createElement("input");
-    if (!isDesc) el.type = "text";
-    el.value = oldVal;
-    el.style.width = "100%";
-    if (isDesc) el.rows = 3;
-    td.textContent = "";
-    td.appendChild(el);
-    el.focus();
-    el.select();
-    async function save() {
-        const newVal = el.value.trim();
-        if (newVal === oldVal) { td.textContent = oldVal; return; }
-        try {
-            const res = await fetch(`/api/ebooks/${SLUG}/meta`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ [field]: newVal }),
-            });
-            if (!res.ok) throw new Error("save failed");
-            td.textContent = newVal;
-        } catch (e) {
-            alert("Lưu thất bại");
-            td.textContent = oldVal;
-        }
-    }
-    el.addEventListener("blur", save, { once: true });
-    el.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !isDesc) { e.preventDefault(); el.blur(); }
-        if (e.key === "Escape") { el.value = oldVal; el.blur(); }
-    });
-});
 
 function checkedIndexes() {
     return Array.from(document.querySelectorAll(".chapter-check:checked")).map((cb) => cb.value);

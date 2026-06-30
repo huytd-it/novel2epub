@@ -56,7 +56,7 @@ def build_epub(
 ) -> Path:
     """chapters_html: danh sách (chapter, tiêu_đề_hiển_thị, nội_dung_markdown).
 
-    Ưu tiên metadata tiếng Việt (title_vi/author_vi/description_vi) nếu có; nhúng
+    Ưu tiên metadata tiếng Việt (title/author/description) nếu có; nhúng
     ảnh bìa khi cover_path tồn tại. `footnotes_by_stem` (tùy chọn) map ch.stem ->
     danh sách footnote để render khối chú thích ở cuối chương tương ứng.
     `metadata` (tùy chọn) cung cấp publisher/pubdate/subjects/series/series_index/
@@ -74,12 +74,12 @@ def build_epub(
     book = epub.EpubBook()
     identifier = (metadata.identifier if metadata else "") or f"novel2epub-{manifest.slug}"
     book.set_identifier(identifier)
-    book.set_title(manifest.title_vi or manifest.title or manifest.slug)
+    book.set_title(manifest.title or manifest.slug)
     book.set_language(language)
-    author = manifest.author_vi or manifest.author
+    author = manifest.author
     if author:
         book.add_author(author)
-    description = manifest.description_vi or manifest.description
+    description = manifest.description
     if description:
         book.add_metadata("DC", "description", description)
 

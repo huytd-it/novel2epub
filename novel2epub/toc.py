@@ -10,8 +10,7 @@ from .storage import Chapter, Storage
 @dataclass
 class ChapterRow:
     index: int
-    title_zh: str
-    title_vi: str
+    title: str
     visible_title: str
     url: str
     has_raw: bool
@@ -41,7 +40,7 @@ def chapter_missing(ch: Chapter) -> list[str]:
     missing = list(ch.missing_fields or [])
     if not ch.url and "url" not in missing:
         missing.append("url")
-    if not (ch.title_zh or ch.title_vi) and "title" not in missing:
+    if not (ch.title) and "title" not in missing:
         missing.append("title")
     return missing
 
@@ -72,9 +71,8 @@ def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterR
         word_count = count_words(storage.read_translated(ch)) if has_translated else 0
         rows.append(ChapterRow(
             index=ch.index,
-            title_zh=ch.title_zh,
-            title_vi=ch.title_vi,
-            visible_title=ch.title_vi or ch.title_zh or f"Chương {ch.index}",
+            title=ch.title,
+            visible_title=ch.title or f"Chương {ch.index}",
             url=ch.url,
             has_raw=storage.has_raw(ch),
             has_translated=has_translated,

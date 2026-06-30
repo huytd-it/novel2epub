@@ -76,7 +76,7 @@ def test_export_skips_untranslated(tmp_path, monkeypatch):
 def test_export_raw_returns_translate_prompt_and_raw_text(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")
-    chapters = [Chapter(index=1, url="http://x/1", title_zh="第一章")]
+    chapters = [Chapter(index=1, url="http://x/1", title="第一章")]
     storage.save_manifest(Manifest(slug="t", chapters=chapters))
     storage.write_raw(chapters[0], "原文内容")
     client = _client(cfg, monkeypatch)

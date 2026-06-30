@@ -34,7 +34,7 @@ def _cfg(tmp_path):
 
 def _seed(tmp_path):
     storage = Storage(tmp_path, "t")
-    ch = Chapter(index=1, url="http://x/1", title_zh="第一章")
+    ch = Chapter(index=1, url="http://x/1", title="第一章")
     storage.save_manifest(Manifest(slug="t", chapters=[ch]))
     storage.write_raw(ch, "原文\n" * 50)  # đủ dài để chia chunk
     return storage, ch

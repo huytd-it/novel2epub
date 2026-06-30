@@ -31,7 +31,7 @@ class TestLibreTranslateTranslator:
         call_args = mock_post.call_args
         assert call_args[0][0] == "http://localhost:5000/translate"
         assert call_args[1]["json"]["q"] == "你好"
-        assert call_args[1]["json"]["source"] == "zh"
+        assert call_args[1]["json"]["source"] == ""
         assert call_args[1]["json"]["target"] == "vi"
 
     @patch("requests.post")

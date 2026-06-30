@@ -155,7 +155,7 @@ textarea.jump-flash { outline: 2px solid #d97706; }
 </style>
 
 <p class="text-sm"><a href="{% if slug %}/ebooks/{{ slug }}{% else %}/{% endif %}" class="text-link-light dark:text-link-dark hover:underline">&larr; Quay lại</a></p>
-<h2 class="text-xl font-semibold mt-2 mb-1">Chương {{ ch.index }}: {{ ch.title_vi or ch.title_zh }}</h2>
+<h2 class="text-xl font-semibold mt-2 mb-1">Chương {{ ch.index }}: {{ ch.title }}</h2>
 {% if ch.title_note %}<p class="text-sm text-muted-light dark:text-muted-dark">{{ ch.title_note }}</p>{% endif %}
 <p class="text-sm text-muted-light dark:text-muted-dark"><a href="{{ ch.url }}" target="_blank" class="text-link-light dark:text-link-dark hover:underline">{{ ch.url }}</a></p>
 {% if ch.missing_fields %}<p class="text-sm text-muted-light dark:text-muted-dark">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}

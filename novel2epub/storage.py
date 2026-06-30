@@ -38,8 +38,7 @@ def parse_glossary_line(line: str) -> tuple[str, str, str] | None:
 class Chapter:
     index: int
     url: str
-    title_zh: str = ""
-    title_vi: str = ""
+    title: str = ""
     title_note: str = ""
     missing_fields: list[str] = field(default_factory=list)
     duplicate_of: int | None = None
@@ -56,16 +55,10 @@ class Manifest:
     source_url: str = ""
     title: str = ""
     author: str = ""
-    # Metadata bản gốc (tiếng Trung) crawl từ trang mục lục.
     description: str = ""
     cover_url: str = ""
-    # Tên file ảnh bìa đã tải về (nằm trong thư mục <data_dir>/<slug>/).
     cover_file: str = ""
-    # Metadata đã dịch sang tiếng Việt (dùng cho EPUB).
-    title_vi: str = ""
     title_note: str = ""
-    author_vi: str = ""
-    description_vi: str = ""
     metadata_missing: list[str] = field(default_factory=list)
     curated_fields: list[str] = field(default_factory=list)
     chapters: list[Chapter] = field(default_factory=list)
@@ -80,10 +73,7 @@ class Manifest:
                 "description": self.description,
                 "cover_url": self.cover_url,
                 "cover_file": self.cover_file,
-                "title_vi": self.title_vi,
                 "title_note": self.title_note,
-                "author_vi": self.author_vi,
-                "description_vi": self.description_vi,
                 "metadata_missing": self.metadata_missing,
                 "curated_fields": self.curated_fields,
                 "chapters": [asdict(c) for c in self.chapters],
@@ -120,28 +110,30 @@ class Storage:
         data = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         chapters = []
         for c in data.get("chapters", []):
+            # Backward compat: merge title_vi + title_zh (old) → title (new)
+            chapter_title = c.get("title", "") or c.get("title_vi", "") or c.get("title_zh", "")
             chapters.append(Chapter(
                 index=c.get("index", 0),
                 url=c.get("url", ""),
-                title_zh=c.get("title_zh", ""),
-                title_vi=c.get("title_vi", ""),
+                title=chapter_title,
                 title_note=c.get("title_note", ""),
                 missing_fields=list(c.get("missing_fields", []) or []),
                 duplicate_of=c.get("duplicate_of"),
                 last_action_status=c.get("last_action_status", ""),
             ))
+        # Backward compat: merge _vi fields (old) → title/author/description (new)
+        manifest_title = data.get("title", "") or data.get("title_vi", "")
+        manifest_author = data.get("author", "") or data.get("author_vi", "")
+        manifest_description = data.get("description", "") or data.get("description_vi", "")
         return Manifest(
             slug=data.get("slug", self.slug),
             source_url=data.get("source_url", ""),
-            title=data.get("title", ""),
-            author=data.get("author", ""),
-            description=data.get("description", ""),
+            title=manifest_title,
+            author=manifest_author,
+            description=manifest_description,
             cover_url=data.get("cover_url", ""),
             cover_file=data.get("cover_file", ""),
-            title_vi=data.get("title_vi", ""),
             title_note=data.get("title_note", ""),
-            author_vi=data.get("author_vi", ""),
-            description_vi=data.get("description_vi", ""),
             metadata_missing=list(data.get("metadata_missing", []) or []),
             curated_fields=list(data.get("curated_fields", []) or []),
             chapters=chapters,

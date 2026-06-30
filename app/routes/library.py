@@ -21,10 +21,23 @@ from .. import deps
 router = APIRouter()
 
 
-def slugify(value: str) -> str:
+_VN_CHAR_MAP = str.maketrans(
+    "àáảãạăằắẳẵặâầấẩẫậđèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵ"
+    "ÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬĐÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴ",
+    "aaaaaaaaaaaaaaaaadeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyy"
+    "AAAAAAAAAAAAAAAAADEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYY",
+)
+
+
+def vn_slugify(value: str) -> str:
+    value = value.translate(_VN_CHAR_MAP)
     value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
     value = re.sub(r"[^a-zA-Z0-9]+", "-", value).strip("-").lower()
     return value or "novel"
+
+
+def slugify(value: str) -> str:
+    return vn_slugify(value)
 
 
 def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
@@ -207,7 +220,8 @@ def create_ebook(
         except Exception:
             pass  # fallback: dùng slug từ name trống
 
-    slug = slugify(slug or name)
+    if not slug:
+        slug = vn_slugify(name)
     lib = deps.library()
     if slug in lib.ebooks:
         raise HTTPException(status_code=409, detail=f"Ebook '{slug}' đã tồn tại.")

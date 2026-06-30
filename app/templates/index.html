@@ -149,7 +149,7 @@
         <label class="ebook-card-select"><input type="checkbox" name="slugs" value="{{ ebook.slug }}" class="rounded border-border-light dark:border-border-dark"></label>
         <div class="ebook-card-body">
             <div class="ebook-card-head">
-                <a href="/ebooks/{{ ebook.slug }}" class="text-fg-light dark:text-fg-dark hover:underline">{{ ebook.name }}</a>
+                <a href="/ebooks/{{ ebook.slug }}" class="text-fg-light dark:text-fg-dark hover:underline">{{ ebook.cfg.novel.title or ebook.name }}</a>
                 {% if ebook.archived %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark">lưu trữ</span>{% endif %}
             </div>
             <div class="ebook-card-meta">{{ ebook.cfg.novel.author }} · <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ ebook.slug }}</code></div>
@@ -371,6 +371,23 @@ poll();
 setInterval(poll, 1500);
 
 function slugify(value) {
+    const vnMap = {
+        'à':'a','á':'a','ả':'a','ã':'a','ạ':'a','ă':'a','ằ':'a','ắ':'a','ẳ':'a','ẵ':'a','ặ':'a','â':'a','ầ':'a','ấ':'a','ẩ':'a','ẫ':'a','ậ':'a',
+        'đ':'d',
+        'è':'e','é':'e','ẻ':'e','ẽ':'e','ẹ':'e','ê':'e','ề':'e','ế':'e','ể':'e','ễ':'e','ệ':'e',
+        'ì':'i','í':'i','ỉ':'i','ĩ':'i','ị':'i',
+        'ò':'o','ó':'o','ỏ':'o','õ':'o','ọ':'o','ô':'o','ồ':'o','ố':'o','ổ':'o','ỗ':'o','ộ':'o','ơ':'o','ờ':'o','ớ':'o','ở':'o','ỡ':'o','ợ':'o',
+        'ù':'u','ú':'u','ủ':'u','ũ':'u','ụ':'u','ư':'u','ừ':'u','ứ':'u','ử':'u','ữ':'u','ự':'u',
+        'ỳ':'y','ý':'y','ỷ':'y','ỹ':'y','ỵ':'y',
+        'À':'A','Á':'A','Ả':'A','Ã':'A','Ạ':'A','Ă':'A','Ằ':'A','Ắ':'A','Ẳ':'A','Ẵ':'A','Ặ':'A','Â':'A','Ầ':'A','Ấ':'A','Ẩ':'A','Ẫ':'A','Ậ':'A',
+        'Đ':'D',
+        'È':'E','É':'E','Ẻ':'E','Ẽ':'E','Ẹ':'E','Ê':'E','Ề':'E','Ế':'E','Ể':'E','Ễ':'E','Ệ':'E',
+        'Ì':'I','Í':'I','Ỉ':'I','Ĩ':'I','Ị':'I',
+        'Ò':'O','Ó':'O','Ỏ':'O','Õ':'O','Ọ':'O','Ô':'O','Ồ':'O','Ố':'O','Ổ':'O','Ỗ':'O','Ộ':'O','Ơ':'O','Ờ':'O','Ớ':'O','Ở':'O','Ỡ':'O','Ợ':'O',
+        'Ù':'U','Ú':'U','Ủ':'U','Ũ':'U','Ụ':'U','Ư':'U','Ừ':'U','Ứ':'U','Ử':'U','Ữ':'U','Ự':'U',
+        'Ỳ':'Y','Ý':'Y','Ỷ':'Y','Ỹ':'Y','Ỵ':'Y'
+    };
+    value = value.replace(/[àáảãạăằắẳẵặâầấẩẫậđèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬĐÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴ]/g, function(c) { return vnMap[c] || c; });
     return value
         .normalize("NFKD")
         .replace(/[^\x00-\x7F]/g, "")

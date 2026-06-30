@@ -69,7 +69,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "type": "hachimimt",
         "model": "",
         "preset": "",
-        "source_language": "zh-CN",
+        "source_language": "",
         "target_language": "vi",
         "genre": "",
         "style": {"tone": "mượt, tự nhiên, có chất cổ trang", "pronoun_policy": "contextual", "title_mode": "creative", "han_viet_level": "balanced", "keep_paragraphs": True},

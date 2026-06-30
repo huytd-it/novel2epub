@@ -251,7 +251,7 @@ async def api_ebook_chapter_retranslate_title(
     """Dịch lại tiêu đề chương dùng nội dung đã dịch làm ngữ cảnh.
 
     Yêu cầu chương đã có bản dịch.
-    Trả JSON {title_vi, title_note, title_zh, title_description}.
+    Trả JSON {title_vi, title_note, title, title_description}.
     """
     cfg = deps.resolved_cfg(slug)
     try:
@@ -600,9 +600,9 @@ async def api_batch_export(slug: str, indexes: str = Form(""), source: str = For
             skipped.append(idx)
             continue
         if source == "raw":
-            items.append((idx, ch.title_zh, storage.read_raw(ch)))
+            items.append((idx, ch.title, storage.read_raw(ch)))
         else:
-            items.append((idx, ch.title_vi or ch.title_zh, storage.read_translated(ch)))
+            items.append((idx, ch.title, storage.read_translated(ch)))
 
     if not items:
         detail = "Không có chương nào đã crawl raw trong số đã chọn." if source == "raw" \
@@ -708,9 +708,9 @@ async def api_batch_import(
 
 @router.patch("/api/ebooks/{slug}/meta")
 async def api_patch_meta(request: Request, slug: str):
-    """Update manifest metadata fields (title_vi, author_vi, description_vi)."""
+    """Update manifest metadata fields (title, author, description)."""
     body = await request.json()
-    allowed = {"title_vi", "author_vi", "description_vi"}
+    allowed = {"title", "author", "description"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if not updates:
         raise HTTPException(status_code=400, detail="No valid fields to update.")

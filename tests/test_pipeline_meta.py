@@ -71,49 +71,42 @@ def test_step_fetch_toc_saves_metadata_no_content(tmp_path, monkeypatch):
     assert not storage.has_raw(manifest.chapters[0])
 
 
-def test_step_translate_meta_fills_vi(tmp_path, monkeypatch):
+def test_step_translate_meta_fills_from_config(tmp_path, monkeypatch):
     toc = TocResult(title="书名", author="作者", description="简介", chapters=[Chapter(index=1, url="http://x/1")])
     monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(toc))
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: _UpperTranslator())
+
+    cfg = _cfg(tmp_path)
+    cfg.novel.title = "Tên Việt"
+    cfg.novel.author = "Tác giả Việt"
+    pipeline.step_fetch_toc(cfg, lambda m: None)
+    pipeline.step_translate_meta(cfg, lambda m: None)
+
+    manifest = Storage(tmp_path, "t").load_manifest()
+    assert manifest.title == "Tên Việt"
+    assert manifest.author == "Tác giả Việt"
+
+
+def test_step_translate_meta_noop_when_no_title(tmp_path, monkeypatch):
+    toc = TocResult(title="书名", description="简介", chapters=[Chapter(index=1, url="http://x/1")])
+    monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(toc))
 
     cfg = _cfg(tmp_path)
     pipeline.step_fetch_toc(cfg, lambda m: None)
     pipeline.step_translate_meta(cfg, lambda m: None)
 
     manifest = Storage(tmp_path, "t").load_manifest()
-    assert manifest.title_vi == "VI:书名"
-    assert manifest.title_note == "note:tên truyện"
-    assert manifest.author_vi == "VI:作者"
-    assert manifest.description_vi == "VI:简介"
+    assert manifest.title == "书名"  # from TOC, not from config
 
 
-def test_step_translate_meta_noop_skips(tmp_path, monkeypatch):
-    toc = TocResult(title="书名", description="简介", chapters=[Chapter(index=1, url="http://x/1")])
-    monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(toc))
-
-    cfg = _cfg(tmp_path, translate_type="none")
-    pipeline.step_fetch_toc(cfg, lambda m: None)
-    pipeline.step_translate_meta(cfg, lambda m: None)
-
-    manifest = Storage(tmp_path, "t").load_manifest()
-    assert manifest.title_vi == ""
-    assert manifest.description_vi == ""
-
-
-def test_translate_meta_inplace_respects_force(tmp_path):
+def test_translate_meta_inplace_noop(tmp_path):
     from novel2epub.storage import Manifest
 
-    manifest = Manifest(slug="t", title="书名", title_vi="đã có")
+    manifest = Manifest(slug="t", title="Tên Truyện")
     tr = _UpperTranslator()
 
-    # không force + đã có -> không đổi
+    # _translate_meta_inplace no longer translates; always returns False
     assert pipeline._translate_meta_inplace(manifest, tr, is_noop=False, log=lambda m: None, force=False) is False
-    assert manifest.title_vi == "đã có"
-
-    # force -> dịch lại
-    assert pipeline._translate_meta_inplace(manifest, tr, is_noop=False, log=lambda m: None, force=True) is True
-    assert manifest.title_vi == "VI:书名"
-    assert manifest.title_note == "note:tên truyện"
+    assert manifest.title == "Tên Truyện"
 
 
 class _FlakyTranslator:
@@ -215,8 +208,8 @@ def test_step_build_inserts_glossary_footnotes(tmp_path):
     from novel2epub.storage import Manifest
 
     storage = Storage(tmp_path, "t")
-    ch = Chapter(index=1, url="http://x/1", title_vi="Chương 1")
-    storage.save_manifest(Manifest(slug="t", title_vi="Truyện", chapters=[ch]))
+    ch = Chapter(index=1, url="http://x/1", title="Chương 1")
+    storage.save_manifest(Manifest(slug="t", title="Truyện", chapters=[ch]))
     storage.write_translated(ch, "Trang Quốc rộng lớn.")
     storage.write_glossary_file("names.txt", "庄国 = Trang Quốc | nước hư cấu\n")
 
@@ -237,11 +230,10 @@ def test_build_epub_uses_vi_meta_and_cover(tmp_path):
     cover.write_bytes(b"\x89PNG\r\n\x1a\n")  # header PNG tối thiểu
     manifest = Manifest(
         slug="t",
-        title="书名",
-        title_vi="Tên Việt",
-        author_vi="Tác giả Việt",
-        description_vi="Mô tả Việt",
-        chapters=[Chapter(index=1, url="http://x/1", title_vi="Chương 1")],
+        title="Tên Việt",
+        author="Tác giả Việt",
+        description="Mô tả Việt",
+        chapters=[Chapter(index=1, url="http://x/1", title="Chương 1")],
     )
     out = build_epub(
         manifest,

@@ -81,31 +81,27 @@ def test_manifest_roundtrip_keeps_metadata(tmp_path):
     manifest = Manifest(
         slug="slug",
         source_url="http://x/book",
-        title="原书名",
-        author="某作者",
-        description="简介",
+        title="Tên Việt",
+        author="Tác giả Việt",
+        description="Giới thiệu",
         cover_url="http://x/c.jpg",
         cover_file="cover.jpg",
-        title_vi="Tên Việt",
-        author_vi="Tác giả Việt",
-        description_vi="Giới thiệu",
         metadata_missing=["author"],
-        curated_fields=["title_vi"],
-        chapters=[Chapter(index=1, url="http://x/1", title_zh="第一章", missing_fields=["title"], duplicate_of=1, last_action_status="skipped")],
+        curated_fields=["title"],
+        chapters=[Chapter(index=1, url="http://x/1", title="第一章", missing_fields=["title"], duplicate_of=1, last_action_status="skipped")],
     )
     storage.save_manifest(manifest)
 
     loaded = storage.load_manifest()
-    assert loaded.description == "简介"
+    assert loaded.description == "Giới thiệu"
     assert loaded.cover_url == "http://x/c.jpg"
     assert loaded.cover_file == "cover.jpg"
-    assert loaded.title_vi == "Tên Việt"
-    assert loaded.author_vi == "Tác giả Việt"
-    assert loaded.description_vi == "Giới thiệu"
+    assert loaded.title == "Tên Việt"
+    assert loaded.author == "Tác giả Việt"
     assert loaded.source_url == "http://x/book"
     assert loaded.metadata_missing == ["author"]
-    assert loaded.curated_fields == ["title_vi"]
-    assert loaded.chapters[0].title_zh == "第一章"
+    assert loaded.curated_fields == ["title"]
+    assert loaded.chapters[0].title == "第一章"
     assert loaded.chapters[0].missing_fields == ["title"]
     assert loaded.chapters[0].duplicate_of == 1
     assert loaded.chapters[0].last_action_status == "skipped"

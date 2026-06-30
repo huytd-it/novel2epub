@@ -237,7 +237,7 @@ class LibreTranslateConfig:
     """
     base_url: str = "http://localhost:5000"
     api_key: str = ""
-    source_language: str = "zh"
+    source_language: str = ""
     target_language: str = "vi"
 
 
@@ -250,7 +250,7 @@ class TranslateConfig:
     # Để trống = dùng model_key mặc định từ hachimimt config.
     model: str = ""
     profile: str = "traditional_cn_novel"
-    source_language: str = "zh-CN"
+    source_language: str = ""
     target_language: str = "vi"
     genre: str = ""
     style: TranslationStyleConfig = field(default_factory=TranslationStyleConfig)
@@ -511,7 +511,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         model=translate_model,
         preset=preset_name,
         profile=translate_raw.get("profile", "traditional_cn_novel"),
-        source_language=translate_raw.get("source_language", "zh-CN"),
+        source_language=translate_raw.get("source_language", ""),
         target_language=translate_raw.get("target_language", "vi"),
         genre=translate_raw.get("genre", ""),
         style=style,

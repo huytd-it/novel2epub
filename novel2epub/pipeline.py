@@ -176,10 +176,10 @@ def _strip_repeated_title(content: str, ch: Chapter) -> str:
     gây trùng với tiêu đề H1 do epub_builder sinh ra. So khớp sau khi bỏ khoảng
     trắng để tránh lệ thuộc vào dấu cách.
     """
-    if not ch.title_zh:
+    if not ch.title:
         return content
     norm = lambda s: re.sub(r"\s+", "", s)
-    target = norm(ch.title_zh)
+    target = norm(ch.title)
     lines = content.splitlines()
     for i, line in enumerate(lines):
         if not line.strip():
@@ -229,8 +229,7 @@ def _build_meta(cfg: Config, ch: Chapter, translated: str, warnings: list[str]) 
     return {
         "chapter": ch.stem,
         "index": ch.index,
-        "title_zh": ch.title_zh,
-        "title_vi": ch.title_vi,
+        "title": ch.title,
         "translator": cfg.translate.type,
         "model": cfg.translate.openai.model,
         "profile": cfg.translate.profile,
@@ -253,7 +252,7 @@ def _quality_warnings(raw: str, translated: str) -> list[str]:
 
 
 def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, force_meta: bool = False) -> Manifest:
-    """Lấy mục lục mới (nếu được) và trộn vào manifest cache, giữ title_vi cũ.
+    """Lấy mục lục mới (nếu được) và trộn vào manifest cache, giữ title cũ.
 
     Nếu không lấy được mục lục mới mà đã có cache => dùng lại cache. Nếu vừa
     không lấy được vừa chưa có cache => báo lỗi.
@@ -277,22 +276,22 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, for
         else:
             manifest.source_url = toc.source_url or manifest.source_url or cfg.crawl.toc_url
             if force_meta or not manifest.title:
-                manifest.title = cfg.novel.title or toc.title or manifest.title
+                manifest.title = cfg.novel.title or manifest.title
             if force_meta or not manifest.author:
-                manifest.author = cfg.novel.author or toc.author or manifest.author
+                manifest.author = cfg.novel.author or manifest.author
             if force_meta or not manifest.description:
                 manifest.description = toc.description or manifest.description
             if force_meta or not manifest.cover_url:
                 manifest.cover_url = toc.cover_url or manifest.cover_url
             manifest.metadata_missing = toc.metadata_missing
 
-            # Trộn danh sách chương: giữ lại title_vi của các chương đã dịch
+            # Trộn danh sách chương: giữ lại title của các chương đã dịch
             old_chapters_by_url = {ch.url: ch for ch in manifest.chapters}
             merged_chapters = []
             for new_ch in toc.chapters:
                 old_ch = old_chapters_by_url.get(new_ch.url)
                 if old_ch:
-                    new_ch.title_vi = old_ch.title_vi or new_ch.title_vi
+                    new_ch.title = old_ch.title or new_ch.title
                 merged_chapters.append(new_ch)
             manifest.chapters = mark_duplicate_chapters(merged_chapters)
 
@@ -587,49 +586,33 @@ def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False, sho
 def _translate_meta_inplace(
     manifest: Manifest, translator, is_noop: bool, log: LogFn, *, force: bool
 ) -> bool:
-    """Dịch title/author/description -> *_vi tại chỗ. Trả True nếu có thay đổi."""
-    if is_noop:
-        return False
-    changed = False
-    if manifest.title and (force or not manifest.title_vi):
-        title, note = translator.translate_title(manifest.title, kind="tên truyện")
-        manifest.title_vi = _clean_title(title)
-        manifest.title_note = note
-        log(f"[meta] Tên truyện: {manifest.title_vi}")
-        if note:
-            log(f"[meta]   Giải thích: {note}")
-        changed = True
-    if manifest.author and (force or not manifest.author_vi):
-        manifest.author_vi = translator.translate(manifest.author).strip()
-        log(f"[meta] Tác giả: {manifest.author_vi}")
-        changed = True
-    if manifest.description and (force or not manifest.description_vi):
-        manifest.description_vi = translator.translate(manifest.description).strip()
-        log("[meta] Đã dịch mô tả truyện.")
-        changed = True
-    return changed
+    """Gán metadata tiếng Việt từ config vào manifest. Trả True nếu có thay đổi."""
+    return False
 
 
 def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False, should_cancel: CancelFn | None = None) -> Manifest:
-    """Dịch metadata truyện (title/author/description) sang tiếng Việt bằng AI."""
+    """Gán metadata tiếng Việt từ config vào manifest."""
     _emit_config_warnings(cfg, log)
-    _emit_translate_config(cfg, log, feature="DỊCH METADATA")
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
         raise RuntimeError("Chưa có manifest. Hãy chạy 'Lấy mục lục' hoặc 'crawl' trước.")
 
-    is_noop = cfg.translate.type.lower() == "none"
-    if is_noop:
-        log("[meta] translate.type = none — bỏ qua dịch metadata.")
-        return manifest
+    changed = False
+    if cfg.novel.title and (force or not manifest.title):
+        manifest.title = cfg.novel.title
+        log(f"[meta] Tên truyện: {manifest.title}")
+        changed = True
+    if cfg.novel.author and (force or not manifest.author):
+        manifest.author = cfg.novel.author
+        log(f"[meta] Tác giả: {manifest.author}")
+        changed = True
 
-    translator = RateLimited(make_translator(cfg.translate), cfg.translate.delay_seconds)
-    if _translate_meta_inplace(manifest, translator, is_noop, log, force=force):
+    if changed:
         storage.save_manifest(manifest)
         log("[meta] Hoàn tất.")
     else:
-        log("[meta] Không có gì cần dịch (đã có sẵn — dùng 'force' để dịch lại).")
+        log("[meta] Không có gì cần cập nhật (đã có sẵn — dùng 'force' để ghi đè).")
     return manifest
 
 
@@ -642,13 +625,13 @@ def _batch_translate_titles(
 ) -> dict[str, str]:
     """Dịch hàng loạt tiêu đề chương bằng 1 lần gọi translate_batch.
 
-    Chỉ dịch các tiêu đề chưa có `title_vi`. Trả dict mapping title_zh → title_vi.
+    Chỉ dịch các tiêu đề chưa có `title`. Trả dict mapping title → title.
     Fallback về dịch từng cái nếu translator không hỗ trợ batch.
     """
     inner = translator.inner if hasattr(translator, "inner") else translator
     if not hasattr(inner, "translate_titles"):
         return {}
-    to_translate = [ch.title_zh for ch in chapters if ch.title_zh and not ch.title_vi]
+    to_translate = [ch.title for ch in chapters if ch.title]
     if not to_translate:
         return {}
     log(f"[dịch] Đang dịch hàng loạt {len(to_translate)} tiêu đề…")
@@ -671,7 +654,7 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     """
     had_translated = storage.has_translated(ch)
     raw = storage.read_raw(ch)
-    log(f"[dịch] ({i}/{total}) → {ch.title_zh or ch.stem} ({len(raw)} ký tự)")
+    log(f"[dịch] ({i}/{total}) → {ch.title or ch.stem} ({len(raw)} ký tự)")
     started = time.monotonic()
     title_changed = False
     pieces: list[str] = []
@@ -683,18 +666,18 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
         pieces.append(chunk_text)
 
     try:
-        if ch.title_zh and not is_noop:
-            if title_lookup and ch.title_zh in title_lookup:
-                ch.title_vi = _clean_title(title_lookup[ch.title_zh])
+        if ch.title and not is_noop:
+            if title_lookup and ch.title in title_lookup:
+                ch.title = _clean_title(title_lookup[ch.title])
                 ch.title_note = ""
                 title_changed = True
             else:
                 log(f"[dịch]   ({i}/{total}) → đang dịch tiêu đề…")
                 title, note = _run_with_heartbeat(
                     log, f"[dịch]   ({i}/{total})",
-                    lambda: translator.translate_title(ch.title_zh, kind="tên chương"),
+                    lambda: translator.translate_title(ch.title, kind="tên chương"),
                 )
-                ch.title_vi = _clean_title(title)
+                ch.title = _clean_title(title)
                 ch.title_note = note
                 title_changed = True
         _run_with_heartbeat(
@@ -729,7 +712,7 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     # File đã được _on_chunk ghi từng phần rồi; chỉ cần đánh dấu complete.
     storage.mark_translated_complete(ch, meta_extra=meta)
     ch.last_action_status = "replaced" if had_translated and force else "completed"
-    _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title_vi or ch.title_zh or ch.stem, elapsed, translated, warnings)
+    _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title or ch.stem, elapsed, translated, warnings)
     return ch.last_action_status, title_changed
 
 
@@ -909,11 +892,11 @@ def step_translate_toc_selected(
     log(f"[toc] Xử lý {total} tiêu đề chương.")
     if force:
         for ch in selected:
-            ch.title_vi = ""
+            ch.title = ""
             ch.title_note = ""
-        log("[toc] Đã xoá title_vi cũ (force).")
+        log("[toc] Đã xoá title cũ (force).")
 
-    to_translate = [ch for ch in selected if ch.title_zh and not ch.title_vi]
+    to_translate = [ch for ch in selected if ch.title]
     if not to_translate:
         log("[toc] Không có tiêu đề nào cần dịch (đã có sẵn — dùng 'force' để dịch lại).")
         return manifest
@@ -921,8 +904,8 @@ def step_translate_toc_selected(
     title_lookup = _batch_translate_titles(translator, to_translate, log)
     changed = 0
     for ch in selected:
-        if ch.title_zh and ch.title_zh in title_lookup:
-            ch.title_vi = _clean_title(title_lookup[ch.title_zh])
+        if ch.title and ch.title in title_lookup:
+            ch.title = _clean_title(title_lookup[ch.title])
             ch.title_note = ""
             changed += 1
 
@@ -963,7 +946,7 @@ def step_rewrite_chapters(
         return manifest
 
     for i, ch in enumerate(selected, 1):
-        log(f"[rewrite] ({i}/{total}) {ch.title_vi or ch.title_zh or ch.stem}")
+        log(f"[rewrite] ({i}/{total}) {ch.title or ch.stem}")
         raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
         current = storage.read_translated(ch)
         try:
@@ -1121,7 +1104,7 @@ def step_review_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> dict
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
     translated = storage.read_translated(ch)
     glossary = glossary_ai.load_glossary(cfg.translate)
-    log(f"[review] Đang phân tích chương {ch.index}: {ch.title_vi or ch.title_zh or ch.stem}")
+    log(f"[review] Đang phân tích chương {ch.index}: {ch.title or ch.stem}")
     report = glossary_ai.evaluate_translation(cfg.ai.openai, [(raw, translated)], glossary)
     _update_chapter_meta(storage, ch, ai_review={"report": report, "generated_at": _now_iso()})
     log(glossary_ai.format_evaluation_text(report))
@@ -1138,7 +1121,7 @@ def step_suggest_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> lis
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
     translated = storage.read_translated(ch) if storage.has_translated(ch) else ""
     existing = glossary_ai.load_glossary(cfg.translate)
-    log(f"[gợi ý] Đang phân tích chương {ch.index}: {ch.title_vi or ch.title_zh or ch.stem}")
+    log(f"[gợi ý] Đang phân tích chương {ch.index}: {ch.title or ch.stem}")
     suggestions = glossary_ai.suggest_glossary(cfg.ai.openai, [(raw, translated)], existing)
     _update_chapter_meta(storage, ch, ai_suggestions=suggestions)
     log(f"[gợi ý] Hoàn tất. {len(suggestions)} đề xuất. Mở lại trang chương để chọn áp dụng.")
@@ -1159,7 +1142,7 @@ def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> str
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
     current = storage.read_translated(ch)
     glossary = glossary_ai.load_glossary(cfg.translate)
-    log(f"[rewrite] Đang biên tập lại chương {ch.index}: {ch.title_vi or ch.title_zh or ch.stem}")
+    log(f"[rewrite] Đang biên tập lại chương {ch.index}: {ch.title or ch.stem}")
     rewritten = glossary_ai.rewrite_chapter(cfg.ai.openai, raw, current, glossary)
     if not rewritten.strip():
         log("[rewrite] AI trả về rỗng — giữ nguyên, không tạo bản nháp.")
@@ -1222,14 +1205,14 @@ TIÊU ĐỀ: <bản dịch tiếng Việt>
 GIẢI THÍCH: <để trống nếu tên đã rõ nghĩa, tự nhiên; chỉ điền nếu cần giải thích thêm cho người đọc>
 
 --- Tiêu đề gốc (chữ Hán) ---
-{title_zh}
+{title}
 
 --- Tóm tắt nội dung đã dịch (để tham khảo ngữ cảnh) ---
 {summary}"""
 
 _RETRANSLATE_TITLE_SIMPLE_PROMPT = """Dịch tiêu đề sau sang tiếng Việt. Chỉ trả về bản dịch, không giải thích:
 
-{title_zh}"""
+{title}"""
 
 _TITLE_DESCRIPTION_PROMPT = """Bạn là biên tập viên truyện dịch Trung → Việt.
 
@@ -1244,7 +1227,7 @@ Nguyên tắc:
 {glossary}
 
 --- Tiêu đề gốc (chữ Hán) ---
-{title_zh}
+{title}
 
 --- Tiêu đề đã dịch ---
 {title_vi}
@@ -1278,7 +1261,7 @@ def _generate_title_description(
         summary = summary.rsplit("\n", 1)[0] or summary
 
     prompt = _TITLE_DESCRIPTION_PROMPT.format(
-        title_zh=title_zh,
+        title=title_zh,
         title_vi=title_vi,
         summary=summary,
         glossary=_format_glossary(glossary),
@@ -1308,7 +1291,7 @@ def step_retranslate_title(
 ) -> dict:
     """Dịch lại tiêu đề chương dùng nội dung đã dịch làm ngữ cảnh.
 
-    Trả dict {title_vi, title_note, title_zh, title_description}.
+    Trả dict {title_vi, title_note, title, title_description}.
     engine: "openai" | "google" | "hachimimt" (default: cfg.translate.type)
     """
 
@@ -1327,8 +1310,8 @@ def step_retranslate_title(
     if ch is None:
         raise RuntimeError(f"Không tìm thấy chương {index}.")
 
-    if not ch.title_zh:
-        raise RuntimeError(f"Chương {index} không có tiêu đề gốc (title_zh).")
+    if not ch.title:
+        raise RuntimeError(f"Chương {index} không có tiêu đề (title).")
 
     if not storage.has_translated(ch):
         raise RuntimeError(f"Chương {index} chưa có bản dịch. Hãy dịch chương trước.")
@@ -1343,18 +1326,18 @@ def step_retranslate_title(
     # Use custom prompt if provided, otherwise use default
     if custom_prompt:
         prompt = custom_prompt.format(
-            title_zh=ch.title_zh,
+            title=ch.title,
             summary=summary,
             glossary=_format_glossary(glossary),
         )
     else:
         prompt = _RETRANSLATE_TITLE_PROMPT.format(
-            title_zh=ch.title_zh,
+            title=ch.title,
             summary=summary,
             glossary=_format_glossary(glossary),
         )
 
-    log(f"[dịch-tiêu-đề] Chương {index}: {ch.title_zh} (engine: {selected_engine})")
+    log(f"[dịch-tiêu-đề] Chương {index}: {ch.title} (engine: {selected_engine})")
     
     if selected_engine == "openai":
         # OpenAI supports prompt-based translation with context
@@ -1371,7 +1354,7 @@ def step_retranslate_title(
     elif selected_engine in ("google", "hachimimt"):
         # Google/HachimiMT: literal translation without context
         # Use simple prompt for these engines
-        simple_prompt = _RETRANSLATE_TITLE_SIMPLE_PROMPT.format(title_zh=ch.title_zh)
+        simple_prompt = _RETRANSLATE_TITLE_SIMPLE_PROMPT.format(title=ch.title)
         translator = make_translator(cfg.translate)
         title_vi = translator.translate(simple_prompt)
         title_vi = _clean_title(title_vi)
@@ -1380,17 +1363,17 @@ def step_retranslate_title(
     else:
         raise RuntimeError(f"Engine không hỗ trợ: {selected_engine!r}")
 
-    ch.title_vi = title_vi
+    ch.title = title_vi
     ch.title_note = title_note
     storage.save_manifest(manifest)
     log(f"[dịch-tiêu-đề] → {title_vi}" + (f" ({title_note})" if title_note else ""))
 
-    result = {"title_vi": title_vi, "title_note": title_note, "title_zh": ch.title_zh}
+    result = {"title_vi": title_vi, "title_note": title_note, "title": ch.title}
     
     # Generate description if requested
     if generate_description and selected_engine == "openai":
         description = _generate_title_description(
-            cfg, ch.title_zh, title_vi, translated, glossary, log
+            cfg, ch.title, title_vi, translated, glossary, log
         )
         if description:
             ch.title_note = description
@@ -1433,13 +1416,13 @@ def step_build_selected(
     for ch in chapters:
         if storage.has_translated(ch):
             md = storage.read_translated(ch)
-            title = ch.title_vi or ch.title_zh or f"Chương {ch.index}"
+            title = ch.title or f"Chương {ch.index}"
             md, fns = _footnotes.annotate(md, notes)
             if fns:
                 footnotes_by_stem[ch.stem] = fns
         elif storage.has_raw(ch):
             md = storage.read_raw(ch)
-            title = ch.title_zh or f"Chương {ch.index}"
+            title = ch.title or f"Chương {ch.index}"
         else:
             continue
         chapters_html.append((ch, title, md))

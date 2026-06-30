@@ -126,7 +126,7 @@ class TestScraplingFetchToc:
             crawler = ScraplingCrawler(cfg)
             result = crawler.fetch_toc()
             assert len(result.chapters) == 3
-            assert result.chapters[0].title_zh == "Chương 1"
+            assert result.chapters[0].title == "Chương 1"
             assert result.title == "Test Novel"
             assert result.author == "Author"
 
@@ -168,7 +168,7 @@ class TestScraplingFetchChapter:
                 scrapling=ScraplingConfig(mode="stealthy"),
             )
             crawler = ScraplingCrawler(cfg)
-            ch = Chapter(index=1, url="http://example.com/ch1.html", title_zh="第一章")
+            ch = Chapter(index=1, url="http://example.com/ch1.html", title="第一章")
             text = crawler.fetch_chapter(ch)
             assert "Nội dung chương 1" in text
 

@@ -237,3 +237,69 @@ def search_all(
 
     response.results.sort(key=lambda r: (r.source_name, r.title))
     return response
+
+
+def search_all_stream(
+    presets: dict[str, SourcePreset],
+    query: str,
+    *,
+    source_names: list[str] | None = None,
+    enrich: bool = False,
+    max_workers: int = 5,
+):
+    """Tìm kiếm song song, yields dict per source khi xong.
+
+    Yields:
+        {"event": "source_results", "data": {"source_name": ..., "results": [...]}}
+        {"event": "source_error",    "data": {"source_name": ..., "error": ...}}
+        {"event": "done",            "data": {"total": ...}}
+    """
+    if source_names:
+        active = {n: p for n, p in presets.items() if n in source_names and p.search_url_pattern}
+    else:
+        active = {n: p for n, p in presets.items() if p.search_url_pattern}
+
+    if not active:
+        yield {"event": "done", "data": {"total": 0}}
+        return
+
+    def _search_one(name: str, preset: SourcePreset) -> tuple[str, list[SearchResult], str]:
+        try:
+            searcher = SourceSearcher(preset)
+            results = searcher.search(query)
+            return name, results, ""
+        except Exception as e:
+            return name, [], str(e)
+
+    total = 0
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(active))) as executor:
+        futures = {
+            executor.submit(_search_one, name, preset): name
+            for name, preset in active.items()
+        }
+        for future in as_completed(futures):
+            name, results, error = future.result()
+            if error:
+                yield {"event": "source_error", "data": {"source_name": name, "error": error}}
+            else:
+                if enrich:
+                    preset = presets.get(name)
+                    for r in results:
+                        if preset:
+                            _enrich_metadata(r, preset)
+                total += len(results)
+                items = [
+                    {
+                        "title": r.title,
+                        "author": r.author,
+                        "url": r.url,
+                        "source_name": r.source_name,
+                        "cover_url": r.cover_url,
+                        "chapter_count": r.chapter_count,
+                        "description": r.description,
+                    }
+                    for r in results
+                ]
+                yield {"event": "source_results", "data": {"source_name": name, "results": items}}
+
+    yield {"event": "done", "data": {"total": total}}

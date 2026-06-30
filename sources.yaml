@@ -1,5 +1,5 @@
 biquge:
-  engine: http
+  engine: scrapling
   url: https://www.biquge.co/
   domains: biquge,biqu,bqg,biqudu,biqun,xbiqug,biquwo,biqooge,paoshu8,ddxs,b520
   chapter_link_pattern: /\w+/\d+\.html$
@@ -33,7 +33,7 @@ biquge:
     - '.*使用百度.*'
     - '.*记住流蓝.*'
 shuhaige:
-  engine: http
+  engine: scrapling
   url: https://www.shuhaige.net/
   domains: shuhaige.net
   chapter_link_pattern: /\w+/\d+\.html$
@@ -59,7 +59,7 @@ shuhaige:
   impersonate: ''
   concurrency_cap: 0
 bqg128:
-  engine: http
+  engine: scrapling
   url: https://www.bqg128.com/
   domains: bqg128.com
   chapter_link_pattern: /\w+/\d+\.html$
@@ -85,7 +85,7 @@ bqg128:
   impersonate: ''
   concurrency_cap: 0
 xbiquge:
-  engine: http
+  engine: scrapling
   url: http://www.xbiqugu.la/
   domains: xbiqugu.la,xbiquge.la,xbiquge.so
   chapter_link_pattern: /\w+/\d+\.html$
@@ -119,7 +119,7 @@ xbiquge:
     - '.*使用百度.*'
     - '.*记住流蓝.*'
 aixdzs:
-  engine: http
+  engine: scrapling
   url: https://www.aixdzs.com/
   domains: aixdzs.com,aixdzs.org
   chapter_link_pattern: .*
@@ -144,6 +144,12 @@ aixdzs:
   network_idle: true
   impersonate: ''
   concurrency_cap: 0
+  search_url_pattern: "https://www.aixdzs.com/search/?q={query}"
+  search_result_selector: ".search-item, .book-item"
+  search_title_selector: ".book-title, h3"
+  search_link_selector: "a[href*='/novel/']"
+  search_cover_selector: "img"
+  max_search_results: 5
 69shuba:
   engine: scrapling
   url: https://www.69shuba.com/
@@ -170,8 +176,14 @@ aixdzs:
   network_idle: true
   impersonate: ''
   concurrency_cap: 0
+  search_url_pattern: "https://www.69shuba.com/search.htm?keyword={query}"
+  search_result_selector: ".search-item"
+  search_title_selector: "h3 a"
+  search_link_selector: "a[href*='/book/']"
+  search_cover_selector: "img"
+  max_search_results: 5
 biqudu:
-  engine: crawl4ai
+  engine: scrapling
   url: https://www.biqudu.net/
   domains: biqudu.net
   chapter_link_pattern: .*
@@ -197,7 +209,7 @@ biqudu:
   impersonate: ''
   concurrency_cap: 0
 qidian:
-  engine: crawl4ai
+  engine: scrapling
   url: https://www.qidian.com/
   domains: qidian.com
   chapter_link_pattern: .*
@@ -223,7 +235,7 @@ qidian:
   impersonate: ''
   concurrency_cap: 0
 jjwxc:
-  engine: crawl4ai
+  engine: scrapling
   url: https://www.jjwxc.net/
   domains: jjwxc.net
   chapter_link_pattern: .*
@@ -249,7 +261,7 @@ jjwxc:
   impersonate: ''
   concurrency_cap: 0
 ciweimao:
-  engine: crawl4ai
+  engine: scrapling
   url: https://www.ciweimao.com/
   domains: ciweimao.com
   chapter_link_pattern: .*
@@ -275,7 +287,7 @@ ciweimao:
   impersonate: ''
   concurrency_cap: 0
 hetushu:
-  engine: crawl4ai
+  engine: scrapling
   url: https://www.hetushu.com/
   domains: hetushu.com,hetubook.com
   chapter_link_pattern: .*
@@ -301,7 +313,7 @@ hetushu:
   impersonate: ''
   concurrency_cap: 0
 sto9:
-  engine: crawl4ai
+  engine: scrapling
   url: https://www.sto9.com/
   domains: sto9.com
   chapter_link_pattern: .*
@@ -326,8 +338,14 @@ sto9:
   network_idle: true
   impersonate: ''
   concurrency_cap: 0
+  search_url_pattern: "https://sto9.com/search/?q={query}"
+  search_result_selector: ".book-item, .search-result"
+  search_title_selector: ".book-title, h3 a"
+  search_link_selector: "a[href*='/book/']"
+  search_cover_selector: "img"
+  max_search_results: 5
 shuqi:
-  engine: crawl4ai
+  engine: scrapling
   url: https://www.shuqi.com/
   domains: shuqi.com
   chapter_link_pattern: .*
@@ -353,7 +371,7 @@ shuqi:
   impersonate: ''
   concurrency_cap: 0
 qqread:
-  engine: crawl4ai
+  engine: scrapling
   url: https://book.qq.com/
   domains: read.qq.com,book.qq.com
   chapter_link_pattern: .*
@@ -379,7 +397,7 @@ qqread:
   impersonate: ''
   concurrency_cap: 0
 baike:
-  engine: crawl4ai
+  engine: scrapling
   url: https://baike.baidu.com/
   domains: baike.baidu.com
   chapter_link_pattern: .*

@@ -45,6 +45,7 @@
         <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs">
             <tr>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tên</th>
+                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Engine</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">URL</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Selector nội dung</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Pattern link</th>
@@ -57,6 +58,10 @@
         {% for name, p in presets.items() %}
         <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
             <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ name }}</td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
+                {% if p.engine == "scrapling" %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">scrapling</span>
+                {% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark">{{ p.engine }}</span>{% endif %}
+            </td>
             <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
                 {% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener" class="text-link-light dark:text-link-dark hover:underline">{{ p.url }}</a>
                 {% else %}<span class="text-muted-light dark:text-muted-dark text-sm">—</span>{% endif %}
@@ -149,6 +154,7 @@
         <div class="canvas-body">
             <form method="post" action="/sources" id="preset-form" class="space-y-3">
                 <input type="hidden" name="original_name" id="original_name" value="">
+                <input type="hidden" name="engine" value="scrapling">
                 <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
                     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Thông tin cơ bản</legend>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
@@ -269,7 +275,6 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("p-impersonate").value = btn.dataset.impersonate;
             document.getElementById("p-user_agent").value = btn.dataset.user_agent;
             document.getElementById("p-concurrency_cap").value = btn.dataset.concurrency_cap;
-            syncEngine();
             openCanvas('preset-canvas');
         });
     });

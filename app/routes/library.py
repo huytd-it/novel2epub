@@ -4,13 +4,15 @@ from __future__ import annotations
 import re
 import unicodedata
 
+import json
+
 from fastapi import APIRouter, Form, HTTPException
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from novel2epub.config import CrawlConfig
 from novel2epub.config_writer import add_ebook, remove_ebook
 from novel2epub.crawler import ScraplingCrawler
-from novel2epub.search import search_all
+from novel2epub.search import search_all, search_all_stream
 from novel2epub.sources import load_presets
 
 from .. import deps
@@ -87,13 +89,28 @@ def preview_ebook_api(
         return JSONResponse({"error": str(e)}, status_code=400)
 
 
+@router.get("/library/ebooks/search/sources")
+def search_sources():
+    """Trả về danh sách source đã cấu hình tìm kiếm."""
+    presets = load_presets(deps.SOURCES_PATH)
+    sources = []
+    for name, p in presets.items():
+        if p.search_url_pattern:
+            sources.append({
+                "name": name,
+                "search_url": p.search_url_pattern,
+                "domains": p.domains,
+            })
+    return JSONResponse({"sources": sources})
+
+
 @router.post("/library/ebooks/search")
 def search_ebooks(
     query: str = Form(""),
     sources: str = Form(""),
     limit: int = Form(5),
 ):
-    """API: tìm kiếm tiểu thuyết trên các source đã cấu hình search, trả JSON."""
+    """API: tìm kiếm tiểu thuyết — SSE stream, mỗi nguồn xong gửi ngay."""
     query = query.strip()
     if not query:
         return JSONResponse({"error": "Thiếu từ khóa tìm kiếm."}, status_code=400)
@@ -101,31 +118,17 @@ def search_ebooks(
     presets = load_presets(deps.SOURCES_PATH)
     source_names = [s.strip() for s in sources.split(",") if s.strip()] if sources else None
 
-    try:
-        response = search_all(
+    def generate():
+        for event in search_all_stream(
             presets,
             query,
             source_names=source_names,
             enrich=True,
             max_workers=5,
-        )
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        ):
+            yield f"event: {event['event']}\ndata: {json.dumps(event['data'], ensure_ascii=False)}\n\n"
 
-    results = []
-    for r in response.results[:limit * len(presets)]:
-        results.append({
-            "title": r.title,
-            "author": r.author,
-            "url": r.url,
-            "source_name": r.source_name,
-            "cover_url": r.cover_url,
-            "chapter_count": r.chapter_count,
-            "description": r.description,
-        })
-
-    errors = [{"source": e.source_name, "message": e.message} for e in response.errors]
-    return JSONResponse({"results": results, "errors": errors})
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @router.post("/library/ebooks")

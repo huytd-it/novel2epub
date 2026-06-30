@@ -108,10 +108,12 @@
         <h3 class="text-base font-semibold m-0">Tìm kiếm tiểu thuyết</h3>
     </div>
     <div class="flex flex-wrap gap-4 items-end" style="align-items:end">
-        <label class="flex-1 min-w-[200px] flex flex-col gap-1 text-sm">Tên truyện <input type="text" id="search_query" placeholder="Nhập tên tiểu thuyết cần tìm..." class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></label>
+        <input type="text" id="search_query" placeholder="Nhập tên tiểu thuyết cần tìm..." class="w-100 rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
         <button type="button" id="search-btn" class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">🔍 Tìm kiếm</button>
     </div>
+    <div id="search-sources" class="text-xs text-muted-light dark:text-muted-dark mt-1 flex flex-wrap gap-x-3 gap-y-0.5"></div>
     <span id="search-status" class="text-sm text-muted-light dark:text-muted-dark"></span>
+    <div id="search-source-status" class="flex flex-wrap gap-2 mt-1"></div>
     <div id="search-results" class="hidden">
         <div id="search-results-list"></div>
     </div>
@@ -534,8 +536,27 @@ document.addEventListener("DOMContentLoaded", function () {
     var searchBtn = document.getElementById("search-btn");
     var searchQuery = document.getElementById("search_query");
     var searchStatus = document.getElementById("search-status");
+    var searchSources = document.getElementById("search-sources");
+    var searchSourceStatus = document.getElementById("search-source-status");
     var searchResults = document.getElementById("search-results");
     var searchResultsList = document.getElementById("search-results-list");
+
+    // Load danh sách source search khi trang load
+    async function loadSearchSources() {
+        try {
+            var res = await fetch("/library/ebooks/search/sources");
+            var data = await res.json();
+            if (data.sources && data.sources.length > 0) {
+                var html = "Nguồn tìm: ";
+                data.sources.forEach(function (s, i) {
+                    html += '<code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">' + escapeHtml(s.name) + '</code>';
+                    if (i < data.sources.length - 1) html += ", ";
+                });
+                searchSources.innerHTML = html;
+            }
+        } catch (e) {}
+    }
+    loadSearchSources();
 
     searchBtn.addEventListener("click", doSearch);
     searchQuery.addEventListener("keydown", function (e) {
@@ -548,66 +569,182 @@ document.addEventListener("DOMContentLoaded", function () {
             searchStatus.textContent = "⚠️ Nhập tên tiểu thuyết trước.";
             return;
         }
+
+        // Lấy danh sách nguồn search
+        var sourceNames = [];
+        try {
+            var srcRes = await fetch("/library/ebooks/search/sources");
+            var srcData = await srcRes.json();
+            if (srcData.sources) sourceNames = srcData.sources.map(function (s) { return s.name; });
+        } catch (e) {}
+
         searchBtn.disabled = true;
         searchStatus.textContent = "⏳ Đang tìm kiếm...";
-        searchResults.style.display = "none";
+        searchSourceStatus.innerHTML = "";
+        searchResults.style.display = "";
+
+        // Hiển thị loading spinner cho từng nguồn ngay lập tức
+        searchResultsList.innerHTML = "";
+        var sectionMap = {};
+        var globalIdx = 0;
+        sourceNames.forEach(function (sn) {
+            var section = document.createElement("div");
+            section.style.marginBottom = "0.5em";
+            section.innerHTML =
+                '<div style="padding:0.4em 0;font-weight:600;font-size:0.95em;border-bottom:1px solid var(--tw-border,#e5e5e5);margin-bottom:0.4em">' +
+                escapeHtml(sn) +
+                ' <span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-surface-alt-light dark:bg-surface-alt-dark text-muted-light dark:text-muted-dark">' +
+                '<svg class="animate-spin -ml-0.5 mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>' +
+                'đang tìm…</span></div>' +
+                '<div class="source-results" style="padding-left:0.5em"></div>';
+            searchResultsList.appendChild(section);
+            sectionMap[sn] = { el: section, resultsEl: section.querySelector(".source-results"), idx: 0 };
+        });
+
+        // Nếu không có source nào, thử với "*"
+        if (sourceNames.length === 0) sourceNames = ["*"];
+
+        var totalResults = 0;
 
         try {
             var formData = new FormData();
             formData.append("query", query);
+            formData.append("sources", sourceNames.join(","));
+
             var res = await fetch("/library/ebooks/search", {
                 method: "POST",
                 body: formData,
             });
-            var data = await res.json();
 
-            if (data.error) {
-                searchStatus.textContent = "⚠️ " + data.error;
-                return;
-            }
+            var reader = res.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = "";
 
-            if (!data.results || data.results.length === 0) {
-                searchStatus.textContent = "Không tìm thấy kết quả nào.";
-                if (data.errors && data.errors.length > 0) {
-                    searchStatus.textContent += " (" + data.errors.map(function (e) { return e.source + ": " + e.message; }).join("; ") + ")";
+            while (true) {
+                var { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                // Parse SSE lines
+                var lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+                var eventType = "";
+                var eventData = "";
+
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i];
+                    if (line.startsWith("event: ")) {
+                        eventType = line.substring(7).trim();
+                    } else if (line.startsWith("data: ")) {
+                        eventData = line.substring(6);
+                    } else if (line === "" && eventType && eventData) {
+                        // Full event received
+                        try {
+                            var parsed = JSON.parse(eventData);
+                            handleSearchEvent(eventType, parsed);
+                        } catch (e) {}
+                        eventType = "";
+                        eventData = "";
+                    }
                 }
-                return;
             }
 
-            searchResultsList.innerHTML = "";
-            data.results.forEach(function (r, idx) {
-                var card = document.createElement("div");
-                card.className = "ebook-card";
-                card.style.marginBottom = "0.5em";
-                var coverHtml = r.cover_url ? '<img src="' + escapeHtml(r.cover_url) + '" alt="bìa" style="max-height:80px;margin-right:1em;border-radius:4px">' : '';
-                card.innerHTML =
-                    '<div class="ebook-card-body" style="display:flex;align-items:center">' +
-                    coverHtml +
-                    '<div style="flex:1">' +
-                    '<div><strong>' + escapeHtml(r.title) + '</strong> <span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark">' + escapeHtml(r.source_name) + '</span></div>' +
-                    '<div class="text-muted-light dark:text-muted-dark text-sm">' + (r.author ? 'Tác giả: ' + escapeHtml(r.author) : '') +
-                    (r.chapter_count ? ' · ' + r.chapter_count + ' chương' : '') + '</div>' +
-                    '<div class="text-muted-light dark:text-muted-dark" style="font-size:0.85em;word-break:break-all">' + escapeHtml(r.url) + '</div>' +
-                    '</div>' +
-                    '<button type="button" class="select-result-btn px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark" data-idx="' + idx + '">Chọn</button>' +
-                    '</div>';
-                searchResultsList.appendChild(card);
-            });
+            // Process remaining buffer
+            if (eventType && eventData) {
+                try {
+                    var parsed = JSON.parse(eventData);
+                    handleSearchEvent(eventType, parsed);
+                } catch (e) {}
+            }
 
-            searchResults.style.display = "";
-            searchStatus.textContent = "Tìm thấy " + data.results.length + " kết quả.";
+            searchStatus.textContent = totalResults > 0
+                ? "Tìm thấy " + totalResults + " kết quả."
+                : "Không tìm thấy kết quả nào.";
 
-            searchResultsList.querySelectorAll(".select-result-btn").forEach(function (btn) {
-                btn.addEventListener("click", function () {
-                    var idx = parseInt(btn.dataset.idx);
-                    var r = data.results[idx];
-                    openAddEbookModal(r);
-                });
-            });
         } catch (e) {
             searchStatus.textContent = "⚠️ Lỗi: " + e.message;
         } finally {
             searchBtn.disabled = false;
+        }
+
+        function handleSearchEvent(eventType, data) {
+            if (eventType === "source_results") {
+                var sn = data.source_name;
+                var sec = sectionMap[sn];
+                if (!sec) {
+                    // Tạo section mới nếu source chưa có
+                    sec = { idx: 0 };
+                    sec.el = document.createElement("div");
+                    sec.el.style.marginBottom = "0.5em";
+                    sec.el.innerHTML =
+                        '<div style="padding:0.4em 0;font-weight:600;font-size:0.95em;border-bottom:1px solid var(--tw-border,#e5e5e5);margin-bottom:0.4em">' +
+                        escapeHtml(sn) + '</div><div class="source-results" style="padding-left:0.5em"></div>';
+                    searchResultsList.appendChild(sec.el);
+                    sec.resultsEl = sec.el.querySelector(".source-results");
+                    sectionMap[sn] = sec;
+                }
+
+                // Thay header: badge OK + count
+                var count = data.results ? data.results.length : 0;
+                var headerEl = sec.el.children[0];
+                headerEl.innerHTML = escapeHtml(sn) +
+                    ' <span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">' +
+                    count + ' kết quả</span>';
+
+                // Render results
+                if (data.results) {
+                    data.results.forEach(function (r) {
+                        totalResults++;
+                        var idx = globalIdx++;
+                        var coverHtml = r.cover_url ? '<img src="' + escapeHtml(r.cover_url) + '" alt="bìa" style="max-height:56px;margin-right:0.6em;border-radius:4px;flex-shrink:0">' : '';
+                        var metaParts = [];
+                        if (r.author) metaParts.push("Tác giả: " + escapeHtml(r.author));
+                        if (r.chapter_count) metaParts.push(r.chapter_count + " chương");
+                        var descHtml = r.description
+                            ? '<div class="text-muted-light dark:text-muted-dark text-xs mt-0.5 leading-relaxed">' + escapeHtml(r.description).substring(0, 200) + (r.description.length > 200 ? '…' : '') + '</div>'
+                            : '';
+                        var card = document.createElement("div");
+                        card.className = "ebook-card";
+                        card.style.marginBottom = "0.4em";
+                        card.innerHTML =
+                            '<div class="ebook-card-body">' +
+                            '<div style="display:flex;align-items:flex-start">' +
+                            coverHtml +
+                            '<div style="flex:1">' +
+                            '<div><strong>' + escapeHtml(r.title) + '</strong></div>' +
+                            '<div class="text-muted-light dark:text-muted-dark text-sm">' + metaParts.join(' · ') + '</div>' +
+                            '<div class="text-muted-light dark:text-muted-dark" style="font-size:0.82em;word-break:break-all">' + escapeHtml(r.url) + '</div>' +
+                            descHtml +
+                            '</div>' +
+                            '<button type="button" class="select-result-btn px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark" data-idx="' + idx + '" style="flex-shrink:0;margin-left:0.5em">Chọn</button>' +
+                            '</div></div>';
+                        sec.resultsEl.appendChild(card);
+
+                        // Bind click
+                        card.querySelector(".select-result-btn").addEventListener("click", function () {
+                            openAddEbookModal(r);
+                        });
+                    });
+                }
+
+            } else if (eventType === "source_error") {
+                var sn = data.source_name;
+                var sec = sectionMap[sn];
+                if (!sec) return;
+                var headerEl = sec.el.children[0];
+                headerEl.innerHTML = escapeHtml(sn) +
+                    ' <span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi</span>' +
+                    ' <span class="text-xs text-muted-light dark:text-muted-dark">(' + escapeHtml(data.error) + ')</span>';
+
+            } else if (eventType === "done") {
+                // Xóa các source spinner còn lại (chưa có event)
+                sourceNames.forEach(function (sn) {
+                    var sec = sectionMap[sn];
+                    if (sec && sec.el.querySelector("svg")) {
+                        sec.el.remove();
+                    }
+                });
+            }
         }
     }
 
@@ -621,7 +758,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         fillCell('pv-title', result.title || "");
         fillCell('pv-author', result.author || "");
-        fillCell('pv-desc', "");
+        fillCell('pv-desc', result.description || "");
         document.getElementById('pv-chapters').textContent = "📄 " + (result.chapter_count || 0) + " chương";
         var coverEl = document.getElementById("pv-cover");
         if (result.cover_url) {

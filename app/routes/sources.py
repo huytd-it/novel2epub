@@ -80,6 +80,7 @@ def sources_page(request: Request, edit: str = ""):
 @router.post("/sources")
 def save_source_preset(
     name: str = Form(""),
+    engine: str = Form("scrapling"),
     url: str = Form(""),
     domains: str = Form(""),
     chapter_link_pattern: str = Form(".*"),
@@ -110,6 +111,7 @@ def save_source_preset(
     if name:
         kwargs = dict(
             name=name,
+            engine=engine,
             url=url.strip(),
             domains=domains.strip(),
             chapter_link_pattern=chapter_link_pattern,

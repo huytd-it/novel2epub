@@ -123,7 +123,7 @@ def library():
 
 
 def presets():
-    return load_presets(WORKSPACE_PATH)
+    return load_presets(SOURCES_PATH)
 
 
 def resolve_path(base: Path, value: str) -> str:

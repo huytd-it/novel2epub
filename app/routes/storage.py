@@ -68,7 +68,7 @@ def storage_archive(slug: str):
     if not storage.root.exists():
         raise HTTPException(status_code=404, detail="Chưa có dữ liệu cho ebook này.")
     config_snippet = yaml.safe_dump(
-        {"novel": asdict(cfg.novel), "crawl": {"toc_url": cfg.crawl.toc_url, "engine": cfg.crawl.engine}},
+        {"novel": asdict(cfg.novel), "crawl": {"toc_url": cfg.crawl.toc_url}},
         allow_unicode=True,
     )
     out_path = Path(tempfile.gettempdir()) / f"n2e-archive-{slug}.zip"

@@ -44,7 +44,7 @@ def test_step_fetch_toc_saves_metadata_no_content(tmp_path, monkeypatch):
         cover_url="",  # để trống tránh tải ảnh thật
         chapters=[Chapter(index=1, url="http://x/1"), Chapter(index=2, url="http://x/2")],
     )
-    monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(toc))
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(toc))
 
     cfg = _cfg(tmp_path)
     pipeline.step_fetch_toc(cfg, lambda m: None)

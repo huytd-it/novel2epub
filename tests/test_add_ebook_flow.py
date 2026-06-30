@@ -69,17 +69,15 @@ def test_preview_fetch_error_returns_400(monkeypatch):
 # ---------------- create endpoint ----------------
 
 
-def test_create_ebook_uses_scrapling_engine(monkeypatch, tmp_path):
+def test_create_ebook_calls_add_ebook(monkeypatch, tmp_path):
     from app.routes import library
 
     app, client = _client(monkeypatch)
 
     captured = {}
 
-    def fake_add_ebook(path, slug, *, name="", title="", author="", toc_url="",
-                       engine="scrapling"):
-        captured.update(path=str(path), slug=slug, name=name, title=title,
-                        engine=engine)
+    def fake_add_ebook(path, slug, *, name="", title="", author="", toc_url=""):
+        captured.update(path=str(path), slug=slug, name=name, title=title)
 
     monkeypatch.setattr(library, "add_ebook", fake_add_ebook)
 
@@ -91,7 +89,6 @@ def test_create_ebook_uses_scrapling_engine(monkeypatch, tmp_path):
     assert res.status_code == 303
     assert res.headers["location"] == "/ebooks/ten-truyen/settings"
     assert captured["slug"] == "ten-truyen"
-    assert captured["engine"] == "scrapling"
 
 
 def test_create_ebook_missing_url_rejected(monkeypatch):

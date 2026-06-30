@@ -51,7 +51,7 @@ def _toc(n):
 
 
 def test_step_crawl_selected_stops_when_cancelled(tmp_path, monkeypatch):
-    monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(_toc(5)))
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(_toc(5)))
 
     cfg = _cfg(tmp_path)
     seen = []
@@ -75,7 +75,7 @@ def test_step_crawl_selected_stops_when_cancelled(tmp_path, monkeypatch):
 
 
 def test_step_translate_selected_stops_when_cancelled(tmp_path, monkeypatch):
-    monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(_toc(5)))
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(_toc(5)))
     monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: _UpperTranslator())
 
     cfg = _cfg(tmp_path)

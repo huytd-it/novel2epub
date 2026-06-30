@@ -1,0 +1,406 @@
+biquge:
+  engine: http
+  url: https://www.biquge.co/
+  domains: biquge,biqu,bqg,biqudu,biqun,xbiqug,biquwo,biqooge,paoshu8,ddxs,b520
+  chapter_link_pattern: /\w+/\d+\.html$
+  content_selector: '#content'
+  toc_selector: '#list'
+  chapter_title_selector: .bookname h1
+  title_selector: '#info h1'
+  author_selector: ''
+  desc_selector: '#intro'
+  cover_selector: '#fmimg img'
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+  strip_patterns:
+    - '^记住.*网址'
+    - '^请收藏'
+    - '^上一章'
+    - '^下一章'
+    - '.*百度搜索.*'
+    - '.*使用百度.*'
+    - '.*记住流蓝.*'
+shuhaige:
+  engine: http
+  url: https://www.shuhaige.net/
+  domains: shuhaige.net
+  chapter_link_pattern: /\w+/\d+\.html$
+  content_selector: '#content'
+  toc_selector: '#list'
+  chapter_title_selector: .bookname h1
+  title_selector: '#info h1'
+  author_selector: ''
+  desc_selector: '#intro'
+  cover_selector: '#fmimg img'
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: a#pager_next
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+bqg128:
+  engine: http
+  url: https://www.bqg128.com/
+  domains: bqg128.com
+  chapter_link_pattern: /\w+/\d+\.html$
+  content_selector: '#content'
+  toc_selector: '#list'
+  chapter_title_selector: .bookname h1
+  title_selector: '#info h1'
+  author_selector: ''
+  desc_selector: '#intro'
+  cover_selector: '#fmimg img'
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+xbiquge:
+  engine: http
+  url: http://www.xbiqugu.la/
+  domains: xbiqugu.la,xbiquge.la,xbiquge.so
+  chapter_link_pattern: /\w+/\d+\.html$
+  content_selector: '#content'
+  toc_selector: '#list'
+  chapter_title_selector: .bookname h1
+  title_selector: '#info h1'
+  author_selector: ''
+  desc_selector: '#intro'
+  cover_selector: '#fmimg img'
+  encoding: gbk
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+  strip_patterns:
+    - '^记住.*网址'
+    - '^请收藏'
+    - '^上一章'
+    - '^下一章'
+    - '.*百度搜索.*'
+    - '.*使用百度.*'
+    - '.*记住流蓝.*'
+aixdzs:
+  engine: http
+  url: https://www.aixdzs.com/
+  domains: aixdzs.com,aixdzs.org
+  chapter_link_pattern: .*
+  content_selector: .content
+  toc_selector: '#i-chapter'
+  chapter_title_selector: ''
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  encoding: utf-8
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+69shuba:
+  engine: scrapling
+  url: https://www.69shuba.com/
+  domains: 69shuba.com,69shu.com,69yuedu.net
+  chapter_link_pattern: /txt/\d+/\d+
+  content_selector: .txtnav
+  toc_selector: ''
+  chapter_title_selector: ''
+  title_selector: meta[property="og:novel:book_name"]
+  author_selector: meta[property="og:novel:author"]
+  desc_selector: meta[property="og:description"]
+  cover_selector: meta[property="og:image"]
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.5
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: true
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+biqudu:
+  engine: crawl4ai
+  url: https://www.biqudu.net/
+  domains: biqudu.net
+  chapter_link_pattern: .*
+  content_selector: '#content'
+  toc_selector: ''
+  chapter_title_selector: ''
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.5
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+qidian:
+  engine: crawl4ai
+  url: https://www.qidian.com/
+  domains: qidian.com
+  chapter_link_pattern: .*
+  content_selector: .read-content
+  toc_selector: ''
+  chapter_title_selector: ''
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 2.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+jjwxc:
+  engine: crawl4ai
+  url: https://www.jjwxc.net/
+  domains: jjwxc.net
+  chapter_link_pattern: .*
+  content_selector: ''
+  toc_selector: ''
+  chapter_title_selector: ''
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  encoding: gb2312
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 2.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+ciweimao:
+  engine: crawl4ai
+  url: https://www.ciweimao.com/
+  domains: ciweimao.com
+  chapter_link_pattern: .*
+  content_selector: ''
+  toc_selector: ''
+  chapter_title_selector: ''
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 2.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+hetushu:
+  engine: crawl4ai
+  url: https://www.hetushu.com/
+  domains: hetushu.com,hetubook.com
+  chapter_link_pattern: .*
+  content_selector: '#content'
+  toc_selector: ''
+  chapter_title_selector: ''
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.5
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+sto9:
+  engine: crawl4ai
+  url: https://www.sto9.com/
+  domains: sto9.com
+  chapter_link_pattern: .*
+  content_selector: ''
+  toc_selector: '#allchapter'
+  chapter_title_selector: ''
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+shuqi:
+  engine: crawl4ai
+  url: https://www.shuqi.com/
+  domains: shuqi.com
+  chapter_link_pattern: .*
+  content_selector: ''
+  toc_selector: ''
+  chapter_title_selector: ''
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.5
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+qqread:
+  engine: crawl4ai
+  url: https://book.qq.com/
+  domains: read.qq.com,book.qq.com
+  chapter_link_pattern: .*
+  content_selector: ''
+  toc_selector: ''
+  chapter_title_selector: ''
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.5
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+baike:
+  engine: crawl4ai
+  url: https://baike.baidu.com/
+  domains: baike.baidu.com
+  chapter_link_pattern: .*
+  content_selector: .para
+  toc_selector: ''
+  chapter_title_selector: ''
+  title_selector: .lemmaTitle_list h1
+  author_selector: ''
+  desc_selector: .para
+  cover_selector: .summary-pic img
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 0.5
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0

@@ -147,7 +147,8 @@ def main(argv: list[str] | None = None) -> int:
 
         config_path = args.config
         import os
-        sources_path = os.path.join(os.path.dirname(config_path) if os.path.dirname(config_path) else ".", "novel2epub.yaml")
+        config_dir = os.path.dirname(config_path) if os.path.dirname(config_path) else "."
+        sources_path = os.path.join(config_dir, "sources.yaml")
         if not os.path.exists(sources_path):
             sources_path = config_path
 

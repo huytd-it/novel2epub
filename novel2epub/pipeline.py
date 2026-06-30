@@ -15,7 +15,7 @@ from typing import Callable
 
 from .config import Config, CrawlRetryConfig
 from .crawl_throttle import AdaptiveConcurrency, DomainRateLimiter
-from .crawler import is_rate_limited, make_crawler
+from .crawler import ScraplingCrawler, is_rate_limited
 from .epub_builder import build_epub
 from .storage import Chapter, Manifest, Storage
 from .toc import mark_duplicate_chapters
@@ -57,7 +57,7 @@ def _emit_crawl_config(cfg: Config, log: LogFn) -> None:
     """Echo config thực sự dùng cho tính năng CRAWL."""
     c = cfg.crawl
     s = c.scrapling
-    log(f"[config] CRAWL dùng: engine={c.engine} scrapling.mode={s.mode} "
+    log(f"[config] CRAWL dùng: scrapling.mode={s.mode} "
         f"| toc_url={_fmt(c.toc_url)} "
         f"| content_selector={_fmt(c.content_selector, '(auto OG/body)')} "
         f"| chapter_link_pattern={c.chapter_link_pattern} "
@@ -443,7 +443,7 @@ def _crawl_chapters_parallel(cfg: Config, storage: Storage, chapters: list[Chapt
     def _get_crawler():
         crawler = getattr(local, "crawler", None)
         if crawler is None:
-            crawler = make_crawler(cfg.crawl)
+            crawler = ScraplingCrawler(cfg.crawl)
             with instances_lock:
                 instances.append(crawler)
             local.crawler = crawler
@@ -522,7 +522,7 @@ def step_crawl_selected(
     if cfg.crawl.ai_fallback:
         cfg.crawl._openai_fallback = cfg.translate.openai
         _emit_translate_config(cfg, log, feature="CRAWL AI fallback")
-    crawler = make_crawler(cfg.crawl)
+    crawler = ScraplingCrawler(cfg.crawl)
     try:
         manifest = _refresh_manifest(cfg, storage, crawler, log)
 
@@ -574,7 +574,7 @@ def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False, sho
     if cfg.crawl.ai_fallback:
         cfg.crawl._openai_fallback = cfg.translate.openai
         _emit_translate_config(cfg, log, feature="CRAWL AI fallback")
-    crawler = make_crawler(cfg.crawl)
+    crawler = ScraplingCrawler(cfg.crawl)
     try:
         manifest = _refresh_manifest(cfg, storage, crawler, log, force_meta=force)
     finally:

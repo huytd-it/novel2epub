@@ -154,16 +154,17 @@ def _enrich_metadata(result: SearchResult, preset: SourcePreset) -> SearchResult
     """Fetch trang mục lục để lấy metadata đầy đủ (author, chapters, description)."""
     try:
         from .config import CrawlConfig
-        from .crawler import make_crawler
+        from .crawler import ScraplingCrawler
 
         crawl_cfg = CrawlConfig(toc_url=result.url)
         overrides = preset.crawl_overrides()
         overrides.pop("chapter_link_pattern", None)
+        overrides.pop("engine", None)
         for k, v in overrides.items():
             if hasattr(crawl_cfg, k) and v not in ("", None):
                 setattr(crawl_cfg, k, v)
 
-        crawler = make_crawler(crawl_cfg)
+        crawler = ScraplingCrawler(crawl_cfg)
         try:
             toc = crawler.fetch_toc()
         finally:

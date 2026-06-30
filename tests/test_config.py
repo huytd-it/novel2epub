@@ -166,7 +166,6 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
 
     cfg_a = load_config(path, "a")
     assert cfg_a.novel.title == "A"
-    assert cfg_a.crawl.engine == "scrapling"          # từ defaults (không override)
     assert cfg_a.crawl.scrapling.mode == "stealthy"   # override từ ebook a
     assert cfg_a.crawl.content_selector == "#default"  # kế thừa defaults
     assert cfg_a.crawl.toc_url == "https://a"
@@ -176,7 +175,6 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
     assert load_config(path).novel.slug == "a"
     # Ebook 'b' chỉ override toc_url, mọi thứ khác từ defaults.
     cfg_b = load_config(path, "b")
-    assert cfg_b.crawl.engine == "scrapling"
     assert cfg_b.crawl.content_selector == "#default"
 
 

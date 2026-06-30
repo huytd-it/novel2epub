@@ -148,7 +148,7 @@ def test_step_crawl_selected_caps_concurrency_to_source_default(tmp_path, monkey
     gate.set()  # không cần giữ luồng lâu, chỉ cần đếm đỉnh điểm gần đúng
 
     monkeypatch.setattr(
-        pipeline, "make_crawler", lambda c: _SlowCrawler(_toc(10), counter, lock, gate)
+        pipeline, "ScraplingCrawler", lambda c: _SlowCrawler(_toc(10), counter, lock, gate)
     )
 
     cfg = Config(

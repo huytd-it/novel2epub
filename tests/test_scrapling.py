@@ -1,4 +1,4 @@
-"""Tests cho ScraplingCrawler engine — make_crawler, fetch_toc, fetch_chapter."""
+"""Tests cho ScraplingCrawler — fetch_toc, fetch_chapter."""
 from __future__ import annotations
 
 import sys
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from novel2epub.config import CrawlConfig, ScraplingConfig
-from novel2epub.crawler import ScraplingCrawler, make_crawler
+from novel2epub.crawler import ScraplingCrawler
 
 
 class TestScraplingImport:
@@ -16,12 +16,12 @@ class TestScraplingImport:
         cfg = CrawlConfig(toc_url="http://example.com/toc")
         with patch.dict(sys.modules, {"scrapling": None, "scrapling.fetchers": None}):
             with pytest.raises(ImportError, match="scrapling"):
-                make_crawler(cfg)
+                ScraplingCrawler(cfg)
 
 
-class TestMakeCrawlerScrapling:
-    def test_make_crawler_scrapling_returns_scrapling_crawler(self):
-        """make_crawler(engine='scrapling') trả về ScraplingCrawler."""
+class TestScraplingInstantiation:
+    def test_creates_scrapling_crawler(self):
+        """ScraplingCrawler khởi tạo được với config mặc định."""
         mock_fetchers_module = MagicMock()
         mock_fetchers_module.Fetcher = MagicMock()
         mock_fetchers_module.StealthyFetcher = MagicMock()
@@ -29,33 +29,8 @@ class TestMakeCrawlerScrapling:
 
         with patch.dict(sys.modules, {"scrapling": MagicMock(), "scrapling.fetchers": mock_fetchers_module}):
             cfg = CrawlConfig(toc_url="http://example.com/toc")
-            crawler = make_crawler(cfg)
-            from novel2epub.crawler import ScraplingCrawler
+            crawler = ScraplingCrawler(cfg)
             assert isinstance(crawler, ScraplingCrawler)
-
-    def test_make_crawler_rejects_http(self):
-        """engine='http' bị từ chối với thông báo rõ ràng."""
-        cfg = CrawlConfig(toc_url="http://example.com/toc", engine="http")
-        with pytest.raises(ValueError, match="đã bị loại bỏ"):
-            make_crawler(cfg)
-
-    def test_make_crawler_rejects_crawl4ai(self):
-        """engine='crawl4ai' bị từ chối."""
-        cfg = CrawlConfig(toc_url="http://example.com/toc", engine="crawl4ai")
-        with pytest.raises(ValueError, match="đã bị loại bỏ"):
-            make_crawler(cfg)
-
-    def test_make_crawler_rejects_firecrawl(self):
-        """engine='firecrawl' bị từ chối."""
-        cfg = CrawlConfig(toc_url="http://example.com/toc", engine="firecrawl")
-        with pytest.raises(ValueError, match="đã bị loại bỏ"):
-            make_crawler(cfg)
-
-    def test_make_crawler_invalid_engine_message(self):
-        """Error message cho engine không hợp lệ."""
-        cfg = CrawlConfig(toc_url="http://example.com/toc", engine="invalid")
-        with pytest.raises(ValueError, match="scrapling"):
-            make_crawler(cfg)
 
 
 def _make_mock_page(html_links=None, meta_tags=None):
@@ -140,6 +115,7 @@ class TestScraplingFetchChapter:
         page = MagicMock()
         content_node = MagicMock()
         content_node.text = "Nội dung chương 1.\n\nĐoạn thứ hai."
+        content_node.get_all_text = MagicMock(return_value="Nội dung chương 1.\n\nĐoạn thứ hai.")
         content_node.css = MagicMock(return_value=[])
 
         def mock_css(selector):

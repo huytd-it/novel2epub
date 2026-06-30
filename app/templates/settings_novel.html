@@ -18,6 +18,15 @@
             {% endif %}
         </label>
     </div>
+    <div class="grid grid-cols-1 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> Mô tả
+            <textarea name="description" rows="3"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 leading-relaxed {% if not is_default(cfg.novel.description, 'novel', 'description') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">{{ cfg.novel.description }}</textarea>
+            {% if is_default(cfg.novel.description, 'novel', 'description') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: ""</span>
+            {% endif %}
+        </label>
+    </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
         <label class="flex flex-col gap-1 text-sm min-w-0"> Ngôn ngữ
             <select name="language"
@@ -94,6 +103,7 @@
 <pre class="m-0"><code class="text-xs">novel:
   title: {{ cfg.novel.title }}
   author: {{ cfg.novel.author }}
+  description: {{ cfg.novel.description }}
   language: {{ cfg.novel.language }}
   publisher: {{ cfg.novel.publisher }}
   pubdate: {{ cfg.novel.pubdate }}

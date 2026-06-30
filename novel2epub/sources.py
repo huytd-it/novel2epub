@@ -1,6 +1,6 @@
 """Thư viện 'site preset' dùng lại: gom các field crawl đặc thù theo website
-(selector, pattern, engine...) để tái sử dụng khi thêm ebook mới hoặc cập nhật
-nguồn của một ebook. Không chứa `toc_url`/`api_key` vì đó là đặc thù từng truyện.
+(selector, pattern...) để tái sử dụng khi thêm ebook mới hoặc cập nhật
+nguồn của một ebook. Không chứa `toc_url` vì đó là đặc thù từng truyện.
 
 Lưu trong khối `sources:` của file gộp novel2epub.yaml. Đọc–ghi round-trip để
 giữ comment người dùng tự thêm.
@@ -29,7 +29,7 @@ def _yaml() -> YAML:
 @dataclass
 class SourcePreset:
     name: str
-    engine: str = "http"
+    engine: str = "scrapling"
     url: str = ""
     domains: str = ""
     chapter_link_pattern: str = r".*"
@@ -49,13 +49,14 @@ class SourcePreset:
     next_page_selector: str = ""
     next_page_url_pattern: str = ""
     max_pages_per_chapter: int = 10
-    # ----- chỉ dùng cho engine = "scrapling" -----
+    # Regex lines matching these patterns sẽ bị xoá khỏi text chương (loại bỏ ads/junk).
+    strip_patterns: list[str] = field(default_factory=list)
     scrapling_mode: str = "stealthy"
     solve_cloudflare: bool = False
     network_idle: bool = True
     impersonate: str = ""
     # Trần song song hóa cứng cho nguồn này (xem CrawlConfig.concurrency_cap).
-    # 0 = dùng mặc định theo engine/scrapling_mode.
+    # 0 = dùng mặc định theo scrapling_mode.
     concurrency_cap: int = 0
     # ----- search configuration -----
     search_url_pattern: str = ""
@@ -67,12 +68,12 @@ class SourcePreset:
     max_search_results: int = 5
 
     def crawl_overrides(self) -> dict[str, Any]:
-        """Dict áp lên nhánh `crawl` của config (bỏ `name`, `domains`)."""
+        """Dict áp lên nhánh `crawl` của config (bỏ name, url, domains,
+        engine, và các field search_*).."""
         data = asdict(self)
-        data.pop("name", None)
-        data.pop("url", None)
-        data.pop("domains", None)
-        return data
+        for key in ("name", "url", "domains", "engine"):
+            data.pop(key, None)
+        return {k: v for k, v in data.items() if not k.startswith("search_")}
 
     def __post_init__(self) -> None:
         # Tự suy `domains` từ `url` khi để trống, để detect_preset vẫn dùng được.
@@ -108,12 +109,18 @@ def _coerce(name: str, value: Any) -> Any:
 
 
 def load_presets(path: str | Path) -> dict[str, SourcePreset]:
+    """Đọc file sources YAML standalone. File chứa trực tiếp các preset
+    (không có key `sources:` bọc ngoài). Tương thích ngược: nếu file có
+    key `sources:` thì vẫn đọc được."""
     path = Path(path)
     if not path.exists():
         return {}
     raw = _yaml().load(path.read_text(encoding="utf-8")) or {}
+    # Hỗ trợ cả 2 format: standalone (raw = {name: preset, ...}) và
+    # legacy có wrapper `sources:` (raw = {sources: {name: preset, ...}}).
+    items = raw.get("sources") or raw
     presets: dict[str, SourcePreset] = {}
-    for name, item in (raw.get("sources") or {}).items():
+    for name, item in items.items():
         data = {k: _coerce(k, v) for k, v in dict(item).items() if k in _FIELD_NAMES}
         data["name"] = name
         presets[name] = SourcePreset(**data)
@@ -154,23 +161,16 @@ def detect_preset(url: str, presets: dict[str, SourcePreset]) -> str | None:
 
 
 def save_presets(path: str | Path, presets: dict[str, SourcePreset]) -> None:
+    """Ghi file sources YAML standalone — mỗi preset là top-level key."""
     path = Path(path)
-    data: CommentedMap
-    if path.exists():
-        loaded = _yaml().load(path.read_text(encoding="utf-8"))
-        data = loaded if isinstance(loaded, CommentedMap) else CommentedMap()
-    else:
-        data = CommentedMap()
-    sources = CommentedMap()
+    data = CommentedMap()
     for name, preset in presets.items():
         item = CommentedMap()
-        # Lưu toàn bộ field của SourcePreset ngoại trừ name.
         for k, v in asdict(preset).items():
             if k == "name":
                 continue
             item[k] = v
-        sources[name] = item
-    data["sources"] = sources
+        data[name] = item
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         _yaml().dump(data, f)

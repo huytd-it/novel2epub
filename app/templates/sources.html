@@ -3,16 +3,8 @@
 {% block content %}
 
 <style>
-/* Local styles cho sources: field-hint, canvas, custom form patterns */
+/* Local styles cho sources: canvas, custom form patterns */
 .modal-backdrop[hidden] { display: none !important; }
-.field-hint {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 1rem; height: 1rem; border-radius: 50%; font-size: 0.7rem; font-weight: 700;
-    background: #e5e5e5; color: #777; cursor: help;
-    vertical-align: middle; margin-left: 0.2rem; line-height: 1; flex-shrink: 0;
-}
-.dark .field-hint { background: #2e3338; color: #9aa2ad; }
-
 .canvas-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; justify-content: flex-end; z-index: 40; opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s ease; }
 .canvas-backdrop.open { opacity: 1; visibility: visible; }
 .canvas-backdrop[hidden] { display: none; }
@@ -45,7 +37,7 @@
         <a class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/sources/export">Export tất cả (.yaml)</a>
     </div>
 </div>
-<p class="text-sm text-muted-light dark:text-muted-dark mb-3">Preset gom selector/pattern theo từng website để dùng lại khi thêm ebook hoặc cập nhật nguồn. Lưu trong <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ sources_path }}</code>. Không chứa <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">toc_url</code> (đặc thù từng truyện). Engine: <strong>http</strong> = requests+BS4, <strong>crawl4ai</strong> = trình duyệt/JS, <strong>scrapling</strong> = stealth/anti-bot.</p>
+<p class="text-sm text-muted-light dark:text-muted-dark mb-3">Preset gom selector/pattern theo từng website để dùng lại khi thêm ebook hoặc cập nhật nguồn. Lưu trong <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ sources_path }}</code>. Không chứa <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">toc_url</code> (đặc thù từng truyện). Engine: <strong>scrapling</strong> = stealth/anti-bot (mặc định).</p>
 
 {% if presets %}
 <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
@@ -54,7 +46,6 @@
             <tr>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tên</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">URL</th>
-                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Engine</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Selector nội dung</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Pattern link</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Đang dùng bởi</th>
@@ -69,12 +60,6 @@
             <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
                 {% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener" class="text-link-light dark:text-link-dark hover:underline">{{ p.url }}</a>
                 {% else %}<span class="text-muted-light dark:text-muted-dark text-sm">—</span>{% endif %}
-            </td>
-            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
-                {% if p.engine == "http" %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">http</span>
-                {% elif p.engine == "crawl4ai" %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">crawl4ai</span>
-                {% elif p.engine == "scrapling" %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">scrapling</span>
-                {% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark">{{ p.engine }}</span>{% endif %}
             </td>
             <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ p.content_selector }}</code></td>
             <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ p.chapter_link_pattern }}</code></td>
@@ -94,7 +79,7 @@
                 <div class="inline-flex gap-1.5 items-center flex-wrap">
                     <button type="button" class="btn-edit-preset px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark"
                         data-name="{{ name }}"
-                        data-engine="{{ p.engine }}" data-url="{{ p.url or '' }}" data-domains="{{ p.domains or '' }}"
+                        data-url="{{ p.url or '' }}" data-domains="{{ p.domains or '' }}"
                         data-delay_seconds="{{ p.delay_seconds }}" data-encoding="{{ p.encoding or '' }}"
                         data-content_selector="{{ p.content_selector or '' }}" data-toc_selector="{{ p.toc_selector or '' }}"
                         data-chapter_title_selector="{{ p.chapter_title_selector or '' }}" data-title_selector="{{ p.title_selector or '' }}"
@@ -167,80 +152,64 @@
                 <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
                     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Thông tin cơ bản</legend>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Tên preset <span class="field-hint" title="Trùng tên sẽ ghi đè">?</span> <input type="text" name="name" id="p-name" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Trình crawl <span class="field-hint" title="http: requests+BS4, crawl4ai: Playwright, scrapling: anti-bot">?</span>
-                            <select name="engine" id="p-engine" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm">
-                                {% for opt in ["http", "crawl4ai", "scrapling"] %}
-                                <option value="{{ opt }}">{{ opt }}</option>
-                                {% endfor %}
-                            </select>
-                        </label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Chờ giữa request (s) <span class="field-hint" title="Thời gian chờ (giây) giữa mỗi request để tránh bị chặn">?</span> <input type="number" step="0.1" name="delay_seconds" id="p-delay_seconds" value="1.0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Bảng mã <span class="field-hint" title="Bảng mã ký tự: UTF-8, GBK, BIG5...">?</span> <input type="text" name="encoding" id="p-encoding" size="8" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Tên preset  <input type="text" name="name" id="p-name" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Chờ giữa request (s) <input type="number" step="0.1" name="delay_seconds" id="p-delay_seconds" value="1.0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Bảng mã <input type="text" name="encoding" id="p-encoding" size="8" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
                     </div>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-2 gap-3 items-end mt-3">
-                        <label class="flex flex-col gap-1 text-sm min-w-0">URL gốc <span class="field-hint" title="Địa chỉ trang web gốc của nguồn">?</span> <input type="url" name="url" id="p-url" size="50" placeholder="https://www.example.com" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Tên miền <span class="field-hint" title="Tên miền phân tách bằng dấu phẩy, dùng để tự nhận diện nguồn">?</span> <input type="text" name="domains" id="p-domains" size="30" placeholder="example.com,example.net" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">URL gốc <input type="url" name="url" id="p-url" size="50" placeholder="https://www.example.com" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Tên miền <input type="text" name="domains" id="p-domains" size="30" placeholder="example.com,example.net" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
                     </div>
                     <div class="canvas-form-row mt-3">
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Pattern link chương <span class="field-hint" title="Regex khớp URL chương (mặc định: .*)">?</span> <input type="text" name="chapter_link_pattern" id="p-chapter_link_pattern" value=".*" size="50" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Pattern link chương <input type="text" name="chapter_link_pattern" id="p-chapter_link_pattern" value=".*" size="50" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
                     </div>
                 </fieldset>
 
                 <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
                     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">CSS Selector</legend>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector nội dung <span class="field-hint" title="CSS selector trỏ đến phần nội dung chương">?</span> <input type="text" name="content_selector" id="p-content_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector mục lục <span class="field-hint" title="CSS selector trỏ đến danh sách link chương">?</span> <input type="text" name="toc_selector" id="p-toc_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector tên chương <span class="field-hint" title="CSS selector trỏ đến tiêu đề chương">?</span> <input type="text" name="chapter_title_selector" id="p-chapter_title_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector nội dung <input type="text" name="content_selector" id="p-content_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector mục lục <input type="text" name="toc_selector" id="p-toc_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector tên chương <input type="text" name="chapter_title_selector" id="p-chapter_title_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
                     </div>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-4 gap-3 items-end mt-3">
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector tên truyện <span class="field-hint" title="CSS selector trỏ đến tiêu đề truyện">?</span> <input type="text" name="title_selector" id="p-title_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector tác giả <span class="field-hint" title="CSS selector trỏ đến tên tác giả">?</span> <input type="text" name="author_selector" id="p-author_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector mô tả <span class="field-hint" title="CSS selector trỏ đến phần mô tả truyện">?</span> <input type="text" name="desc_selector" id="p-desc_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector ảnh bìa <span class="field-hint" title="CSS selector trỏ đến ảnh bìa">?</span> <input type="text" name="cover_selector" id="p-cover_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector tên truyện <input type="text" name="title_selector" id="p-title_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector tác giả <input type="text" name="author_selector" id="p-author_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector mô tả <input type="text" name="desc_selector" id="p-desc_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector ảnh bìa <input type="text" name="cover_selector" id="p-cover_selector" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
                     </div>
                 </fieldset>
 
                 <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
                     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Phân trang (chương nhiều trang)</legend>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector trang kế <span class="field-hint" title="CSS selector nút/link chuyển trang tiếp">?</span> <input type="text" name="next_page_selector" id="p-next_page_selector" placeholder="a#pager_next" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Pattern URL trang kế <span class="field-hint" title="Regex trích xuất URL trang tiếp (đúng 1 group)">?</span> <input type="text" name="next_page_url_pattern" id="p-next_page_url_pattern" placeholder="regex có 1 group" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Số trang tối đa <span class="field-hint" title="Số trang tối đa mỗi chương để tránh vòng lặp vô hạn">?</span> <input type="number" name="max_pages_per_chapter" id="p-max_pages_per_chapter" value="10" min="1" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Selector trang kế <input type="text" name="next_page_selector" id="p-next_page_selector" placeholder="a#pager_next" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Pattern URL trang kế <input type="text" name="next_page_url_pattern" id="p-next_page_url_pattern" placeholder="regex có 1 group" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Số trang tối đa <input type="number" name="max_pages_per_chapter" id="p-max_pages_per_chapter" value="10" min="1" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
                     </div>
                 </fieldset>
 
-                <fieldset id="crawl4ai-options" class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark" style="display:none">
-                    <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">crawl4ai (Playwright)</legend>
-                    <div class="canvas-form-row grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                        <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" name="headless" id="p-headless" value="true" checked class="rounded border-border-light dark:border-border-dark">Ẩn trình duyệt <span class="field-hint" title="Chạy Playwright không mở giao diện">?</span></label>
-                        <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" name="magic" id="p-magic" value="true" checked class="rounded border-border-light dark:border-border-dark">Chế độ Magic <span class="field-hint" title="Tự xử lý anti-bot bằng JS injection">?</span></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Mã JS chạy trước <span class="field-hint" title="JavaScript thực thi trên trang trước khi crawl nội dung">?</span> <input type="text" name="js_code" id="p-js_code" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                    </div>
-                </fieldset>
-
-                <fieldset id="scrapling-options" class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark" style="display:none">
+                <fieldset id="scrapling-options" class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
                     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Scrapling (anti-bot)</legend>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Chế độ scrapling <span class="field-hint" title="stealthy: ẩn danh, fetcher: HTTP thường, dynamic: trình duyệt">?</span>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Chế độ scrapling
                             <select name="scrapling_mode" id="p-scrapling_mode" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm">
                                 {% for opt in ["stealthy", "fetcher", "dynamic"] %}
                                 <option value="{{ opt }}">{{ opt }}</option>
                                 {% endfor %}
                             </select>
                         </label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Giả danh trình duyệt <span class="field-hint" title="User-agent giả lập: chrome, firefox135, safari...">?</span> <input type="text" name="impersonate" id="p-impersonate" placeholder="chrome, firefox135" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" name="solve_cloudflare" id="p-solve_cloudflare" value="true" class="rounded border-border-light dark:border-border-dark">Bỏ qua Cloudflare <span class="field-hint" title="Tự giải challenge Cloudflare/anti-bot">?</span></label>
-                        <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" name="network_idle" id="p-network_idle" value="true" checked class="rounded border-border-light dark:border-border-dark">Chờ network idle <span class="field-hint" title="Đợi request mạng dừng hoàn toàn trước khi lấy nội dung">?</span></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Giả danh trình duyệt <input type="text" name="impersonate" id="p-impersonate" placeholder="chrome, firefox135" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" name="solve_cloudflare" id="p-solve_cloudflare" value="true" class="rounded border-border-light dark:border-border-dark">Bỏ qua Cloudflare</label>
+                        <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" name="network_idle" id="p-network_idle" value="true" checked class="rounded border-border-light dark:border-border-dark">Chờ network idle</label>
                     </div>
                 </fieldset>
 
                 <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
                     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Mạng &amp; song song</legend>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-                        <label class="flex flex-col gap-1 text-sm min-w-0">User Agent <span class="field-hint" title="Chuỗi định danh trình duyệt gửiไป server">?</span> <input type="text" name="user_agent" id="p-user_agent" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-                        <label class="flex flex-col gap-1 text-sm min-w-0">Giới hạn song song <span class="field-hint" title="Số request chạy đồng thời (0 = không giới hạn)">?</span> <input type="number" name="concurrency_cap" id="p-concurrency_cap" value="0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">User Agent <input type="text" name="user_agent" id="p-user_agent" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Giới hạn song song <input type="number" name="concurrency_cap" id="p-concurrency_cap" value="0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
                     </div>
                 </fieldset>
 
@@ -259,16 +228,6 @@
 {% block scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    const engineSelect = document.getElementById("p-engine");
-    const crawl4ai = document.getElementById("crawl4ai-options");
-    const scrapling = document.getElementById("scrapling-options");
-    function syncEngine() {
-        var v = engineSelect.value;
-        if (crawl4ai) crawl4ai.style.display = v === "crawl4ai" ? "" : "none";
-        if (scrapling) scrapling.style.display = v === "scrapling" ? "" : "none";
-    }
-    engineSelect.addEventListener("change", syncEngine);
-
     document.getElementById("add-preset-btn").addEventListener("click", function () {
         document.getElementById("preset-canvas-title").textContent = "Thêm preset";
         document.getElementById("preset-submit-btn").textContent = "Thêm preset";
@@ -278,10 +237,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("p-delay_seconds").value = "1.0";
         document.getElementById("p-chapter_link_pattern").value = ".*";
         document.getElementById("p-max_pages_per_chapter").value = "10";
-        document.getElementById("p-headless").checked = true;
-        document.getElementById("p-magic").checked = true;
         document.getElementById("p-network_idle").checked = true;
-        syncEngine();
         openCanvas('preset-canvas');
     });
 
@@ -292,7 +248,6 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("original_name").value = btn.dataset.name;
             document.getElementById("p-name").value = btn.dataset.name;
             document.getElementById("p-name").required = false;
-            document.getElementById("p-engine").value = btn.dataset.engine;
             document.getElementById("p-url").value = btn.dataset.url;
             document.getElementById("p-domains").value = btn.dataset.domains;
             document.getElementById("p-delay_seconds").value = btn.dataset.delay_seconds;
@@ -308,9 +263,6 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("p-next_page_selector").value = btn.dataset.next_page_selector;
             document.getElementById("p-next_page_url_pattern").value = btn.dataset.next_page_url_pattern;
             document.getElementById("p-max_pages_per_chapter").value = btn.dataset.max_pages_per_chapter;
-            document.getElementById("p-headless").checked = btn.dataset.headless === "true";
-            document.getElementById("p-magic").checked = btn.dataset.magic === "true";
-            document.getElementById("p-js_code").value = btn.dataset.js_code;
             document.getElementById("p-scrapling_mode").value = btn.dataset.scrapling_mode;
             document.getElementById("p-solve_cloudflare").checked = btn.dataset.solve_cloudflare === "true";
             document.getElementById("p-network_idle").checked = btn.dataset.network_idle !== "false";

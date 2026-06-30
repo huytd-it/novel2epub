@@ -70,7 +70,6 @@ class ScraplingConfig:
 @dataclass
 class CrawlConfig:
     toc_url: str = ""
-    engine: str = "scrapling"
     chapter_link_pattern: str = r".*"
     max_chapters: int = 0
     strip_patterns: list[str] = field(default_factory=list)
@@ -271,6 +270,7 @@ class TranslateConfig:
 class NovelConfig:
     title: str = ""
     author: str = ""
+    description: str = ""
     language: str = "vi"
     slug: str = "novel"
     # Metadata đóng gói EPUB (Dublin Core + Calibre series/collection) — xem
@@ -417,6 +417,8 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     # api_key / api_url chỉ dùng cho firecrawl, đã bỏ engine này; bỏ qua cũ.
     crawl_raw.pop("api_key", None)
     crawl_raw.pop("api_url", None)
+    # Legacy engine field — scrapling là engine duy nhất.
+    crawl_raw.pop("engine", None)
     # Field cũ (http/crawl4ai) — bỏ qua không báo lỗi để migration mượt.
     for old in ("toc_selector", "chapter_title_selector", "title_selector",
                 "author_selector", "desc_selector", "cover_selector",

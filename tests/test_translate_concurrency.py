@@ -53,7 +53,7 @@ def _toc(n):
 
 
 def test_hachimimt_ignores_max_workers_and_runs_sequential(tmp_path, monkeypatch):
-    monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(_toc(3)))
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(_toc(3)))
     monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: _EchoTranslator())
 
     calls = {"parallel": 0, "sequential": 0}
@@ -80,7 +80,7 @@ def test_hachimimt_ignores_max_workers_and_runs_sequential(tmp_path, monkeypatch
 
 
 def test_cli_honors_max_workers_and_runs_parallel(tmp_path, monkeypatch):
-    monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(_toc(3)))
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(_toc(3)))
     monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: _EchoTranslator())
 
     calls = {"parallel": 0, "sequential": 0}

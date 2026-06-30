@@ -39,6 +39,7 @@ def save_novel(
     slug: str,
     title: str = Form(""),
     author: str = Form(""),
+    description: str = Form(""),
     language: str = Form("vi"),
     publisher: str = Form(""),
     pubdate: str = Form(""),
@@ -59,6 +60,7 @@ def save_novel(
         "novel": {
             "title": title,
             "author": author,
+            "description": description,
             "language": language,
             "publisher": publisher,
             "pubdate": pubdate,
@@ -98,7 +100,6 @@ def save_source(
     headless: bool = Form(False),
 ):
     crawl: dict = {
-        "engine": "scrapling",
         "toc_url": toc_url,
         "chapter_link_pattern": chapter_link_pattern,
         "max_chapters": max_chapters,

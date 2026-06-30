@@ -47,12 +47,9 @@ def start_ebook_crawl_range(
     engine: str = Form(""),
     delay: str = Form(""),
 ):
-    """Crawl theo phạm vi chương + tùy chọn nâng cao (engine, delay, retry, force)."""
+    """Crawl theo phạm vi chương + tùy chọn nâng cao (delay, retry, force)."""
     cfg = deps.resolved_cfg(slug)
 
-    # Override cấu hình crawl tại thời điểm chạy (cfg là bản load mới mỗi request).
-    if engine:
-        cfg.crawl.engine = engine
     delay_val = (delay or "").strip()
     if delay_val:
         try:
@@ -120,14 +117,14 @@ def start_ebook_chapter_action(
     def _target(log):
         if action == "crawl":
             log(
-                f"[config] action=crawl engine={cfg.crawl.engine!r} "
+                f"[config] action=crawl "
                 f"ai_fallback={cfg.crawl.ai_fallback!r} force={override!r} "
                 f"selected={len(selected)} chương"
             )
             try:
                 step_crawl_selected(cfg, log, force=override, selected_indexes=selected)
             except Exception as e:  # noqa: BLE001 - log chi tiết config trước khi job.py ghi traceback
-                log(f"[config] Lỗi khi crawl với engine={cfg.crawl.engine!r}: {e}")
+                log(f"[config] Lỗi khi crawl: {e}")
                 raise
         elif action == "translate":
             log(

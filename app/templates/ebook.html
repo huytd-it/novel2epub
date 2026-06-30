@@ -3,9 +3,8 @@
 {% block content %}
 
 <style>
-/* Local styles cho ebook: meta-card, compact-toolbar, status-bar, action-group, pager, table-wrap, selected-actions, TOC table patterns */
-
-
+/* Local styles cho ebook: compact-toolbar, status-bar, action-group, pager, table-wrap, selected-actions, TOC table patterns */
+.chapter-check, #check-all, #selected-override { transform: scale(1.3); margin: 0 2px; }
 
 
 .compact-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.65rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; }
@@ -65,9 +64,9 @@
     {% if manifest and manifest.chapters %} · {{ manifest.chapters|length }} chương{% endif %}
 </p>
 
-{% if manifest and manifest.description %}
+{% if cfg.novel.description %}
 <div class="mt-2 text-sm text-muted-light dark:text-muted-dark">
-    <p class="m-0 leading-relaxed">{{ manifest.description }}</p>
+    <p class="m-0 leading-relaxed">{{ cfg.novel.description }}</p>
     <p class="m-0 mt-1">
         <a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank" class="text-link-light dark:text-link-dark hover:underline text-xs">{{ manifest.source_url or cfg.crawl.toc_url }}</a>
     </p>
@@ -83,7 +82,7 @@
         {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Dịch: đang chạy ({{ job.translate.step }})</span>{% elif job.translate.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Dịch: đang chạy (ebook khác)</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Dịch: rảnh</span>{% endif %}
         {% if job.translate.error %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
-    <span class="text-muted-light dark:text-muted-dark text-xs">Engine: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.crawl.engine }}</code> · Model: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.openai.model or cfg.translate.type or "-" }}</code></span>
+    <span class="text-muted-light dark:text-muted-dark text-xs">Model: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.openai.model or cfg.translate.type or "-" }}</code></span>
 </div>
 
 <div class="flex flex-wrap gap-1.5 mt-3">

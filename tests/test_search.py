@@ -13,7 +13,6 @@ from novel2epub.sources import SourcePreset
 def _make_preset(**overrides) -> SourcePreset:
     defaults = {
         "name": "test-source",
-        "engine": "scrapling",
         "url": "https://example.com",
         "domains": "example.com",
         "search_url_pattern": "https://example.com/search?q={query}",

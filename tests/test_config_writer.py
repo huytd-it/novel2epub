@@ -53,7 +53,7 @@ def test_update_ebook_does_not_touch_siblings(tmp_path):
     path = tmp_path / "novel2epub.yaml"
     _write_workspace(path)
     # Thêm ebook thứ 2 rồi sửa ebook 'a' -> 'b' phải nguyên vẹn.
-    add_ebook(path, "b", name="B", title="Bê", toc_url="https://b", engine="scrapling")
+    add_ebook(path, "b", name="B", title="Bê", toc_url="https://b")
     update_ebook(path, "a", {"novel": {"title": "Mới"}})
 
     cfg_b = load_config(path, "b")
@@ -71,7 +71,6 @@ def test_add_ebook_minimal_override_inherits_defaults(tmp_path):
         name="Tên Truyện",
         title="Tên Truyện",
         toc_url="https://x/book/1/",
-        engine="scrapling",
     )
     cfg = load_config(path, "test-truyen")
     assert cfg.novel.slug == "test-truyen"

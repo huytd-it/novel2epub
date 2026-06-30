@@ -121,7 +121,6 @@ def add_ebook(
     title: str = "",
     author: str = "",
     toc_url: str = "",
-    engine: str = "http",
     preset: dict[str, Any] | None = None,
 ) -> None:
     """Thêm 1 ebook vào `ebooks.<slug>` với CHỈ phần override tối thiểu.
@@ -144,11 +143,9 @@ def add_ebook(
     novel["identifier"] = f"urn:uuid:{uuid.uuid4()}"
 
     crawl = CommentedMap()
-    crawl["engine"] = engine
     if toc_url:
         crawl["toc_url"] = toc_url
     if preset:
-        # Bỏ "engine": form đã gửi engine người dùng chọn — không cho preset đè lại.
         for k, v in preset.items():
             if k in {"name", "url", "domains", "engine"}:
                 continue

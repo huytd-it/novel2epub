@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub.config import CrawlConfig
 from novel2epub.config_writer import add_ebook, remove_ebook
-from novel2epub.crawler import make_crawler
+from novel2epub.crawler import ScraplingCrawler
 from novel2epub.search import search_all
 from novel2epub.sources import load_presets
 
@@ -41,7 +41,7 @@ def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
     """Crawl TOC URL và trả về metadata detect được + slug gợi ý."""
     crawl_cfg = CrawlConfig(toc_url=toc_url)
 
-    crawler = make_crawler(crawl_cfg)
+    crawler = ScraplingCrawler(crawl_cfg)
     try:
         toc = crawler.fetch_toc()
     finally:
@@ -163,7 +163,6 @@ def create_ebook(
         title=name,
         author=author,
         toc_url=toc_url,
-        engine="scrapling",
     )
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 

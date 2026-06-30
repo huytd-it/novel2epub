@@ -5,6 +5,7 @@
 # 2 khối:
 #   defaults: phần DÙNG CHUNG cho mọi ebook (prompt dịch, style, output...).
 #   ebooks  : mỗi ebook CHỈ khai phần KHÁC với defaults (deep-merge lên defaults).
+# Preset nguồn tách riêng: sources.yaml
 #
 # Config hiệu lực của 1 ebook = deep_merge(defaults, ebooks[<slug>]).
 # Chọn ebook khi chạy: `python -m novel2epub -e <slug> <command>`.
@@ -77,36 +78,6 @@ defaults:
   output:
     data_dir: data
 
-sources:
-  sto9:
-    engine: scrapling
-    url: "https://sto9.com"
-    domains: "sto9.com"
-    chapter_link_pattern: '/book/\d+/\d+\.html'
-    content_selector: '#content'
-    scrapling:
-      mode: stealthy
-    search_url_pattern: "https://sto9.com/search/?q={query}"
-    search_result_selector: ".book-item, .search-result"
-    search_title_selector: ".book-title, h3 a"
-    search_link_selector: "a[href*='/book/']"
-    search_cover_selector: "img"
-    max_search_results: 5
-
-  aixdzs:
-    engine: scrapling
-    url: "https://www.aixdzs.com"
-    domains: "aixdzs.com"
-    chapter_link_pattern: '/novel/.*?/\d+\.html'
-    content_selector: '#content'
-    scrapling:
-      mode: fetcher
-    search_url_pattern: "https://www.aixdzs.com/search/?q={query}"
-    search_result_selector: ".search-item, .book-item"
-    search_title_selector: ".book-title, h3"
-    search_link_selector: "a[href*='/novel/']"
-    search_cover_selector: "img"
-    max_search_results: 5
 
 ebooks:
   vi-du-truyen:

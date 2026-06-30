@@ -10,7 +10,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import PlainTextResponse, RedirectResponse
 
 from novel2epub.config import CrawlConfig
-from novel2epub.crawler import make_crawler
+from novel2epub.crawler import ScraplingCrawler
 from novel2epub.sources import SourcePreset, save_presets
 
 from .. import deps
@@ -80,7 +80,6 @@ def sources_page(request: Request, edit: str = ""):
 @router.post("/sources")
 def save_source_preset(
     name: str = Form(""),
-    engine: str = Form("http"),
     url: str = Form(""),
     domains: str = Form(""),
     chapter_link_pattern: str = Form(".*"),
@@ -111,7 +110,6 @@ def save_source_preset(
     if name:
         kwargs = dict(
             name=name,
-            engine=engine,
             url=url.strip(),
             domains=domains.strip(),
             chapter_link_pattern=chapter_link_pattern,
@@ -192,7 +190,7 @@ def test_source_preset(request: Request, name: str, toc_url: str = Form(...)):
             overrides = preset.crawl_overrides()
             overrides.pop("chapter_link_pattern", None)
             crawl_cfg = CrawlConfig(toc_url=toc_url, chapter_link_pattern=preset.chapter_link_pattern, **overrides)
-            crawler = make_crawler(crawl_cfg)
+            crawler = ScraplingCrawler(crawl_cfg)
             toc = crawler.fetch_toc()
             if not toc.chapters:
                 _record_validation(name, False, "fetch_toc không trả về chương nào.")

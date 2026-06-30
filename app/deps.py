@@ -20,7 +20,9 @@ WORKSPACE_PATH = os.environ.get(
 )
 CONFIG_PATH = WORKSPACE_PATH
 LIBRARY_PATH = WORKSPACE_PATH
-SOURCES_PATH = WORKSPACE_PATH
+# File sources tách riêng, nằm cùng thư mục với config.
+_cfg_dir = str(Path(WORKSPACE_PATH).resolve().parent)
+SOURCES_PATH = os.path.join(_cfg_dir, "sources.yaml")
 # Sidecar workspace state (lịch sử queue, automation, archived flags...) —
 # nằm cạnh file config gộp, không commit (xem design.md D3).
 WORKSPACE_DIR = Path(WORKSPACE_PATH).resolve().parent / ".n2e"
@@ -45,7 +47,6 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "identifier": "",
     },
     "crawl": {
-        "engine": "scrapling",
         "toc_url": "",
         "chapter_link_pattern": r".*",
         "max_chapters": 0,

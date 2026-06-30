@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Protocol
+
 from urllib.parse import urljoin
 
 from .config import CrawlConfig
@@ -102,13 +102,6 @@ class TocResult:
     chapters: list[Chapter] = field(default_factory=list)
 
 
-class Crawler(Protocol):
-    def fetch_toc(self) -> TocResult: ...
-    def fetch_chapter(self, ch: Chapter) -> str: ...
-    def sleep(self) -> None: ...
-    def close(self) -> None: ...
-
-
 def _dedupe_keep_last(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
     """Khử trùng lặp URL nhưng GIỮ LẦN XUẤT HIỆN CUỐI.
 
@@ -157,9 +150,8 @@ def fetch_chapter_paginated(
 ) -> str:
     """Tải và ghép nội dung nhiều trang con của một chương.
 
-    Mỗi engine truyền vào 3 closure:
-      - ``fetch_page(url) -> page_obj``: tải URL, trả về đối tượng engine
-        (BeautifulSoup, crawl4ai result, dict scrape, ...).
+    3 closure:
+      - ``fetch_page(url) -> page_obj``: tải URL, trả về Scrapling Adaptor.
       - ``extract_text(page_obj) -> str``: trích nội dung chương đã làm sạch.
       - ``next_page_url(url, page_obj) -> str | None``: tìm URL trang kế
         tiếp. Trả ``None`` nếu không có.
@@ -224,22 +216,6 @@ def fetch_chapter_paginated(
     return "\n\n".join(p for p in pages if p)
 
 
-def _next_page_url_from_html(current_url: str, page_obj, cfg: CrawlConfig):
-    """Tìm URL trang kế tiếp từ CSS selector trong trang hiện tại.
-
-    Dùng cho cả 3 engine — bóc link từ ``page_obj`` dù nó là BeautifulSoup,
-    crawl4ai result hay dict scrape. Trả ``None`` nếu không tìm thấy hoặc
-    link rỗng / là ``javascript:`` / không phải HTTP(S).
-    """
-    selector = (cfg.next_page_selector or "").strip()
-    if not selector:
-        return None
-    href = _extract_href(page_obj, selector)
-    if not href or href.startswith("javascript:") or href.startswith("#"):
-        return None
-    return urljoin(current_url, href.strip())
-
-
 def _make_css_resolver(cfg: CrawlConfig):
     """Trả về closure ``(url, page_obj) -> str | None`` dùng CSS selector.
 
@@ -262,15 +238,7 @@ def _make_css_resolver(cfg: CrawlConfig):
 def _next_page_url_from_pattern(cfg: CrawlConfig):
     """Tạo closure sinh URL kế tiếp từ ``next_page_url_pattern``.
 
-    Pattern phải chứa đúng 1 capturing group — group này là **số trang
-    hiện tại**. Closure thay text của group trong URL bằng số tăng dần
-    (bắt đầu từ 2) và trả về URL mới.
-
-    Ví dụ pattern ``_(\\d+)\\.html$`` trên URL ``ch7_1.html``:
-    - Lần 1 (n=2): thay ``1`` bằng ``2`` → ``ch7_2.html``.
-    - Lần 2 (n=3): thay ``2`` bằng ``3`` → ``ch7_3.html``.
-
-    Trả ``None`` khi pattern không khớp URL hiện tại.
+    Pattern phải chứa đúng 1 capturing group.
     """
     pattern = (cfg.next_page_url_pattern or "").strip()
     if not pattern:
@@ -298,10 +266,7 @@ def _next_page_url_from_pattern(cfg: CrawlConfig):
 
 
 def _extract_href(page_obj, selector: str) -> str:
-    """Trích href từ phần tử đầu tiên khớp ``selector``.
-
-    Hỗ trợ Scrapling Adaptor (có ``.css()``) và các object generic.
-    """
+    """Trích href từ phần tử đầu tiên khớp ``selector``."""
     if page_obj is None:
         return ""
     css = getattr(page_obj, "css", None)
@@ -627,18 +592,3 @@ class ScraplingCrawler:
 
     def close(self) -> None:
         pass  # Scrapling one-off fetchers không cần đóng tường minh
-
-
-def make_crawler(cfg: CrawlConfig) -> Crawler:
-    engine = (cfg.engine or "scrapling").lower()
-    if engine == "scrapling":
-        return ScraplingCrawler(cfg)
-    if engine in ("http", "crawl4ai", "firecrawl"):
-        raise ValueError(
-            f"crawl.engine={cfg.engine!r} đã bị loại bỏ. "
-            "Engine duy nhất hiện tại là 'scrapling'. "
-            "Xem README.md để biết cách migration."
-        )
-    raise ValueError(
-        f"crawl.engine không hợp lệ: {cfg.engine!r} (chỉ hỗ trợ 'scrapling')"
-    )

@@ -180,7 +180,33 @@
     <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" id="selected-override" value="true" class="rounded border-border-light dark:border-border-dark"> Ghi đè</label>
     <span id="checked-info" class="text-muted-light dark:text-muted-dark text-sm">Đã tick 0 chương.</span>
 </div>
-
+<nav class="pager" id="pager" aria-label="Phân trang">
+    <label class="pager-size">Mỗi trang
+        <select id="page-size" aria-label="Số chương mỗi trang"
+            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+            <option value="0">Tất cả</option>
+        </select>
+    </label>
+    <span id="pager-info" class="pager-info text-muted-light dark:text-muted-dark text-sm"></span>
+    <div class="pager-nav">
+        <button type="button" data-page="first" aria-label="Trang đầu"
+            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&laquo;</button>
+        <button type="button" data-page="prev" aria-label="Trang trước"
+            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&lsaquo;</button>
+        <input type="number" id="pager-current" min="1" value="1" aria-label="Trang hiện tại"
+            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-center px-2 py-1 text-sm">
+        <button type="button" data-page="next" aria-label="Trang sau"
+            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&rsaquo;</button>
+        <button type="button" data-page="last" aria-label="Trang cuối"
+            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&raquo;</button>
+    </div>
+</nav>
 <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
 <table id="chapter-table" class="w-full text-sm">
     <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">#</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tiêu đề</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Raw</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Dịch</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Số từ</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Thiếu</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Action</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr></thead>
@@ -188,25 +214,7 @@
     </tbody>
 </table>
 </div>
-<nav class="pager" id="pager" aria-label="Phân trang">
-    <label class="pager-size">Mỗi trang
-        <select id="page-size" aria-label="Số chương mỗi trang" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-            <option value="200">200</option>
-            <option value="0">Tất cả</option>
-        </select>
-    </label>
-    <span id="pager-info" class="pager-info text-muted-light dark:text-muted-dark text-sm"></span>
-    <div class="pager-nav">
-        <button type="button" data-page="first" aria-label="Trang đầu" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&laquo;</button>
-        <button type="button" data-page="prev" aria-label="Trang trước" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&lsaquo;</button>
-        <input type="number" id="pager-current" min="1" value="1" aria-label="Trang hiện tại" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-center px-2 py-1 text-sm">
-        <button type="button" data-page="next" aria-label="Trang sau" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&rsaquo;</button>
-        <button type="button" data-page="last" aria-label="Trang cuối" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&raquo;</button>
-    </div>
-</nav>
+
 {% else %}
 <p class="text-sm text-muted-light dark:text-muted-dark">Chưa có chương phù hợp — bấm "Crawl" để lấy chương hoặc đổi lại bộ lọc.</p>
 {% endif %}

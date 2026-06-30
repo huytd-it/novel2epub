@@ -4,22 +4,9 @@
 
 <style>
 /* Local styles cho ebook: meta-card, compact-toolbar, status-bar, action-group, pager, table-wrap, selected-actions, TOC table patterns */
-.meta-card { display: flex; gap: 1rem; align-items: flex-start; border: 1px solid #e5e5e5; border-radius: 8px; padding: 0.8rem 1rem; margin: 1rem 0; background: #fcfcfc; }
-.dark .meta-card { border-color: #2e3338; background: #20242a; }
-.meta-card .cover { width: 110px; height: auto; border-radius: 4px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
-.meta-card .meta-body { min-width: 0; }
-.meta-card .meta-body h3 { margin: 0 0 0.3rem; }
-.meta-card .desc { font-size: 0.92rem; line-height: 1.5; white-space: pre-wrap; max-height: 9rem; overflow-y: auto; }
 
-.meta-table { width: 100%; margin-top: 0.5rem; font-size: 0.9rem; }
-.meta-table th, .meta-table td { padding: 0.3rem 0.5rem; vertical-align: top; }
-.meta-table th { text-align: left; font-weight: 600; background: #f5f5f5; }
-.dark .meta-table th { background: #20242a; }
-.meta-vi { cursor: pointer; min-height: 1.4em; }
-.meta-vi:hover { background: #ffffdd; }
-.dark .meta-vi:hover { background: #3a3a1a; }
-.meta-vi textarea, .meta-vi input { font-size: 0.9rem; font-family: inherit; }
-.desc-cell { max-width: 300px; white-space: pre-wrap; word-break: break-word; }
+
+
 
 .compact-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.65rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; }
 .dark .compact-toolbar { background: #20242a; border-color: #2e3338; }
@@ -64,9 +51,6 @@
 
 #toc-region.toc-loading { visibility: hidden; }
 
-@media (max-width: 720px) {
-    .meta-card { flex-direction: column; }
-}
 @media (max-width: 900px) {
     .selected-actions { position: static; }
     .compact-toolbar select, .compact-toolbar input { width: 100%; }
@@ -75,71 +59,22 @@
 
 <p><a href="/" class="text-link-light dark:text-link-dark hover:underline">&larr; Quay lại thư viện</a></p>
 
-<div class="flex flex-col md:flex-row gap-4 md:items-start md:justify-between mb-3">
-    <div>
-        <h2 class="m-0 text-xl font-semibold">{{ cfg.novel.title or cfg.novel.slug }}</h2>
-        <p class="text-sm text-muted-light dark:text-muted-dark mt-1">Slug: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ slug }}</code> · Tác giả: {{ cfg.novel.author or "-" }}</p>
-        <p class="text-sm text-muted-light dark:text-muted-dark mt-1">Config: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ config_path }}</code></p>
-        <p class="text-sm text-muted-light dark:text-muted-dark mt-1">Crawl: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.crawl.engine }}</code> · Dịch: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.type }}</code> · AI model: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.openai.model or "-" }}</code>{% if cfg.translate.model %} · NMT: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.model }}</code>{% endif %}</p>
-    </div>
-    <div class="flex flex-col gap-1.5">
-        <div class="action-group" role="group" aria-label="Crawl & Dịch (chạy song song được)">
-            <span class="action-group-label">Crawl</span>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/crawl" data-job-category="crawl"><button class="px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running %}disabled{% endif %}>Crawl tất cả</button></form>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/crawl/cancel" data-job-category="crawl"><button class="px-2.5 py-1 text-xs rounded-md btn-stop disabled:opacity-40 disabled:cursor-not-allowed" {% if not job.crawl.running %}disabled{% endif %}>Dừng</button></form>
-        </div>
-        <div class="action-group" role="group" aria-label="Dịch">
-            <span class="action-group-label">Dịch</span>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/translate" data-job-category="translate"><button class="px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch tất cả</button></form>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch metadata (AI)</button></form>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/translate/cancel" data-job-category="translate"><button class="px-2.5 py-1 text-xs rounded-md btn-stop disabled:opacity-40 disabled:cursor-not-allowed" {% if not (job.translate.running and slug in job.translate.running_ebooks) %}disabled{% endif %}>Dừng</button></form>
-        </div>
-        <div class="action-group" role="group" aria-label="Hoàn thiện">
-            <span class="action-group-label">Xuất bản</span>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="both"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB</button></form>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/run" data-job-category="both"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Chạy tất cả</button></form>
-            {% if epub_exists %}<a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/download">Tải EPUB</a> <span class="text-muted-light dark:text-muted-dark text-xs">({{ "%.1f"|format(epub_size / 1024 / 1024) }} MB)</span>{% endif %}
-        </div>
-        <div class="action-group" role="group" aria-label="Khác">
-            <a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/glossary">Glossary</a>
-            <a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
-        </div>
-    </div>
-</div>
+<h2 class="m-0 text-xl font-semibold mb-1">{{ cfg.novel.title or cfg.novel.slug }}</h2>
+<p class="text-sm text-muted-light dark:text-muted-dark m-0">
+    Tác giả: {{ cfg.novel.author or "-" }} · Slug: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ slug }}</code>
+    {% if manifest and manifest.chapters %} · {{ manifest.chapters|length }} chương{% endif %}
+</p>
 
-{% if manifest %}
-<div class="meta-card">
-    {% if manifest.cover_file %}
-    <img class="cover" src="/ebooks/{{ slug }}/cover" alt="bìa">
-    {% endif %}
-    <div class="meta-body">
-        <div class="flex items-baseline justify-between gap-4 mb-1">
-            <h3 class="m-0 text-base font-semibold">{{ manifest.title or "(chưa có tên)" }}</h3>
-        </div>
-        <table class="meta-table w-full text-sm">
-            <thead><tr class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide"><th class="text-left px-2 py-1 border-b border-border-light dark:border-border-dark">Field</th><th class="text-left px-2 py-1 border-b border-border-light dark:border-border-dark">Giá trị</th></tr></thead>
-            <tbody>
-                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Tiêu đề</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.title or "-" }}</td></tr>
-                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Tác giả</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.author or "-" }}</td></tr>
-                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Mô tả</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark desc-cell">{{ manifest.description or "-" }}</td></tr>
-                {% if manifest.title_note %}<tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Ghi chú</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.title_note }}</td></tr>{% endif %}
-                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Nguồn</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark"><a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank" class="text-link-light dark:text-link-dark hover:underline">{{ manifest.source_url or cfg.crawl.toc_url }}</a></td></tr>
-                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Số chương</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.chapters|length }}</td></tr>
-                {% if manifest.metadata_missing %}<tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Thiếu</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.metadata_missing|join(', ') }}</td></tr>{% endif %}
-            </tbody>
-        </table>
-    </div>
+{% if manifest and manifest.description %}
+<div class="mt-2 text-sm text-muted-light dark:text-muted-dark">
+    <p class="m-0 leading-relaxed">{{ manifest.description }}</p>
+    <p class="m-0 mt-1">
+        <a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank" class="text-link-light dark:text-link-dark hover:underline text-xs">{{ manifest.source_url or cfg.crawl.toc_url }}</a>
+    </p>
 </div>
 {% endif %}
 
-<div class="toc-actions">
-    <form method="post" action="/ebooks/{{ slug }}/jobs/fetch-toc" class="inline-form" data-job-category="crawl">
-        <button type="submit" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running %}disabled{% endif %}>Lấy toàn bộ danh mục</button>
-        <label class="inline-flex items-center gap-1 text-sm ml-2"><input type="checkbox" name="force" value="true" class="rounded border-border-light dark:border-border-dark"> ghi đè metadata</label>
-    </form>
-</div>
-
-<div class="status-bar">
+<div class="status-bar mt-3">
     <span id="status-badge-crawl">
         {% if job.crawl.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Crawl: đang chạy ({{ job.crawl.step }})</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Crawl: rảnh</span>{% endif %}
         {% if job.crawl.error %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: {{ job.crawl.error }}</span>{% endif %}
@@ -148,7 +83,37 @@
         {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Dịch: đang chạy ({{ job.translate.step }})</span>{% elif job.translate.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Dịch: đang chạy (ebook khác)</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Dịch: rảnh</span>{% endif %}
         {% if job.translate.error %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
-    <span class="text-muted-light dark:text-muted-dark text-sm status-hint">Crawl và dịch chạy độc lập — có thể dịch trong khi đang crawl.</span>
+    <span class="text-muted-light dark:text-muted-dark text-xs">Engine: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.crawl.engine }}</code> · Model: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.openai.model or cfg.translate.type or "-" }}</code></span>
+</div>
+
+<div class="flex flex-wrap gap-1.5 mt-3">
+    <div class="action-group" role="group" aria-label="Crawl">
+        <span class="action-group-label">Crawl</span>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/crawl" data-job-category="crawl"><button class="px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running %}disabled{% endif %}>Crawl tất cả</button></form>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/crawl/cancel" data-job-category="crawl"><button class="px-2.5 py-1 text-xs rounded-md btn-stop disabled:opacity-40 disabled:cursor-not-allowed" {% if not job.crawl.running %}disabled{% endif %}>Dừng</button></form>
+    </div>
+    <div class="action-group" role="group" aria-label="Dịch">
+        <span class="action-group-label">Dịch</span>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/translate" data-job-category="translate"><button class="px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch tất cả</button></form>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/translate/cancel" data-job-category="translate"><button class="px-2.5 py-1 text-xs rounded-md btn-stop disabled:opacity-40 disabled:cursor-not-allowed" {% if not (job.translate.running and slug in job.translate.running_ebooks) %}disabled{% endif %}>Dừng</button></form>
+    </div>
+    <div class="action-group" role="group" aria-label="Xuất bản">
+        <span class="action-group-label">Xuất bản</span>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="both"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB</button></form>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/run" data-job-category="both"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Chạy tất cả</button></form>
+        {% if epub_exists %}<a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/download">Tải EPUB</a> <span class="text-muted-light dark:text-muted-dark text-xs">({{ "%.1f"|format(epub_size / 1024 / 1024) }} MB)</span>{% endif %}
+    </div>
+    <div class="action-group" role="group" aria-label="Khác">
+        <a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/glossary">Glossary</a>
+        <a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
+    </div>
+</div>
+
+<div class="toc-actions">
+    <form method="post" action="/ebooks/{{ slug }}/jobs/fetch-toc" class="inline-form" data-job-category="crawl">
+        <input type="hidden" name="force" value="true">
+        <button type="submit" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running %}disabled{% endif %}>Lấy toàn bộ danh mục</button>
+    </form>
 </div>
 
 <div id="toc-region" class="toc-loading">
@@ -202,13 +167,7 @@
         <input type="hidden" name="targeting_mode" value="checked">
         <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch selected</button>
     </form>
-    <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch TOC selected</button>
-    </form>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/translate-titles" class="selected-action-form batch-form" data-selected-action="translate">
-        <input type="hidden" name="indexes" id="batch-indexes-titles" value="">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch tiêu đề selected</button>
-    </form>
+
     <form method="post" action="/api/ebooks/{{ slug }}/batch/suggest-glossary" class="selected-action-form batch-form" data-selected-action="translate">
         <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
         <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Glossary suggest selected</button>

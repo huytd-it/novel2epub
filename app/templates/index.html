@@ -69,20 +69,14 @@
 .pv-table thead th { background: #f7f7f7; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #777; }
 .dark .pv-table thead th { background: #20242a; color: #9aa2ad; }
 .pv-col-field { width: 15%; }
-.pv-col-raw { width: 40%; }
-.pv-col-vi { width: 45%; }
+.pv-col-value { width: 85%; }
 .pv-cell-label { font-weight: 600; font-size: 0.85rem; background: #f7f7f7; }
 .dark .pv-cell-label { background: #20242a; }
-.pv-cell-raw, .pv-cell-vi { font-size: 0.85rem; word-break: break-word; }
-.pv-cell-vi { background: #f8fffe; }
-.dark .pv-cell-vi { background: #1a2a24; }
-.pv-cell-raw.empty, .pv-cell-vi.empty { color: #777; font-style: italic; }
-.dark .pv-cell-raw.empty, .dark .pv-cell-vi.empty { color: #9aa2ad; }
+.pv-cell-value { font-size: 0.85rem; word-break: break-word; }
+.pv-cell-value.empty { color: #777; font-style: italic; }
+.dark .pv-cell-value.empty { color: #9aa2ad; }
 .pv-desc-truncate { max-height: 4.5rem; overflow: hidden; position: relative; }
 .pv-desc-truncate::after { content: "..."; position: absolute; bottom: 0; right: 0.5rem; background: inherit; padding-left: 0.3rem; }
-
-.pv-translate-info { font-size: 0.8rem; color: #777; text-align: right; margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid #e5e5e5; }
-.dark .pv-translate-info { color: #9aa2ad; border-top-color: #2e3338; }
 </style>
 
 <div class="flex flex-col md:flex-row gap-4 md:items-start md:justify-between mb-3">
@@ -116,7 +110,6 @@
     <div class="flex flex-wrap gap-4 items-end" style="align-items:end">
         <label class="flex-1 min-w-[200px] flex flex-col gap-1 text-sm">Tên truyện <input type="text" id="search_query" placeholder="Nhập tên tiểu thuyết cần tìm..." class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></label>
         <button type="button" id="search-btn" class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">🔍 Tìm kiếm</button>
-        <label class="inline-flex items-center gap-1 text-sm" style="margin-left:1em"><input type="checkbox" id="translate-meta" class="rounded border-border-light dark:border-border-dark"> Dịch metadata</label>
     </div>
     <span id="search-status" class="text-sm text-muted-light dark:text-muted-dark"></span>
     <div id="search-results" class="hidden">
@@ -269,29 +262,24 @@
                             <thead>
                                 <tr>
                                     <th class="pv-col-field">Trường</th>
-                                    <th class="pv-col-raw">Raw (gốc)</th>
-                                    <th class="pv-col-vi">Dịch</th>
+                                    <th class="pv-col-value">Giá trị</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr id="pv-row-title">
                                     <td class="pv-cell-label">Tên</td>
-                                    <td class="pv-cell-raw" id="pv-title-raw"></td>
-                                    <td class="pv-cell-vi" id="pv-title-vi"></td>
+                                    <td class="pv-cell-value" id="pv-title"></td>
                                 </tr>
                                 <tr id="pv-row-author">
                                     <td class="pv-cell-label">Tác giả</td>
-                                    <td class="pv-cell-raw" id="pv-author-raw"></td>
-                                    <td class="pv-cell-vi" id="pv-author-vi"></td>
+                                    <td class="pv-cell-value" id="pv-author"></td>
                                 </tr>
                                 <tr id="pv-row-desc">
                                     <td class="pv-cell-label">Mô tả</td>
-                                    <td class="pv-cell-raw" id="pv-desc-raw"></td>
-                                    <td class="pv-cell-vi" id="pv-desc-vi"></td>
+                                    <td class="pv-cell-value" id="pv-desc"></td>
                                 </tr>
                             </tbody>
                         </table>
-                        <div class="pv-translate-info" id="pv-translate-info"></div>
                     </div>
                     <div id="preview-placeholder" class="pv-placeholder">
                         <div class="pv-placeholder-icon">📖</div>
@@ -509,22 +497,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 authorEl.value = data.author || "";
                 if (!slugEl.dataset.userEdited) slugEl.value = data.slug || "";
 
-                fillCell('pv-title-raw', data.title_raw || data.name || "");
-                fillCell('pv-title-vi', data.title_vi || "");
-                fillCell('pv-author-raw', data.author || "");
-                fillCell('pv-author-vi', data.author_vi || "");
-                fillCell('pv-desc-raw', data.description || "");
-                fillCell('pv-desc-vi', data.description_vi || "");
-                document.getElementById('pv-desc-raw')?.classList.toggle('pv-desc-truncate', (data.description || '').length > 120);
-                document.getElementById('pv-desc-vi')?.classList.toggle('pv-desc-truncate', (data.description_vi || '').length > 120);
-
-                var infoEl = document.getElementById('pv-translate-info');
-                if (data.translate_model) {
-                    infoEl.textContent = '🤖 ' + data.translate_model;
-                    infoEl.style.display = '';
-                } else {
-                    infoEl.style.display = 'none';
-                }
+                fillCell('pv-title', data.name || "");
+                fillCell('pv-author', data.author || "");
+                fillCell('pv-desc', data.description || "");
+                var descEl = document.getElementById('pv-desc');
+                if (descEl) descEl.classList.toggle('pv-desc-truncate', (data.description || '').length > 120);
 
                 document.getElementById("pv-chapters").textContent = "📄 " + (data.chapter_count || 0) + " chương";
                 var coverEl = document.getElementById("pv-cover");
@@ -642,12 +619,9 @@ document.addEventListener("DOMContentLoaded", function () {
         slugEl.dataset.userEdited = "";
         slugEl.value = slugify(result.title || "");
 
-        fillCell('pv-title-raw', result.title || "");
-        fillCell('pv-title-vi', "");
-        fillCell('pv-author-raw', result.author || "");
-        fillCell('pv-author-vi', "");
-        fillCell('pv-desc-raw', "");
-        fillCell('pv-desc-vi', "");
+        fillCell('pv-title', result.title || "");
+        fillCell('pv-author', result.author || "");
+        fillCell('pv-desc', "");
         document.getElementById('pv-chapters').textContent = "📄 " + (result.chapter_count || 0) + " chương";
         var coverEl = document.getElementById("pv-cover");
         if (result.cover_url) {

@@ -14,7 +14,6 @@ from novel2epub.pipeline import (
     step_crawl,
     step_fetch_toc,
     step_translate,
-    step_translate_meta,
 )
 
 from .queue import JobQueue
@@ -23,7 +22,6 @@ _STEPS: dict[str, Callable[[Config, Callable[[str], None]], object]] = {
     "crawl": step_crawl,
     "fetch-toc": step_fetch_toc,
     "translate": step_translate,
-    "translate-meta": step_translate_meta,
     "build": step_build,
     "run": run_all,
 }
@@ -34,7 +32,6 @@ _STEP_CATEGORY: dict[str, str] = {
     "crawl": "crawl",
     "fetch-toc": "crawl",
     "translate": "translate",
-    "translate-meta": "translate",
     "build": "both",
     "run": "both",
 }

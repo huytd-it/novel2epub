@@ -147,25 +147,6 @@ def start_ebook_chapter_action(
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
-@router.post("/ebooks/{slug}/jobs/translate-meta-selected")
-def start_ebook_translate_meta_selected(
-    request: Request,
-    slug: str,
-    checked_indexes: Annotated[list[int], Form()] = [],
-    override: bool = Form(False),
-):
-    """Dịch metadata + nội dung các chương đã tick (dùng step_translate_selected)."""
-    cfg = deps.resolved_cfg(slug)
-    if not checked_indexes:
-        raise HTTPException(status_code=400, detail="Không có chương nào được chọn.")
-
-    def _target(log):
-        step_translate_selected(cfg, log, force=override, selected_indexes=checked_indexes)
-
-    request.app.state.job.start_custom("translate-meta-selected", _target, category="translate")
-    return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
-
-
 @router.post("/ebooks/{slug}/jobs/translate-toc-selected")
 def start_ebook_translate_toc_selected(
     request: Request,

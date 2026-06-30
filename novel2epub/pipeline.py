@@ -583,39 +583,6 @@ def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False, sho
     return manifest
 
 
-def _translate_meta_inplace(
-    manifest: Manifest, translator, is_noop: bool, log: LogFn, *, force: bool
-) -> bool:
-    """Gán metadata tiếng Việt từ config vào manifest. Trả True nếu có thay đổi."""
-    return False
-
-
-def step_translate_meta(cfg: Config, log: LogFn = _print, *, force: bool = False, should_cancel: CancelFn | None = None) -> Manifest:
-    """Gán metadata tiếng Việt từ config vào manifest."""
-    _emit_config_warnings(cfg, log)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    if manifest is None:
-        raise RuntimeError("Chưa có manifest. Hãy chạy 'Lấy mục lục' hoặc 'crawl' trước.")
-
-    changed = False
-    if cfg.novel.title and (force or not manifest.title):
-        manifest.title = cfg.novel.title
-        log(f"[meta] Tên truyện: {manifest.title}")
-        changed = True
-    if cfg.novel.author and (force or not manifest.author):
-        manifest.author = cfg.novel.author
-        log(f"[meta] Tác giả: {manifest.author}")
-        changed = True
-
-    if changed:
-        storage.save_manifest(manifest)
-        log("[meta] Hoàn tất.")
-    else:
-        log("[meta] Không có gì cần cập nhật (đã có sẵn — dùng 'force' để ghi đè).")
-    return manifest
-
-
 def step_translate(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> Manifest:
     return step_translate_selected(cfg, log, should_cancel=should_cancel)
 
@@ -816,9 +783,6 @@ def step_translate_selected(
     translator = RateLimited(make_translator(cfg.translate, log), cfg.translate.delay_seconds)
     is_noop = cfg.translate.type.lower() == "none"
 
-    # Dịch metadata truyện (nếu chưa có) để EPUB hiển thị title/tác giả tiếng Việt.
-    changed = _translate_meta_inplace(manifest, translator, is_noop, log, force=False)
-
     selected = _chapter_selection(manifest.chapters, chapter, start, end, selected_indexes)
     total = len(selected)
     log(f"[dịch] Bắt đầu xử lý {total} chương trong phạm vi đã chọn.")
@@ -848,6 +812,7 @@ def step_translate_selected(
     # Batch translate all chapter titles before the content loop.
     title_lookup = _batch_translate_titles(translator, to_translate, log)
 
+    changed = 0
     if workers > 1 and len(to_translate) > 1:
         translated_count, failed, replaced, changed = _translate_chapters_parallel(
             cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed, should_cancel, title_lookup=title_lookup

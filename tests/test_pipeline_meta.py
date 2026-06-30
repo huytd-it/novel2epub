@@ -36,19 +36,6 @@ class _FakeCrawler:
         pass
 
 
-class _UpperTranslator:
-    """Translator giả: 'dịch' = thêm tiền tố để kiểm tra giá trị được ghi."""
-
-    def translate(self, text, *, on_chunk=None):
-        out = f"VI:{text}"
-        if on_chunk is not None:
-            on_chunk(1, 1, out, True)
-        return out
-
-    def translate_title(self, text, kind="tên chương"):
-        return f"VI:{text}", f"note:{kind}"
-
-
 def test_step_fetch_toc_saves_metadata_no_content(tmp_path, monkeypatch):
     toc = TocResult(
         title="原书名",
@@ -69,44 +56,6 @@ def test_step_fetch_toc_saves_metadata_no_content(tmp_path, monkeypatch):
     assert len(manifest.chapters) == 2
     # fetch_toc KHÔNG tải nội dung chương
     assert not storage.has_raw(manifest.chapters[0])
-
-
-def test_step_translate_meta_fills_from_config(tmp_path, monkeypatch):
-    toc = TocResult(title="书名", author="作者", description="简介", chapters=[Chapter(index=1, url="http://x/1")])
-    monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(toc))
-
-    cfg = _cfg(tmp_path)
-    cfg.novel.title = "Tên Việt"
-    cfg.novel.author = "Tác giả Việt"
-    pipeline.step_fetch_toc(cfg, lambda m: None)
-    pipeline.step_translate_meta(cfg, lambda m: None)
-
-    manifest = Storage(tmp_path, "t").load_manifest()
-    assert manifest.title == "Tên Việt"
-    assert manifest.author == "Tác giả Việt"
-
-
-def test_step_translate_meta_noop_when_no_title(tmp_path, monkeypatch):
-    toc = TocResult(title="书名", description="简介", chapters=[Chapter(index=1, url="http://x/1")])
-    monkeypatch.setattr(pipeline, "make_crawler", lambda c: _FakeCrawler(toc))
-
-    cfg = _cfg(tmp_path)
-    pipeline.step_fetch_toc(cfg, lambda m: None)
-    pipeline.step_translate_meta(cfg, lambda m: None)
-
-    manifest = Storage(tmp_path, "t").load_manifest()
-    assert manifest.title == "书名"  # from TOC, not from config
-
-
-def test_translate_meta_inplace_noop(tmp_path):
-    from novel2epub.storage import Manifest
-
-    manifest = Manifest(slug="t", title="Tên Truyện")
-    tr = _UpperTranslator()
-
-    # _translate_meta_inplace no longer translates; always returns False
-    assert pipeline._translate_meta_inplace(manifest, tr, is_noop=False, log=lambda m: None, force=False) is False
-    assert manifest.title == "Tên Truyện"
 
 
 class _FlakyTranslator:

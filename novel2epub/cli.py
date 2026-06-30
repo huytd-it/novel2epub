@@ -15,7 +15,6 @@ from .pipeline import (
     step_evaluate_translation,
     step_fetch_toc,
     step_translate,
-    step_translate_meta,
     step_translate_selected,
 )
 from .storage import Storage
@@ -99,8 +98,6 @@ def main(argv: list[str] | None = None) -> int:
     crawl_parser.add_argument("--filter", dest="filters", action="append", default=[], help="Lọc chương: raw:yes/no, translated:yes/no, missing:yes/no")
     crawl_parser.add_argument("--range", dest="visible_range", default="", help="Chọn range theo danh sách đang sort/filter, ví dụ 1:3")
     sub.add_parser("translate", help="Dịch các chương đã crawl sang tiếng Việt")
-    meta_parser = sub.add_parser("meta", help="Dịch metadata truyện (tên, tác giả, mô tả) sang tiếng Việt")
-    meta_parser.add_argument("--force", action="store_true", help="Dịch lại metadata dù đã có bản dịch")
     toc_parser = sub.add_parser("toc", help="Lấy mục lục + metadata, không crawl nội dung chương")
     toc_parser.add_argument("--force", action="store_true", help="Làm mới metadata nguồn dù manifest đã có giá trị")
     chapters_parser = sub.add_parser("chapters", help="Liệt kê chương với sort/search/filter")
@@ -117,7 +114,6 @@ def main(argv: list[str] | None = None) -> int:
     search_parser.add_argument("--limit", type=int, default=5, help="Số kết quả tối đa mỗi source (mặc định: 5)")
     search_parser.add_argument("--format", dest="output_format", default="text", choices=["text", "json"], help="Định dạng output")
     search_parser.add_argument("--select", type=int, default=None, help="Chọn kết quả theo số thứ tự (1-based) để tạo ebook")
-    search_parser.add_argument("--translate", action="store_true", help="Dịch metadata sang tiếng Việt khi dùng --select")
     sub.add_parser("build", help="Đóng gói EPUB từ các chương đã dịch")
     sub.add_parser("run", help="Chạy toàn bộ: crawl -> translate -> build")
     sub.add_parser("list", help="Liệt kê các ebook trong library")
@@ -204,23 +200,6 @@ def main(argv: list[str] | None = None) -> int:
             selected = response.results[idx]
             print(f"\nĐã chọn: {selected.title} ({selected.source_name})")
 
-            if args.translate:
-                try:
-                    global_cfg = load_config(args.config)
-                    if global_cfg.translate.type.lower() != "none":
-                        from .translator import RateLimited, make_translator
-                        translator = RateLimited(
-                            make_translator(global_cfg.translate),
-                            global_cfg.translate.delay_seconds,
-                        )
-                        if selected.title:
-                            title_vi, _ = translator.translate_title(selected.title, kind="tên truyện")
-                            if title_vi:
-                                selected.title = title_vi
-                                print(f"  Tên (dịch): {title_vi}")
-                except Exception as e:
-                    print(f"  Cảnh báo: Không thể dịch metadata: {e}", file=sys.stderr)
-
             print(f"  URL: {selected.url}")
             print(f"  Tác giả: {selected.author or 'N/A'}")
             print(f"  Số chương: {selected.chapter_count or 'N/A'}")
@@ -274,8 +253,6 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 step_translate(cfg)
-        elif args.command == "meta":
-            step_translate_meta(cfg, force=args.force)
         elif args.command == "toc":
             step_fetch_toc(cfg, force=args.force)
         elif args.command == "chapters":

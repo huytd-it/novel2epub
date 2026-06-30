@@ -1,67 +1,73 @@
 {% extends "base.html" %}
 {% block title %}Tự động hóa — novel2epub{% endblock %}
 {% block content %}
-<div class="section-head">
-    <h2>Tự động hóa</h2>
-    <button type="button" class="button" id="add-automation-btn">+ Thêm automation</button>
+<style>.modal-backdrop[hidden]{display:none!important}</style>
+<div class="flex items-baseline justify-between gap-4 mb-1">
+    <h2 class="m-0 text-xl font-semibold">Tự động hóa</h2>
+    <button type="button" id="add-automation-btn" class="inline-flex items-center px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">+ Thêm automation</button>
 </div>
-<p class="muted">Chuỗi bước chạy theo lịch hàng ngày hoặc bấm tay, đẩy qua hàng đợi job (job "automation" chiếm độc quyền crawl + dịch trong lúc chạy).</p>
+<p class="text-muted-light dark:text-muted-dark text-sm mb-3">Chuỗi bước chạy theo lịch hàng ngày hoặc bấm tay, đẩy qua hàng đợi job (job "automation" chiếm độc quyền crawl + dịch trong lúc chạy).</p>
 
-<div class="table-wrap">
-    <table class="data-table">
-        <tr><th>Ebook</th><th>Các bước</th><th>Lịch</th><th>Bật</th><th>Lần chạy cuối</th><th>Kết quả</th><th></th></tr>
+<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
+    <table class="w-full text-sm">
+        <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs">
+            <tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Ebook</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Các bước</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lịch</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Bật</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lần chạy cuối</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Kết quả</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr>
+        </thead>
+        <tbody>
         {% for a in automations %}
-        <tr>
-            <td>{{ a.ebook }}</td>
-            <td>{{ a.steps | join(' → ') }}</td>
-            <td><code>{{ a.schedule }}</code></td>
-            <td>{% if a.enabled %}<span class="badge ok">bật</span>{% else %}<span class="badge no">tắt</span>{% endif %}</td>
-            <td>{{ a.last_run_at or '—' }}</td>
-            <td>
-                {% if a.last_run_outcome == 'success' %}<span class="badge ok">thành công</span>
-                {% elif a.last_run_outcome == 'failure' %}<span class="badge no">lỗi</span>
-                {% elif a.last_run_outcome == 'partial' %}<span class="badge run">một phần</span>
-                {% else %}<span class="muted">—</span>{% endif %}
+        <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ a.ebook }}</td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ a.steps | join(' → ') }}</td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ a.schedule }}</code></td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{% if a.enabled %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">bật</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">tắt</span>{% endif %}</td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ a.last_run_at or '—' }}</td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
+                {% if a.last_run_outcome == 'success' %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">thành công</span>
+                {% elif a.last_run_outcome == 'failure' %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi</span>
+                {% elif a.last_run_outcome == 'partial' %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">một phần</span>
+                {% else %}<span class="text-muted-light dark:text-muted-dark text-sm">—</span>{% endif %}
             </td>
-            <td>
-                <div class="row-actions">
-                    <form method="post" action="/automation/{{ a.id }}/run-now"><button type="submit">Chạy ngay</button></form>
-                    <form method="post" action="/automation/{{ a.id }}/delete" onsubmit="return confirm('Xóa automation này?');"><button type="submit">Xóa</button></form>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
+                <div class="inline-flex gap-1.5 items-center flex-wrap">
+                    <form method="post" action="/automation/{{ a.id }}/run-now"><button type="submit" class="px-2 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Chạy ngay</button></form>
+                    <form method="post" action="/automation/{{ a.id }}/delete" onsubmit="return confirm('Xóa automation này?');"><button type="submit" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xóa</button></form>
                 </div>
             </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="muted">Chưa có automation nào.</td></tr>
+        <tr><td colspan="7" class="text-muted-light dark:text-muted-dark text-sm px-3 py-2">Chưa có automation nào.</td></tr>
         {% endfor %}
+        </tbody>
     </table>
 </div>
 
 <!-- Modal: Add automation -->
-<div id="add-automation-modal" class="modal-backdrop" hidden>
-    <div class="modal modal-large">
-        <div class="section-head">
-            <h3>Thêm automation</h3>
-            <button type="button" class="canvas-close" onclick="closeModal('add-automation-modal')">✕</button>
+<div id="add-automation-modal" class="modal-backdrop fixed inset-0 z-40 flex items-center justify-center bg-black/45" hidden>
+    <div class="bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark border border-border-light dark:border-border-dark rounded-card p-5 max-w-2xl w-[95vw] max-h-[85vh] overflow-y-auto shadow-card dark:shadow-card-dark">
+        <div class="flex items-baseline justify-between gap-4 mb-3">
+            <h3 class="m-0 text-lg font-semibold">Thêm automation</h3>
+            <button type="button" onclick="closeModal('add-automation-modal')" class="px-2 py-1 rounded-md border border-border-light dark:border-border-dark bg-surface-alt-light dark:bg-surface-alt-dark hover:bg-surface-light dark:hover:bg-surface-dark text-lg leading-none">✕</button>
         </div>
         <form method="post" action="/automation">
-            <fieldset>
-                <p><label>Ebook
-                    <select name="ebook" required>
+            <fieldset class="border border-border-light dark:border-border-dark rounded-lg p-3 mb-3 bg-surface-alt-light dark:bg-surface-alt-dark">
+                <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Cấu hình</legend>
+                <p class="my-2"><label class="flex flex-col gap-1 text-sm">Ebook
+                    <select name="ebook" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm">
                         {% for slug in ebooks %}<option value="{{ slug }}">{{ slug }}</option>{% endfor %}
                     </select>
                 </label></p>
-                <p>
+                <p class="my-2">
                     {% for step in steps %}
-                    <label class="check"><input type="checkbox" name="steps" value="{{ step }}" {% if step == 'build' %}checked{% endif %}> {{ step }}</label>
+                    <label class="inline-flex items-center gap-1 text-sm mr-3"><input type="checkbox" name="steps" value="{{ step }}" {% if step == 'build' %}checked{% endif %}> {{ step }}</label>
                     {% endfor %}
                 </p>
-                <p><label>Lịch chạy
-                    <input type="text" name="schedule" value="manual" placeholder="manual hoặc daily@03:00">
+                <p class="my-2"><label class="flex flex-col gap-1 text-sm">Lịch chạy
+                    <input type="text" name="schedule" value="manual" placeholder="manual hoặc daily@03:00" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm">
                 </label></p>
             </fieldset>
-            <div class="form-row">
-                <button type="submit">Tạo automation</button>
-                <button type="button" onclick="closeModal('add-automation-modal')">Hủy</button>
+            <div class="flex gap-2 justify-end mt-3">
+                <button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Tạo automation</button>
+                <button type="button" onclick="closeModal('add-automation-modal')" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Hủy</button>
             </div>
         </form>
     </div>

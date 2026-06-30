@@ -1,138 +1,152 @@
 {% extends "base.html" %}
 {% block title %}Glossary — novel2epub{% endblock %}
 {% block content %}
-<p><a href="/ebooks/{{ slug }}">&larr; Quay lại ebook</a></p>
-<h2>Glossary</h2>
-<p class="muted">Mỗi dòng dạng <code>Hán = Việt</code> hoặc <code>Hán = Việt | ghi chú</code>. Dòng bắt đầu bằng <code>#</code> hoặc không có <code>=</code> sẽ bị bỏ qua. Mục có <strong>ghi chú</strong> sẽ tự sinh footnote ở lần xuất hiện đầu tiên trong mỗi chương khi build EPUB.</p>
+<p><a href="/ebooks/{{ slug }}" class="text-link-light dark:text-link-dark hover:underline">&larr; Quay lại ebook</a></p>
+<h2 class="text-xl font-semibold mt-3 mb-2">Glossary</h2>
+<p class="text-sm text-muted-light dark:text-muted-dark mb-3">Mỗi dòng dạng <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">Hán = Việt</code> hoặc <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">Hán = Việt | ghi chú</code>. Dòng bắt đầu bằng <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">#</code> hoặc không có <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">=</code> sẽ bị bỏ qua. Mục có <strong>ghi chú</strong> sẽ tự sinh footnote ở lần xuất hiện đầu tiên trong mỗi chương khi build EPUB.</p>
 
-<div id="glossary-tabs" class="tab-panel">
-    <div class="tab-bar">
-        <button class="active" data-tab="tab-edit" onclick="switchTab('glossary-tabs', 'tab-edit')">Soạn thảo</button>
-        <button data-tab="tab-suggest" onclick="switchTab('glossary-tabs', 'tab-suggest')">AI gợi ý</button>
-        <button data-tab="tab-evaluate" onclick="switchTab('glossary-tabs', 'tab-evaluate')">AI đánh giá</button>
-        <button data-tab="tab-findreplace" onclick="switchTab('glossary-tabs', 'tab-findreplace')">Tìm &amp; thay thế</button>
-        <button data-tab="tab-rewrite" onclick="switchTab('glossary-tabs', 'tab-rewrite')">AI rewrite</button>
+<div id="glossary-tabs">
+    <div class="tab-bar flex border-b-2 border-border-light dark:border-border-dark mb-3 overflow-x-auto">
+        <button class="active px-4 py-2 text-sm border-b-2 border-link-light dark:border-link-dark -mb-0.5 text-link-light dark:text-link-dark font-semibold" data-tab="tab-edit" onclick="switchTab('glossary-tabs', 'tab-edit')">Soạn thảo</button>
+        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-suggest" onclick="switchTab('glossary-tabs', 'tab-suggest')">AI gợi ý</button>
+        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-evaluate" onclick="switchTab('glossary-tabs', 'tab-evaluate')">AI đánh giá</button>
+        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-findreplace" onclick="switchTab('glossary-tabs', 'tab-findreplace')">Tìm &amp; thay thế</button>
+        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-rewrite" onclick="switchTab('glossary-tabs', 'tab-rewrite')">AI rewrite</button>
     </div>
 
     <div id="tab-edit" class="tab-content active">
         <form method="post" action="/ebooks/{{ slug }}/glossary">
-            <div class="cols">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <h3>names.txt (tên riêng)</h3>
-                    <textarea name="names" rows="20">{{ names }}</textarea>
+                    <h3 class="text-base font-semibold mb-1">names.txt (tên riêng)</h3>
+                    <textarea name="names" rows="20" class="w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-link-light/40">{{ names }}</textarea>
                 </div>
                 <div>
-                    <h3>vietphrase.txt (thuật ngữ)</h3>
-                    <textarea name="vietphrase" rows="20">{{ vietphrase }}</textarea>
+                    <h3 class="text-base font-semibold mb-1">vietphrase.txt (thuật ngữ)</h3>
+                    <textarea name="vietphrase" rows="20" class="w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-link-light/40">{{ vietphrase }}</textarea>
                 </div>
             </div>
-            <p><button type="submit">Lưu glossary</button></p>
+            <p class="mt-2"><button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Lưu glossary</button></p>
         </form>
     </div>
 
-    <div id="tab-suggest" class="tab-content">
-        <div class="section-head">
-            <h3>AI gợi ý glossary</h3>
-            <p class="muted">Phân tích bản gốc + bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần), chỉ đưa gợi ý — bạn tự duyệt trước khi lưu.</p>
+    <div id="tab-suggest" class="tab-content hidden">
+        <div class="flex items-baseline justify-between gap-4 mb-1">
+            <h3 class="text-base font-semibold m-0">AI gợi ý glossary</h3>
         </div>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/suggest" class="form-row">
-            <label>Từ chương <input type="number" name="chapter_from" value="{{ chapter_from or 1 }}" min="0" required></label>
-            <label>đến chương <input type="number" name="chapter_to" value="{{ chapter_to or 1 }}" min="0" required></label>
-            <button type="submit">AI phân tích</button>
+        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">Phân tích bản gốc + bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần), chỉ đưa gợi ý — bạn tự duyệt trước khi lưu.</p>
+        <form method="post" action="/ebooks/{{ slug }}/glossary/suggest" class="flex flex-wrap gap-4 items-end my-3">
+            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="{{ chapter_from or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="{{ chapter_to or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+            <button type="submit" class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">AI phân tích</button>
         </form>
 
-        {% if suggest_error %}<p class="badge no">{{ suggest_error }}</p>{% endif %}
+        {% if suggest_error %}<p class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">{{ suggest_error }}</p>{% endif %}
 
         {% if suggestions %}
         <form method="post" action="/ebooks/{{ slug }}/glossary/apply">
-            <table>
-                <tr><th></th><th>Nguồn (Trung)</th><th>Đề xuất (Việt)</th><th>Loại</th><th>Lý do</th><th>File đích</th></tr>
+            <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
+            <table class="w-full text-sm">
+                <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Nguồn (Trung)</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Đề xuất (Việt)</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Loại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lý do</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">File đích</th></tr></thead>
+                <tbody>
                 {% for s in suggestions %}
-                <tr>
-                    <td><input type="checkbox" name="selected_{{ loop.index0 }}" checked></td>
-                    <td>{{ s.source }}<input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
-                    <td>{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
-                    <td>{{ s.type }}</td>
-                    <td class="muted">{{ s.reason }}</td>
-                    <td>{{ s.target_file }}<input type="hidden" name="target_file_{{ loop.index0 }}" value="{{ s.target_file }}"></td>
+                <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
+                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" name="selected_{{ loop.index0 }}" checked></td>
+                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.source }}<input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
+                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
+                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.type }}</td>
+                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark text-muted-light dark:text-muted-dark text-xs">{{ s.reason }}</td>
+                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.target_file }}<input type="hidden" name="target_file_{{ loop.index0 }}" value="{{ s.target_file }}"></td>
                 </tr>
                 {% endfor %}
+                </tbody>
             </table>
-            <p><button type="submit">Lưu các mục đã chọn vào glossary</button></p>
+            </div>
+            <p class="mt-2"><button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Lưu các mục đã chọn vào glossary</button></p>
         </form>
         {% endif %}
     </div>
 
-    <div id="tab-evaluate" class="tab-content">
-        <div class="section-head">
-            <h3>AI đánh giá bản dịch (chỉ xem)</h3>
-            <p class="muted">AI đọc glossary + bản gốc/bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần) rồi chấm điểm và liệt kê vấn đề (glossary chưa nhất quán, dịch sai/khô, dùng sai thuật ngữ). <strong>Chỉ là báo cáo</strong> — không sửa file, không ghi đè gì.</p>
+    <div id="tab-evaluate" class="tab-content hidden">
+        <div class="flex items-baseline justify-between gap-4 mb-1">
+            <h3 class="text-base font-semibold m-0">AI đánh giá bản dịch (chỉ xem)</h3>
         </div>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/evaluate" class="form-row">
-            <label>Từ chương <input type="number" name="chapter_from" value="{{ eval_chapter_from or 1 }}" min="0" required></label>
-            <label>đến chương <input type="number" name="chapter_to" value="{{ eval_chapter_to or 1 }}" min="0" required></label>
-            <button type="submit">AI đánh giá</button>
+        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">AI đọc glossary + bản gốc/bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần) rồi chấm điểm và liệt kê vấn đề (glossary chưa nhất quán, dịch sai/khô, dùng sai thuật ngữ). <strong>Chỉ là báo cáo</strong> — không sửa file, không ghi đè gì.</p>
+        <form method="post" action="/ebooks/{{ slug }}/glossary/evaluate" class="flex flex-wrap gap-4 items-end my-3">
+            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="{{ eval_chapter_from or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="{{ eval_chapter_to or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+            <button type="submit" class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">AI đánh giá</button>
         </form>
 
-        {% if evaluate_error %}<p class="badge no">{{ evaluate_error }}</p>{% endif %}
+        {% if evaluate_error %}<p class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">{{ evaluate_error }}</p>{% endif %}
 
         {% if report %}
         {% if report.score is not none %}<p><strong>Điểm:</strong> {{ report.score }}/10</p>{% endif %}
         {% if report.summary %}<p><strong>Nhận xét:</strong> {{ report.summary }}</p>{% endif %}
         {% if report.issues %}
-        <table>
-            <tr><th>Mức độ</th><th>Loại</th><th>Chương</th><th>Nguồn</th><th>Hiện tại</th><th>Đề xuất</th><th>Lý do</th></tr>
+        <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
+        <table class="w-full text-sm">
+            <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Mức độ</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Loại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Chương</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Nguồn</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Hiện tại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Đề xuất</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lý do</th></tr></thead>
+            <tbody>
             {% for it in report.issues %}
-            <tr>
-                <td>{{ it.severity }}</td>
-                <td>{{ it.category }}</td>
-                <td>{{ it.chapter }}</td>
-                <td>{{ it.source }}</td>
-                <td>{{ it.current }}</td>
-                <td>{{ it.suggestion }}</td>
-                <td class="muted">{{ it.reason }}</td>
+            <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.severity }}</td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.category }}</td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.chapter }}</td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.source }}</td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.current }}</td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.suggestion }}</td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark text-muted-light dark:text-muted-dark text-xs">{{ it.reason }}</td>
             </tr>
             {% endfor %}
+            </tbody>
         </table>
+        </div>
         {% elif not evaluate_error %}
-        <p class="badge ok">Không phát hiện vấn đề nào.</p>
+        <p class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Không phát hiện vấn đề nào.</p>
         {% endif %}
         {% endif %}
     </div>
 
-    <div id="tab-findreplace" class="tab-content">
-        <div class="section-head">
-            <h3>Tìm &amp; thay thế toàn novel (literal, không AI)</h3>
-            <p class="muted">Thay thế literal mọi chỗ khớp trong các chương <strong>đã dịch</strong> — nhanh, dùng để đổi tên riêng đã dịch hoặc sửa lỗi hàng loạt. Để trống phạm vi = toàn bộ. <strong>Đây là hành động ghi đè trực tiếp</strong>; bản trước khi thay được lưu trong meta của từng chương (<code>before_find_replace</code>), nhưng nên commit/backup trước khi chạy trên phạm vi lớn.</p>
+    <div id="tab-findreplace" class="tab-content hidden">
+        <div class="flex items-baseline justify-between gap-4 mb-1">
+            <h3 class="text-base font-semibold m-0">Tìm &amp; thay thế toàn novel (literal, không AI)</h3>
         </div>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/find-replace" class="form-row">
-            <label>Tìm <input type="text" name="find" required></label>
-            <label>Thay bằng <input type="text" name="replace"></label>
-            <label>Từ chương <input type="number" name="chapter_from" value="0" min="0"></label>
-            <label>đến chương <input type="number" name="chapter_to" value="0" min="0"></label>
-            <label class="check"><input type="checkbox" name="also_raw" value="true"> Cả bản gốc (raw)</label>
-            <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Tìm &amp; thay thế</button>
+        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">Thay thế literal mọi chỗ khớp trong các chương <strong>đã dịch</strong> — nhanh, dùng để đổi tên riêng đã dịch hoặc sửa lỗi hàng loạt. Để trống phạm vi = toàn bộ. <strong>Đây là hành động ghi đè trực tiếp</strong>; bản trước khi thay được lưu trong meta của từng chương (<code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">before_find_replace</code>), nhưng nên commit/backup trước khi chạy trên phạm vi lớn.</p>
+        <form method="post" action="/ebooks/{{ slug }}/glossary/find-replace" class="flex flex-wrap gap-4 items-end my-3">
+            <label class="flex flex-col gap-1 text-sm">Tìm <input type="text" name="find" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+            <label class="flex flex-col gap-1 text-sm">Thay bằng <input type="text" name="replace" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+            <label class="inline-flex items-center gap-1 text-sm"><input type="checkbox" name="also_raw" value="true" class="rounded border-border-light dark:border-border-dark"> Cả bản gốc (raw)</label>
+            <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed">Tìm &amp; thay thế</button>
         </form>
     </div>
 
-    <div id="tab-rewrite" class="tab-content">
-        <div class="section-head">
-            <h3>AI rewrite chương (ghi đè bản dịch)</h3>
-            <p class="muted">AI sẽ biên tập lại toàn bộ bản dịch trong phạm vi đã chọn theo glossary + nguyên tắc "edit hay" (dùng từ đồng nghĩa linh hoạt, câu tự nhiên, tên chương hay hơn...). <strong>Đây là hành động ghi đè trực tiếp</strong> — bản trước khi rewrite được lưu lại trong meta của từng chương, nhưng nên backup/commit trước khi chạy trên phạm vi lớn.</p>
+    <div id="tab-rewrite" class="tab-content hidden">
+        <div class="flex items-baseline justify-between gap-4 mb-1">
+            <h3 class="text-base font-semibold m-0">AI rewrite chương (ghi đè bản dịch)</h3>
         </div>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/rewrite" class="form-row">
-            <label>Từ chương <input type="number" name="chapter_from" value="1" min="0" required></label>
-            <label>đến chương <input type="number" name="chapter_to" value="1" min="0" required></label>
-            <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>AI rewrite</button>
+        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">AI sẽ biên tập lại toàn bộ bản dịch trong phạm vi đã chọn theo glossary + nguyên tắc "edit hay" (dùng từ đồng nghĩa linh hoạt, câu tự nhiên, tên chương hay hơn...). <strong>Đây là hành động ghi đè trực tiếp</strong> — bản trước khi rewrite được lưu lại trong meta của từng chương, nhưng nên backup/commit trước khi chạy trên phạm vi lớn.</p>
+        <form method="post" action="/ebooks/{{ slug }}/glossary/rewrite" class="flex flex-wrap gap-4 items-end my-3">
+            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="1" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="1" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+            <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed">AI rewrite</button>
         </form>
     </div>
 </div>
 
-<p>
+<style>
+/* Tab content visibility (Tailwind dùng class .active được thêm bởi switchTab) */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+</style>
+
+<p class="mt-4">
     Trạng thái job dịch:
     <span id="status-badge-container">
-        {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="badge run">đang chạy: {{ job.translate.step }}</span>{% elif job.translate.running %}<span class="badge run">đang chạy (ebook khác)</span>{% else %}<span class="badge ok">rảnh</span>{% endif %}
-        {% if job.translate.error %}<span class="badge no">lỗi: {{ job.translate.error }}</span>{% endif %}
+        {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy: {{ job.translate.step }}</span>{% elif job.translate.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy (ebook khác)</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">rảnh</span>{% endif %}
+        {% if job.translate.error %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
 </p>
 
@@ -144,7 +158,6 @@ function isTranslateBusyHere(data) {
     return (data.translate.running_ebooks || []).includes(GLOSSARY_SLUG);
 }
 
-// --- Asynchronous action button handler ---
 function setJobButtonsDisabled(disabled) {
     const jobButtons = document.querySelectorAll(
         'form[action*="/rewrite"] button, form[action*="/find-replace"] button, form[action*="/jobs/"] button, form[action*="/action"] button'
@@ -157,28 +170,28 @@ function setJobButtonsDisabled(disabled) {
 document.addEventListener("submit", async function(event) {
     const form = event.target;
     const action = form.getAttribute("action") || "";
-    
+
     if (action.includes("/rewrite") || action.includes("/find-replace") || action.includes("/jobs/") || action.includes("/action")) {
         event.preventDefault();
-        
+
         setJobButtonsDisabled(true);
         const container = document.getElementById("status-badge-container");
         if (container) {
-            container.innerHTML = '<span class="badge run">đang kết nối...</span>';
+            container.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang kết nối...</span>';
         }
-        
+
         try {
             const formData = new FormData(form);
             const submitter = event.submitter;
             if (submitter && submitter.name && submitter.value) {
                 formData.set(submitter.name, submitter.value);
             }
-            
+
             const response = await fetch(action, {
                 method: form.method || "POST",
                 body: formData
             });
-            
+
             if (!response.ok) {
                 let errMsg = "Có lỗi xảy ra khi bắt đầu job.";
                 try {
@@ -215,22 +228,19 @@ async function poll() {
         if (container) {
             let html = "";
             if (busyHere) {
-                html += `<span class="badge run">đang chạy: ${t.step}</span> `;
+                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy: ${t.step}</span> `;
             } else if (t.running) {
-                html += '<span class="badge run">đang chạy (ebook khác)</span> ';
+                html += '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy (ebook khác)</span> ';
             } else {
-                html += '<span class="badge ok">rảnh</span> ';
+                html += '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">rảnh</span> ';
             }
             if (t.error) {
-                html += `<span class="badge no">lỗi: ${t.error}</span>`;
+                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: ${t.error}</span>`;
             }
             container.innerHTML = html;
         }
 
         setJobButtonsDisabled(busyHere);
-
-        // Job rewrite ghi vào file chương, không đụng tới form glossary nên
-        // không reload trang (tránh mất nội dung đang gõ trong textarea).
         wasRunning = busyHere;
     } catch (e) {
         console.error("Lỗi khi poll status:", e);

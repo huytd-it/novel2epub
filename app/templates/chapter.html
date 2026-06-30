@@ -1,13 +1,166 @@
 {% extends "base.html" %}
 {% block title %}Chương {{ ch.index }} — novel2epub{% endblock %}
 {% block content %}
-<p><a href="{% if slug %}/ebooks/{{ slug }}{% else %}/{% endif %}">&larr; Quay lại</a></p>
-<h2>Chương {{ ch.index }}: {{ ch.title_vi or ch.title_zh }}</h2>
-{% if ch.title_note %}<p class="muted">{{ ch.title_note }}</p>{% endif %}
-<p class="muted"><a href="{{ ch.url }}" target="_blank">{{ ch.url }}</a></p>
-{% if ch.missing_fields %}<p class="muted">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}
-<p class="muted">Số từ bản dịch: {{ translated_word_count }} từ{% if raw %} · raw: {{ raw_char_count }} ký tự{% endif %}</p>
-{% if ch.last_action_status %}<p class="muted">Action gần nhất: {{ ch.last_action_status }}</p>{% endif %}
+
+<style>
+/* Local styles cho chapter editor: compare-table 3 cột, AI panel, popover, diff view, raw-view, font-controls */
+.chapter-workspace { min-width: 0; }
+
+.chapter-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+.chapter-actions form, .chapter-actions .retranslate-title-section { margin: 0; }
+.chapter-actions button, .chapter-actions select {
+    font-size: 0.85rem; line-height: 1.4;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    background: #fff;
+    color: #202020;
+    cursor: pointer;
+    box-sizing: border-box;
+    height: 2em;
+}
+.dark .chapter-actions button, .dark .chapter-actions select { background: #1c1f24; color: #e7e9ec; border-color: #2e3338; }
+.chapter-actions button { background: #2563eb; color: #fff; border-color: #2563eb; font-weight: 500; }
+.chapter-actions button:hover { opacity: 0.9; }
+.btn-group { display: inline-flex; align-items: stretch; }
+.btn-group select { border-right: none; border-radius: 6px 0 0 6px; background: #fff; color: #202020; }
+.dark .btn-group select { background: #1c1f24; color: #e7e9ec; }
+.btn-group button { border-radius: 0 6px 6px 0; margin: 0; }
+
+.retranslate-title-panel { margin: 1rem 0; padding: 0.75rem 1rem; background: #f7f7f7; border: 1px solid #e5e5e5; border-radius: 10px; }
+.dark .retranslate-title-panel { background: #20242a; border-color: #2e3338; }
+.retranslate-controls { display: flex; flex-direction: column; gap: 0.5rem; }
+.retranslate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.retranslate-row select { margin: 0; padding: 0.4rem 0.6rem; font-size: 0.85rem; min-width: 120px; border: 1px solid #e5e5e5; border-radius: 6px; background: #fff; color: #202020; }
+.dark .retranslate-row select { background: #1c1f24; color: #e7e9ec; border-color: #2e3338; }
+.retranslate-row .check { display: flex; align-items: center; gap: 0.25rem; font-size: 0.85rem; }
+.btn-primary { background: #2563eb !important; color: #fff !important; border-color: #2563eb !important; font-weight: 500 !important; }
+.dark .btn-primary { background: #6ea8fe !important; border-color: #6ea8fe !important; color: #14161a !important; }
+.btn-primary:hover { background: #1d4ed8 !important; border-color: #1d4ed8 !important; }
+.dark .btn-primary:hover { background: #8fbcff !important; border-color: #8fbcff !important; }
+
+.prompt-preview-section { width: 100%; border: 1px solid #e5e5e5; border-radius: 6px; background: #fff; }
+.dark .prompt-preview-section { background: #1c1f24; border-color: #2e3338; }
+.prompt-preview-section summary { padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.85rem; color: #777; user-select: none; }
+.dark .prompt-preview-section summary { color: #9aa2ad; }
+.prompt-preview-section summary:hover { color: #202020; }
+.dark .prompt-preview-section summary:hover { color: #e7e9ec; }
+.prompt-preview-section textarea { width: 100%; margin: 0; padding: 0.75rem; border: none; border-top: 1px solid #e5e5e5; border-radius: 0; font-family: monospace; font-size: 0.8rem; resize: vertical; background: #fff; color: #202020; box-sizing: border-box; }
+.dark .prompt-preview-section textarea { background: #1c1f24; color: #e7e9ec; border-top-color: #2e3338; }
+.link-btn { background: none; border: none; color: #2563eb; cursor: pointer; text-decoration: underline; padding: 0; font-size: 0.9rem; }
+.dark .link-btn { color: #6ea8fe; }
+
+#job-status-section { margin: 1rem 0; padding: 0.5rem 1rem; border: 1px solid #e5e5e5; border-radius: 10px; background: #f7f7f7; }
+.dark #job-status-section { background: #20242a; border-color: #2e3338; }
+#job-status-section p { margin: 0; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+.ai-panel { border: 1px solid #e5e5e5; border-radius: 10px; padding: 0.75rem 1rem; margin: 1rem 0; background: #fcfcfc; }
+.dark .ai-panel { background: #20242a; border-color: #2e3338; }
+.ai-panel.review { border-color: #e0c36b; background: #fffdf3; }
+.dark .ai-panel.review { background: #2d2615; border-color: #b8941f; }
+.ai-panel.suggest { border-color: #9ed1a8; background: #f5fbf6; }
+.dark .ai-panel.suggest { background: #1a2a1f; border-color: #4a8a5c; }
+.ai-panel.rewrite { border-color: #9bbbe0; background: #f6f9fd; }
+.dark .ai-panel.rewrite { background: #1a2330; border-color: #4a6a8a; }
+.issue-list { padding-left: 1.2rem; margin: 0.5rem 0; }
+.issue { margin: 0.5rem 0; padding-left: 0.4rem; border-left: 3px solid #ccc; }
+.issue.sev-high { border-left-color: #d33; }
+.issue.sev-medium { border-left-color: #e0a000; }
+.issue.sev-low { border-left-color: #8aa; }
+.issue-tag { display: inline-block; font-size: 0.72rem; padding: 0.05rem 0.4rem; border-radius: 10px; background: #eef; margin-right: 0.3rem; }
+.issue-tag.sev { background: #f3e6c0; }
+.dark .issue-tag { background: #2a2a3a; color: #c0c0d0; }
+.dark .issue-tag.sev { background: #3a3520; color: #e0c080; }
+.issue .del { background: #ffe1e1; text-decoration: line-through; }
+.dark .issue .del { background: #3a1a1a; }
+.issue .ins { background: #def7df; }
+.dark .issue .ins { background: #1a3a1a; }
+
+.cols { display: flex; gap: 1rem; }
+.cols > div { flex: 1; min-width: 0; }
+@media (max-width: 900px) { .cols { flex-direction: column; } }
+
+.raw-view { width: 100%; height: 60vh; overflow-y: auto; white-space: pre-wrap; word-break: break-word; box-sizing: border-box; border: 1px solid #bbb; border-radius: 4px; padding: 0.5rem; background: #fff; font-family: monospace; font-size: 0.95rem; line-height: 1.6; }
+.dark .raw-view { background: #1c1f24; color: #e7e9ec; border-color: #2e3338; }
+.raw-view mark { background: #fff1a8; border-radius: 2px; padding: 0 1px; }
+
+.compare-toolbar { display: flex; gap: 0.5rem; align-items: center; padding: 0.3rem 0.5rem; border-bottom: 1px solid #e5e5e5; background: #f7f7f7; font-size: 0.85rem; }
+.dark .compare-toolbar { background: #20242a; border-bottom-color: #2e3338; }
+.compare-wrap { position: relative; max-height: 70vh; overflow-y: auto; border: 1px solid #e5e5e5; border-radius: 8px; }
+.dark .compare-wrap { border-color: #2e3338; }
+.compare-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.compare-table thead { position: sticky; top: 0; z-index: 2; }
+.compare-table thead th { background: #f7f7f7; border-bottom: 1px solid #e5e5e5; padding: 0.35rem 0.5rem; font-weight: 600; font-size: 0.85rem; color: #777; text-align: left; }
+.dark .compare-table thead th { background: #20242a; border-bottom-color: #2e3338; color: #9aa2ad; }
+.compare-table td { padding: 0.35rem 0.5rem; vertical-align: top; border-bottom: 1px solid #e5e5e5; font-family: monospace; font-size: 0.88rem; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.dark .compare-table td { border-bottom-color: #2e3338; }
+.compare-table .col-ai { width: 80px; text-align: center; }
+.compare-table .raw-cell { background: #fff; }
+.dark .compare-table .raw-cell { background: #1c1f24; color: #e7e9ec; }
+.compare-table .mt-cell { background: #f7f7f9; color: #333; }
+.dark .compare-table .mt-cell { background: #20242a; color: #c0c0c0; }
+.compare-table .edit-cell { padding: 0; height: 100%; }
+.compare-table .ai-cell { padding: 0.35rem 0.3rem; vertical-align: middle; text-align: center; }
+.compare-table mark { background: #fff1a8; border-radius: 2px; padding: 0 1px; }
+.compare-table mark.jump-flash { background: #ffb84d; outline: 2px solid #d97706; }
+textarea.jump-flash { outline: 2px solid #d97706; }
+.readonly-col { background: #f7f7f9; color: #333; }
+.dark .readonly-col { background: #20242a; color: #c0c0c0; }
+
+.ai-cell-actions { display: flex; gap: 0.2rem; justify-content: center; }
+.ai-polish-btn, .ai-explain-btn { padding: 0.15rem 0.3rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #e5e5e5; border-radius: 4px; background: #fff; color: #777; cursor: pointer; transition: background 0.15s; }
+.dark .ai-polish-btn, .dark .ai-explain-btn { background: #1c1f24; color: #9aa2ad; border-color: #2e3338; }
+.ai-polish-btn:hover, .ai-explain-btn:hover { background: #f7f7f7; color: #202020; }
+.dark .ai-polish-btn:hover, .dark .ai-explain-btn:hover { background: #20242a; color: #e7e9ec; }
+.ai-polish-btn:disabled, .ai-explain-btn:disabled { opacity: 0.4; cursor: wait; }
+
+.compare-table .edit-cell textarea { display: block; width: 100%; border: none; border-radius: 0; resize: none; box-sizing: border-box; font-family: monospace; font-size: 0.88rem; line-height: 1.55; padding: 0.35rem 0.5rem; background: transparent; overflow-y: hidden; }
+
+.ai-explain-popover { position: absolute; left: 0; right: 0; z-index: 20; background: #fff; border: 1px solid #e0c36b; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); max-height: 320px; overflow: hidden; display: flex; flex-direction: column; }
+.dark .ai-explain-popover { background: #1c1f24; border-color: #b8941f; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.ai-explain-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; background: #fffdf3; border-bottom: 1px solid #e0c36b; flex-shrink: 0; }
+.dark .ai-explain-header { background: #2d2615; border-bottom-color: #b8941f; }
+.ai-explain-title { font-size: 0.85rem; font-weight: 600; color: #92400e; }
+.dark .ai-explain-title { color: #fbbf24; }
+.ai-explain-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #92400e; padding: 0; line-height: 1; }
+.dark .ai-explain-close { color: #fbbf24; }
+.ai-explain-body { padding: 0.75rem; overflow-y: auto; font-size: 0.88rem; line-height: 1.6; }
+.ai-explain-body .ai-loading, .ai-explain-body .ai-error, .ai-explain-body .muted { padding: 0.5rem 0; font-size: 0.85rem; }
+.ai-explain-body .ai-error { color: #dc2626; }
+.ai-explain-body .explain-item { padding: 0.35rem 0; border-bottom: 1px solid #e5e5e5; }
+.dark .ai-explain-body .explain-item { border-bottom-color: #2e3338; }
+.ai-explain-body .explain-item:last-child { border-bottom: none; }
+.ai-explain-body .explain-item strong { color: #2563eb; }
+.dark .ai-explain-body .explain-item strong { color: #6ea8fe; }
+
+.font-controls label { display: flex; align-items: center; gap: 0.25rem; font-size: 0.82rem; color: #777; white-space: nowrap; }
+.dark .font-controls label { color: #9aa2ad; }
+.font-controls select { font-size: 0.8rem; padding: 0.1rem 0.2rem; border: 1px solid #e5e5e5; border-radius: 4px; background: #fff; color: #202020; }
+.dark .font-controls select { background: #1c1f24; color: #e7e9ec; border-color: #2e3338; }
+
+.diff-view { height: 45vh; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-family: monospace; font-size: 0.85rem; }
+.dark .diff-view { background: #1c1f24; color: #e7e9ec; border-color: #2e3338; }
+.diff-line { padding: 0 0.4rem; white-space: pre-wrap; word-break: break-word; }
+.diff-line.eq { color: #555; }
+.dark .diff-line.eq { color: #9aa2ad; }
+.diff-line.del { background: #ffe1e1; text-decoration: line-through; }
+.dark .diff-line.del { background: #3a1a1a; }
+.diff-line.ins { background: #def7df; }
+.dark .diff-line.ins { background: #1a3a1a; }
+
+.jump-btn { border: 1px solid #bbb; background: #fff; border-radius: 4px; padding: 0 0.3rem; cursor: pointer; font-size: 0.85rem; line-height: 1.4; }
+.dark .jump-btn { background: #1c1f24; color: #e7e9ec; border-color: #2e3338; }
+
+@media (max-width: 900px) { .compare-wrap { overflow-x: auto; } .compare-wrap .compare-table { min-width: 700px; } .retranslate-title-section { flex-direction: column; align-items: flex-start; } .retranslate-options { flex-wrap: wrap; } }
+</style>
+
+<p class="text-sm"><a href="{% if slug %}/ebooks/{{ slug }}{% else %}/{% endif %}" class="text-link-light dark:text-link-dark hover:underline">&larr; Quay lại</a></p>
+<h2 class="text-xl font-semibold mt-2 mb-1">Chương {{ ch.index }}: {{ ch.title_vi or ch.title_zh }}</h2>
+{% if ch.title_note %}<p class="text-sm text-muted-light dark:text-muted-dark">{{ ch.title_note }}</p>{% endif %}
+<p class="text-sm text-muted-light dark:text-muted-dark"><a href="{{ ch.url }}" target="_blank" class="text-link-light dark:text-link-dark hover:underline">{{ ch.url }}</a></p>
+{% if ch.missing_fields %}<p class="text-sm text-muted-light dark:text-muted-dark">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}
+<p class="text-sm text-muted-light dark:text-muted-dark">Số từ bản dịch: {{ translated_word_count }} từ{% if raw %} · raw: {{ raw_char_count }} ký tự{% endif %}</p>
+{% if ch.last_action_status %}<p class="text-sm text-muted-light dark:text-muted-dark">Action gần nhất: {{ ch.last_action_status }}</p>{% endif %}
 
 <div class="chapter-actions">
     <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action">
@@ -19,53 +172,53 @@
         <input type="hidden" name="action" value="translate">
         <input type="hidden" name="override" value="true">
         <span class="btn-group">
-            <select name="translate_backend">
+            <select name="translate_backend" class="rounded-l-md border border-r-0 border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm px-2 py-1">
                 <option value="hachimimt">HachimiMT</option>
                 <option value="openai">OpenAI</option>
                 <option value="google">Google</option>
             </select>
-            <button type="submit">Dịch</button>
+            <button type="submit" class="rounded-r-md">Dịch</button>
         </span>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/delete-translation">
-        <button type="submit">Xóa bản dịch</button>
+        <button type="submit" class="bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark border border-border-light dark:border-border-dark">Xóa bản dịch</button>
     </form>
     <form method="post" action="{{ base }}/ai/suggest" class="ai-job-form"><button type="submit" title="AI gợi ý tên riêng/thuật ngữ trong chương để thêm vào glossary.">Gợi ý glossary</button></form>
 </div>
 
 <div class="retranslate-title-panel">
-    <div class="section-head">
-        <h4>Dịch lại tiêu đề</h4>
+    <div class="flex items-baseline justify-between gap-4 mb-1">
+        <h4 class="m-0 text-sm font-semibold text-muted-light dark:text-muted-dark">Dịch lại tiêu đề</h4>
     </div>
     <div class="retranslate-controls">
         <div class="retranslate-row">
-            <button type="button" id="retranslate-title-btn" class="btn-primary" title="Dịch lại tiêu đề dựa trên nội dung đã dịch.">Dịch lại tiêu đề</button>
-            <select id="retranslate-engine" title="Chọn engine dịch tiêu đề">
+            <button type="button" id="retranslate-title-btn" class="btn-primary px-2.5 py-1 text-sm rounded-md" title="Dịch lại tiêu đề dựa trên nội dung đã dịch.">Dịch lại tiêu đề</button>
+            <select id="retranslate-engine" title="Chọn engine dịch tiêu đề" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm px-2 py-1">
                 <option value="openai">OpenAI</option>
                 <option value="google">Google</option>
                 <option value="hachimimt">HachimiMT</option>
             </select>
-            <select id="retranslate-model" title="Chọn model" style="display:none;"></select>
-            <label class="check muted" title="Tạo description giải thích tên chương">
-                <input type="checkbox" id="retranslate-gen-desc" checked> Tạo mô tả
+            <select id="retranslate-model" title="Chọn model" style="display:none" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm px-2 py-1"></select>
+            <label class="check inline-flex items-center gap-1 text-sm text-muted-light dark:text-muted-dark" title="Tạo description giải thích tên chương">
+                <input type="checkbox" id="retranslate-gen-desc" checked class="rounded border-border-light dark:border-border-dark"> Tạo mô tả
             </label>
         </div>
         <details class="prompt-preview-section">
             <summary>Xem / chỉnh sửa prompt</summary>
-            <textarea id="retranslate-prompt" rows="8" placeholder="Custom prompt (để trống dùng mặc định)">{{ default_title_prompt or '' }}</textarea>
-            <button type="button" id="retranslate-reset-prompt" class="link-btn">Reset prompt mặc định</button>
+            <textarea id="retranslate-prompt" rows="8" placeholder="Custom prompt (để trống dùng mặc định)" class="block w-full border-0 border-t border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark font-mono text-xs p-3 resize-y box-border">{{ default_title_prompt or '' }}</textarea>
+            <button type="button" id="retranslate-reset-prompt" class="link-btn mx-3 my-2 text-xs">Reset prompt mặc định</button>
         </details>
     </div>
 </div>
 
-<div id="job-status-section" style="display: none;">
-    <p><strong>Trạng thái job:</strong>
-        <span id="status-badge-crawl"><span class="badge ok">Crawl: rảnh</span></span>
-        <span id="status-badge-translate"><span class="badge ok">Dịch: rảnh</span></span>
+<div id="job-status-section" class="my-3" style="display: none;">
+    <p class="flex items-center gap-2 flex-wrap m-0"><strong>Trạng thái job:</strong>
+        <span id="status-badge-crawl"><span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Crawl: rảnh</span></span>
+        <span id="status-badge-translate"><span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Dịch: rảnh</span></span>
     </p>
 </div>
 {% if meta %}
-<p class="muted">Prompt/profile: <code>{{ meta.profile }}</code> · Model: <code>{{ meta.model or "-" }}</code></p>
+<p class="text-sm text-muted-light dark:text-muted-dark">Prompt/profile: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ meta.profile }}</code> · Model: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ meta.model or "-" }}</code></p>
 {% endif %}
 
 <section class="chapter-workspace" style="grid-column: 1 / -1;">
@@ -75,67 +228,69 @@
 {% if meta and meta.ai_review and meta.ai_review.report %}
 {% set report = meta.ai_review.report %}
 <div class="ai-panel review">
-    <div class="section-head">
-        <h3>AI review{% if report.score is not none %} · {{ report.score }}/10{% endif %}</h3>
-        <form method="post" action="{{ base }}/ai/review/dismiss"><button type="submit" class="link-btn">Ẩn</button></form>
+    <div class="flex items-baseline justify-between gap-4 mb-1">
+        <h3 class="m-0 text-base font-semibold">AI review{% if report.score is not none %} · {{ report.score }}/10{% endif %}</h3>
+        <form method="post" action="{{ base }}/ai/review/dismiss"><button type="submit" class="link-btn text-sm">Ẩn</button></form>
     </div>
-    {% if report.summary %}<p>{{ report.summary }}</p>{% endif %}
+    {% if report.summary %}<p class="text-sm">{{ report.summary }}</p>{% endif %}
     {% if report.issues %}
     <ol class="issue-list">
         {% for it in report.issues %}
         <li class="issue sev-{{ it.severity }}">
             <span class="issue-tag">{{ CATEGORY_LABELS.get(it.category, it.category) }}</span>
             <span class="issue-tag sev">{{ it.severity }}</span>
-            {% if it.source %}<code>{{ it.source }}</code>{% endif %}
+            {% if it.source %}<code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ it.source }}</code>{% endif %}
             {% if it.current or it.suggestion %}<div><span class="del">{{ it.current }}</span> → <span class="ins">{{ it.suggestion }}</span></div>{% endif %}
-            {% if it.reason %}<div class="muted">{{ it.reason }}</div>{% endif %}
+            {% if it.reason %}<div class="text-muted-light dark:text-muted-dark text-sm">{{ it.reason }}</div>{% endif %}
         </li>
         {% endfor %}
     </ol>
     {% else %}
-    <p class="muted">Không phát hiện vấn đề nào.</p>
+    <p class="text-sm text-muted-light dark:text-muted-dark">Không phát hiện vấn đề nào.</p>
     {% endif %}
 </div>
 {% endif %}
 
 {% if meta and meta.ai_suggestions %}
 <div class="ai-panel suggest">
-    <div class="section-head">
-        <h3>AI gợi ý glossary ({{ meta.ai_suggestions|length }})</h3>
+    <div class="flex items-baseline justify-between gap-4 mb-1">
+        <h3 class="m-0 text-base font-semibold">AI gợi ý glossary ({{ meta.ai_suggestions|length }})</h3>
     </div>
     <form method="post" action="{{ base }}/ai/suggest/apply">
-        <table class="data-table">
-            <thead><tr><th></th><th>Hán</th><th>Việt</th><th>Loại</th><th>File</th><th>Lý do</th></tr></thead>
+        <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
+        <table class="w-full text-sm">
+            <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Hán</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Việt</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Loại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">File</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lý do</th></tr></thead>
             <tbody>
             {% for s in meta.ai_suggestions %}
-            <tr>
-                <td><input type="checkbox" name="selected_{{ loop.index0 }}" checked></td>
-                <td><code>{{ s.source }}</code><input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
-                <td>{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
-                <td>{{ s.type }}</td>
-                <td>{{ s.target_file }}<input type="hidden" name="target_file_{{ loop.index0 }}" value="{{ s.target_file }}"></td>
-                <td class="muted">{{ s.reason }}</td>
+            <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" name="selected_{{ loop.index0 }}" checked class="rounded border-border-light dark:border-border-dark"></td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ s.source }}</code><input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.type }}</td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.target_file }}<input type="hidden" name="target_file_{{ loop.index0 }}" value="{{ s.target_file }}"></td>
+                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark text-muted-light dark:text-muted-dark text-sm">{{ s.reason }}</td>
             </tr>
             {% endfor %}
             </tbody>
         </table>
-        <p><button type="submit">Thêm mục đã tick vào glossary</button></p>
+        </div>
+        <p class="mt-2"><button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Thêm mục đã tick vào glossary</button></p>
     </form>
 </div>
 {% endif %}
 
 {% if meta and meta.before_rewrite %}
-<details>
-    <summary>Chương này đã được AI rewrite — xem/khôi phục bản trước khi rewrite</summary>
-    <div class="cols">
+<details class="mt-2">
+    <summary class="cursor-pointer text-sm">Chương này đã được AI rewrite — xem/khôi phục bản trước khi rewrite</summary>
+    <div class="cols mt-2">
         <div>
-            <h4>Bản trước khi rewrite</h4>
-            <textarea readonly>{{ meta.before_rewrite }}</textarea>
+            <h4 class="text-sm font-semibold">Bản trước khi rewrite</h4>
+            <textarea readonly class="w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm font-mono p-2" rows="10">{{ meta.before_rewrite }}</textarea>
         </div>
         <div>
             <form method="post" action="{{ base }}">
                 <input type="hidden" name="translated" value="{{ meta.before_rewrite }}">
-                <p><button type="submit">Khôi phục bản này (ghi đè bản dịch hiện tại)</button></p>
+                <p class="mt-2"><button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Khôi phục bản này (ghi đè bản dịch hiện tại)</button></p>
             </form>
         </div>
     </div>
@@ -143,30 +298,30 @@
 {% endif %}
 
 {% if meta and meta.before_find_replace %}
-<details>
-    <summary>Chương này đã bị tìm &amp; thay thế — xem/khôi phục bản trước khi thay</summary>
-    <div class="cols">
+<details class="mt-2">
+    <summary class="cursor-pointer text-sm">Chương này đã bị tìm &amp; thay thế — xem/khôi phục bản trước khi thay</summary>
+    <div class="cols mt-2">
         <div>
-            <h4>Bản trước khi tìm &amp; thay thế</h4>
-            <textarea readonly>{{ meta.before_find_replace }}</textarea>
+            <h4 class="text-sm font-semibold">Bản trước khi tìm &amp; thay thế</h4>
+            <textarea readonly class="w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm font-mono p-2" rows="10">{{ meta.before_find_replace }}</textarea>
         </div>
         <div>
             <form method="post" action="{{ base }}">
                 <input type="hidden" name="translated" value="{{ meta.before_find_replace }}">
-                <p><button type="submit">Khôi phục bản này (ghi đè bản dịch hiện tại)</button></p>
+                <p class="mt-2"><button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Khôi phục bản này (ghi đè bản dịch hiện tại)</button></p>
             </form>
         </div>
     </div>
 </details>
 {% endif %}
 
-<form method="post" action="{{ base }}" id="chapter-form">
+<form method="post" action="{{ base }}" id="chapter-form" class="mt-2">
     <div class="compare-wrap">
         <div class="compare-toolbar">
-            <label class="check muted"><input type="checkbox" id="highlight-toggle" checked> Tô sáng glossary</label>
+            <label class="check muted inline-flex items-center gap-1 text-sm"><input type="checkbox" id="highlight-toggle" checked class="rounded border-border-light dark:border-border-dark"> Tô sáng glossary</label>
             <span class="font-controls">
                 <label>Font:
-                    <select id="font-family-select">
+                    <select id="font-family-select" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
                         <option value="'Literata', 'Georgia', serif">Literata (Google Books)</option>
                         <option value="'Bookerly', 'Georgia', serif">Bookerly (Kindle)</option>
                         <option value="'FernText', 'Georgia', serif">FernText (E-reader)</option>
@@ -177,7 +332,7 @@
                     </select>
                 </label>
                 <label>Cỡ:
-                    <select id="font-size-select">
+                    <select id="font-size-select" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
                         <option value="14px">14</option>
                         <option value="15px">15</option>
                         <option value="16px">16</option>
@@ -222,19 +377,19 @@
         </div>
     </div>
     <input type="hidden" name="translated" id="hidden-translated">
-    <p><button type="submit">Lưu bản dịch</button></p>
+    <p class="mt-3"><button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Lưu bản dịch</button></p>
 </form>
 
 {% if footnote_list %}
-<div class="section-head">
-    <h3>Xem trước chú thích</h3>
-    <label class="check muted"><input type="checkbox" id="footnotes-toggle" checked> Hiện chú thích</label>
+<div class="flex items-baseline justify-between gap-4 mb-1 mt-4">
+    <h3 class="text-base font-semibold m-0">Xem trước chú thích</h3>
+    <label class="check inline-flex items-center gap-1 text-sm text-muted-light dark:text-muted-dark"><input type="checkbox" id="footnotes-toggle" checked class="rounded border-border-light dark:border-border-dark"> Hiện chú thích</label>
 </div>
 <details id="footnotes-control" class="edit-rules">
-    <summary>Ẩn từng chú thích ({{ footnote_list|length }})</summary>
-    <ul>
+    <summary class="cursor-pointer text-sm">Ẩn từng chú thích ({{ footnote_list|length }})</summary>
+    <ul class="list-disc pl-5">
         {% for fn in footnote_list %}
-        <li><label class="check"><input type="checkbox" class="footnote-item-toggle" data-num="{{ fn.num }}" checked> ({{ fn.num }}) <strong>{{ fn.term }}</strong>: {{ fn.note }}</label></li>
+        <li><label class="check inline-flex items-center gap-1 text-sm"><input type="checkbox" class="footnote-item-toggle rounded border-border-light dark:border-border-dark" data-num="{{ fn.num }}" checked> ({{ fn.num }}) <strong>{{ fn.term }}</strong>: {{ fn.note }}</label></li>
         {% endfor %}
     </ul>
 </details>
@@ -244,21 +399,21 @@
 
 {% if meta and meta.ai_rewrite and meta.ai_rewrite.text %}
 <div class="ai-panel rewrite">
-    <div class="section-head">
-        <h3>Bản nháp AI biên tập — xem diff trước khi áp dụng</h3>
-        <div class="form-row" style="margin:0">
-            <form method="post" action="{{ base }}/ai/rewrite/apply"><button type="submit">Áp dụng (ghi đè bản dịch)</button></form>
-            <form method="post" action="{{ base }}/ai/rewrite/discard"><button type="submit" class="link-btn">Bỏ bản nháp</button></form>
+    <div class="flex items-baseline justify-between gap-4 mb-1">
+        <h3 class="m-0 text-base font-semibold">Bản nháp AI biên tập — xem diff trước khi áp dụng</h3>
+        <div class="flex gap-3 items-center" style="margin:0">
+            <form method="post" action="{{ base }}/ai/rewrite/apply"><button type="submit" class="px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Áp dụng (ghi đè bản dịch)</button></form>
+            <form method="post" action="{{ base }}/ai/rewrite/discard"><button type="submit" class="link-btn text-sm">Bỏ bản nháp</button></form>
         </div>
     </div>
-    <p class="muted">Đỏ = bị bỏ/đổi so với bản hiện tại · Xanh = AI thêm/sửa. Áp dụng sẽ lưu bản hiện tại vào "trước khi rewrite" để khôi phục được.</p>
+    <p class="text-sm text-muted-light dark:text-muted-dark">Đỏ = bị bỏ/đổi so với bản hiện tại · Xanh = AI thêm/sửa. Áp dụng sẽ lưu bản hiện tại vào "trước khi rewrite" để khôi phục được.</p>
     <div class="cols diff-cols">
         <div>
-            <h4>Bản dịch hiện tại</h4>
+            <h4 class="text-sm font-semibold">Bản dịch hiện tại</h4>
             <div class="diff-view" id="diff-current"></div>
         </div>
         <div>
-            <h4>Bản nháp AI</h4>
+            <h4 class="text-sm font-semibold">Bản nháp AI</h4>
             <div class="diff-view" id="diff-preview"></div>
         </div>
     </div>
@@ -286,7 +441,6 @@ if (glossarySearch) {
     });
 }
 
-// --- Tô sáng thuật ngữ glossary trong panel gốc (Trung) ---
 function escapeHtml(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -321,7 +475,6 @@ if (document.querySelector("#compare-table")) {
     if (highlightToggle) highlightToggle.addEventListener("change", renderRawView);
 }
 
-// --- Soi vị trí glossary: scroll raw + bản dịch tới đúng chỗ xuất hiện ---
 function flashElement(el) {
     el.classList.add("jump-flash");
     setTimeout(() => el.classList.remove("jump-flash"), 1200);
@@ -395,7 +548,6 @@ for (const chip of glossaryRows) {
     });
 }
 
-// --- Hiện/ẩn chú thích (footnote) trong preview bản dịch ---
 const footnotesToggle = document.getElementById("footnotes-toggle");
 const footnotesControl = document.getElementById("footnotes-control");
 const itemToggles = Array.from(document.querySelectorAll(".footnote-item-toggle"));
@@ -417,7 +569,6 @@ if (footnotesToggle) footnotesToggle.addEventListener("change", applyFootnoteVis
 for (const cb of itemToggles) cb.addEventListener("change", applyFootnoteVisibility);
 applyFootnoteVisibility();
 
-// --- Diff bản dịch hiện tại vs bản nháp AI (line-level LCS) ---
 function lineDiff(aText, bText) {
     const a = aText.split("\n"), b = bText.split("\n");
     const n = a.length, m = b.length;
@@ -451,13 +602,8 @@ if (diffCurrent && diffPreview && rewriteText && hiddenTranslated) {
     renderDiffCol(diffPreview, right);
 }
 
-// --- Job execution & polling ---
 const statusSection = document.getElementById("job-status-section");
 
-// Xác định job-category của 1 form/button: data-job-category gần nhất nếu
-// có; nếu form có select[name=action] (action chương: crawl|translate) thì
-// đọc giá trị đang chọn; mặc định "both" (an toàn, disable cả 2 khi không
-// xác định được).
 function jobCategoryFor(form) {
     const input = form && form.querySelector ? form.querySelector('input[name="action"]') : null;
     if (input && (input.value === "crawl" || input.value === "translate")) {
@@ -503,7 +649,7 @@ document.addEventListener("submit", async function(event) {
         for (const cat of affected) {
             const container = document.getElementById(`status-badge-${cat}`);
             if (container) {
-                container.innerHTML = '<span class="badge run">đang kết nối...</span>';
+                container.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang kết nối...</span>';
             }
         }
 
@@ -541,14 +687,12 @@ document.addEventListener("submit", async function(event) {
     }
 });
 
-// --- Form lưu bản dịch: gom các paragraph textarea vào hidden field ---
 document.getElementById("chapter-form")?.addEventListener("submit", function() {
     const paras = this.querySelectorAll(".para-textarea");
     const fullText = Array.from(paras).map(t => t.value).join("\n");
     this.querySelector("#hidden-translated").value = fullText;
 });
 
-// Tự động thay đổi chiều cao của textarea theo nội dung (auto-resize textarea)
 function autoResizeTextarea(textarea) {
     textarea.style.height = 'auto';
     textarea.style.height = textarea.scrollHeight + 'px';
@@ -560,33 +704,22 @@ document.addEventListener("input", function(e) {
     }
 });
 
-// Chạy khởi tạo chiều cao ban đầu cho tất cả các para-textarea
 function initTextareaHeights() {
     document.querySelectorAll(".para-textarea").forEach(t => {
         autoResizeTextarea(t);
     });
 }
 document.addEventListener("DOMContentLoaded", initTextareaHeights);
-// Chạy thêm một lần nữa sau khi load xong hoàn toàn hoặc ở cuối script đề phòng DOMContentLoaded đã kích hoạt
 setTimeout(initTextareaHeights, 100);
 
 let wasRunning = { crawl: false, translate: false };
 
-// --- Poll nội dung dịch trong khi job translate đang chạy ---
-// Xem spec `translate-chunk-streaming` requirement: chapter-page-polls.
-// Cập nhật textarea + preview khi mtime đổi. Textarea KHÔNG bị ghi đè nếu
-// user đang focus (giữ nguyên con trỏ, lịch sử undo, ...). Khi job xong,
-// `poll()` vẫn chạy `location.reload()` như cũ — tránh trường hợp textarea
-// có chỉnh sửa tạm thời chưa lưu.
 let lastTranslatedMtime = -1;
 let translatedPollScheduled = false;
 
 function renderTranslatedPreview(text) {
     const previewEl = document.getElementById("translated-preview");
     if (!previewEl) return;
-    // Re-render cơ bản: escape HTML rồi wrap mỗi dòng trong <p>. Không cần
-    // tô sáng footnote marker (job dịch đang chạy, glossary có thể chưa cập
-    // nhật); sau khi job xong, `location.reload()` sẽ render lại đầy đủ.
     const escaped = (text || "").split("\n").map(line => {
         const safe = line
             .replace(/&/g, "&amp;")
@@ -607,7 +740,6 @@ async function pollTranslated() {
         lastTranslatedMtime = data.mtime;
         const input = document.getElementById("hidden-translated");
         if (input) input.value = data.text || "";
-        // Sync paragraph textareas, but don't overwrite the one being edited
         const lines = (data.text || "").split("\n");
         document.querySelectorAll(".para-textarea").forEach((t, i) => {
             if (document.activeElement !== t) {
@@ -642,23 +774,23 @@ async function poll() {
                 if (cat === "translate") {
                     const busyHere = data.translate.running && (data.translate.running_ebooks || []).includes(CHAPTER_SLUG);
                     if (busyHere) {
-                        html += `<span class="badge run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
+                        html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
                         if (statusSection) statusSection.style.display = "block";
                     } else if (data[cat].running) {
-                        html += `<span class="badge run">${labels[cat]}: đang chạy (ebook khác)</span> `;
+                        html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">${labels[cat]}: đang chạy (ebook khác)</span> `;
                     } else {
-                        html += `<span class="badge ok">${labels[cat]}: rảnh</span> `;
+                        html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">${labels[cat]}: rảnh</span> `;
                     }
                 } else {
                     if (data[cat].running) {
-                        html += `<span class="badge run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
+                        html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
                         if (statusSection) statusSection.style.display = "block";
                     } else {
-                        html += `<span class="badge ok">${labels[cat]}: rảnh</span> `;
+                        html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">${labels[cat]}: rảnh</span> `;
                     }
                 }
                 if (data[cat].error) {
-                    html += `<span class="badge no">lỗi: ${data[cat].error}</span>`;
+                    html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: ${data[cat].error}</span>`;
                 }
                 container.innerHTML = html;
             }
@@ -680,23 +812,23 @@ async function poll() {
         console.error("Lỗi khi poll status:", e);
     }
 }
-// --- Dịch lại tiêu đề dùng nội dung đã dịch làm ngữ cảnh ---
+
 document.getElementById("retranslate-title-btn")?.addEventListener("click", async function() {
     const btn = this;
     btn.disabled = true;
     btn.textContent = "Đang dịch...";
-    
+
     const engine = document.getElementById("retranslate-engine")?.value || "";
     const model = document.getElementById("retranslate-model")?.value || "";
     const customPrompt = document.getElementById("retranslate-prompt")?.value || "";
     const generateDesc = document.getElementById("retranslate-gen-desc")?.checked ?? true;
-    
+
     const formData = new FormData();
     if (engine) formData.append("engine", engine);
     if (model) formData.append("model", model);
     if (customPrompt) formData.append("custom_prompt", customPrompt);
     formData.append("generate_description", generateDesc);
-    
+
     try {
         const res = await fetch(`/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/chapters/${CHAPTER_INDEX}/retranslate-title`, {
             method: "POST",
@@ -716,7 +848,6 @@ document.getElementById("retranslate-title-btn")?.addEventListener("click", asyn
     }
 });
 
-// --- Engine/Model dropdown dynamic update ---
 const ENGINE_MODELS = {
     openai: ["gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"],
     google: [],
@@ -734,17 +865,14 @@ document.getElementById("retranslate-engine")?.addEventListener("change", functi
     }
 });
 
-// --- Reset prompt ---
 document.getElementById("retranslate-reset-prompt")?.addEventListener("click", function() {
     const textarea = document.getElementById("retranslate-prompt");
     if (textarea) textarea.value = "";
 });
 
-// Start polling immediately to check if a job is already running
 poll();
 setInterval(poll, 1500);
 
-// --- AI biên tập & giải thích từng paragraph ---
 (function() {
     const BASE_URL = `/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/chapters/${CHAPTER_INDEX}`;
 
@@ -758,7 +886,6 @@ setInterval(poll, 1500);
             const text = textarea.value.trim();
             if (!text) return;
 
-            // Get ZH raw text from the same row
             const rawCell = row.querySelector(`.raw-cell[data-para="${para}"]`);
             const textZh = rawCell ? rawCell.textContent.trim() : '';
 
@@ -799,13 +926,11 @@ setInterval(poll, 1500);
             const body = document.getElementById('ai-explain-body');
             if (!popover || !body) return;
 
-            // Toggle if same para clicked again
             if (!popover.hidden && popover.dataset.para === para) {
                 popover.hidden = true;
                 return;
             }
 
-            // Position popover near the clicked row
             const row = this.closest('tr');
             if (row) {
                 const rowRect = row.getBoundingClientRect();
@@ -832,8 +957,7 @@ setInterval(poll, 1500);
                     return;
                 }
                 const data = await res.json();
-                
-                // Parse and format explanation lines
+
                 const lines = data.explanation.split('\n').filter(l => l.trim());
                 const formattedLines = lines.map(line => {
                     if (line.includes('**') && (line.includes('：') || line.includes(':'))) {
@@ -841,8 +965,8 @@ setInterval(poll, 1500);
                     }
                     return line.trim() ? `<div class="explain-item">${line}</div>` : '';
                 }).filter(Boolean).join('');
-                
-                body.innerHTML = formattedLines || '<div class="muted">Không có giải thích.</div>';
+
+                body.innerHTML = formattedLines || '<div class="text-muted-light dark:text-muted-dark text-sm">Không có giải thích.</div>';
             } catch (e) {
                 body.innerHTML = '<div class="ai-error">Lỗi kết nối mạng.</div>';
             } finally {
@@ -852,13 +976,11 @@ setInterval(poll, 1500);
         });
     });
 
-    // Close popover
     document.getElementById('ai-explain-close')?.addEventListener('click', () => {
         document.getElementById('ai-explain-popover').hidden = true;
     });
 })();
 
-// --- Font/font-size tuỳ chỉnh (lưu localStorage) ---
 (function() {
     const FAMILY_KEY = 'n2e-font-family';
     const SIZE_KEY = 'n2e-font-size';

@@ -1,28 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Nhật ký — novel2epub{% endblock %}
 {% block content %}
-<div class="section-head"><h2>Nhật ký job</h2></div>
-<p class="muted">Nhật ký từ các job gần đây. Job đang chạy tự động làm mới mỗi 2s.</p>
+<div class="flex items-baseline justify-between gap-4 mb-1">
+    <h2 class="m-0 text-xl font-semibold">Nhật ký job</h2>
+</div>
+<p class="text-muted-light dark:text-muted-dark text-sm mb-3">Nhật ký từ các job gần đây. Job đang chạy tự động làm mới mỗi 2s.</p>
 
 <div id="logs-region">
-<h3>Đang chạy</h3>
+<h3 class="text-base font-semibold mt-4 mb-2">Đang chạy</h3>
 <div id="logs-running"></div>
 
-<h3>Gần đây</h3>
-<div class="form-row">
-    <label>Tìm kiếm
-        <input type="search" id="log-search" placeholder="Lọc nhật ký..." oninput="filterLogs()">
+<h3 class="text-base font-semibold mt-4 mb-2">Gần đây</h3>
+<div class="flex flex-wrap gap-4 items-end my-3">
+    <label class="flex flex-col gap-1 text-sm">Tìm kiếm
+        <input type="search" id="log-search" placeholder="Lọc nhật ký..." oninput="filterLogs()" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
     </label>
-    <label>Step
-        <select id="log-filter-step" onchange="filterLogs()">
+    <label class="flex flex-col gap-1 text-sm">Step
+        <select id="log-filter-step" onchange="filterLogs()" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
             <option value="">Tất cả</option>
             {% for s in steps %}
             <option value="{{ s }}">{{ s }}</option>
             {% endfor %}
         </select>
     </label>
-    <label>Trạng thái
-        <select id="log-filter-state" onchange="filterLogs()">
+    <label class="flex flex-col gap-1 text-sm">Trạng thái
+        <select id="log-filter-state" onchange="filterLogs()" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
             <option value="">Tất cả</option>
             <option value="running">Đang chạy</option>
             <option value="done">Hoàn tất</option>
@@ -35,20 +37,20 @@
 </div>
 
 <template id="log-entry-tpl">
-    <details class="log-entry" data-step="" data-state="">
-        <summary>
-            <span class="log-summary-left">
-                <span class="badge log-state-badge">state</span>
+    <details class="log-entry border border-border-light dark:border-border-dark rounded-lg my-2 bg-surface-alt-light dark:bg-surface-alt-dark" data-step="" data-state="">
+        <summary class="flex justify-between items-center px-3 py-2 cursor-pointer">
+            <span class="flex items-center gap-2 flex-wrap">
+                <span class="badge log-state-badge inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark">state</span>
                 <strong class="log-step-label">step</strong>
-                <span class="muted log-ebook-label">ebook</span>
-                <span class="muted log-time-label">time</span>
+                <span class="muted log-ebook-label text-muted-light dark:text-muted-dark text-sm">ebook</span>
+                <span class="muted log-time-label text-muted-light dark:text-muted-dark text-sm">time</span>
             </span>
-            <span class="log-summary-right">
-                <span class="log-line-count muted">0 dòng</span>
+            <span class="log-summary-right text-sm text-muted-light dark:text-muted-dark">
+                <span class="log-line-count">0 dòng</span>
             </span>
         </summary>
-        <div class="log-body">
-            <pre class="log-content"></pre>
+        <div class="log-body px-3 pb-3">
+            <pre class="log-content bg-zinc-950 text-zinc-100 font-mono text-xs rounded-card p-3 overflow-auto m-0 max-h-96 whitespace-pre-wrap"></pre>
         </div>
     </details>
 </template>
@@ -110,14 +112,14 @@ function rebuild(data) {
         runningEl.innerHTML = "";
         data.running.forEach(j => runningEl.appendChild(renderLogEntry(j)));
     } else {
-        runningEl.innerHTML = '<p class="muted">Không có job đang chạy.</p>';
+        runningEl.innerHTML = '<p class="text-muted-light dark:text-muted-dark text-sm">Không có job đang chạy.</p>';
     }
     const recentEl = document.getElementById("logs-recent");
     recentEl.innerHTML = "";
     if (data.recent.length) {
         data.recent.forEach(j => recentEl.appendChild(renderLogEntry(j)));
     } else {
-        recentEl.innerHTML = '<p class="muted">Chưa có lịch sử.</p>';
+        recentEl.innerHTML = '<p class="text-muted-light dark:text-muted-dark text-sm">Chưa có lịch sử.</p>';
     }
     filterLogs();
 }
@@ -132,7 +134,6 @@ async function renderLogs() {
             _prevSnapshot = key;
             rebuild(data);
         }
-        // Dừng poll nếu không có job nào đang chạy
         if (!data.running.length) {
             if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
         } else if (!_pollTimer) {

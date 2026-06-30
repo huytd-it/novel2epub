@@ -1,33 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Lưu trữ — novel2epub{% endblock %}
 {% block content %}
-<div class="section-head"><h2>Lưu trữ</h2></div>
-<p class="muted">Tổng dung lượng tất cả ebook: <strong>{{ "%.1f"|format(grand_total / 1024 / 1024) }} MB</strong></p>
+<div class="flex items-baseline justify-between gap-4 mb-1">
+    <h2 class="m-0 text-xl font-semibold">Lưu trữ</h2>
+</div>
+<p class="text-muted-light dark:text-muted-dark text-sm mb-3">Tổng dung lượng tất cả ebook: <strong>{{ "%.1f"|format(grand_total / 1024 / 1024) }} MB</strong></p>
 
-<div class="table-wrap">
-    <table class="data-table">
-        <tr>
-            <th>Ebook</th><th>Raw</th><th>MT</th><th>Biên tập</th><th>Glossary</th><th>EPUB</th><th>Tổng</th><th></th>
-        </tr>
+<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
+    <table class="w-full text-sm">
+        <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs">
+            <tr>
+                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Ebook</th>
+                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Raw</th>
+                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">MT</th>
+                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Biên tập</th>
+                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Glossary</th>
+                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">EPUB</th>
+                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tổng</th>
+                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th>
+            </tr>
+        </thead>
+        <tbody>
         {% for row in rows %}
-        <tr>
-            <td><a href="/ebooks/{{ row.slug }}">{{ row.name }}</a></td>
-            <td>{{ "%.1f"|format(row.report.raw / 1024 / 1024) }} MB</td>
-            <td>{{ "%.1f"|format(row.report.translated_mt / 1024 / 1024) }} MB</td>
-            <td>{{ "%.1f"|format(row.report.translated / 1024 / 1024) }} MB</td>
-            <td>{{ "%.1f"|format(row.report.glossary / 1024 / 1024) }} MB</td>
-            <td>{{ "%.1f"|format(row.report.epub / 1024 / 1024) }} MB</td>
-            <td><strong>{{ "%.1f"|format(row.report.total / 1024 / 1024) }} MB</strong></td>
-            <td>
-                <div class="row-actions">
-                    <form method="post" action="/storage/{{ row.slug }}/purge-raw" onsubmit="return confirm('Xóa toàn bộ raw/ của {{ row.slug }}? (giữ nguyên bản đã biên tập)');"><button type="submit">Xóa raw</button></form>
-                    <form method="post" action="/storage/{{ row.slug }}/purge-mt" onsubmit="return confirm('Xóa snapshot máy dịch (VI) của {{ row.slug }}? (giữ nguyên bản đã biên tập)');"><button type="submit">Xóa MT</button></form>
-                    <form method="post" action="/storage/{{ row.slug }}/remove-epub" onsubmit="return confirm('Xóa file EPUB đã build của {{ row.slug }}?');"><button type="submit">Xóa EPUB</button></form>
-                    <a class="button" href="/storage/{{ row.slug }}/archive">Đóng gói .zip</a>
+        <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><a href="/ebooks/{{ row.slug }}" class="text-link-light dark:text-link-dark hover:underline">{{ row.name }}</a></td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ "%.1f"|format(row.report.raw / 1024 / 1024) }} MB</td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ "%.1f"|format(row.report.translated_mt / 1024 / 1024) }} MB</td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ "%.1f"|format(row.report.translated / 1024 / 1024) }} MB</td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ "%.1f"|format(row.report.glossary / 1024 / 1024) }} MB</td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ "%.1f"|format(row.report.epub / 1024 / 1024) }} MB</td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><strong>{{ "%.1f"|format(row.report.total / 1024 / 1024) }} MB</strong></td>
+            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
+                <div class="inline-flex gap-1.5 items-center flex-wrap">
+                    <form method="post" action="/storage/{{ row.slug }}/purge-raw" onsubmit="return confirm('Xóa toàn bộ raw/ của {{ row.slug }}? (giữ nguyên bản đã biên tập)');"><button type="submit" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xóa raw</button></form>
+                    <form method="post" action="/storage/{{ row.slug }}/purge-mt" onsubmit="return confirm('Xóa snapshot máy dịch (VI) của {{ row.slug }}? (giữ nguyên bản đã biên tập)');"><button type="submit" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xóa MT</button></form>
+                    <form method="post" action="/storage/{{ row.slug }}/remove-epub" onsubmit="return confirm('Xóa file EPUB đã build của {{ row.slug }}?');"><button type="submit" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xóa EPUB</button></form>
+                    <a class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-underline" href="/storage/{{ row.slug }}/archive">Đóng gói .zip</a>
                 </div>
             </td>
         </tr>
         {% endfor %}
+        </tbody>
     </table>
 </div>
 {% endblock %}

@@ -1,31 +1,31 @@
 <form method="post" action="/ebooks/{{ slug }}/settings/ai" class="settings-form">
 
-<details class="settings-group" open>
-    <summary>Backend &amp; Hiệu suất</summary>
-    <div class="settings-grid cols-3">
-        <label> Loại backend
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Backend &amp; Hiệu suất</summary>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> Loại backend
             <select name="type"
-                class="{% if not is_default(cfg.translate.type, 'translate', 'type') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.type, 'translate', 'type') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
                 {% for opt in ["hachimimt", "openai"] %}
                 <option value="{{ opt }}" {% if cfg.translate.type == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
             {% if is_default(cfg.translate.type, 'translate', 'type') %}
-            <span class="default-hint">Mặc định: hachimimt</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: hachimimt</span>
             {% endif %}
         </label>
-        <label> delay_seconds
+        <label class="flex flex-col gap-1 text-sm min-w-0"> delay_seconds
             <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.translate.delay_seconds }}" min="0"
-                class="{% if not is_default(cfg.translate.delay_seconds, 'translate', 'delay_seconds') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.delay_seconds, 'translate', 'delay_seconds') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.translate.delay_seconds, 'translate', 'delay_seconds') %}
-            <span class="default-hint">Mặc định: 0.5</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 0.5</span>
             {% endif %}
         </label>
-        <label> max_workers
+        <label class="flex flex-col gap-1 text-sm min-w-0"> max_workers
             <input type="number" name="max_workers" value="{{ cfg.translate.max_workers }}" min="1" max="20"
-                class="{% if not is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}
-            <span class="default-hint">Mặc định: 1</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 1</span>
             {% endif %}
         </label>
     </div>
@@ -33,12 +33,12 @@
 
 {# --- Local NMT section --- #}
 <div id="section-hachimimt">
-<details class="settings-group" open>
-    <summary>NMT cục bộ (HachimiMT / MoxhiMT / Hirashiba)</summary>
-    <div class="settings-grid cols-2">
-        <label> Model preset
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">NMT cục bộ (HachimiMT / MoxhiMT / Hirashiba)</summary>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> Model preset
             <select name="local_model" id="local-model-select"
-                class="{% if not is_default(cfg.translate.model, 'translate', 'model') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.model, 'translate', 'model') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
                 <option value="" {% if not cfg.translate.model %}selected{% endif %}>(tuỳ chỉnh)</option>
                 <option value="hachimimt-60" {% if cfg.translate.model == "hachimimt-60" %}selected{% endif %}>HachimiMT-60</option>
                 <option value="hachimimt-30" {% if cfg.translate.model == "hachimimt-30" %}selected{% endif %}>HachimiMT-30</option>
@@ -48,27 +48,27 @@
                 <option value="hirashiba-tiny" {% if cfg.translate.model == "hirashiba-tiny" %}selected{% endif %}>HirashibaMT-Tiny</option>
             </select>
         </label>
-        <label> backend
+        <label class="flex flex-col gap-1 text-sm min-w-0"> backend
             <select name="hachimimt_backend"
-                class="{% if not is_default(cfg.translate.hachimimt.backend, 'hachimimt', 'backend') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.hachimimt.backend, 'hachimimt', 'backend') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
                 {% for opt in ["ctranslate2", "transformers"] %}
                 <option value="{{ opt }}" {% if cfg.translate.hachimimt.backend == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
         </label>
     </div>
-    <div class="settings-grid cols-3">
-        <label> model_key
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> model_key
             <input type="text" name="hachimimt_model_key" value="{{ cfg.translate.hachimimt.model_key }}"
-                class="{% if not is_default(cfg.translate.hachimimt.model_key, 'hachimimt', 'model_key') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.hachimimt.model_key, 'hachimimt', 'model_key') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
-        <label> beam_size
+        <label class="flex flex-col gap-1 text-sm min-w-0"> beam_size
             <input type="number" name="hachimimt_beam_size" value="{{ cfg.translate.hachimimt.beam_size }}" min="1" max="4"
-                class="{% if not is_default(cfg.translate.hachimimt.beam_size, 'hachimimt', 'beam_size') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.hachimimt.beam_size, 'hachimimt', 'beam_size') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
-        <label> chunk_mode
+        <label class="flex flex-col gap-1 text-sm min-w-0"> chunk_mode
             <select name="hachimimt_chunk_mode"
-                class="{% if not is_default(cfg.translate.hachimimt.chunk_mode, 'hachimimt', 'chunk_mode') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.hachimimt.chunk_mode, 'hachimimt', 'chunk_mode') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
                 {% for opt in ["sentence", "paragraph"] %}
                 <option value="{{ opt }}" {% if cfg.translate.hachimimt.chunk_mode == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
@@ -80,35 +80,35 @@
 
 {# --- OpenAI section --- #}
 <div id="section-openai">
-<details class="settings-group" open>
-    <summary>OpenAI-Compatible</summary>
-    <div class="settings-grid cols-2">
-        <label> base_url
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">OpenAI-Compatible</summary>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> base_url
             <input type="text" id="ai-base-url" name="base_url" value="{{ cfg.translate.openai.base_url }}" list="base-url-options"
-                class="{% if not is_default(cfg.translate.openai.base_url, 'translate', 'openai') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.openai.base_url, 'translate', 'openai') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
-        <label> api_key
-            <input type="password" id="ai-api-key" name="api_key" value="{{ cfg.translate.openai.api_key }}" autocomplete="off">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> api_key
+            <input type="password" id="ai-api-key" name="api_key" value="{{ cfg.translate.openai.api_key }}" autocomplete="off" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
         </label>
     </div>
-    <div class="settings-grid cols-3">
-        <label> model
-            <div class="input-with-btn">
-                <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" list="model-options">
-                <button type="button" id="ai-load-models" class="btn-util no-autosave">Tải models</button>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> model
+            <div class="flex gap-1.5 items-stretch">
+                <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" list="model-options" class="flex-1 min-w-0 rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+                <button type="button" id="ai-load-models" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-autosave">Tải models</button>
             </div>
-            <span id="ai-models-status" class="default-hint"></span>
+            <span id="ai-models-status" class="text-xs italic text-muted-light dark:text-muted-dark"></span>
         </label>
-        <label> timeout_seconds
+        <label class="flex flex-col gap-1 text-sm min-w-0"> timeout_seconds
             <input type="number" name="timeout_seconds" value="{{ cfg.translate.openai.timeout_seconds }}" min="1"
-                class="{% if not is_default(cfg.translate.openai.timeout_seconds, 'translate', 'openai') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.openai.timeout_seconds, 'translate', 'openai') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
-        <label> temperature
+        <label class="flex flex-col gap-1 text-sm min-w-0"> temperature
             <input type="number" step="0.1" name="temperature" value="{{ cfg.translate.openai.temperature }}" min="0" max="2"
-                class="{% if not is_default(cfg.translate.openai.temperature, 'translate', 'openai') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.openai.temperature, 'translate', 'openai') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
     </div>
-    <p class="muted">Endpoint kiểu OpenAI. Bấm "Tải models" để kiểm tra kết nối.</p>
+    <p class="text-sm text-muted-light dark:text-muted-dark px-3 pb-2">Endpoint kiểu OpenAI. Bấm "Tải models" để kiểm tra kết nối.</p>
     <datalist id="base-url-options">
         <option value="https://api.openai.com/v1">
         <option value="https://openrouter.ai/api/v1">
@@ -126,21 +126,21 @@
         <option value="deepseek-chat">
         <option value="deepseek-reasoner">
     </datalist>
-    <label> prompt_template (để trống = giữ nguyên)
-        <textarea name="prompt_template" rows="8">{{ cfg.translate.openai.prompt_template }}</textarea>
+    <label class="flex flex-col gap-1 text-sm min-w-0 px-3 pb-3"> prompt_template (để trống = giữ nguyên)
+        <textarea name="prompt_template" rows="8" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 font-mono">{{ cfg.translate.openai.prompt_template }}</textarea>
     </label>
-    <label> title_prompt_template (để trống = giữ nguyên)
-        <textarea name="title_prompt_template" rows="4">{{ cfg.translate.openai.title_prompt_template }}</textarea>
+    <label class="flex flex-col gap-1 text-sm min-w-0 px-3 pb-3"> title_prompt_template (để trống = giữ nguyên)
+        <textarea name="title_prompt_template" rows="4" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 font-mono">{{ cfg.translate.openai.title_prompt_template }}</textarea>
     </label>
 </details>
 </div>
 
-<details class="settings-group" open>
-    <summary>Style dịch</summary>
-    <div class="settings-grid cols-2">
-        <label> Tone
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Style dịch</summary>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> Tone
             <select name="tone"
-                class="{% if not is_default(cfg.translate.style.tone, 'translate', 'style') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.style.tone, 'translate', 'style') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
                 <option value="mượt, tự nhiên, có chất cổ trang" {% if cfg.translate.style.tone == "mượt, tự nhiên, có chất cổ trang" %}selected{% endif %}>Mượt, tự nhiên, cổ trang</option>
                 <option value="trang trọng, cổ điển, văn chương" {% if cfg.translate.style.tone == "trang trọng, cổ điển, văn chương" %}selected{% endif %}>Trang trọng, cổ điển</option>
                 <option value="hiện đại, gần gũi, đời thường" {% if cfg.translate.style.tone == "hiện đại, gần gũi, đời thường" %}selected{% endif %}>Hiện đại, gần gũi</option>
@@ -148,72 +148,72 @@
                 <option value="khốc liệt, gân guốc, dồn nén (action/huyết chiến)" {% if cfg.translate.style.tone == "khốc liệt, gân guốc, dồn nén (action/huyết chiến)" %}selected{% endif %}>Khốc liệt, action</option>
                 <option value="__custom__" {% if cfg.translate.style.tone not in ["mượt, tự nhiên, có chất cổ trang", "trang trọng, cổ điển, văn chương", "hiện đại, gần gũi, đời thường", "dí dỏm, hài hước, trẻ trung", "khốc liệt, gân guốc, dồn nén (action/huyết chiến)"] %}selected{% endif %}>Tùy chỉnh...</option>
             </select>
-            <input type="text" id="tone-custom" name="tone_custom" value="{{ cfg.translate.style.tone if cfg.translate.style.tone not in ['mượt, tự nhiên, có chất cổ trang', 'trang trọng, cổ điển, văn chương', 'hiện đại, gần gũi, đời thường', 'dí dỏm, hài hước, trẻ trung', 'khốc liệt, gân guốc, dồn nén (action/huyết chiến)'] else '' }}" placeholder="Nhập tone tùy chỉnh..." style="display:none">
+            <input type="text" id="tone-custom" name="tone_custom" value="{{ cfg.translate.style.tone if cfg.translate.style.tone not in ['mượt, tự nhiên, có chất cổ trang', 'trang trọng, cổ điển, văn chương', 'hiện đại, gần gũi, đời thường', 'dí dỏm, hài hước, trẻ trung', 'khốc liệt, gân guốc, dồn nén (action/huyết chiến)'] else '' }}" placeholder="Nhập tone tùy chỉnh..." style="display:none" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
             {% if is_default(cfg.translate.style.tone, 'translate', 'style') %}
-            <span class="default-hint">Mặc định: mượt, tự nhiên</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: mượt, tự nhiên</span>
             {% endif %}
         </label>
-        <label> pronoun_policy
+        <label class="flex flex-col gap-1 text-sm min-w-0"> pronoun_policy
             <select name="pronoun_policy"
-                class="{% if not is_default(cfg.translate.style.pronoun_policy, 'translate', 'style') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.style.pronoun_policy, 'translate', 'style') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
                 {% for opt, label in [("contextual", "Contextual (linh hoạt)"), ("formal", "Formal (trang trọng)"), ("modern_casual", "Modern Casual (thân mật)")] %}
                 <option value="{{ opt }}" {% if cfg.translate.style.pronoun_policy == opt %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
                 <option value="__custom__" {% if cfg.translate.style.pronoun_policy not in ["contextual", "formal", "modern_casual"] %}selected{% endif %}>Tùy chỉnh...</option>
             </select>
-            <input type="text" id="pronoun-custom" name="pronoun_custom" value="{{ cfg.translate.style.pronoun_policy if cfg.translate.style.pronoun_policy not in ['contextual', 'formal', 'modern_casual'] else '' }}" placeholder="Nhập policy tùy chỉnh..." style="display:none">
+            <input type="text" id="pronoun-custom" name="pronoun_custom" value="{{ cfg.translate.style.pronoun_policy if cfg.translate.style.pronoun_policy not in ['contextual', 'formal', 'modern_casual'] else '' }}" placeholder="Nhập policy tùy chỉnh..." style="display:none" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
         </label>
     </div>
-    <div class="settings-grid cols-3">
-        <label> title_mode
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> title_mode
             <select name="title_mode"
-                class="{% if not is_default(cfg.translate.style.title_mode, 'translate', 'style') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.style.title_mode, 'translate', 'style') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
                 {% for opt in ["creative", "literal"] %}
                 <option value="{{ opt }}" {% if cfg.translate.style.title_mode == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
             {% if is_default(cfg.translate.style.title_mode, 'translate', 'style') %}
-            <span class="default-hint">Mặc định: creative</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: creative</span>
             {% endif %}
         </label>
-        <label> han_viet_level
+        <label class="flex flex-col gap-1 text-sm min-w-0"> han_viet_level
             <select name="han_viet_level"
-                class="{% if not is_default(cfg.translate.style.han_viet_level, 'translate', 'style') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.style.han_viet_level, 'translate', 'style') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
                 {% for opt in ["balanced", "heavy", "light"] %}
                 <option value="{{ opt }}" {% if cfg.translate.style.han_viet_level == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
             {% if is_default(cfg.translate.style.han_viet_level, 'translate', 'style') %}
-            <span class="default-hint">Mặc định: balanced</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: balanced</span>
             {% endif %}
         </label>
-        <label class="check">
+        <label class="inline-flex items-center gap-2 text-sm mt-5">
             <input type="checkbox" name="keep_paragraphs" value="true" {% if cfg.translate.style.keep_paragraphs %}checked{% endif %}
-                class="{% if not is_default(cfg.translate.style.keep_paragraphs, 'translate', 'style') %}overridden{% endif %}">
+                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.translate.style.keep_paragraphs, 'translate', 'style') %}border-blue-500{% endif %}">
             keep_paragraphs
             {% if is_default(cfg.translate.style.keep_paragraphs, 'translate', 'style') %}
-            <span class="default-hint">Mặc định: bật</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: bật</span>
             {% endif %}
         </label>
     </div>
 </details>
 
-<details class="settings-group">
-    <summary>Retry / Chunk</summary>
-    <div class="settings-grid cols-2">
-        <label> retry attempts
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Retry / Chunk</summary>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> retry attempts
             <input type="number" name="retry_attempts" value="{{ cfg.translate.retry.attempts }}" min="1"
-                class="{% if not is_default(cfg.translate.retry.attempts, 'translate', 'retry') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.retry.attempts, 'translate', 'retry') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
-        <label> retry delay_seconds
+        <label class="flex flex-col gap-1 text-sm min-w-0"> retry delay_seconds
             <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.translate.retry.delay_seconds }}" min="0"
-                class="{% if not is_default(cfg.translate.retry.delay_seconds, 'translate', 'retry') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.retry.delay_seconds, 'translate', 'retry') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
     </div>
-    <div class="settings-grid cols-2">
-        <label> chunk max_chars (0 = auto)
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> chunk max_chars (0 = auto)
             <input type="number" name="chunk_max_chars" value="{{ cfg.translate.chunk.max_chars }}" min="0" list="chunk-max-chars-options"
-                class="{% if not is_default(cfg.translate.chunk.max_chars, 'translate', 'chunk') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.chunk.max_chars, 'translate', 'chunk') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             <datalist id="chunk-max-chars-options">
                 <option value="0">
                 <option value="2000">
@@ -221,19 +221,19 @@
                 <option value="8000">
             </datalist>
         </label>
-        <label> chunk overlap_paragraphs
+        <label class="flex flex-col gap-1 text-sm min-w-0"> chunk overlap_paragraphs
             <input type="number" name="chunk_overlap_paragraphs" value="{{ cfg.translate.chunk.overlap_paragraphs }}" min="0"
-                class="{% if not is_default(cfg.translate.chunk.overlap_paragraphs, 'translate', 'chunk') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.chunk.overlap_paragraphs, 'translate', 'chunk') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
     </div>
 </details>
 
-<div class="form-actions">
-    <button type="button" class="btn-raw" onclick="toggleRawYaml('raw-translate')">YAML</button>
+<div class="flex gap-2 items-center mt-3 pt-3 border-t border-border-light dark:border-border-dark">
+    <button type="button" onclick="toggleRawYaml('raw-translate')" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">YAML</button>
 </div>
 
-<div id="raw-translate" class="raw-yaml" hidden>
-<pre><code>translate:
+<div id="raw-translate" class="my-2 bg-surface-alt-light dark:bg-zinc-900 border border-border-light dark:border-border-dark rounded-md px-3 py-2 overflow-x-auto" hidden>
+<pre class="m-0"><code class="text-xs">translate:
   type: {{ cfg.translate.type }}
   delay_seconds: {{ cfg.translate.delay_seconds }}
   max_workers: {{ cfg.translate.max_workers }}

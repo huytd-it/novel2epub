@@ -1,36 +1,108 @@
 {% extends "base.html" %}
 {% block title %}{{ cfg.novel.title or cfg.novel.slug }} — novel2epub{% endblock %}
 {% block content %}
-<p><a href="/">&larr; Quay lại thư viện</a></p>
 
-<div class="hero split">
+<style>
+/* Local styles cho ebook: meta-card, compact-toolbar, status-bar, action-group, pager, table-wrap, selected-actions, TOC table patterns */
+.meta-card { display: flex; gap: 1rem; align-items: flex-start; border: 1px solid #e5e5e5; border-radius: 8px; padding: 0.8rem 1rem; margin: 1rem 0; background: #fcfcfc; }
+.dark .meta-card { border-color: #2e3338; background: #20242a; }
+.meta-card .cover { width: 110px; height: auto; border-radius: 4px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+.meta-card .meta-body { min-width: 0; }
+.meta-card .meta-body h3 { margin: 0 0 0.3rem; }
+.meta-card .desc { font-size: 0.92rem; line-height: 1.5; white-space: pre-wrap; max-height: 9rem; overflow-y: auto; }
+
+.meta-table { width: 100%; margin-top: 0.5rem; font-size: 0.9rem; }
+.meta-table th, .meta-table td { padding: 0.3rem 0.5rem; vertical-align: top; }
+.meta-table th { text-align: left; font-weight: 600; background: #f5f5f5; }
+.dark .meta-table th { background: #20242a; }
+.meta-vi { cursor: pointer; min-height: 1.4em; }
+.meta-vi:hover { background: #ffffdd; }
+.dark .meta-vi:hover { background: #3a3a1a; }
+.meta-vi textarea, .meta-vi input { font-size: 0.9rem; font-family: inherit; }
+.desc-cell { max-width: 300px; white-space: pre-wrap; word-break: break-word; }
+
+.compact-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.65rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; }
+.dark .compact-toolbar { background: #20242a; border-color: #2e3338; }
+.compact-toolbar input[type="search"] { min-width: min(22rem, 100%); }
+.compact-toolbar select, .compact-toolbar input { font-size: 0.85rem; width: auto; padding: 0.35rem 0.5rem; border: 1px solid #e5e5e5; border-radius: 6px; background: #fff; color: #202020; }
+.dark .compact-toolbar select, .dark .compact-toolbar input { background: #1c1f24; color: #e7e9ec; border-color: #2e3338; }
+
+.status-bar { display: flex; align-items: center; gap: 0.5rem 0.9rem; flex-wrap: wrap; margin: 0.75rem 0; padding: 0.5rem 0.7rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; }
+.dark .status-bar { background: #20242a; border-color: #2e3338; }
+.status-hint { margin-left: auto; }
+
+.selected-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.65rem; background: #f0f7ff; border: 1px solid #b8d4f0; border-radius: 8px; }
+.dark .selected-actions { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); }
+.selected-actions .check { margin-left: 0.25rem; }
+
+.action-group { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.action-group + .action-group { margin-top: 0.1rem; }
+.action-group-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #888; min-width: 4.5rem; }
+.dark .action-group-label { color: #9aa2ad; }
+.action-group form { margin: 0; }
+
+.pager { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin: 0.6rem 0 0.2rem; padding: 0.45rem 0.2rem; }
+.pager-size { display: flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; color: #555; }
+.dark .pager-size { color: #9aa2ad; }
+.pager-size select { padding: 0.25rem 0.4rem; }
+.pager-info { margin-left: auto; font-size: 0.86rem; }
+.pager-nav { display: flex; align-items: center; gap: 0.25rem; }
+.pager-nav button { min-width: 2rem; padding: 0.3rem 0.55rem; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; cursor: pointer; font-size: 0.95rem; line-height: 1; margin: 0; }
+.dark .pager-nav button { background: #1c1f24; border-color: #2e3338; color: #e7e9ec; }
+.pager-nav button:hover:not(:disabled) { background: #eef2f7; }
+.dark .pager-nav button:hover:not(:disabled) { background: #2e3338; }
+.pager-nav button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pager-nav input[type="number"] { width: 3.4rem; text-align: center; padding: 0.28rem 0.3rem; margin: 0; border: 1px solid #cbd5e1; border-radius: 6px; }
+
+.count-pill { display: inline-block; font-size: 0.8rem; font-weight: 600; color: #1d4ed8; background: #e7efff; border-radius: 999px; padding: 0.05rem 0.55rem; vertical-align: middle; }
+.dark .count-pill { color: #8fbcff; background: rgba(59,130,246,0.15); }
+
+.toc-actions { display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0 0.5rem; }
+
+.btn-stop { background: #dc2626 !important; color: #fff !important; border-color: #dc2626 !important; }
+.btn-stop:hover { background: #b91c1c !important; }
+
+#toc-region.toc-loading { visibility: hidden; }
+
+@media (max-width: 720px) {
+    .meta-card { flex-direction: column; }
+}
+@media (max-width: 900px) {
+    .selected-actions { position: static; }
+    .compact-toolbar select, .compact-toolbar input { width: 100%; }
+}
+</style>
+
+<p><a href="/" class="text-link-light dark:text-link-dark hover:underline">&larr; Quay lại thư viện</a></p>
+
+<div class="flex flex-col md:flex-row gap-4 md:items-start md:justify-between mb-3">
     <div>
-        <h2>{{ cfg.novel.title or cfg.novel.slug }}</h2>
-        <p class="muted">Slug: <code>{{ slug }}</code> · Tác giả: {{ cfg.novel.author or "-" }}</p>
-        <p class="muted">Config: <code>{{ config_path }}</code></p>
-        <p class="muted">Crawl: <code>{{ cfg.crawl.engine }}</code> · Dịch: <code>{{ cfg.translate.type }}</code> · AI model: <code>{{ cfg.translate.openai.model or "-" }}</code>{% if cfg.translate.model %} · NMT: <code>{{ cfg.translate.model }}</code>{% endif %}</p>
+        <h2 class="m-0 text-xl font-semibold">{{ cfg.novel.title or cfg.novel.slug }}</h2>
+        <p class="text-sm text-muted-light dark:text-muted-dark mt-1">Slug: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ slug }}</code> · Tác giả: {{ cfg.novel.author or "-" }}</p>
+        <p class="text-sm text-muted-light dark:text-muted-dark mt-1">Config: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ config_path }}</code></p>
+        <p class="text-sm text-muted-light dark:text-muted-dark mt-1">Crawl: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.crawl.engine }}</code> · Dịch: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.type }}</code> · AI model: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.openai.model or "-" }}</code>{% if cfg.translate.model %} · NMT: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.model }}</code>{% endif %}</p>
     </div>
-    <div class="stack actions">
+    <div class="flex flex-col gap-1.5">
         <div class="action-group" role="group" aria-label="Crawl & Dịch (chạy song song được)">
             <span class="action-group-label">Crawl</span>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/crawl" data-job-category="crawl"><button class="btn-primary" {% if job.crawl.running %}disabled{% endif %}>Crawl tất cả</button></form>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/crawl/cancel" data-job-category="crawl"><button class="btn-stop" {% if not job.crawl.running %}disabled{% endif %}>Dừng</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/crawl" data-job-category="crawl"><button class="px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running %}disabled{% endif %}>Crawl tất cả</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/crawl/cancel" data-job-category="crawl"><button class="px-2.5 py-1 text-xs rounded-md btn-stop disabled:opacity-40 disabled:cursor-not-allowed" {% if not job.crawl.running %}disabled{% endif %}>Dừng</button></form>
         </div>
         <div class="action-group" role="group" aria-label="Dịch">
             <span class="action-group-label">Dịch</span>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/translate" data-job-category="translate"><button class="btn-primary" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch tất cả</button></form>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate"><button {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch metadata (AI)</button></form>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/translate/cancel" data-job-category="translate"><button class="btn-stop" {% if not (job.translate.running and slug in job.translate.running_ebooks) %}disabled{% endif %}>Dừng</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/translate" data-job-category="translate"><button class="px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch tất cả</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch metadata (AI)</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/translate/cancel" data-job-category="translate"><button class="px-2.5 py-1 text-xs rounded-md btn-stop disabled:opacity-40 disabled:cursor-not-allowed" {% if not (job.translate.running and slug in job.translate.running_ebooks) %}disabled{% endif %}>Dừng</button></form>
         </div>
         <div class="action-group" role="group" aria-label="Hoàn thiện">
             <span class="action-group-label">Xuất bản</span>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="both"><button {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB</button></form>
-            <form method="post" action="/ebooks/{{ slug }}/jobs/run" data-job-category="both"><button {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Chạy tất cả</button></form>
-            {% if epub_exists %}<a class="button" href="/ebooks/{{ slug }}/download">Tải EPUB</a> <span class="muted">({{ "%.1f"|format(epub_size / 1024 / 1024) }} MB)</span>{% endif %}
+            <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="both"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB</button></form>
+            <form method="post" action="/ebooks/{{ slug }}/jobs/run" data-job-category="both"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Chạy tất cả</button></form>
+            {% if epub_exists %}<a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/download">Tải EPUB</a> <span class="text-muted-light dark:text-muted-dark text-xs">({{ "%.1f"|format(epub_size / 1024 / 1024) }} MB)</span>{% endif %}
         </div>
         <div class="action-group" role="group" aria-label="Khác">
-            <a class="button" href="/ebooks/{{ slug }}/glossary">Glossary</a>
-            <a class="button" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
+            <a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/glossary">Glossary</a>
+            <a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
         </div>
     </div>
 </div>
@@ -41,26 +113,26 @@
     <img class="cover" src="/ebooks/{{ slug }}/cover" alt="bìa">
     {% endif %}
     <div class="meta-body">
-        <div class="section-head">
-            <h3>{{ manifest.title_vi or manifest.title or "(chưa có tên)" }}</h3>
+        <div class="flex items-baseline justify-between gap-4 mb-1">
+            <h3 class="m-0 text-base font-semibold">{{ manifest.title_vi or manifest.title or "(chưa có tên)" }}</h3>
             <form method="post" action="/ebooks/{{ slug }}/jobs/translate-meta" data-job-category="translate" class="inline-form">
-                <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch meta</button>
+                <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch meta</button>
             </form>
         </div>
-        <table class="meta-table data-table">
-            <thead><tr><th>Field</th><th>ZH</th><th>VI</th></tr></thead>
+        <table class="meta-table w-full text-sm">
+            <thead><tr class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide"><th class="text-left px-2 py-1 border-b border-border-light dark:border-border-dark">Field</th><th class="text-left px-2 py-1 border-b border-border-light dark:border-border-dark">ZH</th><th class="text-left px-2 py-1 border-b border-border-light dark:border-border-dark">VI</th></tr></thead>
             <tbody>
-                <tr><td>Tiêu đề</td><td>{{ manifest.title or "-" }}</td><td class="meta-vi" data-field="title_vi">{{ manifest.title_vi or "" }}</td></tr>
-                <tr><td>Tác giả</td><td>{{ manifest.author or "-" }}</td><td class="meta-vi" data-field="author_vi">{{ manifest.author_vi or "" }}</td></tr>
-                <tr><td>Mô tả</td><td class="desc-cell">{{ manifest.description or "-" }}</td><td class="meta-vi desc-cell" data-field="description_vi">{{ manifest.description_vi or "" }}</td></tr>
-                {% if manifest.title_note %}<tr><td>Ghi chú</td><td colspan="2">{{ manifest.title_note }}</td></tr>{% endif %}
-                <tr><td>Nguồn</td><td colspan="2"><a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank">{{ manifest.source_url or cfg.crawl.toc_url }}</a></td></tr>
-                <tr><td>Số chương</td><td colspan="2">{{ manifest.chapters|length }}</td></tr>
-                {% if manifest.metadata_missing %}<tr><td>Thiếu</td><td colspan="2">{{ manifest.metadata_missing|join(', ') }}</td></tr>{% endif %}
+                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Tiêu đề</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.title or "-" }}</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark meta-vi" data-field="title_vi">{{ manifest.title_vi or "" }}</td></tr>
+                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Tác giả</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.author or "-" }}</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark meta-vi" data-field="author_vi">{{ manifest.author_vi or "" }}</td></tr>
+                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Mô tả</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark desc-cell">{{ manifest.description or "-" }}</td><td class="px-2 py-1 border-b border-border-light dark:border-border-dark meta-vi desc-cell" data-field="description_vi">{{ manifest.description_vi or "" }}</td></tr>
+                {% if manifest.title_note %}<tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Ghi chú</td><td colspan="2" class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.title_note }}</td></tr>{% endif %}
+                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Nguồn</td><td colspan="2" class="px-2 py-1 border-b border-border-light dark:border-border-dark"><a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank" class="text-link-light dark:text-link-dark hover:underline">{{ manifest.source_url or cfg.crawl.toc_url }}</a></td></tr>
+                <tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Số chương</td><td colspan="2" class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.chapters|length }}</td></tr>
+                {% if manifest.metadata_missing %}<tr><td class="px-2 py-1 border-b border-border-light dark:border-border-dark">Thiếu</td><td colspan="2" class="px-2 py-1 border-b border-border-light dark:border-border-dark">{{ manifest.metadata_missing|join(', ') }}</td></tr>{% endif %}
             </tbody>
         </table>
         {% if not (manifest.title_vi or manifest.author_vi or manifest.description_vi) and manifest.title %}
-        <p class="muted"><em>Metadata chưa dịch — bấm "Dịch meta" để dịch sang tiếng Việt.</em></p>
+        <p class="text-sm text-muted-light dark:text-muted-dark italic mt-1"><em>Metadata chưa dịch — bấm "Dịch meta" để dịch sang tiếng Việt.</em></p>
         {% endif %}
     </div>
 </div>
@@ -68,55 +140,55 @@
 
 <div class="toc-actions">
     <form method="post" action="/ebooks/{{ slug }}/jobs/fetch-toc" class="inline-form" data-job-category="crawl">
-        <button type="submit" {% if job.crawl.running %}disabled{% endif %}>Lấy toàn bộ danh mục</button>
-        <label class="check"><input type="checkbox" name="force" value="true"> ghi đè metadata</label>
+        <button type="submit" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running %}disabled{% endif %}>Lấy toàn bộ danh mục</button>
+        <label class="inline-flex items-center gap-1 text-sm ml-2"><input type="checkbox" name="force" value="true" class="rounded border-border-light dark:border-border-dark"> ghi đè metadata</label>
     </form>
 </div>
 
 <div class="status-bar">
     <span id="status-badge-crawl">
-        {% if job.crawl.running %}<span class="badge run">Crawl: đang chạy ({{ job.crawl.step }})</span>{% else %}<span class="badge ok">Crawl: rảnh</span>{% endif %}
-        {% if job.crawl.error %}<span class="badge no">lỗi: {{ job.crawl.error }}</span>{% endif %}
+        {% if job.crawl.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Crawl: đang chạy ({{ job.crawl.step }})</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Crawl: rảnh</span>{% endif %}
+        {% if job.crawl.error %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: {{ job.crawl.error }}</span>{% endif %}
     </span>
     <span id="status-badge-translate">
-        {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="badge run">Dịch: đang chạy ({{ job.translate.step }})</span>{% elif job.translate.running %}<span class="badge run">Dịch: đang chạy (ebook khác)</span>{% else %}<span class="badge ok">Dịch: rảnh</span>{% endif %}
-        {% if job.translate.error %}<span class="badge no">lỗi: {{ job.translate.error }}</span>{% endif %}
+        {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Dịch: đang chạy ({{ job.translate.step }})</span>{% elif job.translate.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Dịch: đang chạy (ebook khác)</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Dịch: rảnh</span>{% endif %}
+        {% if job.translate.error %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
-    <span class="muted status-hint">Crawl và dịch chạy độc lập — có thể dịch trong khi đang crawl.</span>
+    <span class="text-muted-light dark:text-muted-dark text-sm status-hint">Crawl và dịch chạy độc lập — có thể dịch trong khi đang crawl.</span>
 </div>
 
 <div id="toc-region" class="toc-loading">
-<div class="section-head">
-    <h3>Chương <span class="count-pill">{{ chapters|length }}</span></h3>
-    <p class="muted">Search / sort / lọc chạy ngầm (không reload), được nhớ trong trình duyệt. Tick dòng rồi chọn hành động.</p>
+<div class="flex items-baseline justify-between gap-4 mb-1 mt-3">
+    <h3 class="text-base font-semibold m-0">Chương <span class="count-pill">{{ chapters|length }}</span></h3>
+    <p class="text-sm text-muted-light dark:text-muted-dark m-0">Search / sort / lọc chạy ngầm (không reload), được nhớ trong trình duyệt. Tick dòng rồi chọn hành động.</p>
 </div>
 <form method="get" action="/ebooks/{{ slug }}" class="compact-toolbar">
-    <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL">
-    <select name="sort" aria-label="Sắp xếp">
+    <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
+    <select name="sort" aria-label="Sắp xếp" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
         {% for key, label in [("source", "Thứ tự"), ("title", "Tiêu đề"), ("raw", "Raw"), ("translated", "Dịch")] %}
         <option value="{{ key }}" {% if controls.sort == key %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <select name="direction" aria-label="Chiều sắp xếp">
+    <select name="direction" aria-label="Chiều sắp xếp" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
         <option value="asc" {% if controls.direction != "desc" %}selected{% endif %}>Tăng</option>
         <option value="desc" {% if controls.direction == "desc" %}selected{% endif %}>Giảm</option>
     </select>
-    <select name="filter_raw" aria-label="Lọc raw">
+    <select name="filter_raw" aria-label="Lọc raw" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
         {% for value, label in [("any", "Raw: tất cả"), ("yes", "Raw: có"), ("no", "Raw: chưa")] %}
         <option value="{{ value }}" {% if controls.filter_raw == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <select name="filter_translated" aria-label="Lọc dịch">
+    <select name="filter_translated" aria-label="Lọc dịch" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
         {% for value, label in [("any", "Dịch: tất cả"), ("yes", "Dịch: có"), ("no", "Dịch: chưa")] %}
         <option value="{{ value }}" {% if controls.filter_translated == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <select name="filter_missing" aria-label="Lọc thiếu dữ liệu">
+    <select name="filter_missing" aria-label="Lọc thiếu dữ liệu" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
         {% for value, label in [("any", "Thiếu: tất cả"), ("yes", "Thiếu: có"), ("no", "Thiếu: không")] %}
         <option value="{{ value }}" {% if controls.filter_missing == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <button type="submit">Lọc</button>
+    <button type="submit" class="px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Lọc</button>
 </form>
 {% if chapters %}
 <div class="selected-actions">
@@ -129,44 +201,44 @@
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="crawl">
         <input type="hidden" name="action" value="crawl">
         <input type="hidden" name="targeting_mode" value="checked">
-        <button type="submit" {% if job.crawl.running %}disabled{% endif %}>Crawl selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running %}disabled{% endif %}>Crawl selected</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate">
         <input type="hidden" name="action" value="translate">
         <input type="hidden" name="targeting_mode" value="checked">
-        <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch selected</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
-        <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch TOC selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch TOC selected</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/translate-titles" class="selected-action-form batch-form" data-selected-action="translate">
         <input type="hidden" name="indexes" id="batch-indexes-titles" value="">
-        <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch tiêu đề selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Dịch tiêu đề selected</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/suggest-glossary" class="selected-action-form batch-form" data-selected-action="translate">
         <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
-        <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Glossary suggest selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Glossary suggest selected</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="both">
-        <button type="submit" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB selected</button>
     </form>
-    <button type="button" id="btn-export-chapters" data-export-source="translated">Xuất để biên tập</button>
-    <button type="button" id="btn-export-raw" data-export-source="raw">Xuất RAW để dịch</button>
-    <button type="button" id="btn-import-chapters">Nhập bản biên tập/dịch</button>
-    <label class="check"><input type="checkbox" id="selected-override" value="true"> Ghi đè</label>
-    <span id="checked-info" class="muted">Đã tick 0 chương.</span>
+    <button type="button" id="btn-export-chapters" data-export-source="translated" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xuất để biên tập</button>
+    <button type="button" id="btn-export-raw" data-export-source="raw" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xuất RAW để dịch</button>
+    <button type="button" id="btn-import-chapters" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhập bản biên tập/dịch</button>
+    <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" id="selected-override" value="true" class="rounded border-border-light dark:border-border-dark"> Ghi đè</label>
+    <span id="checked-info" class="text-muted-light dark:text-muted-dark text-sm">Đã tick 0 chương.</span>
 </div>
 
-<div class="table-wrap">
-<table id="chapter-table" class="data-table">
-    <thead><tr><th><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th>#</th><th>Tiêu đề</th><th>Raw</th><th>Dịch</th><th>Số từ</th><th>Thiếu</th><th>Action</th><th></th></tr></thead>
+<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
+<table id="chapter-table" class="w-full text-sm">
+    <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">#</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tiêu đề</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Raw</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Dịch</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Số từ</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Thiếu</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Action</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr></thead>
     <tbody>
     </tbody>
 </table>
 </div>
 <nav class="pager" id="pager" aria-label="Phân trang">
     <label class="pager-size">Mỗi trang
-        <select id="page-size" aria-label="Số chương mỗi trang">
+        <select id="page-size" aria-label="Số chương mỗi trang" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
             <option value="25">25</option>
             <option value="50">50</option>
             <option value="100">100</option>
@@ -174,17 +246,17 @@
             <option value="0">Tất cả</option>
         </select>
     </label>
-    <span id="pager-info" class="pager-info muted"></span>
+    <span id="pager-info" class="pager-info text-muted-light dark:text-muted-dark text-sm"></span>
     <div class="pager-nav">
-        <button type="button" data-page="first" aria-label="Trang đầu">&laquo;</button>
-        <button type="button" data-page="prev" aria-label="Trang trước">&lsaquo;</button>
-        <input type="number" id="pager-current" min="1" value="1" aria-label="Trang hiện tại">
-        <button type="button" data-page="next" aria-label="Trang sau">&rsaquo;</button>
-        <button type="button" data-page="last" aria-label="Trang cuối">&raquo;</button>
+        <button type="button" data-page="first" aria-label="Trang đầu" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&laquo;</button>
+        <button type="button" data-page="prev" aria-label="Trang trước" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&lsaquo;</button>
+        <input type="number" id="pager-current" min="1" value="1" aria-label="Trang hiện tại" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-center px-2 py-1 text-sm">
+        <button type="button" data-page="next" aria-label="Trang sau" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&rsaquo;</button>
+        <button type="button" data-page="last" aria-label="Trang cuối" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&raquo;</button>
     </div>
 </nav>
 {% else %}
-<p class="muted">Chưa có chương phù hợp — bấm "Crawl" để lấy chương hoặc đổi lại bộ lọc.</p>
+<p class="text-sm text-muted-light dark:text-muted-dark">Chưa có chương phù hợp — bấm "Crawl" để lấy chương hoặc đổi lại bộ lọc.</p>
 {% endif %}
 </div>
 
@@ -202,10 +274,9 @@ let lastStatusData = {
     crawl: { running: wasRunning.crawl, running_ebooks: {{ job.crawl.running_ebooks | tojson }} },
     translate: { running: wasRunning.translate, running_ebooks: {{ job.translate.running_ebooks | tojson }} },
 };
-let searchTimer = null; // debounce cho ô tìm kiếm
-let pendingFetchToc = false; // fetch-toc cần reload toàn trang sau khi xong
+let searchTimer = null;
+let pendingFetchToc = false;
 
-// --- Bộ nhớ filter/sort/search + cỡ trang (localStorage theo từng ebook) ---
 const LS_KEY = "n2e:toc:" + SLUG;
 const CONTROL_FIELDS = ["search", "sort", "direction", "filter_raw", "filter_translated", "filter_missing"];
 
@@ -229,7 +300,6 @@ function persistControls() {
     }
     writeSaved(patch);
 }
-// Áp giá trị đã lưu vào toolbar; trả true nếu có field khác mặc định (cần fetch lại).
 function applySavedControls() {
     const saved = readSaved();
     const form = document.querySelector(".compact-toolbar");
@@ -243,7 +313,6 @@ function applySavedControls() {
     return changed;
 }
 
-// --- Phân trang client-side ---
 const DEFAULT_PAGE_SIZE = 50;
 let currentPage = 1;
 let pageSize = (() => {
@@ -310,9 +379,6 @@ function gotoPage(target) {
     paginate();
 }
 
-// Xác định job-category của 1 form/button: nút selected-action dùng
-// data-selected-action; nút row-action (name="action") dùng chính value
-// của nó; còn lại đọc data-job-category trên form gần nhất.
 function jobCategoryFor(form, btn) {
     if (btn && btn.name === "action" && (btn.value === "crawl" || btn.value === "translate")) {
         return btn.value;
@@ -353,12 +419,10 @@ function setJobButtonsDisabled(status) {
         const form = btn.closest("form");
         const category = jobCategoryFor(form, btn);
         const running = isCategoryRunning(status, category, SLUG);
-        // Nút Dừng đảo ngược logic: chỉ bật khi job đang chạy.
         btn.disabled = btn.classList.contains("btn-stop") ? !running : running;
     }
 }
 
-// --- Dựng bảng chương hoàn toàn từ dữ liệu JSON ở client, không fetch server ---
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -366,23 +430,23 @@ function escapeHtml(str) {
 
 function buildChapterRow(ch) {
     const hasMissing = ch.missing_fields && ch.missing_fields.length > 0;
-    const statusHtml = ch.last_action_status ? `<span class="muted">${escapeHtml(ch.last_action_status)}</span>` : '';
+    const statusHtml = ch.last_action_status ? `<span class="text-muted-light dark:text-muted-dark text-sm">${escapeHtml(ch.last_action_status)}</span>` : '';
     return `<tr data-index="${ch.index}">
-        <td><input type="checkbox" class="chapter-check" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
-        <td>${ch.index}</td>
-        <td><a href="${escapeHtml(ch.url)}" target="_blank">${escapeHtml(ch.visible_title)}</a></td>
-        <td>${ch.has_raw ? '<span class="badge ok">có</span>' : '<span class="badge no">chưa</span>'}</td>
-        <td>${ch.has_translated ? '<span class="badge ok">có</span>' : '<span class="badge no">chưa</span>'}</td>
-        <td>${ch.has_translated ? ch.word_count : '-'}</td>
-        <td>${hasMissing ? ch.missing_fields.join(', ') : '-'}</td>
-        <td>
-            <form method="post" action="/ebooks/${SLUG}/chapters/${ch.index}/action" class="row-actions">
-                <button type="submit" name="action" value="crawl">Crawl</button>
-                <button type="submit" name="action" value="translate">Dịch</button>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" class="chapter-check rounded border-border-light dark:border-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.index}</td>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-link-light dark:text-link-dark hover:underline">${escapeHtml(ch.visible_title)}</a></td>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_raw ? '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">có</span>' : '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">chưa</span>'}</td>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_translated ? '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">có</span>' : '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">chưa</span>'}</td>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_translated ? ch.word_count : '-'}</td>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${hasMissing ? ch.missing_fields.join(', ') : '-'}</td>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
+            <form method="post" action="/ebooks/${SLUG}/chapters/${ch.index}/action" class="inline-flex gap-1.5 items-center">
+                <button type="submit" name="action" value="crawl" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Crawl</button>
+                <button type="submit" name="action" value="translate" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Dịch</button>
             </form>
             ${statusHtml}
         </td>
-        <td><a href="/ebooks/${SLUG}/chapters/${ch.index}">xem / sửa</a></td>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><a href="/ebooks/${SLUG}/chapters/${ch.index}" class="text-link-light dark:text-link-dark hover:underline">xem / sửa</a></td>
     </tr>`;
 }
 
@@ -435,7 +499,6 @@ function renderToc() {
     refreshCheckedInfo();
 }
 
-// --- Delegated change: chọn dòng + đổi bộ lọc/sắp xếp/cỡ trang ---
 document.addEventListener("change", (event) => {
     const t = event.target;
     if (t.id === "check-all") {
@@ -459,13 +522,11 @@ document.addEventListener("change", (event) => {
     }
 });
 
-// --- Click phân trang ---
 document.addEventListener("click", (event) => {
     const btn = event.target.closest && event.target.closest(".pager-nav button[data-page]");
     if (btn) { event.preventDefault(); gotoPage(btn.dataset.page); }
 });
 
-// --- Ô tìm kiếm: debounce rồi filter ngầm ---
 document.addEventListener("input", (event) => {
     if (event.target.matches && event.target.matches('.compact-toolbar input[type="search"]')) {
         clearTimeout(searchTimer);
@@ -473,7 +534,6 @@ document.addEventListener("input", (event) => {
     }
 });
 
-// --- Submit: form filter chạy ngầm; job/action gọi API bất đồng bộ ---
 document.addEventListener("submit", async function(event) {
     const form = event.target;
 
@@ -488,7 +548,6 @@ document.addEventListener("submit", async function(event) {
         event.preventDefault();
 
         if (form.classList && form.classList.contains("selected-action-form")) {
-            // Handle batch forms (comma-separated indexes)
             if (form.classList.contains("batch-form")) {
                 const indexes = [];
                 for (const cb of document.querySelectorAll(".chapter-check:checked")) {
@@ -503,7 +562,6 @@ document.addEventListener("submit", async function(event) {
                     indexesInput.value = indexes.join(",");
                 }
             } else {
-                // Standard forms (separate hidden inputs)
                 for (const cb of document.querySelectorAll(".chapter-check:checked")) {
                     const h = document.createElement("input");
                     h.type = "hidden";
@@ -542,7 +600,7 @@ document.addEventListener("submit", async function(event) {
         for (const cat of affected) {
             const container = document.getElementById(`status-badge-${cat}`);
             if (container) {
-                container.innerHTML = '<span class="badge run">đang kết nối...</span>';
+                container.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang kết nối...</span>';
             }
         }
 
@@ -581,35 +639,32 @@ document.addEventListener("submit", async function(event) {
 
 const STATUS_LABELS = { crawl: "Crawl", translate: "Dịch" };
 
-// Kiểm tra category translate có job đang chạy cho ebook hiện tại không.
 function isTranslateBusyForCurrent(data) {
     if (!data.translate.running) return false;
     return (data.translate.running_ebooks || []).includes(SLUG);
 }
 
-// Cập nhật badge + log của 1 category từ dữ liệu /api/status; trả về true
-// nếu job của category đó vừa chuyển từ "đang chạy" sang "xong".
 function updateCategoryUI(cat, data) {
     const container = document.getElementById(`status-badge-${cat}`);
     if (container) {
         let html = "";
         if (cat === "translate") {
             if (isTranslateBusyForCurrent(data)) {
-                html += `<span class="badge run">${STATUS_LABELS[cat]}: đang chạy (${data[cat].step})</span> `;
+                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">${STATUS_LABELS[cat]}: đang chạy (${data[cat].step})</span> `;
             } else if (data[cat].running) {
-                html += `<span class="badge run">${STATUS_LABELS[cat]}: đang chạy (ebook khác)</span> `;
+                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">${STATUS_LABELS[cat]}: đang chạy (ebook khác)</span> `;
             } else {
-                html += `<span class="badge ok">${STATUS_LABELS[cat]}: rảnh</span> `;
+                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">${STATUS_LABELS[cat]}: rảnh</span> `;
             }
         } else {
             if (data[cat].running) {
-                html += `<span class="badge run">${STATUS_LABELS[cat]}: đang chạy (${data[cat].step})</span> `;
+                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">${STATUS_LABELS[cat]}: đang chạy (${data[cat].step})</span> `;
             } else {
-                html += `<span class="badge ok">${STATUS_LABELS[cat]}: rảnh</span> `;
+                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">${STATUS_LABELS[cat]}: rảnh</span> `;
             }
         }
         if (data[cat].error) {
-            html += `<span class="badge no">lỗi: ${data[cat].error}</span>`;
+            html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: ${data[cat].error}</span>`;
         }
         container.innerHTML = html;
     }
@@ -660,7 +715,6 @@ async function poll() {
     }
 }
 
-// --- Double-click edit meta vi cells ---
 document.addEventListener("dblclick", (event) => {
     const td = event.target.closest && event.target.closest(".meta-vi");
     if (!td || td.querySelector("input,textarea")) return;
@@ -701,9 +755,6 @@ document.addEventListener("dblclick", (event) => {
     });
 });
 
-// --- Xuất/Nhập biên tập hàng loạt (web chat AI) — mở cửa sổ riêng để dễ review
-// (thay vì <dialog>: Pico CSS buộc <dialog> phải bọc trong <article> mới render
-// đúng, nếu không nó sẽ kéo dài full viewport và trống trơn).
 function checkedIndexes() {
     return Array.from(document.querySelectorAll(".chapter-check:checked")).map((cb) => cb.value);
 }
@@ -915,7 +966,6 @@ document.getElementById("btn-import-chapters").addEventListener("click", () => {
     ta.focus();
 });
 
-// --- Khởi tạo: khôi phục filter/sort/search đã lưu rồi dựng bảng ---
 (function initToc() {
     try {
         applySavedControls();

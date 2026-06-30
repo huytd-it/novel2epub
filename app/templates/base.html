@@ -3,41 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <title>{% block title %}novel2epub{% endblock %}</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Literata:wght@400;700&family=Noto+Serif:wght@400;700&display=swap&subset=vietnamese" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500;7..72,600;7..72,700&display=swap&subset=vietnamese" rel="stylesheet">
     <script>
-        // Pre-paint: áp theme trước khi render để tránh nháy sáng/tối (FOUC).
+        // Pre-paint: set theme trước khi render để tránh nháy sáng/tối (FOUC).
+        // Tailwind dark mode dùng class="dark"; đồng thời giữ data-theme để tương thích selector cũ.
         (function () {
             var saved = localStorage.getItem("n2e-theme");
             var theme = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
             document.documentElement.setAttribute("data-theme", theme);
+            if (theme === "dark") document.documentElement.classList.add("dark");
         })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Literata', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        serif: ['Literata', 'ui-serif', 'Georgia', 'serif'],
+                    },
+                    colors: {
+                        app: { light: '#fafafa', dark: '#14161a' },
+                        surface: { light: '#ffffff', dark: '#1c1f24' },
+                        'surface-alt': { light: '#f7f7f7', dark: '#20242a' },
+                        border: { light: '#e5e5e5', dark: '#2e3338' },
+                        fg: { light: '#202020', dark: '#e7e9ec' },
+                        muted: { light: '#777777', dark: '#9aa2ad' },
+                        link: { light: '#2563eb', dark: '#6ea8fe' },
+                        'link-hover': { light: '#1d4ed8', dark: '#8fbcff' },
+                        ok: { light: '#d3f3d3', dark: '#1f3a24' },
+                        no: { light: '#f3d3d3', dark: '#3a2020' },
+                        run: { light: '#fff2b3', dark: '#4a3c10' },
+                    },
+                    borderRadius: {
+                        card: '10px',
+                    },
+                    boxShadow: {
+                        card: '0 6px 24px rgba(0,0,0,0.04)',
+                        'card-dark': '0 6px 24px rgba(0,0,0,0.3)',
+                    },
+                },
+            },
+        };
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body { @apply bg-app-light text-fg-light font-sans antialiased; }
+            .dark body { @apply bg-app-dark text-fg-dark; }
+        }
+    </style>
+    <!-- Lucide icons: lightweight SVG icon library (~5KB gzipped for individual icons via data-lucide attr) -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script>
+        // Tailwind cần truy cập các class động (dùng trong tabBar, queue indicator...) — khai báo safelist.
+        // Không bắt buộc với CDN play nhưng giúp tránh purge khi dùng class nội suy.
     </script>
     {% block head %}{% endblock %}
 </head>
-<body>
-    <header class="shell-header">
-        <h1><a href="/">novel2epub</a></h1>
-        <nav>
-            <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Thư viện</a>
-            <a href="/sources" class="{{ 'active' if request.url.path.startswith('/sources') else '' }}">Nguồn</a>
-            <a href="/storage" class="{{ 'active' if request.url.path.startswith('/storage') else '' }}">Lưu trữ</a>
-            <a href="/automation" class="{{ 'active' if request.url.path.startswith('/automation') else '' }}">Tự động hóa</a>
-            <a href="/logs" class="{{ 'active' if request.url.path.startswith('/logs') else '' }}">Nhật ký</a>
+<body class="min-h-screen">
+    <header class="flex flex-wrap items-baseline gap-5 border-b border-border-light dark:border-border-dark pb-3 mb-4 px-1">
+        <h1 class="text-lg font-semibold m-0"><a href="/" class="text-fg-light dark:text-fg-dark no-underline hover:underline">novel2epub</a></h1>
+        <nav class="flex gap-4 mt-1 text-[0.95rem]">
+            <a href="/" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path == '/' %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Thư viện</a>
+            <a href="/sources" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path.startswith('/sources') %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Nguồn</a>
+            <a href="/storage" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path.startswith('/storage') %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Lưu trữ</a>
+            <a href="/automation" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path.startswith('/automation') %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Tự động hóa</a>
+            <a href="/logs" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path.startswith('/logs') %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Nhật ký</a>
         </nav>
-        <div class="shell-header-right">
-            <a href="/queue" id="queue-indicator" class="queue-indicator" title="Hàng đợi job">⏳ <span id="queue-count">0</span></a>
-            <button type="button" id="theme-toggle" class="btn-refresh" title="Đổi giao diện sáng/tối">🌓</button>
+        <div class="flex items-center gap-2 ml-auto">
+            <a href="/queue" id="queue-indicator" class="inline-flex items-center gap-1 no-underline rounded-full border border-border-light dark:border-border-dark bg-surface-alt-light dark:bg-surface-alt-dark px-2 py-0.5 text-sm text-muted-light dark:text-muted-dark" title="Hàng đợi job">
+                <i data-lucide="loader-circle" class="w-3.5 h-3.5"></i><span id="queue-count">0</span>
+            </a>
+            <button type="button" id="theme-toggle" class="rounded-md border border-border-light dark:border-border-dark p-1.5 hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" title="Đổi giao diện sáng/tối">
+                <i data-lucide="moon" class="w-4 h-4"></i>
+            </button>
         </div>
     </header>
-    <main class="{% block mainclass %}fluid{% endblock %}">
+    <main class="{% block mainclass %}mx-auto max-w-[1320px] px-6 py-5 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-card dark:shadow-card-dark p-5{% endblock %}">
         {% block content %}{% endblock %}
     </main>
-    <div id="toast-region" class="toast-region" aria-live="polite"></div>
+    <div id="toast-region" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50" aria-live="polite"></div>
     <script src="/static/app.js"></script>
+    <script>
+        // Khởi tạo Lucide icons cho mọi phần tử có [data-lucide] trong DOM.
+        if (window.lucide) lucide.createIcons();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

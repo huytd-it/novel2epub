@@ -1,148 +1,148 @@
 <form method="post" action="/ebooks/{{ slug }}/settings/source" class="settings-form">
 
-<details class="settings-group" open>
-    <summary>URL &amp; Lọc chương</summary>
-    <label> URL mục lục (toc_url)
-        <div class="input-with-btn">
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">URL &amp; Lọc chương</summary>
+    <label class="flex flex-col gap-1 text-sm min-w-0 px-3 pb-3"> URL mục lục (toc_url)
+        <div class="flex gap-1.5 items-stretch">
             <input type="text" name="toc_url" value="{{ cfg.crawl.toc_url }}" placeholder="https://..."
-                class="{% if not is_default(cfg.crawl.toc_url, 'crawl', 'toc_url') %}overridden{% endif %}">
-            <button type="button" class="btn-util" onclick="toast('Tính năng đang phát triển', '')">Thử crawl</button>
+                class="flex-1 min-w-0 rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.toc_url, 'crawl', 'toc_url') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            <button type="button" onclick="toast('Tính năng đang phát triển', '')" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Thử crawl</button>
         </div>
         {% if is_default(cfg.crawl.toc_url, 'crawl', 'toc_url') %}
-        <span class="default-hint">Mặc định: ""</span>
+        <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: ""</span>
         {% endif %}
     </label>
-    <div class="settings-grid cols-3">
-        <label> Regex lọc link chương
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> Regex lọc link chương
             <input type="text" name="chapter_link_pattern" value="{{ cfg.crawl.chapter_link_pattern }}" placeholder=".*"
-                class="{% if not is_default(cfg.crawl.chapter_link_pattern, 'crawl', 'chapter_link_pattern') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.chapter_link_pattern, 'crawl', 'chapter_link_pattern') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.crawl.chapter_link_pattern, 'crawl', 'chapter_link_pattern') %}
-            <span class="default-hint">Mặc định: .*</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: .*</span>
             {% endif %}
         </label>
-        <label> max_chapters (0 = vô hạn)
+        <label class="flex flex-col gap-1 text-sm min-w-0"> max_chapters (0 = vô hạn)
             <input type="number" name="max_chapters" value="{{ cfg.crawl.max_chapters }}" min="0"
-                class="{% if not is_default(cfg.crawl.max_chapters, 'crawl', 'max_chapters') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.max_chapters, 'crawl', 'max_chapters') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.crawl.max_chapters, 'crawl', 'max_chapters') %}
-            <span class="default-hint">Mặc định: 0</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 0</span>
             {% endif %}
         </label>
-        <label> content_selector
+        <label class="flex flex-col gap-1 text-sm min-w-0"> content_selector
             <input type="text" name="content_selector" value="{{ cfg.crawl.content_selector }}" placeholder="tự detect"
-                class="{% if not is_default(cfg.crawl.content_selector, 'crawl', 'content_selector') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.content_selector, 'crawl', 'content_selector') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
     </div>
 </details>
 
-<details class="settings-group" open>
-    <summary>Hiệu suất</summary>
-    <div class="settings-grid cols-3">
-        <label> delay_seconds
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Hiệu suất</summary>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> delay_seconds
             <input type="number" step="0.1" name="delay_seconds" value="{{ cfg.crawl.delay_seconds }}" min="0"
-                class="{% if not is_default(cfg.crawl.delay_seconds, 'crawl', 'delay_seconds') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.delay_seconds, 'crawl', 'delay_seconds') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.crawl.delay_seconds, 'crawl', 'delay_seconds') %}
-            <span class="default-hint">Mặc định: 1.0</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 1.0</span>
             {% endif %}
         </label>
-        <label> max_workers
+        <label class="flex flex-col gap-1 text-sm min-w-0"> max_workers
             <input type="number" name="max_workers" value="{{ cfg.crawl.max_workers }}" min="1" max="20"
-                class="{% if not is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}
-            <span class="default-hint">Mặc định: 1</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 1</span>
             {% endif %}
         </label>
     </div>
 </details>
 
-<details class="settings-group">
-    <summary>Scrapling engine</summary>
-    <div class="settings-grid cols-2">
-        <label> mode
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Scrapling engine</summary>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> mode
             <select name="scrapling_mode"
-                class="{% if not is_default(cfg.crawl.scrapling.mode, 'crawl', 'scrapling') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.scrapling.mode, 'crawl', 'scrapling') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
                 {% for opt in ["fetcher", "stealthy", "dynamic"] %}
                 <option value="{{ opt }}" {% if cfg.crawl.scrapling.mode == opt %}selected{% endif %}>{{ opt }}</option>
                 {% endfor %}
             </select>
             {% if is_default(cfg.crawl.scrapling.mode, 'crawl', 'scrapling') %}
-            <span class="default-hint">Mặc định: fetcher</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: fetcher</span>
             {% endif %}
         </label>
-        <label> impersonate
+        <label class="flex flex-col gap-1 text-sm min-w-0"> impersonate
             <input type="text" name="impersonate" value="{{ cfg.crawl.scrapling.impersonate }}" placeholder="chrome, firefox135"
-                class="{% if not is_default(cfg.crawl.scrapling.impersonate, 'crawl', 'scrapling') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.scrapling.impersonate, 'crawl', 'scrapling') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
     </div>
-    <div class="settings-grid cols-2">
-        <label class="check">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="inline-flex items-center gap-2 text-sm">
             <input type="checkbox" name="solve_cloudflare" value="true" {% if cfg.crawl.scrapling.solve_cloudflare %}checked{% endif %}
-                class="{% if not is_default(cfg.crawl.scrapling.solve_cloudflare, 'crawl', 'scrapling') %}overridden{% endif %}">
+                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.crawl.scrapling.solve_cloudflare, 'crawl', 'scrapling') %}border-blue-500{% endif %}">
             solve_cloudflare
         </label>
-        <label class="check">
+        <label class="inline-flex items-center gap-2 text-sm">
             <input type="checkbox" name="network_idle" value="true" {% if cfg.crawl.scrapling.network_idle %}checked{% endif %}
-                class="{% if not is_default(cfg.crawl.scrapling.network_idle, 'crawl', 'scrapling') %}overridden{% endif %}">
+                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.crawl.scrapling.network_idle, 'crawl', 'scrapling') %}border-blue-500{% endif %}">
             network_idle
         </label>
     </div>
 </details>
 
-<details class="settings-group">
-    <summary>Pagination (chương nhiều trang)</summary>
-    <div class="settings-grid cols-3">
-        <label> next_page_selector
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Pagination (chương nhiều trang)</summary>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> next_page_selector
             <input type="text" name="next_page_selector" value="{{ cfg.crawl.next_page_selector }}" placeholder="a#pager_next"
-                class="{% if not is_default(cfg.crawl.next_page_selector, 'crawl', 'next_page_selector') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.next_page_selector, 'crawl', 'next_page_selector') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
-        <label> next_page_url_pattern
+        <label class="flex flex-col gap-1 text-sm min-w-0"> next_page_url_pattern
             <input type="text" name="next_page_url_pattern" value="{{ cfg.crawl.next_page_url_pattern }}" placeholder="regex có 1 group"
-                class="{% if not is_default(cfg.crawl.next_page_url_pattern, 'crawl', 'next_page_selector') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.next_page_url_pattern, 'crawl', 'next_page_selector') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
-        <label> max_pages_per_chapter
+        <label class="flex flex-col gap-1 text-sm min-w-0"> max_pages_per_chapter
             <input type="number" name="max_pages_per_chapter" value="{{ cfg.crawl.max_pages_per_chapter }}" min="1"
-                class="{% if not is_default(cfg.crawl.max_pages_per_chapter, 'crawl', 'max_pages_per_chapter') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.max_pages_per_chapter, 'crawl', 'max_pages_per_chapter') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.crawl.max_pages_per_chapter, 'crawl', 'max_pages_per_chapter') %}
-            <span class="default-hint">Mặc định: 10</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 10</span>
             {% endif %}
         </label>
     </div>
 </details>
 
-<details class="settings-group">
-    <summary>Retry / Chống lỗi 429</summary>
-    <div class="settings-grid cols-3">
-        <label> retry attempts
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Retry / Chống lỗi 429</summary>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> retry attempts
             <input type="number" name="retry_attempts" value="{{ cfg.crawl.retry.attempts }}" min="0"
-                class="{% if not is_default(cfg.crawl.retry.attempts, 'crawl', 'retry') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.retry.attempts, 'crawl', 'retry') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
-        <label> retry delay_seconds
+        <label class="flex flex-col gap-1 text-sm min-w-0"> retry delay_seconds
             <input type="number" step="0.1" name="retry_delay_seconds" value="{{ cfg.crawl.retry.delay_seconds }}" min="0"
-                class="{% if not is_default(cfg.crawl.retry.delay_seconds, 'crawl', 'retry') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.retry.delay_seconds, 'crawl', 'retry') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
-        <label> backoff
+        <label class="flex flex-col gap-1 text-sm min-w-0"> backoff
             <input type="number" step="0.1" name="retry_backoff" value="{{ cfg.crawl.retry.backoff }}" min="1"
-                class="{% if not is_default(cfg.crawl.retry.backoff, 'crawl', 'retry') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.retry.backoff, 'crawl', 'retry') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
     </div>
-    <div class="settings-grid cols-2">
-        <label> max_delay_seconds
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> max_delay_seconds
             <input type="number" step="0.1" name="retry_max_delay_seconds" value="{{ cfg.crawl.retry.max_delay_seconds }}" min="0"
-                class="{% if not is_default(cfg.crawl.retry.max_delay_seconds, 'crawl', 'retry') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.retry.max_delay_seconds, 'crawl', 'retry') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
-        <label class="check">
+        <label class="inline-flex items-center gap-2 text-sm">
             <input type="checkbox" name="retry_respect_retry_after" value="true" {% if cfg.crawl.retry.respect_retry_after %}checked{% endif %}
-                class="{% if not is_default(cfg.crawl.retry.respect_retry_after, 'crawl', 'retry') %}overridden{% endif %}">
+                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.crawl.retry.respect_retry_after, 'crawl', 'retry') %}border-blue-500{% endif %}">
             respect_retry_after
         </label>
     </div>
 </details>
 
-<div class="form-actions">
-    <button type="button" class="btn-raw" onclick="toggleRawYaml('raw-crawl')">YAML</button>
+<div class="flex gap-2 items-center mt-3 pt-3 border-t border-border-light dark:border-border-dark">
+    <button type="button" onclick="toggleRawYaml('raw-crawl')" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">YAML</button>
 </div>
 
-<div id="raw-crawl" class="raw-yaml" hidden>
-<pre><code>crawl:
+<div id="raw-crawl" class="my-2 bg-surface-alt-light dark:bg-zinc-900 border border-border-light dark:border-border-dark rounded-md px-3 py-2 overflow-x-auto" hidden>
+<pre class="m-0"><code class="text-xs">crawl:
   engine: scrapling
   toc_url: {{ cfg.crawl.toc_url }}
   chapter_link_pattern: {{ cfg.crawl.chapter_link_pattern }}

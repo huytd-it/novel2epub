@@ -1,55 +1,55 @@
 <form method="post" action="/ebooks/{{ slug }}/settings/output" class="settings-form">
 
-<details class="settings-group" open>
-    <summary>Đường dẫn</summary>
-    <div class="settings-grid cols-2">
-        <label> data_dir
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Đường dẫn</summary>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> data_dir
             <input type="text" name="data_dir" value="{{ cfg.output.data_dir }}"
-                class="{% if not is_default(cfg.output.data_dir, 'output', 'data_dir') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.output.data_dir, 'output', 'data_dir') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.output.data_dir, 'output', 'data_dir') %}
-            <span class="default-hint">Mặc định: data</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: data</span>
             {% endif %}
-            <span class="field-desc">Thư mục chứa dữ liệu crawl và glossary.</span>
+            <span class="text-xs text-muted-light dark:text-muted-dark">Thư mục chứa dữ liệu crawl và glossary.</span>
         </label>
-        <label> epub_path
+        <label class="flex flex-col gap-1 text-sm min-w-0"> epub_path
             <input type="text" name="epub_path" value="{{ cfg.output.epub_path }}" placeholder="tự sinh từ slug"
-                class="{% if not is_default(cfg.output.epub_path, 'output', 'epub_path') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.output.epub_path, 'output', 'epub_path') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.output.epub_path, 'output', 'epub_path') %}
-            <span class="default-hint">Mặc định: tự sinh</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: tự sinh</span>
             {% endif %}
-            <span class="field-desc">Đường dẫn file EPUB. Để trống = tự sinh.</span>
+            <span class="text-xs text-muted-light dark:text-muted-dark">Đường dẫn file EPUB. Để trống = tự sinh.</span>
         </label>
     </div>
 </details>
 
-<details class="settings-group" open>
-    <summary>Hiệu suất</summary>
-    <div class="settings-grid cols-2">
-        <label> crawl.max_workers
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Hiệu suất</summary>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> crawl.max_workers
             <input type="number" name="crawl_max_workers" value="{{ cfg.crawl.max_workers }}" min="1" max="20"
-                class="{% if not is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.crawl.max_workers, 'crawl', 'max_workers') %}
-            <span class="default-hint">Mặc định: 1</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 1</span>
             {% endif %}
-            <span class="field-desc">Số luồng crawl song song.</span>
+            <span class="text-xs text-muted-light dark:text-muted-dark">Số luồng crawl song song.</span>
         </label>
-        <label> translate.max_workers
+        <label class="flex flex-col gap-1 text-sm min-w-0"> translate.max_workers
             <input type="number" name="translate_max_workers" value="{{ cfg.translate.max_workers }}" min="1" max="20"
-                class="{% if not is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}overridden{% endif %}">
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.translate.max_workers, 'translate', 'max_workers') %}
-            <span class="default-hint">Mặc định: 1</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 1</span>
             {% endif %}
-            <span class="field-desc">Số luồng dịch song song.</span>
+            <span class="text-xs text-muted-light dark:text-muted-dark">Số luồng dịch song song.</span>
         </label>
     </div>
 </details>
 
-<div class="form-actions">
-    <button type="button" class="btn-raw" onclick="toggleRawYaml('raw-output')">YAML</button>
+<div class="flex gap-2 items-center mt-3 pt-3 border-t border-border-light dark:border-border-dark">
+    <button type="button" onclick="toggleRawYaml('raw-output')" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">YAML</button>
 </div>
 
-<div id="raw-output" class="raw-yaml" hidden>
-<pre><code>output:
+<div id="raw-output" class="my-2 bg-surface-alt-light dark:bg-zinc-900 border border-border-light dark:border-border-dark rounded-md px-3 py-2 overflow-x-auto" hidden>
+<pre class="m-0"><code class="text-xs">output:
   data_dir: {{ cfg.output.data_dir }}
   epub_path: {{ cfg.output.epub_path }}</code></pre>
 </div>

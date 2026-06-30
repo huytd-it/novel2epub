@@ -1,10 +1,63 @@
 {% extends "base.html" %}
 {% block title %}Đọc: {{ ch.title_vi or ch.title_zh }} — novel2epub{% endblock %}
 {% block content %}
+
+<style>
+/* Local styles cho reader: typography controls, chapter navigation, copy buttons */
+.reader-wrap { max-width: 900px; margin: 0 auto; padding: 0 1rem; }
+.reader-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid #e5e5e5; flex-wrap: wrap; }
+.dark .reader-nav { border-bottom-color: #2e3338; }
+.reader-nav-bottom { border-bottom: none; border-top: 1px solid #e5e5e5; justify-content: center; gap: 1.5rem; padding: 1rem 0 2rem; }
+.dark .reader-nav-bottom { border-top-color: #2e3338; }
+.reader-nav-left, .reader-nav-right { display: flex; align-items: center; gap: 0.4rem; }
+.reader-nav-center { display: flex; align-items: center; gap: 0.5rem; }
+.reader-nav-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 2rem; height: 2rem; padding: 0 0.5rem; border-radius: 6px; text-decoration: none; font-size: 0.95rem; background: #f7f7f7; color: #202020; border: 1px solid #e5e5e5; transition: background 0.15s; }
+.dark .reader-nav-btn { background: #20242a; color: #e7e9ec; border-color: #2e3338; }
+.reader-nav-btn:hover { background: #e5e5e5; }
+.dark .reader-nav-btn:hover { background: #2e3338; }
+.reader-nav-btn.disabled { opacity: 0.3; pointer-events: none; }
+.reader-chapter-select { max-width: 320px; font-size: 0.9rem; padding: 0.25rem 0.5rem; border-radius: 6px; background: #fff; color: #202020; border: 1px solid #e5e5e5; }
+.dark .reader-chapter-select { background: #1c1f24; color: #e7e9ec; border-color: #2e3338; }
+.reader-toolbar-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 6px; font-size: 1rem; background: #f7f7f7; color: #202020; border: 1px solid #e5e5e5; cursor: pointer; text-decoration: none; transition: background 0.15s; }
+.dark .reader-toolbar-btn { background: #20242a; color: #e7e9ec; border-color: #2e3338; }
+.reader-toolbar-btn:hover { background: #e5e5e5; }
+.dark .reader-toolbar-btn:hover { background: #2e3338; }
+.bookmark-indicator { font-size: 1rem; opacity: 0.8; }
+
+.reader-settings-panel { padding: 0.75rem 0; border-bottom: 1px solid #e5e5e5; }
+.dark .reader-settings-panel { border-bottom-color: #2e3338; }
+.settings-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+.settings-row label { font-size: 0.85rem; color: #777; display: flex; align-items: center; gap: 0.3rem; }
+.dark .settings-row label { color: #9aa2ad; }
+.settings-row select { font-size: 0.85rem; padding: 0.2rem 0.4rem; border-radius: 4px; background: #fff; color: #202020; border: 1px solid #e5e5e5; }
+.dark .settings-row select { background: #1c1f24; color: #e7e9ec; border-color: #2e3338; }
+
+.reader-content { max-width: 720px; margin: 1.5rem auto; line-height: 1.8; font-size: 18px; font-family: 'Literata', 'Georgia', serif; }
+.reader-para { position: relative; margin: 0 0 0.8em; text-align: justify; }
+.para-copy-btn { position: absolute; right: -2rem; top: 0.1em; opacity: 0; font-size: 0.75rem; padding: 0.15rem; background: none; border: none; cursor: pointer; color: #777; transition: opacity 0.15s; }
+.dark .para-copy-btn { color: #9aa2ad; }
+.reader-para:hover .para-copy-btn { opacity: 0.6; }
+.para-copy-btn:hover { opacity: 1 !important; }
+
+.reader-empty { text-align: center; padding: 3rem 1rem; color: #777; }
+.dark .reader-empty { color: #9aa2ad; }
+.reader-empty a { display: inline-block; margin-top: 0.75rem; }
+
+@media (max-width: 640px) {
+    .reader-wrap { padding: 0 0.5rem; }
+    .reader-nav { gap: 0.4rem; }
+    .reader-nav-right { gap: 0.25rem; }
+    .reader-chapter-select { max-width: 180px; font-size: 0.8rem; }
+    .reader-content { font-size: 16px; max-width: 100%; }
+    .para-copy-btn { right: 0; top: auto; bottom: -0.3em; opacity: 0.4; }
+    .settings-row { gap: 0.5rem; }
+}
+</style>
+
 <div class="reader-wrap">
     <nav class="reader-nav">
         <div class="reader-nav-left">
-            <a href="/ebooks/{{ slug }}">&larr; Quay lại</a>
+            <a href="/ebooks/{{ slug }}" class="text-link-light dark:text-link-dark hover:underline">&larr; Quay lại</a>
         </div>
         <div class="reader-nav-center">
             {% if prev_ch %}
@@ -14,7 +67,7 @@
             {% endif %}
             <select id="chapter-select" class="reader-chapter-select">
                 {% for c in chapters_info %}
-                <option value="{{ c.index }}" {% if c.index == ch.index %}selected{% endif %} {% if not c.has_translated %}class="muted"{% endif %}>
+                <option value="{{ c.index }}" {% if c.index == ch.index %}selected{% endif %} {% if not c.has_translated %}class="text-muted-light dark:text-muted-dark"{% endif %}>
                     {{ c.title }}
                 </option>
                 {% endfor %}
@@ -37,13 +90,13 @@
     <div id="reader-settings-panel" class="reader-settings-panel" hidden>
         <div class="settings-row">
             <label>Theme:
-                <select id="reader-theme-select">
+                <select id="reader-theme-select" class="rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
                     <option value="light">Sáng</option>
                     <option value="dark">Tối</option>
                 </select>
             </label>
             <label>Font:
-                <select id="reader-font-select">
+                <select id="reader-font-select" class="rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
                     <option value="'Literata', 'Georgia', serif">Literata</option>
                     <option value="'Noto Serif', serif">Noto Serif</option>
                     <option value="Georgia, serif">Georgia</option>
@@ -52,7 +105,7 @@
                 </select>
             </label>
             <label>Cỡ:
-                <select id="reader-size-select">
+                <select id="reader-size-select" class="rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
                     <option value="16px">16</option>
                     <option value="18px">18</option>
                     <option value="20px">20</option>
@@ -61,7 +114,7 @@
                 </select>
             </label>
             <label>Chiều rộng:
-                <select id="reader-width-select">
+                <select id="reader-width-select" class="rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
                     <option value="600px">Hẹp</option>
                     <option value="720px">Vừa</option>
                     <option value="860px">Rộng</option>
@@ -79,7 +132,7 @@
         {% else %}
             <div class="reader-empty">
                 <p>Chương chưa có bản dịch.</p>
-                <a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}">Đi tới editor để dịch</a>
+                <a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}" class="text-link-light dark:text-link-dark hover:underline">Đi tới editor để dịch</a>
             </div>
         {% endif %}
     </article>
@@ -103,23 +156,22 @@
     const STORAGE_KEY = `n2e-read-${SLUG}-${INDEX}`;
     const BOOKMARK_KEY = `n2e-bookmark-${SLUG}`;
 
-    // --- Settings panel toggle ---
     const settingsPanel = document.getElementById('reader-settings-panel');
     document.getElementById('settings-toggle-btn')?.addEventListener('click', () => {
         settingsPanel.hidden = !settingsPanel.hidden;
     });
 
-    // --- Theme ---
     const themeSel = document.getElementById('reader-theme-select');
     const savedTheme = localStorage.getItem('n2e-theme') || 'light';
     themeSel.value = savedTheme;
     themeSel.addEventListener('change', () => {
         const v = themeSel.value;
         document.documentElement.setAttribute('data-theme', v);
+        if (v === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
         localStorage.setItem('n2e-theme', v);
     });
 
-    // --- Font / Size / Width ---
     const fontSel = document.getElementById('reader-font-select');
     const sizeSel = document.getElementById('reader-size-select');
     const widthSel = document.getElementById('reader-width-select');
@@ -139,14 +191,12 @@
     sizeSel.addEventListener('change', () => { localStorage.setItem('n2e-reader-size', sizeSel.value); applyTypography(); });
     widthSel.addEventListener('change', () => { localStorage.setItem('n2e-reader-width', widthSel.value); applyTypography(); });
 
-    // --- Copy all ---
     document.getElementById('copy-all-btn')?.addEventListener('click', () => {
         const paras = document.querySelectorAll('.reader-para');
         const text = Array.from(paras).map(p => p.textContent).join('\n');
         copyToClipboard(text);
     });
 
-    // --- Copy per paragraph ---
     document.querySelectorAll('.para-copy-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -173,7 +223,6 @@
         document.body.removeChild(ta);
     }
 
-    // --- Scroll position save/restore ---
     let scrollTimer = null;
     window.addEventListener('scroll', () => {
         if (scrollTimer) clearTimeout(scrollTimer);
@@ -186,7 +235,6 @@
         requestAnimationFrame(() => window.scrollTo(0, savedScroll));
     }
 
-    // --- Bookmark ---
     const bookmarkIndicator = document.getElementById('bookmark-indicator');
     const bookmarkBtn = document.getElementById('bookmark-toggle-btn');
 
@@ -223,12 +271,10 @@
         updateBookmarkUI();
     });
 
-    // --- Chapter dropdown ---
     document.getElementById('chapter-select')?.addEventListener('change', function() {
         window.location.href = `/ebooks/${encodeURIComponent(SLUG)}/read/${this.value}`;
     });
 
-    // --- Keyboard shortcuts ---
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
         if (e.key === 'ArrowLeft' && {{ prev_ch.index if prev_ch else 'null' }} !== null) {

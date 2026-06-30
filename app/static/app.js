@@ -1,16 +1,28 @@
 // Shell dùng chung mọi trang: theme toggle (persist localStorage), toast
-// helper, và queue indicator poll /api/queue (xem spec ui-design-system).
+// helper, queue indicator poll /api/queue, modal/canvas/tab helpers.
 
 function toast(message, kind) {
     const region = document.getElementById("toast-region");
     if (!region) return;
     const el = document.createElement("div");
-    el.className = "toast" + (kind ? " toast-" + kind : "");
-    el.textContent = message;
+    const base = "flex items-center gap-2 rounded-lg border bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark px-3 py-2 text-sm shadow-card dark:shadow-card-dark transition-all duration-300 ease-out";
+    const variant = kind === "error"
+        ? " border-red-500"
+        : kind === "success"
+        ? " border-green-500"
+        : " border-border-light dark:border-border-dark";
+    el.className = base + variant + " opacity-0 translate-y-2";
+    const iconName = kind === "error" ? "circle-x" : kind === "success" ? "circle-check" : "info";
+    el.innerHTML = `<i data-lucide="${iconName}" class="w-4 h-4 flex-shrink-0"></i><span>${message}</span>`;
     region.appendChild(el);
-    requestAnimationFrame(() => el.classList.add("show"));
+    if (window.lucide) lucide.createIcons();
+    requestAnimationFrame(() => {
+        el.classList.remove("opacity-0", "translate-y-2");
+        el.classList.add("opacity-100", "translate-y-0");
+    });
     setTimeout(() => {
-        el.classList.remove("show");
+        el.classList.remove("opacity-100", "translate-y-0");
+        el.classList.add("opacity-0", "translate-y-2");
         setTimeout(() => el.remove(), 300);
     }, 4000);
 }
@@ -20,7 +32,8 @@ function toast(message, kind) {
     if (!btn) return;
     btn.addEventListener("click", () => {
         const root = document.documentElement;
-        const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        const isDark = root.classList.toggle("dark");
+        const next = isDark ? "dark" : "light";
         root.setAttribute("data-theme", next);
         localStorage.setItem("n2e-theme", next);
     });
@@ -39,9 +52,18 @@ function toast(message, kind) {
             const total = (data.running || []).length + pendingTotal;
             countEl.textContent = total;
             const indicator = document.getElementById("queue-indicator");
-            if (indicator) indicator.classList.toggle("active", total > 0);
+            if (indicator) {
+                const active = total > 0;
+                indicator.classList.toggle("active", active);
+                // Tailwind: amber pill khi active
+                indicator.classList.toggle("border-amber-500", active);
+                indicator.classList.toggle("bg-amber-100", active);
+                indicator.classList.toggle("text-amber-800", active);
+                indicator.classList.toggle("dark:bg-amber-900/30", active);
+                indicator.classList.toggle("dark:text-amber-200", active);
+            }
         } catch (e) {
-            // Im lặng: trang chưa có /api/queue (vd test môi trường cũ) không nên báo lỗi ồn ào.
+            // Im lặng: trang chưa có /api/queue không nên báo lỗi ồn ào.
         }
     }
 

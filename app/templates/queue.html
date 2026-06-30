@@ -1,67 +1,73 @@
 {% extends "base.html" %}
 {% block title %}Hàng đợi — novel2epub{% endblock %}
 {% block content %}
-<div class="section-head"><h2>Hàng đợi job</h2></div>
-<p class="muted">Tự động làm mới mỗi 2s. Job "build"/"run" chiếm độc quyền crawl + dịch.</p>
+<style>.modal-backdrop[hidden]{display:none!important}</style>
+<div class="flex items-baseline justify-between gap-4 mb-1">
+    <h2 class="m-0 text-xl font-semibold">Hàng đợi job</h2>
+</div>
+<p class="text-muted-light dark:text-muted-dark text-sm mb-3">Tự động làm mới mỗi 2s. Job "build"/"run" chiếm độc quyền crawl + dịch.</p>
 
-<div class="crawl-panel">
+<div class="border border-border-light dark:border-border-dark rounded-lg p-3 my-3 bg-surface-light dark:bg-surface-dark">
 <details>
-    <summary>➕ Thêm job vào hàng đợi</summary>
-    <form id="enqueue-form" class="form-row" style="margin-top:0.5rem">
-        <label>Step
-            <select name="step" required>
+    <summary class="cursor-pointer font-semibold text-sm">➕ Thêm job vào hàng đợi</summary>
+    <form id="enqueue-form" class="flex flex-wrap gap-4 items-end mt-2">
+        <label class="flex flex-col gap-1 text-sm">Step
+            <select name="step" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm">
                 {% for s in steps %}
                 <option value="{{ s }}">{{ s }}</option>
                 {% endfor %}
             </select>
         </label>
-        <label>Ebook
-            <select name="ebook">
+        <label class="flex flex-col gap-1 text-sm">Ebook
+            <select name="ebook" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm">
                 <option value="">(mặc định)</option>
                 {% for e in ebooks %}
                 <option value="{{ e }}">{{ e }}</option>
                 {% endfor %}
             </select>
         </label>
-        <button type="submit" class="btn-primary">Thêm vào hàng đợi</button>
+        <button type="submit" class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Thêm vào hàng đợi</button>
     </form>
 </details>
 </div>
 
-<div class="status-bar" id="worker-info">
+<div class="flex items-center gap-2 flex-wrap my-3 px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark border border-border-light dark:border-border-dark rounded-lg" id="worker-info">
     <span>Worker: <strong id="worker-summary">crawl:1 · translate:1</strong></span>
-    <span class="status-hint muted" id="queue-usage"></span>
+    <span class="ml-auto text-muted-light dark:text-muted-dark text-sm" id="queue-usage"></span>
 </div>
 
 <div id="queue-region">
-<h3>Đang chạy</h3>
-<div class="table-wrap">
-    <table class="data-table" id="queue-running">
-        <tr><th>Step</th><th>Category</th><th>Ebook</th><th>Bắt đầu</th><th>Nhật ký</th><th></th></tr>
+<h3 class="text-base font-semibold mt-4 mb-2">Đang chạy</h3>
+<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
+    <table class="w-full text-sm" id="queue-running">
+        <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Step</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Category</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Ebook</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Bắt đầu</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Nhật ký</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr></thead>
+        <tbody></tbody>
     </table>
 </div>
 
-<h3>Đang đợi</h3>
-<div class="table-wrap">
-    <table class="data-table" id="queue-pending">
-        <tr><th>Vị trí</th><th>Step</th><th>Category</th><th>Ebook</th><th></th></tr>
+<h3 class="text-base font-semibold mt-4 mb-2">Đang đợi</h3>
+<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
+    <table class="w-full text-sm" id="queue-pending">
+        <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Vị trí</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Step</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Category</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Ebook</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr></thead>
+        <tbody></tbody>
     </table>
 </div>
 
-<h3>Lịch sử</h3>
-<div class="table-wrap">
-    <table class="data-table" id="queue-history">
-        <tr><th>Step</th><th>Category</th><th>Ebook</th><th>Trạng thái</th><th>Lỗi</th><th>Nhật ký</th><th></th></tr>
+<h3 class="text-base font-semibold mt-4 mb-2">Lịch sử</h3>
+<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
+    <table class="w-full text-sm" id="queue-history">
+        <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Step</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Category</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Ebook</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Trạng thái</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lỗi</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Nhật ký</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr></thead>
+        <tbody></tbody>
     </table>
 </div>
 </div>
 
-<div id="log-viewer" class="modal-backdrop" hidden onclick="if(event.target===this)closeLog()">
-    <div class="modal">
-        <h3>Nhật ký <span id="log-viewer-title"></span></h3>
-        <pre id="log-viewer-content" style="max-height:60vh;overflow-y:auto;background:#111;color:#ddd;padding:0.75rem;border-radius:4px;white-space:pre-wrap;font-size:0.85rem"></pre>
-        <div class="actions">
-            <button type="button" onclick="closeLog()">Đóng</button>
+<div id="log-viewer" class="modal-backdrop fixed inset-0 z-40 flex items-center justify-center bg-black/45" hidden onclick="if(event.target===this)closeLog()">
+    <div class="bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark border border-border-light dark:border-border-dark rounded-card p-5 max-w-lg w-[90vw] shadow-card dark:shadow-card-dark">
+        <h3 class="mt-0 text-lg font-semibold">Nhật ký <span id="log-viewer-title"></span></h3>
+        <pre id="log-viewer-content" class="bg-zinc-950 text-zinc-100 font-mono text-xs rounded p-3 overflow-auto max-h-[60vh] whitespace-pre-wrap m-0"></pre>
+        <div class="flex gap-2 justify-end mt-3">
+            <button type="button" onclick="closeLog()" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Đóng</button>
         </div>
     </div>
 </div>
@@ -75,19 +81,19 @@ function fmtTime(ts) {
 }
 
 function row(cells) {
-    return "<tr>" + cells.map((c) => "<td>" + c + "</td>").join("") + "</tr>";
+    return "<tr class='hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark'>" + cells.map((c) => "<td class='px-3 py-2 border-b border-border-light dark:border-border-dark'>" + c + "</td>").join("") + "</tr>";
 }
 
 function cancelBtn(id) {
-    return `<button type="button" class="q-cancel" data-id="${id}">Hủy</button>`;
+    return `<button type="button" class="q-cancel px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" data-id="${id}">Hủy</button>`;
 }
 
 function retryBtn(id) {
-    return `<button type="button" class="q-retry" data-id="${id}">Retry</button>`;
+    return `<button type="button" class="q-retry px-2 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark" data-id="${id}">Retry</button>`;
 }
 
 function logBtn(id, label) {
-    return `<button type="button" class="q-log" data-id="${id}" data-label="${label}">Nhật ký</button>`;
+    return `<button type="button" class="q-log px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" data-id="${id}" data-label="${label}">Nhật ký</button>`;
 }
 
 async function openLog(jobId, label) {
@@ -122,15 +128,14 @@ async function renderQueue() {
     const usageEl = document.getElementById("queue-usage");
     if (usageEl) usageEl.textContent = data.running.length + " đang chạy · " + totalPending + " đang đợi";
 
-    const runningEl = document.getElementById("queue-running");
-    runningEl.innerHTML = "<tr><th>Step</th><th>Category</th><th>Ebook</th><th>Bắt đầu</th><th>Nhật ký</th><th></th></tr>" +
-        (data.running.length ? data.running.map((j) => row([
-            j.label, j.category, j.ebook || "—", fmtTime(j.started_at),
-            logBtn(j.id, j.label), cancelBtn(j.id)
-        ])).join("") :
-            "<tr><td colspan='6' class='muted'>Không có job đang chạy.</td></tr>");
+    const runningEl = document.getElementById("queue-running").querySelector("tbody");
+    runningEl.innerHTML = (data.running.length ? data.running.map((j) => row([
+        j.label, j.category, j.ebook || "—", fmtTime(j.started_at),
+        logBtn(j.id, j.label), cancelBtn(j.id)
+    ])).join("") :
+        `<tr><td colspan='6' class='text-muted-light dark:text-muted-dark text-sm px-3 py-2'>Không có job đang chạy.</td></tr>`);
 
-    const pendingEl = document.getElementById("queue-pending");
+    const pendingEl = document.getElementById("queue-pending").querySelector("tbody");
     let pendingRows = "";
     let pos = 0;
     for (const cat of Object.keys(data.pending)) {
@@ -139,14 +144,13 @@ async function renderQueue() {
             pendingRows += row([pos, j.label, j.category, j.ebook || "—", cancelBtn(j.id)]);
         }
     }
-    pendingEl.innerHTML = "<tr><th>Vị trí</th><th>Step</th><th>Category</th><th>Ebook</th><th></th></tr>" +
-        (pendingRows || "<tr><td colspan='5' class='muted'>Không có job đang đợi.</td></tr>");
+    pendingEl.innerHTML = (pendingRows ||
+        `<tr><td colspan='5' class='text-muted-light dark:text-muted-dark text-sm px-3 py-2'>Không có job đang đợi.</td></tr>`);
 
-    const historyEl = document.getElementById("queue-history");
-    historyEl.innerHTML = "<tr><th>Step</th><th>Category</th><th>Ebook</th><th>Trạng thái</th><th>Lỗi</th><th>Nhật ký</th><th></th></tr>" +
-        (data.history.length ? data.history.slice(0, 30).map((j) =>
-            row([j.label, j.category, j.ebook || "—", j.state, j.error || "—", logBtn(j.id, j.label), retryBtn(j.id)])).join("") :
-            "<tr><td colspan='7' class='muted'>Chưa có lịch sử.</td></tr>");
+    const historyEl = document.getElementById("queue-history").querySelector("tbody");
+    historyEl.innerHTML = (data.history.length ? data.history.slice(0, 30).map((j) =>
+        row([j.label, j.category, j.ebook || "—", j.state, j.error || "—", logBtn(j.id, j.label), retryBtn(j.id)])).join("") :
+        `<tr><td colspan='7' class='text-muted-light dark:text-muted-dark text-sm px-3 py-2'>Chưa có lịch sử.</td></tr>`);
 
     document.querySelectorAll(".q-cancel").forEach((btn) => btn.addEventListener("click", async () => {
         await fetch(`/api/queue/${btn.dataset.id}/cancel`, { method: "POST" });

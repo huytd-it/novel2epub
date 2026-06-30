@@ -285,15 +285,30 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, for
                 manifest.cover_url = toc.cover_url or manifest.cover_url
             manifest.metadata_missing = toc.metadata_missing
 
-            # Trộn danh sách chương: giữ lại title của các chương đã dịch
-            old_chapters_by_url = {ch.url: ch for ch in manifest.chapters}
-            merged_chapters = []
+            # Trộn danh sách chương: giữ nguyên index và thứ tự cũ của các
+            # chương đã tồn tại, chỉ thêm chương mới vào cuối.
+            #
+            # KHÔNG dùng thứ tự từ toc.chapters vì fetch_toc gán index theo vị
+            # trí trên trang. Nếu trang TOC đổi thứ tự (do phân trang, site thay
+            # đổi...), index cũ bị gán lại → file raw/translated trên đĩa (đặt
+            # tên theo index) không còn khớp với manifest.
+            old_by_url = {ch.url: ch for ch in manifest.chapters}
+            new_by_url = {ch.url: ch for ch in toc.chapters}
+            merged = []
+            seen = set()
+            for old_ch in manifest.chapters:
+                if old_ch.url in new_by_url:
+                    new_ch = new_by_url[old_ch.url]
+                    old_ch.title = old_ch.title or new_ch.title
+                    merged.append(old_ch)
+                    seen.add(old_ch.url)
+            next_idx = max((ch.index for ch in merged), default=0) + 1
             for new_ch in toc.chapters:
-                old_ch = old_chapters_by_url.get(new_ch.url)
-                if old_ch:
-                    new_ch.title = old_ch.title or new_ch.title
-                merged_chapters.append(new_ch)
-            manifest.chapters = mark_duplicate_chapters(merged_chapters)
+                if new_ch.url not in seen:
+                    new_ch.index = next_idx
+                    next_idx += 1
+                    merged.append(new_ch)
+            manifest.chapters = mark_duplicate_chapters(merged)
 
         _download_cover(storage, manifest, log)
         storage.save_manifest(manifest)
@@ -1347,6 +1362,92 @@ def step_retranslate_title(
             log(f"[dịch-tiêu-đề] Description: {description[:50]}...")
 
     return result
+
+
+def step_reindex(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> Manifest:
+    """Đánh lại index theo thứ tự chapters list trong manifest.
+
+    Chương đầu list → index=1, tiếp → index=2, ...
+    **KHÔNG** rename file trên đĩa — chỉ update trường index trong manifest.
+
+    Dùng sau khi sắp xếp chapters list trong manifest.json bằng tay: sắp
+    xong rồi chạy reindex để index tuần tự 1..N khớp với thứ tự mới.
+    """
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest.")
+
+    chapters = manifest.chapters
+    if not chapters:
+        log("[reindex] Không có chương nào.")
+        return manifest
+
+    old_indexes = [ch.index for ch in chapters]
+    new_indexes = list(range(1, len(chapters) + 1))
+
+    if old_indexes == new_indexes:
+        log("[reindex] Index đã tuần tự 1..N, không cần thay đổi.")
+        return manifest
+
+    for i, ch in enumerate(chapters, 1):
+        ch.index = i
+        if i % 100 == 0:
+            log(f"[reindex] Đã cập nhật {i}/{len(chapters)} chương...")
+
+    from .toc import mark_duplicate_chapters
+
+    manifest.chapters = mark_duplicate_chapters(chapters)
+    storage.save_manifest(manifest)
+    log(f"[reindex] Hoàn tất. {len(chapters)} chương: index {old_indexes[0]}..{old_indexes[-1]} → 1..{len(chapters)}.")
+    return manifest
+
+
+def step_reorder(cfg: Config, log: LogFn = _print, *, desired_order: list[int], should_cancel: CancelFn | None = None) -> Manifest:
+    """Sắp xếp lại chapters trong manifest theo `desired_order` (dãy index),
+    rồi đánh index lại 1..N.
+
+    Các chương không có trong `desired_order` được xếp cuối.
+    Dùng sau preview reindex: UI gửi thứ tự đang hiển thị để áp dụng.
+    """
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest.")
+
+    by_index = {ch.index: ch for ch in manifest.chapters}
+
+    reordered = []
+    seen = set()
+    for idx in desired_order:
+        ch = by_index.get(idx)
+        if ch is None:
+            log(f"[reorder] Bỏ qua index {idx} không tồn tại trong manifest.")
+            continue
+        if ch.index in seen:
+            continue
+        reordered.append(ch)
+        seen.add(ch.index)
+
+    for ch in manifest.chapters:
+        if ch.index not in seen:
+            reordered.append(ch)
+
+    if len(reordered) != len(manifest.chapters):
+        log(f"[reorder] Cảnh báo: số chương thay đổi ({len(reordered)} vs {len(manifest.chapters)}).")
+
+    old_indexes = [ch.index for ch in reordered]
+    for i, ch in enumerate(reordered, 1):
+        ch.index = i
+        if i % 100 == 0:
+            log(f"[reorder] Đã cập nhật {i}/{len(reordered)} chương...")
+
+    from .toc import mark_duplicate_chapters
+
+    manifest.chapters = mark_duplicate_chapters(reordered)
+    storage.save_manifest(manifest)
+    log(f"[reorder] Hoàn tất. Đã sắp xếp {len(reordered)} chương, index {old_indexes[0]}..{old_indexes[-1]} → 1..{len(reordered)}.")
+    return manifest
 
 
 def step_build(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> str:

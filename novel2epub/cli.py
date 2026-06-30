@@ -14,6 +14,7 @@ from .pipeline import (
     step_crawl_selected,
     step_evaluate_translation,
     step_fetch_toc,
+    step_reindex,
     step_translate,
     step_translate_selected,
 )
@@ -114,6 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     search_parser.add_argument("--limit", type=int, default=5, help="Số kết quả tối đa mỗi source (mặc định: 5)")
     search_parser.add_argument("--format", dest="output_format", default="text", choices=["text", "json"], help="Định dạng output")
     search_parser.add_argument("--select", type=int, default=None, help="Chọn kết quả theo số thứ tự (1-based) để tạo ebook")
+    sub.add_parser("reindex", help="Đánh lại index theo thứ tự chapters trong manifest")
     sub.add_parser("build", help="Đóng gói EPUB từ các chương đã dịch")
     sub.add_parser("run", help="Chạy toàn bộ: crawl -> translate -> build")
     sub.add_parser("list", help="Liệt kê các ebook trong library")
@@ -260,6 +262,8 @@ def main(argv: list[str] | None = None) -> int:
             _print_chapters(cfg, args)
         elif args.command == "evaluate":
             step_evaluate_translation(cfg, start=args.start, end=args.end)
+        elif args.command == "reindex":
+            step_reindex(cfg)
         elif args.command == "build":
             step_build(cfg)
         elif args.command == "run":

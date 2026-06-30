@@ -134,13 +134,17 @@ def apply_chapter_query(
     key = (sort or "source").lower()
     if key == "title":
         key_fn = lambda r: (r.visible_title.lower(), r.index)
-    elif key == "raw":
+        return sorted(out, key=key_fn, reverse=(direction or "asc").lower() == "desc")
+    if key == "raw":
         key_fn = lambda r: (r.has_raw, r.index)
-    elif key == "translated":
+        return sorted(out, key=key_fn, reverse=(direction or "asc").lower() == "desc")
+    if key == "translated":
         key_fn = lambda r: (r.has_translated, r.index)
-    else:
-        key_fn = lambda r: r.index
-    return sorted(out, key=key_fn, reverse=(direction or "asc").lower() == "desc")
+        return sorted(out, key=key_fn, reverse=(direction or "asc").lower() == "desc")
+    # "source" (default): preserve manifest list order, chỉ reverse nếu desc
+    if (direction or "asc").lower() == "desc":
+        out.reverse()
+    return out
 
 
 def select_visible_range(rows: list[ChapterRow], start: int | None, end: int | None) -> list[int]:

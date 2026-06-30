@@ -13,6 +13,7 @@ from novel2epub.pipeline import (
     step_build,
     step_crawl,
     step_fetch_toc,
+    step_reindex,
     step_translate,
 )
 
@@ -24,6 +25,7 @@ _STEPS: dict[str, Callable[[Config, Callable[[str], None]], object]] = {
     "translate": step_translate,
     "build": step_build,
     "run": run_all,
+    "reindex": step_reindex,
 }
 
 # Step nào chiếm category nào — "both" chiếm cả crawl+translate (build/run
@@ -34,6 +36,7 @@ _STEP_CATEGORY: dict[str, str] = {
     "translate": "translate",
     "build": "both",
     "run": "both",
+    "reindex": "both",
 }
 
 

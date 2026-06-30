@@ -183,6 +183,31 @@ def start_ebook_build_selected(
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
+@router.post("/ebooks/{slug}/jobs/reorder")
+def start_ebook_reorder(
+    request: Request,
+    slug: str,
+    order: str = Form(...),
+):
+    """Sắp xếp lại chapters trong manifest theo thứ tự các index trong `order`
+    (dấu phẩy), rồi đánh index lại 1..N. Dùng sau preview reindex trên UI.
+    """
+    cfg = deps.resolved_cfg(slug)
+    try:
+        desired = [int(x) for x in order.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="order phải là dãy số index, cách dấu phẩy")
+    if not desired:
+        raise HTTPException(status_code=400, detail="order rỗng")
+
+    def _target(log):
+        from novel2epub.pipeline import step_reorder
+        step_reorder(cfg, log, desired_order=desired)
+
+    request.app.state.job.start_custom("reorder", _target, category="both")
+    return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
+
+
 @router.post("/ebooks/{slug}/jobs/{category}/cancel")
 def cancel_ebook_job(request: Request, slug: str, category: str):
     """Yêu cầu dừng job crawl/dịch đang chạy (job tự kiểm tra cờ này giữa các chương)."""

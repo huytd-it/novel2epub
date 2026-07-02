@@ -87,7 +87,30 @@
         {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Dịch: đang chạy ({{ job.translate.step }})</span>{% elif job.translate.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Dịch: đang chạy (ebook khác)</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Dịch: rảnh</span>{% endif %}
         {% if job.translate.error %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
-    <span class="text-muted-light dark:text-muted-dark text-xs">Model: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.openai.model or cfg.translate.type or "-" }}</code></span>
+    <span class="text-muted-light dark:text-muted-dark text-xs">
+        <span class="mr-1">🤖</span>Dịch:
+        {% if cfg.translate.type == "openai" %}
+            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded" title="base_url: {{ cfg.translate.openai.base_url }}&#10;model: {{ cfg.translate.openai.model }}">{{ cfg.translate.openai.model or "(chưa chọn)" }}</code>
+            {% if cfg.translate.openai.base_url %}<span class="text-muted-light dark:text-muted-dark"> @ {{ cfg.translate.openai.base_url | short_host }}</span>{% endif %}
+        {% elif cfg.translate.type in ("hachimimt", "moxhimt") %}
+            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded" title="Local NMT model_key: {{ cfg.translate.hachimimt.model_key }}&#10;backend: {{ cfg.translate.hachimimt.backend }}">{{ cfg.translate.model or cfg.translate.hachimimt.model_key }}</code>
+            <span class="text-muted-light dark:text-muted-dark">(local NMT)</span>
+        {% elif cfg.translate.type == "google" %}
+            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">Google Translate</code>
+        {% elif cfg.translate.type == "libretranslate" %}
+            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">LibreTranslate</code>
+            {% if cfg.translate.libretranslate.base_url %}<span class="text-muted-light dark:text-muted-dark"> @ {{ cfg.translate.libretranslate.base_url | short_host }}</span>{% endif %}
+        {% elif cfg.translate.type == "none" %}
+            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">noop</code>
+        {% else %}
+            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.type }}</code>
+        {% endif %}
+    </span>
+    <span class="text-muted-light dark:text-muted-dark text-xs">
+        <span class="mr-1">✨</span>Biên tập:
+        <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded" title="base_url: {{ cfg.ai.openai.base_url }}&#10;model: {{ cfg.ai.openai.model }}">{{ cfg.ai.openai.model or "(chưa chọn)" }}</code>
+        {% if cfg.ai.openai.base_url %}<span class="text-muted-light dark:text-muted-dark"> @ {{ cfg.ai.openai.base_url | short_host }}</span>{% endif %}
+    </span>
 </div>
 
 <div class="flex flex-wrap gap-1.5 mt-3">

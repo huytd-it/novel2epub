@@ -16,11 +16,16 @@ defaults:
   # AI backend cho biên tập (glossary suggest/rewrite/evaluate).
   # Tách riêng khỏi translate.openai để dùng provider/model khác với backend dịch.
   # Nếu không khai báo, mặc định dùng translate.openai (tương thích ngược).
+  # OpenCode Go (https://opencode.ai/docs/go/) — endpoint & model gợi ý:
+  #   base_url: "https://opencode.ai/zen/go/v1"
+  #   model:    "opencode-go/minimax-m3"   # format opencode-go/<model-id>
+  #                                       # các model khác: kimi-k2.7-code, deepseek-v4-flash,
+  #                                       # qwen3.7-plus, glm-5.1, mimo-v2.5-pro...
   ai:
     openai:
-      base_url: "https://api.openai.com/v1"
+      base_url: "https://opencode.ai/zen/go/v1"
       api_key: ""
-      model: "gpt-4o-mini"
+      model: "opencode-go/kimi-k2.6"
       timeout_seconds: 300
       temperature: 0.7
 
@@ -57,9 +62,9 @@ defaults:
     chunk: { max_chars: 1500, overlap_paragraphs: 0 }
     delay_seconds: 0.5
     openai:
-      base_url: "https://api.openai.com/v1"
+      base_url: "https://opencode.ai/zen/go/v1"
       api_key: ""
-      model: "gpt-4o-mini"
+      model: "opencode-go/kimi-k2.6"
       timeout_seconds: 300
       temperature: 0.7
     hachimimt:

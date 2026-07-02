@@ -199,11 +199,11 @@ class OpenAIConfig:
     dịch tiêu đề, review/suggest/rewrite/evaluate. Tương thích bất kỳ provider
     nào lộ endpoint kiểu OpenAI (`POST {base_url}/chat/completions`,
     `GET {base_url}/models`): OpenAI, OpenRouter, Ollama (`/v1`), LM Studio,
-    vLLM, llama.cpp server, v.v.
+    vLLM, llama.cpp server, OpenCode Go, v.v.
     """
-    base_url: str = "https://api.openai.com/v1"
+    base_url: str = "https://opencode.ai/zen/go/v1"
     api_key: str = ""
-    model: str = "gpt-4o-mini"
+    model: str = "opencode-go/kimi-k2.6"
     prompt_template: str = DEFAULT_PROMPT
     title_prompt_template: str = TITLE_PROMPT
     timeout_seconds: int = 300

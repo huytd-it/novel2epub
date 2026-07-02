@@ -46,8 +46,8 @@ def test_no_preset_backward_compat(tmp_path):
     config_path = _write_config(tmp_path, extra={"translate": {"type": "none"}})
     cfg = load_config(config_path)
     assert cfg.translate.preset == ""
-    assert cfg.translate.openai.base_url == "https://api.openai.com/v1"
-    assert cfg.translate.openai.model == "gpt-4o-mini"
+    assert cfg.translate.openai.base_url == "https://opencode.ai/zen/go/v1"
+    assert cfg.translate.openai.model == "opencode-go/kimi-k2.6"
 
 
 def test_go_preset_resolution(tmp_path):

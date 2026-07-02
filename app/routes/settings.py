@@ -149,13 +149,13 @@ def list_ai_models(base_url: str, api_key: str = ""):
         return JSONResponse({"models": [], "error": str(e)})
 
 
-@router.post("/ebooks/{slug}/settings/ai")
-def save_ai(
+@router.post("/ebooks/{slug}/settings/translate")
+def save_translate(
     slug: str,
     type: str = Form("openai"),
-    base_url: str = Form("https://api.openai.com/v1"),
+    base_url: str = Form("https://opencode.ai/zen/go/v1"),
     api_key: str = Form(""),
-    model: str = Form(""),
+    model: str = Form("opencode-go/kimi-k2.6"),
     timeout_seconds: int = Form(300),
     temperature: float = Form(0.7),
     prompt_template: str = Form(""),
@@ -229,6 +229,36 @@ def save_ai(
         chunk_max_chars, delay_seconds,
     )
     update_ebook(deps.WORKSPACE_PATH, slug, {"translate": translate})
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+@router.post("/ebooks/{slug}/settings/ai")
+def save_ai(
+    slug: str,
+    base_url: str = Form("https://opencode.ai/zen/go/v1"),
+    api_key: str = Form(""),
+    model: str = Form("opencode-go/kimi-k2.6"),
+    timeout_seconds: int = Form(300),
+    temperature: float = Form(0.7),
+):
+    """Lưu cấu hình AI biên tập (`ai.openai`) — tách riêng khỏi translate.openai.
+
+    Dùng cho: glossary suggest/rewrite/evaluate. Không lưu prompt_template
+    vì AI biên tập dùng prompt cứng trong glossary_ai.py.
+    """
+    ai_openai_cfg: dict = {
+        "base_url": base_url,
+        "api_key": api_key,
+        "model": model,
+        "timeout_seconds": timeout_seconds,
+        "temperature": temperature,
+    }
+    path = deps.ebook_config_path(slug)
+    logger.info(
+        "[config][AI/BIÊN TẬP] slug=%s lưu vào %s: base_url=%r model=%r timeout=%ss temperature=%s",
+        slug, path, base_url, model, timeout_seconds, temperature,
+    )
+    update_ebook(deps.WORKSPACE_PATH, slug, {"ai": {"openai": ai_openai_cfg}})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 

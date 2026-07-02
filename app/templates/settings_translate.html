@@ -1,4 +1,4 @@
-<form method="post" action="/ebooks/{{ slug }}/settings/ai" class="settings-form">
+<form method="post" action="/ebooks/{{ slug }}/settings/translate" class="settings-form">
 
 <details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
     <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Backend &amp; Hiệu suất</summary>
@@ -112,6 +112,7 @@
     <datalist id="base-url-options">
         <option value="https://api.openai.com/v1">
         <option value="https://openrouter.ai/api/v1">
+        <option value="https://opencode.ai/zen/go/v1">
         <option value="http://localhost:11434/v1">
         <option value="http://localhost:1234/v1">
     </datalist>

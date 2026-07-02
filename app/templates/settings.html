@@ -20,6 +20,9 @@
         <button class="settings-tab px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-translate" onclick="switchSettingsTab('tab-translate')">
             <span class="mr-1">🤖</span> Dịch
         </button>
+        <button class="settings-tab px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-ai" onclick="switchSettingsTab('tab-ai')">
+            <span class="mr-1">✨</span> AI biên tập
+        </button>
         <button class="settings-tab px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-output" onclick="switchSettingsTab('tab-output')">
             <span class="mr-1">📦</span> Đầu ra
         </button>
@@ -34,6 +37,9 @@
         </div>
         <div id="tab-translate" class="settings-panel hidden">
             {% include "settings_translate.html" %}
+        </div>
+        <div id="tab-ai" class="settings-panel hidden">
+            {% include "settings_ai.html" %}
         </div>
         <div id="tab-output" class="settings-panel hidden">
             {% include "settings_output.html" %}

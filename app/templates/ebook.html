@@ -200,6 +200,15 @@
         <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
         <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Glossary suggest selected</button>
     </form>
+    <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
+        <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} title="Dịch tiêu đề TOC cho các chương đã tick. Không đụng nội dung. Tick 'Ghi đè' để dịch lại cả title đã có. Backend chọn ở dropdown bên dưới.">Dịch TOC</button>
+    </form>
+    <form method="post" action="/api/ebooks/{{ slug }}/batch/ai-rewrite" class="selected-action-form batch-form" data-selected-action="translate">
+        <input type="hidden" name="indexes" id="batch-indexes-rewrite" value="">
+        <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} title="OpenAI: tạo bản nháp AI rewrite, vào từng chương để áp dụng/bỏ. Local NMT: dịch lại bằng NMT cục bộ (ghi đè). Backend chọn ở dropdown bên dưới.">Biên tập đã chọn</button>
+    </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="both">
         <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB selected</button>
     </form>
@@ -208,6 +217,13 @@
     <button type="button" id="btn-import-chapters" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhập bản biên tập/dịch</button>
     <button type="button" id="btn-preview-reindex" class="px-2.5 py-1 text-xs rounded-md border border-amber-400 dark:border-amber-600 bg-surface-light dark:bg-surface-dark hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed">Xem trước đánh index</button>
     <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" id="selected-override" value="true" class="rounded border-border-light dark:border-border-dark"> Ghi đè</label>
+    <label class="inline-flex items-center gap-1 text-sm check">
+        Backend:
+        <select id="bulk-backend-select" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-1.5 py-0.5 text-xs no-autosave">
+            <option value="openai" selected>OpenAI</option>
+            <option value="hachimimt">Local NMT</option>
+        </select>
+    </label>
     <span id="checked-info" class="text-muted-light dark:text-muted-dark text-sm">Đã tick 0 chương.</span>
 </div>
 <div id="reindex-preview-banner" class="hidden mt-1 mb-1 px-3 py-2 text-xs rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200">
@@ -245,7 +261,7 @@
 </nav>
 <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
 <table id="chapter-table" class="w-full text-sm">
-    <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">#</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tiêu đề</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Raw</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Dịch</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Số từ</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Thiếu</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Action</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr></thead>
+    <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">#</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tiêu đề</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Raw</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Dịch</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Biên tập</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Số từ</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Thiếu</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Action</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr></thead>
     <tbody>
     </tbody>
 </table>
@@ -432,12 +448,16 @@ function buildChapterRow(ch, newIndex) {
     const indexCell = reindexPreviewMode && newIndex != null && newIndex !== ch.index
         ? `<span class="reindex-old">${ch.index}</span><span class="reindex-arrow">→</span><span class="reindex-new">${newIndex}</span>`
         : ch.index;
+    const bientapCell = ch.bientap
+        ? `<span class="text-xs" title="${escapeHtml(ch.bientap_tooltip || '')}">${escapeHtml(ch.bientap)}</span>`
+        : '<span class="text-muted-light dark:text-muted-dark text-xs">-</span>';
     return `<tr data-index="${ch.index}">
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" class="chapter-check rounded border-border-light dark:border-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${indexCell}</td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-link-light dark:text-link-dark hover:underline">${escapeHtml(ch.visible_title)}</a></td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_raw ? '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">có</span>' : '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">chưa</span>'}</td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_translated ? '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">có</span>' : '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">chưa</span>'}</td>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${bientapCell}</td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_translated ? ch.word_count : '-'}</td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${hasMissing ? ch.missing_fields.join(', ') : '-'}</td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
@@ -581,6 +601,16 @@ document.addEventListener("submit", async function(event) {
                 h.name = "override";
                 h.value = "true";
                 form.appendChild(h);
+            }
+            // Đồng bộ giá trị backend dropdown vào hidden input của form (nếu có).
+            // Hai nút "Biên tập đã chọn" và "Dịch TOC" có hidden input
+            // name="backend" class="js-bulk-backend" — JS set value trước khi submit.
+            const backendSelect = document.getElementById("bulk-backend-select");
+            if (backendSelect) {
+                const backendInput = form.querySelector('input[name="backend"].js-bulk-backend');
+                if (backendInput) {
+                    backendInput.value = backendSelect.value;
+                }
             }
             for (const f of ["sort", "direction", "search", "filter_raw", "filter_translated", "filter_missing"]) {
                 const src = document.getElementById("act-" + f);

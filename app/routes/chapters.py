@@ -1,6 +1,8 @@
 """Xem & sửa tay 1 chương (raw + bản dịch)."""
 from __future__ import annotations
 
+import dataclasses
+
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
@@ -564,6 +566,80 @@ async def api_batch_suggest_glossary(
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return JSONResponse({"started": True, "total": len(index_list)})
+
+
+@router.post("/api/ebooks/{slug}/batch/ai-rewrite")
+async def api_batch_ai_rewrite(
+    request: Request,
+    slug: str,
+    indexes: str = Form(...),
+    backend: str = Form("openai"),
+):
+    """Batch "Biên tập đã chọn" — backend chọn qua form field `backend`.
+
+    - backend="openai" (mặc định): gọi `step_rewrite_preview` cho từng chương.
+      LUÔN xoá bản nháp cũ (nếu có) rồi tạo lại bản nháp mới trong
+      meta['ai_rewrite']. KHÔNG ghi đè bản dịch hiện hành — user vào từng
+      chương để xem diff rồi áp dụng/bỏ (giống flow per-chapter /ai/rewrite).
+
+    - backend="hachimimt": dịch lại bằng Local NMT, ghi đè bản dịch hiện
+      hành (force=True). Hữu ích khi muốn thử lại bằng model NMT khác.
+    """
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+    backend = (backend or "openai").lower()
+    if backend not in ("openai", "hachimimt"):
+        raise HTTPException(status_code=400, detail=f"backend không hợp lệ: {backend!r}")
+
+    if backend == "hachimimt":
+        # Local NMT: dịch lại từ raw, ghi đè bản dịch cũ.
+        mod_cfg = dataclasses.replace(
+            cfg,
+            translate=dataclasses.replace(cfg.translate, type="hachimimt"),
+        )
+
+        def _target(log):
+            try:
+                step_translate_selected(
+                    mod_cfg, log, force=True, selected_indexes=index_list
+                )
+            except Exception as e:  # noqa: BLE001
+                log(f"[batch-rewrite-local-nmt] Lỗi: {e}")
+
+        started = request.app.state.job.start_custom(
+            f"batch-rewrite-local-nmt-{len(index_list)}", _target, category="translate"
+        )
+    else:
+        def _target(log):
+            from novel2epub.storage import Storage
+            storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+            manifest = storage.load_manifest()
+            if manifest:
+                idx_set = set(index_list)
+                cleared = 0
+                for ch in manifest.chapters:
+                    if ch.index in idx_set and storage.has_meta(ch):
+                        meta = storage.read_meta(ch)
+                        if "ai_rewrite" in meta:
+                            meta.pop("ai_rewrite", None)
+                            storage.write_meta(ch, meta)
+                            cleared += 1
+                if cleared:
+                    log(f"[batch-rewrite] Đã xoá {cleared} bản nháp cũ, tạo lại.")
+            for idx in index_list:
+                try:
+                    step_rewrite_preview(cfg, log, index=idx)
+                except RuntimeError as e:
+                    log(f"[batch-rewrite] Lỗi chương {idx}: {e}")
+
+        started = request.app.state.job.start_custom(
+            f"batch-ai-rewrite-{len(index_list)}", _target, category="translate"
+        )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "total": len(index_list), "backend": backend})
 
 
 _EXPORT_PROMPTS = {"translated": bulk_transfer.EDIT_PROMPT, "raw": bulk_transfer.TRANSLATE_PROMPT}

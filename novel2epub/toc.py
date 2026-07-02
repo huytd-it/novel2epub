@@ -19,6 +19,11 @@ class ChapterRow:
     duplicate_of: int | None
     last_action_status: str
     word_count: int = 0
+    # Biên tập: trạng thái AI rewrite của chương. `bientap` là label compact
+    # hiển thị trong table ("Nháp AI" / "Đã biên tập" / "-"), `bientap_tooltip`
+    # là text đầy đủ cho title= (hover).
+    bientap: str = ""
+    bientap_tooltip: str = ""
 
     @property
     def has_missing(self) -> bool:
@@ -69,6 +74,27 @@ def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterR
     for ch in chapters:
         has_translated = storage.has_translated(ch)
         word_count = count_words(storage.read_translated(ch)) if has_translated else 0
+
+        bientap = ""
+        bientap_tooltip = ""
+        if has_translated and storage.has_meta(ch):
+            try:
+                meta = storage.read_meta(ch)
+                # Ưu tiên: có bản nháp AI (cần user review) > đã apply rewrite
+                if meta.get("ai_rewrite"):
+                    ar = meta["ai_rewrite"]
+                    when = ar.get("generated_at", "") if isinstance(ar, dict) else ""
+                    bientap = "📝 Nháp AI"
+                    tip = "AI rewrite draft pending review"
+                    if when:
+                        tip += f"\ngenerated_at: {when}"
+                    bientap_tooltip = tip
+                elif meta.get("before_rewrite"):
+                    bientap = "✏️ Đã biên tập"
+                    bientap_tooltip = "AI rewrite đã được áp dụng (giữ bản gốc trong before_rewrite để khôi phục)"
+            except Exception:
+                pass  # meta hỏng → bỏ qua, hiển thị "-"
+
         rows.append(ChapterRow(
             index=ch.index,
             title=ch.title,
@@ -80,6 +106,8 @@ def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterR
             duplicate_of=ch.duplicate_of,
             last_action_status=ch.last_action_status,
             word_count=word_count,
+            bientap=bientap,
+            bientap_tooltip=bientap_tooltip,
         ))
     return rows
 

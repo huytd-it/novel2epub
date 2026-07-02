@@ -225,13 +225,37 @@ def _apply_default_crawl_limit(cfg: Config, selected: list[Chapter], start: int 
     return selected
 
 
+def _resolve_translator_model(cfg: Config) -> str:
+    """Tên model/backend thực sự dùng để dịch, gắn với translator type hiện tại.
+
+    - openai: trả về model id thật (vd opencode-go/kimi-k2.6)
+    - hachimimt/moxhimt: trả về hachimimt.model_key (vd HachimiMT-60)
+    - libretranslate: trả về tên + base_url nếu có
+    - google: "google-translate"
+    - none: "noop"
+    """
+    t = (cfg.translate.type or "").lower()
+    if t == "openai":
+        return cfg.translate.openai.model
+    if t in ("hachimimt", "moxhimt"):
+        return cfg.translate.hachimimt.model_key
+    if t == "libretranslate":
+        base = cfg.translate.libretranslate.base_url or ""
+        return f"libretranslate@{base}" if base else "libretranslate"
+    if t == "google":
+        return "google-translate"
+    if t == "none":
+        return "noop"
+    return t or "unknown"
+
+
 def _build_meta(cfg: Config, ch: Chapter, translated: str, warnings: list[str]) -> dict:
     return {
         "chapter": ch.stem,
         "index": ch.index,
         "title": ch.title,
         "translator": cfg.translate.type,
-        "model": cfg.translate.openai.model,
+        "model": _resolve_translator_model(cfg),
         "profile": cfg.translate.profile,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "warnings": warnings,

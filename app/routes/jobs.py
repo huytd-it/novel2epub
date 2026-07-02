@@ -1,6 +1,7 @@
 """Chạy job nền (crawl/dịch/build/run) + trạng thái + tải EPUB."""
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from typing import Annotated
 
@@ -150,16 +151,37 @@ def start_ebook_translate_toc_selected(
     slug: str,
     checked_indexes: Annotated[list[int], Form()] = [],
     override: bool = Form(False),
+    backend: str = Form("openai"),
 ):
-    """Dịch tiêu đề chương (TOC) cho các chương đã tick, không đụng nội dung."""
+    """Dịch tiêu đề chương (TOC) cho các chương đã tick, không đụng nội dung.
+
+    `backend` chọn translator:
+    - "openai" (mặc định): dùng cfg.translate.openai như hiện tại
+    - "hachimimt": tạo bản copy của cfg với translate.type=hachimimt rồi dịch
+      bằng Local NMT (dùng hachimimt.model_key đã config)
+    """
     cfg = deps.resolved_cfg(slug)
     if not checked_indexes:
         raise HTTPException(status_code=400, detail="Không có chương nào được chọn.")
+    backend = (backend or "openai").lower()
+    if backend not in ("openai", "hachimimt"):
+        raise HTTPException(status_code=400, detail=f"backend không hợp lệ: {backend!r}")
+
+    if backend == "hachimimt":
+        mod_cfg = dataclasses.replace(
+            cfg,
+            translate=dataclasses.replace(cfg.translate, type="hachimimt"),
+        )
+    else:
+        mod_cfg = cfg
 
     def _target(log):
-        step_translate_toc_selected(cfg, log, force=override, selected_indexes=checked_indexes)
+        step_translate_toc_selected(
+            mod_cfg, log, force=override, selected_indexes=checked_indexes
+        )
 
-    request.app.state.job.start_custom("translate-toc-selected", _target, category="translate")
+    label = "translate-toc-selected" if backend == "openai" else "translate-toc-selected-local-nmt"
+    request.app.state.job.start_custom(label, _target, category="translate")
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 

@@ -259,6 +259,34 @@
 </form>
 
 <script>
+// Sync giữa "Model preset" (local_model) và "model_key" (hachimimt_model_key).
+// Bug: nếu chỉ chọn preset mà không sửa model_key, form gửi cả 2 — config.py thấy
+// `model_key` đã có trong raw nên KHÔNG auto-apply preset → lưu sai (vd chọn
+// `moxhimt-60` preset nhưng vẫn lưu `model_key: HachimiMT-60`). Khi user chọn
+// preset ở dropdown, JS tự fill model_key tương ứng. Nếu user muốn override
+// model_key cho preset, cứ gõ tay vào field sau khi chọn preset.
+(function () {
+    const presetMap = {
+        "hachimimt-60": "HachimiMT-60",
+        "hachimimt-30": "HachimiMT-30",
+        "moxhimt-60": "MoxhiMT-60",
+        "moxhimt-30": "MoxhiMT-30",
+        "hirashiba-medium": "HirashibaMT-Medium",
+        "hirashiba-tiny": "HirashibaMT-Tiny",
+    };
+    const presetSelect = document.getElementById("local-model-select");
+    const modelKeyInput = document.querySelector('input[name="hachimimt_model_key"]');
+    if (!presetSelect || !modelKeyInput) return;
+    presetSelect.addEventListener("change", function () {
+        const preset = presetSelect.value;
+        if (preset && presetMap[preset]) {
+            modelKeyInput.value = presetMap[preset];
+        }
+    });
+})();
+</script>
+
+<script>
 document.getElementById("ai-load-models").addEventListener("click", async function () {
     const baseUrl = document.getElementById("ai-base-url").value.trim();
     const apiKey = document.getElementById("ai-api-key").value.trim();

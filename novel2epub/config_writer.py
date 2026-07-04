@@ -113,6 +113,31 @@ def update_ebook(path: str | Path, slug: str, updates: dict[str, Any]) -> None:
     _dump(path, data)
 
 
+def update_defaults(path: str | Path, updates: dict[str, Any]) -> None:
+    """Merge `updates` vào khối `defaults:` — cấu hình dùng chung cho MỌI ebook.
+
+    Dùng cho `translate` (AI dịch) và `ai` (AI biên tập): các key top-level của
+    `updates` cũng bị GỠ khỏi từng ebook trong `ebooks:` (bản copy per-ebook cũ)
+    để file chỉ còn đúng 1 nơi giữ cấu hình này — `load_config` vốn đã bỏ qua
+    override per-ebook cho các khối global.
+    """
+    path = Path(path)
+    data = _load(path)
+    defaults = data.get("defaults")
+    if not isinstance(defaults, CommentedMap):
+        defaults = CommentedMap()
+        data["defaults"] = defaults
+    _deep_merge(defaults, updates)
+    ebooks = data.get("ebooks")
+    if isinstance(ebooks, CommentedMap):
+        for item in ebooks.values():
+            if not isinstance(item, CommentedMap):
+                continue
+            for key in updates:
+                item.pop(key, None)
+    _dump(path, data)
+
+
 def add_ebook(
     path: str | Path,
     slug: str,

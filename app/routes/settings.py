@@ -1,4 +1,5 @@
-"""Cấu hình per-ebook: metadata truyện, nguồn crawl, AI OpenAI-Compatible dịch."""
+"""Cấu hình ebook: metadata truyện + nguồn crawl per-ebook; AI dịch (`translate`)
+và AI biên tập (`ai`) là cấu hình GLOBAL dùng chung mọi ebook (ghi vào `defaults:`)."""
 from __future__ import annotations
 
 import re
@@ -8,7 +9,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import openai_client
-from novel2epub.config_writer import clean_prompt_text, update_ebook
+from novel2epub.config_writer import clean_prompt_text, update_defaults, update_ebook
 
 from .. import deps
 from ..logging_config import logger
@@ -277,7 +278,7 @@ def save_translate(
     }
     path = deps.ebook_config_path(slug)
     logger.info(
-        "[config][AI/DỊCH] slug=%s lưu vào %s: type=%s local_model=%s base_url=%r model=%r "
+        "[config][AI/DỊCH] global (từ %s) lưu vào defaults của %s: type=%s local_model=%s base_url=%r model=%r "
         "hachimimt=%s timeout=%ss temperature=%s tone=%r pronoun=%s title_mode=%s han_viet=%s "
         "keep_paragraphs=%s retry=%s chunk_max_chars=%s delay=%ss",
         slug, path, type, local_model, base_url, model,
@@ -285,7 +286,9 @@ def save_translate(
         pronoun_policy, title_mode, han_viet_level, keep_paragraphs, retry_attempts,
         chunk_max_chars, delay_seconds,
     )
-    update_ebook(deps.WORKSPACE_PATH, slug, {"translate": translate})
+    # Cấu hình AI dịch dùng chung cho MỌI ebook: ghi vào `defaults:` và gỡ bản
+    # copy per-ebook cũ (update_defaults tự dọn).
+    update_defaults(deps.WORKSPACE_PATH, {"translate": translate})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -301,7 +304,8 @@ def save_ai(
     """Lưu cấu hình AI biên tập (`ai.openai`) — tách riêng khỏi translate.openai.
 
     Dùng cho: glossary suggest/rewrite/evaluate. Không lưu prompt_template
-    vì AI biên tập dùng prompt cứng trong glossary_ai.py.
+    vì AI biên tập dùng prompt cứng trong glossary_ai.py. Cấu hình dùng chung
+    cho MỌI ebook (ghi vào `defaults:`).
     """
     ai_openai_cfg: dict = {
         "base_url": base_url,
@@ -312,10 +316,10 @@ def save_ai(
     }
     path = deps.ebook_config_path(slug)
     logger.info(
-        "[config][AI/BIÊN TẬP] slug=%s lưu vào %s: base_url=%r model=%r timeout=%ss temperature=%s",
+        "[config][AI/BIÊN TẬP] global (từ %s) lưu vào defaults của %s: base_url=%r model=%r timeout=%ss temperature=%s",
         slug, path, base_url, model, timeout_seconds, temperature,
     )
-    update_ebook(deps.WORKSPACE_PATH, slug, {"ai": {"openai": ai_openai_cfg}})
+    update_defaults(deps.WORKSPACE_PATH, {"ai": {"openai": ai_openai_cfg}})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -334,9 +338,6 @@ def save_output(
     crawl: dict = {
         "max_workers": max(1, crawl_max_workers),
     }
-    translate: dict = {
-        "max_workers": max(1, translate_max_workers),
-    }
     path = deps.ebook_config_path(slug)
     logger.info(
         "[config][OUTPUT] slug=%s lưu vào %s: data_dir=%r epub_path=%r "
@@ -346,6 +347,9 @@ def save_output(
     update_ebook(deps.WORKSPACE_PATH, slug, {
         "output": output,
         "crawl": crawl,
-        "translate": translate,
+    })
+    # translate.* là cấu hình global — max_workers ghi vào defaults như tab Dịch.
+    update_defaults(deps.WORKSPACE_PATH, {
+        "translate": {"max_workers": max(1, translate_max_workers)},
     })
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)

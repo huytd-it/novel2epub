@@ -8,6 +8,9 @@
 # Preset nguồn tách riêng: sources.yaml
 #
 # Config hiệu lực của 1 ebook = deep_merge(defaults, ebooks[<slug>]).
+# NGOẠI LỆ: `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình GLOBAL —
+# chỉ đọc từ defaults, khai trong ebooks[<slug>] sẽ bị BỎ QUA. Đổi 1 lần,
+# áp dụng cho mọi ebook (web UI Settings tab Dịch / AI biên tập ghi vào đây).
 # Chọn ebook khi chạy: `python -m novel2epub -e <slug> <command>`.
 # Đổi file qua ENV: NOVEL2EPUB_FILE=/đường/dẫn/khác.yaml
 # ============================================================

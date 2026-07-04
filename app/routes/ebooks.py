@@ -157,6 +157,10 @@ async def import_ebook_config(slug: str = Form(...), file: UploadFile = File(...
         raise HTTPException(status_code=400, detail="File config phải là 1 YAML mapping.")
     data.setdefault("novel", {})
     data["novel"]["slug"] = slug
+    # `translate`/`ai` là cấu hình global (defaults) — không nhận qua import
+    # per-ebook, tránh ghi lại bản copy mà load_config sẽ bỏ qua.
+    data.pop("translate", None)
+    data.pop("ai", None)
     update_ebook(deps.WORKSPACE_PATH, slug, data)
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 

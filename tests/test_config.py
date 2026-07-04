@@ -178,6 +178,35 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
     assert cfg_b.crawl.content_selector == "#default"
 
 
+def test_translate_and_ai_are_global_ignore_ebook_override(tmp_path):
+    """`translate` (AI dịch) và `ai` (AI biên tập) dùng chung cho mọi ebook:
+    chỉ đọc từ defaults, override per-ebook (file cũ còn sót) bị bỏ qua."""
+    path = tmp_path / "novel2epub.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "defaults": {
+                    "translate": {"type": "openai", "openai": {"model": "global-model"}},
+                    "ai": {"openai": {"model": "global-editor"}},
+                },
+                "ebooks": {
+                    "a": {
+                        "novel": {"slug": "a"},
+                        "translate": {"type": "none", "openai": {"model": "per-ebook-model"}},
+                        "ai": {"openai": {"model": "per-ebook-editor"}},
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cfg = load_config(path, "a")
+    assert cfg.translate.type == "openai"
+    assert cfg.translate.openai.model == "global-model"
+    assert cfg.ai.openai.model == "global-editor"
+
+
 def test_unified_file_unknown_slug_raises(tmp_path):
     path = tmp_path / "novel2epub.yaml"
     path.write_text(

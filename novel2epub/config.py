@@ -419,6 +419,11 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             override = {}
         override = dict(override)
         override.pop("name", None)  # tên hiển thị cấp ebook, không thuộc Config
+        # `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình DÙNG CHUNG cho
+        # mọi ebook — chỉ đọc từ `defaults:`. Override per-ebook (file cũ còn
+        # sót lại) bị bỏ qua để tránh mỗi ebook một bản cấu hình AI khác nhau.
+        override.pop("translate", None)
+        override.pop("ai", None)
         raw = _deep_merge_raw(defaults, override)
 
     novel = NovelConfig(**(raw.get("novel") or {}))

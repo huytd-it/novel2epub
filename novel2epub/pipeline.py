@@ -5,9 +5,11 @@ mà không crawl/dịch lại những chương đã hoàn tất.
 """
 from __future__ import annotations
 
+import json
 import re
 import threading
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -669,12 +671,16 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     started = time.monotonic()
     title_changed = False
     pieces: list[str] = []
+    chapter_glossary: list[dict] = []
 
     def _on_chunk(index: int, total_chunks: int, chunk_text: str, is_final: bool) -> None:
         log(f"[dịch]   ({i}/{total}) → đang lưu chunk {index}/{total_chunks} vào file "
             f"({len(chunk_text)} ký tự)")
         storage.append_translated_chunk(ch, chunk_text, is_first=(index == 1))
         pieces.append(chunk_text)
+
+    def _on_glossary(entries: list[dict]) -> None:
+        chapter_glossary.extend(entries)
 
     try:
         if ch.title and not is_noop and translate_title:
@@ -693,7 +699,7 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
                 title_changed = True
         _run_with_heartbeat(
             log, f"[dịch]   ({i}/{total})",
-            lambda: translator.translate(raw, on_chunk=_on_chunk),
+            lambda: translator.translate(raw, on_chunk=_on_chunk, on_glossary=_on_glossary),
         )
     except Exception as e:  # noqa: BLE001 - caller quyết định dừng sớm hay tiếp tục
         ch.last_action_status = "failed"
@@ -724,7 +730,58 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     storage.mark_translated_complete(ch, meta_extra=meta)
     ch.last_action_status = "replaced" if had_translated and force else "completed"
     _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title or ch.stem, elapsed, translated, warnings)
+
+    # Auto-glossary: merge glossary do AI trả kèm trong response dịch.
+    if (
+        cfg.translate.auto_glossary
+        and not is_noop
+        and cfg.translate.type.lower() == "openai"
+        and not (should_cancel and should_cancel())
+    ):
+        _maybe_extract_chapter_glossary(cfg, translator, storage, ch, chapter_glossary, log, i, total)
+
     return ch.last_action_status, title_changed
+
+
+def _maybe_extract_chapter_glossary(
+    cfg: Config,
+    translator,
+    storage: Storage,
+    ch: Chapter,
+    chapter_glossary: list[dict],
+    log: LogFn,
+    i: int,
+    total: int,
+) -> None:
+    if not chapter_glossary:
+        return
+
+    grouped: dict[str, dict[str, str]] = defaultdict(dict)
+    for s in chapter_glossary:
+        grouped[s["target_file"]][s["source"]] = s["suggested"]
+
+    chapter_conflicts: list[dict] = []
+    for target_file, entries in grouped.items():
+        if target_file not in ("names.txt", "vietphrase.txt"):
+            continue
+        result = translator.extend_glossary(entries, target_file, storage)
+        for source, target in result["added"]:
+            log(f"[dịch]   ({i}/{total}) + glossary ({target_file}): {source} = {target}")
+        for c in result["conflicts"]:
+            c["chapter_index"] = ch.index
+            chapter_conflicts.append(c)
+            log(
+                f"[dịch]   ({i}/{total}) ⚠ conflict {c['source']}: "
+                f"hiện có '{c['existing']}', AI đề xuất '{c['new']}' (giữ giá trị cũ)"
+            )
+
+    if chapter_conflicts:
+        try:
+            meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+            meta["glossary_conflicts"] = chapter_conflicts
+            storage.write_meta(ch, meta)
+        except Exception as e:
+            log(f"[dịch]   ({i}/{total}) ! Không ghi được glossary_conflicts vào meta: {e}")
 
 
 def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool, should_cancel: CancelFn | None = None, title_lookup: dict[str, str] | None = None) -> tuple[int, int, int, bool]:
@@ -874,6 +931,32 @@ def step_translate_selected(
 
     if changed or translated_count or skipped or failed:
         storage.save_manifest(manifest)
+
+    if cfg.translate.auto_glossary and cfg.translate.type.lower() == "openai":
+        inner = translator.inner if hasattr(translator, "inner") else translator
+        if hasattr(inner, "drain_conflicts"):
+            conflicts = inner.drain_conflicts()
+            if conflicts:
+                conflicts_dir = storage.root / "translation_meta"
+                conflicts_dir.mkdir(parents=True, exist_ok=True)
+                summary_path = conflicts_dir / "_glossary_conflicts.json"
+                existing = []
+                if summary_path.exists():
+                    try:
+                        existing = json.loads(summary_path.read_text(encoding="utf-8"))
+                        if not isinstance(existing, list):
+                            existing = []
+                    except (OSError, json.JSONDecodeError):
+                        existing = []
+                seen = {(c["source"], c["new"], c["target_file"]) for c in existing}
+                for c in conflicts:
+                    key = (c["source"], c["new"], c["target_file"])
+                    if key not in seen:
+                        existing.append(c)
+                        seen.add(key)
+                summary_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+                log(f"[dịch] Auto-glossary: {len(conflicts)} xung đột — xem {summary_path.name}")
+
     log(f"[dịch] Hoàn tất. Đã dịch {translated_count} chương, bỏ qua {skipped}, lỗi {failed}, ghi đè {replaced}.")
     return manifest
 

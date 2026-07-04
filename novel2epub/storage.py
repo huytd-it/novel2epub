@@ -341,3 +341,14 @@ class Storage:
     def write_glossary_file(self, name: str, content: str) -> None:
         self.ensure_dirs()
         self.glossary_path(name).write_text(content, encoding="utf-8")
+
+    def append_glossary_line(self, name: str, line: str) -> None:
+        """Append 1 dòng đã format 'source = target' vào file glossary.
+        Caller PHẢI giữ lock (OpenAITranslator._glossary_lock) khi gọi từ
+        nhiều luồng."""
+        self.ensure_dirs()
+        path = self.glossary_path(name)
+        existing = path.read_text(encoding="utf-8") if path.exists() else ""
+        if existing and not existing.endswith("\n"):
+            existing += "\n"
+        path.write_text(f"{existing}{line}\n", encoding="utf-8")

@@ -5,6 +5,13 @@
 <h2 class="text-xl font-semibold mt-3 mb-2">Glossary</h2>
 <p class="text-sm text-muted-light dark:text-muted-dark mb-3">Mỗi dòng dạng <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">Hán = Việt</code> hoặc <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">Hán = Việt | ghi chú</code>. Dòng bắt đầu bằng <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">#</code> hoặc không có <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">=</code> sẽ bị bỏ qua. Mục có <strong>ghi chú</strong> sẽ tự sinh footnote ở lần xuất hiện đầu tiên trong mỗi chương khi build EPUB.</p>
 
+{% if conflicts_count and conflicts_count > 0 %}
+<div class="mb-3 px-3 py-2 rounded-md bg-warn-light dark:bg-warn-dark border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-sm">
+    ⚠ Có <strong>{{ conflicts_count }}</strong> xung đột glossary từ lần dịch gần nhất (giá trị cũ được giữ).
+    Xem chi tiết trong <code>translation_meta/_glossary_conflicts.json</code>.
+</div>
+{% endif %}
+
 <div id="glossary-tabs">
     <div class="tab-bar flex border-b-2 border-border-light dark:border-border-dark mb-3 overflow-x-auto">
         <button class="active px-4 py-2 text-sm border-b-2 border-link-light dark:border-link-dark -mb-0.5 text-link-light dark:text-link-dark font-semibold" data-tab="tab-edit" onclick="switchTab('glossary-tabs', 'tab-edit')">Soạn thảo</button>

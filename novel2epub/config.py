@@ -264,6 +264,11 @@ class TranslateConfig:
     # Số chương dịch song song (luồng riêng, dùng chung 1 translator — HTTP
     # request/Google request đều an toàn gọi đồng thời). 1 = tuần tự như trước.
     max_workers: int = 1
+    # Khi True + translate.type=openai: sau khi dịch xong từng chương, AI sẽ
+    # rút glossary mới từ chính chương đó và merge vào names.txt/vietphrase.txt
+    # (in-memory cho chương kế tiếp + ghi file thread-safe). Xung đột (cùng Hán,
+    # khác Việt) → giữ giá trị cũ + ghi warning vào log và file tổng kết.
+    auto_glossary: bool = False
 
 
 @dataclass

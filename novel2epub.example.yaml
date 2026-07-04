@@ -61,6 +61,9 @@ defaults:
     retry: { attempts: 1, delay_seconds: 0.0 }
     chunk: { max_chars: 1500, overlap_paragraphs: 0 }
     delay_seconds: 0.5
+    # Khi True + type=openai: tự sinh glossary từ mỗi chương sau khi dịch,
+    # merge vào names.txt/vietphrase.txt (xung đột giữ giá trị cũ + cảnh báo).
+    auto_glossary: false
     openai:
       base_url: "https://opencode.ai/zen/go/v1"
       api_key: ""

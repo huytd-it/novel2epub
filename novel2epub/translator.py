@@ -7,10 +7,12 @@
 """
 from __future__ import annotations
 
+import json
 import re
+import threading
 import time
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Any, Callable, Protocol
 
 from . import openai_client
 from .config import LibreTranslateConfig, TranslateConfig
@@ -26,6 +28,9 @@ _HAN_RE = re.compile(r"[一-鿿]")
 
 # Số lần thử lại tối đa khi bản dịch còn sót chữ Hán chưa dịch.
 _RESIDUAL_HAN_RETRIES = 2
+
+# Marker để AI đánh dấu phần glossary trong response dịch.
+_GLOSSARY_MARKER = re.compile(r"^===GLOSSARY===\s*$", re.MULTILINE)
 
 
 def _clean_output(text: str) -> str:
@@ -128,6 +133,7 @@ class Translator(Protocol):
         text: str,
         *,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
+        on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str: ...
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]: ...
 
@@ -138,6 +144,7 @@ class NoopTranslator:
         text: str,
         *,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
+        on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
         if on_chunk is not None:
             on_chunk(1, 1, text, True)
@@ -170,6 +177,19 @@ def _split_into_chunks(text: str, max_chars: int, overlap_paragraphs: int) -> li
     return chunks
 
 
+def _fire_glossary(
+    on_glossary: Callable[[list[dict]], None] | None,
+    glossary_accum: list[dict],
+) -> None:
+    """Deduplicate theo source rồi gọi callback glossary nếu có entry."""
+    if not on_glossary or not glossary_accum:
+        return
+    merged: dict[str, dict] = {}
+    for entry in glossary_accum:
+        merged[entry["source"]] = entry
+    on_glossary(list(merged.values()))
+
+
 class OpenAITranslator:
     # Áp dụng khi translate.chunk.max_chars = 0 (mặc định) — tự chia chương dài
     # để tránh prompt quá tải/timeout request AI.
@@ -180,9 +200,51 @@ class OpenAITranslator:
         self.openai = cfg.openai
         self.glossary = load_glossary_dict(cfg)
         self.log = log or (lambda _: None)
+        self._glossary_lock = threading.Lock()
+        self._auto_glossary_conflicts: list[dict] = []
+
+    def extend_glossary(
+        self,
+        new_entries: dict[str, str],
+        target_file: str,
+        storage: "Storage",
+    ) -> dict:
+        """Merge new_entries vào in-memory glossary + ghi file. Thread-safe.
+
+        Trả {'added': [(source, target), ...], 'conflicts': [{source, existing,
+        new, target_file}, ...]}. Existing wins khi conflict.
+        """
+        added, conflicts = [], []
+        with self._glossary_lock:
+            for source, new_target in new_entries.items():
+                if not source or not new_target:
+                    continue
+                existing = self.glossary.get(source)
+                if existing is None:
+                    self.glossary[source] = new_target
+                    storage.append_glossary_line(target_file, f"{source} = {new_target}")
+                    added.append((source, new_target))
+                elif existing == new_target:
+                    continue
+                else:
+                    c = {
+                        "source": source,
+                        "existing": existing,
+                        "new": new_target,
+                        "target_file": target_file,
+                    }
+                    conflicts.append(c)
+                    self._auto_glossary_conflicts.append(c)
+        return {"added": added, "conflicts": conflicts}
+
+    def drain_conflicts(self) -> list[dict]:
+        with self._glossary_lock:
+            out = list(self._auto_glossary_conflicts)
+            self._auto_glossary_conflicts.clear()
+            return out
 
     def _build_prompt(self, text: str) -> str:
-        return self.openai.prompt_template.format(
+        prompt = self.openai.prompt_template.format(
             text=text,
             glossary=_format_glossary(self.glossary),
             tone=self.cfg.style.tone,
@@ -191,12 +253,43 @@ class OpenAITranslator:
             title_mode=self.cfg.style.title_mode,
             han_viet_level=self.cfg.style.han_viet_level,
         )
+        if self.cfg.auto_glossary:
+            prompt += (
+                "\n\nSAU KHI DỊCH XONG, thêm một dòng ===GLOSSARY=== "
+                "rồi viết JSON array các mục glossary mới phát hiện trong đoạn này.\n"
+                'Mỗi mục: {"source": "<Hán>", "suggested": "<Việt>", '
+                '"type": "name|place|skill|item|term|phrase", '
+                '"reason": "<lý do ngắn>", '
+                '"target_file": "names.txt|vietphrase.txt"}\n'
+                "Nếu không có: ===GLOSSARY===\n[]"
+            )
+        return prompt
 
     def _build_fixup_prompt(self, text: str) -> str:
         return self._build_prompt(text) + (
             "\n\nLƯU Ý QUAN TRỌNG: Bản dịch trước đó còn sót chữ Hán chưa được dịch. "
             "Hãy dịch toàn bộ văn bản gốc sang tiếng Việt, không để sót lại bất kỳ chữ Hán nào."
         )
+
+    def _split_response(self, raw: str) -> tuple[str, list[dict] | None]:
+        parts = _GLOSSARY_MARKER.split(raw, maxsplit=1)
+        if len(parts) < 2:
+            return raw, None
+        translation = parts[0].strip()
+        glossary_text = parts[1].strip()
+        if not glossary_text:
+            return translation, None
+        try:
+            data = json.loads(glossary_text)
+            if isinstance(data, list):
+                valid = [
+                    e for e in data
+                    if isinstance(e, dict) and e.get("source") and e.get("suggested")
+                ]
+                return translation, valid if valid else None
+            return translation, None
+        except (json.JSONDecodeError, ValueError):
+            return translation, None
 
     def _build_title_prompt(self, text: str, kind: str) -> str:
         return self.openai.title_prompt_template.format(
@@ -220,20 +313,31 @@ class OpenAITranslator:
         assert last_error is not None
         raise last_error
 
-    def _translate_chunk(self, chunk_text: str) -> str:
-        """Dịch một đoạn và thử lại nếu kết quả còn sót chữ Hán chưa dịch."""
+    def _translate_chunk(
+        self,
+        chunk_text: str,
+        glossary_accumulator: list[dict] | None = None,
+    ) -> str:
+        """Dịch một đoạn và thử lại nếu kết quả còn sót chữ Hán chưa dịch.
+        Nếu glossary_accumulator được truyền, các entry glossary trích từ response
+        AI được append vào đó."""
         out = self._run_chat_with_retry(self._build_prompt(chunk_text))
-        cleaned = _clean_output(out)
+        translation_text, glossary_entries = self._split_response(out)
+        cleaned = _clean_output(translation_text)
         for _ in range(_RESIDUAL_HAN_RETRIES):
             residual = len(_HAN_RE.findall(cleaned))
             if residual == 0:
                 break
             out = self._run_chat_with_retry(self._build_fixup_prompt(chunk_text))
-            retried = _clean_output(out)
+            fixup_text, fixup_glossary = self._split_response(out)
+            retried = _clean_output(fixup_text)
             if len(_HAN_RE.findall(retried)) < residual:
                 cleaned = retried
+                glossary_entries = fixup_glossary or glossary_entries
             else:
                 break
+        if glossary_entries and glossary_accumulator is not None:
+            glossary_accumulator.extend(glossary_entries)
         return cleaned
 
     def translate(
@@ -241,14 +345,17 @@ class OpenAITranslator:
         text: str,
         *,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
+        on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
         if not text.strip():
             return text
         max_chars = self.cfg.chunk.max_chars or self.DEFAULT_MAX_CHARS
+        glossary_accum: list[dict] = []
         if len(text) <= max_chars:
-            cleaned = self._translate_chunk(text)
+            cleaned = self._translate_chunk(text, glossary_accum)
             if on_chunk is not None:
                 on_chunk(1, 1, cleaned, True)
+            _fire_glossary(on_glossary, glossary_accum)
             return _apply_glossary(cleaned, self.glossary)
 
         overlap = max(0, self.cfg.chunk.overlap_paragraphs)
@@ -259,13 +366,14 @@ class OpenAITranslator:
         for i, chunk_paragraphs in enumerate(chunks):
             chunk_text = "\n".join(chunk_paragraphs)
             self.log(f"  … đoạn {i+1}/{total} ({len(chunk_text)} ký tự)")
-            cleaned = self._translate_chunk(chunk_text)
+            cleaned = self._translate_chunk(chunk_text, glossary_accum)
             if i > 0 and overlap > 0:
                 lines = cleaned.split("\n")
                 cleaned = "\n".join(lines[overlap:]) if len(lines) > overlap else cleaned
             pieces.append(cleaned)
             if on_chunk is not None:
                 on_chunk(i + 1, total, cleaned, i + 1 == total)
+        _fire_glossary(on_glossary, glossary_accum)
         return _apply_glossary("\n".join(pieces), self.glossary)
 
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
@@ -306,6 +414,7 @@ class GoogleTranslator:
         text: str,
         *,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
+        on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
         if not text.strip():
             return text
@@ -354,6 +463,7 @@ class HachimiMTTranslator:
         text: str,
         *,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
+        on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
         if not text.strip():
             if on_chunk is not None:
@@ -424,6 +534,7 @@ class LibreTranslateTranslator:
         text: str,
         *,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
+        on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
         if not text.strip():
             if on_chunk is not None:
@@ -469,8 +580,9 @@ class RateLimited:
         text: str,
         *,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
+        on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
-        out = self.inner.translate(text, on_chunk=on_chunk)
+        out = self.inner.translate(text, on_chunk=on_chunk, on_glossary=on_glossary)
         if self.delay > 0:
             time.sleep(self.delay)
         return out

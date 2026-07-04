@@ -1,6 +1,8 @@
 """Trang quản lý glossary: CRUD thủ công + AI gợi ý + AI rewrite chương."""
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
@@ -15,6 +17,17 @@ router = APIRouter()
 _MAX_SUGGEST_CHAPTERS = 5
 _MAX_EVALUATE_CHAPTERS = 5
 _GLOSSARY_FILES = ("names.txt", "vietphrase.txt")
+
+
+def _conflicts_count(storage) -> int:
+    conflicts_path = storage.root / "translation_meta" / "_glossary_conflicts.json"
+    if not conflicts_path.exists():
+        return 0
+    try:
+        data = json.loads(conflicts_path.read_text(encoding="utf-8"))
+        return len(data) if isinstance(data, list) else 0
+    except (OSError, json.JSONDecodeError):
+        return 0
 
 
 def _append_glossary_entry(
@@ -52,6 +65,7 @@ def ebook_glossary(request: Request, slug: str):
             "vietphrase": vietphrase.read_text(encoding="utf-8") if vietphrase.exists() else "",
             "suggestions": [],
             "job": request.app.state.job.status(),
+            "conflicts_count": _conflicts_count(storage),
         },
     )
 
@@ -108,6 +122,7 @@ def ebook_glossary_suggest(
             "chapter_from": chapter_from,
             "chapter_to": chapter_to,
             "job": request.app.state.job.status(),
+            "conflicts_count": _conflicts_count(storage),
         },
     )
 
@@ -159,6 +174,7 @@ def ebook_glossary_evaluate(
             "eval_chapter_from": chapter_from,
             "eval_chapter_to": chapter_to,
             "job": request.app.state.job.status(),
+            "conflicts_count": _conflicts_count(storage),
         },
     )
 

@@ -253,3 +253,103 @@ def test_translate_raises_when_ai_call_fails(monkeypatch):
     translator = make_translator(cfg)
     with pytest.raises(RuntimeError, match="401"):
         translator.translate("test")
+
+
+# ── Tests cho Auto-Glossary (extend_glossary) ──────────────────────
+
+
+class _MockStorage:
+    """Ghi lại các lần gọi append_glossary_line."""
+    def __init__(self):
+        self.written: list[tuple[str, str]] = []
+
+    def append_glossary_line(self, name: str, line: str) -> None:
+        self.written.append((name, line))
+
+    def glossary_path(self, name: str):
+        from pathlib import Path
+        return Path(name)
+
+
+def _make_openai_translator(**kwargs) -> "OpenAITranslator":
+    cfg = TranslateConfig(
+        type="openai",
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            model="test-model",
+            api_key="test-key",
+            prompt_template="",
+            title_prompt_template="",
+        ),
+        **kwargs,
+    )
+    from novel2epub.translator import OpenAITranslator
+    return OpenAITranslator(cfg)
+
+
+def test_extend_glossary_added():
+    """Entry mới → add vào in-memory + ghi file."""
+    t = _make_openai_translator()
+    storage = _MockStorage()
+    result = t.extend_glossary({"叶凡": "Diệp Phàm"}, "names.txt", storage)
+
+    assert len(result["added"]) == 1
+    assert len(result["conflicts"]) == 0
+    assert t.glossary["叶凡"] == "Diệp Phàm"
+    assert storage.written == [("names.txt", "叶凡 = Diệp Phàm")]
+
+
+def test_extend_glossary_unchanged():
+    """Source đã có cùng value → skip, không ghi file."""
+    t = _make_openai_translator()
+    t.glossary["叶凡"] = "Diệp Phàm"
+    storage = _MockStorage()
+    result = t.extend_glossary({"叶凡": "Diệp Phàm"}, "names.txt", storage)
+
+    assert len(result["added"]) == 0
+    assert len(result["conflicts"]) == 0
+    assert storage.written == []
+
+
+def test_extend_glossary_conflict_existing_wins():
+    """Source đã có khác value → existing wins, conflict báo lại."""
+    t = _make_openai_translator()
+    t.glossary["叶凡"] = "Diệp Phàm"
+    storage = _MockStorage()
+    result = t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, "names.txt", storage)
+
+    assert len(result["added"]) == 0
+    assert len(result["conflicts"]) == 1
+    c = result["conflicts"][0]
+    assert c["source"] == "叶凡"
+    assert c["existing"] == "Diệp Phàm"
+    assert c["new"] == "Diệp Phà (cũ)"
+    assert c["target_file"] == "names.txt"
+    # In-memory vẫn giữ giá trị cũ
+    assert t.glossary["叶凡"] == "Diệp Phàm"
+    # File không được ghi
+    assert storage.written == []
+
+
+def test_extend_glossary_accumulates_conflicts():
+    """Nhiều conflict tích lũy trong _auto_glossary_conflicts, drain_conflicts trả hết."""
+    t = _make_openai_translator()
+    t.glossary["叶凡"] = "Diệp Phàm"
+    t.glossary["林动"] = "Lâm Động"
+    storage = _MockStorage()
+    t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, "names.txt", storage)
+    t.extend_glossary({"林动": "Lâm Động (khác)"}, "names.txt", storage)
+
+    drained = t.drain_conflicts()
+    assert len(drained) == 2
+    # drain xong list rỗng
+    assert t.drain_conflicts() == []
+
+
+def test_extend_glossary_skips_empty_source():
+    """Entry với source/suggested rỗng bị bỏ qua."""
+    t = _make_openai_translator()
+    storage = _MockStorage()
+    result = t.extend_glossary({"": "something", "valid": ""}, "names.txt", storage)
+    assert len(result["added"]) == 0
+    assert len(result["conflicts"]) == 0

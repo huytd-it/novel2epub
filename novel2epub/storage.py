@@ -9,6 +9,7 @@ Cấu trúc:
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -145,8 +146,12 @@ class Storage:
         )
 
     def save_manifest(self, manifest: Manifest) -> None:
+        # Ghi atomic (tmp + replace): crash/tắt máy giữa chừng không để lại
+        # manifest.json rỗng/cụt — file cũ còn nguyên cho tới khi replace xong.
         self.ensure_dirs()
-        self.manifest_path.write_text(manifest.to_json(), encoding="utf-8")
+        tmp_path = self.manifest_path.with_suffix(".json.tmp")
+        tmp_path.write_text(manifest.to_json(), encoding="utf-8")
+        os.replace(tmp_path, self.manifest_path)
 
     # ----- nội dung chương -----
     def raw_path(self, ch: Chapter) -> Path:

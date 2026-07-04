@@ -505,6 +505,122 @@ def test_batch_translate_includes_glossary_in_prompt(tmp_path, monkeypatch):
     assert "## Glossary tham khảo" in p
 
 
+# ── Tests cập nhật tiêu đề chương vào manifest ────────────────────────
+
+
+def test_batch_translate_updates_manifest_titles(tmp_path, monkeypatch):
+    """Tiêu đề AI dịch trong heading `## Chương N: <title>` ghi đè manifest.title,
+    backfill title_zh (đang rỗng) bằng title cũ."""
+    cfg = _cfg(tmp_path)
+    storage, _ = _seed_with_raw(tmp_path, n=2)
+    client = _client(cfg, monkeypatch)
+
+    ai_response = (
+        "## Chương 1: Khởi đầu\nBản dịch 1\n\n"
+        "## Chương 2: Trở về\nBản dịch 2\n"
+    )
+    monkeypatch.setattr(
+        openai_client, "run_chat_with_meta", lambda *_: (ai_response, {})
+    )
+    res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "1,2"})
+    assert res.status_code == 200
+    assert res.json()["titles_updated"] == [1, 2]
+
+    manifest = storage.load_manifest()
+    by_idx = {c.index: c for c in manifest.chapters}
+    # Tiêu đề gốc mở đầu 第N章 → ensure_title_number gắn lại "Chương N: ".
+    assert by_idx[1].title == "Chương 1: Khởi đầu"
+    assert by_idx[1].title_zh == "第1章"  # title cũ backfill vào title_zh
+    assert by_idx[2].title == "Chương 2: Trở về"
+    assert by_idx[2].title_zh == "第2章"
+
+
+def test_batch_translate_keeps_existing_title_zh(tmp_path, monkeypatch):
+    """title_zh đã có sẵn → KHÔNG bị ghi đè khi cập nhật title mới."""
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=1, url="http://x/1", title="Tiêu đề cũ VI", title_zh="第一章")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_raw(ch, "原文")
+    client = _client(cfg, monkeypatch)
+
+    monkeypatch.setattr(
+        openai_client, "run_chat_with_meta",
+        lambda *_: ("## Chương 1: Tiêu đề mới VI\nDịch\n", {}),
+    )
+    res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "1"})
+    assert res.status_code == 200
+
+    ch2 = storage.load_manifest().chapters[0]
+    assert ch2.title == "Tiêu đề mới VI"
+    assert ch2.title_zh == "第一章"
+
+
+def test_batch_translate_heading_without_title_keeps_manifest_title(tmp_path, monkeypatch):
+    """Heading không kèm tiêu đề (`## Chương 1`) → giữ title cũ, không nằm trong titles_updated."""
+    cfg = _cfg(tmp_path)
+    storage, _ = _seed_with_raw(tmp_path, n=1)
+    client = _client(cfg, monkeypatch)
+
+    monkeypatch.setattr(
+        openai_client, "run_chat_with_meta",
+        lambda *_: ("## Chương 1\nDịch xong\n", {}),
+    )
+    res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "1"})
+    assert res.status_code == 200
+    assert res.json()["titles_updated"] == []
+    assert storage.load_manifest().chapters[0].title == "第1章"
+
+
+def test_batch_translate_title_number_differs_from_index(tmp_path, monkeypatch):
+    """Marker N là index VỊ TRÍ trong manifest; số chương trong tiêu đề có thể
+    khác (vd vị trí 928 nhưng truyện đánh số 918) — match theo N của marker,
+    title giữ nguyên văn."""
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=928, url="http://x/928", title="第918章 少年归来")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_raw(ch, "原文")
+    client = _client(cfg, monkeypatch)
+
+    monkeypatch.setattr(
+        openai_client, "run_chat_with_meta",
+        lambda *_: ("## Chương 928: Chương 918: Thiếu niên trở về\nDịch\n", {}),
+    )
+    res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "928"})
+    assert res.status_code == 200
+    assert res.json()["written"] == [928]
+    assert res.json()["titles_updated"] == [928]
+
+    ch2 = storage.load_manifest().chapters[0]
+    assert ch2.index == 928
+    assert ch2.title == "Chương 918: Thiếu niên trở về"
+    assert ch2.title_zh == "第918章 少年归来"
+
+
+def test_batch_translate_reprefixes_real_chapter_number_when_ai_drops_it(tmp_path, monkeypatch):
+    """AI dịch tiêu đề làm rơi 第911章 (số chương THẬT, khác index vị trí 961)
+    → ensure_title_number gắn lại 'Chương 911: ' từ tiêu đề gốc."""
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=961, url="http://x/961", title="第911章 我要冻结所有法条！")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_raw(ch, "原文")
+    client = _client(cfg, monkeypatch)
+
+    monkeypatch.setattr(
+        openai_client, "run_chat_with_meta",
+        lambda *_: ("## Chương 961: Ta muốn đóng băng tất cả pháp điều!\nDịch\n", {}),
+    )
+    res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "961"})
+    assert res.status_code == 200
+    assert res.json()["titles_updated"] == [961]
+
+    ch2 = storage.load_manifest().chapters[0]
+    assert ch2.title == "Chương 911: Ta muốn đóng băng tất cả pháp điều!"
+    assert ch2.title_zh == "第911章 我要冻结所有法条！"
+
+
 # ── Tests cho batch splitting ──────────────────────────────────────────
 
 

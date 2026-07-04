@@ -244,8 +244,79 @@ def test_cleanup_chapter_no_retry_when_ai_noop():
     assert count == 0
 
 
-def test_cleanup_chapter_max_chars_limits():
-    """max_chars > 0: chapter dài quá sẽ không gọi AI."""
+def test_cleanup_chapter_batches_all_han_paragraphs_in_one_request():
+    """Nhiều đoạn còn Hán → gom hết vào 1 request duy nhất, sửa đúng từng đoạn."""
+    from novel2epub.han_cleanup import cleanup_chapter
+    from novel2epub.config import OpenAIConfig
+
+    text = "sạch một.\nvì 不好 nên\nsạch hai.\ntư thế 吃相 khó coi"
+    calls = {"n": 0, "prompts": []}
+
+    def _fake(ai_cfg, prompt):
+        calls["n"] += 1
+        calls["prompts"].append(prompt)
+        return (
+            '<DOAN id="2">\nvì không tốt nên\n</DOAN>\n'
+            '<DOAN id="4">\ntư thế ăn uống khó coi\n</DOAN>'
+        )
+
+    import novel2epub.han_cleanup as hc
+    orig_run = hc.openai_client.run_chat
+    hc.openai_client.run_chat = _fake
+    try:
+        cleaned, count, warnings = cleanup_chapter(
+            "", text, OpenAIConfig(), retries=1,
+        )
+    finally:
+        hc.openai_client.run_chat = orig_run
+
+    assert calls["n"] == 1  # 2 đoạn Hán nhưng chỉ 1 request
+    prompt = calls["prompts"][0]
+    assert "<HAN>不好</HAN>" in prompt
+    assert "<HAN>吃相</HAN>" in prompt
+    assert 'id=2' in prompt and 'id=4' in prompt
+    assert cleaned == "sạch một.\nvì không tốt nên\nsạch hai.\ntư thế ăn uống khó coi"
+    assert count == 4  # 2 + 2 ký tự Hán đã sửa
+    assert warnings == []
+
+
+def test_parse_batch_response_ignores_unknown_id_and_noop():
+    """Khối có id lạ hoặc nội dung y nguyên (AI noop) đều bị bỏ qua."""
+    from novel2epub.han_cleanup import parse_batch_response
+
+    items = [
+        {"para_idx": 0, "raw": "", "marked": "vì <HAN>不好</HAN> nên", "original": "vì 不好 nên"},
+    ]
+    response = '<DOAN id="1">vì 不好 nên</DOAN>\n<DOAN id="9">rác không liên quan</DOAN>'
+    assert parse_batch_response(response, items) == {}
+
+
+def test_parse_batch_response_single_item_plain_fallback():
+    """AI trả thẳng đoạn đã sửa không bọc <DOAN> → vẫn nhận khi batch chỉ có 1 đoạn."""
+    from novel2epub.han_cleanup import parse_batch_response
+
+    items = [
+        {"para_idx": 3, "raw": "", "marked": "vì <HAN>不好</HAN> nên", "original": "vì 不好 nên"},
+    ]
+    assert parse_batch_response("vì không tốt nên", items) == {3: "vì không tốt nên"}
+
+
+def test_pack_batches_splits_by_budget():
+    """Tổng payload vượt max_chars → chia nhiều request; max_chars=0 → 1 request."""
+    from novel2epub.han_cleanup import _pack_batches
+
+    items = [
+        {"para_idx": i, "raw": "r" * 30, "marked": "m" * 30, "original": ""}
+        for i in range(3)
+    ]  # mỗi item 60 ký tự payload
+    assert len(_pack_batches(items, 0)) == 1
+    assert len(_pack_batches(items, 120)) == 2  # 2 item / batch
+    assert len(_pack_batches(items, 60)) == 3
+    assert _pack_batches([], 0) == []
+
+
+def test_cleanup_chapter_max_chars_skips_long_paragraph():
+    """max_chars > 0: đoạn văn dài quá ngưỡng sẽ không gửi AI."""
     from novel2epub.han_cleanup import cleanup_chapter
     from novel2epub.config import OpenAIConfig
 
@@ -266,6 +337,41 @@ def test_cleanup_chapter_max_chars_limits():
     finally:
         hc.openai_client.run_chat = orig_run
 
-    assert fake_called["n"] == 0  # max_chars=50 < len(text)=311, skip ngay
+    assert fake_called["n"] == 0  # đoạn duy nhất dài 311 > max_chars=50, skip
     assert any("max_chars" in w for w in warnings)
     assert cleaned == long_text
+
+
+def test_cleanup_chapter_long_chapter_short_han_paragraph_still_processed():
+    """Chương tổng thể dài vượt max_chars nhưng đoạn chứa Hán ngắn -> vẫn gọi AI.
+
+    Kịch bản thực tế: chương truyện mạng ~20k ký tự, chỉ vài đoạn ngắn còn sót
+    Hán. max_chars áp theo ĐOẠN (payload mỗi lần gọi AI), không theo cả chương.
+    """
+    from novel2epub.han_cleanup import cleanup_chapter
+    from novel2epub.config import OpenAIConfig
+
+    han_para = "mở đầu 不好 kết thúc"
+    chapter = ("x" * 500) + "\n" + han_para + "\n" + ("y" * 500)
+    fake_called = {"n": 0}
+
+    def _fake(ai_cfg, prompt):
+        fake_called["n"] += 1
+        return "mở đầu không tốt kết thúc"
+
+    import novel2epub.han_cleanup as hc
+    orig_run = hc.openai_client.run_chat
+    hc.openai_client.run_chat = _fake
+    try:
+        cleaned, count, warnings = cleanup_chapter(
+            "", chapter, OpenAIConfig(), max_chars=100, retries=1,
+        )
+    finally:
+        hc.openai_client.run_chat = orig_run
+
+    assert fake_called["n"] == 1  # chỉ đoạn có Hán được gửi, dù chương > 1000 ký tự
+    assert count == 2  # 2 ký tự Hán được sửa
+    assert "không tốt" in cleaned
+    assert cleaned.startswith("x" * 500)
+    assert cleaned.endswith("y" * 500)
+    assert not any("max_chars" in w for w in warnings)

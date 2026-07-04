@@ -35,8 +35,9 @@ from .storage import parse_glossary_line
 
 # Marker phân tách — chấp nhận cả tiêu đề Markdown (`## CHƯƠNG N`, định dạng mới,
 # tốt cho AI hơn) lẫn marker `=====` kiểu cũ (tương thích ngược). `re.IGNORECASE`
-# để khoan dung hoa/thường khi AI viết lại tiêu đề.
-CHAPTER_MARKER_RE = re.compile(r"^(?:#{1,6}\s*|={3,}\s*)CHƯƠNG\s+(\d+)\b", re.IGNORECASE)
+# để khoan dung hoa/thường khi AI viết lại tiêu đề. Group 2 = phần tiêu đề sau
+# số chương (có thể rỗng), chuẩn hóa qua `_marker_title`.
+CHAPTER_MARKER_RE = re.compile(r"^(?:#{1,6}\s*|={3,}\s*)CHƯƠNG\s+(\d+)\b\s*(.*)$", re.IGNORECASE)
 GLOSSARY_MARKER_RE = re.compile(r"^(?:#{1,6}\s*|={3,}\s*)GLOSSARY\b", re.IGNORECASE)
 
 _NAMES_HEADERS = {"[NAMES]", "[NAME]", "[TÊN]", "[TEN]", "NAMES", "NAME", "TÊN", "TEN"}
@@ -45,6 +46,45 @@ _VIETPHRASE_HEADERS = {
     "VIETPHRASE", "VP", "THUẬT NGỮ", "THUAT NGU",
 }
 _BULLET_RE = re.compile(r"^[-*+]\s+")
+
+
+# Số chương THẬT ở đầu tiêu đề gốc (第911章/卷/回) — chỉ hỗ trợ chữ số Ả Rập,
+# nhất quán với `pipeline._clean_title`.
+_ZH_NUM_PREFIX_RE = re.compile(r"^第\s*(\d+)\s*(章|卷|回)")
+_ZH_NUM_LABELS = {"章": "Chương", "卷": "Quyển", "回": "Hồi"}
+
+
+def ensure_title_number(zh_title: str, vi_title: str) -> str:
+    """Giữ SỐ CHƯƠNG THẬT từ tiêu đề gốc khi AI dịch tiêu đề.
+
+    Số trong marker `## Chương N` là index VỊ TRÍ trong manifest (vd 961),
+    còn số chương thật nằm trong tiêu đề gốc (vd 第911章) — AI thường dịch
+    "gọn" làm rơi mất, hoặc echo nhầm số vị trí. Nếu `zh_title` mở đầu bằng
+    `第M章/卷/回`: bỏ prefix `Chương/Quyển/Hồi <số>` sẵn có trong `vi_title`
+    (đúng hay sai số) rồi gắn lại `<nhãn> M: ` theo bản gốc. Không có prefix
+    số trong bản gốc → trả `vi_title` nguyên vẹn.
+    """
+    vi_title = vi_title.strip()
+    m = _ZH_NUM_PREFIX_RE.match(zh_title.strip())
+    if not m or not vi_title:
+        return vi_title
+    num, label = int(m.group(1)), _ZH_NUM_LABELS[m.group(2)]
+    rest = re.sub(
+        rf"^{label}\s+\d+\s*[:：\-–—.]?\s*", "", vi_title, flags=re.IGNORECASE
+    ).strip()
+    if not rest:
+        return f"{label} {num}"
+    return f"{label} {num}: {rest}"
+
+
+def _marker_title(rest: str) -> str:
+    """Chuẩn hóa phần tiêu đề bắt được sau `CHƯƠNG N` trong dòng marker.
+
+    Bỏ run `=` cuối dòng (marker legacy `===== CHƯƠNG 12 =====` → title rỗng)
+    và separator mở đầu (`:`, `：`, `-`, `.`...) giữa số chương và tiêu đề.
+    """
+    rest = re.sub(r"=+\s*$", "", rest)
+    return rest.strip().lstrip(":：-–—.").strip()
 
 
 def chapter_marker(index: int, title: str = "") -> str:
@@ -192,25 +232,32 @@ def build_export(
     return "\n\n".join(parts) + "\n"
 
 
-def parse_import(text: str) -> list[tuple[int, str]]:
-    """Tách văn bản đã biên tập thành list `(index, content)` theo marker chương.
+def parse_import(text: str) -> list[tuple[int, str, str]]:
+    """Tách văn bản đã biên tập thành list `(index, title, content)` theo marker chương.
+
+    `title` là phần sau `## Chương N:` (đã strip separator; `""` nếu heading
+    không kèm tiêu đề). LƯU Ý: `index` là VỊ TRÍ trong manifest, còn tiêu đề
+    thật có thể mang số chương khác (vd marker `## Chương 928: Chương 918: ...`)
+    — giữ title nguyên văn, không suy diễn số từ index.
 
     Bỏ qua mọi nội dung trước marker chương đầu tiên (prompt, glossary tham khảo)
     và cắt nội dung chương cuối tại marker GLOSSARY nếu có.
     """
-    results: list[tuple[int, str]] = []
+    results: list[tuple[int, str, str]] = []
     current_index: int | None = None
+    current_title = ""
     buf: list[str] = []
 
     def _flush() -> None:
         if current_index is not None:
-            results.append((current_index, "\n".join(buf).strip()))
+            results.append((current_index, current_title, "\n".join(buf).strip()))
 
     for line in text.splitlines():
         ch = CHAPTER_MARKER_RE.match(line)
         if ch:
             _flush()
             current_index = int(ch.group(1))
+            current_title = _marker_title(ch.group(2))
             buf = []
             continue
         if GLOSSARY_MARKER_RE.match(line):

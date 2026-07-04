@@ -58,6 +58,74 @@ def test_step_fetch_toc_saves_metadata_no_content(tmp_path, monkeypatch):
     assert not storage.has_raw(manifest.chapters[0])
 
 
+def test_refresh_manifest_empty_toc_keeps_cached_chapters(tmp_path, monkeypatch):
+    """TOC trả về 0 chương (anti-bot trả 200, site đổi cấu trúc...) không được
+    xóa chapters đã có trong manifest — dùng lại cache."""
+    from novel2epub.storage import Manifest
+
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=1, url="http://x/1", title="C1"), Chapter(index=2, url="http://x/2", title="C2")]
+    storage.save_manifest(Manifest(slug="t", title="Truyện", chapters=chapters))
+
+    toc = TocResult(title="", chapters=[])
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(toc))
+
+    cfg = _cfg(tmp_path)
+    pipeline.step_fetch_toc(cfg, lambda m: None)
+
+    manifest = storage.load_manifest()
+    assert len(manifest.chapters) == 2
+    assert manifest.chapters[0].title == "C1"
+
+
+def test_refresh_manifest_empty_toc_no_cache_raises(tmp_path, monkeypatch):
+    toc = TocResult(title="", chapters=[])
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(toc))
+
+    cfg = _cfg(tmp_path)
+    import pytest
+
+    with pytest.raises(RuntimeError):
+        pipeline.step_fetch_toc(cfg, lambda m: None)
+
+
+def test_refresh_manifest_partial_toc_keeps_missing_chapters(tmp_path, monkeypatch):
+    """Chương cũ vắng mặt trong TOC mới (phân trang lỗi, site đổi URL...) phải
+    được giữ lại — không mồ côi file raw/translated trên đĩa."""
+    from novel2epub.storage import Manifest
+
+    storage = Storage(tmp_path, "t")
+    chapters = [
+        Chapter(index=1, url="http://x/1", title="C1"),
+        Chapter(index=2, url="http://x/2", title="C2"),
+    ]
+    storage.save_manifest(Manifest(slug="t", title="Truyện", chapters=chapters))
+
+    # TOC mới chỉ còn chương 2 + thêm chương 3 mới
+    toc = TocResult(
+        title="",
+        chapters=[
+            Chapter(index=1, url="http://x/2", title="C2 mới"),
+            Chapter(index=2, url="http://x/3", title="C3"),
+        ],
+    )
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(toc))
+
+    cfg = _cfg(tmp_path)
+    pipeline.step_fetch_toc(cfg, lambda m: None)
+
+    manifest = storage.load_manifest()
+    urls = [ch.url for ch in manifest.chapters]
+    assert urls == ["http://x/1", "http://x/2", "http://x/3"]
+    # Chương cũ giữ nguyên index (file trên đĩa đặt tên theo index)
+    assert manifest.chapters[0].index == 1
+    assert manifest.chapters[1].index == 2
+    # Chương mới nối vào cuối với index tiếp theo
+    assert manifest.chapters[2].index == 3
+    # Title cũ không bị TOC mới ghi đè
+    assert manifest.chapters[1].title == "C2"
+
+
 class _FlakyTranslator:
     """Dịch OK trừ những chương có index nằm trong `fail_on` thì ném lỗi."""
 

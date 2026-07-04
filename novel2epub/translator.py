@@ -79,6 +79,28 @@ def _parse_title_response(raw: str) -> tuple[str, str]:
     return title, note
 
 
+_TITLES_BATCH_LINE = re.compile(r"^\s*(\d+)\s*[.\):]\s*(.+?)\s*$")
+
+
+def _parse_titles_batch_response(raw: str, count: int) -> dict[int, str]:
+    """Tách các dòng '<số>. <bản dịch>' từ phản hồi dịch hàng loạt tiêu đề.
+
+    Trả dict {1-based index: title}. Bỏ qua dòng không khớp định dạng hoặc
+    số thứ tự ngoài phạm vi — caller tự fallback dịch riêng lẻ cho các
+    tiêu đề bị thiếu.
+    """
+    cleaned = _clean_output(raw)
+    result: dict[int, str] = {}
+    for line in cleaned.splitlines():
+        m = _TITLES_BATCH_LINE.match(line)
+        if not m:
+            continue
+        idx = int(m.group(1))
+        if 1 <= idx <= count:
+            result[idx] = m.group(2).strip()
+    return result
+
+
 def _format_glossary(glossary: dict[str, str]) -> str:
     if not glossary:
         return ""
@@ -194,6 +216,11 @@ class OpenAITranslator:
     # Áp dụng khi translate.chunk.max_chars = 0 (mặc định) — tự chia chương dài
     # để tránh prompt quá tải/timeout request AI.
     DEFAULT_MAX_CHARS = 6000
+
+    # Số tiêu đề tối đa gộp vào 1 lần gọi khi dịch hàng loạt (translate_titles).
+    # Tiêu đề ngắn nên gộp được nhiều, nhưng vẫn giới hạn để tránh prompt/response
+    # quá dài (timeout, model cắt bớt output) — chia thành nhiều batch nếu cần.
+    TITLES_BATCH_SIZE = 50
 
     def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None):
         self.cfg = cfg
@@ -450,6 +477,44 @@ class OpenAITranslator:
         out = self._run_chat_with_retry(self._build_title_prompt(text, kind))
         title, note = _parse_title_response(out)
         return _apply_glossary(title, self.glossary), note
+
+    def _build_titles_batch_prompt(self, titles: list[str]) -> str:
+        numbered = "\n".join(f"{i}. {t}" for i, t in enumerate(titles, start=1))
+        glossary = _format_glossary(self.glossary)
+        glossary_block = f"{glossary}\n\n" if glossary else ""
+        return (
+            f"Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt. Nhiệm vụ: chuyển ngữ "
+            f"{len(titles)} tiêu đề chương sau sang tiếng Việt thật HAY, có hồn, "
+            "KHÔNG dịch sát nghĩa kiểu máy/Quick Translate.\n\n"
+            "Nguyên tắc bắt buộc:\n"
+            "1. Không bê nguyên âm Hán Việt nếu người đọc Việt không hiểu nghĩa.\n"
+            "2. Có thể đảo cấu trúc, dùng hình ảnh/ẩn dụ tương đương trong tiếng Việt, "
+            "miễn giữ đúng tinh thần và nội dung cốt lõi.\n\n"
+            f"{glossary_block}"
+            f"Trả lời ĐÚNG {len(titles)} dòng, mỗi dòng một tiêu đề đã dịch, giữ NGUYÊN "
+            "thứ tự và số thứ tự như danh sách gốc, theo định dạng:\n"
+            "<số thứ tự>. <bản dịch tiếng Việt>\n"
+            "Không thêm giải thích, không gộp/bỏ dòng nào, không đánh số lại.\n\n"
+            "--- Danh sách tiêu đề cần dịch ---\n"
+            f"{numbered}"
+        )
+
+    def translate_titles(self, titles: list[str]) -> list[str]:
+        if not titles:
+            return []
+        result: list[str] = []
+        for start in range(0, len(titles), self.TITLES_BATCH_SIZE):
+            batch = titles[start : start + self.TITLES_BATCH_SIZE]
+            out = self._run_chat_with_retry(self._build_titles_batch_prompt(batch))
+            parsed = _parse_titles_batch_response(out, len(batch))
+            for i, t in enumerate(batch, start=1):
+                if i in parsed and parsed[i]:
+                    result.append(_apply_glossary(parsed[i], self.glossary))
+                else:
+                    # Model bỏ sót dòng này trong response hàng loạt → fallback dịch riêng.
+                    title, _note = self.translate_title(t)
+                    result.append(title)
+        return result
 
 
 class GoogleTranslator:

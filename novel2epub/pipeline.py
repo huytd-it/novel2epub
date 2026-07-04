@@ -289,6 +289,14 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, for
         log(f"[crawl] Đọc mục lục: {cfg.crawl.toc_url}")
         toc = crawler.fetch_toc()
 
+        # TOC rỗng gần như chắc chắn là fetch hỏng "êm" (anti-bot trả 200,
+        # site đổi cấu trúc HTML, chapter_link_pattern hết khớp...) — coi như
+        # lỗi để rơi xuống nhánh dùng cache, tránh ghi đè manifest đang có.
+        if not toc.chapters:
+            raise RuntimeError(
+                "Mục lục trả về 0 chương (trang có thể bị chặn hoặc đã đổi cấu trúc)"
+            )
+
         if manifest is None:
             manifest = Manifest(
                 slug=cfg.novel.slug,
@@ -319,17 +327,19 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, for
             # trí trên trang. Nếu trang TOC đổi thứ tự (do phân trang, site thay
             # đổi...), index cũ bị gán lại → file raw/translated trên đĩa (đặt
             # tên theo index) không còn khớp với manifest.
-            old_by_url = {ch.url: ch for ch in manifest.chapters}
+            #
+            # KHÔNG xóa chương cũ vắng mặt trong TOC mới: TOC có thể thiếu tạm
+            # thời (chỉ load được trang đầu khi phân trang, site đổi định dạng
+            # URL...) — xóa entry sẽ mồ côi file raw/translated đã có trên đĩa.
             new_by_url = {ch.url: ch for ch in toc.chapters}
             merged = []
-            seen = set()
+            seen = {ch.url for ch in manifest.chapters}
             for old_ch in manifest.chapters:
-                if old_ch.url in new_by_url:
-                    new_ch = new_by_url[old_ch.url]
+                new_ch = new_by_url.get(old_ch.url)
+                if new_ch is not None:
                     old_ch.title = old_ch.title or new_ch.title
                     old_ch.title_zh = old_ch.title_zh or new_ch.title
-                    merged.append(old_ch)
-                    seen.add(old_ch.url)
+                merged.append(old_ch)
             next_idx = max((ch.index for ch in merged), default=0) + 1
             for new_ch in toc.chapters:
                 if new_ch.url not in seen:
@@ -760,15 +770,16 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
         _maybe_extract_chapter_glossary(cfg, translator, storage, ch, chapter_glossary, log, i, total)
 
     # Auto-cleanup Hán: rà soát bản dịch, sửa chữ Hán còn sót.
+    # Dùng config AI biên tập (ai.openai) — chạy được với mọi backend dịch.
     if (
         cfg.translate.auto_cleanup_han
         and not is_noop
-        and cfg.translate.type.lower() == "openai"
+        and (cfg.ai.openai.base_url or cfg.ai.openai.api_key)
     ):
         try:
             cleanup_cfg = cfg.translate.cleanup_han
             cleaned, fixed_count, cleanup_warnings = han_cleanup.cleanup_chapter(
-                raw, translated, cfg.translate.openai, log,
+                raw, translated, cfg.ai.openai, log,
                 max_chars=cleanup_cfg.max_chars,
                 retries=cleanup_cfg.retries,
             )
@@ -787,10 +798,10 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
             if fixed_count > 0 or han_after_cleanup < han_before_cleanup:
                 storage.write_translated(ch, cleaned)
                 log(f"[dịch]   ({i}/{total}) → cleanup Hán: sửa {fixed_count} chỗ")
-                for w in cleanup_warnings:
-                    log(f"[dịch]   ({i}/{total}) ⚠ {w}")
                 # Cập nhật translated local để quality_warnings phản ánh bản đã sửa
                 translated = cleaned
+            for w in cleanup_warnings:
+                log(f"[dịch]   ({i}/{total}) ⚠ {w}")
         except Exception as e:
             log(f"[dịch]   ({i}/{total}) ! Lỗi cleanup Hán: {e}")
 
@@ -1108,13 +1119,17 @@ def step_cleanup_han_selected(
 ) -> Manifest:
     """Rà soát các chương đã dịch, phát hiện và sửa chữ Hán còn sót.
 
-    Chỉ hoạt động với translate.type=openai. Bỏ qua chương chưa có bản dịch.
+    Dùng config AI biên tập (ai.openai) — không phụ thuộc backend dịch, nên
+    chạy được cả khi dịch bằng moxhimt/hachimimt. Bỏ qua chương chưa có bản dịch.
     Nếu force=True, quét lại cả chương đã được cleanup trước đó.
     """
     _emit_config_warnings(cfg, log)
-    _emit_translate_config(cfg, log, feature="CLEANUP HÁN")
-    if cfg.translate.type.lower() != "openai":
-        log("[cleanup-han] Chỉ hỗ trợ translate.type=openai. Bỏ qua.")
+    ai_cfg = cfg.ai.openai
+    log(f"[config] CLEANUP HÁN dùng AI biên tập: base_url={ai_cfg.base_url!r} "
+        f"| model={_fmt(ai_cfg.model, '(chưa cấu hình)')} "
+        f"| timeout={ai_cfg.timeout_seconds}s")
+    if not ai_cfg.base_url and not ai_cfg.api_key:
+        log("[cleanup-han] Chưa cấu hình AI biên tập (Settings → AI biên tập). Bỏ qua.")
         storage = Storage(cfg.output.data_dir, cfg.novel.slug)
         manifest = storage.load_manifest()
         return manifest
@@ -1141,7 +1156,6 @@ def step_cleanup_han_selected(
             continue
         to_clean.append(ch)
 
-    ai_cfg = cfg.translate.openai
     cleanup_cfg = cfg.translate.cleanup_han
     total_cleaned = 0
     total_fixed = 0
@@ -1181,8 +1195,8 @@ def step_cleanup_han_selected(
             total_fixed += max(fixed_count, han_before - han_after)
             log(f"[cleanup-han] ({i}/{total}) ✓ {ch.title or ch.stem}: "
                 f"sửa {han_before - han_after}/{han_before} Hán (AI xử lý {fixed_count} chỗ).")
-            for w in cleanup_warnings:
-                log(f"[cleanup-han] ({i}/{total}) ⚠ {w}")
+        for w in cleanup_warnings:
+            log(f"[cleanup-han] ({i}/{total}) ⚠ {w}")
 
         meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
         meta["han_cleanup_complete"] = True

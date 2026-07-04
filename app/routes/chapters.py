@@ -866,7 +866,7 @@ async def api_batch_import(
 
     expected = [int(i.strip()) for i in indexes.split(",") if i.strip()]
     by_index = {c.index: c for c in manifest.chapters}
-    content_by_index = dict(parsed)
+    content_by_index = {idx: content for idx, _title, content in parsed}
     report = bulk_transfer.validate_import(
         list(content_by_index.keys()), expected, list(by_index.keys())
     )
@@ -940,10 +940,18 @@ def api_batch_translate(slug: str, indexes: str = Form("")):
 
     Config: `translate.batch_size` (mặc định 10) — tối đa số chương / lần gọi AI.
 
-    Trả `{written, glossary_added, missing, unknown, total, skipped,
-          batches, ai_meta}` — `ai_meta` là tổng hợp từ tất cả batch.
+    Tiêu đề AI dịch trong heading `## Chương N: <title>` được ghi đè vào
+    `manifest.chapters[].title` (backfill `title_zh` nếu đang rỗng). Match
+    chương CHỈ theo số N của marker (= index vị trí trong manifest); số chương
+    THẬT trong tiêu đề có thể khác index — nếu tiêu đề gốc mở đầu bằng
+    `第M章/卷/回` thì `ensure_title_number` ép lại `Chương M: ` vào tiêu đề
+    dịch (AI hay làm rơi số hoặc echo nhầm index vị trí).
+
+    Trả `{written, titles_updated, glossary_added, missing, unknown, total,
+          skipped, batches, ai_meta}` — `ai_meta` là tổng hợp từ tất cả batch.
     """
     from novel2epub.openai_client import run_chat_with_meta
+    from novel2epub.pipeline import _clean_title
 
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -982,6 +990,7 @@ def api_batch_translate(slug: str, indexes: str = Form("")):
     all_written: list[int] = []
     all_missing: list[int] = []
     all_unknown: list[int] = []
+    titles_updated: list[int] = []
     glossary_added = 0
     batch_metas: list[dict] = []
 
@@ -1017,20 +1026,44 @@ def api_batch_translate(slug: str, indexes: str = Form("")):
                 ),
             )
 
-        content_by_index = dict(parsed)
+        content_by_index = {idx: content for idx, _title, content in parsed}
+        title_by_index = {idx: title for idx, title, _content in parsed if title.strip()}
         expected = [i for i, _, _ in batch_items]
         report = bulk_transfer.validate_import(
             list(content_by_index.keys()), expected, list(by_index.keys())
         )
         glossary = bulk_transfer.parse_glossary(response_text)
 
-        # 4. Ghi translated/ — giữ snapshot MT trước khi ghi bản AI
+        # 4. Ghi translated/ — giữ snapshot MT trước khi ghi bản AI. Tiêu đề AI
+        # dịch trong heading ghi đè manifest title (match theo index của marker,
+        # KHÔNG theo số chương trong tiêu đề — hai số này có thể lệch nhau).
+        batch_titles_changed = False
         for idx in report["matched"]:
             ch = by_index[idx]
             if not storage.has_translated_mt(ch):
                 storage.write_translated_mt(ch, content_by_index[idx])
             storage.write_translated(ch, content_by_index[idx])
             all_written.append(idx)
+
+            new_title = _clean_title(title_by_index.get(idx, ""))
+            if new_title:
+                # Ép lại số chương THẬT (第M章 trong tiêu đề gốc) — AI hay dịch
+                # "gọn" làm rơi số, hoặc echo nhầm index vị trí vào tiêu đề.
+                new_title = bulk_transfer.ensure_title_number(
+                    ch.title_zh or ch.title, new_title
+                )
+            if new_title and new_title != ch.title:
+                if not ch.title_zh:
+                    ch.title_zh = ch.title
+                ch.title = new_title
+                ch.title_note = ""
+                titles_updated.append(idx)
+                batch_titles_changed = True
+
+        # Save manifest ngay sau batch có title đổi — batch sau lỗi 502 giữa
+        # chừng thì title các batch trước không mất (translated/ cũng đã ghi).
+        if batch_titles_changed:
+            storage.save_manifest(manifest)
 
         # 5. Merge glossary mới vào dict chung (cho batch kế tiếp dùng tham khảo)
         for source, target in glossary["names"].items():
@@ -1066,6 +1099,7 @@ def api_batch_translate(slug: str, indexes: str = Form("")):
     response = {
         "mode": "translate",
         "written": all_written,
+        "titles_updated": titles_updated,
         "skipped": skipped,
         "total_input": len(items),
         "batches": total_batches,

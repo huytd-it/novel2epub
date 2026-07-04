@@ -292,7 +292,8 @@ class TranslateConfig:
     # Chia nhỏ index thành các batch có kích thước tối đa bằng giá trị này.
     # Đặt 1 = dịch tuần tự từng chương (mỗi chương 1 lần gọi AI).
     batch_size: int = 1
-    # Tự động chạy cleanup Hán sau mỗi chương được dịch (chỉ dùng cho openai backend).
+    # Tự động chạy cleanup Hán sau mỗi chương được dịch (gọi AI qua config
+    # AI biên tập ai.openai — hoạt động với mọi backend dịch).
     auto_cleanup_han: bool = False
     # Cấu hình cleanup Hán.
     cleanup_han: CleanupHanConfig = field(default_factory=CleanupHanConfig)

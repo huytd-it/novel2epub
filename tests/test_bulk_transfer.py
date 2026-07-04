@@ -8,8 +8,8 @@ def test_round_trip_build_then_parse():
     items = [(2, "Tiêu đề 2", "Nội dung chương hai."), (1, "", "Nội dung chương một.")]
     text = b.build_export(items, names={"萧炎": "Tiêu Viêm"}, vietphrase={})
     parsed = b.parse_import(text)
-    # Sắp theo index và giữ đúng nội dung.
-    assert parsed == [(1, "Nội dung chương một."), (2, "Nội dung chương hai.")]
+    # Sắp theo index, giữ đúng tiêu đề + nội dung.
+    assert parsed == [(1, "", "Nội dung chương một."), (2, "Tiêu đề 2", "Nội dung chương hai.")]
 
 
 def test_export_includes_prompt_and_glossary_as_markdown():
@@ -48,29 +48,48 @@ def test_translate_prompt_distinct_from_edit_prompt():
 
 def test_parse_import_markdown_headers():
     text = "## Chương 1: Khởi đầu\nNội dung 1\n\n## Chương 2\nNội dung 2"
-    assert b.parse_import(text) == [(1, "Nội dung 1"), (2, "Nội dung 2")]
+    assert b.parse_import(text) == [(1, "Khởi đầu", "Nội dung 1"), (2, "", "Nội dung 2")]
 
 
 def test_parse_import_markdown_heading_level_and_case_tolerant():
     # AI có thể đổi cấp tiêu đề (#, ###) hoặc viết thường — vẫn parse được index.
     text = "### chương 12: Một tiêu đề dài\nnội dung"
-    assert b.parse_import(text) == [(12, "nội dung")]
+    assert b.parse_import(text) == [(12, "Một tiêu đề dài", "nội dung")]
 
 
 def test_parse_import_legacy_equals_marker_still_works():
     # Tương thích ngược với bản xuất cũ dùng marker "=====".
     text = "===== CHƯƠNG 12: Một tiêu đề dài =====\nnội dung"
-    assert b.parse_import(text) == [(12, "nội dung")]
+    assert b.parse_import(text) == [(12, "Một tiêu đề dài", "nội dung")]
+
+
+def test_parse_import_legacy_marker_without_title_gives_empty_title():
+    # Không nuốt run "=" cuối marker legacy làm tiêu đề.
+    text = "===== CHƯƠNG 12 =====\nnội dung"
+    assert b.parse_import(text) == [(12, "", "nội dung")]
+
+
+def test_parse_import_title_separator_variants():
+    # Fullwidth "：" và gạch ngang đều được strip khỏi đầu tiêu đề.
+    text = "## Chương 3： Tiêu đề A\nx\n\n## Chương 4 - Tiêu đề B\ny"
+    assert b.parse_import(text) == [(3, "Tiêu đề A", "x"), (4, "Tiêu đề B", "y")]
+
+
+def test_parse_import_title_number_differs_from_index():
+    # N của marker là index VỊ TRÍ trong manifest; số chương thật trong tiêu đề
+    # có thể khác (vd vị trí 928 nhưng truyện đánh số 918) — giữ nguyên văn.
+    text = "## Chương 928: Chương 918: Thiếu niên trở về\nnội dung"
+    assert b.parse_import(text) == [(928, "Chương 918: Thiếu niên trở về", "nội dung")]
 
 
 def test_parse_import_ignores_text_before_first_marker():
     text = "Lời dẫn linh tinh\n\n## Chương 5\nNội dung 5"
-    assert b.parse_import(text) == [(5, "Nội dung 5")]
+    assert b.parse_import(text) == [(5, "", "Nội dung 5")]
 
 
 def test_parse_import_truncates_at_glossary():
     text = "## Chương 1\nABC\n\n## GLOSSARY\n### NAMES\n- 林动 = Lâm Động\n"
-    assert b.parse_import(text) == [(1, "ABC")]
+    assert b.parse_import(text) == [(1, "", "ABC")]
 
 
 def test_parse_import_no_marker_returns_empty():
@@ -128,3 +147,42 @@ def test_validate_import_extra():
 def test_chapter_marker_is_markdown_heading():
     assert b.chapter_marker(7) == "## Chương 7"
     assert b.chapter_marker(7, "Khởi đầu") == "## Chương 7: Khởi đầu"
+
+
+# ── ensure_title_number: giữ số chương THẬT từ tiêu đề gốc ────────────
+
+
+def test_ensure_title_number_prefixes_dropped_number():
+    # AI dịch "gọn" làm rơi 第911章 → gắn lại số thật từ bản gốc.
+    assert b.ensure_title_number(
+        "第911章 我要冻结所有法条！", "Ta muốn đóng băng tất cả pháp điều!"
+    ) == "Chương 911: Ta muốn đóng băng tất cả pháp điều!"
+
+
+def test_ensure_title_number_keeps_correct_number():
+    assert b.ensure_title_number(
+        "第911章 我要冻结所有法条！", "Chương 911: Ta muốn đóng băng tất cả pháp điều!"
+    ) == "Chương 911: Ta muốn đóng băng tất cả pháp điều!"
+
+
+def test_ensure_title_number_fixes_wrong_number():
+    # AI echo nhầm index vị trí (961) vào tiêu đề → sửa về số thật (911).
+    assert b.ensure_title_number(
+        "第911章 我要冻结所有法条！", "Chương 961: Ta muốn đóng băng tất cả pháp điều!"
+    ) == "Chương 911: Ta muốn đóng băng tất cả pháp điều!"
+
+
+def test_ensure_title_number_no_zh_prefix_returns_verbatim():
+    # Tiêu đề gốc không mở đầu bằng 第M章 → không đụng vào tiêu đề dịch.
+    assert b.ensure_title_number("楔子", "Mở đầu") == "Mở đầu"
+    assert b.ensure_title_number("", "Tiêu đề") == "Tiêu đề"
+
+
+def test_ensure_title_number_juan_and_hui_labels():
+    assert b.ensure_title_number("第3卷 风起", "Gió nổi") == "Quyển 3: Gió nổi"
+    assert b.ensure_title_number("第7回 大战", "Đại chiến") == "Hồi 7: Đại chiến"
+
+
+def test_ensure_title_number_title_only_number():
+    # Bản gốc chỉ có 第5章, AI trả "Chương 5" → giữ dạng không dấu ':'.
+    assert b.ensure_title_number("第5章", "Chương 5") == "Chương 5"

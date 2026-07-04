@@ -241,7 +241,7 @@ def ebook_chapter_delete_translation(request: Request, slug: str, index: int):
 
 
 @router.post("/api/ebooks/{slug}/chapters/{index}/retranslate-title")
-async def api_ebook_chapter_retranslate_title(
+def api_ebook_chapter_retranslate_title(
     request: Request,
     slug: str,
     index: int,
@@ -928,7 +928,10 @@ async def api_batch_import(
 
 
 @router.post("/api/ebooks/{slug}/batch/translate")
-async def api_batch_translate(slug: str, indexes: str = Form("")):
+def api_batch_translate(slug: str, indexes: str = Form("")):
+    # Sync `def` (KHÔNG async): FastAPI chạy trong threadpool — các lời gọi AI
+    # blocking bên dưới không được phép chặn event loop, nếu không toàn bộ web
+    # UI sẽ treo trong suốt thời gian dịch.
     """Dịch hàng loạt theo luồng "Xuất RAW" → gọi AI → "Nhập", chia nhỏ
     thành các batch để tránh gửi quá nhiều chương 1 lần cho AI.
 

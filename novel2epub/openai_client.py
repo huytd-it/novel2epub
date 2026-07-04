@@ -106,6 +106,39 @@ def _parse_omniroute_headers(headers) -> dict[str, Any]:
     return meta
 
 
+def _parse_sse_response_by_lines(resp: requests.Response) -> str:
+    """Đọc streaming `resp.iter_lines()` và ghép `delta.content` từ từng chunk SSE.
+
+    Xử lý từng dòng `data: {...}` ngay khi server gửi — không đợi toàn bộ
+    response như `_parse_sse_response`. Bỏ qua `event: progress` nếu OmniRoute
+    gửi kèm X-OmniRoute-Progress header.
+    """
+    parts: list[str] = []
+    for line in resp.iter_lines():
+        if not line:
+            continue
+        decoded = line.decode("utf-8", errors="replace").strip()
+        if not decoded.startswith("data:"):
+            continue
+        payload = decoded[len("data:"):].strip()
+        if not payload or payload == "[DONE]":
+            continue
+        try:
+            data = json.loads(payload)
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        choices = data.get("choices") or []
+        if not choices:
+            continue
+        delta = choices[0].get("delta") or {}
+        chunk_content = delta.get("content")
+        if chunk_content:
+            parts.append(chunk_content)
+    return "".join(parts)
+
+
 def _parse_sse_response(text: str) -> str:
     """Parse Server-Sent Events (SSE) `text/event-stream` response từ OpenAI-Compatible
     API — một số provider (vd Qwen, GLM) tự stream dù client không yêu cầu.
@@ -145,20 +178,25 @@ def run_chat_with_meta(
     Return: (content, meta). `meta` rỗng nếu response không từ OmniRoute.
     Raise RuntimeError nếu HTTP lỗi / response không hợp lệ.
 
-    Set `stream: false` rõ ràng để provider (vd OmniRoute) không tự stream.
-    Fallback: nếu Content-Type là `text/event-stream` (server vẫn stream),
-    parse SSE và ghép `delta.content` từ các chunk.
+    Gửi `stream: true` để nhận SSE chunks ngay khi AI sinh — giảm first-token
+    latency so với `stream: false` (chờ toàn bộ response). Nếu server trả về
+    `text/event-stream`, parse từng dòng `data: {...}` và ghép `delta.content`.
+    Kèm header `X-OmniRoute-Progress: true` để nhận progress events khi proxy
+    qua OmniRoute.
     """
     url = cfg.base_url.rstrip("/") + "/chat/completions"
     payload = {
         "model": cfg.model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": cfg.temperature,
-        "stream": False,
+        "stream": True,
     }
+    headers = _headers(cfg)
+    headers["X-OmniRoute-Progress"] = "true"
     try:
         resp = requests.post(
-            url, headers=_headers(cfg), json=payload, timeout=cfg.timeout_seconds
+            url, headers=headers, json=payload,
+            timeout=cfg.timeout_seconds, stream=True,
         )
     except requests.exceptions.Timeout as e:
         raise RuntimeError(f"AI request quá thời gian ({cfg.timeout_seconds}s).") from e
@@ -169,16 +207,22 @@ def run_chat_with_meta(
         detail = resp.text.strip()[:2000] or "(không có nội dung lỗi)"
         raise RuntimeError(f"AI trả về mã lỗi HTTP {resp.status_code}:\n{detail}")
 
+    meta = _parse_omniroute_headers(resp.headers)
     content_type = (resp.headers.get("Content-Type") or "").lower()
-    raw = resp.text
 
-    if "text/event-stream" in content_type or raw.lstrip().startswith("data:"):
+    if "text/event-stream" in content_type:
+        content = _parse_sse_response_by_lines(resp)
+        if not content.strip():
+            raise RuntimeError("AI trả về SSE stream nhưng không có content.")
+        return content, meta
+
+    # Provider trả về non-streaming dù `stream: true` -> fallback
+    raw = resp.text
+    if raw.lstrip().startswith("data:"):
         content = _parse_sse_response(raw)
         if not content.strip():
-            raise RuntimeError(
-                f"AI trả về SSE stream nhưng không có content: {raw[:2000]}"
-            )
-        return content, _parse_omniroute_headers(resp.headers)
+            raise RuntimeError("AI trả về SSE stream (từ full body) nhưng không có content.")
+        return content, meta
 
     try:
         data = resp.json()
@@ -188,7 +232,7 @@ def run_chat_with_meta(
 
     if not content or not content.strip():
         raise RuntimeError("AI trả về nội dung rỗng — kiểm tra base_url/api_key/model trong config.")
-    return content, _parse_omniroute_headers(resp.headers)
+    return content, meta
 
 
 def run_chat(cfg: OpenAIConfig, prompt: str) -> str:

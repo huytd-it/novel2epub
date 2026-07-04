@@ -112,11 +112,12 @@ def _dedupe_keep_last(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
     last_idx = {url: i for i, (url, _) in enumerate(pairs)}
     return [(url, text) for i, (url, text) in enumerate(pairs) if last_idx[url] == i]
 
-_CHAPTER_BASE_ID_RE = re.compile(r"(\d+)(?:_\d+)?\.\w+(?:[?#].*)?$")
+_CHAPTER_BASE_ID_RE = re.compile(r"(\d+)(?:[_-]\d+)?\.\w+(?:[?#].*)?$")
 
 
 def _chapter_base_id(url: str) -> str | None:
-    """Rút "ID chương" từ URL dạng ``.../<id>.html`` hoặc ``.../<id>_<page>.html``.
+    """Rút "ID chương" từ URL dạng ``.../<id>.html``, ``.../<id>_<page>.html``
+    hoặc ``.../<id>-<page>.html``.
 
     Trả ``None`` nếu URL không khớp dạng này (không đủ tin cậy để so sánh,
     caller nên bỏ qua kiểm tra ranh giới chương trong trường hợp đó).

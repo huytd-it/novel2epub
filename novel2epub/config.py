@@ -279,7 +279,7 @@ class TranslateConfig:
     # Số chương gửi 1 lần cho AI khi dùng "Dịch selected" (batch translate).
     # Chia nhỏ index thành các batch có kích thước tối đa bằng giá trị này.
     # Đặt 1 = dịch tuần tự từng chương (mỗi chương 1 lần gọi AI).
-    batch_size: int = 10
+    batch_size: int = 1
 
 
 @dataclass

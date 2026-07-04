@@ -93,6 +93,10 @@ class _FakeResp:
     def json(self):
         return self._json_data
 
+    def iter_lines(self):
+        for line in self.text.splitlines():
+            yield line.encode("utf-8")
+
 
 def test_run_chat_with_meta_returns_content_and_meta(monkeypatch):
     """Happy path: response có OmniRoute headers → tuple (content, meta)."""
@@ -707,8 +711,8 @@ def test_run_chat_with_meta_sse_no_content_raises(monkeypatch):
         openai_client.run_chat_with_meta(cfg, "hi")
 
 
-def test_run_chat_with_meta_sends_stream_false(monkeypatch):
-    """Payload phải chứa `stream: false` để provider không tự stream."""
+def test_run_chat_with_meta_sends_stream_true(monkeypatch):
+    """Payload phải chứa `stream: true` để nhận SSE chunks sớm."""
     cfg = OpenAIConfig(base_url="https://api.test/v1", model="m", api_key="k")
     captured = {}
 
@@ -722,4 +726,5 @@ def test_run_chat_with_meta_sends_stream_false(monkeypatch):
 
     monkeypatch.setattr(openai_client.requests, "post", _capture_post)
     openai_client.run_chat_with_meta(cfg, "hi")
-    assert captured["payload"]["stream"] is False
+    assert captured["payload"]["stream"] is True
+    assert captured["payload"].get("stream") is True

@@ -645,8 +645,13 @@ def _batch_translate_titles(
     return dict(zip(to_translate, translated))
 
 
-def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, title_lookup: dict[str, str] | None = None) -> tuple[str, bool]:
-    """Dịch tiêu đề + nội dung 1 chương, ghi translated+meta.
+def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, title_lookup: dict[str, str] | None = None, *, translate_title: bool = False) -> tuple[str, bool]:
+    """Dịch nội dung 1 chương (và tiêu đề nếu translate_title=True), ghi translated+meta.
+
+    Mặc định translate_title=False — title được dịch riêng qua "Dịch TOC" hoặc
+    "Dịch lại tiêu đề" để tiết kiệm token AI và tránh lãng phí (tiêu đề ngắn,
+    không cần chunk). Khi translate_title=True: nhánh gốc (từ CLI pipeline cũ)
+    vẫn dịch cả title như trước.
 
     Trả (status, title_changed) với status 'completed'/'replaced'/'failed'.
     Raise lại exception sau khi đã log + đánh dấu failed, để caller (nhánh
@@ -672,7 +677,7 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
         pieces.append(chunk_text)
 
     try:
-        if ch.title and not is_noop:
+        if ch.title and not is_noop and translate_title:
             if title_lookup and ch.title in title_lookup:
                 ch.title = _clean_title(title_lookup[ch.title])
                 ch.title_note = ""
@@ -809,9 +814,15 @@ def step_translate_selected(
     missing: bool = False,
     selected_indexes: list[int] | None = None,
     should_cancel: CancelFn | None = None,
+    translate_title: bool = False,
 ) -> Manifest:
     """translate.max_workers > 1 trong config sẽ dịch nhiều chương song song
-    bằng 1 translator dùng chung (xem _translate_chapters_parallel)."""
+    bằng 1 translator dùng chung (xem _translate_chapters_parallel).
+
+    translate_title=False (mặc định): chỉ dịch nội dung, không dịch tiêu đề.
+    Tiêu đề được dịch riêng qua 'Dịch TOC' hoặc 'Dịch lại tiêu đề' — tiết kiệm
+    token AI (không cần chunk cho title ngắn) và tránh lãng phí khi dịch selected.
+    """
     _emit_config_warnings(cfg, log)
     _emit_translate_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -848,8 +859,8 @@ def step_translate_selected(
     else:
         workers = max(1, int(cfg.translate.max_workers))
 
-    # Batch translate all chapter titles before the content loop.
-    title_lookup = _batch_translate_titles(translator, to_translate, log)
+    # Batch translate all chapter titles before the content loop (nếu translate_title).
+    title_lookup = _batch_translate_titles(translator, to_translate, log) if translate_title else {}
 
     changed = 0
     if workers > 1 and len(to_translate) > 1:

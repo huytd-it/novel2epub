@@ -39,6 +39,7 @@ class Chapter:
     index: int
     url: str
     title: str = ""
+    title_zh: str = ""
     title_note: str = ""
     missing_fields: list[str] = field(default_factory=list)
     duplicate_of: int | None = None
@@ -113,10 +114,12 @@ class Storage:
         for c in data.get("chapters", []):
             # Backward compat: merge title_vi + title_zh (old) → title (new)
             chapter_title = c.get("title", "") or c.get("title_vi", "") or c.get("title_zh", "")
+            chapter_title_zh = c.get("title_zh", "")
             chapters.append(Chapter(
                 index=c.get("index", 0),
                 url=c.get("url", ""),
                 title=chapter_title,
+                title_zh=chapter_title_zh,
                 title_note=c.get("title_note", ""),
                 missing_fields=list(c.get("missing_fields", []) or []),
                 duplicate_of=c.get("duplicate_of"),

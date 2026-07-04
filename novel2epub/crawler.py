@@ -471,7 +471,7 @@ class ScraplingCrawler:
                     pairs.append((full, (text or "").strip()))
 
         chapters = [
-            Chapter(index=i, url=url, title=text)
+            Chapter(index=i, url=url, title=text, title_zh=text)
             for i, (url, text) in enumerate(_dedupe_keep_last(pairs), 1)
         ]
         return TocResult(

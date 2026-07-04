@@ -296,7 +296,7 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, for
                 title=cfg.novel.title or toc.title,
                 author=cfg.novel.author or toc.author,
                 description=toc.description,
-                cover_url=toc.cover_url,
+                cover_url=cfg.novel.cover_url or toc.cover_url,
                 metadata_missing=toc.metadata_missing,
                 chapters=toc.chapters,
             )
@@ -309,7 +309,7 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, for
             if force_meta or not manifest.description:
                 manifest.description = toc.description or manifest.description
             if force_meta or not manifest.cover_url:
-                manifest.cover_url = toc.cover_url or manifest.cover_url
+                manifest.cover_url = cfg.novel.cover_url or toc.cover_url or manifest.cover_url
             manifest.metadata_missing = toc.metadata_missing
 
             # Trộn danh sách chương: giữ nguyên index và thứ tự cũ của các
@@ -1855,6 +1855,9 @@ def step_build_selected(
     if not chapters_html:
         raise RuntimeError("Không có chương nào để build. Hãy crawl/dịch trước.")
 
+    _download_cover(storage, manifest, log)
+    if manifest.cover_file:
+        storage.save_manifest(manifest)
     cover_path = storage.cover_fs_path(manifest)
     out = build_epub(
         manifest,

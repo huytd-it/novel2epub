@@ -160,6 +160,30 @@ document.addEventListener("change", function (e) {
     if (e.target.name === "type") updateTranslateTypeUI();
 });
 document.addEventListener("DOMContentLoaded", updateTranslateTypeUI);
+
+// --- Cover image upload ---
+function uploadCover(slug) {
+    const input = document.getElementById("cover-file-input");
+    if (!input || !input.files || !input.files[0]) {
+        alert("Vui lòng chọn file ảnh.");
+        return;
+    }
+    const fd = new FormData();
+    fd.append("cover_file", input.files[0]);
+    const status = document.getElementById("save-status");
+    if (status) { status.textContent = "Đang tải lên..."; status.className = "text-sm text-amber-600 dark:text-amber-400"; }
+    fetch("/ebooks/" + slug + "/settings/cover-upload", { method: "POST", body: fd })
+        .then(r => {
+            if (r.ok || r.redirected) {
+                window.location.reload();
+            } else {
+                if (status) { status.textContent = "Lỗi tải lên"; status.className = "text-sm text-red-600 dark:text-red-400"; }
+            }
+        })
+        .catch(() => {
+            if (status) { status.textContent = "Lỗi mạng"; status.className = "text-sm text-red-600 dark:text-red-400"; }
+        });
+}
 </script>
 {% endblock %}
 

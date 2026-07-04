@@ -22,6 +22,7 @@ from .epub_builder import build_epub
 from .storage import Chapter, Manifest, Storage
 from .toc import mark_duplicate_chapters
 from .translator import RateLimited, make_translator
+from . import han_cleanup
 
 # Kiểu hàm ghi log; mặc định in ra stdout, UI truyền callback riêng để stream.
 LogFn = Callable[[str], None]
@@ -758,6 +759,41 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     ):
         _maybe_extract_chapter_glossary(cfg, translator, storage, ch, chapter_glossary, log, i, total)
 
+    # Auto-cleanup Hán: rà soát bản dịch, sửa chữ Hán còn sót.
+    if (
+        cfg.translate.auto_cleanup_han
+        and not is_noop
+        and cfg.translate.type.lower() == "openai"
+    ):
+        try:
+            cleanup_cfg = cfg.translate.cleanup_han
+            cleaned, fixed_count, cleanup_warnings = han_cleanup.cleanup_chapter(
+                raw, translated, cfg.translate.openai, log,
+                max_chars=cleanup_cfg.max_chars,
+                retries=cleanup_cfg.retries,
+            )
+            han_before_cleanup = han_cleanup.count_han(translated)
+            han_after_cleanup = han_cleanup.count_han(cleaned)
+            # Ghi meta đánh dấu đã cleanup (gate 'han_cleanup_complete' chỉ set khi
+            # pipeline đã xử lý xong — cùng cấu trúc với step_cleanup_han_selected).
+            chapter_meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+            chapter_meta["han_cleanup_complete"] = True
+            chapter_meta["han_cleanup"] = {
+                "before": han_before_cleanup,
+                "after": han_after_cleanup,
+                "fixed_count": fixed_count,
+            }
+            storage.write_meta(ch, chapter_meta)
+            if fixed_count > 0 or han_after_cleanup < han_before_cleanup:
+                storage.write_translated(ch, cleaned)
+                log(f"[dịch]   ({i}/{total}) → cleanup Hán: sửa {fixed_count} chỗ")
+                for w in cleanup_warnings:
+                    log(f"[dịch]   ({i}/{total}) ⚠ {w}")
+                # Cập nhật translated local để quality_warnings phản ánh bản đã sửa
+                translated = cleaned
+        except Exception as e:
+            log(f"[dịch]   ({i}/{total}) ! Lỗi cleanup Hán: {e}")
+
     return ch.last_action_status, title_changed
 
 
@@ -1057,6 +1093,110 @@ def _write_omniroute_cost_summary(
         f"[dịch] OmniRoute tổng: ${total_cost:.4f} · {total_tokens_in}+{total_tokens_out} tokens · "
         f"{total_cache_hits} cache hits · {chapter_count} chương · {version or '?'}"
     )
+
+
+def step_cleanup_han_selected(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    chapter: int | None = None,
+    start: int | None = None,
+    end: int | None = None,
+    force: bool = False,
+    selected_indexes: list[int] | None = None,
+    should_cancel: CancelFn | None = None,
+) -> Manifest:
+    """Rà soát các chương đã dịch, phát hiện và sửa chữ Hán còn sót.
+
+    Chỉ hoạt động với translate.type=openai. Bỏ qua chương chưa có bản dịch.
+    Nếu force=True, quét lại cả chương đã được cleanup trước đó.
+    """
+    _emit_config_warnings(cfg, log)
+    _emit_translate_config(cfg, log, feature="CLEANUP HÁN")
+    if cfg.translate.type.lower() != "openai":
+        log("[cleanup-han] Chỉ hỗ trợ translate.type=openai. Bỏ qua.")
+        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+        manifest = storage.load_manifest()
+        return manifest
+
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    selected = _chapter_selection(manifest.chapters, chapter, start, end, selected_indexes)
+    total = len(selected)
+    log(f"[cleanup-han] Quét {total} chương trong phạm vi đã chọn.")
+
+    to_clean = []
+    skipped = 0
+    for ch in selected:
+        if not storage.has_translated(ch):
+            log(f"[cleanup-han] chưa có bản dịch cho {ch.stem}, bỏ qua.")
+            skipped += 1
+            continue
+        meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+        if not force and meta.get("han_cleanup_complete"):
+            skipped += 1
+            continue
+        to_clean.append(ch)
+
+    ai_cfg = cfg.translate.openai
+    cleanup_cfg = cfg.translate.cleanup_han
+    total_cleaned = 0
+    total_fixed = 0
+
+    for i, ch in enumerate(to_clean, 1):
+        if should_cancel and should_cancel():
+            log(f"[cleanup-han] Đã dừng theo yêu cầu — còn {len(to_clean) - i + 1} chương chưa xử lý.")
+            break
+
+        raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
+        translated = storage.read_translated(ch)
+
+        han_before = han_cleanup.count_han(translated)
+        if han_before == 0:
+            log(f"[cleanup-han] ({i}/{total}) → {ch.title or ch.stem}: sạch (0 Hán).")
+            meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+            meta["han_cleanup_complete"] = True
+            storage.write_meta(ch, meta)
+            total_cleaned += 1
+            continue
+
+        log(f"[cleanup-han] ({i}/{total}) → {ch.title or ch.stem}: {han_before} Hán.")
+        try:
+            cleaned, fixed_count, cleanup_warnings = han_cleanup.cleanup_chapter(
+                raw, translated, ai_cfg, log,
+                max_chars=cleanup_cfg.max_chars,
+                retries=cleanup_cfg.retries,
+            )
+        except Exception as e:
+            log(f"[cleanup-han] ({i}/{total}) ! Lỗi: {e}")
+            continue
+
+        han_after = han_cleanup.count_han(cleaned)
+
+        if fixed_count > 0 or han_after < han_before:
+            storage.write_translated(ch, cleaned)
+            total_fixed += max(fixed_count, han_before - han_after)
+            log(f"[cleanup-han] ({i}/{total}) ✓ {ch.title or ch.stem}: "
+                f"sửa {han_before - han_after}/{han_before} Hán (AI xử lý {fixed_count} chỗ).")
+            for w in cleanup_warnings:
+                log(f"[cleanup-han] ({i}/{total}) ⚠ {w}")
+
+        meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+        meta["han_cleanup_complete"] = True
+        meta["han_cleanup"] = {
+            "before": han_before,
+            "after": han_after,
+            "fixed_count": fixed_count,
+        }
+        storage.write_meta(ch, meta)
+        total_cleaned += 1
+
+    log(f"[cleanup-han] Hoàn tất. Đã quét {total_cleaned}/{total} chương, "
+        f"sửa {total_fixed} chỗ Hán, bỏ qua {skipped}.")
+    return manifest
 
 
 def step_translate_toc_selected(

@@ -245,6 +245,15 @@
         <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
         <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} title="OpenAI: tạo bản nháp AI rewrite, vào từng chương để áp dụng/bỏ. Local NMT: dịch lại bằng NMT cục bộ (ghi đè). Backend chọn ở dropdown bên dưới.">Biên tập đã chọn</button>
     </form>
+    <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate">
+        <input type="hidden" name="action" value="cleanup-han">
+        <input type="hidden" name="targeting_mode" value="checked">
+        {# Dùng category="translate" (không phải "cleanup-han") để chia sẻ mutex với
+           các job translate — cleanup-han cùng dùng OpenAI backend, nên người dùng
+           không nên chạy cleanup cùng lúc với translate. CATEGORIES của job queue
+           chỉ chấp nhận "crawl"/"translate", category khác sẽ raise ValueError. #}
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch đã chọn (cần translate.type=openai).">Làm sạch Hán</button>
+    </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="both">
         <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Build EPUB selected</button>
     </form>

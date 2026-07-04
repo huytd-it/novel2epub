@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
+from novel2epub.pipeline import step_cleanup_han_selected
 from novel2epub.pipeline import step_crawl_selected
 from novel2epub.pipeline import step_translate_selected
 from novel2epub.pipeline import step_translate_toc_selected
@@ -139,10 +140,20 @@ def start_ebook_chapter_action(
             except Exception as e:  # noqa: BLE001 - log chi tiết config trước khi job.py ghi traceback
                 log(f"[config] Lỗi khi dịch với type={cfg.translate.type!r} preset={cfg.translate.preset!r}: {e}")
                 raise
+        elif action == "cleanup-han":
+            log(
+                f"[config] action=cleanup-han force={override!r} "
+                f"selected={len(selected)} chương"
+            )
+            try:
+                step_cleanup_han_selected(cfg, log, force=override, selected_indexes=selected)
+            except Exception as e:  # noqa: BLE001 - log chi tiết config
+                log(f"[config] Lỗi khi cleanup Hán: {e}")
+                raise
         else:
             raise ValueError(f"action không hợp lệ: {action!r}")
 
-    request.app.state.job.start_custom(f"chapter-{action}", _target, category=action)
+    request.app.state.job.start_custom(f"chapter-{action}", _target, category="translate")
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 

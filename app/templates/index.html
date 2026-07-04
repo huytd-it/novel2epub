@@ -143,38 +143,45 @@
     {% for ebook in ebooks %}
     <div class="ebook-card{% if ebook.archived %} archived{% endif %}">
         <label class="ebook-card-select"><input type="checkbox" name="slugs" value="{{ ebook.slug }}" class="rounded border-border-light dark:border-border-dark"></label>
-        <div class="ebook-card-body">
-            <div class="ebook-card-head">
-                <a href="/ebooks/{{ ebook.slug }}" class="text-fg-light dark:text-fg-dark hover:underline">{{ ebook.cfg.novel.title or ebook.name }}</a>
-                {% if ebook.archived %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark">lưu trữ</span>{% endif %}
+        <div class="flex gap-3">
+            <div class="flex-shrink-0 w-16 pt-0.5">
+                <img src="/ebooks/{{ ebook.slug }}/cover" alt="bìa"
+                    class="w-full rounded object-contain"
+                    onerror="this.style.display='none'">
             </div>
-            <div class="ebook-card-meta">{{ ebook.cfg.novel.author }} · <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ ebook.slug }}</code></div>
-            <div class="ebook-card-stats">
-                <span>{{ ebook.manifest.chapters|length if ebook.manifest else 0 }} chương</span>
-                <span>{{ ebook.raw_count }} raw</span>
-                <span>{{ ebook.translated_count }} dịch</span>
-                <span>EPUB {% if ebook.epub_exists %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">có</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">chưa</span>{% endif %}</span>
-            </div>
-            <div class="ebook-card-actions">
-                <div class="action-group">
-                    <a class="px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white no-underline hover:bg-link-hover-light dark:hover:bg-link-hover-dark" href="/ebooks/{{ ebook.slug }}">Mở</a>
-                    {% if ebook.translated_count %}<a class="px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white no-underline hover:bg-link-hover-light dark:hover:bg-link-hover-dark" href="/ebooks/{{ ebook.slug }}/read">&#128214; Đọc</a>{% endif %}
-                    <a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/settings">Cài đặt</a>
-                    <a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/config/export">Export</a>
-                    {% if ebook.epub_exists %}<a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/download">EPUB</a>{% endif %}
+            <div class="ebook-card-body min-w-0 flex-1">
+                <div class="ebook-card-head">
+                    <a href="/ebooks/{{ ebook.slug }}" class="text-fg-light dark:text-fg-dark hover:underline">{{ ebook.cfg.novel.title or ebook.name }}</a>
+                    {% if ebook.archived %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark">lưu trữ</span>{% endif %}
                 </div>
-                {% if ebook.in_library %}
-                <div class="action-group">
-                    {% if ebook.archived %}
-                    <form method="post" action="/library/ebooks/{{ ebook.slug }}/unarchive"><button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Bỏ lưu trữ</button></form>
-                    {% else %}
-                    <form method="post" action="/library/ebooks/{{ ebook.slug }}/archive"><button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Lưu trữ</button></form>
+                <div class="ebook-card-meta">{{ ebook.cfg.novel.author }} · <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ ebook.slug }}</code></div>
+                <div class="ebook-card-stats">
+                    <span>{{ ebook.manifest.chapters|length if ebook.manifest else 0 }} chương</span>
+                    <span>{{ ebook.raw_count }} raw</span>
+                    <span>{{ ebook.translated_count }} dịch</span>
+                    <span>EPUB {% if ebook.epub_exists %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">có</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">chưa</span>{% endif %}</span>
+                </div>
+                <div class="ebook-card-actions">
+                    <div class="action-group">
+                        <a class="px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white no-underline hover:bg-link-hover-light dark:hover:bg-link-hover-dark" href="/ebooks/{{ ebook.slug }}">Mở</a>
+                        {% if ebook.translated_count %}<a class="px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white no-underline hover:bg-link-hover-light dark:hover:bg-link-hover-dark" href="/ebooks/{{ ebook.slug }}/read">&#128214; Đọc</a>{% endif %}
+                        <a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/settings">Cài đặt</a>
+                        <a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/config/export">Export</a>
+                        {% if ebook.epub_exists %}<a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/download">EPUB</a>{% endif %}
+                    </div>
+                    {% if ebook.in_library %}
+                    <div class="action-group">
+                        {% if ebook.archived %}
+                        <form method="post" action="/library/ebooks/{{ ebook.slug }}/unarchive"><button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Bỏ lưu trữ</button></form>
+                        {% else %}
+                        <form method="post" action="/library/ebooks/{{ ebook.slug }}/archive"><button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Lưu trữ</button></form>
+                        {% endif %}
+                        <form method="post" action="/library/ebooks/{{ ebook.slug }}/delete" onsubmit="return confirm('Gỡ ebook {{ ebook.slug }} khỏi thư viện?');">
+                            <button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950">Gỡ</button>
+                        </form>
+                    </div>
                     {% endif %}
-                    <form method="post" action="/library/ebooks/{{ ebook.slug }}/delete" onsubmit="return confirm('Gỡ ebook {{ ebook.slug }} khỏi thư viện?');">
-                        <button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950">Gỡ</button>
-                    </form>
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>

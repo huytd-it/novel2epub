@@ -301,6 +301,9 @@ class NovelConfig:
     # urn:uuid ổn định qua các lần build lại. Tự sinh khi rỗng (xem
     # `ensure_identifier` trong config_writer.py), người dùng có thể override.
     identifier: str = ""
+    # URL ảnh bìa. Người dùng nhập tay hoặc upload file qua Web UI, lưu YAML
+    # để pipeline dùng làm cover_url cho manifest khi crawl không có.
+    cover_url: str = ""
 
 
 @dataclass

@@ -5,11 +5,12 @@ from __future__ import annotations
 import re
 
 import requests
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import openai_client
 from novel2epub.config_writer import clean_prompt_text, update_defaults, update_ebook
+from novel2epub.storage import Storage
 
 from .. import deps
 from ..logging_config import logger
@@ -49,32 +50,146 @@ def save_novel(
     series: str = Form(""),
     series_index: str = Form(""),
     identifier: str = Form(""),
+    cover_url: str = Form(""),
 ):
     path = deps.ebook_config_path(slug)
     subject_list = [s.strip() for s in re.split(r"[\n,]", subjects) if s.strip()]
     logger.info(
         "[config][NOVEL] slug=%s lưu vào %s: title=%r author=%r language=%r "
-        "publisher=%r pubdate=%r subjects=%r series=%r series_index=%r",
+        "publisher=%r pubdate=%r subjects=%r series=%r series_index=%r cover_url=%r",
         slug, path, title, author, language,
-        publisher, pubdate, subject_list, series, series_index,
+        publisher, pubdate, subject_list, series, series_index, cover_url,
     )
-    update_ebook(deps.WORKSPACE_PATH, slug, {
-        "novel": {
-            "title": title,
-            "author": author,
-            "description": description,
-            "language": language,
-            "publisher": publisher,
-            "pubdate": pubdate,
-            "subjects": subject_list,
-            "series": series,
-            "series_index": series_index,
-            # identifier: chỉ ghi đè khi người dùng thật sự nhập — field rỗng
-            # không xóa identifier tự sinh trước đó (xem spec ebook-metadata
-            # "Identifier stable across rebuilds").
-            **({"identifier": identifier} if identifier.strip() else {}),
-        },
-    })
+
+    novel_update = {
+        "title": title,
+        "author": author,
+        "description": description,
+        "language": language,
+        "publisher": publisher,
+        "pubdate": pubdate,
+        "subjects": subject_list,
+        "series": series,
+        "series_index": series_index,
+        "cover_url": cover_url,
+        # identifier: chỉ ghi đè khi người dùng thật sự nhập — field rỗng
+        # không xóa identifier tự sinh trước đó (xem spec ebook-metadata
+        # "Identifier stable across rebuilds").
+        **({"identifier": identifier} if identifier.strip() else {}),
+    }
+    update_ebook(deps.WORKSPACE_PATH, slug, {"novel": novel_update})
+
+    # Tải ảnh bìa ngay lập tức khi có URL, lưu local bằng Scrapling.
+    if cover_url.strip():
+        try:
+            cfg = deps.resolved_cfg(slug)
+            storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+            content, ctype = _fetch_cover_content(cover_url)
+            if content:
+                ext = _cover_ext(cover_url, ctype)
+                cover_name = storage.write_cover(content, ext)
+                logger.info(
+                    "[config][COVER] slug=%s tải ảnh bìa từ %s: %s (%d bytes)",
+                    slug, cover_url, cover_name, len(content),
+                )
+                manifest = storage.load_manifest()
+                if manifest:
+                    manifest.cover_url = cover_url
+                    manifest.cover_file = cover_name
+                    storage.save_manifest(manifest)
+            else:
+                logger.warning("[config][COVER] slug=%s không tải được ảnh từ %s", slug, cover_url)
+        except Exception:
+            logger.warning("[config][COVER] slug=%s lỗi tải ảnh bìa từ %s", slug, cover_url, exc_info=True)
+    else:
+        # Xoá URL khỏi manifest nhưng giữ cover_file nếu có (ảnh đã upload).
+        try:
+            cfg = deps.resolved_cfg(slug)
+            storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+            manifest = storage.load_manifest()
+            if manifest:
+                manifest.cover_url = ""
+                storage.save_manifest(manifest)
+        except Exception:
+            pass
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+def _cover_ext(url: str, content_type: str) -> str:
+    """Đoán đuôi file ảnh từ Content-Type rồi tới URL, mặc định jpg."""
+    ct = (content_type or "").lower()
+    for key, ext in (("png", "png"), ("webp", "webp"), ("gif", "gif"), ("jpeg", "jpg"), ("jpg", "jpg")):
+        if key in ct:
+            return ext
+    m = re.search(r"\.(png|webp|gif|jpe?g)(?:\?|$)", url, re.IGNORECASE)
+    if m:
+        ext = m.group(1).lower()
+        return "jpg" if ext == "jpeg" else ext
+    return "jpg"
+
+
+def _fetch_cover_content(url: str) -> tuple[bytes | None, str]:
+    """Tải ảnh bìa bằng Scrapling Fetcher (fallback requests)."""
+    try:
+        from scrapling.fetchers import Fetcher
+        page = Fetcher.get(url, timeout=30)
+        status = getattr(page, "status", None)
+        if status and status >= 400:
+            logger.warning("[cover] Scrapling HTTP %s cho %s", status, url)
+            return None, ""
+        content = getattr(page, "content", None)
+        if content:
+            ctype = (getattr(page, "headers", {}) or {}).get("Content-Type", "")
+            return content, ctype
+    except Exception as e:
+        logger.warning("[cover] Scrapling lỗi %s, fallback requests: %s", url, e)
+
+    try:
+        import requests as _requests
+        resp = _requests.get(url, timeout=30)
+        resp.raise_for_status()
+        return resp.content, resp.headers.get("Content-Type", "")
+    except Exception as e:
+        logger.warning("[cover] requests cũng lỗi %s: %s", url, e)
+    return None, ""
+
+
+@router.post("/ebooks/{slug}/settings/cover-upload")
+def upload_cover(slug: str, cover_file: UploadFile = File(...)):
+    """Tải ảnh bìa lên, lưu vào storage, cập nhật manifest."""
+    if not cover_file.content_type or not cover_file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file ảnh.")
+
+    ext = "jpg"
+    ct = cover_file.content_type.lower()
+    for key, e in (("png", "png"), ("webp", "webp"), ("gif", "gif"), ("jpeg", "jpg"), ("jpg", "jpg")):
+        if key in ct:
+            ext = e
+            break
+
+    contents = cover_file.file.read()
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+
+    cover_name = storage.write_cover(contents, ext)
+
+    manifest = storage.load_manifest()
+    if manifest:
+        manifest.cover_file = cover_name
+        # Xoá cover_url cũ vì đã có file upload.
+        manifest.cover_url = ""
+        storage.save_manifest(manifest)
+        logger.info(
+            "[config][COVER] slug=%s upload ảnh bìa: %s (%d bytes)",
+            slug, cover_name, len(contents),
+        )
+
+    # Xoá cover_url trong config YAML để tránh nhầm lẫn.
+    try:
+        update_ebook(deps.WORKSPACE_PATH, slug, {"novel": {"cover_url": ""}})
+    except Exception:
+        pass
+
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 

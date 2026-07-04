@@ -45,6 +45,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "series": "",
         "series_index": "",
         "identifier": "",
+        "cover_url": "",
     },
     "crawl": {
         "toc_url": "",

@@ -4,9 +4,9 @@
 
 <style>
 /* Local styles cho reader: typography controls, chapter navigation, copy buttons */
-.reader-wrap { max-width: 900px; margin: 0 auto; padding: 3.5rem 1rem 0; }
-.reader-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 1rem; border-bottom: 1px solid #e5e5e5; flex-wrap: wrap; position: fixed; top: 0; left: 0; right: 0; z-index: 30; background: #fff; }
-.dark .reader-nav { border-bottom-color: #2e3338; background: #1c1f24; }
+.reader-wrap { max-width: 900px; margin: 0 auto; padding: 0 1rem; }
+.reader-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid #e5e5e5; flex-wrap: wrap; }
+.dark .reader-nav { border-bottom-color: #2e3338; }
 .reader-nav-bottom { border-bottom: none; border-top: 1px solid #e5e5e5; justify-content: center; gap: 1.5rem; padding: 1rem 0 2rem; }
 .dark .reader-nav-bottom { border-top-color: #2e3338; }
 .reader-nav-left, .reader-nav-right { display: flex; align-items: center; gap: 0.4rem; }
@@ -141,8 +141,8 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 }
 
 @media (max-width: 640px) {
-    .reader-wrap { padding: 6rem 0.5rem 0; }
-    .reader-nav { gap: 0.4rem; padding-left: 0.5rem; padding-right: 0.5rem; }
+    .reader-wrap { padding: 0 0.5rem; }
+    .reader-nav { gap: 0.4rem; }
     .reader-nav-right { gap: 0.25rem; }
     .reader-chapter-select { max-width: 180px; font-size: 0.8rem; }
     .reader-content { font-size: 16px; max-width: 100%; }

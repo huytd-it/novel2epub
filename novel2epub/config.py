@@ -154,23 +154,30 @@ class TranslationChunkConfig:
 
 DEFAULT_PROMPT = """Bạn là dịch giả tiểu thuyết mạng Trung Quốc sang tiếng Việt, theo phong cách edit mượt mà mà độc giả Việt quen thuộc.
 
-Nguyên tắc bắt buộc:
-1. Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp Việt: đảo trật tự từ cho thuận, đưa trạng ngữ lên đầu câu khi hợp lý, câu phải đủ chủ-vị.
-2. Ngôi xưng phải theo quan hệ và ngữ cảnh, KHÔNG bê nguyên ta/ngươi. Chọn phù hợp giữa cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu...
-3. Tên riêng, công pháp, địa danh, chiêu thức: giữ theo lối Hán Việt quen thuộc, viết hoa và nhất quán.
-4. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, nhưng vẫn giữ chất cổ trang khi cần.
-5. Giữ nguyên cách chia đoạn của bản gốc. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
-6. Thành ngữ nên dịch thoát ý, tự nhiên, không máy móc.
-7. Thơ từ, ca phú, Luận ngữ, trích dẫn cổ văn: nếu nhận ra là câu/bài đã có bản dịch tiếng Việt phổ biến, hãy dùng đúng bản dịch đó và ghi tên dịch giả trong ngoặc ngay sau (vd: "— (bản dịch Tản Đà)"). Nếu không nhận ra bản dịch có sẵn, hãy tự chuyển ngữ sao cho người đọc hiểu được nghĩa, không dịch nguyên xi. TUYỆT ĐỐI không dịch kiểu Vietphrase-một-nghĩa (ghép nghĩa từng chữ máy móc, từ nào dịch được thì dịch từ nào không thì giữ nguyên Hán) — nếu thực sự không thể chuyển ngữ, giữ nguyên cả câu ở dạng phiên âm Hán Việt đầy đủ, không phải kiểu Vietphrase.
+NGUYÊN TẮC CỐT LÕI — VI PHẠM LÀ LỖI NGHIÊM TRỌNG:
+- Đầu ra phải là tiếng Việt 100%: mọi từ, cụm từ, câu tiếng Trung đều PHẢI được chuyển hoàn toàn sang tiếng Việt.
+- KHÔNG dùng định dạng "từ gốc (bản dịch)", "bản dịch (từ gốc)" hay bất kỳ kiểu chú thích song ngữ nào.
+- Gặp từ khó, không chắc nghĩa: chọn cách diễn đạt tiếng Việt gần nghĩa nhất theo ngữ cảnh. Thà dịch thoát ý còn hơn giữ lại chữ Hán — giữ chữ Hán kèm chú nghĩa trong ngoặc là lỗi nặng hơn dịch chưa sát.
 
-Phong cách mong muốn:
+Nguyên tắc dịch:
+1. Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp Việt: đảo trật tự từ cho thuận, câu đủ chủ-vị.
+2. Ngôi xưng theo quan hệ và ngữ cảnh: cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu... KHÔNG bê nguyên ta/ngươi.
+3. Tên riêng, công pháp, địa danh, chiêu thức: giữ Hán Việt quen thuộc, viết hoa, nhất quán.
+4. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, nhưng giữ chất cổ trang khi cần.
+5. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
+6. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người Việt, không máy móc (khẩu ngữ chỉ sự e dè thì dịch "ngại", "ngại ngùng"; chê tác phong ăn uống thì "ăn uống khó coi"...).
+7. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): dịch tự nhiên như văn nói tiếng Việt thông thường, không cần giữ sắc thái Hán, không phiên âm Hán Việt cứng nhắc.
+8. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng bản dịch đó kèm tên dịch giả (vd: "— (bản dịch Tản Đà)"). Nếu không, tự chuyển ngữ cho người đọc hiểu, không dịch nguyên xi từng chữ kiểu Vietphrase.
+
+Phong cách:
 - Tông giọng: {tone}
-- Mức dùng Hán Việt: {han_viet_level}
+- Mức Hán Việt: {han_viet_level}
 - Xử lý tiêu đề: {title_mode}
 - Quy tắc ngôi xưng: {pronoun_policy}
 - Giữ xuống dòng: {keep_paragraphs}
 
-CHỈ trả về bản dịch tiếng Việt. KHÔNG thêm lời mở đầu, ghi chú, hay giải thích.
+CHỈ trả về bản dịch tiếng Việt thuần túy. KHÔNG thêm lời mở đầu, ghi chú, giải thích, hay đánh dấu song ngữ.
+KIỂM TRA CUỐI (bắt buộc): trước khi trả lời, rà lại toàn bộ bản dịch từ đầu đến cuối; nếu còn BẤT KỲ ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
 --- Nội dung cần dịch ---
 {text}"""
@@ -206,7 +213,7 @@ class OpenAIConfig:
     model: str = "opencode-go/kimi-k2.6"
     prompt_template: str = DEFAULT_PROMPT
     title_prompt_template: str = TITLE_PROMPT
-    timeout_seconds: int = 300
+    timeout_seconds: int = 600
     temperature: float = 0.7
 
 
@@ -269,6 +276,10 @@ class TranslateConfig:
     # (in-memory cho chương kế tiếp + ghi file thread-safe). Xung đột (cùng Hán,
     # khác Việt) → giữ giá trị cũ + ghi warning vào log và file tổng kết.
     auto_glossary: bool = False
+    # Số chương gửi 1 lần cho AI khi dùng "Dịch selected" (batch translate).
+    # Chia nhỏ index thành các batch có kích thước tối đa bằng giá trị này.
+    # Đặt 1 = dịch tuần tự từng chương (mỗi chương 1 lần gọi AI).
+    batch_size: int = 10
 
 
 @dataclass

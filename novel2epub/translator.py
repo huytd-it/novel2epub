@@ -24,7 +24,7 @@ _PREAMBLE = re.compile(
     re.IGNORECASE,
 )
 
-_HAN_RE = re.compile(r"[一-鿿]")
+_HAN_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
 
 # Số lần thử lại tối đa khi bản dịch còn sót chữ Hán chưa dịch.
 _RESIDUAL_HAN_RETRIES = 2
@@ -268,8 +268,12 @@ class OpenAITranslator:
 
     def _build_fixup_prompt(self, text: str) -> str:
         return self._build_prompt(text) + (
-            "\n\nLƯU Ý QUAN TRỌNG: Bản dịch trước đó còn sót chữ Hán chưa được dịch. "
-            "Hãy dịch toàn bộ văn bản gốc sang tiếng Việt, không để sót lại bất kỳ chữ Hán nào."
+            "\n\nCẢNH BÁO NGHIÊM TRỌNG: Bản dịch trước đó còn chứa chữ Hán chưa được dịch. "
+            "Đây là lỗi KHÔNG THỂ CHẤP NHẬN. "
+            "Hãy dịch TOÀN BỘ văn bản gốc sang tiếng Việt thuần túy. "
+            "KHÔNG được giữ lại bất kỳ ký tự Trung Quốc nào. "
+            "KHÔNG được dùng định dạng 'từ gốc (dịch nghĩa)' — "
+            "chỉ trả về tiếng Việt 100%."
         )
 
     def _split_response(self, raw: str) -> tuple[str, list[dict] | None]:
@@ -662,3 +666,12 @@ class RateLimited:
         if self.delay > 0 and len(titles) > 0:
             time.sleep(self.delay)
         return out
+
+    def extend_glossary(self, new_entries: dict[str, str], target_file: str, storage) -> dict:
+        return self.inner.extend_glossary(new_entries, target_file, storage)
+
+    def drain_conflicts(self) -> list[dict]:
+        return self.inner.drain_conflicts() if hasattr(self.inner, "drain_conflicts") else []
+
+    def drain_last_meta(self) -> dict:
+        return self.inner.drain_last_meta() if hasattr(self.inner, "drain_last_meta") else {}

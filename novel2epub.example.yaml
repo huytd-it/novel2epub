@@ -26,7 +26,7 @@ defaults:
       base_url: "https://opencode.ai/zen/go/v1"
       api_key: ""
       model: "opencode-go/kimi-k2.6"
-      timeout_seconds: 300
+      timeout_seconds: 600
       temperature: 0.7
 
   crawl:
@@ -64,6 +64,10 @@ defaults:
     # Khi True + type=openai: tự sinh glossary từ mỗi chương sau khi dịch,
     # merge vào names.txt/vietphrase.txt (xung đột giữ giá trị cũ + cảnh báo).
     auto_glossary: false
+    # Số chương gửi 1 lần cho AI khi dùng "Dịch selected" (batch translate).
+    # Chia nhỏ thành các batch có kích thước tối đa bằng giá trị này.
+    # Đặt 1 = dịch tuần tự từng chương (mỗi chương 1 lần gọi AI).
+    batch_size: 10
     # Preset: "go" (mặc định OpenCode Go) | "omniroute" (OmniRoute gateway —
     # 237 providers qua 1 endpoint, tự capture cost/tokens/latency từ
     # X-OmniRoute-* headers nếu response từ OmniRoute).
@@ -72,7 +76,7 @@ defaults:
       base_url: "https://opencode.ai/zen/go/v1"
       api_key: ""
       model: "opencode-go/kimi-k2.6"
-      timeout_seconds: 300
+      timeout_seconds: 600
       temperature: 0.7
     hachimimt:
       model_key: "HachimiMT-60"
@@ -106,7 +110,7 @@ defaults:
     #         base_url: "http://localhost:20128/v1"
     #         api_key: "sk-..."  # API key từ OmniRoute dashboard
     #         model: "auto"  # hoặc model id cụ thể như "cc/claude-opus-4-6"
-    #         timeout_seconds: 300
+    #         timeout_seconds: 600
     #
     # Xem chi tiết: https://github.com/diegosouzapw/OmniRoute
 

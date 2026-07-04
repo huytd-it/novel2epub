@@ -927,6 +927,150 @@ async def api_batch_import(
     })
 
 
+@router.post("/api/ebooks/{slug}/batch/translate")
+async def api_batch_translate(slug: str, indexes: str = Form("")):
+    """Dịch hàng loạt theo luồng "Xuất RAW" → gọi AI → "Nhập", chia nhỏ
+    thành các batch để tránh gửi quá nhiều chương 1 lần cho AI.
+
+    Config: `translate.batch_size` (mặc định 10) — tối đa số chương / lần gọi AI.
+
+    Trả `{written, glossary_added, missing, unknown, total, skipped,
+          batches, ai_meta}` — `ai_meta` là tổng hợp từ tất cả batch.
+    """
+    from novel2epub.openai_client import run_chat_with_meta
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+
+    by_index = {c.index: c for c in manifest.chapters}
+    items: list[tuple[int, str, str]] = []
+    skipped: list[int] = []
+    for idx in index_list:
+        ch = by_index.get(idx)
+        if ch is None or not storage.has_raw(ch):
+            skipped.append(idx)
+            continue
+        items.append((idx, ch.title, storage.read_raw(ch)))
+    if not items:
+        raise HTTPException(
+            status_code=400,
+            detail="Không có chương nào đã crawl raw trong số đã chọn.",
+        )
+
+    # Chia items thành các batch theo translate.batch_size
+    batch_size = max(1, cfg.translate.batch_size)
+    batches = [items[i : i + batch_size] for i in range(0, len(items), batch_size)]
+    total_batches = len(batches)
+
+    # Glossary chung — đọc 1 lần, merge dần qua các batch
+    names_glossary = dict(storage.read_glossary_file("names.txt"))
+    vietphrase_glossary = dict(storage.read_glossary_file("vietphrase.txt"))
+
+    all_written: list[int] = []
+    all_missing: list[int] = []
+    all_unknown: list[int] = []
+    glossary_added = 0
+    batch_metas: list[dict] = []
+
+    for batch_idx, batch_items in enumerate(batches, 1):
+        # 1. Build export cho batch này (dùng glossary đã merge từ các batch trước)
+        export_text = bulk_transfer.build_export(
+            batch_items,
+            names=names_glossary,
+            vietphrase=vietphrase_glossary,
+            prompt=bulk_transfer.TRANSLATE_PROMPT,
+        )
+
+        # 2. Gọi AI
+        try:
+            response_text, meta = run_chat_with_meta(cfg.translate.openai, export_text)
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"AI lỗi batch {batch_idx}/{total_batches}: {e}",
+            ) from e
+
+        batch_metas.append(meta or {})
+
+        # 3. Parse response
+        parsed = bulk_transfer.parse_import(response_text)
+        if not parsed:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Batch {batch_idx}/{total_batches}: AI trả về nhưng không có "
+                    "marker chương nào (========== CHƯƠNG N ==========). "
+                    "Xem log/raw response để debug."
+                ),
+            )
+
+        content_by_index = dict(parsed)
+        expected = [i for i, _, _ in batch_items]
+        report = bulk_transfer.validate_import(
+            list(content_by_index.keys()), expected, list(by_index.keys())
+        )
+        glossary = bulk_transfer.parse_glossary(response_text)
+
+        # 4. Ghi translated/ — giữ snapshot MT trước khi ghi bản AI
+        for idx in report["matched"]:
+            ch = by_index[idx]
+            if not storage.has_translated_mt(ch):
+                storage.write_translated_mt(ch, content_by_index[idx])
+            storage.write_translated(ch, content_by_index[idx])
+            all_written.append(idx)
+
+        # 5. Merge glossary mới vào dict chung (cho batch kế tiếp dùng tham khảo)
+        for source, target in glossary["names"].items():
+            if source not in names_glossary:
+                names_glossary[source] = target
+                if _append_glossary_entry(storage, "names.txt", source, target):
+                    glossary_added += 1
+        for source, target in glossary["vietphrase"].items():
+            if source not in vietphrase_glossary:
+                vietphrase_glossary[source] = target
+                if _append_glossary_entry(storage, "vietphrase.txt", source, target):
+                    glossary_added += 1
+
+        all_missing.extend(report["missing"])
+        all_unknown.extend(report["unknown"])
+
+    # Tổng hợp ai_meta từ tất cả batch
+    agg_meta: dict = {}
+    if batch_metas:
+        agg_meta = {
+            "cost_usd": sum(m.get("cost_usd", 0) for m in batch_metas),
+            "tokens_in": sum(m.get("tokens_in", 0) for m in batch_metas),
+            "tokens_out": sum(m.get("tokens_out", 0) for m in batch_metas),
+            "latency_ms": sum(m.get("latency_ms", 0) for m in batch_metas),
+            "batches": total_batches,
+        }
+        # Giữ các field chung từ batch đầu (provider, version, preset...)
+        first = batch_metas[0]
+        for key in ("provider", "version", "preset", "model", "actual_model", "cache_hit"):
+            if key in first:
+                agg_meta[key] = first[key]
+
+    response = {
+        "mode": "translate",
+        "written": all_written,
+        "skipped": skipped,
+        "total_input": len(items),
+        "batches": total_batches,
+        "glossary_added": glossary_added,
+        "missing": all_missing,
+        "unknown": all_unknown,
+        "ai_meta": agg_meta,
+    }
+    return JSONResponse(response)
+
+
 @router.patch("/api/ebooks/{slug}/meta")
 async def api_patch_meta(request: Request, slug: str):
     """Update manifest metadata fields (title, author, description)."""

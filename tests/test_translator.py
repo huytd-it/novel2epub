@@ -180,7 +180,7 @@ def test_translate_retries_when_output_has_residual_chinese(monkeypatch):
     result = translator.translate("你好世界")
     assert result == "Xin chào thế giới"
     assert len(calls) == 2
-    assert "LƯU Ý QUAN TRỌNG" in calls[1]
+    assert "CẢNH BÁO NGHIÊM TRỌNG" in calls[1]
 
 
 def test_translate_stops_retrying_when_chinese_does_not_improve(monkeypatch):

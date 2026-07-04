@@ -77,6 +77,7 @@
 .dark .pv-cell-value.empty { color: #9aa2ad; }
 .pv-desc-truncate { max-height: 4.5rem; overflow: hidden; position: relative; }
 .pv-desc-truncate::after { content: "..."; position: absolute; bottom: 0; right: 0.5rem; background: inherit; padding-left: 0.3rem; }
+.pv-input { width: 100%; box-sizing: border-box; }
 </style>
 
 <div class="flex flex-col md:flex-row gap-4 md:items-start md:justify-between mb-3">
@@ -229,20 +230,6 @@
 
             <div class="step-panel" data-step="1">
                 <fieldset>
-                    <legend>Thông tin tiểu thuyết</legend>
-                    <div class="flex flex-col gap-3">
-                        <label class="full flex flex-col gap-1 text-sm">Tên
-                            <input type="text" id="title_input" placeholder="Nhập tên tiểu thuyết..." autocomplete="off" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
-                        </label>
-                        <label class="full flex flex-col gap-1 text-sm">Tác giả
-                            <input type="text" id="author_input" placeholder="Nhập tên tác giả..." autocomplete="off" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
-                        </label>
-                        <label class="full flex flex-col gap-1 text-sm">Mô tả
-                            <textarea id="desc_input" rows="3" placeholder="Nhập mô tả..." class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></textarea>
-                        </label>
-                    </div>
-                </fieldset>
-                <fieldset>
                     <legend>Nhập link mục lục truyện</legend>
                     <div class="flex flex-wrap gap-4 items-end">
                         <label class="full flex flex-col gap-1 text-sm min-w-0 flex-1">URL mục lục
@@ -286,15 +273,15 @@
                             <tbody>
                                 <tr id="pv-row-title">
                                     <td class="pv-cell-label">Tên</td>
-                                    <td class="pv-cell-value" id="pv-title"></td>
+                                    <td class="pv-cell-value"><input type="text" id="pv-title-input" class="pv-input w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></td>
                                 </tr>
                                 <tr id="pv-row-author">
                                     <td class="pv-cell-label">Tác giả</td>
-                                    <td class="pv-cell-value" id="pv-author"></td>
+                                    <td class="pv-cell-value"><input type="text" id="pv-author-input" class="pv-input w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></td>
                                 </tr>
                                 <tr id="pv-row-desc">
                                     <td class="pv-cell-label">Mô tả</td>
-                                    <td class="pv-cell-value" id="pv-desc"></td>
+                                    <td class="pv-cell-value"><textarea id="pv-desc-input" rows="3" class="pv-input w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></textarea></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -424,9 +411,9 @@ document.addEventListener("DOMContentLoaded", function () {
     var previewBox = document.getElementById("preview-box");
     var previewPlaceholder = document.getElementById("preview-placeholder");
     var form = document.getElementById("create-form");
-    var titleInput = document.getElementById("title_input");
-    var authorInput = document.getElementById("author_input");
-    var descInput = document.getElementById("desc_input");
+    var pvTitleInput = document.getElementById("pv-title-input");
+    var pvAuthorInput = document.getElementById("pv-author-input");
+    var pvDescInput = document.getElementById("pv-desc-input");
 
     function goToStep(step) {
         document.querySelectorAll('.step-panel').forEach(function (el) {
@@ -445,14 +432,7 @@ document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll('.step-next').forEach(function (btn) {
         btn.addEventListener('click', function () {
             goToStep(parseInt(btn.dataset.goto, 10));
-            if (nameEl.value) {
-                fillCell('pv-title', nameEl.value);
-                fillCell('pv-author', authorEl.value);
-                fillCell('pv-desc', descriptionEl.value);
-                var descEl = document.getElementById('pv-desc');
-                if (descEl) descEl.classList.toggle('pv-desc-truncate', (descriptionEl.value || '').length > 120);
-                previewBox.style.display = "";
-            }
+            if (nameEl.value) previewBox.style.display = "";
         });
     });
     document.querySelectorAll('.step-back').forEach(function (btn) {
@@ -467,9 +447,9 @@ document.addEventListener("DOMContentLoaded", function () {
         authorEl.value = '';
         descriptionEl.value = '';
         slugEl.value = '';
-        titleInput.value = '';
-        authorInput.value = '';
-        descInput.value = '';
+        pvTitleInput.value = '';
+        pvAuthorInput.value = '';
+        pvDescInput.value = '';
         fetchStatus.textContent = '';
         previewPlaceholder.style.display = '';
         previewBox.style.display = 'none';
@@ -485,22 +465,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
     slugEl.addEventListener("input", function () {
         var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
-        var autoSlug = (slugify(titleInput.value) || "truyen") + "-" + n;
+        var autoSlug = (slugify(pvTitleInput.value) || "truyen") + "-" + n;
         slugEl.dataset.userEdited = slugEl.value !== autoSlug;
     });
 
-    titleInput.addEventListener("input", function () {
-        nameEl.value = titleInput.value;
+    pvTitleInput.addEventListener("input", function () {
+        nameEl.value = pvTitleInput.value;
         if (!slugEl.dataset.userEdited) {
             var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
-            slugEl.value = (slugify(titleInput.value) || "truyen") + "-" + n;
+            slugEl.value = (slugify(pvTitleInput.value) || "truyen") + "-" + n;
         }
     });
-    authorInput.addEventListener("input", function () {
-        authorEl.value = authorInput.value;
+    pvAuthorInput.addEventListener("input", function () {
+        authorEl.value = pvAuthorInput.value;
     });
-    descInput.addEventListener("input", function () {
-        descriptionEl.value = descInput.value;
+    pvDescInput.addEventListener("input", function () {
+        descriptionEl.value = pvDescInput.value;
     });
 
     function resetPreview() {
@@ -508,13 +488,6 @@ document.addEventListener("DOMContentLoaded", function () {
         previewPlaceholder.style.display = '';
     }
     if (tocUrlDisplay) tocUrlDisplay.addEventListener("input", resetPreview);
-
-    function fillCell(id, val) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        el.textContent = val || "";
-        el.classList.toggle('empty', !val);
-    }
 
     if (previewBtn) {
         previewBtn.addEventListener("click", async function () {
@@ -546,21 +519,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
 
                 nameEl.value = data.name || "";
-                titleInput.value = nameEl.value;
+                pvTitleInput.value = nameEl.value;
                 authorEl.value = data.author || "";
-                authorInput.value = authorEl.value;
+                pvAuthorInput.value = authorEl.value;
                 descriptionEl.value = data.description || "";
-                descInput.value = descriptionEl.value;
+                pvDescInput.value = descriptionEl.value;
                 if (!slugEl.dataset.userEdited) {
                     var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
                     slugEl.value = (data.slug || "truyen") + "-" + n;
                 }
-
-                fillCell('pv-title', data.name || "");
-                fillCell('pv-author', data.author || "");
-                fillCell('pv-desc', data.description || "");
-                var descEl = document.getElementById('pv-desc');
-                if (descEl) descEl.classList.toggle('pv-desc-truncate', (data.description || '').length > 120);
 
                 document.getElementById("pv-chapters").textContent = "📄 " + (data.chapter_count || 0) + " chương";
                 var coverEl = document.getElementById("pv-cover");
@@ -809,18 +776,14 @@ document.addEventListener("DOMContentLoaded", function () {
         tocUrlEl.value = result.url;
         tocUrlDisplay.value = result.url;
         nameEl.value = result.title || "";
-        titleInput.value = nameEl.value;
+        pvTitleInput.value = nameEl.value;
         authorEl.value = result.author || "";
-        authorInput.value = authorEl.value;
+        pvAuthorInput.value = authorEl.value;
         descriptionEl.value = result.description || "";
-        descInput.value = descriptionEl.value;
+        pvDescInput.value = descriptionEl.value;
         slugEl.dataset.userEdited = "";
         var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
         slugEl.value = (slugify(result.title || "") || "truyen") + "-" + n;
-
-        fillCell('pv-title', result.title || "");
-        fillCell('pv-author', result.author || "");
-        fillCell('pv-desc', result.description || "");
         document.getElementById('pv-chapters').textContent = "📄 " + (result.chapter_count || 0) + " chương";
         var coverEl = document.getElementById("pv-cover");
         if (result.cover_url) {

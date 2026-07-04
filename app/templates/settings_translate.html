@@ -91,8 +91,8 @@
             <input type="password" id="ai-api-key" name="api_key" value="{{ cfg.translate.openai.api_key }}" autocomplete="off" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
         </label>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
-        <label class="flex flex-col gap-1 text-sm min-w-0"> model
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1.5 text-sm min-w-0 md:col-span-4"> model
             <div class="flex gap-1.5 items-stretch">
                 <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" list="model-options" class="flex-1 min-w-0 rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
                 <button type="button" id="ai-load-models" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-autosave">Tải models</button>

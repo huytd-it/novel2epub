@@ -309,6 +309,27 @@ class Storage:
                     notes[target] = note
         return notes
 
+    # ----- ghi chú lỗi dịch (trang đọc) -----
+    def notes_path(self) -> Path:
+        return self.root / "notes.json"
+
+    def read_notes(self) -> list[dict]:
+        """Đọc danh sách ghi chú lỗi dịch; file thiếu/hỏng → [] (không raise)."""
+        path = self.notes_path()
+        if not path.exists():
+            return []
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        return data if isinstance(data, list) else []
+
+    def write_notes(self, notes: list[dict]) -> None:
+        self.ensure_dirs()
+        self.notes_path().write_text(
+            json.dumps(notes, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
     def delete_translated(self, ch: Chapter) -> None:
         """Xóa toàn bộ dữ liệu bản dịch: translated, translated_mt, meta."""
         for path in (self.translated_path(ch), self.translated_mt_path(ch), self.meta_path(ch)):

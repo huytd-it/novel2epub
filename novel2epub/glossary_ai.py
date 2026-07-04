@@ -174,6 +174,104 @@ def rewrite_chapter(ai_cfg: OpenAIConfig, raw: str, current_translation: str, gl
     return _apply_glossary(_clean_output(output), glossary)
 
 
+FIX_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt. Người đọc đã đánh dấu các chỗ dịch có vấn đề kèm ghi chú. Nhiệm vụ của bạn: đề xuất bản sửa cho TỪNG chỗ được đánh dấu.
+
+{guidelines}
+{glossary}
+
+--- Bản gốc (Trung), dùng để đối chiếu ---
+{raw}
+
+--- Bản dịch hiện tại (Việt) ---
+{translated}
+
+--- Các ghi chú lỗi cần sửa ---
+{notes}
+
+Yêu cầu:
+1. Với mỗi ghi chú, `fixed_text` là đoạn văn bản THAY THẾ đúng phần được đánh dấu «...» — KHÔNG viết lại cả đoạn, không thêm/bớt nội dung ngoài phạm vi được đánh dấu.
+2. Sửa theo ghi chú của người đọc, đối chiếu bản gốc Trung và tuân thủ glossary.
+3. Nếu chỗ đánh dấu thực ra đã ổn, vẫn trả về mục đó với fixed_text giữ nguyên và giải thích lý do.
+
+Chỉ trả về JSON array, không kèm giải thích ngoài JSON, không dùng code fence. Mỗi phần tử có dạng:
+{{"id": "<id ghi chú>", "fixed_text": "<đoạn thay thế>", "explanation": "<giải thích ngắn>"}}
+"""
+
+
+def _format_fix_notes(notes: list[dict]) -> str:
+    """Định dạng danh sách ghi chú cho FIX_PROMPT: id + đoạn + text được chọn + ghi chú."""
+    blocks = []
+    for n in notes:
+        blocks.append(
+            f"[{n.get('id', '')}] Đoạn {n.get('para_index', '?')}: «{n.get('selected_text', '')}»\n"
+            f"Ngữ cảnh đoạn: {n.get('para_text', '')}\n"
+            f"Ghi chú: {n.get('note', '')}"
+        )
+    return "\n\n".join(blocks)
+
+
+def _parse_fixes(text: str, valid_ids: set[str]) -> list[dict]:
+    """Parse JSON array đề xuất sửa. Loại mục có id lạ hoặc fixed_text rỗng."""
+    text = _clean_output(text)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        match = _JSON_ARRAY.search(text)
+        if not match:
+            return []
+        try:
+            data = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(data, list):
+        return []
+
+    fixes = []
+    seen: set[str] = set()
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        fix_id = str(item.get("id", "")).strip()
+        fixed_text = str(item.get("fixed_text", "")).strip()
+        if fix_id not in valid_ids or fix_id in seen or not fixed_text:
+            continue
+        seen.add(fix_id)
+        fixes.append(
+            {
+                "id": fix_id,
+                "fixed_text": fixed_text,
+                "explanation": str(item.get("explanation", "")).strip(),
+            }
+        )
+    return fixes
+
+
+def fix_passages(
+    ai_cfg: OpenAIConfig,
+    raw: str,
+    translated: str,
+    notes: list[dict],
+    glossary: dict[str, str],
+) -> list[dict]:
+    """Gọi AI sửa các chỗ dịch được người đọc đánh dấu kèm ghi chú.
+
+    Trả list {id, fixed_text, explanation}. KHÁC suggest_glossary: RuntimeError
+    từ openai_client được cho lan ra để route trả 502 kèm thông báo thật —
+    luồng tương tác (người dùng bấm nút chờ kết quả) cần thấy lỗi cụ thể.
+    """
+    if not notes:
+        return []
+    prompt = FIX_PROMPT.format(
+        guidelines=EDIT_HAY_GUIDELINES,
+        glossary=_format_glossary(glossary),
+        raw=raw or "(chưa có bản gốc)",
+        translated=translated,
+        notes=_format_fix_notes(notes),
+    )
+    output = openai_client.run_chat(ai_cfg, prompt)
+    return _parse_fixes(output, {str(n.get("id", "")) for n in notes})
+
+
 _EMPTY_REPORT = {"summary": "", "score": None, "issues": []}
 
 

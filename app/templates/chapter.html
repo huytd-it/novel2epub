@@ -425,6 +425,7 @@ textarea.jump-flash { outline: 2px solid #d97706; }
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/diff.js"></script>
 <script>
 const CHAPTER_SLUG = {{ slug | tojson }};
 const CHAPTER_INDEX = {{ ch.index | tojson }};
@@ -569,37 +570,15 @@ if (footnotesToggle) footnotesToggle.addEventListener("change", applyFootnoteVis
 for (const cb of itemToggles) cb.addEventListener("change", applyFootnoteVisibility);
 applyFootnoteVisibility();
 
-function lineDiff(aText, bText) {
-    const a = aText.split("\n"), b = bText.split("\n");
-    const n = a.length, m = b.length;
-    const lcs = Array.from({length: n + 1}, () => new Int32Array(m + 1));
-    for (let i = n - 1; i >= 0; i--)
-        for (let j = m - 1; j >= 0; j--)
-            lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
-    const left = [], right = [];
-    let i = 0, j = 0;
-    while (i < n && j < m) {
-        if (a[i] === b[j]) { left.push(["eq", a[i]]); right.push(["eq", b[j]]); i++; j++; }
-        else if (lcs[i + 1][j] >= lcs[i][j + 1]) { left.push(["del", a[i]]); i++; }
-        else { right.push(["ins", b[j]]); j++; }
-    }
-    while (i < n) left.push(["del", a[i++]]);
-    while (j < m) right.push(["ins", b[j++]]);
-    return [left, right];
-}
-function renderDiffCol(el, rows) {
-    el.innerHTML = rows.map(([kind, line]) =>
-        `<div class="diff-line ${kind}">${escapeHtml(line) || "&nbsp;"}</div>`
-    ).join("");
-}
+// lineDiff/renderDiffCol dùng chung từ /static/diff.js (window.n2eDiff)
 const diffCurrent = document.getElementById("diff-current");
 const diffPreview = document.getElementById("diff-preview");
 const rewriteText = document.getElementById("ai-rewrite-text");
 const hiddenTranslated = document.getElementById("hidden-translated");
 if (diffCurrent && diffPreview && rewriteText && hiddenTranslated) {
-    const [left, right] = lineDiff(hiddenTranslated.value, rewriteText.value);
-    renderDiffCol(diffCurrent, left);
-    renderDiffCol(diffPreview, right);
+    const [left, right] = n2eDiff.lineDiff(hiddenTranslated.value, rewriteText.value);
+    n2eDiff.renderDiffCol(diffCurrent, left);
+    n2eDiff.renderDiffCol(diffPreview, right);
 }
 
 const statusSection = document.getElementById("job-status-section");

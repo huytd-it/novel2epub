@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
+from novel2epub.notes import split_paras
 from novel2epub.storage import Storage
 from novel2epub.toc import count_words
 
@@ -47,7 +48,7 @@ def reader_chapter(request: Request, slug: str, index: int):
 
     has_translated = storage.has_translated(ch)
     translated = storage.read_translated(ch) if has_translated else ""
-    translated_paras = [p for p in translated.split("\n") if p.strip()] if translated else []
+    translated_paras = split_paras(translated) if translated else []
 
     # Danh sách chương cho navigation
     chapters_info = []
@@ -80,5 +81,7 @@ def reader_chapter(request: Request, slug: str, index: int):
             "chapters_info": chapters_info,
             "prev_ch": prev_ch,
             "next_ch": next_ch,
+            "notes": storage.read_notes(),
+            "has_mt_snapshot": storage.has_translated_mt(ch),
         },
     )

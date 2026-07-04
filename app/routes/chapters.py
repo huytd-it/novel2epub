@@ -402,6 +402,28 @@ def api_ebook_chapter_translated(slug: str, index: int):
     return JSONResponse(_chapter_translated_payload(storage, ch))
 
 
+@router.get("/api/ebooks/{slug}/chapters/{index}/translated-mt")
+def api_ebook_chapter_translated_mt(slug: str, index: int):
+    """Snapshot bản dịch máy cho chế độ so sánh của trang đọc.
+
+    `has_mt_snapshot=False` nghĩa là `read_translated_mt` đang fallback về
+    `translated` (chương dịch trước khi có snapshot) — UI báo "hai bản giống
+    nhau" thay vì hiển thị diff rỗng khó hiểu.
+    """
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
+    return JSONResponse({
+        "text": storage.read_translated_mt(ch),
+        "has_mt_snapshot": storage.has_translated_mt(ch),
+    })
+
+
 _POLISH_PROMPT = """Bạn là biên tập viên truyện dịch Trung → Việt.
 Hãy BIÊN TẬP LẠI bản dịch Việt sau cho mượt mà, dễ hiểu, tự nhiên hơn.
 Tham khảo bản gốc Trung để hiểu đúng ngữ cảnh và nghĩa.

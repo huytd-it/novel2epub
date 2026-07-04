@@ -215,3 +215,24 @@ def test_read_mt_snapshot_empty_when_nothing(tmp_path):
     storage = Storage(tmp_path, "slug")
     ch = Chapter(index=3, url="x")
     assert storage.read_translated_mt(ch) == ""
+
+
+# --- ghi chú lỗi dịch (trang đọc) ---
+
+
+def test_notes_round_trip(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    assert storage.read_notes() == []
+    notes = [{"id": "abc12345", "chapter_index": 1, "note": "sai ngôi xưng"}]
+    storage.write_notes(notes)
+    assert storage.read_notes() == notes
+
+
+def test_read_notes_corrupt_file_returns_empty(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    storage.ensure_dirs()
+    storage.notes_path().write_text("{không phải json[", encoding="utf-8")
+    assert storage.read_notes() == []
+    # JSON hợp lệ nhưng không phải list cũng trả []
+    storage.notes_path().write_text('{"a": 1}', encoding="utf-8")
+    assert storage.read_notes() == []

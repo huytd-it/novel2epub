@@ -326,12 +326,14 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, for
                 if old_ch.url in new_by_url:
                     new_ch = new_by_url[old_ch.url]
                     old_ch.title = old_ch.title or new_ch.title
+                    old_ch.title_zh = old_ch.title_zh or new_ch.title
                     merged.append(old_ch)
                     seen.add(old_ch.url)
             next_idx = max((ch.index for ch in merged), default=0) + 1
             for new_ch in toc.chapters:
                 if new_ch.url not in seen:
                     new_ch.index = next_idx
+                    new_ch.title_zh = new_ch.title
                     next_idx += 1
                     merged.append(new_ch)
             manifest.chapters = mark_duplicate_chapters(merged)
@@ -685,11 +687,13 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     try:
         if ch.title and not is_noop and translate_title:
             if title_lookup and ch.title in title_lookup:
+                ch.title_zh = ch.title
                 ch.title = _clean_title(title_lookup[ch.title])
                 ch.title_note = ""
                 title_changed = True
             else:
                 log(f"[dịch]   ({i}/{total}) → đang dịch tiêu đề…")
+                ch.title_zh = ch.title
                 title, note = _run_with_heartbeat(
                     log, f"[dịch]   ({i}/{total})",
                     lambda: translator.translate_title(ch.title, kind="tên chương"),
@@ -1097,6 +1101,7 @@ def step_translate_toc_selected(
     changed = 0
     for ch in selected:
         if ch.title and ch.title in title_lookup:
+            ch.title_zh = ch.title
             ch.title = _clean_title(title_lookup[ch.title])
             ch.title_note = ""
             changed += 1
@@ -1555,6 +1560,8 @@ def step_retranslate_title(
     else:
         raise RuntimeError(f"Engine không hỗ trợ: {selected_engine!r}")
 
+    if not ch.title_zh:
+        ch.title_zh = ch.title
     ch.title = title_vi
     ch.title_note = title_note
     storage.save_manifest(manifest)
@@ -1565,7 +1572,7 @@ def step_retranslate_title(
     # Generate description if requested
     if generate_description and selected_engine == "openai":
         description = _generate_title_description(
-            cfg, ch.title, title_vi, translated, glossary, log
+            cfg, ch.title_zh or ch.title, title_vi, translated, glossary, log
         )
         if description:
             ch.title_note = description

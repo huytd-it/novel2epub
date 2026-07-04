@@ -109,12 +109,17 @@
         </label>
     </div>
     <p class="text-sm text-muted-light dark:text-muted-dark px-3 pb-2">Endpoint kiểu OpenAI. Bấm "Tải models" để kiểm tra kết nối.</p>
+    <div class="px-3 pb-3 flex flex-wrap items-center gap-2">
+        <button type="button" id="ai-test-conn" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-autosave">Test connection</button>
+        <span id="ai-test-conn-status" class="text-xs italic text-muted-light dark:text-muted-dark"></span>
+    </div>
     <datalist id="base-url-options">
         <option value="https://api.openai.com/v1">
         <option value="https://openrouter.ai/api/v1">
         <option value="https://opencode.ai/zen/go/v1">
         <option value="http://localhost:11434/v1">
         <option value="http://localhost:1234/v1">
+        <option value="http://localhost:20128/v1">
     </datalist>
     <datalist id="model-options">
         <option value="gpt-4o-mini">
@@ -311,6 +316,34 @@ document.getElementById("ai-load-models").addEventListener("click", async functi
         status.textContent = "Đã tải " + (data.models || []).length + " model.";
     } catch (e) {
         status.textContent = "Lỗi: " + e;
+    }
+});
+
+document.getElementById("ai-test-conn")?.addEventListener("click", async function () {
+    const baseUrl = document.getElementById("ai-base-url").value.trim();
+    const apiKey = document.getElementById("ai-api-key").value.trim();
+    const status = document.getElementById("ai-test-conn-status");
+    if (!baseUrl) { status.textContent = "Nhập base_url trước."; return; }
+    status.textContent = "Đang test...";
+    try {
+        const form = new FormData();
+        form.append("base_url", baseUrl);
+        form.append("api_key", apiKey);
+        const resp = await fetch("/ebooks/{{ slug }}/settings/translate/test", {
+            method: "POST",
+            body: form,
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            const versionTag = data.omniroute_version
+                ? ` · OmniRoute ${data.omniroute_version}`
+                : "";
+            status.textContent = `✓ ${data.model_count} model · ${data.latency_ms}ms${versionTag}`;
+        } else {
+            status.textContent = "✗ " + (data.error || "Lỗi không xác định");
+        }
+    } catch (e) {
+        status.textContent = "✗ " + e;
     }
 });
 </script>

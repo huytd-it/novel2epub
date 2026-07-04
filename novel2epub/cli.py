@@ -119,6 +119,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("build", help="Đóng gói EPUB từ các chương đã dịch")
     sub.add_parser("run", help="Chạy toàn bộ: crawl -> translate -> build")
     sub.add_parser("list", help="Liệt kê các ebook trong library")
+    models_parser = sub.add_parser(
+        "models",
+        help="Liệt kê model khả dụng từ translate.openai.base_url (hỗ trợ OmniRoute, OpenAI, v.v.)",
+    )
+    models_parser.add_argument("--free", action="store_true", help="Chỉ hiện model free (chỉ áp dụng khi endpoint trả pricing info)")
+    models_parser.add_argument("--format", dest="output_format", default="text", choices=["text", "json"], help="Định dạng output")
 
     translate_parser = sub.choices["translate"]
     translate_parser.add_argument("--force", action="store_true", help="Dịch lại dù đã có bản dịch")
@@ -215,6 +221,44 @@ def main(argv: list[str] | None = None) -> int:
             print(f"      crawl:")
             print(f"        toc_url: \"{selected.url}\"")
 
+        return 0
+
+    if args.command == "models":
+        from . import openai_client
+        from .config import load_config
+
+        try:
+            cfg = load_config(args.config, args.ebook)
+        except (FileNotFoundError, KeyError) as e:
+            print(f"Lỗi: {e}", file=sys.stderr)
+            return 1
+        oa = cfg.translate.openai
+        if not oa.base_url:
+            print("Lỗi: translate.openai.base_url chưa được cấu hình.", file=sys.stderr)
+            return 1
+        try:
+            model_ids = openai_client.list_models(oa.base_url, oa.api_key)
+        except Exception as e:
+            print(f"Lỗi gọi GET {oa.base_url}/models: {e}", file=sys.stderr)
+            return 1
+
+        # Best-effort filter "--free": model id chứa "free/" hoặc nằm trong
+        # list known free providers của OmniRoute. Không chính xác 100% nếu
+        # endpoint không trả pricing — dùng như gợi ý.
+        free_prefixes = ("kr/", "kf/", "qdr/", "pollinations/", "longcat/", "kiro/", "qoder/")
+        if args.free:
+            model_ids = [
+                m for m in model_ids
+                if m.startswith("free/") or any(m.startswith(p) for p in free_prefixes)
+            ]
+
+        if args.output_format == "json":
+            import json
+            print(json.dumps({"models": model_ids, "count": len(model_ids)}, ensure_ascii=False, indent=2))
+        else:
+            print(f"# {len(model_ids)} model từ {oa.base_url}")
+            for m in model_ids:
+                print(m)
         return 0
 
     try:

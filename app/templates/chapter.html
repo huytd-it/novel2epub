@@ -226,6 +226,16 @@ textarea.jump-flash { outline: 2px solid #d97706; }
 </div>
 {% if meta %}
 <p class="text-sm text-muted-light dark:text-muted-dark">Prompt/profile: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ meta.profile }}</code> · Model: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ meta.model or "-" }}</code></p>
+{% if meta.omniroute %}
+<p class="text-sm text-muted-light dark:text-muted-dark m-0">
+    💰 <strong>${{ "%.4f"|format(meta.omniroute.cost_usd or 0) }}</strong>
+    · {{ (meta.omniroute.tokens_in or 0) + (meta.omniroute.tokens_out or 0) }} tokens
+    {%- if meta.omniroute.actual_model %} · <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded text-xs">{{ meta.omniroute.actual_model }}</code>{% endif %}
+    {%- if meta.omniroute.latency_ms %} · {{ meta.omniroute.latency_ms }}ms{% endif %}
+    {%- if meta.omniroute.cache_hit %} · <span class="inline-flex items-center px-1.5 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">cache HIT</span>{% endif %}
+    {%- if meta.omniroute.version %} · OmniRoute {{ meta.omniroute.version }}{% endif %}
+</p>
+{% endif %}
 {% endif %}
 
 <section class="chapter-workspace" style="grid-column: 1 / -1;">

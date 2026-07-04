@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 
+import requests
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
@@ -147,6 +148,62 @@ def list_ai_models(base_url: str, api_key: str = ""):
         return JSONResponse({"models": models})
     except Exception as e:
         return JSONResponse({"models": [], "error": str(e)})
+
+
+@router.post("/ebooks/{slug}/settings/translate/test")
+def test_translate_connection(
+    slug: str,
+    base_url: str = Form(...),
+    api_key: str = Form(""),
+    timeout_seconds: int = Form(15),
+):
+    """Test kết nối translate.openai base_url — gọi GET /models, đo latency,
+    detect OmniRoute qua header `X-OmniRoute-Version`.
+
+    Trả {ok, latency_ms, model_count, omniroute_version?, error?}. UI dùng
+    để hiển thị "✓ Kết nối OK — 50 models" hoặc "✗ Lỗi kết nối".
+    """
+    from types import SimpleNamespace
+    import time as _time
+
+    try:
+        start = _time.monotonic()
+        resp = requests.get(
+            base_url.rstrip("/") + "/models",
+            headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+            timeout=timeout_seconds,
+        )
+        latency_ms = int((_time.monotonic() - start) * 1000)
+    except requests.exceptions.Timeout as e:
+        return JSONResponse({"ok": False, "error": f"Timeout: {e}"}, status_code=200)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=200)
+
+    if resp.status_code != 200:
+        return JSONResponse({
+            "ok": False,
+            "latency_ms": latency_ms,
+            "error": f"HTTP {resp.status_code}: {resp.text.strip()[:200]}",
+        }, status_code=200)
+
+    # Parse models
+    data = resp.json()
+    items = data.get("data", data) if isinstance(data, dict) else data
+    if not isinstance(items, list):
+        items = []
+    model_count = len(items)
+
+    # Detect OmniRoute
+    headers_obj = resp.headers if hasattr(resp.headers, "get") else SimpleNamespace(get=lambda k, d=None: d)
+    omniroute_version = headers_obj.get("X-OmniRoute-Version")
+    result: dict = {
+        "ok": True,
+        "latency_ms": latency_ms,
+        "model_count": model_count,
+    }
+    if omniroute_version:
+        result["omniroute_version"] = omniroute_version
+    return JSONResponse(result, status_code=200)
 
 
 @router.post("/ebooks/{slug}/settings/translate")

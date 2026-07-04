@@ -725,6 +725,20 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     storage.write_translated_mt(ch, translated)
     warnings = _quality_warnings(raw, translated)
     meta = _build_meta(cfg, ch, translated, warnings)
+    # Capture cost/latency từ OmniRoute (nếu response có header X-OmniRoute-Version).
+    # _run_chat_with_retry_meta đã cộng dồn cost/tokens/latency vào _last_chapter_meta.
+    if hasattr(translator, "drain_last_meta"):
+        omni_meta = translator.drain_last_meta()
+        if omni_meta:
+            meta["omniroute"] = omni_meta
+            log(
+                f"[dịch]   ({i}/{total}) 💰 "
+                f"${omni_meta.get('cost_usd', 0):.4f} · "
+                f"{omni_meta.get('tokens_in', 0)}+{omni_meta.get('tokens_out', 0)} tokens · "
+                f"{omni_meta.get('actual_model', '?')} · "
+                f"{omni_meta.get('latency_ms', 0)}ms"
+                + (" · cache HIT" if omni_meta.get("cache_hit") else "")
+            )
     meta["complete"] = True
     # File đã được _on_chunk ghi từng phần rồi; chỉ cần đánh dấu complete.
     storage.mark_translated_complete(ch, meta_extra=meta)
@@ -957,8 +971,88 @@ def step_translate_selected(
                 summary_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
                 log(f"[dịch] Auto-glossary: {len(conflicts)} xung đột — xem {summary_path.name}")
 
+    # OmniRoute cost summary: aggregate từ meta.omniroute của các chương vừa dịch.
+    _write_omniroute_cost_summary(storage, to_translate, log)
+
     log(f"[dịch] Hoàn tất. Đã dịch {translated_count} chương, bỏ qua {skipped}, lỗi {failed}, ghi đè {replaced}.")
     return manifest
+
+
+def _write_omniroute_cost_summary(
+    storage: Storage,
+    chapters: list[Chapter],
+    log: LogFn,
+) -> None:
+    """Gom meta.omniroute của tất cả chương → ghi _cost_summary.json cho UI.
+
+    Chỉ ghi khi có ít nhất 1 chương có meta.omniroute (response từ OmniRoute).
+    Trường hợp provider khác (OpenAI, OpenRouter) thì skip yên lặng.
+    """
+    total_cost = 0.0
+    total_cost_saved = 0.0
+    total_tokens_in = 0
+    total_tokens_out = 0
+    total_cache_hits = 0
+    total_latency_ms = 0
+    by_model: dict[str, dict] = {}
+    version = ""
+    chapter_count = 0
+
+    for ch in chapters:
+        if not storage.has_meta(ch):
+            continue
+        try:
+            meta = json.loads(storage.meta_path(ch).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        omni = meta.get("omniroute")
+        if not omni or not isinstance(omni, dict):
+            continue
+        chapter_count += 1
+        total_cost += float(omni.get("cost_usd", 0) or 0)
+        total_cost_saved += float(omni.get("cost_saved_usd", 0) or 0)
+        total_tokens_in += int(omni.get("tokens_in", 0) or 0)
+        total_tokens_out += int(omni.get("tokens_out", 0) or 0)
+        total_cache_hits += int(omni.get("cache_hits", 0) or 0)
+        total_latency_ms += int(omni.get("latency_ms", 0) or 0)
+        version = omni.get("version", version) or version
+        model_key = omni.get("actual_model") or "unknown"
+        m = by_model.setdefault(model_key, {
+            "cost_usd": 0.0,
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "chapters": 0,
+            "cache_hits": 0,
+        })
+        m["cost_usd"] += float(omni.get("cost_usd", 0) or 0)
+        m["tokens_in"] += int(omni.get("tokens_in", 0) or 0)
+        m["tokens_out"] += int(omni.get("tokens_out", 0) or 0)
+        m["chapters"] += 1
+        if omni.get("cache_hit"):
+            m["cache_hits"] += 1
+
+    if chapter_count == 0:
+        return
+
+    summary = {
+        "version": version,
+        "chapter_count": chapter_count,
+        "total_cost_usd": round(total_cost, 10),
+        "total_cost_saved_usd": round(total_cost_saved, 10),
+        "total_tokens_in": total_tokens_in,
+        "total_tokens_out": total_tokens_out,
+        "total_cache_hits": total_cache_hits,
+        "total_latency_ms": total_latency_ms,
+        "by_model": {k: {**v, "cost_usd": round(v["cost_usd"], 10)} for k, v in by_model.items()},
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    summary_path = storage.root / "translation_meta" / "_cost_summary.json"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(
+        f"[dịch] OmniRoute tổng: ${total_cost:.4f} · {total_tokens_in}+{total_tokens_out} tokens · "
+        f"{total_cache_hits} cache hits · {chapter_count} chương · {version or '?'}"
+    )
 
 
 def step_translate_toc_selected(

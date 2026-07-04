@@ -132,6 +132,27 @@
     </div>
 </div>
 
+{% if cost_summary and cost_summary.chapter_count %}
+<div class="mt-2 mb-3 px-3 py-2 rounded-md bg-surface-alt-light dark:bg-surface-alt-dark border border-border-light dark:border-border-dark text-sm">
+    <strong>OmniRoute cost:</strong>
+    <strong class="text-amber-700 dark:text-amber-300">${{ "%.4f"|format(cost_summary.total_cost_usd or 0) }}</strong>
+    {%- if cost_summary.total_cost_saved_usd %} (tiết kiệm ${{ "%.4f"|format(cost_summary.total_cost_saved_usd) }} từ cache){% endif %}
+    · {{ cost_summary.chapter_count }} chương
+    · {{ cost_summary.total_tokens_in or 0 }}+{{ cost_summary.total_tokens_out or 0 }} tokens
+    {%- if cost_summary.total_cache_hits %} · <span class="inline-flex items-center px-1.5 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">{{ cost_summary.total_cache_hits }} cache hits</span>{% endif %}
+    {%- if cost_summary.version %} · v{{ cost_summary.version }}{% endif %}
+    {%- if cost_summary.by_model %}
+    <details class="mt-1"><summary class="cursor-pointer text-xs text-muted-light dark:text-muted-dark">Theo model</summary>
+        <ul class="m-0 pl-4 text-xs">
+        {%- for model, stats in cost_summary.by_model.items() %}
+            <li><code class="text-xs">{{ model }}</code>: ${{ "%.4f"|format(stats.cost_usd or 0) }} · {{ stats.chapters or 0 }} chương{% if stats.cache_hits %} · {{ stats.cache_hits }} cache hits{% endif %}</li>
+        {%- endfor %}
+        </ul>
+    </details>
+    {%- endif %}
+</div>
+{% endif %}
+
 <div class="toc-actions">
     <form method="post" action="/ebooks/{{ slug }}/jobs/fetch-toc" class="inline-form" data-job-category="crawl">
         <input type="hidden" name="force" value="true">

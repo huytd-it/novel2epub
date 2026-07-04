@@ -7,10 +7,11 @@ from novel2epub.config import OpenAIConfig, TranslateConfig, GlossaryFilesConfig
 
 
 class _FakeResponse:
-    def __init__(self, status_code=200, json_data=None, text=""):
+    def __init__(self, status_code=200, json_data=None, text="", headers=None):
         self.status_code = status_code
         self._json_data = json_data or {}
         self.text = text
+        self.headers = headers or {}
 
     def json(self):
         return self._json_data
@@ -147,7 +148,7 @@ def test_go_preset_chapter_translation_uses_openai(monkeypatch):
         captured["model"] = cfg_.model
         return "Bản dịch tiếng Việt."
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     translator = make_translator(cfg)
     result = translator.translate("你好世界")
     assert result == "Bản dịch tiếng Việt."
@@ -174,7 +175,7 @@ def test_translate_retries_when_output_has_residual_chinese(monkeypatch):
             return "Xin chào 世界"
         return "Xin chào thế giới"
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     translator = make_translator(cfg)
     result = translator.translate("你好世界")
     assert result == "Xin chào thế giới"
@@ -199,7 +200,7 @@ def test_translate_stops_retrying_when_chinese_does_not_improve(monkeypatch):
         calls.append(prompt)
         return "Xin chào 世界"
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     translator = make_translator(cfg)
     result = translator.translate("你好世界")
     assert result == "Xin chào 世界"
@@ -249,7 +250,7 @@ def test_translate_raises_when_ai_call_fails(monkeypatch):
     def _mock_run_chat(cfg_, prompt):
         raise RuntimeError("AI trả về mã lỗi HTTP 401")
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     translator = make_translator(cfg)
     with pytest.raises(RuntimeError, match="401"):
         translator.translate("test")

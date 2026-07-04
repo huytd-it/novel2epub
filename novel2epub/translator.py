@@ -202,6 +202,7 @@ class OpenAITranslator:
         self.log = log or (lambda _: None)
         self._glossary_lock = threading.Lock()
         self._auto_glossary_conflicts: list[dict] = []
+        self._last_chapter_meta: dict[str, Any] = {}
 
     def extend_glossary(
         self,
@@ -313,22 +314,80 @@ class OpenAITranslator:
         assert last_error is not None
         raise last_error
 
+    def _run_chat_with_retry_meta(
+        self, prompt: str
+    ) -> tuple[str, dict[str, Any]]:
+        """Giống `_run_chat_with_retry` nhưng trả `(content, meta)` để capture
+        OmniRoute cost/tokens/latency headers. Vẫn raise sau khi hết retry.
+
+        Backward compat: nếu `openai_client.run_chat` được mock nhưng
+        `run_chat_with_meta` thì không (test cũ), nhận về str → wrap thành
+        (str, {}). Ngược lại, nếu cả 2 đều mock thì dùng `run_chat_with_meta`.
+        """
+        attempts = max(1, int(self.cfg.retry.attempts))
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                result = openai_client.run_chat_with_meta(self.openai, prompt)
+                if isinstance(result, tuple) and len(result) == 2:
+                    return result  # type: ignore[return-value]
+                # Mock chỉ trả str (tương thích test cũ) → wrap meta rỗng
+                return result, {}  # type: ignore[return-value]
+            except RuntimeError as e:
+                last_error = e
+
+            if attempt < attempts and self.cfg.retry.delay_seconds > 0:
+                time.sleep(self.cfg.retry.delay_seconds)
+
+        assert last_error is not None
+        raise last_error
+
+    def _merge_meta(self, target: dict[str, Any], src: dict[str, Any]) -> None:
+        """Cộng dồn cost/tokens/latency từ `src` vào `target` (in-place)."""
+        if not src:
+            return
+        for k in ("cost_usd", "cost_saved_usd", "tokens_in", "tokens_out", "latency_ms"):
+            if k in src:
+                target[k] = target.get(k, 0) + src[k]
+        for k in ("version", "actual_model", "provider", "request_id"):
+            if k in src:
+                target.setdefault(k, src[k])
+        if src.get("cache_hit"):
+            target["cache_hits"] = target.get("cache_hits", 0) + 1
+
+    def drain_last_meta(self) -> dict[str, Any]:
+        """Lấy và reset cost/latency metadata của chapter vừa dịch (gọi 1 lần
+        cuối job hoặc sau mỗi chương). Trả dict trống nếu response không từ
+        OmniRoute hoặc chapter rỗng."""
+        with self._glossary_lock:
+            out = self._last_chapter_meta
+            self._last_chapter_meta = {}
+            return dict(out)
+
     def _translate_chunk(
         self,
         chunk_text: str,
         glossary_accumulator: list[dict] | None = None,
+        meta_accumulator: dict[str, Any] | None = None,
     ) -> str:
         """Dịch một đoạn và thử lại nếu kết quả còn sót chữ Hán chưa dịch.
         Nếu glossary_accumulator được truyền, các entry glossary trích từ response
-        AI được append vào đó."""
-        out = self._run_chat_with_retry(self._build_prompt(chunk_text))
+        AI được append vào đó. Nếu meta_accumulator được truyền, cost/tokens/latency
+        từ response (OmniRoute) được cộng dồn vào đó."""
+        out, meta = self._run_chat_with_retry_meta(self._build_prompt(chunk_text))
+        if meta_accumulator is not None:
+            self._merge_meta(meta_accumulator, meta)
         translation_text, glossary_entries = self._split_response(out)
         cleaned = _clean_output(translation_text)
         for _ in range(_RESIDUAL_HAN_RETRIES):
             residual = len(_HAN_RE.findall(cleaned))
             if residual == 0:
                 break
-            out = self._run_chat_with_retry(self._build_fixup_prompt(chunk_text))
+            out, fixup_meta = self._run_chat_with_retry_meta(
+                self._build_fixup_prompt(chunk_text)
+            )
+            if meta_accumulator is not None:
+                self._merge_meta(meta_accumulator, fixup_meta)
             fixup_text, fixup_glossary = self._split_response(out)
             retried = _clean_output(fixup_text)
             if len(_HAN_RE.findall(retried)) < residual:
@@ -351,11 +410,14 @@ class OpenAITranslator:
             return text
         max_chars = self.cfg.chunk.max_chars or self.DEFAULT_MAX_CHARS
         glossary_accum: list[dict] = []
+        meta_accum: dict[str, Any] = {}
         if len(text) <= max_chars:
-            cleaned = self._translate_chunk(text, glossary_accum)
+            cleaned = self._translate_chunk(text, glossary_accum, meta_accum)
             if on_chunk is not None:
                 on_chunk(1, 1, cleaned, True)
             _fire_glossary(on_glossary, glossary_accum)
+            with self._glossary_lock:
+                self._last_chapter_meta = meta_accum
             return _apply_glossary(cleaned, self.glossary)
 
         overlap = max(0, self.cfg.chunk.overlap_paragraphs)
@@ -366,7 +428,7 @@ class OpenAITranslator:
         for i, chunk_paragraphs in enumerate(chunks):
             chunk_text = "\n".join(chunk_paragraphs)
             self.log(f"  … đoạn {i+1}/{total} ({len(chunk_text)} ký tự)")
-            cleaned = self._translate_chunk(chunk_text, glossary_accum)
+            cleaned = self._translate_chunk(chunk_text, glossary_accum, meta_accum)
             if i > 0 and overlap > 0:
                 lines = cleaned.split("\n")
                 cleaned = "\n".join(lines[overlap:]) if len(lines) > overlap else cleaned
@@ -374,6 +436,8 @@ class OpenAITranslator:
             if on_chunk is not None:
                 on_chunk(i + 1, total, cleaned, i + 1 == total)
         _fire_glossary(on_glossary, glossary_accum)
+        with self._glossary_lock:
+            self._last_chapter_meta = meta_accum
         return _apply_glossary("\n".join(pieces), self.glossary)
 
     def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:

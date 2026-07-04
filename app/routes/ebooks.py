@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -181,6 +182,14 @@ def ebook_home(
     crawl_problems = crawl_problem_indexes(manifest.chapters, storage) if manifest else []
     all_chapters = _chapter_rows(cfg)
     chapters_json = [dataclasses.asdict(r) for r in all_chapters]
+    # Đọc OmniRoute cost summary nếu có (translation_meta/_cost_summary.json).
+    cost_summary: dict | None = None
+    cost_summary_path = storage.root / "translation_meta" / "_cost_summary.json"
+    if cost_summary_path.exists():
+        try:
+            cost_summary = json.loads(cost_summary_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            cost_summary = None
     return deps.templates.TemplateResponse(
         request,
         "ebook.html",
@@ -205,5 +214,6 @@ def ebook_home(
             "epub_path": str(epub_path),
             "epub_size": epub_path.stat().st_size if epub_path.exists() else None,
             "job": request.app.state.job.status(),
+            "cost_summary": cost_summary,
         },
     )

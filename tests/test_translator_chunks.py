@@ -25,7 +25,7 @@ def _openai_cfg(
 
 def test_on_chunk_called_once_for_short_text(monkeypatch):
     monkeypatch.setattr(
-        "novel2epub.translator.openai_client.run_chat",
+        "novel2epub.translator.openai_client.run_chat_with_meta",
         lambda cfg, prompt: "Xin chào thế giới",
     )
     translator = make_translator(_openai_cfg())
@@ -49,7 +49,7 @@ def test_on_chunk_called_per_chunk_in_order(monkeypatch):
     def _mock_run_chat(cfg_, prompt):
         return next(responses)
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     translator = make_translator(cfg)
 
     calls: list[tuple[int, int, str, bool]] = []
@@ -71,7 +71,7 @@ def test_on_chunk_called_per_chunk_in_order(monkeypatch):
 def test_on_chunk_can_be_omitted(monkeypatch):
     """Backward compat: gọi không truyền on_chunk vẫn hoạt động như cũ."""
     monkeypatch.setattr(
-        "novel2epub.translator.openai_client.run_chat",
+        "novel2epub.translator.openai_client.run_chat_with_meta",
         lambda cfg, prompt: "Xin chào",
     )
     translator = make_translator(_openai_cfg())
@@ -85,7 +85,7 @@ def test_callback_exception_propagates_and_aborts(monkeypatch):
     def _mock_run_chat(cfg_, prompt):
         return next(responses)
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     cfg = _openai_cfg(max_chars=10, overlap=0)
     translator = make_translator(cfg)
 
@@ -103,7 +103,7 @@ def test_callback_exception_propagates_and_aborts(monkeypatch):
 def test_callback_for_short_text_called_with_is_final_true(monkeypatch):
     """Văn bản ngắn (1 chunk) vẫn phải gọi callback với is_final=True."""
     monkeypatch.setattr(
-        "novel2epub.translator.openai_client.run_chat",
+        "novel2epub.translator.openai_client.run_chat_with_meta",
         lambda cfg, prompt: "OK",
     )
     cfg = _openai_cfg(max_chars=6000)

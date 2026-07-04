@@ -85,7 +85,7 @@
         <p class="text-sm text-muted-light dark:text-muted-dark mt-1">Library: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ library_path }}</code> · Config mặc định: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ config_path }}</code></p>
     </div>
     <div class="inline-flex gap-1.5 items-center flex-wrap">
-        <button type="button" id="add-ebook-btn" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">+ Thêm ebook</button>
+        <button type="button" id="add-ebook-btn" data-ebook-count="{{ ebooks|length }}" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">+ Thêm ebook</button>
         <button type="button" id="import-config-btn" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhập config</button>
     </div>
 </div>
@@ -224,9 +224,24 @@
         <form method="post" action="/library/ebooks" id="create-form">
             <input type="hidden" name="name" id="name">
             <input type="hidden" name="author" id="author">
+            <input type="hidden" name="description" id="description">
             <input type="hidden" name="toc_url" id="toc_url">
 
             <div class="step-panel" data-step="1">
+                <fieldset>
+                    <legend>Thông tin tiểu thuyết</legend>
+                    <div class="flex flex-col gap-3">
+                        <label class="full flex flex-col gap-1 text-sm">Tên
+                            <input type="text" id="title_input" placeholder="Nhập tên tiểu thuyết..." autocomplete="off" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+                        </label>
+                        <label class="full flex flex-col gap-1 text-sm">Tác giả
+                            <input type="text" id="author_input" placeholder="Nhập tên tác giả..." autocomplete="off" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+                        </label>
+                        <label class="full flex flex-col gap-1 text-sm">Mô tả
+                            <textarea id="desc_input" rows="3" placeholder="Nhập mô tả..." class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></textarea>
+                        </label>
+                    </div>
+                </fieldset>
                 <fieldset>
                     <legend>Nhập link mục lục truyện</legend>
                     <div class="flex flex-wrap gap-4 items-end">
@@ -399,6 +414,7 @@ function escapeHtml(text) {
 document.addEventListener("DOMContentLoaded", function () {
     var nameEl = document.getElementById("name");
     var authorEl = document.getElementById("author");
+    var descriptionEl = document.getElementById("description");
     var slugEl = document.getElementById("slug");
     var tocUrlEl = document.getElementById("toc_url");
     var tocUrlDisplay = document.getElementById("toc_url_display");
@@ -408,6 +424,9 @@ document.addEventListener("DOMContentLoaded", function () {
     var previewBox = document.getElementById("preview-box");
     var previewPlaceholder = document.getElementById("preview-placeholder");
     var form = document.getElementById("create-form");
+    var titleInput = document.getElementById("title_input");
+    var authorInput = document.getElementById("author_input");
+    var descInput = document.getElementById("desc_input");
 
     function goToStep(step) {
         document.querySelectorAll('.step-panel').forEach(function (el) {
@@ -426,7 +445,14 @@ document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll('.step-next').forEach(function (btn) {
         btn.addEventListener('click', function () {
             goToStep(parseInt(btn.dataset.goto, 10));
-            if (nameEl.value) previewBox.style.display = "";
+            if (nameEl.value) {
+                fillCell('pv-title', nameEl.value);
+                fillCell('pv-author', authorEl.value);
+                fillCell('pv-desc', descriptionEl.value);
+                var descEl = document.getElementById('pv-desc');
+                if (descEl) descEl.classList.toggle('pv-desc-truncate', (descriptionEl.value || '').length > 120);
+                previewBox.style.display = "";
+            }
         });
     });
     document.querySelectorAll('.step-back').forEach(function (btn) {
@@ -439,10 +465,17 @@ document.addEventListener("DOMContentLoaded", function () {
         form.reset();
         nameEl.value = '';
         authorEl.value = '';
+        descriptionEl.value = '';
         slugEl.value = '';
+        titleInput.value = '';
+        authorInput.value = '';
+        descInput.value = '';
         fetchStatus.textContent = '';
         previewPlaceholder.style.display = '';
         previewBox.style.display = 'none';
+        var nextNum = parseInt(this.dataset.ebookCount || 0) + 1;
+        slugEl.dataset.userEdited = "";
+        slugEl.value = "truyen-" + nextNum;
         goToStep(1);
         openModal('add-ebook-modal');
     });
@@ -451,7 +484,23 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     slugEl.addEventListener("input", function () {
-        slugEl.dataset.userEdited = slugEl.value !== slugify(nameEl.value);
+        var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
+        var autoSlug = (slugify(titleInput.value) || "truyen") + "-" + n;
+        slugEl.dataset.userEdited = slugEl.value !== autoSlug;
+    });
+
+    titleInput.addEventListener("input", function () {
+        nameEl.value = titleInput.value;
+        if (!slugEl.dataset.userEdited) {
+            var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
+            slugEl.value = (slugify(titleInput.value) || "truyen") + "-" + n;
+        }
+    });
+    authorInput.addEventListener("input", function () {
+        authorEl.value = authorInput.value;
+    });
+    descInput.addEventListener("input", function () {
+        descriptionEl.value = descInput.value;
     });
 
     function resetPreview() {
@@ -497,8 +546,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
 
                 nameEl.value = data.name || "";
+                titleInput.value = nameEl.value;
                 authorEl.value = data.author || "";
-                if (!slugEl.dataset.userEdited) slugEl.value = data.slug || "";
+                authorInput.value = authorEl.value;
+                descriptionEl.value = data.description || "";
+                descInput.value = descriptionEl.value;
+                if (!slugEl.dataset.userEdited) {
+                    var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
+                    slugEl.value = (data.slug || "truyen") + "-" + n;
+                }
 
                 fillCell('pv-title', data.name || "");
                 fillCell('pv-author', data.author || "");
@@ -753,9 +809,14 @@ document.addEventListener("DOMContentLoaded", function () {
         tocUrlEl.value = result.url;
         tocUrlDisplay.value = result.url;
         nameEl.value = result.title || "";
+        titleInput.value = nameEl.value;
         authorEl.value = result.author || "";
+        authorInput.value = authorEl.value;
+        descriptionEl.value = result.description || "";
+        descInput.value = descriptionEl.value;
         slugEl.dataset.userEdited = "";
-        slugEl.value = slugify(result.title || "");
+        var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
+        slugEl.value = (slugify(result.title || "") || "truyen") + "-" + n;
 
         fillCell('pv-title', result.title || "");
         fillCell('pv-author', result.author || "");

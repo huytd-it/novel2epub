@@ -64,6 +64,10 @@ defaults:
     # Khi True + type=openai: tự sinh glossary từ mỗi chương sau khi dịch,
     # merge vào names.txt/vietphrase.txt (xung đột giữ giá trị cũ + cảnh báo).
     auto_glossary: false
+    # Preset: "go" (mặc định OpenCode Go) | "omniroute" (OmniRoute gateway —
+    # 237 providers qua 1 endpoint, tự capture cost/tokens/latency từ
+    # X-OmniRoute-* headers nếu response từ OmniRoute).
+    preset: ""
     openai:
       base_url: "https://opencode.ai/zen/go/v1"
       api_key: ""
@@ -82,6 +86,29 @@ defaults:
     #   api_key: ""
     #   source_language: "zh"
     #   target_language: "vi"
+
+    # ---- OmniRoute gateway ----
+    # Khi preset=omniroute, trỏ base_url vào OmniRoute (mặc định chạy local
+    # ở cổng 20128) — 237 providers (90+ free) qua 1 endpoint duy nhất.
+    # Tự động capture cost/tokens/latency từ X-OmniRoute-* headers (chỉ áp
+    # dụng khi response thực sự từ OmniRoute; provider thường → meta rỗng).
+    #
+    # Cài OmniRoute:
+    #   docker run -d -p 20128:20128 diegosouzapw/omniroute
+    #   # hoặc: npm i -g omniroute && omniroute
+    #
+    # Ví dụ config ebook:
+    #   vi-du-truyen:
+    #     translate:
+    #       type: openai
+    #       preset: omniroute
+    #       openai:
+    #         base_url: "http://localhost:20128/v1"
+    #         api_key: "sk-..."  # API key từ OmniRoute dashboard
+    #         model: "auto"  # hoặc model id cụ thể như "cc/claude-opus-4-6"
+    #         timeout_seconds: 300
+    #
+    # Xem chi tiết: https://github.com/diegosouzapw/OmniRoute
 
   output:
     data_dir: data

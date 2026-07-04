@@ -15,10 +15,7 @@
 <div id="glossary-tabs">
     <div class="tab-bar flex border-b-2 border-border-light dark:border-border-dark mb-3 overflow-x-auto">
         <button class="active px-4 py-2 text-sm border-b-2 border-link-light dark:border-link-dark -mb-0.5 text-link-light dark:text-link-dark font-semibold" data-tab="tab-edit" onclick="switchTab('glossary-tabs', 'tab-edit')">Soạn thảo</button>
-        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-suggest" onclick="switchTab('glossary-tabs', 'tab-suggest')">AI gợi ý</button>
-        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-evaluate" onclick="switchTab('glossary-tabs', 'tab-evaluate')">AI đánh giá</button>
         <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-findreplace" onclick="switchTab('glossary-tabs', 'tab-findreplace')">Tìm &amp; thay thế</button>
-        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-rewrite" onclick="switchTab('glossary-tabs', 'tab-rewrite')">AI rewrite</button>
     </div>
 
     <div id="tab-edit" class="tab-content active">
@@ -37,84 +34,6 @@
         </form>
     </div>
 
-    <div id="tab-suggest" class="tab-content hidden">
-        <div class="flex items-baseline justify-between gap-4 mb-1">
-            <h3 class="text-base font-semibold m-0">AI gợi ý glossary</h3>
-        </div>
-        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">Phân tích bản gốc + bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần), chỉ đưa gợi ý — bạn tự duyệt trước khi lưu.</p>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/suggest" class="flex flex-wrap gap-4 items-end my-3">
-            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="{{ chapter_from or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="{{ chapter_to or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <button type="submit" class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">AI phân tích</button>
-        </form>
-
-        {% if suggest_error %}<p class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">{{ suggest_error }}</p>{% endif %}
-
-        {% if suggestions %}
-        <form method="post" action="/ebooks/{{ slug }}/glossary/apply">
-            <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
-            <table class="w-full text-sm">
-                <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Nguồn (Trung)</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Đề xuất (Việt)</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Loại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lý do</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">File đích</th></tr></thead>
-                <tbody>
-                {% for s in suggestions %}
-                <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" name="selected_{{ loop.index0 }}" checked></td>
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.source }}<input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.type }}</td>
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark text-muted-light dark:text-muted-dark text-xs">{{ s.reason }}</td>
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.target_file }}<input type="hidden" name="target_file_{{ loop.index0 }}" value="{{ s.target_file }}"></td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-            </div>
-            <p class="mt-2"><button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Lưu các mục đã chọn vào glossary</button></p>
-        </form>
-        {% endif %}
-    </div>
-
-    <div id="tab-evaluate" class="tab-content hidden">
-        <div class="flex items-baseline justify-between gap-4 mb-1">
-            <h3 class="text-base font-semibold m-0">AI đánh giá bản dịch (chỉ xem)</h3>
-        </div>
-        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">AI đọc glossary + bản gốc/bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần) rồi chấm điểm và liệt kê vấn đề (glossary chưa nhất quán, dịch sai/khô, dùng sai thuật ngữ). <strong>Chỉ là báo cáo</strong> — không sửa file, không ghi đè gì.</p>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/evaluate" class="flex flex-wrap gap-4 items-end my-3">
-            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="{{ eval_chapter_from or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="{{ eval_chapter_to or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <button type="submit" class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">AI đánh giá</button>
-        </form>
-
-        {% if evaluate_error %}<p class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">{{ evaluate_error }}</p>{% endif %}
-
-        {% if report %}
-        {% if report.score is not none %}<p><strong>Điểm:</strong> {{ report.score }}/10</p>{% endif %}
-        {% if report.summary %}<p><strong>Nhận xét:</strong> {{ report.summary }}</p>{% endif %}
-        {% if report.issues %}
-        <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
-        <table class="w-full text-sm">
-            <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Mức độ</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Loại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Chương</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Nguồn</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Hiện tại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Đề xuất</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lý do</th></tr></thead>
-            <tbody>
-            {% for it in report.issues %}
-            <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.severity }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.category }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.chapter }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.source }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.current }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.suggestion }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark text-muted-light dark:text-muted-dark text-xs">{{ it.reason }}</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        </div>
-        {% elif not evaluate_error %}
-        <p class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Không phát hiện vấn đề nào.</p>
-        {% endif %}
-        {% endif %}
-    </div>
-
     <div id="tab-findreplace" class="tab-content hidden">
         <div class="flex items-baseline justify-between gap-4 mb-1">
             <h3 class="text-base font-semibold m-0">Tìm &amp; thay thế toàn novel (literal, không AI)</h3>
@@ -130,17 +49,6 @@
         </form>
     </div>
 
-    <div id="tab-rewrite" class="tab-content hidden">
-        <div class="flex items-baseline justify-between gap-4 mb-1">
-            <h3 class="text-base font-semibold m-0">AI rewrite chương (ghi đè bản dịch)</h3>
-        </div>
-        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">AI sẽ biên tập lại toàn bộ bản dịch trong phạm vi đã chọn theo glossary + nguyên tắc "edit hay" (dùng từ đồng nghĩa linh hoạt, câu tự nhiên, tên chương hay hơn...). <strong>Đây là hành động ghi đè trực tiếp</strong> — bản trước khi rewrite được lưu lại trong meta của từng chương, nhưng nên backup/commit trước khi chạy trên phạm vi lớn.</p>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/rewrite" class="flex flex-wrap gap-4 items-end my-3">
-            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="1" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="1" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed">AI rewrite</button>
-        </form>
-    </div>
 </div>
 
 <style>
@@ -167,7 +75,7 @@ function isTranslateBusyHere(data) {
 
 function setJobButtonsDisabled(disabled) {
     const jobButtons = document.querySelectorAll(
-        'form[action*="/rewrite"] button, form[action*="/find-replace"] button, form[action*="/jobs/"] button, form[action*="/action"] button'
+        'form[action*="/find-replace"] button, form[action*="/jobs/"] button, form[action*="/action"] button'
     );
     for (const btn of jobButtons) {
         btn.disabled = disabled;
@@ -178,7 +86,7 @@ document.addEventListener("submit", async function(event) {
     const form = event.target;
     const action = form.getAttribute("action") || "";
 
-    if (action.includes("/rewrite") || action.includes("/find-replace") || action.includes("/jobs/") || action.includes("/action")) {
+    if (action.includes("/find-replace") || action.includes("/jobs/") || action.includes("/action")) {
         event.preventDefault();
 
         setJobButtonsDisabled(true);

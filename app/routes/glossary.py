@@ -1,4 +1,4 @@
-"""Trang quản lý glossary: CRUD thủ công + AI gợi ý + AI rewrite chương."""
+"""Trang quản lý glossary: CRUD thủ công."""
 from __future__ import annotations
 
 import json
@@ -6,16 +6,13 @@ import json
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from novel2epub import glossary_ai
-from novel2epub.pipeline import step_find_replace, step_rewrite_chapters
+from novel2epub.pipeline import step_find_replace
 from novel2epub.storage import Storage
 
 from .. import deps
 
 router = APIRouter()
 
-_MAX_SUGGEST_CHAPTERS = 5
-_MAX_EVALUATE_CHAPTERS = 5
 _GLOSSARY_FILES = ("names.txt", "vietphrase.txt")
 
 
@@ -63,7 +60,6 @@ def ebook_glossary(request: Request, slug: str):
             "slug": slug,
             "names": names.read_text(encoding="utf-8") if names.exists() else "",
             "vietphrase": vietphrase.read_text(encoding="utf-8") if vietphrase.exists() else "",
-            "suggestions": [],
             "job": request.app.state.job.status(),
             "conflicts_count": _conflicts_count(storage),
         },
@@ -76,125 +72,6 @@ def ebook_glossary_save(slug: str, names: str = Form(""), vietphrase: str = Form
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     storage.write_glossary_file("names.txt", names)
     storage.write_glossary_file("vietphrase.txt", vietphrase)
-    return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)
-
-
-@router.post("/ebooks/{slug}/glossary/suggest")
-def ebook_glossary_suggest(
-    request: Request, slug: str, chapter_from: int = Form(...), chapter_to: int = Form(...)
-):
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    names = storage.glossary_path("names.txt")
-    vietphrase = storage.glossary_path("vietphrase.txt")
-    error = ""
-    suggestions: list[dict] = []
-
-    if manifest is None:
-        error = "Chưa có manifest — hãy crawl trước."
-    else:
-        selected = [c for c in manifest.chapters if chapter_from <= c.index <= chapter_to]
-        if len(selected) > _MAX_SUGGEST_CHAPTERS:
-            error = f"Chỉ phân tích tối đa {_MAX_SUGGEST_CHAPTERS} chương/lần — hãy chọn phạm vi hẹp hơn."
-        else:
-            chapters_text = [
-                (
-                    storage.read_raw(c) if storage.has_raw(c) else "",
-                    storage.read_translated(c) if storage.has_translated(c) else "",
-                )
-                for c in selected
-            ]
-            existing = glossary_ai.load_glossary(cfg.translate)
-            suggestions = glossary_ai.suggest_glossary(cfg.ai.openai, chapters_text, existing)
-            if not suggestions:
-                error = "AI không đề xuất được gì (hoặc gọi CLI lỗi) — kiểm tra log server."
-
-    return deps.templates.TemplateResponse(
-        request,
-        "glossary.html",
-        {
-            "slug": slug,
-            "names": names.read_text(encoding="utf-8") if names.exists() else "",
-            "vietphrase": vietphrase.read_text(encoding="utf-8") if vietphrase.exists() else "",
-            "suggestions": suggestions,
-            "suggest_error": error,
-            "chapter_from": chapter_from,
-            "chapter_to": chapter_to,
-            "job": request.app.state.job.status(),
-            "conflicts_count": _conflicts_count(storage),
-        },
-    )
-
-
-@router.post("/ebooks/{slug}/glossary/evaluate")
-def ebook_glossary_evaluate(
-    request: Request, slug: str, chapter_from: int = Form(...), chapter_to: int = Form(...)
-):
-    """AI đánh giá glossary + bản dịch của một phạm vi chương — chỉ trả báo cáo
-    (read-only), không sửa file, không áp dụng gì."""
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    names = storage.glossary_path("names.txt")
-    vietphrase = storage.glossary_path("vietphrase.txt")
-    error = ""
-    report: dict | None = None
-
-    if manifest is None:
-        error = "Chưa có manifest — hãy crawl trước."
-    else:
-        selected = [
-            c for c in manifest.chapters if chapter_from <= c.index <= chapter_to and storage.has_translated(c)
-        ]
-        if not selected:
-            error = "Không có chương đã dịch nào trong phạm vi đã chọn."
-        elif len(selected) > _MAX_EVALUATE_CHAPTERS:
-            error = f"Chỉ đánh giá tối đa {_MAX_EVALUATE_CHAPTERS} chương/lần — hãy chọn phạm vi hẹp hơn."
-        else:
-            chapters_text = [
-                (storage.read_raw(c) if storage.has_raw(c) else "", storage.read_translated(c))
-                for c in selected
-            ]
-            glossary = glossary_ai.load_glossary(cfg.translate)
-            report = glossary_ai.evaluate_translation(cfg.ai.openai, chapters_text, glossary)
-            if not report.get("summary") and not report.get("issues"):
-                error = "AI không trả về đánh giá (hoặc gọi CLI lỗi) — kiểm tra log server."
-
-    return deps.templates.TemplateResponse(
-        request,
-        "glossary.html",
-        {
-            "slug": slug,
-            "names": names.read_text(encoding="utf-8") if names.exists() else "",
-            "vietphrase": vietphrase.read_text(encoding="utf-8") if vietphrase.exists() else "",
-            "suggestions": [],
-            "report": report,
-            "evaluate_error": error,
-            "eval_chapter_from": chapter_from,
-            "eval_chapter_to": chapter_to,
-            "job": request.app.state.job.status(),
-            "conflicts_count": _conflicts_count(storage),
-        },
-    )
-
-
-@router.post("/ebooks/{slug}/glossary/apply")
-async def ebook_glossary_apply(slug: str, request: Request):
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    form = await request.form()
-    i = 0
-    while f"source_{i}" in form:
-        if f"selected_{i}" in form:
-            _append_glossary_entry(
-                storage,
-                form.get(f"target_file_{i}", ""),
-                form.get(f"source_{i}", ""),
-                form.get(f"suggested_{i}", ""),
-            )
-        i += 1
-
     return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)
 
 
@@ -242,14 +119,3 @@ def ebook_glossary_find_replace(
     return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)
 
 
-@router.post("/ebooks/{slug}/glossary/rewrite")
-def ebook_glossary_rewrite(request: Request, slug: str, chapter_from: int = Form(...), chapter_to: int = Form(...)):
-    cfg = deps.resolved_cfg(slug)
-
-    def _target(log):
-        step_rewrite_chapters(cfg, log, start=chapter_from, end=chapter_to)
-
-    started = request.app.state.job.start_custom("rewrite_chapters", _target, category="translate")
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
-    return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)

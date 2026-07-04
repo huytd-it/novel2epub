@@ -343,6 +343,9 @@ class Storage:
 
     def write_glossary_file(self, name: str, content: str) -> None:
         self.ensure_dirs()
+        content = content.replace("\r\n", "\n")
+        lines = [ln for ln in content.split("\n") if ln.strip()]
+        content = "\n".join(lines) + "\n"
         self.glossary_path(name).write_text(content, encoding="utf-8")
 
     def append_glossary_line(self, name: str, line: str) -> None:

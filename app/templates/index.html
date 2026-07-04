@@ -157,6 +157,7 @@
             <div class="ebook-card-actions">
                 <div class="action-group">
                     <a class="px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white no-underline hover:bg-link-hover-light dark:hover:bg-link-hover-dark" href="/ebooks/{{ ebook.slug }}">Mở</a>
+                    {% if ebook.translated_count %}<a class="px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white no-underline hover:bg-link-hover-light dark:hover:bg-link-hover-dark" href="/ebooks/{{ ebook.slug }}/read">&#128214; Đọc</a>{% endif %}
                     <a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/settings">Cài đặt</a>
                     <a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/config/export">Export</a>
                     {% if ebook.epub_exists %}<a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/download">EPUB</a>{% endif %}

@@ -43,6 +43,7 @@ class Chapter:
     missing_fields: list[str] = field(default_factory=list)
     duplicate_of: int | None = None
     last_action_status: str = ""
+    skipped: bool = False
 
     @property
     def stem(self) -> str:
@@ -120,6 +121,7 @@ class Storage:
                 missing_fields=list(c.get("missing_fields", []) or []),
                 duplicate_of=c.get("duplicate_of"),
                 last_action_status=c.get("last_action_status", ""),
+                skipped=c.get("skipped", False),
             ))
         # Backward compat: merge _vi fields (old) → title/author/description (new)
         manifest_title = data.get("title", "") or data.get("title_vi", "")

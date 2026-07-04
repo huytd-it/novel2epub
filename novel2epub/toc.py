@@ -24,6 +24,7 @@ class ChapterRow:
     # là text đầy đủ cho title= (hover).
     bientap: str = ""
     bientap_tooltip: str = ""
+    skipped: bool = False
 
     @property
     def has_missing(self) -> bool:
@@ -108,6 +109,7 @@ def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterR
             word_count=word_count,
             bientap=bientap,
             bientap_tooltip=bientap_tooltip,
+            skipped=ch.skipped,
         ))
     return rows
 
@@ -146,6 +148,7 @@ def apply_chapter_query(
     filter_raw: str = "any",
     filter_translated: str = "any",
     filter_missing: str = "any",
+    filter_skipped: str = "no",
 ) -> list[ChapterRow]:
     q = (search or "").strip().lower()
     out = []
@@ -157,6 +160,8 @@ def apply_chapter_query(
         if not _matches_filter(row.has_translated, filter_translated):
             continue
         if not _matches_filter(row.has_missing, filter_missing):
+            continue
+        if not _matches_filter(row.skipped, filter_skipped):
             continue
         out.append(row)
     key = (sort or "source").lower()

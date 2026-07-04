@@ -87,6 +87,7 @@ def start_ebook_chapter_action(
     filter_raw: str = Form("any"),
     filter_translated: str = Form("any"),
     filter_missing: str = Form("any"),
+    filter_skipped: str = Form("no"),
     range_start: str = Form(""),
     range_end: str = Form(""),
     checked_indexes: Annotated[list[int], Form()] = [],
@@ -202,6 +203,21 @@ def start_ebook_build_selected(
         step_build_selected(cfg, log, selected_indexes=checked_indexes)
 
     request.app.state.job.start_custom("build-selected", _target, category="both")
+    return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
+
+
+@router.post("/ebooks/{slug}/jobs/delete-chapters")
+def start_ebook_delete_chapters(request: Request, slug: str):
+    """Xóa toàn bộ danh mục chương khỏi manifest. Giữ nguyên raw, translated,
+    translated_mt, meta — có thể Crawl lại để lấy TOC mới."""
+    cfg = deps.resolved_cfg(slug)
+    from novel2epub.storage import Storage
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    manifest.chapters.clear()
+    storage.save_manifest(manifest)
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 

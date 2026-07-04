@@ -170,6 +170,7 @@ def ebook_home(
     filter_raw: str = "any",
     filter_translated: str = "any",
     filter_missing: str = "any",
+    filter_skipped: str = "no",
 ):
     from novel2epub.toc import crawl_problem_indexes
 
@@ -198,6 +199,7 @@ def ebook_home(
                 "filter_raw": filter_raw,
                 "filter_translated": filter_translated,
                 "filter_missing": filter_missing,
+                "filter_skipped": filter_skipped,
             },
             "epub_exists": epub_path.exists(),
             "epub_path": str(epub_path),

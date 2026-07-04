@@ -424,6 +424,106 @@ def api_ebook_chapter_translated_mt(slug: str, index: int):
     })
 
 
+def _load_chapter_json_or_404(slug: str, index: int):
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
+    return storage, manifest, ch
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/revert-edits")
+def api_ebook_chapter_revert_edits(slug: str, index: int):
+    """Xóa bản biên tập: khôi phục `translated/` về snapshot bản dịch máy.
+
+    Chỉ hoạt động khi chương có snapshot MT thật (không dùng bản fallback —
+    ghi đè translated bằng chính nó là vô nghĩa và gây hiểu lầm đã khôi phục).
+    """
+    storage, _manifest, ch = _load_chapter_json_or_404(slug, index)
+    if not storage.has_translated_mt(ch):
+        raise HTTPException(
+            status_code=400,
+            detail="Chương không có snapshot bản dịch máy để khôi phục.",
+        )
+    storage.write_translated(ch, storage.read_translated_mt(ch))
+    return JSONResponse({"reverted": True})
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/delete-translation")
+def api_ebook_chapter_delete_translation(slug: str, index: int):
+    """Xóa toàn bộ bản dịch của 1 chương (translated + snapshot MT + meta).
+
+    Bản sync cho trang đọc — khác route form `/ebooks/.../delete-translation`
+    (job nền + redirect về editor): xóa vài file là thao tác tức thời, không
+    cần queue.
+    """
+    storage, manifest, ch = _load_chapter_json_or_404(slug, index)
+    storage.delete_translated(ch)
+    if ch.last_action_status:
+        ch.last_action_status = ""
+        storage.save_manifest(manifest)
+    return JSONResponse({"deleted": True})
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/toggle-skip")
+def api_ebook_chapter_toggle_skip(slug: str, index: int):
+    """Bật/tắt trạng thái skipped của 1 chương. Skipped chapters bị ẩn khỏi
+    table mặc định, không bị xoá dữ liệu. Có filter_skipped=yes để xem lại."""
+    storage, manifest, ch = _load_chapter_json_or_404(slug, index)
+    ch.skipped = not ch.skipped
+    storage.save_manifest(manifest)
+    return JSONResponse({"skipped": ch.skipped})
+
+
+@router.post("/api/ebooks/{slug}/batch/clean-raw")
+async def api_batch_clean_raw(slug: str, indexes: str = Form(...)):
+    """Xóa hàng loạt file raw cho các chương đã chọn. Không đụng translated/
+    translated_mt/meta — chỉ xóa raw/*.md để có thể crawl lại."""
+    from pathlib import Path as _Path
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    deleted = 0
+    for ch in manifest.chapters:
+        if ch.index not in index_list:
+            continue
+        p = storage.raw_path(ch)
+        if p.exists():
+            p.unlink()
+            deleted += 1
+    return JSONResponse({"deleted": deleted})
+
+
+@router.post("/api/ebooks/{slug}/batch/update-skip")
+async def api_batch_update_skip(slug: str, indexes: str = Form(...), skip: bool = Form(True)):
+    """Bật (skip=True) hoặc tắt (skip=False) skipped cho hàng loạt chương."""
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    updated = 0
+    for ch in manifest.chapters:
+        if ch.index in index_list and ch.skipped != skip:
+            ch.skipped = skip
+            updated += 1
+    if updated:
+        storage.save_manifest(manifest)
+    return JSONResponse({"updated": updated, "skip": skip})
+
+
 _POLISH_PROMPT = """Bạn là biên tập viên truyện dịch Trung → Việt.
 Hãy BIÊN TẬP LẠI bản dịch Việt sau cho mượt mà, dễ hiểu, tự nhiên hơn.
 Tham khảo bản gốc Trung để hiểu đúng ngữ cảnh và nghĩa.
@@ -559,6 +659,29 @@ async def api_batch_translate_titles(
 
     started = request.app.state.job.start_custom(
         f"batch-translate-titles-{len(index_list)}", _target, category="translate"
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "total": len(index_list)})
+
+
+@router.post("/api/ebooks/{slug}/batch/delete-translation")
+async def api_batch_delete_translation(request: Request, slug: str, indexes: str = Form(...)):
+    """Xóa hàng loạt bản dịch (translated + snapshot MT + meta) cho các chương đã chọn.
+
+    Thao tác phá huỷ — UI phải xác nhận trước khi gọi. Raw KHÔNG bị xoá, có thể
+    dịch lại. Job category=translate để dùng chung khoá với các batch dịch khác.
+    """
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào. Hãy tick checkbox trước.")
+
+    def _target(log):
+        step_delete_translation_selected(cfg, log, selected_indexes=index_list)
+
+    started = request.app.state.job.start_custom(
+        f"batch-delete-translation-{len(index_list)}", _target, category="translate"
     )
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")

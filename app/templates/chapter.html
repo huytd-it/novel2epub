@@ -190,6 +190,11 @@ textarea.jump-flash { outline: 2px solid #d97706; }
     <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/delete-translation">
         <button type="submit" class="bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark border border-border-light dark:border-border-dark">Xóa bản dịch</button>
     </form>
+    <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action">
+        <input type="hidden" name="action" value="cleanup-han">
+        <input type="hidden" name="override" value="true">
+        <button type="submit" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch (cần translate.type=openai).">Làm sạch Hán</button>
+    </form>
     <form method="post" action="{{ base }}/ai/suggest" class="ai-job-form"><button type="submit" title="AI gợi ý tên riêng/thuật ngữ trong chương để thêm vào glossary.">Gợi ý glossary</button></form>
 </div>
 

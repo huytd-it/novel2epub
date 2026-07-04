@@ -152,6 +152,18 @@ class TranslationChunkConfig:
     overlap_paragraphs: int = 0
 
 
+@dataclass
+class CleanupHanConfig:
+    """Cấu hình tự động phát hiện và sửa chữa Hán còn sót sau dịch.
+
+    Kích hoạt: translate.auto_cleanup_han: true
+    """
+    # Số ký tự tối đa gửi AI mỗi lần (0 = không giới hạn).
+    max_chars: int = 8000
+    # Số lần thử lại nếu vẫn còn Hán sau cleanup.
+    retries: int = 1
+
+
 DEFAULT_PROMPT = """Bạn là dịch giả tiểu thuyết mạng Trung Quốc sang tiếng Việt, theo phong cách edit mượt mà mà độc giả Việt quen thuộc.
 
 NGUYÊN TẮC CỐT LÕI — VI PHẠM LÀ LỖI NGHIÊM TRỌNG:
@@ -280,6 +292,10 @@ class TranslateConfig:
     # Chia nhỏ index thành các batch có kích thước tối đa bằng giá trị này.
     # Đặt 1 = dịch tuần tự từng chương (mỗi chương 1 lần gọi AI).
     batch_size: int = 1
+    # Tự động chạy cleanup Hán sau mỗi chương được dịch (chỉ dùng cho openai backend).
+    auto_cleanup_han: bool = False
+    # Cấu hình cleanup Hán.
+    cleanup_han: CleanupHanConfig = field(default_factory=CleanupHanConfig)
 
 
 @dataclass
@@ -532,6 +548,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
                 f"(chọn: {', '.join(LOCAL_MT_MODEL_PRESETS)}). Dùng raw config."
             )
 
+    cleanup_han_raw = _as_dict(translate_raw.pop("cleanup_han", None))
     translate = TranslateConfig(
         type=translate_raw.get("type", "hachimimt"),
         model=translate_model,
@@ -559,6 +576,11 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         libretranslate=LibreTranslateConfig(**libretranslate_raw) if libretranslate_raw else LibreTranslateConfig(),
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
+        auto_cleanup_han=bool(translate_raw.get("auto_cleanup_han", False)),
+        cleanup_han=CleanupHanConfig(
+            max_chars=int(cleanup_han_raw.get("max_chars", CleanupHanConfig.max_chars)),
+            retries=int(cleanup_han_raw.get("retries", CleanupHanConfig.retries)),
+        ),
     )
 
     output = OutputConfig(**(raw.get("output") or {}))

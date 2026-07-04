@@ -10,6 +10,7 @@ import html
 
 from novel2epub import bulk_transfer, footnotes
 from novel2epub.pipeline import (
+    step_cleanup_han_selected,
     step_crawl_selected,
     step_delete_translation_selected,
     step_retranslate_title,
@@ -218,10 +219,12 @@ def ebook_chapter_action(request: Request, slug: str, index: int, action: str = 
             step_crawl_selected(cfg, log, force=override, selected_indexes=[index])
         elif action == "translate":
             step_translate_selected(cfg, log, force=override, selected_indexes=[index])
+        elif action == "cleanup-han":
+            step_cleanup_han_selected(cfg, log, force=override, selected_indexes=[index])
         else:
             raise ValueError(f"action không hợp lệ: {action!r}")
 
-    started = request.app.state.job.start_custom(f"chapter-{action}", _target, category=action)
+    started = request.app.state.job.start_custom(f"chapter-{action}", _target, category="translate")
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)

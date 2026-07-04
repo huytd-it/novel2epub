@@ -10,6 +10,7 @@ from .config import load_config, load_library, CrawlConfig
 from .pipeline import (
     run_all,
     step_build,
+    step_cleanup_han_selected,
     step_crawl,
     step_crawl_selected,
     step_evaluate_translation,
@@ -118,6 +119,16 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("reindex", help="Đánh lại index theo thứ tự chapters trong manifest")
     sub.add_parser("build", help="Đóng gói EPUB từ các chương đã dịch")
     sub.add_parser("run", help="Chạy toàn bộ: crawl -> translate -> build")
+    cleanup_parser = sub.add_parser("cleanup-han", help="Phát hiện và sửa chữ Hán còn sót trong bản dịch (chỉ openai)")
+    cleanup_parser.add_argument("--force", action="store_true", help="Chạy lại dù chương đã được cleanup trước đó")
+    cleanup_parser.add_argument("--chapter", type=int, default=None, help="Cleanup một chương cụ thể")
+    cleanup_parser.add_argument("--from", dest="start", type=int, default=None, help="Cleanup từ chương số")
+    cleanup_parser.add_argument("--to", dest="end", type=int, default=None, help="Cleanup đến chương số")
+    cleanup_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Sắp xếp danh sách chương trước khi chọn range")
+    cleanup_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort danh sách chương")
+    cleanup_parser.add_argument("--search", default="", help="Tìm trong tiêu đề hiển thị hoặc URL chương")
+    cleanup_parser.add_argument("--filter", dest="filters", action="append", default=[], help="Lọc chương: raw:yes/no, translated:yes/no, missing:yes/no")
+    cleanup_parser.add_argument("--range", dest="visible_range", default="", help="Chọn range theo danh sách đang sort/filter, ví dụ 1:3")
     sub.add_parser("list", help="Liệt kê các ebook trong library")
     models_parser = sub.add_parser(
         "models",
@@ -286,6 +297,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 step_crawl(cfg)
+        elif args.command == "cleanup-han":
+            selected_indexes = _selected_indexes_from_args(cfg, args)
+            step_cleanup_han_selected(
+                cfg,
+                chapter=args.chapter,
+                start=args.start,
+                end=args.end,
+                force=args.force,
+                selected_indexes=selected_indexes,
+            )
         elif args.command == "translate":
             selected_indexes = _selected_indexes_from_args(cfg, args)
             if args.force or args.missing or args.chapter is not None or args.start is not None or args.end is not None or selected_indexes is not None:

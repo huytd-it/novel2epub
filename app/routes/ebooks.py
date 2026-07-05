@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import dataclasses
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -11,10 +10,12 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import PlainTextResponse, RedirectResponse
 
 from novel2epub.config_writer import update_ebook
+from novel2epub.progress import chapter_progress
 from novel2epub.storage import Storage
 from novel2epub.toc import apply_chapter_query, chapter_rows
 
 from .. import deps
+from ..cost_summary import read_cost_summary
 from ..library_state import archived_slugs, set_archived
 
 router = APIRouter()
@@ -66,16 +67,15 @@ def index(request: Request, show_archived: bool = False):
             name = entry.name or cfg.novel.title or slug
         storage = Storage(cfg.output.data_dir, cfg.novel.slug)
         manifest = storage.load_manifest()
-        raw_count = sum(1 for ch in (manifest.chapters if manifest else []) if storage.has_raw(ch))
-        translated_count = sum(1 for ch in (manifest.chapters if manifest else []) if storage.has_translated(ch))
+        progress = chapter_progress(storage, manifest)
         ebooks.append(
             {
                 "slug": slug,
                 "name": name,
                 "cfg": cfg,
                 "manifest": manifest,
-                "raw_count": raw_count,
-                "translated_count": translated_count,
+                "raw_count": progress["raw_count"],
+                "translated_count": progress["translated_count"],
                 "epub_exists": Path(cfg.epub_path).exists(),
                 "in_library": entry is not None,
                 "archived": is_archived,
@@ -186,14 +186,7 @@ def ebook_home(
     crawl_problems = crawl_problem_indexes(manifest.chapters, storage) if manifest else []
     all_chapters = _chapter_rows(cfg)
     chapters_json = [dataclasses.asdict(r) for r in all_chapters]
-    # Đọc OmniRoute cost summary nếu có (translation_meta/_cost_summary.json).
-    cost_summary: dict | None = None
-    cost_summary_path = storage.root / "translation_meta" / "_cost_summary.json"
-    if cost_summary_path.exists():
-        try:
-            cost_summary = json.loads(cost_summary_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            cost_summary = None
+    cost_summary = read_cost_summary(storage)
     return deps.templates.TemplateResponse(
         request,
         "ebook.html",

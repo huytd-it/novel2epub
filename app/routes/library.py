@@ -9,11 +9,15 @@ import json
 from fastapi import APIRouter, Form, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
+from novel2epub.automation import add_automation
 from novel2epub.config import CrawlConfig
 from novel2epub.config_writer import add_ebook, remove_ebook
 from novel2epub.crawler import ScraplingCrawler
 from novel2epub.search import search_all, search_all_stream
 from novel2epub.sources import detect_preset, load_presets
+
+MAX_BULK_URLS = 5
+CONTINUOUS_STEPS = ["crawl-new", "translate-pending", "cleanup-han", "build"]
 
 from .. import deps
 
@@ -142,6 +146,35 @@ def search_ebooks(
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
+def _write_new_ebook(toc_url: str, slug: str, name: str, author: str) -> dict:
+    """Ghi ebook mới (đã có đủ metadata) vào config gộp. Raise HTTPException khi trùng slug.
+
+    Trả {"slug", "name"}. Dùng chung bởi `create_ebook` (1 URL, có redirect) và
+    `create_ebooks_bulk` (nhiều URL, mỗi URL xử lý độc lập) — tách riêng phần
+    fetch-metadata (mỗi caller tự quyết định cách xử lý lỗi fetch) khỏi phần ghi.
+    """
+    if not slug:
+        slug = vn_slugify(name)
+    lib = deps.library()
+    if slug in lib.ebooks:
+        raise HTTPException(status_code=409, detail=f"Ebook '{slug}' đã tồn tại.")
+
+    # File gộp: ghi thẳng ebook (chỉ phần override) vào khối `ebooks:`.
+    # Auto-detect source preset từ URL.
+    presets = load_presets(deps.SOURCES_PATH)
+    source_name = detect_preset(toc_url, presets) or ""
+    add_ebook(
+        deps.WORKSPACE_PATH,
+        slug,
+        name=name,
+        title=name,
+        author=author,
+        toc_url=toc_url,
+        source_name=source_name,
+    )
+    return {"slug": slug, "name": name}
+
+
 @router.post("/library/ebooks")
 def create_ebook(
     slug: str = Form(""),
@@ -163,26 +196,56 @@ def create_ebook(
         except Exception:
             pass  # fallback: dùng slug từ name trống
 
-    if not slug:
-        slug = vn_slugify(name)
-    lib = deps.library()
-    if slug in lib.ebooks:
-        raise HTTPException(status_code=409, detail=f"Ebook '{slug}' đã tồn tại.")
+    result = _write_new_ebook(toc_url, slug, name, author)
+    return RedirectResponse(url=f"/ebooks/{result['slug']}/settings", status_code=303)
 
-    # File gộp: ghi thẳng ebook (chỉ phần override) vào khối `ebooks:`.
-    # Auto-detect source preset từ URL.
-    presets = load_presets(deps.SOURCES_PATH)
-    source_name = detect_preset(toc_url, presets) or ""
-    add_ebook(
-        deps.WORKSPACE_PATH,
-        slug,
-        name=name,
-        title=name,
-        author=author,
-        toc_url=toc_url,
-        source_name=source_name,
-    )
-    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+@router.post("/library/ebooks/bulk")
+def create_ebooks_bulk(
+    toc_urls: str = Form(...),
+    enable_continuous: bool = Form(True),
+    cooldown_minutes: int = Form(30),
+):
+    """Nhập hàng loạt tối đa 5 URL mục lục: tạo ebook + (tùy chọn) bật automation
+    liên tục (cào → dịch → xoá Hán → build, lặp lại mỗi `cooldown_minutes` phút).
+
+    Mỗi URL xử lý độc lập — 1 URL lỗi không chặn các URL còn lại.
+    """
+    urls = [u.strip() for u in toc_urls.splitlines() if u.strip()]
+    if not urls:
+        raise HTTPException(status_code=400, detail="Thiếu URL mục lục.")
+    if len(urls) > MAX_BULK_URLS:
+        raise HTTPException(status_code=400, detail=f"Tối đa {MAX_BULK_URLS} URL mỗi lần nhập.")
+
+    cooldown_minutes = max(1, cooldown_minutes)
+    results = []
+    for url in urls:
+        try:
+            fetched = _fetch_meta(url)
+        except Exception as e:
+            results.append({"url": url, "status": "failed", "reason": str(e)})
+            continue
+
+        try:
+            created = _write_new_ebook(
+                url, fetched.get("slug", ""), fetched.get("name", ""), fetched.get("author", "")
+            )
+        except HTTPException as e:
+            status = "skipped-duplicate" if e.status_code == 409 else "failed"
+            results.append({"url": url, "status": status, "reason": str(e.detail)})
+            continue
+
+        slug = created["slug"]
+        if enable_continuous:
+            add_automation(deps.AUTOMATIONS_PATH, slug, list(CONTINUOUS_STEPS), f"continuous@{cooldown_minutes}")
+        results.append({
+            "url": url,
+            "status": "created",
+            "slug": slug,
+            "name": created["name"],
+            "automation": enable_continuous,
+        })
+    return JSONResponse({"results": results})
 
 
 @router.post("/library/ebooks/{slug}/delete")

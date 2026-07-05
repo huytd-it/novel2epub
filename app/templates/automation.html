@@ -22,10 +22,13 @@
             <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{% if a.enabled %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">bật</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">tắt</span>{% endif %}</td>
             <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ a.last_run_at or '—' }}</td>
             <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
-                {% if a.last_run_outcome == 'success' %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">thành công</span>
-                {% elif a.last_run_outcome == 'failure' %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi</span>
-                {% elif a.last_run_outcome == 'partial' %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">một phần</span>
+                {% if a.last_run_outcome == 'success' %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300" {% if a.last_run_error %}title="{{ a.last_run_error }}"{% endif %}>thành công</span>
+                {% elif a.last_run_outcome == 'failure' %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300" title="{{ a.last_run_error }}">lỗi</span>
+                {% elif a.last_run_outcome == 'partial' %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300" title="{{ a.last_run_error }}">một phần</span>
                 {% else %}<span class="text-muted-light dark:text-muted-dark text-sm">—</span>{% endif %}
+                {% if a.last_run_stats %}
+                <div class="text-xs text-muted-light dark:text-muted-dark mt-0.5">+{{ a.last_run_stats.crawled or 0 }} cào, +{{ a.last_run_stats.translated or 0 }} dịch, {{ a.last_run_stats.han_fixed or 0 }} Hán</div>
+                {% endif %}
             </td>
             <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
                 <div class="inline-flex gap-1.5 items-center flex-wrap">
@@ -62,7 +65,8 @@
                     {% endfor %}
                 </p>
                 <p class="my-2"><label class="flex flex-col gap-1 text-sm">Lịch chạy
-                    <input type="text" name="schedule" value="manual" placeholder="manual hoặc daily@03:00" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm">
+                    <input type="text" name="schedule" value="manual" placeholder="manual, daily@03:00, hoặc continuous@30" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm">
+                    <span class="text-xs text-muted-light dark:text-muted-dark">continuous@N: tự chạy lại mỗi N phút nếu có chương mới (mặc định 30 phút nếu chỉ ghi "continuous").</span>
                 </label></p>
             </fieldset>
             <div class="flex gap-2 justify-end mt-3">

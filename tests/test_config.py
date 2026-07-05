@@ -274,3 +274,29 @@ def test_hachimimt_auto_preset_respects_user_override(tmp_path):
     cfg = load_config(path)
     assert cfg.translate.hachimimt.model_key == "MoxhiMT-60"  # user override wins
     assert cfg.translate.hachimimt.beam_size == 4
+
+
+def test_glossary_filter_defaults_true(tmp_path):
+    config_path = _write_config(tmp_path)
+    cfg = load_config(config_path)
+    assert cfg.translate.glossary_filter is True
+
+
+def test_glossary_filter_false_parsed(tmp_path):
+    config_path = _write_config(
+        tmp_path,
+        extra={"translate": {"type": "none", "glossary_filter": False}},
+    )
+    cfg = load_config(config_path)
+    assert cfg.translate.glossary_filter is False
+
+
+def test_auto_glossary_and_batch_size_parsed_from_yaml(tmp_path):
+    """auto_glossary/batch_size từng bị bỏ quên khi load YAML (luôn dùng default)."""
+    config_path = _write_config(
+        tmp_path,
+        extra={"translate": {"type": "none", "auto_glossary": True, "batch_size": 5}},
+    )
+    cfg = load_config(config_path)
+    assert cfg.translate.auto_glossary is True
+    assert cfg.translate.batch_size == 5

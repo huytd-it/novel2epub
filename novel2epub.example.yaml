@@ -67,6 +67,10 @@ defaults:
     # Khi True + type=openai: tự sinh glossary từ mỗi chương sau khi dịch,
     # merge vào names.txt/vietphrase.txt (xung đột giữ giá trị cũ + cảnh báo).
     auto_glossary: false
+    # Lọc glossary theo đoạn: chỉ nhét vào prompt những mục thực sự xuất hiện
+    # trong đoạn đang dịch/biên tập (tiết kiệm token khi glossary phình to).
+    # Lọc bằng code thuần (không gọi AI); hậu xử lý vẫn dùng toàn bộ glossary.
+    glossary_filter: true
     # Số chương gửi 1 lần cho AI khi dùng "Dịch selected" (batch translate).
     # Chia nhỏ thành các batch có kích thước tối đa bằng giá trị này.
     # Đặt 1 = dịch tuần tự từng chương (mỗi chương 1 lần gọi AI).

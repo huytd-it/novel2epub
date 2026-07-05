@@ -81,6 +81,11 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "hachimimt": {"model_key": "HachimiMT-60", "backend": "ctranslate2", "beam_size": 2, "chunk_mode": "sentence"},
         "delay_seconds": 0.5,
         "max_workers": 1,
+        "auto_glossary": False,
+        "glossary_filter": True,
+        "batch_size": 1,
+        "auto_cleanup_han": False,
+        "cleanup_han": {"max_chars": 8000, "retries": 1},
     },
     "output": {
         "data_dir": "data",

@@ -83,8 +83,9 @@ class JobRunner:
         *,
         ebook: str = "",
         spec: dict | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> bool:
-        self.queue.enqueue(category, step, target_fn, label=step, ebook=ebook, spec=spec)
+        self.queue.enqueue(category, step, target_fn, label=step, ebook=ebook, spec=spec, cancel_event=cancel_event)
         return True
 
     def enqueue_step(self, step: str, cfg: Config, *, label: str = "", ebook: str = "") -> dict | None:

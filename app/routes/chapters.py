@@ -1041,10 +1041,11 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
         # 3. Parse response
         parsed = bulk_transfer.parse_import(response_text)
         if not parsed:
+            log(f"[batch-dịch] {label}: raw response (200 ký tự đầu): {response_text[:200]!r}")
             raise RuntimeError(
                 f"Batch {batch_idx}/{total_batches}: AI trả về nhưng không có "
-                "marker chương nào (========== CHƯƠNG N ==========). "
-                "Xem log/raw response để debug."
+                "marker chương nào (## Chương N). "
+                "Xem log để debug — raw response đã được ghi ở trên."
             )
 
         content_by_index = {idx: content for idx, _title, content in parsed}

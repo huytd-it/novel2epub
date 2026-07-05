@@ -37,7 +37,13 @@ from .storage import parse_glossary_line
 # tốt cho AI hơn) lẫn marker `=====` kiểu cũ (tương thích ngược). `re.IGNORECASE`
 # để khoan dung hoa/thường khi AI viết lại tiêu đề. Group 2 = phần tiêu đề sau
 # số chương (có thể rỗng), chuẩn hóa qua `_marker_title`.
-CHAPTER_MARKER_RE = re.compile(r"^(?:#{1,6}\s*|={3,}\s*)CHƯƠNG\s+(\d+)\b\s*(.*)$", re.IGNORECASE)
+# Cũng bắt biến thể AI hay tự thêm bold/italic: `## **CHƯƠNG N**`, `**CHƯƠNG N**`.
+# Vẫn yêu cầu ít nhất một trong `#` / `=` / `*` làm prefix để tránh parse nhầm
+# các dòng văn bản thường bắt đầu bằng "Chương ...".
+CHAPTER_MARKER_RE = re.compile(
+    r"^(?:\*{1,2}\s*)?(?:#{1,6}\s*\*{0,2}\s*|={3,}\s*|\*{1,2}\s*)CHƯƠNG\s+(\d+)\b\s*(.*)$",
+    re.IGNORECASE,
+)
 GLOSSARY_MARKER_RE = re.compile(r"^(?:#{1,6}\s*|={3,}\s*)GLOSSARY\b", re.IGNORECASE)
 
 _NAMES_HEADERS = {"[NAMES]", "[NAME]", "[TÊN]", "[TEN]", "NAMES", "NAME", "TÊN", "TEN"}
@@ -80,10 +86,12 @@ def ensure_title_number(zh_title: str, vi_title: str) -> str:
 def _marker_title(rest: str) -> str:
     """Chuẩn hóa phần tiêu đề bắt được sau `CHƯƠNG N` trong dòng marker.
 
-    Bỏ run `=` cuối dòng (marker legacy `===== CHƯƠNG 12 =====` → title rỗng)
-    và separator mở đầu (`:`, `：`, `-`, `.`...) giữa số chương và tiêu đề.
+    Bỏ run `=` hoặc `**` cuối dòng (marker legacy `===== CHƯƠNG 12 =====` →
+    title rỗng; bold AI `## **Chương 1** → title rỗng) và separator mở đầu
+    (`:`, `：`, `-`, `.`...) giữa số chương và tiêu đề.
     """
     rest = re.sub(r"=+\s*$", "", rest)
+    rest = re.sub(r"\*+\s*$", "", rest)
     return rest.strip().lstrip(":：-–—.").strip()
 
 

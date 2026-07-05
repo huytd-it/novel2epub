@@ -556,3 +556,37 @@ sudugu:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+shanyuread:
+  engine: scrapling
+  url: https://www.shanyuread.com/wenxue/12811506/
+  domains: shanyuread.com
+  chapter_link_pattern: story-\d+\.html$
+  content_selector: '#chapter'
+  toc_selector: ''
+  chapter_title_selector: ''
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+  headless: true
+  magic: false
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  strip_patterns: []
+  scrapling_mode: stealthy
+  solve_cloudflare: true
+  network_idle: true
+  impersonate: ''
+  concurrency_cap: 0
+  search_url_pattern: ''
+  search_result_selector: ''
+  search_title_selector: ''
+  search_author_selector: ''
+  search_link_selector: ''
+  search_cover_selector: ''
+  max_search_results: 5

@@ -611,11 +611,13 @@ function jobCategoryFor(form) {
     if (input && (input.value === "crawl" || input.value === "translate")) {
         return input.value;
     }
+    if (input && input.value === "cleanup-han") return "none";
     const el = form && form.closest ? form.closest("[data-job-category]") : null;
     return (el && el.dataset.jobCategory) || "both";
 }
 
 function isCategoryRunning(status, category, slug) {
+    if (category === "none") return false;
     if (category === "both") return status.crawl.running || status.translate.running;
     if (category === "translate") {
         if (!status.translate.running) return false;

@@ -458,6 +458,8 @@ function jobCategoryFor(form, btn) {
         return btn.value;
     }
     if (form && form.classList && form.classList.contains("selected-action-form")) {
+        const actionInput = form.querySelector('input[name="action"]');
+        if (actionInput && actionInput.value === "cleanup-han") return "none";
         return form.dataset.selectedAction || "translate";
     }
     const el = form && form.closest ? form.closest("[data-job-category]") : null;
@@ -465,6 +467,7 @@ function jobCategoryFor(form, btn) {
 }
 
 function isCategoryRunning(status, category, slug) {
+    if (category === "none") return false;
     if (category === "both") return status.crawl.running || status.translate.running;
     if (category === "translate") {
         if (!status.translate.running) return false;

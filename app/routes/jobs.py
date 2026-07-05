@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import threading
 from pathlib import Path
 from typing import Annotated
 
@@ -71,9 +72,11 @@ def start_ebook_crawl_range(
             end=end_idx,
             force=force,
             retries=retries,
+            should_cancel=cancel_event.is_set,
         )
 
-    request.app.state.job.start_custom("crawl", _target, category="crawl")
+    cancel_event = threading.Event()
+    request.app.state.job.start_custom("crawl", _target, category="crawl", cancel_event=cancel_event)
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -117,6 +120,8 @@ def start_ebook_chapter_action(
     if not selected:
         raise HTTPException(status_code=400, detail="Không có chương nào được chọn.")
 
+    cancel_event = threading.Event()
+
     def _target(log):
         if action == "crawl":
             log(
@@ -125,7 +130,7 @@ def start_ebook_chapter_action(
                 f"selected={len(selected)} chương"
             )
             try:
-                step_crawl_selected(cfg, log, force=override, selected_indexes=selected)
+                step_crawl_selected(cfg, log, force=override, selected_indexes=selected, should_cancel=cancel_event.is_set)
             except Exception as e:  # noqa: BLE001 - log chi tiết config trước khi job.py ghi traceback
                 log(f"[config] Lỗi khi crawl: {e}")
                 raise
@@ -136,7 +141,7 @@ def start_ebook_chapter_action(
                 f"selected={len(selected)} chương"
             )
             try:
-                step_translate_selected(cfg, log, force=override, selected_indexes=selected)
+                step_translate_selected(cfg, log, force=override, selected_indexes=selected, should_cancel=cancel_event.is_set)
             except Exception as e:  # noqa: BLE001 - log chi tiết config trước khi job.py ghi traceback
                 log(f"[config] Lỗi khi dịch với type={cfg.translate.type!r} preset={cfg.translate.preset!r}: {e}")
                 raise
@@ -153,7 +158,7 @@ def start_ebook_chapter_action(
         else:
             raise ValueError(f"action không hợp lệ: {action!r}")
 
-    request.app.state.job.start_custom(f"chapter-{action}", _target, category="translate")
+    request.app.state.job.start_custom(f"chapter-{action}", _target, category="translate", cancel_event=cancel_event)
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 

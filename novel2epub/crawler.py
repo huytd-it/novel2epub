@@ -468,6 +468,8 @@ class ScraplingCrawler:
                 full = urljoin(self.cfg.toc_url, href.strip())
                 if pattern.search(full):
                     text = a.text if hasattr(a, 'text') else ""
+                    if not (text or "").strip() and hasattr(a, 'get_all_text'):
+                        text = a.get_all_text(strip=True)
                     pairs.append((full, (text or "").strip()))
 
         chapters = [

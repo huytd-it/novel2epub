@@ -9,7 +9,7 @@ import yaml
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import PlainTextResponse, RedirectResponse
 
-from novel2epub.config import CrawlConfig
+from novel2epub.config import CrawlConfig, ScraplingConfig
 from novel2epub.crawler import ScraplingCrawler
 from novel2epub.sources import SourcePreset, propagate_preset_update, save_presets
 
@@ -203,7 +203,18 @@ def test_source_preset(request: Request, name: str, toc_url: str = Form(...)):
         try:
             overrides = preset.crawl_overrides()
             overrides.pop("chapter_link_pattern", None)
+            # Legacy flat scrapling fields → nested ScraplingConfig
+            scrapling_kwargs = {}
+            legacy_mode = overrides.pop("scrapling_mode", None)
+            if legacy_mode is not None:
+                scrapling_kwargs["mode"] = legacy_mode
+            for legacy_key in ("solve_cloudflare", "network_idle", "impersonate"):
+                val = overrides.pop(legacy_key, None)
+                if val is not None:
+                    scrapling_kwargs[legacy_key] = val
             crawl_cfg = CrawlConfig(toc_url=toc_url, chapter_link_pattern=preset.chapter_link_pattern, **overrides)
+            if scrapling_kwargs:
+                crawl_cfg.scrapling = ScraplingConfig(**scrapling_kwargs)
             crawler = ScraplingCrawler(crawl_cfg)
             toc = crawler.fetch_toc()
             if not toc.chapters:

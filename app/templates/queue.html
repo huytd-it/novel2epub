@@ -88,6 +88,10 @@ function cancelBtn(id) {
     return `<button type="button" class="q-cancel px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" data-id="${id}">Hủy</button>`;
 }
 
+function cancellingBadge() {
+    return `<span class="px-2 py-1 text-xs rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700">Đang hủy…</span>`;
+}
+
 function retryBtn(id) {
     return `<button type="button" class="q-retry px-2 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark" data-id="${id}">Retry</button>`;
 }
@@ -131,7 +135,7 @@ async function renderQueue() {
     const runningEl = document.getElementById("queue-running").querySelector("tbody");
     runningEl.innerHTML = (data.running.length ? data.running.map((j) => row([
         j.label, j.category, j.ebook || "—", fmtTime(j.started_at),
-        logBtn(j.id, j.label), cancelBtn(j.id)
+        logBtn(j.id, j.label), j.cancelling ? cancellingBadge() : cancelBtn(j.id)
     ])).join("") :
         `<tr><td colspan='6' class='text-muted-light dark:text-muted-dark text-sm px-3 py-2'>Không có job đang chạy.</td></tr>`);
 

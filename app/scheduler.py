@@ -7,11 +7,18 @@ cả 2 lẫn build).
 from __future__ import annotations
 
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from novel2epub.automation import Automation, load_automations, update_automation
 from novel2epub.config import load_config
-from novel2epub.pipeline import step_build, step_crawl_selected, step_fetch_toc, step_translate_selected
+from novel2epub.pipeline import (
+    step_build,
+    step_cleanup_han_selected,
+    step_crawl_selected,
+    step_fetch_toc,
+    step_translate_selected,
+)
+from novel2epub.storage import Storage
 
 from .logging_config import logger
 from .queue import JobQueue
@@ -20,15 +27,14 @@ _STEP_FN = {
     "fetch-toc": lambda cfg, log: step_fetch_toc(cfg, log),
     "crawl-new": lambda cfg, log: step_crawl_selected(cfg, log),
     "translate-pending": lambda cfg, log: step_translate_selected(cfg, log),
+    "cleanup-han": lambda cfg, log: step_cleanup_han_selected(cfg, log),
     "build": lambda cfg, log: step_build(cfg, log),
 }
 
+_DEFAULT_CONTINUOUS_COOLDOWN_MINUTES = 30
 
-def _is_due(automation: Automation, now: datetime) -> bool:
-    if not automation.enabled or automation.schedule == "manual":
-        return False
-    if not automation.schedule.startswith("daily@"):
-        return False
+
+def _is_due_daily(automation: Automation, now: datetime) -> bool:
     hhmm = automation.schedule.split("@", 1)[1]
     try:
         hh, mm = (int(x) for x in hhmm.split(":"))
@@ -47,13 +53,68 @@ def _is_due(automation: Automation, now: datetime) -> bool:
     return True
 
 
-def run_automation_steps(workspace_path, automation: Automation, log) -> str:
+def _is_due_continuous(automation: Automation, now: datetime) -> bool:
+    cooldown = _DEFAULT_CONTINUOUS_COOLDOWN_MINUTES
+    if "@" in automation.schedule:
+        raw = automation.schedule.split("@", 1)[1]
+        try:
+            cooldown = int(raw)
+        except ValueError:
+            cooldown = _DEFAULT_CONTINUOUS_COOLDOWN_MINUTES
+    if not automation.last_run_at:
+        return True
+    try:
+        last_run = datetime.fromisoformat(automation.last_run_at)
+    except ValueError:
+        return True
+    return now - last_run >= timedelta(minutes=cooldown)
+
+
+def _is_due(automation: Automation, now: datetime) -> bool:
+    if not automation.enabled or automation.schedule == "manual":
+        return False
+    if automation.schedule.startswith("continuous"):
+        return _is_due_continuous(automation, now)
+    if automation.schedule.startswith("daily@"):
+        return _is_due_daily(automation, now)
+    return False
+
+
+def _count_progress(cfg) -> dict:
+    """Snapshot số chương đã cào/dịch/sửa Hán hiện có — dùng để tính delta trước/sau khi
+    chạy chuỗi step (step_* không trả về số liệu, nên phải tự đo bằng Storage)."""
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        return {"chapters_total": 0, "raw": 0, "translated": 0, "han_fixed": 0}
+    raw = sum(1 for ch in manifest.chapters if storage.has_raw(ch))
+    translated = sum(1 for ch in manifest.chapters if storage.has_translated(ch))
+    han_fixed = sum(
+        storage.read_meta(ch).get("han_cleanup", {}).get("fixed_count", 0)
+        for ch in manifest.chapters
+        if storage.has_meta(ch)
+    )
+    return {
+        "chapters_total": len(manifest.chapters),
+        "raw": raw,
+        "translated": translated,
+        "han_fixed": han_fixed,
+    }
+
+
+def run_automation_steps(workspace_path, automation: Automation, log) -> dict:
     """Chạy tuần tự các step của automation, dừng ở step lỗi đầu tiên.
 
-    Trả "success" (mọi step xong), "failure" (step đầu tiên đã lỗi), hoặc
-    "partial" (một số step xong trước khi gặp lỗi)."""
+    Trả dict {"outcome", "error", "stats"}:
+      - outcome: "success" (mọi step xong), "failure" (step đầu tiên đã lỗi),
+        hoặc "partial" (một số step xong trước khi gặp lỗi).
+      - error: "{step}: {lỗi}" của step đầu tiên gặp lỗi, "" nếu không có lỗi.
+      - stats: delta số chương cào/dịch/sửa Hán trước-sau (đo bằng Storage vì
+        các step_* không tự trả về số liệu)."""
     cfg = load_config(workspace_path, automation.ebook)
+    before = _count_progress(cfg)
     succeeded = 0
+    error = ""
     for step in automation.steps:
         fn = _STEP_FN.get(step)
         if fn is None:
@@ -64,12 +125,22 @@ def run_automation_steps(workspace_path, automation: Automation, log) -> str:
             succeeded += 1
         except Exception as e:  # noqa: BLE001 - log lỗi, dừng chuỗi step
             log(f"[automation] ! Lỗi ở step {step!r}: {e}")
+            error = f"{step}: {e}"
             break
+    after = _count_progress(cfg)
+    stats = {
+        "chapters_total": after["chapters_total"],
+        "crawled": after["raw"] - before["raw"],
+        "translated": after["translated"] - before["translated"],
+        "han_fixed": after["han_fixed"] - before["han_fixed"],
+    }
     if succeeded == 0:
-        return "failure"
-    if succeeded == len(automation.steps):
-        return "success"
-    return "partial"
+        outcome = "failure"
+    elif succeeded == len(automation.steps):
+        outcome = "success"
+    else:
+        outcome = "partial"
+    return {"outcome": outcome, "error": error, "stats": stats}
 
 
 class AutomationScheduler:
@@ -114,11 +185,16 @@ class AutomationScheduler:
             return None
 
         def _target(log):
-            outcome = run_automation_steps(self.workspace_path, automation, log)
+            result = run_automation_steps(self.workspace_path, automation, log)
             update_automation(
                 self.automations_path,
                 automation_id,
-                {"last_run_at": datetime.now().isoformat(), "last_run_outcome": outcome},
+                {
+                    "last_run_at": datetime.now().isoformat(),
+                    "last_run_outcome": result["outcome"],
+                    "last_run_error": result["error"],
+                    "last_run_stats": result["stats"],
+                },
             )
 
         job = self.queue.enqueue(

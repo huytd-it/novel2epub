@@ -29,6 +29,19 @@ def test_update_automation_persists_changes(tmp_path):
     assert loaded[a.id].last_run_outcome == "success"
 
 
+def test_automation_roundtrip_includes_error_and_stats_fields(tmp_path):
+    path = tmp_path / "automations.yaml"
+    a = add_automation(path, "myebook", ["build"])
+    assert a.last_run_error == ""
+    assert a.last_run_stats == {}
+
+    stats = {"chapters_total": 10, "crawled": 3, "translated": 2, "han_fixed": 1}
+    update_automation(path, a.id, {"last_run_error": "build: boom", "last_run_stats": stats})
+    loaded = load_automations(path)
+    assert loaded[a.id].last_run_error == "build: boom"
+    assert loaded[a.id].last_run_stats == stats
+
+
 def test_remove_automation(tmp_path):
     path = tmp_path / "automations.yaml"
     a = add_automation(path, "myebook", ["build"])
@@ -74,7 +87,72 @@ def test_daily_schedule_due_again_next_day():
     assert _is_due(a, now) is True
 
 
+def test_continuous_schedule_due_when_never_run():
+    a = Automation(id="x", ebook="e", schedule="continuous@30")
+    assert _is_due(a, datetime.now()) is True
+
+
+def test_continuous_schedule_not_due_within_cooldown():
+    now = datetime.now()
+    a = Automation(id="x", ebook="e", schedule="continuous@30", last_run_at=(now - timedelta(minutes=5)).isoformat())
+    assert _is_due(a, now) is False
+
+
+def test_continuous_schedule_due_after_cooldown():
+    now = datetime.now()
+    a = Automation(id="x", ebook="e", schedule="continuous@30", last_run_at=(now - timedelta(minutes=31)).isoformat())
+    assert _is_due(a, now) is True
+
+
+def test_continuous_bare_defaults_to_30_minutes():
+    now = datetime.now()
+    a = Automation(id="x", ebook="e", schedule="continuous", last_run_at=(now - timedelta(minutes=31)).isoformat())
+    assert _is_due(a, now) is True
+    a2 = Automation(id="x", ebook="e", schedule="continuous", last_run_at=(now - timedelta(minutes=5)).isoformat())
+    assert _is_due(a2, now) is False
+
+
+def test_continuous_malformed_cooldown_falls_back_to_default():
+    now = datetime.now()
+    a = Automation(id="x", ebook="e", schedule="continuous@abc", last_run_at=(now - timedelta(minutes=5)).isoformat())
+    assert _is_due(a, now) is False
+    a2 = Automation(id="x", ebook="e", schedule="continuous@abc", last_run_at=(now - timedelta(minutes=31)).isoformat())
+    assert _is_due(a2, now) is True
+
+
+def test_continuous_disabled_never_due():
+    a = Automation(id="x", ebook="e", schedule="continuous@30", enabled=False)
+    assert _is_due(a, datetime.now()) is False
+
+
 # ---------- run_automation_steps ----------
+
+
+def _stub_progress(**overrides):
+    base = {"chapters_total": 0, "raw": 0, "translated": 0, "han_fixed": 0}
+    base.update(overrides)
+    return base
+
+
+def test_cleanup_han_is_a_valid_step_mapped_in_step_fn():
+    from app import scheduler as scheduler_mod
+
+    assert "cleanup-han" in scheduler_mod._STEP_FN
+
+
+def test_run_automation_steps_invokes_cleanup_han_step(tmp_path, monkeypatch):
+    from app import scheduler as scheduler_mod
+
+    calls = []
+    monkeypatch.setattr(scheduler_mod, "load_config", lambda path, slug: object())
+    monkeypatch.setattr(scheduler_mod, "_count_progress", lambda cfg: _stub_progress())
+    monkeypatch.setitem(scheduler_mod._STEP_FN, "cleanup-han", lambda cfg, log: calls.append("cleanup-han"))
+    monkeypatch.setitem(scheduler_mod._STEP_FN, "build", lambda cfg, log: calls.append("build"))
+
+    a = Automation(id="x", ebook="e", steps=["cleanup-han", "build"])
+    result = run_automation_steps(tmp_path, a, lambda m: None)
+    assert result["outcome"] == "success"
+    assert calls == ["cleanup-han", "build"]
 
 
 def test_run_automation_steps_all_succeed(tmp_path, monkeypatch):
@@ -82,12 +160,14 @@ def test_run_automation_steps_all_succeed(tmp_path, monkeypatch):
 
     calls = []
     monkeypatch.setattr(scheduler_mod, "load_config", lambda path, slug: object())
+    monkeypatch.setattr(scheduler_mod, "_count_progress", lambda cfg: _stub_progress())
     monkeypatch.setitem(scheduler_mod._STEP_FN, "fetch-toc", lambda cfg, log: calls.append("fetch-toc"))
     monkeypatch.setitem(scheduler_mod._STEP_FN, "build", lambda cfg, log: calls.append("build"))
 
     a = Automation(id="x", ebook="e", steps=["fetch-toc", "build"])
-    outcome = run_automation_steps(tmp_path, a, lambda m: None)
-    assert outcome == "success"
+    result = run_automation_steps(tmp_path, a, lambda m: None)
+    assert result["outcome"] == "success"
+    assert result["error"] == ""
     assert calls == ["fetch-toc", "build"]
 
 
@@ -95,6 +175,7 @@ def test_run_automation_steps_partial_on_failure(monkeypatch, tmp_path):
     from app import scheduler as scheduler_mod
 
     monkeypatch.setattr(scheduler_mod, "load_config", lambda path, slug: object())
+    monkeypatch.setattr(scheduler_mod, "_count_progress", lambda cfg: _stub_progress())
 
     def _boom(cfg, log):
         raise RuntimeError("lỗi crawl")
@@ -104,22 +185,42 @@ def test_run_automation_steps_partial_on_failure(monkeypatch, tmp_path):
     monkeypatch.setitem(scheduler_mod._STEP_FN, "build", lambda cfg, log: None)
 
     a = Automation(id="x", ebook="e", steps=["fetch-toc", "crawl-new", "build"])
-    outcome = run_automation_steps(tmp_path, a, lambda m: None)
-    assert outcome == "partial"
+    result = run_automation_steps(tmp_path, a, lambda m: None)
+    assert result["outcome"] == "partial"
+    assert result["error"] == "crawl-new: lỗi crawl"
 
 
 def test_run_automation_steps_failure_when_first_step_fails(monkeypatch, tmp_path):
     from app import scheduler as scheduler_mod
 
     monkeypatch.setattr(scheduler_mod, "load_config", lambda path, slug: object())
+    monkeypatch.setattr(scheduler_mod, "_count_progress", lambda cfg: _stub_progress())
 
     def _boom(cfg, log):
         raise RuntimeError("lỗi")
 
     monkeypatch.setitem(scheduler_mod._STEP_FN, "build", _boom)
     a = Automation(id="x", ebook="e", steps=["build"])
-    outcome = run_automation_steps(tmp_path, a, lambda m: None)
-    assert outcome == "failure"
+    result = run_automation_steps(tmp_path, a, lambda m: None)
+    assert result["outcome"] == "failure"
+    assert result["error"] == "build: lỗi"
+
+
+def test_run_automation_steps_computes_stats_delta(monkeypatch, tmp_path):
+    from app import scheduler as scheduler_mod
+
+    monkeypatch.setattr(scheduler_mod, "load_config", lambda path, slug: object())
+    progress_calls = [
+        _stub_progress(chapters_total=10, raw=2, translated=1, han_fixed=0),
+        _stub_progress(chapters_total=10, raw=5, translated=4, han_fixed=3),
+    ]
+    monkeypatch.setattr(scheduler_mod, "_count_progress", lambda cfg: progress_calls.pop(0))
+    monkeypatch.setitem(scheduler_mod._STEP_FN, "build", lambda cfg, log: None)
+
+    a = Automation(id="x", ebook="e", steps=["build"])
+    result = run_automation_steps(tmp_path, a, lambda m: None)
+    assert result["outcome"] == "success"
+    assert result["stats"] == {"chapters_total": 10, "crawled": 3, "translated": 3, "han_fixed": 3}
 
 
 # ---------- AutomationScheduler.run_now / _tick enqueue qua JobQueue ----------
@@ -131,6 +232,7 @@ def test_run_now_enqueues_job_in_both_category(tmp_path, monkeypatch):
     path = tmp_path / "automations.yaml"
     a = add_automation(path, "e", ["build"])
     monkeypatch.setattr(scheduler_mod, "load_config", lambda p, slug: object())
+    monkeypatch.setattr(scheduler_mod, "_count_progress", lambda cfg: _stub_progress())
     monkeypatch.setitem(scheduler_mod._STEP_FN, "build", lambda cfg, log: None)
 
     queue = JobQueue(workers={"crawl": 1, "translate": 1})

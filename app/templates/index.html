@@ -217,6 +217,35 @@
             <button type="button" onclick="closeModal('add-ebook-modal')" class="px-2 py-1 rounded-md border border-border-light dark:border-border-dark bg-surface-alt-light dark:bg-surface-alt-dark hover:bg-surface-light dark:hover:bg-surface-dark text-lg leading-none">✕</button>
         </div>
 
+        <div class="flex gap-2 mb-4">
+            <button type="button" id="add-mode-single-btn" class="add-mode-tab px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white">Nhập 1 link</button>
+            <button type="button" id="add-mode-bulk-btn" class="add-mode-tab px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhập hàng loạt</button>
+        </div>
+
+        <div id="add-ebook-bulk-mode" style="display:none">
+            <fieldset>
+                <legend>Nhập hàng loạt (tối đa 5 URL, mỗi dòng 1 URL)</legend>
+                <textarea id="bulk-toc-urls" rows="5" placeholder="Mỗi dòng 1 URL mục lục, tối đa 5 URL" class="w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></textarea>
+                <div class="flex flex-wrap gap-4 items-center mt-3">
+                    <label class="inline-flex items-center gap-2 text-sm">
+                        <input type="checkbox" id="bulk-enable-continuous" checked> Bật automation liên tục (cào → dịch → xoá Hán → build)
+                    </label>
+                    <label class="inline-flex items-center gap-2 text-sm">Lặp lại mỗi
+                        <input type="number" id="bulk-cooldown" value="30" min="5" class="w-20 rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm"> phút
+                    </label>
+                </div>
+                <div class="flex gap-3 items-center mt-3">
+                    <button type="button" id="bulk-submit-btn" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">📚 Tạo hàng loạt</button>
+                    <span id="bulk-status" class="text-sm text-muted-light dark:text-muted-dark"></span>
+                </div>
+                <div id="bulk-results" class="mt-3 flex flex-col gap-1.5"></div>
+                <div id="bulk-done-actions" class="mt-3" style="display:none">
+                    <button type="button" onclick="window.location.reload()" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Xong, tải lại trang</button>
+                </div>
+            </fieldset>
+        </div>
+
+        <div id="add-ebook-single-mode">
         <div class="step-indicator" id="step-indicator">
             <div class="step active" data-step="1">
                 <span class="step-num">1</span>
@@ -311,6 +340,7 @@
                 </div>
             </div>
         </form>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -585,6 +615,96 @@ document.addEventListener("DOMContentLoaded", function () {
             fetchStatus.textContent = "⚠️ Hãy bấm Xem trước trước khi tạo.";
         }
     });
+
+    // ── Tab: nhập 1 link / nhập hàng loạt ──────────────────────────
+    var singleModeEl = document.getElementById("add-ebook-single-mode");
+    var bulkModeEl = document.getElementById("add-ebook-bulk-mode");
+    var singleModeBtn = document.getElementById("add-mode-single-btn");
+    var bulkModeBtn = document.getElementById("add-mode-bulk-btn");
+    var activeTabClasses = ["bg-link-light", "dark:bg-link-dark", "text-white"];
+    var inactiveTabClasses = ["border", "border-border-light", "dark:border-border-dark", "bg-surface-light", "dark:bg-surface-dark", "hover:bg-surface-alt-light", "dark:hover:bg-surface-alt-dark"];
+
+    function setAddMode(mode) {
+        var isBulk = mode === "bulk";
+        singleModeEl.style.display = isBulk ? "none" : "";
+        bulkModeEl.style.display = isBulk ? "" : "none";
+        singleModeBtn.classList.remove.apply(singleModeBtn.classList, activeTabClasses.concat(inactiveTabClasses));
+        bulkModeBtn.classList.remove.apply(bulkModeBtn.classList, activeTabClasses.concat(inactiveTabClasses));
+        singleModeBtn.classList.add.apply(singleModeBtn.classList, isBulk ? inactiveTabClasses : activeTabClasses);
+        bulkModeBtn.classList.add.apply(bulkModeBtn.classList, isBulk ? activeTabClasses : inactiveTabClasses);
+    }
+    singleModeBtn.addEventListener("click", function () { setAddMode("single"); });
+    bulkModeBtn.addEventListener("click", function () { setAddMode("bulk"); });
+
+    // ── Nhập hàng loạt (tối đa 5 URL) ───────────────────────────────
+    var bulkTextarea = document.getElementById("bulk-toc-urls");
+    var bulkSubmitBtn = document.getElementById("bulk-submit-btn");
+    var bulkStatus = document.getElementById("bulk-status");
+    var bulkResults = document.getElementById("bulk-results");
+    var bulkDoneActions = document.getElementById("bulk-done-actions");
+    var bulkEnableContinuous = document.getElementById("bulk-enable-continuous");
+    var bulkCooldown = document.getElementById("bulk-cooldown");
+
+    var BULK_STATUS_STYLE = {
+        "created": "bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300",
+        "skipped-duplicate": "bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300",
+        "failed": "bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300",
+    };
+    var BULK_STATUS_LABEL = {
+        "created": "✅ Đã tạo",
+        "skipped-duplicate": "⚠️ Trùng, bỏ qua",
+        "failed": "❌ Lỗi",
+    };
+
+    if (bulkSubmitBtn) {
+        bulkSubmitBtn.addEventListener("click", async function () {
+            var urls = bulkTextarea.value.split("\n").map(function (u) { return u.trim(); }).filter(Boolean);
+            if (urls.length === 0) {
+                bulkStatus.textContent = "⚠️ Nhập ít nhất 1 URL.";
+                return;
+            }
+            if (urls.length > 5) {
+                bulkStatus.textContent = "⚠️ Tối đa 5 URL mỗi lần nhập.";
+                return;
+            }
+            bulkSubmitBtn.disabled = true;
+            bulkStatus.textContent = "⏳ Đang xử lý " + urls.length + " URL...";
+            bulkResults.innerHTML = "";
+            bulkDoneActions.style.display = "none";
+
+            try {
+                var formData = new FormData();
+                formData.append("toc_urls", urls.join("\n"));
+                formData.append("enable_continuous", bulkEnableContinuous.checked ? "true" : "false");
+                formData.append("cooldown_minutes", bulkCooldown.value || "30");
+                var res = await fetch("/library/ebooks/bulk", { method: "POST", body: formData });
+                var data = await res.json();
+                if (!res.ok) {
+                    bulkStatus.textContent = "⚠️ " + (data.detail || "Lỗi không xác định.");
+                    return;
+                }
+                bulkStatus.textContent = "Hoàn tất.";
+                (data.results || []).forEach(function (r) {
+                    var row = document.createElement("div");
+                    row.className = "flex items-center gap-2 text-sm px-2 py-1.5 rounded-md border border-border-light dark:border-border-dark";
+                    var badge = document.createElement("span");
+                    badge.className = "inline-flex items-center px-2 py-0.5 text-xs rounded-full " + (BULK_STATUS_STYLE[r.status] || "");
+                    badge.textContent = BULK_STATUS_LABEL[r.status] || r.status;
+                    var label = document.createElement("span");
+                    label.className = "flex-1 truncate";
+                    label.textContent = (r.name ? r.name + " — " : "") + r.url + (r.reason ? " (" + r.reason + ")" : "");
+                    row.appendChild(badge);
+                    row.appendChild(label);
+                    bulkResults.appendChild(row);
+                });
+                bulkDoneActions.style.display = "";
+            } catch (e) {
+                bulkStatus.textContent = "⚠️ Lỗi: " + e.message;
+            } finally {
+                bulkSubmitBtn.disabled = false;
+            }
+        });
+    }
 
     var searchBtn = document.getElementById("search-btn");
     var searchQuery = document.getElementById("search_query");

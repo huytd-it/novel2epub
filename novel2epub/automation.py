@@ -13,7 +13,7 @@ from typing import Any
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
-STEPS = ("fetch-toc", "crawl-new", "translate-pending", "build")
+STEPS = ("fetch-toc", "crawl-new", "translate-pending", "cleanup-han", "build")
 
 
 def _yaml() -> YAML:
@@ -29,11 +29,13 @@ class Automation:
     id: str
     ebook: str
     steps: list[str] = field(default_factory=lambda: ["build"])
-    # "manual" | "daily@HH:MM"
+    # "manual" | "daily@HH:MM" | "continuous" | "continuous@N" (N phút cooldown)
     schedule: str = "manual"
     enabled: bool = True
     last_run_at: str = ""
     last_run_outcome: str = ""  # "" | "success" | "failure" | "partial"
+    last_run_error: str = ""  # "{step}: {lỗi}" của lần chạy gần nhất, "" nếu thành công
+    last_run_stats: dict = field(default_factory=dict)  # {"chapters_total", "crawled", "translated", "han_fixed"}
 
 
 def load_automations(path: str | Path) -> dict[str, Automation]:

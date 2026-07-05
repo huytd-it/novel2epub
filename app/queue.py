@@ -39,6 +39,11 @@ class Job:
     error: str = ""
     log: deque = field(default_factory=lambda: deque(maxlen=500))
     cancel_event: threading.Event = field(default_factory=threading.Event)
+    # spec: {"kind": ..., "params": {...JSON-serializable...}} — cho phép tái
+    # tạo lại `target` sau khi restart (xem JobQueue.register_kind/load_pending).
+    # Job không có spec (đa số job cũ) đơn giản bị mất khi pending lúc shutdown,
+    # giống hành vi trước khi có tính năng này.
+    spec: dict | None = None
 
     def to_dict(self, with_log: bool = False) -> dict:
         d = {
@@ -84,6 +89,13 @@ class JobQueue:
         self._history: deque[Job] = deque(maxlen=history_limit)
         self._jobs: dict[str, Job] = {}
         self._history_path = Path(history_path) if history_path else None
+        # File riêng, cùng thư mục với history — lưu job pending/running (job
+        # chưa/đang chạy lúc shutdown) để enqueue lại khi khởi động lại (xem
+        # register_kind/load_pending). Không tự load ở đây: phải đợi route
+        # register xong các kind cần thiết trước (app/main.py gọi load_pending()
+        # sau khi register).
+        self._pending_path = self._history_path.with_name("queue_pending.json") if self._history_path else None
+        self._kind_factories: dict[str, Callable[[dict], Callable[[Callable[[str], None]], object]]] = {}
         self._load_history()
         self._threads: list[threading.Thread] = []
         for cat in CATEGORIES:
@@ -107,16 +119,18 @@ class JobQueue:
         label: str = "",
         ebook: str = "",
         cancel_event: threading.Event | None = None,
+        spec: dict | None = None,
     ) -> Job:
         if category not in (*CATEGORIES, "both"):
             raise ValueError(f"category không hợp lệ: {category!r}")
-        job = Job(id=str(uuid.uuid4()), category=category, step=step, label=label, target=target, ebook=ebook)
+        job = Job(id=str(uuid.uuid4()), category=category, step=step, label=label, target=target, ebook=ebook, spec=spec)
         if cancel_event is not None:
             job.cancel_event = cancel_event
         with self._cv:
             self._pending[category].append(job)
             self._jobs[job.id] = job
             self._cv.notify_all()
+        self._save_pending()
         return job
 
     def cancel(self, job_id: str) -> bool:
@@ -132,11 +146,14 @@ class JobQueue:
                 job.ended_at = time.time()
                 self._push_history(job)
                 self._cv.notify_all()
-                return True
-            if job.state == "running":
+                result = True
+            elif job.state == "running":
                 job.cancel_event.set()
-                return True
-            return False
+                result = True
+            else:
+                result = False
+        self._save_pending()
+        return result
 
     def retry(self, job_id: str) -> Job | None:
         with self._lock:
@@ -163,7 +180,8 @@ class JobQueue:
             q.clear()
             q.extend(items)
             self._cv.notify_all()
-            return True
+        self._save_pending()
+        return True
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -278,6 +296,7 @@ class JobQueue:
                 job.state = "running"
                 job.started_at = time.time()
                 self._running[job.id] = job
+            self._save_pending()
 
             self._execute(job)
 
@@ -291,6 +310,7 @@ class JobQueue:
                     self._ebook_locks[category].discard(job.ebook)
                 self._push_history(job)
                 self._cv.notify_all()
+            self._save_pending()
 
     def _execute(self, job: Job) -> None:
         def log_fn(msg: str) -> None:
@@ -314,6 +334,75 @@ class JobQueue:
     def _push_history(self, job: Job) -> None:
         self._history.appendleft(job)
         self._save_history()
+
+    # ---------- resume sau restart ----------
+
+    def register_kind(
+        self, kind: str, factory: Callable[[dict], Callable[[Callable[[str], None]], object]]
+    ) -> None:
+        """Đăng ký cách tái tạo `target(log)` từ `spec['params']` cho 1 loại
+        job tuỳ biến (vd "batch-translate"). Phải gọi TRƯỚC load_pending() —
+        job pending có kind chưa register sẽ bị bỏ qua vĩnh viễn."""
+        self._kind_factories[kind] = factory
+
+    def load_pending(self) -> int:
+        """Enqueue lại job pending/running đã lưu từ lần chạy trước (xem
+        _save_pending). Chỉ khôi phục được job có spec với kind đã register
+        qua register_kind — job không rõ kind bị bỏ qua (log cảnh báo)."""
+        if self._pending_path is None or not self._pending_path.exists():
+            return 0
+        try:
+            data = json.loads(self._pending_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return 0
+        restored = 0
+        for item in data:
+            spec = item.get("spec")
+            kind = (spec or {}).get("kind", "")
+            factory = self._kind_factories.get(kind)
+            if factory is None:
+                logger.warning(
+                    "Bỏ qua job pending kind=%r chưa register (mất sau restart)", kind
+                )
+                continue
+            try:
+                target = factory(spec.get("params", {}))
+            except Exception:
+                logger.exception("Không tái tạo được job pending kind=%r", kind)
+                continue
+            self.enqueue(
+                item.get("category", "translate"),
+                item.get("step", kind),
+                target,
+                label=item.get("label", kind),
+                ebook=item.get("ebook", ""),
+                spec=spec,
+            )
+            restored += 1
+        return restored
+
+    def _save_pending(self) -> None:
+        if self._pending_path is None:
+            return
+        with self._lock:
+            jobs = [j for q in self._pending.values() for j in q if j.spec] + [
+                j for j in self._running.values() if j.spec
+            ]
+            data = [
+                {
+                    "category": j.category,
+                    "step": j.step,
+                    "label": j.label,
+                    "ebook": j.ebook,
+                    "spec": j.spec,
+                }
+                for j in jobs
+            ]
+        try:
+            self._pending_path.parent.mkdir(parents=True, exist_ok=True)
+            self._pending_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError:
+            logger.exception("Không lưu được hàng đợi pending vào %s", self._pending_path)
 
     # ---------- persistence ----------
 

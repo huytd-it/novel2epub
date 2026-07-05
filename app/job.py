@@ -80,8 +80,11 @@ class JobRunner:
         step: str,
         target_fn: Callable[[Callable[[str], None]], object],
         category: str,
+        *,
+        ebook: str = "",
+        spec: dict | None = None,
     ) -> bool:
-        self.queue.enqueue(category, step, target_fn, label=step)
+        self.queue.enqueue(category, step, target_fn, label=step, ebook=ebook, spec=spec)
         return True
 
     def enqueue_step(self, step: str, cfg: Config, *, label: str = "", ebook: str = "") -> dict | None:

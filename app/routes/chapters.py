@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+from typing import Callable
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -930,25 +931,12 @@ async def api_batch_import(
     })
 
 
-@router.post("/api/ebooks/{slug}/batch/translate")
-def api_batch_translate(slug: str, indexes: str = Form("")):
-    # Sync `def` (KHÔNG async): FastAPI chạy trong threadpool — các lời gọi AI
-    # blocking bên dưới không được phép chặn event loop, nếu không toàn bộ web
-    # UI sẽ treo trong suốt thời gian dịch.
-    """Dịch hàng loạt theo luồng "Xuất RAW" → gọi AI → "Nhập", chia nhỏ
-    thành các batch để tránh gửi quá nhiều chương 1 lần cho AI.
-
-    Config: `translate.batch_size` (mặc định 10) — tối đa số chương / lần gọi AI.
-
-    Tiêu đề AI dịch trong heading `## Chương N: <title>` được ghi đè vào
-    `manifest.chapters[].title` (backfill `title_zh` nếu đang rỗng). Match
-    chương CHỈ theo số N của marker (= index vị trí trong manifest); số chương
-    THẬT trong tiêu đề có thể khác index — nếu tiêu đề gốc mở đầu bằng
-    `第M章/卷/回` thì `ensure_title_number` ép lại `Chương M: ` vào tiêu đề
-    dịch (AI hay làm rơi số hoặc echo nhầm index vị trí).
-
-    Trả `{written, titles_updated, glossary_added, missing, unknown, total,
-          skipped, batches, ai_meta}` — `ai_meta` là tổng hợp từ tất cả batch.
+def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], None]) -> None:
+    """Target chạy trong job queue cho POST batch/translate (xem route bên
+    dưới). `index_list` là danh sách GỐC chưa lọc — việc lọc "đã dịch rồi"/
+    "chưa có raw" xảy ra ở ĐÂY (lúc job thực sự chạy), không phải lúc enqueue,
+    nên job này idempotent: enqueue lại y hệt spec cũ sau khi app restart
+    (xem JobQueue.load_pending) là an toàn, chỉ dịch phần còn thiếu.
     """
     from novel2epub.openai_client import run_chat_with_meta
     from novel2epub.pipeline import _clean_title
@@ -957,31 +945,36 @@ def api_batch_translate(slug: str, indexes: str = Form("")):
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
-        raise HTTPException(status_code=404, detail="Chưa có manifest.")
-
-    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
-    if not index_list:
-        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+        log(f"[batch-dịch] Lỗi: ebook {slug!r} chưa có manifest.")
+        return
 
     by_index = {c.index: c for c in manifest.chapters}
     items: list[tuple[int, str, str]] = []
     skipped: list[int] = []
+    already_translated: list[int] = []
     for idx in index_list:
         ch = by_index.get(idx)
         if ch is None or not storage.has_raw(ch):
             skipped.append(idx)
             continue
+        if storage.has_translated(ch):
+            already_translated.append(idx)
+            continue
         items.append((idx, ch.title, storage.read_raw(ch)))
+
+    if already_translated:
+        log(f"[batch-dịch] Bỏ qua {len(already_translated)} chương đã dịch: {already_translated}")
+    if skipped:
+        log(f"[batch-dịch] Bỏ qua {len(skipped)} chương chưa có raw: {skipped}")
     if not items:
-        raise HTTPException(
-            status_code=400,
-            detail="Không có chương nào đã crawl raw trong số đã chọn.",
-        )
+        log("[batch-dịch] Không có chương nào cần dịch.")
+        return
 
     # Chia items thành các batch theo translate.batch_size
     batch_size = max(1, cfg.translate.batch_size)
     batches = [items[i : i + batch_size] for i in range(0, len(items), batch_size)]
     total_batches = len(batches)
+    log(f"[batch-dịch] Dịch {len(items)} chương, chia {total_batches} batch.")
 
     # Glossary chung — đọc 1 lần, merge dần qua các batch
     names_glossary = dict(storage.read_glossary_file("names.txt"))
@@ -1007,23 +1000,17 @@ def api_batch_translate(slug: str, indexes: str = Form("")):
         try:
             response_text, meta = run_chat_with_meta(cfg.translate.openai, export_text)
         except Exception as e:
-            raise HTTPException(
-                status_code=502,
-                detail=f"AI lỗi batch {batch_idx}/{total_batches}: {e}",
-            ) from e
+            raise RuntimeError(f"AI lỗi batch {batch_idx}/{total_batches}: {e}") from e
 
         batch_metas.append(meta or {})
 
         # 3. Parse response
         parsed = bulk_transfer.parse_import(response_text)
         if not parsed:
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    f"Batch {batch_idx}/{total_batches}: AI trả về nhưng không có "
-                    "marker chương nào (========== CHƯƠNG N ==========). "
-                    "Xem log/raw response để debug."
-                ),
+            raise RuntimeError(
+                f"Batch {batch_idx}/{total_batches}: AI trả về nhưng không có "
+                "marker chương nào (========== CHƯƠNG N ==========). "
+                "Xem log/raw response để debug."
             )
 
         content_by_index = {idx: content for idx, _title, content in parsed}
@@ -1060,8 +1047,8 @@ def api_batch_translate(slug: str, indexes: str = Form("")):
                 titles_updated.append(idx)
                 batch_titles_changed = True
 
-        # Save manifest ngay sau batch có title đổi — batch sau lỗi 502 giữa
-        # chừng thì title các batch trước không mất (translated/ cũng đã ghi).
+        # Save manifest ngay sau batch có title đổi — batch sau lỗi giữa chừng
+        # thì title các batch trước không mất (translated/ cũng đã ghi).
         if batch_titles_changed:
             storage.save_manifest(manifest)
 
@@ -1079,36 +1066,92 @@ def api_batch_translate(slug: str, indexes: str = Form("")):
 
         all_missing.extend(report["missing"])
         all_unknown.extend(report["unknown"])
+        log(f"[batch-dịch] Batch {batch_idx}/{total_batches}: ghi {len(report['matched'])} chương.")
 
     # Tổng hợp ai_meta từ tất cả batch
-    agg_meta: dict = {}
-    if batch_metas:
-        agg_meta = {
-            "cost_usd": sum(m.get("cost_usd", 0) for m in batch_metas),
-            "tokens_in": sum(m.get("tokens_in", 0) for m in batch_metas),
-            "tokens_out": sum(m.get("tokens_out", 0) for m in batch_metas),
-            "latency_ms": sum(m.get("latency_ms", 0) for m in batch_metas),
-            "batches": total_batches,
-        }
-        # Giữ các field chung từ batch đầu (provider, version, preset...)
-        first = batch_metas[0]
-        for key in ("provider", "version", "preset", "model", "actual_model", "cache_hit"):
-            if key in first:
-                agg_meta[key] = first[key]
+    cost = sum(m.get("cost_usd", 0) for m in batch_metas)
+    tokens = sum((m.get("tokens_in", 0) + m.get("tokens_out", 0)) for m in batch_metas)
+    summary = (
+        f"[batch-dịch] Hoàn tất: {len(all_written)}/{len(items)} chương"
+        f" · {len(titles_updated)} tiêu đề cập nhật · {glossary_added} mục glossary mới"
+    )
+    if cost:
+        summary += f" · {cost:.4f} USD"
+    if tokens:
+        summary += f" · {tokens} tokens"
+    log(summary)
+    if all_missing:
+        log(f"[batch-dịch] ⚠ AI bỏ sót: {all_missing}")
+    if all_unknown:
+        log(f"[batch-dịch] ⚠ Index lạ (bỏ qua): {all_unknown}")
 
-    response = {
-        "mode": "translate",
-        "written": all_written,
-        "titles_updated": titles_updated,
-        "skipped": skipped,
-        "total_input": len(items),
-        "batches": total_batches,
-        "glossary_added": glossary_added,
-        "missing": all_missing,
-        "unknown": all_unknown,
-        "ai_meta": agg_meta,
-    }
-    return JSONResponse(response)
+
+def batch_translate_job_factory(params: dict) -> Callable[[Callable[[str], None]], object]:
+    """Tái tạo `target(log)` từ spec đã lưu (xem JobQueue.register_kind) —
+    dùng để enqueue lại job batch/translate còn dang dở sau khi app restart."""
+    slug = params["slug"]
+    index_list = params["indexes"]
+
+    def _target(log: Callable[[str], None]) -> None:
+        _run_batch_translate(slug, index_list, log)
+
+    return _target
+
+
+@router.post("/api/ebooks/{slug}/batch/translate")
+async def api_batch_translate(request: Request, slug: str, indexes: str = Form("")):
+    """Enqueue dịch hàng loạt theo luồng "Xuất RAW" → gọi AI → "Nhập" — chạy
+    NỀN qua job queue (category=translate), KHÔNG block request. Chia nhỏ
+    thành các batch để tránh gửi quá nhiều chương 1 lần cho AI.
+
+    Config: `translate.batch_size` (mặc định 10) — tối đa số chương / lần gọi AI.
+
+    Chương đã có bản dịch (`storage.has_translated`) tự động bị BỎ QUA — muốn
+    dịch lại thì xoá bản dịch cũ trước (nút "Xóa bản dịch selected"). Việc lọc
+    xảy ra lúc job THỰC SỰ chạy (xem `_run_batch_translate`), không phải lúc
+    enqueue, nên job idempotent — an toàn khi được enqueue lại tự động sau khi
+    app restart trong lúc job còn pending/đang chạy (xem `JobQueue.load_pending`,
+    đăng ký kind ở `app/main.py`).
+
+    Tiêu đề AI dịch trong heading `## Chương N: <title>` được ghi đè vào
+    `manifest.chapters[].title` (backfill `title_zh` nếu đang rỗng) — xem chi
+    tiết trong `_run_batch_translate`.
+
+    Trả `{started, total, pending, skip_hint}` NGAY (không đợi dịch xong) — kết
+    quả chi tiết (written/glossary/ai_meta) nằm trong log của job, xem trang
+    /queue hoặc /logs, hoặc GET /api/queue/{job_id}/log.
+    """
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+
+    by_index = {c.index: c for c in manifest.chapters}
+    pending = sum(
+        1
+        for idx in index_list
+        if (ch := by_index.get(idx)) is not None and storage.has_raw(ch) and not storage.has_translated(ch)
+    )
+    if pending == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Không có chương nào cần dịch (đã dịch hết hoặc chưa có raw).",
+        )
+
+    spec = {"kind": "batch-translate", "params": {"slug": slug, "indexes": index_list}}
+    request.app.state.job.start_custom(
+        f"batch-translate-{len(index_list)}",
+        batch_translate_job_factory(spec["params"]),
+        category="translate",
+        ebook=slug,
+        spec=spec,
+    )
+    return JSONResponse({"started": True, "total": len(index_list), "pending": pending})
 
 
 @router.patch("/api/ebooks/{slug}/meta")

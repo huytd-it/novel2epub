@@ -11,7 +11,7 @@ from fastapi.responses import PlainTextResponse, RedirectResponse
 
 from novel2epub.config import CrawlConfig
 from novel2epub.crawler import ScraplingCrawler
-from novel2epub.sources import SourcePreset, save_presets
+from novel2epub.sources import SourcePreset, propagate_preset_update, save_presets
 
 from .. import deps
 
@@ -43,20 +43,21 @@ def _record_validation(name: str, ok: bool, message: str) -> None:
 
 
 def _preset_usage(presets, library):
-    """Map preset name -> list of ebook slugs whose resolved CrawlConfig matches
-    tất cả cặp key/value trong preset.crawl_overrides(). Chỉ đọc, không ghi."""
+    """Map preset name -> list of ebook slugs có ``source == preset_name``.
+
+    Đọc field ``source`` trực tiếp từ ebook config (không brute-force so sánh).
+    """
     usage = {name: [] for name in presets}
     if not library.ebooks or not presets:
         return usage
     for slug in library.ebooks:
         try:
-            crawl = deps.resolved_cfg(slug).crawl
+            cfg = deps.resolved_cfg(slug)
         except Exception:
             continue
-        for name, preset in presets.items():
-            overrides = preset.crawl_overrides()
-            if all(getattr(crawl, k, None) == v for k, v in overrides.items()):
-                usage[name].append(slug)
+        source = getattr(cfg, "source", "")
+        if source and source in usage:
+            usage[source].append(slug)
     return usage
 
 
@@ -140,6 +141,14 @@ def save_source_preset(
             kwargs["user_agent"] = user_agent
         presets[name] = SourcePreset(**kwargs)
         save_presets(deps.SOURCES_PATH, presets)
+        # Propagate preset update sang ebook có source == name
+        affected = propagate_preset_update(deps.WORKSPACE_PATH, name, presets)
+        if affected:
+            import logging
+            logging.getLogger(__name__).info(
+                "[source] preset %r propagate sang %d ebook: %s",
+                name, len(affected), ", ".join(affected),
+            )
     return RedirectResponse(url="/sources", status_code=303)
 
 

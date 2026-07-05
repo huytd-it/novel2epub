@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import openai_client
 from novel2epub.config_writer import clean_prompt_text, update_defaults, update_ebook
+from novel2epub.sources import load_presets
 from novel2epub.storage import Storage
 
 from .. import deps
@@ -25,6 +26,23 @@ router = APIRouter()
 @router.get("/ebooks/{slug}/settings")
 def settings_page(request: Request, slug: str):
     cfg = deps.resolved_cfg(slug)
+    # Source preset context: resolved preset + overridden fields
+    source_preset = None
+    overridden_fields: set[str] = set()
+    source_name = getattr(cfg, "source", "")
+    if source_name:
+        presets = load_presets(deps.SOURCES_PATH)
+        source_preset = presets.get(source_name)
+        # Đọc raw YAML để xác định field ebook đã override
+        if source_preset:
+            from pathlib import Path
+            from novel2epub.config_writer import _load as _load_yaml
+            raw_data = _load_yaml(Path(deps.WORKSPACE_PATH))
+            ebooks = raw_data.get("ebooks", {})
+            ebook_data = ebooks.get(slug, {}) if hasattr(ebooks, "get") else {}
+            crawl_data = ebook_data.get("crawl", {}) if hasattr(ebook_data, "get") else {}
+            if hasattr(crawl_data, "keys"):
+                overridden_fields = set(crawl_data.keys())
     return deps.templates.TemplateResponse(
         request,
         "settings.html",
@@ -32,6 +50,8 @@ def settings_page(request: Request, slug: str):
             "slug": slug,
             "config_path": deps.ebook_config_path(slug),
             "cfg": cfg,
+            "source_preset": source_preset,
+            "overridden_fields": overridden_fields,
             "job": request.app.state.job.status(),
         },
     )
@@ -241,6 +261,36 @@ def save_source(
             "respect_retry_after": retry_respect_retry_after,
         },
     }
+
+    # Nếu ebook có source, chỉ ghi field khác preset (tránh mark toàn bộ
+    # là override, giữ nguyên khả năng propagate từ preset).
+    cfg = deps.resolved_cfg(slug)
+    source_name = getattr(cfg, "source", "")
+    if source_name:
+        presets = load_presets(deps.SOURCES_PATH)
+        preset = presets.get(source_name)
+        if preset:
+            preset_vals = preset.crawl_overrides()
+            filtered: dict = {}
+            for key, value in crawl.items():
+                if key == "toc_url":
+                    filtered[key] = value  # luôn ghi toc_url
+                elif key == "retry":
+                    filtered[key] = value  # retry không từ preset
+                elif isinstance(value, dict):
+                    # Nested dict (scrapling): so sánh từng key
+                    nested_filtered = {}
+                    for nk, nv in value.items():
+                        preset_nv = preset_vals.get(nk)
+                        if preset_nv != nv:
+                            nested_filtered[nk] = nv
+                    if nested_filtered:
+                        filtered[key] = nested_filtered
+                else:
+                    if preset_vals.get(key) != value:
+                        filtered[key] = value
+            crawl = filtered
+
     path = deps.ebook_config_path(slug)
     logger.info(
         "[config][CRAWL] slug=%s lưu vào %s: engine=scrapling mode=%s toc_url=%r content_selector=%r "
@@ -249,6 +299,60 @@ def save_source(
         next_page_selector or next_page_url_pattern or "off",
     )
     update_ebook(deps.WORKSPACE_PATH, slug, {"crawl": crawl})
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+@router.post("/ebooks/{slug}/settings/sync-to-source")
+def sync_to_source(slug: str):
+    """Lấy crawl config hiện tại của ebook (đã resolve), update source preset
+    với các field ebook đã override, rồi propagate sang ebook khác."""
+    from novel2epub.sources import SourcePreset, save_presets, propagate_preset_update
+
+    cfg = deps.resolved_cfg(slug)
+    source_name = getattr(cfg, "source", "")
+    if not source_name:
+        raise HTTPException(status_code=400, detail="Ebook không có source preset.")
+
+    presets = load_presets(deps.SOURCES_PATH)
+    preset = presets.get(source_name)
+    if preset is None:
+        raise HTTPException(status_code=404, detail=f"Nguồn '{source_name}' không tồn tại.")
+
+    # Lấy crawl config hiện tại (đã resolve) và cập nhật preset
+    from dataclasses import asdict
+    crawl = cfg.crawl
+    overrides = preset.crawl_overrides()
+    changed_fields: list[str] = []
+
+    # So sánh từng field: nếu ebook khác preset → update preset
+    for key, current_val in overrides.items():
+        ebook_val = getattr(crawl, key, None)
+        if ebook_val is not None and ebook_val != current_val:
+            setattr(preset, key, ebook_val)
+            changed_fields.append(key)
+
+    # Scrapling nested fields
+    if crawl.scrapling:
+        for key in ("mode", "solve_cloudflare", "network_idle", "impersonate"):
+            preset_key = f"scrapling_{key}" if key != "mode" else "scrapling_mode"
+            ebook_val = getattr(crawl.scrapling, key, None)
+            preset_val = getattr(preset, preset_key, None)
+            if ebook_val is not None and ebook_val != preset_val:
+                setattr(preset, preset_key, ebook_val)
+                changed_fields.append(preset_key)
+
+    if not changed_fields:
+        return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+    presets[source_name] = preset
+    save_presets(deps.SOURCES_PATH, presets)
+
+    # Propagate sang ebook khác
+    affected = propagate_preset_update(deps.WORKSPACE_PATH, source_name, presets)
+    logger.info(
+        "[source] sync ebook=%s → preset=%s: fields=%s, propagate sang %d ebook: %s",
+        slug, source_name, changed_fields, len(affected), ", ".join(affected),
+    )
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 

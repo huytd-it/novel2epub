@@ -220,6 +220,7 @@
                 </fieldset>
 
                 <div class="canvas-footer pt-3 mt-3 border-t border-border-light dark:border-border-dark">
+                    <div id="preset-propagate-warning" class="hidden mb-2 px-2 py-1.5 text-xs rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300"></div>
                     <div class="flex gap-2 justify-end">
                         <button type="submit" id="preset-submit-btn" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Thêm preset</button>
                         <button type="button" onclick="closeCanvas('preset-canvas')" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Hủy</button>
@@ -233,7 +234,20 @@
 
 {% block scripts %}
 <script>
+const _presetUsage = {{ usage | tojson }};
 document.addEventListener("DOMContentLoaded", function () {
+    function _updatePropagateWarning(presetName) {
+        const el = document.getElementById("preset-propagate-warning");
+        if (!el) return;
+        const used = _presetUsage[presetName] || [];
+        if (used.length > 0) {
+            el.textContent = "Thay đổi sẽ propagate sang " + used.length + " ebook: " + used.join(", ");
+            el.classList.remove("hidden");
+        } else {
+            el.classList.add("hidden");
+        }
+    }
+
     document.getElementById("add-preset-btn").addEventListener("click", function () {
         document.getElementById("preset-canvas-title").textContent = "Thêm preset";
         document.getElementById("preset-submit-btn").textContent = "Thêm preset";
@@ -244,6 +258,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("p-chapter_link_pattern").value = ".*";
         document.getElementById("p-max_pages_per_chapter").value = "10";
         document.getElementById("p-network_idle").checked = true;
+        _updatePropagateWarning("");
         openCanvas('preset-canvas');
     });
 
@@ -254,6 +269,7 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("original_name").value = btn.dataset.name;
             document.getElementById("p-name").value = btn.dataset.name;
             document.getElementById("p-name").required = false;
+            _updatePropagateWarning(btn.dataset.name);
             document.getElementById("p-url").value = btn.dataset.url;
             document.getElementById("p-domains").value = btn.dataset.domains;
             document.getElementById("p-delay_seconds").value = btn.dataset.delay_seconds;

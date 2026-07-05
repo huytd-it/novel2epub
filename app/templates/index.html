@@ -290,6 +290,13 @@
                                     <td class="pv-cell-label">Mô tả</td>
                                     <td class="pv-cell-value"><textarea id="pv-desc-input" rows="3" class="pv-input w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></textarea></td>
                                 </tr>
+                                <tr id="pv-row-source" style="display:none">
+                                    <td class="pv-cell-label">Nguồn</td>
+                                    <td class="pv-cell-value">
+                                        <span id="pv-source-name" class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium"></span>
+                                        <span id="pv-source-detail" class="text-xs text-muted-light dark:text-muted-dark ml-1"></span>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -544,6 +551,21 @@ document.addEventListener("DOMContentLoaded", function () {
                 } else {
                     coverEl.style.display = "none";
                 }
+                // Source preset info
+                var sourceRow = document.getElementById("pv-row-source");
+                var sourceNameEl = document.getElementById("pv-source-name");
+                var sourceDetailEl = document.getElementById("pv-source-detail");
+                if (data.source) {
+                    sourceNameEl.textContent = data.source;
+                    var details = [];
+                    if (data.source_content_selector) details.push("selector: " + data.source_content_selector);
+                    if (data.source_delay) details.push("delay: " + data.source_delay + "s");
+                    sourceDetailEl.textContent = details.length ? "— " + details.join(", ") : "";
+                    sourceRow.style.display = "";
+                } else {
+                    sourceRow.style.display = "none";
+                }
+
                 previewBox.style.display = "";
                 previewPlaceholder.style.display = 'none';
                 fetchStatus.textContent = "✅ Đã lấy thông tin";

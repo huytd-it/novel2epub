@@ -38,9 +38,9 @@
 
 ## 7. Migration & backward compat
 
-- [ ] 7.1 Test: ebook cũ không có `source` field → load_config hoạt động bình thường
-- [ ] 7.2 Test: ebook có `source` nhưng preset bị xóa → fallback dùng crawl fields
-- [ ] 7.3 Test: tạo ebook mới → tự detect preset từ URL
+- [x] 7.1 Test: ebook cũ không có `source` field → load_config hoạt động bình thường
+- [x] 7.2 Test: ebook có `source` nhưng preset bị xóa → fallback dùng crawl fields
+- [x] 7.3 Test: tạo ebook mới → tự detect preset từ URL
 - [x] 7.4 Sửa `app/routes/library.py` — `create_ebook()`: detect preset từ URL, ghi `source` field
 
 ## 8. YAML cleanup
@@ -51,8 +51,8 @@
 
 ## 9. Tests
 
-- [ ] 9.1 Viết test cho `resolve_source_overrides()`: merge preset → ebook override
-- [ ] 9.2 Viết test cho `propagate_preset_update()`: update preset → ebook không override bị ảnh hưởng
-- [ ] 9.3 Viết test cho `_preset_usage()` mới: dùng `source` field thay vì brute-force
-- [ ] 9.4 Viết test cho YAML cleanup: tạo ebook mới không chứa field deprecated
-- [ ] 9.5 Viết test integration: tạo ebook → update preset → verify ebook nhận field mới
+- [x] 9.1 Viết test cho `resolve_source_overrides()`: merge preset → ebook override
+- [x] 9.2 Viết test cho `propagate_preset_update()`: update preset → ebook không override bị ảnh hưởng
+- [x] 9.3 Viết test cho `_preset_usage()` mới: dùng `source` field thay vì brute-force
+- [x] 9.4 Viết test cho YAML cleanup: tạo ebook mới không chứa field deprecated
+- [x] 9.5 Viết test integration: tạo ebook → update preset → verify ebook nhận field mới

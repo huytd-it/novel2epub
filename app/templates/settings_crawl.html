@@ -1,5 +1,14 @@
 <form method="post" action="/ebooks/{{ slug }}/settings/source" class="settings-form">
 
+{% if source_preset %}
+<div class="my-3 px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-slate-800 text-sm">
+    <span class="font-semibold text-blue-700 dark:text-blue-300">Nguồn:</span>
+    <a href="/sources?edit={{ cfg.source }}" class="text-link-light dark:text-link-dark underline">{{ cfg.source }}</a>
+    <span class="text-muted-light dark:text-muted-dark ml-1">— field từ nguồn có nền xanh nhạt, field ghi đè có viền xanh đậm</span>
+    <button type="button" onclick="syncToSource('{{ slug }}')" class="ml-2 px-2 py-0.5 text-xs rounded border border-blue-300 dark:border-blue-600 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800">Lưu vào nguồn</button>
+</div>
+{% endif %}
+
 <details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
     <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">URL &amp; Lọc chương</summary>
     <label class="flex flex-col gap-1 text-sm min-w-0 px-3 pb-3"> URL mục lục (toc_url)
@@ -73,7 +82,12 @@
                 class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.scrapling.impersonate, 'crawl', 'scrapling') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" name="headless" value="true" {% if cfg.crawl.headless %}checked{% endif %}
+                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.crawl.headless, 'crawl', 'headless') %}border-blue-500{% endif %}">
+            headless
+        </label>
         <label class="inline-flex items-center gap-2 text-sm">
             <input type="checkbox" name="solve_cloudflare" value="true" {% if cfg.crawl.scrapling.solve_cloudflare %}checked{% endif %}
                 class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.crawl.scrapling.solve_cloudflare, 'crawl', 'scrapling') %}border-blue-500{% endif %}">
@@ -149,5 +163,18 @@
   scrapling:
     mode: {{ cfg.crawl.scrapling.mode }}</code></pre>
 </div>
+
+{% if source_preset %}
+<script>
+function syncToSource(slug) {
+    if (!confirm('Đồng bộ crawl settings từ ebook này sang nguồn "{{ cfg.source }}"?\n\nCác field bạn đã thay đổi sẽ ghi đè lên preset. Các ebook khác dùng cùng nguồn sẽ nhận giá trị mới.')) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/ebooks/' + slug + '/settings/sync-to-source';
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+{% endif %}
 
 </form>

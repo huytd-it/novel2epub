@@ -69,9 +69,18 @@ class SourcePreset:
 
     def crawl_overrides(self) -> dict[str, Any]:
         """Dict áp lên nhánh `crawl` của config (bỏ name, url, domains,
-        engine, và các field search_*).."""
+        engine, search_*, và field chỉ dùng trong source preset mà không
+        thuộc CrawlConfig: metadata selectors, legacy browser settings)."""
         data = asdict(self)
-        for key in ("name", "url", "domains", "engine"):
+        # Field không thuộc CrawlConfig — chỉ là metadata source preset
+        _source_only = {
+            "name", "url", "domains", "engine",
+            "toc_selector", "chapter_title_selector", "title_selector",
+            "author_selector", "desc_selector", "cover_selector",
+            "encoding", "user_agent", "magic", "js_code",
+            "max_search_results",
+        }
+        for key in _source_only:
             data.pop(key, None)
         return {k: v for k, v in data.items() if not k.startswith("search_")}
 
@@ -158,6 +167,65 @@ def detect_preset(url: str, presets: dict[str, SourcePreset]) -> str | None:
         return None
     candidates.sort(key=lambda x: (-x[0], x[1]))
     return candidates[0][1]
+
+
+def propagate_preset_update(
+    config_path: str | Path,
+    preset_name: str,
+    presets: dict[str, SourcePreset],
+) -> list[str]:
+    """Propagate preset update sang ebook có ``source == preset_name``.
+
+    Chỉ cập nhật field ebook CHƯA override (key không tồn tại trong
+    ebook.crawl block trong YAML). Trả về danh sách ebook slug bị ảnh hưởng.
+    """
+    from ruamel.yaml import YAML as _YAML
+
+    preset = presets.get(preset_name)
+    if preset is None:
+        return []
+
+    config_path = Path(config_path)
+    if not config_path.exists():
+        return []
+
+    y = _YAML()
+    y.preserve_quotes = True
+    data = y.load(config_path.read_text(encoding="utf-8")) or {}
+    ebooks = data.get("ebooks")
+    if not isinstance(ebooks, CommentedMap):
+        return []
+
+    overrides = preset.crawl_overrides()
+    affected: list[str] = []
+
+    for slug, item in ebooks.items():
+        if not isinstance(item, CommentedMap):
+            continue
+        if item.get("source") != preset_name:
+            continue
+
+        crawl = item.get("crawl")
+        if not isinstance(crawl, CommentedMap):
+            crawl = CommentedMap()
+            item["crawl"] = crawl
+
+        # Chỉ update field ebook CHƯA override (key chưa có trong crawl block)
+        changed = False
+        for key, value in overrides.items():
+            if key not in crawl:
+                crawl[key] = value
+                changed = True
+
+        if changed:
+            affected.append(slug)
+
+    if affected:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        with config_path.open("w", encoding="utf-8") as f:
+            y.dump(data, f)
+
+    return affected
 
 
 def save_presets(path: str | Path, presets: dict[str, SourcePreset]) -> None:

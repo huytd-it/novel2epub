@@ -526,7 +526,7 @@ sudugu:
   engine: scrapling
   url: https://www.sudugu.org
   domains: sudugu.org
-  chapter_link_pattern: .*
+  chapter_link_pattern: /\d+/\d+\.html
   content_selector: .con
   toc_selector: '#list a'
   chapter_title_selector: .submenu > h1
@@ -545,7 +545,7 @@ sudugu:
   max_pages_per_chapter: 10
   strip_patterns: []
   scrapling_mode: stealthy
-  solve_cloudflare: false
+  solve_cloudflare: true
   network_idle: true
   impersonate: ''
   concurrency_cap: 0

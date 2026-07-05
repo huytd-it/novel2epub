@@ -20,6 +20,18 @@ from ruamel.yaml.scalarstring import LiteralScalarString
 
 from .config import LibraryConfig
 
+# Field YAML-only deprecated — không có UI counterpart, config_writer không ghi.
+# load_config vẫn đọc được (backward compat) nhưng không nên xuất hiện khi
+# user tạo/sửa ebook qua web UI.
+_DEPRECATED_CRAWL_FIELDS = frozenset({
+    "strip_patterns", "ai_fallback", "ai_fallback_max_html", "concurrency_cap",
+})
+_DEPRECATED_TRANSLATE_FIELDS = frozenset({
+    "auto_glossary", "glossary_filter", "batch_size",
+    "auto_cleanup_han", "cleanup_han", "glossary", "glossary_files",
+    "profile", "genre",
+})
+
 
 def _yaml() -> YAML:
     y = YAML()
@@ -70,14 +82,22 @@ def _coerce(value: Any) -> Any:
 
 
 def _deep_merge(target: CommentedMap, updates: dict[str, Any]) -> None:
-    """Merge `updates` vào `target` tại chỗ, giữ comment của các key không đổi."""
+    """Merge `updates` vào `target` tại chỗ, giữ comment của các key không đổi.
+
+    Tự động lọc bỏ field deprecated khi ghi vào nhánh `crawl:` hoặc `translate:`.
+    """
     for key, value in updates.items():
         if isinstance(value, dict):
             child = target.get(key)
             if not isinstance(child, CommentedMap):
                 child = CommentedMap()
                 target[key] = child
-            _deep_merge(child, value)
+            deprecated = (
+                _DEPRECATED_CRAWL_FIELDS if key == "crawl"
+                else _DEPRECATED_TRANSLATE_FIELDS if key == "translate"
+                else frozenset()
+            )
+            _deep_merge(child, {k: v for k, v in value.items() if k not in deprecated})
         else:
             target[key] = _coerce(value)
 
@@ -147,10 +167,13 @@ def add_ebook(
     author: str = "",
     toc_url: str = "",
     preset: dict[str, Any] | None = None,
+    source_name: str = "",
 ) -> None:
     """Thêm 1 ebook vào `ebooks.<slug>` với CHỈ phần override tối thiểu.
 
     Phần dùng chung (prompt, style, output...) do `defaults:` lo, không lặp lại.
+    Nếu ``source_name`` được cung cấp, ghi field ``source`` thay vì copy
+    preset fields vào crawl block (preset resolve sẽ tự động khi load config).
     """
     path = Path(path)
     data = _load(path)
@@ -170,7 +193,11 @@ def add_ebook(
     crawl = CommentedMap()
     if toc_url:
         crawl["toc_url"] = toc_url
-    if preset:
+    # Nếu có source_name, ghi field source (không copy preset fields).
+    # Nếu không có source_name (legacy), copy preset fields như cũ.
+    if source_name:
+        pass  # preset fields resolve tự động khi load_config
+    elif preset:
         for k, v in preset.items():
             if k in {"name", "url", "domains", "engine"}:
                 continue
@@ -179,6 +206,8 @@ def add_ebook(
     item = CommentedMap()
     if name:
         item["name"] = name
+    if source_name:
+        item["source"] = source_name
     item["novel"] = novel
     item["crawl"] = crawl
     ebooks[slug] = item

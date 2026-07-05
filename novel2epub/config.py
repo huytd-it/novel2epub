@@ -348,6 +348,8 @@ class Config:
     translate: TranslateConfig
     output: OutputConfig
     ai: AIConfig = field(default_factory=AIConfig)
+    # Tên source preset mà ebook này tham chiếu. Rỗng = không dùng preset.
+    source: str = ""
     # Cảnh báo xung đột tính năng phát hiện lúc load config (vd preset ép đổi
     # type, selector không áp dụng cho engine hiện tại...). pipeline.py log
     # các dòng này ra job log để hiện trên web UI thay vì chỉ ghi logging nội bộ.
@@ -386,6 +388,32 @@ def _deep_merge_raw(base: dict[str, Any], override: dict[str, Any]) -> dict[str,
         else:
             result[key] = value
     return result
+
+
+def _resolve_source_overrides(
+    ebook_raw: dict[str, Any],
+    sources_raw: dict[str, Any],
+) -> tuple[dict[str, Any], str, list[str]]:
+    """Resolve source preset cho ebook, trả về (crawl_merge, source_name, warnings).
+
+    Nếu ebook có field ``source`` và preset tồn tại trong ``sources_raw``,
+    trả crawl fields từ preset để caller merge vào config. Nếu preset không
+    tồn tại, trả warning và crawl rỗng.
+    """
+    source_name = str(ebook_raw.get("source", "") or "")
+    if not source_name:
+        return {}, "", []
+    preset_data = _as_dict(sources_raw.get(source_name))
+    if not preset_data:
+        return {}, source_name, [
+            f"source {source_name!r} không tồn tại trong sources — dùng crawl fields từ ebook."
+        ]
+    from .sources import SourcePreset, _FIELD_NAMES, _coerce
+
+    data = {k: _coerce(k, v) for k, v in preset_data.items() if k in _FIELD_NAMES}
+    data["name"] = source_name
+    preset = SourcePreset(**data)
+    return preset.crawl_overrides(), source_name, []
 
 
 def load_library(path: str | Path) -> LibraryConfig:
@@ -431,6 +459,9 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     # Chế độ "unified": file gộp có khối `ebooks:` -> config hiệu lực của một
     # ebook = deep_merge(defaults, ebooks[slug]). Không có `ebooks:` thì coi như
     # file phẳng cũ (novel/crawl/translate/output ở top-level), giữ nguyên hành vi.
+    source_crawl: dict[str, Any] = {}
+    source_name = ""
+    source_warnings: list[str] = []
     if is_unified:
         defaults = _as_dict(raw.get("defaults"))
         ebooks = _as_dict(raw.get("ebooks"))
@@ -449,6 +480,18 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         # sót lại) bị bỏ qua để tránh mỗi ebook một bản cấu hình AI khác nhau.
         override.pop("translate", None)
         override.pop("ai", None)
+
+        # Source preset resolution: nếu ebook có field `source`, lookup preset
+        # từ sources block → merge crawl fields từ preset vào TRƯỚC khi ebook
+        # override ghi đè. Source preset = layer giữa defaults và ebook override.
+        sources_raw = _as_dict(raw.get("sources"))
+        source_crawl, source_name, source_warnings = _resolve_source_overrides(override, sources_raw)
+        override.pop("source", None)  # không đưa vào Config raw dict
+        if source_crawl:
+            ebook_crawl = _as_dict(override.get("crawl"))
+            merged_crawl = _deep_merge_raw(source_crawl, ebook_crawl)
+            override["crawl"] = merged_crawl
+
         raw = _deep_merge_raw(defaults, override)
 
     novel = NovelConfig(**(raw.get("novel") or {}))
@@ -530,7 +573,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             names_path = str(glossary_dir / "names.txt")
         if not vietphrase_path:
             vietphrase_path = str(glossary_dir / "vietphrase.txt")
-    warnings: list[str] = []
+    warnings: list[str] = list(source_warnings)
     if preset_name:
         from . import presets as _presets
 
@@ -609,4 +652,4 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             "trích xuất HTML của preset 'go', kiểm tra translate.openai có phù hợp không."
         )
 
-    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, warnings=warnings)
+    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, source=source_name, warnings=warnings)

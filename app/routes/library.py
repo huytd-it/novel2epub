@@ -13,7 +13,7 @@ from novel2epub.config import CrawlConfig
 from novel2epub.config_writer import add_ebook, remove_ebook
 from novel2epub.crawler import ScraplingCrawler
 from novel2epub.search import search_all, search_all_stream
-from novel2epub.sources import load_presets
+from novel2epub.sources import detect_preset, load_presets
 
 from .. import deps
 
@@ -77,13 +77,24 @@ def library_page():
 def preview_ebook_api(
     toc_url: str = Form(""),
 ):
-    """API: fetch metadata từ URL mục lục, trả JSON."""
+    """API: fetch metadata từ URL mục lục, trả JSON (kèm source preset detect)."""
     toc_url = toc_url.strip()
     if not toc_url:
         return JSONResponse({"error": "Thiếu URL mục lục."}, status_code=400)
 
     try:
         data = _fetch_meta(toc_url)
+        # Detect source preset từ URL
+        presets = load_presets(deps.SOURCES_PATH)
+        source_name = detect_preset(toc_url, presets) or ""
+        if source_name:
+            preset = presets[source_name]
+            data["source"] = source_name
+            data["source_engine"] = preset.engine
+            data["source_content_selector"] = preset.content_selector
+            data["source_delay"] = preset.delay_seconds
+        else:
+            data["source"] = ""
         return JSONResponse(data)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -159,6 +170,9 @@ def create_ebook(
         raise HTTPException(status_code=409, detail=f"Ebook '{slug}' đã tồn tại.")
 
     # File gộp: ghi thẳng ebook (chỉ phần override) vào khối `ebooks:`.
+    # Auto-detect source preset từ URL.
+    presets = load_presets(deps.SOURCES_PATH)
+    source_name = detect_preset(toc_url, presets) or ""
     add_ebook(
         deps.WORKSPACE_PATH,
         slug,
@@ -166,6 +180,7 @@ def create_ebook(
         title=name,
         author=author,
         toc_url=toc_url,
+        source_name=source_name,
     )
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 

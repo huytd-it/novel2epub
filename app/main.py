@@ -21,6 +21,11 @@ setup_logging()
 app = FastAPI(title="novel2epub")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 app.state.job = JobRunner(history_path=WORKSPACE_DIR / "queue_history.json")
+# Đăng ký các loại job tuỳ biến còn dang dở lúc shutdown (spec JSON-serializable
+# trong queue_pending.json) trước khi nạp lại — job pending có kind chưa
+# register sẽ bị bỏ qua vĩnh viễn (xem JobQueue.register_kind/load_pending).
+app.state.job.queue.register_kind("batch-translate", chapters.batch_translate_job_factory)
+app.state.job.queue.load_pending()
 app.state.scheduler = AutomationScheduler(AUTOMATIONS_PATH, WORKSPACE_PATH, app.state.job.queue)
 
 

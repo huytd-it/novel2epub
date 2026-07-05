@@ -29,7 +29,41 @@ def _client(cfg, monkeypatch):
     monkeypatch.setattr(deps, "cfg", lambda: cfg)
     monkeypatch.setattr(deps, "resolved_cfg", lambda slug: cfg)
     from app.main import app
+    # batch/translate giờ chạy nền qua job queue (không block request) — thay
+    # app.state.job bằng stub chạy target NGAY (sync trong request) để test
+    # assert được kết quả ghi file/log mà không cần chờ worker thread thật
+    # (xem _FakeJob, cùng pattern với tests/test_batch_delete_translation.py).
+    app.state.job = _FakeJob()
     return TestClient(app)
+
+
+class _FakeJob:
+    """Stub cho app.state.job — start_custom chạy target NGAY (sync), bắt
+    exception giống JobQueue._execute() thật (không để lộ ra HTTP response,
+    chỉ ghi vào .error) và gom log lại (.logs) để test kiểm tra nội dung
+    thông báo kết quả/lỗi — trước đây các nội dung này nằm trong JSON response
+    lúc endpoint còn chạy đồng bộ."""
+
+    def __init__(self):
+        self.started: list[dict] = []
+        self.logs: list[str] = []
+        self.error: str = ""
+
+    def status(self):
+        return {
+            "crawl": {"running": False, "step": "", "error": "", "log": []},
+            "translate": {"running": False, "step": "", "error": "", "log": []},
+        }
+
+    def start_custom(self, name, target, *, category, ebook="", spec=None):
+        self.started.append({"name": name, "category": category, "ebook": ebook, "spec": spec})
+        self.logs = []
+        self.error = ""
+        try:
+            target(self.logs.append)
+        except Exception as e:
+            self.error = str(e)
+        return True
 
 
 def _seed(tmp_path):
@@ -258,9 +292,8 @@ class _FakeResp:
 
 
 def test_batch_translate_happy_path(tmp_path, monkeypatch):
-    """Happy path: chọn 2 chương có raw → AI trả về → ghi translated/ + glossary."""
-    from app.routes import chapters as chapters_routes
-
+    """Happy path: chọn 2 chương có raw → job nền (chạy sync qua _FakeJob
+    trong test) → AI trả về → ghi translated/ + glossary."""
     cfg = _cfg(tmp_path)
     storage, chapters = _seed_with_raw(tmp_path, n=2)
     client = _client(cfg, monkeypatch)
@@ -293,13 +326,15 @@ def test_batch_translate_happy_path(tmp_path, monkeypatch):
     )
     assert res.status_code == 200
     data = res.json()
-    assert data["written"] == [1, 2]
-    assert data["glossary_added"] == 1
-    assert data["missing"] == []
-    assert data["unknown"] == []
-    # Cost meta pass-through từ run_chat_with_meta
-    assert data["ai_meta"]["cost_usd"] == 0.001
-    assert data["ai_meta"]["version"] == "3.8.40"
+    # Response trả ngay lúc enqueue — kết quả chi tiết nằm trong log của job.
+    assert data["started"] is True
+    assert data["pending"] == 2
+
+    fake = client.app.state.job
+    assert fake.error == ""
+    log_text = "\n".join(fake.logs)
+    assert "2/2 chương" in log_text
+    assert "1 mục glossary mới" in log_text
 
     # Ghi translated/ đúng nội dung
     assert storage.read_translated(chapters[0]) == "Bản dịch chương 1"
@@ -313,8 +348,6 @@ def test_batch_translate_happy_path(tmp_path, monkeypatch):
 
 def test_batch_translate_uses_TRANSLATE_PROMPT(tmp_path, monkeypatch):
     """Verify rằng prompt gửi cho AI khớp 100% với "Xuất RAW để dịch" (TRANSLATE_PROMPT)."""
-    from app.routes import chapters as chapters_routes
-
     cfg = _cfg(tmp_path)
     _seed_with_raw(tmp_path, n=1)
     client = _client(cfg, monkeypatch)
@@ -362,10 +395,9 @@ def test_batch_translate_no_raw_400(tmp_path, monkeypatch):
     assert "raw" in res.json()["detail"]
 
 
-def test_batch_translate_ai_error_502(tmp_path, monkeypatch):
-    """AI lỗi → 502 với message."""
-    from app.routes import chapters as chapters_routes
-
+def test_batch_translate_ai_error(tmp_path, monkeypatch):
+    """AI lỗi → job (chạy nền) ghi nhận lỗi; enqueue vẫn trả 200 vì lỗi chỉ lộ
+    ra lúc job THỰC SỰ chạy, không còn chặn HTTP response."""
     cfg = _cfg(tmp_path)
     _seed_with_raw(tmp_path, n=1)
     client = _client(cfg, monkeypatch)
@@ -378,14 +410,13 @@ def test_batch_translate_ai_error_502(tmp_path, monkeypatch):
         "/api/ebooks/t/batch/translate",
         data={"indexes": "1"},
     )
-    assert res.status_code == 502
-    assert "connection refused" in res.json()["detail"]
+    assert res.status_code == 200
+    assert res.json()["started"] is True
+    assert "connection refused" in client.app.state.job.error
 
 
-def test_batch_translate_ai_no_marker_502(tmp_path, monkeypatch):
-    """AI trả về nhưng không có marker chương nào → 502 với message rõ ràng."""
-    from app.routes import chapters as chapters_routes
-
+def test_batch_translate_ai_no_marker_error(tmp_path, monkeypatch):
+    """AI trả về nhưng không có marker chương nào → job ghi nhận lỗi rõ ràng."""
     cfg = _cfg(tmp_path)
     _seed_with_raw(tmp_path, n=1)
     client = _client(cfg, monkeypatch)
@@ -398,16 +429,14 @@ def test_batch_translate_ai_no_marker_502(tmp_path, monkeypatch):
         "/api/ebooks/t/batch/translate",
         data={"indexes": "1"},
     )
-    assert res.status_code == 502
-    assert "marker" in res.json()["detail"]
+    assert res.status_code == 200
+    assert "marker" in client.app.state.job.error
 
 
 def test_batch_translate_ai_missing_chapter_reported(tmp_path, monkeypatch):
-    """AI bỏ sót 1 chương → written chỉ chứa chương có, missing báo cáo."""
-    from app.routes import chapters as chapters_routes
-
+    """AI bỏ sót 1 chương → chỉ ghi chương có, log báo cáo phần bị bỏ sót."""
     cfg = _cfg(tmp_path)
-    _seed_with_raw(tmp_path, n=2)
+    storage, chapters = _seed_with_raw(tmp_path, n=2)
     client = _client(cfg, monkeypatch)
 
     # AI chỉ trả chương 1, bỏ sót chương 2
@@ -419,22 +448,23 @@ def test_batch_translate_ai_missing_chapter_reported(tmp_path, monkeypatch):
         "/api/ebooks/t/batch/translate",
         data={"indexes": "1,2"},
     )
-    data = res.json()
-    assert data["written"] == [1]
-    assert data["missing"] == [2]
-    assert data["unknown"] == []
+    assert res.status_code == 200
+    assert storage.read_translated(chapters[0]) == "Chỉ có 1"
+    assert not storage.has_translated(chapters[1])
+    log_text = "\n".join(client.app.state.job.logs)
+    assert "bỏ sót" in log_text
+    assert "[2]" in log_text
 
 
 def test_batch_translate_preserves_existing_translated_mt(tmp_path, monkeypatch):
-    """Nếu đã có translated_mt/ (đang biên tập dịch cũ) → KHÔNG đụng snapshot máy."""
-    from app.routes import chapters as chapters_routes
-
+    """Chương có sẵn translated_mt/ (vd từ 1 lần dịch máy trước) nhưng CHƯA có
+    translated/ (chưa tính là "đã dịch") → job vẫn chạy, và KHÔNG được đụng
+    vào snapshot máy cũ khi ghi bản dịch mới."""
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")
     ch = Chapter(index=1, url="http://x/1")
     storage.save_manifest(Manifest(slug="t", chapters=[ch]))
     storage.write_raw(ch, "raw text")
-    storage.write_translated(ch, "bản dịch cũ")
     storage.write_translated_mt(ch, "MT snapshot giữ nguyên")
     client = _client(cfg, monkeypatch)
 
@@ -447,7 +477,7 @@ def test_batch_translate_preserves_existing_translated_mt(tmp_path, monkeypatch)
         data={"indexes": "1"},
     )
     assert res.status_code == 200
-    # translated/ được ghi đè
+    # translated/ được ghi
     assert storage.read_translated(ch) == "Bản dịch mới"
     # translated_mt/ KHÔNG bị đụng
     assert storage.read_translated_mt(ch) == "MT snapshot giữ nguyên"
@@ -455,8 +485,6 @@ def test_batch_translate_preserves_existing_translated_mt(tmp_path, monkeypatch)
 
 def test_batch_translate_skips_chapters_without_raw(tmp_path, monkeypatch):
     """Tick 1 chương có raw + 1 chương chưa có raw → chỉ dịch chương có raw."""
-    from app.routes import chapters as chapters_routes
-
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")
     chapters = [Chapter(index=1, url="http://x/1"), Chapter(index=2, url="http://x/2")]
@@ -473,15 +501,60 @@ def test_batch_translate_skips_chapters_without_raw(tmp_path, monkeypatch):
         "/api/ebooks/t/batch/translate",
         data={"indexes": "1,2"},
     )
-    data = res.json()
-    assert data["written"] == [1]
-    assert data["skipped"] == [2]
+    assert res.status_code == 200
+    assert storage.read_translated(chapters[0]) == "Bản dịch 1"
+    assert not storage.has_translated(chapters[1])
+    log_text = "\n".join(client.app.state.job.logs)
+    assert "chưa có raw" in log_text
+
+
+def test_batch_translate_skips_already_translated(tmp_path, monkeypatch):
+    """Chương đã có bản dịch (has_translated) → tự động bỏ qua, KHÔNG gọi AI
+    lại và KHÔNG ghi đè — muốn dịch lại phải xoá bản dịch cũ trước."""
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=1, url="http://x/1"), Chapter(index=2, url="http://x/2")]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    storage.write_raw(chapters[0], "raw 1")
+    storage.write_raw(chapters[1], "raw 2")
+    storage.write_translated(chapters[0], "Đã dịch từ trước")
+    client = _client(cfg, monkeypatch)
+
+    call_count = {"n": 0}
+
+    def _capture(openai_cfg, prompt):
+        call_count["n"] += 1
+        assert "raw 1" not in prompt  # chương 1 không được đưa vào prompt
+        return ("## Chương 2\nBản dịch 2\n", {})
+
+    monkeypatch.setattr(openai_client, "run_chat_with_meta", _capture)
+    res = client.post(
+        "/api/ebooks/t/batch/translate",
+        data={"indexes": "1,2"},
+    )
+    assert res.status_code == 200
+    assert res.json()["pending"] == 1
+    assert call_count["n"] == 1
+    assert storage.read_translated(chapters[0]) == "Đã dịch từ trước"
+    assert storage.read_translated(chapters[1]) == "Bản dịch 2"
+    log_text = "\n".join(client.app.state.job.logs)
+    assert "1 chương đã dịch" in log_text
+
+
+def test_batch_translate_all_already_translated_400(tmp_path, monkeypatch):
+    """Tất cả chương đã chọn đều đã dịch rồi → 400, không enqueue job."""
+    cfg = _cfg(tmp_path)
+    storage, chapters = _seed_with_raw(tmp_path, n=1)
+    storage.write_translated(chapters[0], "Đã dịch rồi")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "1"})
+    assert res.status_code == 400
+    assert client.app.state.job.started == []
 
 
 def test_batch_translate_includes_glossary_in_prompt(tmp_path, monkeypatch):
     """Glossary có sẵn phải được nhúng vào prompt gửi cho AI."""
-    from app.routes import chapters as chapters_routes
-
     cfg = _cfg(tmp_path)
     storage, _ = _seed_with_raw(tmp_path, n=1)
     storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n")
@@ -524,7 +597,7 @@ def test_batch_translate_updates_manifest_titles(tmp_path, monkeypatch):
     )
     res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "1,2"})
     assert res.status_code == 200
-    assert res.json()["titles_updated"] == [1, 2]
+    assert "2 tiêu đề cập nhật" in "\n".join(client.app.state.job.logs)
 
     manifest = storage.load_manifest()
     by_idx = {c.index: c for c in manifest.chapters}
@@ -568,7 +641,7 @@ def test_batch_translate_heading_without_title_keeps_manifest_title(tmp_path, mo
     )
     res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "1"})
     assert res.status_code == 200
-    assert res.json()["titles_updated"] == []
+    assert "0 tiêu đề cập nhật" in "\n".join(client.app.state.job.logs)
     assert storage.load_manifest().chapters[0].title == "第1章"
 
 
@@ -589,8 +662,8 @@ def test_batch_translate_title_number_differs_from_index(tmp_path, monkeypatch):
     )
     res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "928"})
     assert res.status_code == 200
-    assert res.json()["written"] == [928]
-    assert res.json()["titles_updated"] == [928]
+    assert storage.read_translated(ch) == "Dịch"
+    assert "1 tiêu đề cập nhật" in "\n".join(client.app.state.job.logs)
 
     ch2 = storage.load_manifest().chapters[0]
     assert ch2.index == 928
@@ -614,7 +687,7 @@ def test_batch_translate_reprefixes_real_chapter_number_when_ai_drops_it(tmp_pat
     )
     res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "961"})
     assert res.status_code == 200
-    assert res.json()["titles_updated"] == [961]
+    assert "1 tiêu đề cập nhật" in "\n".join(client.app.state.job.logs)
 
     ch2 = storage.load_manifest().chapters[0]
     assert ch2.title == "Chương 911: Ta muốn đóng băng tất cả pháp điều!"
@@ -643,9 +716,8 @@ def test_batch_translate_splits_into_batches(tmp_path, monkeypatch):
         data={"indexes": "1,2,3,4,5"},
     )
     assert res.status_code == 200
-    data = res.json()
-    assert data["batches"] == 3  # ceil(5/2) = 3
-    assert call_count["n"] == 3
+    assert call_count["n"] == 3  # ceil(5/2) = 3
+    assert "chia 3 batch" in "\n".join(client.app.state.job.logs)
 
 
 def test_batch_translate_glossary_merges_across_batches(tmp_path, monkeypatch):
@@ -679,7 +751,7 @@ def test_batch_translate_glossary_merges_across_batches(tmp_path, monkeypatch):
 
 
 def test_batch_translate_meta_aggregated(tmp_path, monkeypatch):
-    """ai_meta phải tổng hợp cost/tokens từ tất cả batch."""
+    """Log tổng kết phải tổng hợp cost/tokens từ tất cả batch."""
     cfg = _cfg(tmp_path, batch_size=1)
     storage, _ = _seed_with_raw(tmp_path, n=2)
     client = _client(cfg, monkeypatch)
@@ -692,10 +764,8 @@ def test_batch_translate_meta_aggregated(tmp_path, monkeypatch):
 
     monkeypatch.setattr(openai_client, "run_chat_with_meta", _capture)
     res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "1,2"})
-    data = res.json()
+    assert res.status_code == 200
 
-    assert data["ai_meta"]["cost_usd"] == 0.002  # 0.001 * 2 batches
-    assert data["ai_meta"]["tokens_in"] == 200
-    assert data["ai_meta"]["tokens_out"] == 100
-    assert data["ai_meta"]["latency_ms"] == 2000
-    assert data["ai_meta"]["batches"] == 2
+    log_text = "\n".join(client.app.state.job.logs)
+    assert "0.0020 USD" in log_text  # cost_usd 0.001 * 2 batches
+    assert "300 tokens" in log_text  # (100+50) * 2 batches

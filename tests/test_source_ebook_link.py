@@ -305,7 +305,7 @@ class TestYamlCleanup:
         assert len(_DEPRECATED_CRAWL_FIELDS) > 0
         assert len(_DEPRECATED_TRANSLATE_FIELDS) > 0
         assert "auto_glossary" in _DEPRECATED_TRANSLATE_FIELDS
-        assert "strip_patterns" in _DEPRECATED_CRAWL_FIELDS
+        assert "ai_fallback" in _DEPRECATED_CRAWL_FIELDS
 
 
 # ── Task 9.5: Integration — create ebook → update preset → verify ──

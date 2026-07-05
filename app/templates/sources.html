@@ -96,7 +96,8 @@
                         data-js_code="{{ p.js_code or '' }}" data-scrapling_mode="{{ p.scrapling_mode or '' }}"
                         data-solve_cloudflare="{{ 'true' if p.solve_cloudflare else '' }}" data-network_idle="{{ 'true' if p.network_idle else '' }}"
                         data-impersonate="{{ p.impersonate or '' }}" data-user_agent="{{ p.user_agent or '' }}"
-                        data-concurrency_cap="{{ p.concurrency_cap }}">Sửa</button>
+                        data-concurrency_cap="{{ p.concurrency_cap }}"
+                        data-strip_patterns="{{ p.strip_patterns | join('\n') if p.strip_patterns else '' }}">Sửa</button>
                     <form method="post" action="/sources/{{ name }}/clone" style="display:inline">
                         <button type="submit" title="Nhân bản preset này" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhân bản</button>
                     </form>
@@ -212,6 +213,13 @@
                 </fieldset>
 
                 <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
+                    <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Lọc nội dung rác</legend>
+                    <label class="flex flex-col gap-1 text-sm min-w-0">strip_patterns (mỗi dòng 1 regex)
+                        <textarea name="strip_patterns" id="p-strip_patterns" rows="3" placeholder="^请记住本书首发域名.*$" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm font-mono"></textarea>
+                    </label>
+                </fieldset>
+
+                <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
                     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Mạng &amp; song song</legend>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
                         <label class="flex flex-col gap-1 text-sm min-w-0">User Agent <input type="text" name="user_agent" id="p-user_agent" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
@@ -291,6 +299,7 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("p-impersonate").value = btn.dataset.impersonate;
             document.getElementById("p-user_agent").value = btn.dataset.user_agent;
             document.getElementById("p-concurrency_cap").value = btn.dataset.concurrency_cap;
+            document.getElementById("p-strip_patterns").value = btn.dataset.strip_patterns || '';
             openCanvas('preset-canvas');
         });
     });

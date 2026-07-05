@@ -102,6 +102,16 @@
 </details>
 
 <details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Lọc nội dung rác (strip_patterns)</summary>
+    <label class="flex flex-col gap-1 text-sm px-3 pb-3"> Regex xoá dòng rác (mỗi dòng 1 pattern)
+        <textarea name="strip_patterns" rows="4" placeholder="^请记住本书首发域名.*$&#10;^天才一秒记住.*$"
+            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 font-mono">{% for p in cfg.crawl.strip_patterns %}{{ p }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea>
+        <span class="text-xs italic text-muted-light dark:text-muted-dark">Dòng nào khớp regex sẽ bị xoá khỏi text chương trước khi dịch. Mỗi dòng 1 regex Python.</span>
+    </label>
+</details>
+
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
     <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Pagination (chương nhiều trang)</summary>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
         <label class="flex flex-col gap-1 text-sm min-w-0"> next_page_selector

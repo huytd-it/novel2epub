@@ -24,7 +24,7 @@ from .config import LibraryConfig
 # load_config vẫn đọc được (backward compat) nhưng không nên xuất hiện khi
 # user tạo/sửa ebook qua web UI.
 _DEPRECATED_CRAWL_FIELDS = frozenset({
-    "strip_patterns", "ai_fallback", "ai_fallback_max_html", "concurrency_cap",
+    "ai_fallback", "ai_fallback_max_html", "concurrency_cap",
 })
 _DEPRECATED_TRANSLATE_FIELDS = frozenset({
     "auto_glossary", "glossary_filter", "batch_size",

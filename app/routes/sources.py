@@ -106,8 +106,10 @@ def save_source_preset(
     network_idle: bool = Form(False),
     impersonate: str = Form(""),
     concurrency_cap: int = Form(0),
+    strip_patterns: str = Form(""),
 ):
     name = name.strip()
+    strip_list = [line.strip() for line in strip_patterns.splitlines() if line.strip()]
     presets = deps.presets()
     if name:
         kwargs = dict(
@@ -136,6 +138,7 @@ def save_source_preset(
             network_idle=network_idle,
             impersonate=impersonate.strip(),
             concurrency_cap=max(0, concurrency_cap),
+            strip_patterns=strip_list,
         )
         if user_agent.strip():
             kwargs["user_agent"] = user_agent

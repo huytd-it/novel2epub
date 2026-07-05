@@ -189,7 +189,7 @@ def run_chat_with_meta(
         "model": cfg.model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": cfg.temperature,
-        "stream": True,
+        "stream": False,
     }
     headers = _headers(cfg)
     headers["X-OmniRoute-Progress"] = "true"

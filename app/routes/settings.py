@@ -235,7 +235,9 @@ def save_source(
     retry_max_delay_seconds: float = Form(120.0),
     retry_respect_retry_after: bool = Form(False),
     headless: bool = Form(False),
+    strip_patterns: str = Form(""),
 ):
+    strip_list = [line.strip() for line in strip_patterns.splitlines() if line.strip()]
     crawl: dict = {
         "toc_url": toc_url,
         "chapter_link_pattern": chapter_link_pattern,
@@ -244,6 +246,7 @@ def save_source(
         "delay_seconds": delay_seconds,
         "content_selector": content_selector,
         "headless": headless,
+        "strip_patterns": strip_list,
         "scrapling": {
             "mode": scrapling_mode,
             "solve_cloudflare": solve_cloudflare,

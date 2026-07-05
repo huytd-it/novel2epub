@@ -111,3 +111,36 @@ def test_callback_for_short_text_called_with_is_final_true(monkeypatch):
     seen: list[bool] = []
     translator.translate("ngắn", on_chunk=lambda i, t, c, f: seen.append(f))
     assert seen == [True]
+
+
+def test_translate_multichunk_filters_glossary_per_chunk(monkeypatch):
+    """Mỗi chunk chỉ nhận các mục glossary xuất hiện trong chính chunk đó."""
+    cfg = TranslateConfig(
+        type="openai",
+        glossary={"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"},
+        glossary_filter=True,
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            prompt_template="{glossary}\n---\n{text}",
+            title_prompt_template="{text}",
+        ),
+        chunk=TranslationChunkConfig(max_chars=10, overlap_paragraphs=0),
+    )
+    prompts: list[str] = []
+    responses = iter(["kết quả A", "kết quả B"])
+
+    def _mock_run_chat(cfg_, prompt):
+        prompts.append(prompt)
+        return next(responses)
+
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
+    translator = make_translator(cfg)
+    # 2 đoạn, mỗi đoạn dài hơn max_chars → 2 chunk riêng.
+    out = translator.translate("叶凡AAAAAAAAAA\n庄国BBBBBBBBBB")
+
+    assert out == "kết quả A\nkết quả B"
+    assert len(prompts) == 2
+    assert "叶凡 = Diệp Phàm" in prompts[0]
+    assert "庄国" not in prompts[0]
+    assert "庄国 = Trang Quốc" in prompts[1]
+    assert "叶凡" not in prompts[1]

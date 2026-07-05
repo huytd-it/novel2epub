@@ -133,7 +133,10 @@ def ai_fix_notes(slug: str, note_ids: str = Form(...), chapter_index: int = Form
     glossary = glossary_ai.load_glossary(cfg.translate)
 
     try:
-        fixes = glossary_ai.fix_passages(cfg.ai.openai, raw, translated, selected, glossary)
+        fixes = glossary_ai.fix_passages(
+            cfg.ai.openai, raw, translated, selected, glossary,
+            filter_glossary=cfg.translate.glossary_filter,
+        )
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 

@@ -354,3 +354,83 @@ def test_extend_glossary_skips_empty_source():
     result = t.extend_glossary({"": "something", "valid": ""}, "names.txt", storage)
     assert len(result["added"]) == 0
     assert len(result["conflicts"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# _filter_glossary + lọc glossary theo đoạn khi build prompt
+# ---------------------------------------------------------------------------
+
+def _make_filter_translator(glossary_filter=True):
+    from novel2epub.translator import OpenAITranslator
+
+    cfg = TranslateConfig(
+        type="openai",
+        glossary={"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"},
+        glossary_filter=glossary_filter,
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            prompt_template="{glossary}\n---\n{text}",
+            title_prompt_template="{glossary}\n---\n{text}",
+        ),
+    )
+    return OpenAITranslator(cfg)
+
+
+def test_filter_glossary_keeps_only_matching_zh():
+    from novel2epub.translator import _filter_glossary
+
+    glossary = {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+    out = _filter_glossary(glossary, zh_text="叶凡出场了")
+    assert out == {"叶凡": "Diệp Phàm"}
+    # Không mutate dict gốc
+    assert glossary == {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+
+
+def test_filter_glossary_matches_vi_value():
+    from novel2epub.translator import _filter_glossary
+
+    glossary = {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+    out = _filter_glossary(glossary, zh_text="", vi_text="Diệp Phàm bước ra")
+    assert out == {"叶凡": "Diệp Phàm"}
+
+
+def test_filter_glossary_empty_texts_returns_empty():
+    from novel2epub.translator import _filter_glossary
+
+    assert _filter_glossary({"叶凡": "Diệp Phàm"}) == {}
+
+
+def test_format_glossary_has_no_indent():
+    from novel2epub.translator import _format_glossary
+
+    out = _format_glossary({"叶凡": "Diệp Phàm"})
+    assert out == "Bảng thuật ngữ bắt buộc dùng nhất quán:\n叶凡 = Diệp Phàm"
+
+
+def test_build_prompt_filters_glossary_to_chunk_text():
+    t = _make_filter_translator()
+    prompt = t._build_prompt("却说叶凡今日修炼")
+    assert "叶凡 = Diệp Phàm" in prompt
+    assert "庄国" not in prompt
+    # self.glossary vẫn đầy đủ (chỉ lọc bản copy cho prompt)
+    assert t.glossary == {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+
+
+def test_build_prompt_unfiltered_when_disabled():
+    t = _make_filter_translator(glossary_filter=False)
+    prompt = t._build_prompt("却说叶凡今日修炼")
+    assert "叶凡 = Diệp Phàm" in prompt
+    assert "庄国 = Trang Quốc" in prompt
+
+
+def test_build_prompt_omits_header_when_no_entry_matches():
+    t = _make_filter_translator()
+    prompt = t._build_prompt("完全无关的文本")
+    assert "Bảng thuật ngữ" not in prompt
+
+
+def test_build_title_prompt_filters_on_title():
+    t = _make_filter_translator()
+    prompt = t._build_title_prompt("庄国大战", kind="tên chương")
+    assert "庄国 = Trang Quốc" in prompt
+    assert "叶凡" not in prompt

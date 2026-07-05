@@ -9,7 +9,13 @@ import re
 
 from . import openai_client
 from .config import OpenAIConfig
-from .translator import _apply_glossary, _clean_output, _format_glossary, load_glossary_dict
+from .translator import (
+    _apply_glossary,
+    _clean_output,
+    _filter_glossary,
+    _format_glossary,
+    load_glossary_dict,
+)
 
 SUGGEST_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, chuyên xây dựng glossary nhất quán.
 
@@ -133,6 +139,8 @@ def suggest_glossary(
     ai_cfg: OpenAIConfig,
     chapters: list[tuple[str, str]],
     existing_glossary: dict[str, str],
+    *,
+    filter_glossary: bool = True,
 ) -> list[dict]:
     """Gọi AI phân tích raw+translated của các chương đã chọn, trả list suggestion.
 
@@ -144,7 +152,15 @@ def suggest_glossary(
     if not raw_combined.strip() and not translated_combined.strip():
         return []
 
-    existing_text = _format_glossary(existing_glossary) or "(chưa có mục nào)"
+    prompt_glossary = existing_glossary
+    if filter_glossary:
+        # Khối {existing} chỉ để AI tránh gợi ý trùng; mục hợp lệ bắt buộc phải
+        # xuất hiện trong text nên lọc theo text không làm mất thông tin. Dedup
+        # Python bên dưới vẫn dùng FULL existing_glossary.
+        prompt_glossary = _filter_glossary(
+            existing_glossary, zh_text=raw_combined, vi_text=translated_combined
+        )
+    existing_text = _format_glossary(prompt_glossary) or "(chưa có mục nào)"
     prompt = SUGGEST_PROMPT.format(existing=existing_text, raw=raw_combined, translated=translated_combined)
     try:
         output = openai_client.run_chat(ai_cfg, prompt)
@@ -160,13 +176,25 @@ def suggest_glossary(
 load_glossary = load_glossary_dict
 
 
-def rewrite_chapter(ai_cfg: OpenAIConfig, raw: str, current_translation: str, glossary: dict[str, str]) -> str:
+def rewrite_chapter(
+    ai_cfg: OpenAIConfig,
+    raw: str,
+    current_translation: str,
+    glossary: dict[str, str],
+    *,
+    filter_glossary: bool = True,
+) -> str:
     """Biên tập lại 1 chương đã dịch theo glossary + nguyên tắc 'edit hay'."""
     if not current_translation.strip():
         return current_translation
+    prompt_glossary = (
+        _filter_glossary(glossary, zh_text=raw, vi_text=current_translation)
+        if filter_glossary
+        else glossary
+    )
     prompt = REWRITE_PROMPT.format(
         guidelines=EDIT_HAY_GUIDELINES,
-        glossary=_format_glossary(glossary),
+        glossary=_format_glossary(prompt_glossary),
         raw=raw,
         translated=current_translation,
     )
@@ -252,6 +280,8 @@ def fix_passages(
     translated: str,
     notes: list[dict],
     glossary: dict[str, str],
+    *,
+    filter_glossary: bool = True,
 ) -> list[dict]:
     """Gọi AI sửa các chỗ dịch được người đọc đánh dấu kèm ghi chú.
 
@@ -261,9 +291,14 @@ def fix_passages(
     """
     if not notes:
         return []
+    prompt_glossary = (
+        _filter_glossary(glossary, zh_text=raw or "", vi_text=translated)
+        if filter_glossary
+        else glossary
+    )
     prompt = FIX_PROMPT.format(
         guidelines=EDIT_HAY_GUIDELINES,
-        glossary=_format_glossary(glossary),
+        glossary=_format_glossary(prompt_glossary),
         raw=raw or "(chưa có bản gốc)",
         translated=translated,
         notes=_format_fix_notes(notes),

@@ -119,3 +119,88 @@ def test_format_evaluation_text_lists_issues():
     out = format_evaluation_text(report)
     assert "Vấn đề (1)" in out
     assert "đan vàng -> Kim Đan" in out
+
+
+# ---------------------------------------------------------------------------
+# Lọc glossary theo text khi build prompt (glossary_filter)
+# ---------------------------------------------------------------------------
+
+def _capture_run_chat(monkeypatch, response):
+    from novel2epub import glossary_ai
+
+    captured = {}
+
+    def _mock(cfg, prompt):
+        captured["prompt"] = prompt
+        return response
+
+    monkeypatch.setattr(glossary_ai.openai_client, "run_chat", _mock)
+    return captured
+
+
+def _ai_cfg():
+    from novel2epub.config import OpenAIConfig
+
+    return OpenAIConfig(base_url="https://api.test/v1")
+
+
+def test_rewrite_chapter_prompt_filters_but_apply_uses_full_glossary(monkeypatch):
+    from novel2epub.glossary_ai import rewrite_chapter
+
+    glossary = {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+    # Output AI chứa 庄国 (mục KHÔNG có trong prompt) → _apply_glossary
+    # hậu xử lý vẫn phải thay bằng full glossary.
+    captured = _capture_run_chat(monkeypatch, "Bản sửa nhắc tới 庄国.")
+    out = rewrite_chapter(_ai_cfg(), raw="叶凡出场", current_translation="Diệp Phàm xuất hiện", glossary=glossary)
+
+    assert "叶凡 = Diệp Phàm" in captured["prompt"]
+    assert "庄国" not in captured["prompt"]
+    assert out == "Bản sửa nhắc tới Trang Quốc."
+
+
+def test_rewrite_chapter_unfiltered_when_disabled(monkeypatch):
+    from novel2epub.glossary_ai import rewrite_chapter
+
+    glossary = {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+    captured = _capture_run_chat(monkeypatch, "OK")
+    rewrite_chapter(
+        _ai_cfg(), raw="叶凡出场", current_translation="Diệp Phàm xuất hiện",
+        glossary=glossary, filter_glossary=False,
+    )
+    assert "叶凡 = Diệp Phàm" in captured["prompt"]
+    assert "庄国 = Trang Quốc" in captured["prompt"]
+
+
+def test_fix_passages_filters_on_vi_text_when_raw_empty(monkeypatch):
+    from novel2epub.glossary_ai import fix_passages
+
+    glossary = {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+    captured = _capture_run_chat(monkeypatch, "[]")
+    fix_passages(
+        _ai_cfg(), raw="", translated="Diệp Phàm bước ra",
+        notes=[{"id": "n1", "para_index": 0, "selected_text": "x", "para_text": "y", "note": "z"}],
+        glossary=glossary,
+    )
+    assert "叶凡 = Diệp Phàm" in captured["prompt"]
+    assert "庄国" not in captured["prompt"]
+
+
+def test_suggest_glossary_filters_existing_block(monkeypatch):
+    from novel2epub.glossary_ai import suggest_glossary
+
+    existing = {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+    captured = _capture_run_chat(monkeypatch, "[]")
+    suggest_glossary(_ai_cfg(), [("叶凡出场", "Diệp Phàm xuất hiện")], existing)
+    assert "叶凡 = Diệp Phàm" in captured["prompt"]
+    assert "庄国" not in captured["prompt"]
+
+
+def test_evaluate_translation_uses_full_glossary(monkeypatch):
+    from novel2epub.glossary_ai import evaluate_translation
+
+    glossary = {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+    captured = _capture_run_chat(monkeypatch, '{"summary": "ok", "score": 8, "issues": []}')
+    evaluate_translation(_ai_cfg(), [("叶凡出场", "Diệp Phàm xuất hiện")], glossary)
+    # evaluate audit TOÀN BỘ glossary (tìm mục thừa/trùng/mâu thuẫn) → không lọc.
+    assert "叶凡 = Diệp Phàm" in captured["prompt"]
+    assert "庄国 = Trang Quốc" in captured["prompt"]

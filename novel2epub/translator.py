@@ -104,8 +104,24 @@ def _parse_titles_batch_response(raw: str, count: int) -> dict[int, str]:
 def _format_glossary(glossary: dict[str, str]) -> str:
     if not glossary:
         return ""
-    lines = "\n".join(f"  {zh} = {vi}" for zh, vi in glossary.items())
+    lines = "\n".join(f"{zh} = {vi}" for zh, vi in glossary.items())
     return "Bảng thuật ngữ bắt buộc dùng nhất quán:\n" + lines
+
+
+def _filter_glossary(
+    glossary: dict[str, str], zh_text: str = "", vi_text: str = ""
+) -> dict[str, str]:
+    """Trả dict MỚI chỉ gồm entry có zh xuất hiện trong zh_text hoặc vi trong vi_text.
+
+    Dùng để rút gọn khối glossary nhét vào prompt AI theo đúng đoạn đang xử lý
+    (tiết kiệm token); KHÔNG dùng cho _apply_glossary hậu xử lý — bước đó luôn
+    chạy trên toàn bộ glossary.
+    """
+    return {
+        zh: vi
+        for zh, vi in glossary.items()
+        if (zh_text and zh and zh in zh_text) or (vi_text and vi and vi in vi_text)
+    }
 
 
 def _apply_glossary(text: str, glossary: dict[str, str]) -> str:
@@ -271,10 +287,20 @@ class OpenAITranslator:
             self._auto_glossary_conflicts.clear()
             return out
 
+    def _glossary_for_prompt(self, zh_text: str, vi_text: str = "") -> dict[str, str]:
+        """Bản glossary để nhét vào prompt: snapshot dưới lock (an toàn với
+        extend_glossary chạy song song), lọc theo text đang xử lý nếu
+        cfg.glossary_filter bật. Không bao giờ mutate self.glossary."""
+        with self._glossary_lock:
+            snapshot = dict(self.glossary)
+        if not self.cfg.glossary_filter:
+            return snapshot
+        return _filter_glossary(snapshot, zh_text=zh_text, vi_text=vi_text)
+
     def _build_prompt(self, text: str) -> str:
         prompt = self.openai.prompt_template.format(
             text=text,
-            glossary=_format_glossary(self.glossary),
+            glossary=_format_glossary(self._glossary_for_prompt(text)),
             tone=self.cfg.style.tone,
             pronoun_policy=self.cfg.style.pronoun_policy,
             keep_paragraphs=self.cfg.style.keep_paragraphs,
@@ -327,7 +353,7 @@ class OpenAITranslator:
         return self.openai.title_prompt_template.format(
             text=text,
             kind=kind,
-            glossary=_format_glossary(self.glossary),
+            glossary=_format_glossary(self._glossary_for_prompt(text)),
         )
 
     def _run_chat_with_retry(self, prompt: str) -> str:
@@ -480,7 +506,7 @@ class OpenAITranslator:
 
     def _build_titles_batch_prompt(self, titles: list[str]) -> str:
         numbered = "\n".join(f"{i}. {t}" for i, t in enumerate(titles, start=1))
-        glossary = _format_glossary(self.glossary)
+        glossary = _format_glossary(self._glossary_for_prompt("\n".join(titles)))
         glossary_block = f"{glossary}\n\n" if glossary else ""
         return (
             f"Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt. Nhiệm vụ: chuyển ngữ "

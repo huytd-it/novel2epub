@@ -288,6 +288,11 @@ class TranslateConfig:
     # (in-memory cho chương kế tiếp + ghi file thread-safe). Xung đột (cùng Hán,
     # khác Việt) → giữ giá trị cũ + ghi warning vào log và file tổng kết.
     auto_glossary: bool = False
+    # Khi True (mặc định): mỗi lần gọi AI chỉ nhét vào prompt những mục glossary
+    # THỰC SỰ xuất hiện trong đoạn đang xử lý (lọc chuỗi con thuần Python, không
+    # gọi AI) — tiết kiệm token khi glossary phình to. Bước hậu xử lý
+    # _apply_glossary vẫn luôn dùng toàn bộ glossary.
+    glossary_filter: bool = True
     # Số chương gửi 1 lần cho AI khi dùng "Dịch selected" (batch translate).
     # Chia nhỏ index thành các batch có kích thước tối đa bằng giá trị này.
     # Đặt 1 = dịch tuần tự từng chương (mỗi chương 1 lần gọi AI).
@@ -577,6 +582,9 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         libretranslate=LibreTranslateConfig(**libretranslate_raw) if libretranslate_raw else LibreTranslateConfig(),
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
+        auto_glossary=bool(translate_raw.get("auto_glossary", False)),
+        glossary_filter=bool(translate_raw.get("glossary_filter", True)),
+        batch_size=int(translate_raw.get("batch_size", 1)),
         auto_cleanup_han=bool(translate_raw.get("auto_cleanup_han", False)),
         cleanup_han=CleanupHanConfig(
             max_chars=int(cleanup_han_raw.get("max_chars", CleanupHanConfig.max_chars)),

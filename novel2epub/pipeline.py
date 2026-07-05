@@ -1301,7 +1301,10 @@ def step_rewrite_chapters(
         raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
         current = storage.read_translated(ch)
         try:
-            rewritten = glossary_ai.rewrite_chapter(cfg.ai.openai, raw, current, glossary)
+            rewritten = glossary_ai.rewrite_chapter(
+                cfg.ai.openai, raw, current, glossary,
+                filter_glossary=cfg.translate.glossary_filter,
+            )
         except Exception as e:
             log(f"[rewrite]   ! Lỗi chương {ch.stem}: {e}")
             continue
@@ -1473,7 +1476,10 @@ def step_suggest_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> lis
     translated = storage.read_translated(ch) if storage.has_translated(ch) else ""
     existing = glossary_ai.load_glossary(cfg.translate)
     log(f"[gợi ý] Đang phân tích chương {ch.index}: {ch.title or ch.stem}")
-    suggestions = glossary_ai.suggest_glossary(cfg.ai.openai, [(raw, translated)], existing)
+    suggestions = glossary_ai.suggest_glossary(
+        cfg.ai.openai, [(raw, translated)], existing,
+        filter_glossary=cfg.translate.glossary_filter,
+    )
     _update_chapter_meta(storage, ch, ai_suggestions=suggestions)
     log(f"[gợi ý] Hoàn tất. {len(suggestions)} đề xuất. Mở lại trang chương để chọn áp dụng.")
     return suggestions
@@ -1494,7 +1500,10 @@ def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> str
     current = storage.read_translated(ch)
     glossary = glossary_ai.load_glossary(cfg.translate)
     log(f"[rewrite] Đang biên tập lại chương {ch.index}: {ch.title or ch.stem}")
-    rewritten = glossary_ai.rewrite_chapter(cfg.ai.openai, raw, current, glossary)
+    rewritten = glossary_ai.rewrite_chapter(
+        cfg.ai.openai, raw, current, glossary,
+        filter_glossary=cfg.translate.glossary_filter,
+    )
     if not rewritten.strip():
         log("[rewrite] AI trả về rỗng — giữ nguyên, không tạo bản nháp.")
         return ""
@@ -1601,7 +1610,7 @@ def _generate_title_description(
 ) -> str | None:
     """Generate description explaining why the chapter title is named so."""
     from .openai_client import run_chat
-    from .translator import _format_glossary
+    from .translator import _filter_glossary, _format_glossary
 
     if cfg.translate.type.lower() != "openai":
         log("[mô-tả-tiêu-đề] Chỉ hỗ trợ OpenAI. Bỏ qua.")
@@ -1611,6 +1620,10 @@ def _generate_title_description(
     if len(translated_content) > summary_max_chars:
         summary = summary.rsplit("\n", 1)[0] or summary
 
+    if cfg.translate.glossary_filter:
+        glossary = _filter_glossary(
+            glossary, zh_text=title_zh, vi_text=f"{title_vi}\n{summary}"
+        )
     prompt = _TITLE_DESCRIPTION_PROMPT.format(
         title=title_zh,
         title_vi=title_vi,
@@ -1647,7 +1660,13 @@ def step_retranslate_title(
     """
 
     from .openai_client import run_chat
-    from .translator import _format_glossary, _parse_title_response, load_glossary_dict, make_translator
+    from .translator import (
+        _filter_glossary,
+        _format_glossary,
+        _parse_title_response,
+        load_glossary_dict,
+        make_translator,
+    )
 
     # Resolve engine (default: cfg.translate.type)
     selected_engine = (engine or cfg.translate.type).lower()
@@ -1673,19 +1692,22 @@ def step_retranslate_title(
         summary = summary.rsplit("\n", 1)[0] or summary
 
     glossary = load_glossary_dict(cfg.translate)
-    
+    prompt_glossary = glossary
+    if cfg.translate.glossary_filter:
+        prompt_glossary = _filter_glossary(glossary, zh_text=ch.title, vi_text=summary)
+
     # Use custom prompt if provided, otherwise use default
     if custom_prompt:
         prompt = custom_prompt.format(
             title=ch.title,
             summary=summary,
-            glossary=_format_glossary(glossary),
+            glossary=_format_glossary(prompt_glossary),
         )
     else:
         prompt = _RETRANSLATE_TITLE_PROMPT.format(
             title=ch.title,
             summary=summary,
-            glossary=_format_glossary(glossary),
+            glossary=_format_glossary(prompt_glossary),
         )
 
     log(f"[dịch-tiêu-đề] Chương {index}: {ch.title} (engine: {selected_engine})")

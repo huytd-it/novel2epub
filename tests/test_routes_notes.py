@@ -102,7 +102,7 @@ def test_ai_fix_persists_suggestions(tmp_path, monkeypatch):
     n1 = _create_note(client)
     n2 = _create_note(client, selected_text="Kết thúc.", para_index=2, para_text="Kết thúc.")
 
-    def fake_fix(ai_cfg, raw, translated, notes, glossary):
+    def fake_fix(ai_cfg, raw, translated, notes, glossary, **kwargs):
         assert {n["id"] for n in notes} == {n1["id"], n2["id"]}
         # AI chỉ trả lời 1 mục — mục kia giữ suggestion=None
         return [{"id": n1["id"], "fixed_text": "anh ta nói", "explanation": "đúng ngôi"}]

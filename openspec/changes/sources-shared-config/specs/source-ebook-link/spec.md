@@ -53,7 +53,9 @@ Ebook settings page SHALL hiển thị nguồn của crawl field: field nào t�
 - **THEN** UI SHALL hiển thị `content_selector` với indicator "ghi đè" (khác preset)
 
 ### Requirement: YAML cleanup — không ghi field deprecated
-`config_writer` SHALL KHÔNG ghi các field YAML-only deprecated khi tạo hoặc sửa ebook. Các field bị loại bỏ: `translate.auto_glossary`, `translate.glossary_filter`, `translate.batch_size`, `translate.auto_cleanup_han`, `translate.cleanup_han.*`, `translate.glossary` (inline dict), `translate.glossary_files`, `translate.profile`, `translate.genre`, `crawl.strip_patterns`, `crawl.ai_fallback`, `crawl.ai_fallback_max_html`.
+`config_writer` SHALL KHÔNG ghi các field YAML-only deprecated khi tạo hoặc sửa ebook. Các field bị loại bỏ: `translate.glossary` (inline dict), `translate.glossary_files`, `translate.profile`, `translate.genre`, `crawl.ai_fallback`, `crawl.ai_fallback_max_html`.
+
+Các field sau ĐÃ CÓ UI (tab Dịch) nên KHÔNG deprecated, config_writer ghi bình thường: `translate.auto_glossary`, `translate.glossary_filter`, `translate.batch_size`, `translate.auto_cleanup_han`, `translate.cleanup_han.*` (và `crawl.strip_patterns` — tab Nguồn).
 
 #### Scenario: Tạo ebook mới không có field deprecated
 - **WHEN** user tạo ebook mới qua web UI
@@ -64,7 +66,7 @@ Ebook settings page SHALL hiển thị nguồn của crawl field: field nào t�
 - **THEN** `update_ebook()` SHALL chỉ ghi các field có UI control, KHÔNG ghi thêm field deprecated
 
 #### Scenario: Ebook cũ có field deprecated vẫn đọc được
-- **WHEN** ebook YAML cũ chứa `translate.auto_glossary: true`
+- **WHEN** ebook YAML cũ chứa `translate.profile: traditional_cn_novel`
 - **THEN** `load_config()` vẫn đọc được field này (backward compat), nhưng KHÔNG ghi lại khi user sửa ebook qua UI
 
 ### Requirement: Preset auto-detect khi tạo ebook

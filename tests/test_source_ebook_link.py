@@ -304,8 +304,49 @@ class TestYamlCleanup:
     def test_deprecated_field_lists_not_empty(self):
         assert len(_DEPRECATED_CRAWL_FIELDS) > 0
         assert len(_DEPRECATED_TRANSLATE_FIELDS) > 0
-        assert "auto_glossary" in _DEPRECATED_TRANSLATE_FIELDS
+        assert "glossary" in _DEPRECATED_TRANSLATE_FIELDS
         assert "ai_fallback" in _DEPRECATED_CRAWL_FIELDS
+        # Các field này có UI trong tab Dịch — không được strip khi ghi config.
+        for field in ("auto_glossary", "glossary_filter", "batch_size",
+                      "auto_cleanup_han", "cleanup_han"):
+            assert field not in _DEPRECATED_TRANSLATE_FIELDS
+
+    def test_update_defaults_persists_translate_ui_fields(self, tmp_path):
+        """Regression: các field tab Dịch từng bị strip như deprecated khi lưu."""
+        from novel2epub.config_writer import update_defaults
+
+        config_path = tmp_path / "config.yaml"
+        _write_yaml(config_path, {"defaults": {}, "ebooks": {}})
+        update_defaults(config_path, {"translate": {
+            "auto_glossary": True,
+            "glossary_filter": False,
+            "batch_size": 5,
+            "auto_cleanup_han": True,
+            "cleanup_han": {"max_chars": 4000, "retries": 2},
+        }})
+        tr = _read_yaml(config_path)["defaults"]["translate"]
+        assert tr["auto_glossary"] is True
+        assert tr["glossary_filter"] is False
+        assert tr["batch_size"] == 5
+        assert tr["auto_cleanup_han"] is True
+        assert tr["cleanup_han"]["max_chars"] == 4000
+        assert tr["cleanup_han"]["retries"] == 2
+
+    def test_update_defaults_still_strips_deprecated(self, tmp_path):
+        from novel2epub.config_writer import update_defaults
+
+        config_path = tmp_path / "config.yaml"
+        _write_yaml(config_path, {"defaults": {}, "ebooks": {}})
+        update_defaults(config_path, {"translate": {
+            "batch_size": 3,
+            "profile": "x",
+            "genre": "y",
+            "glossary": {"a": "b"},
+        }})
+        tr = _read_yaml(config_path)["defaults"]["translate"]
+        assert tr["batch_size"] == 3
+        for field in ("profile", "genre", "glossary"):
+            assert field not in tr
 
 
 # ── Task 9.5: Integration — create ebook → update preset → verify ──

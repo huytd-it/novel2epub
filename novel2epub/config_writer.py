@@ -27,9 +27,7 @@ _DEPRECATED_CRAWL_FIELDS = frozenset({
     "ai_fallback", "ai_fallback_max_html", "concurrency_cap",
 })
 _DEPRECATED_TRANSLATE_FIELDS = frozenset({
-    "auto_glossary", "glossary_filter", "batch_size",
-    "auto_cleanup_han", "cleanup_han", "glossary", "glossary_files",
-    "profile", "genre",
+    "glossary", "glossary_files", "profile", "genre",
 })
 
 

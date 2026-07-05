@@ -931,6 +931,35 @@ async def api_batch_import(
     })
 
 
+def _ai_call_with_retry(
+    openai_cfg,
+    prompt: str,
+    log: Callable[[str], None],
+    label: str,
+):
+    """Gọi AI qua `run_chat_with_meta` với retry 1 lần. Trả `(content, meta)`
+    nếu thành công, hoặc `None` nếu CẢ 2 lần đều lỗi — caller tự quyết định
+    skip batch hay raise.
+
+    Lý do retry 1 lần: API có round-robin — gọi lại ngay thường đổi sang
+    model/node khác và pass khi lần 1 bị timeout/5xx. Nếu lần 2 vẫn fail
+    (provider tạch hẳn, hoặc lỗi logic) thì skip để job vẫn chạy tiếp
+    các batch sau thay vì chết cả job.
+    """
+    from novel2epub.openai_client import run_chat_with_meta
+
+    for attempt in (1, 2):
+        try:
+            return run_chat_with_meta(openai_cfg, prompt)
+        except Exception as e:
+            if attempt == 1:
+                log(f"[batch-dịch] {label}: AI lỗi lần 1, thử lại: {e}")
+            else:
+                log(f"[batch-dịch] {label}: AI lỗi lần 2: {e}")
+    log(f"[batch-dịch] {label}: ⚠ Cả 2 lần đều lỗi, bỏ qua batch này, tiếp tục batch kế tiếp.")
+    return None
+
+
 def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], None]) -> None:
     """Target chạy trong job queue cho POST batch/translate (xem route bên
     dưới). `index_list` là danh sách GỐC chưa lọc — việc lọc "đã dịch rồi"/
@@ -938,7 +967,6 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
     nên job này idempotent: enqueue lại y hệt spec cũ sau khi app restart
     (xem JobQueue.load_pending) là an toàn, chỉ dịch phần còn thiếu.
     """
-    from novel2epub.openai_client import run_chat_with_meta
     from novel2epub.pipeline import _clean_title
 
     cfg = deps.resolved_cfg(slug)
@@ -983,11 +1011,14 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
     all_written: list[int] = []
     all_missing: list[int] = []
     all_unknown: list[int] = []
+    all_skipped: list[int] = []  # chương thuộc batch fail cả 2 lần gọi AI
     titles_updated: list[int] = []
     glossary_added = 0
     batch_metas: list[dict] = []
 
     for batch_idx, batch_items in enumerate(batches, 1):
+        label = f"Batch {batch_idx}/{total_batches}"
+
         # 1. Build export cho batch này (dùng glossary đã merge từ các batch trước)
         export_text = bulk_transfer.build_export(
             batch_items,
@@ -996,12 +1027,15 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
             prompt=bulk_transfer.TRANSLATE_PROMPT,
         )
 
-        # 2. Gọi AI
-        try:
-            response_text, meta = run_chat_with_meta(cfg.translate.openai, export_text)
-        except Exception as e:
-            raise RuntimeError(f"AI lỗi batch {batch_idx}/{total_batches}: {e}") from e
+        # 2. Gọi AI (retry 1 lần — fail cả 2 lần → skip batch này, tiếp tục batch kế tiếp)
+        result = _ai_call_with_retry(
+            cfg.translate.openai, export_text, log, label,
+        )
+        if result is None:
+            all_skipped.extend(i for i, _, _ in batch_items)
+            continue
 
+        response_text, meta = result
         batch_metas.append(meta or {})
 
         # 3. Parse response
@@ -1084,6 +1118,8 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
         log(f"[batch-dịch] ⚠ AI bỏ sót: {all_missing}")
     if all_unknown:
         log(f"[batch-dịch] ⚠ Index lạ (bỏ qua): {all_unknown}")
+    if all_skipped:
+        log(f"[batch-dịch] ⚠ Bỏ qua do AI lỗi 2 lần liên tiếp: {all_skipped}")
 
 
 def batch_translate_job_factory(params: dict) -> Callable[[Callable[[str], None]], object]:

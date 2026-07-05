@@ -396,13 +396,18 @@ def test_batch_translate_no_raw_400(tmp_path, monkeypatch):
 
 
 def test_batch_translate_ai_error(tmp_path, monkeypatch):
-    """AI lỗi → job (chạy nền) ghi nhận lỗi; enqueue vẫn trả 200 vì lỗi chỉ lộ
-    ra lúc job THỰC SỰ chạy, không còn chặn HTTP response."""
+    """AI lỗi cả 2 lần retry → batch bị SKIP, job vẫn hoàn tất (không raise).
+    Log phải ghi nhận cả 2 lần lỗi + cảnh báo "bỏ qua", và chương KHÔNG được
+    ghi translated/ — caller sẽ thấy nó trong danh sách `all_skipped`.
+    """
     cfg = _cfg(tmp_path)
-    _seed_with_raw(tmp_path, n=1)
+    storage, chapters = _seed_with_raw(tmp_path, n=1)
     client = _client(cfg, monkeypatch)
 
+    call_count = {"n": 0}
+
     def _raise(*_a, **_k):
+        call_count["n"] += 1
         raise RuntimeError("connection refused")
 
     monkeypatch.setattr(openai_client, "run_chat_with_meta", _raise)
@@ -412,7 +417,94 @@ def test_batch_translate_ai_error(tmp_path, monkeypatch):
     )
     assert res.status_code == 200
     assert res.json()["started"] is True
-    assert "connection refused" in client.app.state.job.error
+    # Job hoàn tất (không raise) — error rỗng, retry đúng 2 lần
+    assert client.app.state.job.error == ""
+    assert call_count["n"] == 2
+    # Chương không được ghi translated/
+    assert not storage.has_translated(chapters[0])
+    # Log phải có cả 2 lần lỗi + cảnh báo bỏ qua
+    log_text = "\n".join(client.app.state.job.logs)
+    assert "lần 1" in log_text
+    assert "lần 2" in log_text
+    assert "bỏ qua" in log_text
+    assert "connection refused" in log_text
+
+
+def test_batch_translate_ai_retries_once_then_succeeds(tmp_path, monkeypatch):
+    """AI lỗi lần 1 nhưng lần 2 thành công (round-robin đổi node) → batch vẫn
+    được ghi translated/ bình thường, không có log "bỏ qua"."""
+    cfg = _cfg(tmp_path)
+    storage, chapters = _seed_with_raw(tmp_path, n=1)
+    client = _client(cfg, monkeypatch)
+
+    call_count = {"n": 0}
+
+    def _maybe_fail(*_a, **_k):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise RuntimeError("timeout lần 1")
+        return ("## Chương 1: 第1章\nBản dịch chương 1\n", {})
+
+    monkeypatch.setattr(openai_client, "run_chat_with_meta", _maybe_fail)
+    res = client.post(
+        "/api/ebooks/t/batch/translate",
+        data={"indexes": "1"},
+    )
+    assert res.status_code == 200
+    # Retry đúng 2 lần (fail + success)
+    assert call_count["n"] == 2
+    # Job không raise, chương được ghi
+    assert client.app.state.job.error == ""
+    assert storage.read_translated(chapters[0]) == "Bản dịch chương 1"
+    # Log có thông báo retry + KHÔNG có "bỏ qua"
+    log_text = "\n".join(client.app.state.job.logs)
+    assert "thử lại" in log_text
+    assert "bỏ qua" not in log_text
+
+
+def test_batch_translate_continues_to_next_batch_after_ai_error(tmp_path, monkeypatch):
+    """Batch 1 fail cả 2 lần (skip) → batch 2 vẫn chạy bình thường. Chỉ chương
+    thuộc batch fail mới bị bỏ qua, các chương batch sau vẫn được dịch."""
+    cfg = _cfg(tmp_path, batch_size=2)
+    storage, chapters = _seed_with_raw(tmp_path, n=4)
+    client = _client(cfg, monkeypatch)
+
+    # batch_size=2 + 4 chương = 2 batch: [1,2] và [3,4]
+    call_count = {"batch": 0}
+
+    def _maybe_fail(*_a, **_k):
+        call_count["batch"] += 1
+        if call_count["batch"] == 1:
+            raise RuntimeError("timeout lần 1")
+        if call_count["batch"] == 2:
+            raise RuntimeError("timeout lần 2")
+        # Từ call thứ 3 trở đi (batch 2): trả về content cho cả 3 và 4
+        return (
+            "## Chương 3: 第3章\nDịch 3\n\n"
+            "## Chương 4: 第4章\nDịch 4\n",
+            {},
+        )
+
+    monkeypatch.setattr(openai_client, "run_chat_with_meta", _maybe_fail)
+    res = client.post(
+        "/api/ebooks/t/batch/translate",
+        data={"indexes": "1,2,3,4"},
+    )
+    assert res.status_code == 200
+    # Job hoàn tất (không raise)
+    assert client.app.state.job.error == ""
+    # Batch 1 gọi AI 2 lần (đều fail) + Batch 2 gọi 1 lần (success) = 3 calls
+    assert call_count["batch"] == 3
+    # Batch 1 bị skip → chương 1,2 KHÔNG có translated/
+    assert not storage.has_translated(chapters[0])
+    assert not storage.has_translated(chapters[1])
+    # Batch 2 chạy bình thường → chương 3,4 CÓ translated/
+    assert storage.read_translated(chapters[2]) == "Dịch 3"
+    assert storage.read_translated(chapters[3]) == "Dịch 4"
+    # Log có cảnh báo skip + danh sách chương bị bỏ qua
+    log_text = "\n".join(client.app.state.job.logs)
+    assert "Bỏ qua do AI lỗi 2 lần liên tiếp" in log_text
+    assert "[1, 2]" in log_text
 
 
 def test_batch_translate_ai_no_marker_error(tmp_path, monkeypatch):

@@ -22,6 +22,7 @@ from novel2epub.pipeline import (
 )
 from novel2epub.storage import Storage
 from novel2epub.toc import count_words
+from novel2epub.translator import _filter_glossary
 
 from novel2epub.openai_client import run_chat as openai_run_chat
 
@@ -794,6 +795,22 @@ async def api_batch_ai_rewrite(
 _EXPORT_PROMPTS = {"translated": bulk_transfer.EDIT_PROMPT, "raw": bulk_transfer.TRANSLATE_PROMPT}
 
 
+def _filter_glossary_for_batch(
+    names: dict[str, str],
+    vietphrase: dict[str, str],
+    items: list[tuple[int, str, str]],
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Rút gọn glossary về đúng các mục xuất hiện trong batch (translate.glossary_filter).
+
+    Khối glossary nhét vào export dùng chung cho cả nguồn raw (ZH) lẫn translated
+    (VI), nên so khớp key Hán VÀ value Việt với toàn bộ text (title + content)."""
+    combined = "\n".join(f"{title}\n{content}" for _, title, content in items)
+    return (
+        _filter_glossary(names, zh_text=combined, vi_text=combined),
+        _filter_glossary(vietphrase, zh_text=combined, vi_text=combined),
+    )
+
+
 @router.post("/api/ebooks/{slug}/batch/export")
 async def api_batch_export(slug: str, indexes: str = Form(""), source: str = Form("translated")):
     """Xuất chương đã chọn thành một khối text (prompt + glossary + chương có
@@ -834,10 +851,14 @@ async def api_batch_export(slug: str, indexes: str = Form(""), source: str = For
             else "Không có chương đã dịch nào trong số đã chọn."
         raise HTTPException(status_code=400, detail=detail)
 
+    names = storage.read_glossary_file("names.txt")
+    vietphrase = storage.read_glossary_file("vietphrase.txt")
+    if cfg.translate.glossary_filter:
+        names, vietphrase = _filter_glossary_for_batch(names, vietphrase, items)
     text = bulk_transfer.build_export(
         items,
-        names=storage.read_glossary_file("names.txt"),
-        vietphrase=storage.read_glossary_file("vietphrase.txt"),
+        names=names,
+        vietphrase=vietphrase,
         prompt=_EXPORT_PROMPTS[source],
     )
     return JSONResponse({"text": text, "skipped": skipped, "total": len(items), "source": source})
@@ -998,15 +1019,43 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
         log("[batch-dịch] Không có chương nào cần dịch.")
         return
 
-    # Chia items thành các batch theo translate.batch_size
-    batch_size = max(1, cfg.translate.batch_size)
-    batches = [items[i : i + batch_size] for i in range(0, len(items), batch_size)]
-    total_batches = len(batches)
-    log(f"[batch-dịch] Dịch {len(items)} chương, chia {total_batches} batch.")
-
     # Glossary chung — đọc 1 lần, merge dần qua các batch
     names_glossary = dict(storage.read_glossary_file("names.txt"))
     vietphrase_glossary = dict(storage.read_glossary_file("vietphrase.txt"))
+
+    # Chia items thành các batch: tối đa translate.batch_size chương/batch,
+    # VÀ khối export (prompt + glossary + chương) không vượt
+    # translate.prompt_max_chars — batch bị cắt sớm khi chạm giới hạn.
+    # Chương đơn lẻ đã vượt giới hạn vẫn đi 1 mình (không chia nhỏ được).
+    def _export_len(batch: list[tuple[int, str, str]]) -> int:
+        bn, bv = names_glossary, vietphrase_glossary
+        if cfg.translate.glossary_filter:
+            bn, bv = _filter_glossary_for_batch(names_glossary, vietphrase_glossary, batch)
+        return len(bulk_transfer.build_export(
+            batch, names=bn, vietphrase=bv, prompt=bulk_transfer.TRANSLATE_PROMPT,
+        ))
+
+    batch_size = max(1, cfg.translate.batch_size)
+    budget = cfg.translate.prompt_max_chars
+    batches: list[list[tuple[int, str, str]]] = []
+    cur: list[tuple[int, str, str]] = []
+    for item in items:
+        cand = cur + [item]
+        if cur and (len(cand) > batch_size or (budget > 0 and _export_len(cand) > budget)):
+            batches.append(cur)
+            cur = [item]
+        else:
+            cur = cand
+    if cur:
+        batches.append(cur)
+    total_batches = len(batches)
+    log(f"[batch-dịch] Dịch {len(items)} chương, chia {total_batches} batch "
+        f"(batch_size={batch_size}, prompt_max_chars={budget or 'tắt'}).")
+    if budget > 0:
+        for b in batches:
+            if len(b) == 1 and _export_len(b) > budget:
+                log(f"[batch-dịch] ⚠ Chương {b[0][0]} một mình đã vượt prompt_max_chars "
+                    f"({_export_len(b)} > {budget} ký tự) — vẫn gửi nguyên chương.")
 
     all_written: list[int] = []
     all_missing: list[int] = []
@@ -1019,11 +1068,18 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
     for batch_idx, batch_items in enumerate(batches, 1):
         label = f"Batch {batch_idx}/{total_batches}"
 
-        # 1. Build export cho batch này (dùng glossary đã merge từ các batch trước)
+        # 1. Build export cho batch này (dùng glossary đã merge từ các batch trước).
+        # glossary_filter: chỉ nhét mục glossary xuất hiện trong batch (giữ nguyên
+        # names_glossary/vietphrase_glossary đầy đủ cho các batch sau).
+        batch_names, batch_vietphrase = names_glossary, vietphrase_glossary
+        if cfg.translate.glossary_filter:
+            batch_names, batch_vietphrase = _filter_glossary_for_batch(
+                names_glossary, vietphrase_glossary, batch_items
+            )
         export_text = bulk_transfer.build_export(
             batch_items,
-            names=names_glossary,
-            vietphrase=vietphrase_glossary,
+            names=batch_names,
+            vietphrase=batch_vietphrase,
             prompt=bulk_transfer.TRANSLATE_PROMPT,
         )
 

@@ -19,14 +19,22 @@ from .translator import (
 
 SUGGEST_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, chuyên xây dựng glossary nhất quán.
 
-Nhiệm vụ: đọc bản gốc tiếng Trung và bản dịch tiếng Việt hiện tại dưới đây, đề xuất các mục glossary mới.
+Nhiệm vụ: đọc bản gốc tiếng Trung và bản dịch tiếng Việt hiện tại dưới đây, đề xuất các mục glossary mới. Glossary là bảng để ĐỒNG BỘ cách dịch xuyên suốt truyện, KHÔNG phải từ điển — thà bỏ sót còn hơn đề xuất nhầm từ thông thường.
 
-Nguyên tắc:
-1. Tên riêng (nhân vật), địa danh, công pháp, chiêu thức, linh thú, pháp bảo: giữ Hán Việt, đề xuất nếu chưa có trong glossary hiện tại.
-2. Cụm từ xuất hiện nhiều lần cần thống nhất cách dịch.
-3. Không đề xuất lại mục đã có sẵn trong glossary hiện tại (xem danh sách dưới).
-4. Không bịa thêm tên/thuật ngữ không xuất hiện trong văn bản.
-5. Không spoil, không thêm bình luận ngoài truyện.
+CHỈ đề xuất khi thỏa mãn (đưa vào target_file tương ứng):
+1. names.txt — tên riêng: nhân vật, địa danh, môn phái/tổ chức, chức danh/tước vị.
+2. vietphrase.txt — thuật ngữ ĐẶC THÙ của thế giới truyện, lặp lại nhiều lần: công pháp, chiêu thức, cảnh giới tu luyện, linh thú, pháp bảo, đan dược, chủng tộc, hệ thống sức mạnh, biệt danh/xưng hiệu cố định.
+
+TUYỆT ĐỐI KHÔNG đề xuất (đây là lỗi làm bẩn glossary):
+- Từ ngữ đời thường: đồ ăn thức uống, mua sắm, động tác, cảm xúc, nghề nghiệp thông thường, vật dụng phổ thông (vd: kệ hàng, cơm thừa canh cặn, chạy việc vặt, gà thả vườn, thu dọn...).
+- Thành ngữ/tục ngữ/khẩu ngữ/tiếng lóng dịch thoát ý (vd: khó đỡ, yêu nhau giết nhau, phát điên...).
+- Từ hiện đại phổ thông (vd: ứng dụng đặt xe, khu du lịch sinh thái, tên lửa đẩy...) — trừ khi là khái niệm đặc thù, lặp lại nhiều lần cần dịch thống nhất.
+- Bất kỳ từ nào độc giả Việt đọc hiểu ngay, hoặc chỉ xuất hiện một lần.
+
+Ràng buộc chung:
+- Không đề xuất lại mục đã có sẵn trong glossary hiện tại (xem danh sách dưới).
+- Không bịa thêm tên/thuật ngữ không xuất hiện trong văn bản.
+- Không spoil, không thêm bình luận ngoài truyện.
 
 Glossary hiện tại (không đề xuất lại các mục này):
 {existing}
@@ -363,7 +371,9 @@ def evaluate_translation(
     """Gọi AI đánh giá glossary + bản dịch của các chương đã chọn, trả report.
 
     Read-only: không sửa file, không áp dụng gì. Lỗi gọi CLI hoặc parse JSON
-    không raise — trả report rỗng để không sập UI.
+    không raise — trả report rỗng để không sập UI. Luôn dùng TOÀN BỘ glossary
+    (không lọc theo translate.glossary_filter) vì mục đích là audit cả bảng
+    glossary (tìm mục thừa/trùng/mâu thuẫn), không chỉ mục xuất hiện trong đoạn.
     """
     raw_combined = "\n\n".join(raw for raw, _ in chapters if raw.strip())
     translated_combined = "\n\n".join(t for _, t in chapters if t.strip())

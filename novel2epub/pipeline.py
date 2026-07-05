@@ -1405,7 +1405,7 @@ def step_evaluate_translation(
         for c in selected
     ]
     log(f"[đánh giá] Phân tích {len(selected)} chương...")
-    report = glossary_ai.evaluate_translation(cfg.translate, chapters_text, glossary)
+    report = glossary_ai.evaluate_translation(cfg.ai.openai, chapters_text, glossary)
     log(glossary_ai.format_evaluation_text(report))
     return report
 

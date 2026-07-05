@@ -309,13 +309,23 @@ class OpenAITranslator:
         )
         if self.cfg.auto_glossary:
             prompt += (
-                "\n\nSAU KHI DỊCH XONG, thêm một dòng ===GLOSSARY=== "
-                "rồi viết JSON array các mục glossary mới phát hiện trong đoạn này.\n"
+                "\n\nSAU KHI DỊCH XONG, thêm một dòng ===GLOSSARY=== rồi viết JSON "
+                "array các mục glossary mới. Glossary là bảng ĐỒNG BỘ cách dịch xuyên "
+                "suốt truyện, KHÔNG phải từ điển — thà bỏ sót còn hơn đưa nhầm từ "
+                "thông thường.\n"
+                "CHỈ đưa vào: names.txt = tên riêng (nhân vật, địa danh, môn phái/tổ "
+                "chức, chức danh); vietphrase.txt = thuật ngữ ĐẶC THÙ lặp lại nhiều "
+                "lần (công pháp, chiêu thức, cảnh giới, pháp bảo, đan dược, chủng tộc, "
+                "hệ thống sức mạnh, biệt danh cố định).\n"
+                "TUYỆT ĐỐI KHÔNG đưa vào: từ đời thường (đồ ăn, mua sắm, động tác, "
+                "cảm xúc, nghề nghiệp, vật dụng phổ thông); thành ngữ/khẩu ngữ/tiếng "
+                "lóng dịch thoát ý; từ hiện đại phổ thông; từ độc giả Việt hiểu ngay "
+                "hoặc chỉ xuất hiện một lần.\n"
                 'Mỗi mục: {"source": "<Hán>", "suggested": "<Việt>", '
-                '"type": "name|place|skill|item|term|phrase", '
-                '"reason": "<lý do ngắn>", '
+                '"type": "name|place|skill|item|term", '
+                '"reason": "<vì sao cần nhất quán xuyên suốt>", '
                 '"target_file": "names.txt|vietphrase.txt"}\n'
-                "Nếu không có: ===GLOSSARY===\n[]"
+                "Nếu không có mục nào đạt tiêu chí: ===GLOSSARY===\n[]"
             )
         return prompt
 
@@ -456,6 +466,38 @@ class OpenAITranslator:
             glossary_accumulator.extend(glossary_entries)
         return cleaned
 
+    # Sàn tối thiểu cho budget nội dung mỗi chunk khi prompt_max_chars quá
+    # chật so với overhead (template + glossary) — tránh chia chương thành
+    # hàng nghìn chunk tí hon hoặc lặp vô hạn.
+    MIN_CHUNK_BUDGET = 200
+
+    def _clamp_to_prompt_budget(self, max_chars: int, text: str) -> int:
+        """Thu nhỏ budget nội dung mỗi chunk để TỔNG prompt (template + glossary
+        + nội dung) không vượt cfg.prompt_max_chars.
+
+        Overhead đo bằng prompt build từ chính `text` (glossary lọc theo toàn
+        văn bản — superset của glossary mọi chunk con, nên là cận trên an toàn).
+        prompt_max_chars <= 0 → không giới hạn, trả nguyên max_chars.
+        """
+        budget = self.cfg.prompt_max_chars
+        if budget <= 0:
+            return max_chars
+        overhead = len(self._build_prompt(text)) - len(text)
+        allowed = budget - overhead
+        if allowed >= max_chars:
+            return max_chars
+        if allowed < self.MIN_CHUNK_BUDGET:
+            self.log(
+                f"  ⚠ prompt_max_chars={budget} quá nhỏ so với overhead prompt "
+                f"({overhead} ký tự template+glossary) — dùng sàn {self.MIN_CHUNK_BUDGET} ký tự/đoạn."
+            )
+            return self.MIN_CHUNK_BUDGET
+        self.log(
+            f"  … prompt_max_chars={budget}: thu budget mỗi đoạn "
+            f"{max_chars} → {allowed} ký tự (overhead prompt {overhead})."
+        )
+        return allowed
+
     def translate(
         self,
         text: str,
@@ -466,6 +508,7 @@ class OpenAITranslator:
         if not text.strip():
             return text
         max_chars = self.cfg.chunk.max_chars or self.DEFAULT_MAX_CHARS
+        max_chars = self._clamp_to_prompt_budget(max_chars, text)
         glossary_accum: list[dict] = []
         meta_accum: dict[str, Any] = {}
         if len(text) <= max_chars:

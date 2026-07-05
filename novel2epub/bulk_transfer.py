@@ -103,6 +103,45 @@ def chapter_marker(index: int, title: str = "") -> str:
     return f"## {label}"
 
 
+# Quy tắc trích glossary ở cuối output — DÙNG CHUNG cho EDIT_PROMPT và
+# TRANSLATE_PROMPT. Siết chặt tiêu chí để AI KHÔNG nhét từ đời thường vào
+# vietphrase.txt (lỗi hay gặp: "kệ hàng", "cơm thừa canh cặn", "chạy việc
+# vặt"...). Ghép vào cuối mỗi prompt bằng nối chuỗi.
+_GLOSSARY_OUTPUT_RULE = """- Ở CUỐI kết quả, thêm một mục `## GLOSSARY`. \
+CHỈ liệt kê tên riêng/thuật ngữ MỚI (chưa có trong glossary tham khảo) mà \
+BẮT BUỘC phải nhất quán xuyên suốt truyện. Đây là bảng để đồng bộ cách dịch, \
+KHÔNG phải từ điển — thà bỏ sót còn hơn đưa nhầm từ thông thường vào.
+
+TIÊU CHÍ đưa vào (chỉ khi thỏa mãn):
+- `### NAMES`: tên riêng — nhân vật, địa danh, môn phái/tổ chức, chức danh/tước vị.
+- `### VIETPHRASE`: thuật ngữ ĐẶC THÙ của thế giới truyện, lặp lại nhiều lần — \
+công pháp, chiêu thức, cảnh giới tu luyện, pháp bảo, đan dược, chủng tộc, hệ \
+thống sức mạnh, biệt danh/xưng hiệu cố định của nhân vật.
+
+TUYỆT ĐỐI KHÔNG đưa vào (đây là lỗi làm bẩn glossary):
+- Từ ngữ đời thường: đồ ăn thức uống, mua sắm, động tác, cảm xúc, nghề nghiệp \
+thông thường, vật dụng phổ thông (vd: kệ hàng, cơm thừa canh cặn, chạy việc \
+vặt, gà thả vườn, thu dọn, bày hàng...).
+- Thành ngữ/tục ngữ/khẩu ngữ/tiếng lóng dịch thoát ý (vd: khó đỡ, yêu nhau \
+giết nhau, phát điên, oan gia ngõ hẹp...).
+- Từ ngữ hiện đại phổ thông (vd: ứng dụng đặt xe, khu du lịch sinh thái, tên \
+lửa đẩy, công tác bên ngoài...) — TRỪ KHI là khái niệm đặc thù, lặp lại nhiều \
+lần và cần dịch thống nhất.
+- Bất kỳ từ nào độc giả Việt đọc hiểu ngay, hoặc chỉ xuất hiện một lần.
+
+Nếu không có mục nào đạt tiêu chí, để mục `## GLOSSARY` trống (chỉ ghi tiêu đề, \
+không kèm mục con). Định dạng:
+
+## GLOSSARY
+
+### NAMES
+- <chữ Hán> = <Hán Việt>
+
+### VIETPHRASE
+- <chữ Hán> = <nghĩa tiếng Việt>
+"""
+
+
 # Prompt biên tập chắt lọc nguyên tắc "edit đúng/hay" từ docs/rule.md, viết dạng
 # Markdown để AI và người đọc dễ theo dõi cấu trúc hơn.
 EDIT_PROMPT = """# Yêu cầu biên tập truyện dịch Trung → Việt
@@ -125,17 +164,7 @@ hoa, NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary th
 
 - GIỮ NGUYÊN các dòng tiêu đề `## Chương N`; chỉ sửa phần nội dung BÊN DƯỚI mỗi \
 tiêu đề. KHÔNG gộp/đổi/xóa tiêu đề, không tự thêm tiêu đề chương mới.
-- Ở CUỐI kết quả, thêm một mục `## GLOSSARY` liệt kê tên riêng/thuật ngữ MỚI bạn \
-gặp (chưa có trong glossary tham khảo), theo đúng định dạng:
-
-## GLOSSARY
-
-### NAMES
-- <chữ Hán> = <Hán Việt>
-
-### VIETPHRASE
-- <chữ Hán> = <nghĩa tiếng Việt>
-"""
+""" + _GLOSSARY_OUTPUT_RULE
 
 
 # Prompt dịch (Trung → Việt) cho luồng "xuất raw để dịch" — nguyên tắc 1-8 lấy
@@ -189,17 +218,7 @@ sang tiếng Việt rồi mới trả lời.
 mỗi tiêu đề. Tiêu đề chương trong ngoặc sau `## Chương N:` cũng dịch cho hay, \
 gọn — không dịch sát nghĩa kiểu máy. KHÔNG gộp/đổi/xóa tiêu đề, không tự thêm \
 tiêu đề chương mới.
-- Ở CUỐI kết quả, thêm một mục `## GLOSSARY` liệt kê tên riêng/thuật ngữ MỚI \
-bạn gặp (chưa có trong glossary tham khảo), theo đúng định dạng:
-
-## GLOSSARY
-
-### NAMES
-- <chữ Hán> = <Hán Việt>
-
-### VIETPHRASE
-- <chữ Hán> = <nghĩa tiếng Việt>
-"""
+""" + _GLOSSARY_OUTPUT_RULE
 
 
 def _format_glossary_block(names: dict[str, str], vietphrase: dict[str, str]) -> str:

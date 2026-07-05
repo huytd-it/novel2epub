@@ -300,3 +300,18 @@ def test_auto_glossary_and_batch_size_parsed_from_yaml(tmp_path):
     cfg = load_config(config_path)
     assert cfg.translate.auto_glossary is True
     assert cfg.translate.batch_size == 5
+
+
+def test_prompt_max_chars_defaults_7000(tmp_path):
+    config_path = _write_config(tmp_path)
+    cfg = load_config(config_path)
+    assert cfg.translate.prompt_max_chars == 7000
+
+
+def test_prompt_max_chars_parsed_from_yaml(tmp_path):
+    config_path = _write_config(
+        tmp_path,
+        extra={"translate": {"type": "none", "prompt_max_chars": 12000}},
+    )
+    cfg = load_config(config_path)
+    assert cfg.translate.prompt_max_chars == 12000

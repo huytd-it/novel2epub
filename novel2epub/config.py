@@ -297,6 +297,11 @@ class TranslateConfig:
     # Chia nhỏ index thành các batch có kích thước tối đa bằng giá trị này.
     # Đặt 1 = dịch tuần tự từng chương (mỗi chương 1 lần gọi AI).
     batch_size: int = 1
+    # Giới hạn TỔNG ký tự của một prompt gửi AI (gồm cả prompt template,
+    # glossary và nội dung). Dịch chương: chunk bị thu nhỏ để prompt hoàn chỉnh
+    # không vượt giới hạn. Batch dịch: batch bị cắt sớm (ít chương hơn
+    # batch_size) khi khối export chạm giới hạn. 0 = không giới hạn.
+    prompt_max_chars: int = 7000
     # Tự động chạy cleanup Hán sau mỗi chương được dịch (gọi AI qua config
     # AI biên tập ai.openai — hoạt động với mọi backend dịch).
     auto_cleanup_han: bool = False
@@ -342,12 +347,20 @@ class OutputConfig:
 
 
 @dataclass
+class QueueConfig:
+    """Số worker thread song song của job queue (app web)."""
+    translate_workers: int = 5  # job translate/batch-translate chạy song song
+    crawl_workers: int = 2      # job crawl chạy song song
+
+
+@dataclass
 class Config:
     novel: NovelConfig
     crawl: CrawlConfig
     translate: TranslateConfig
     output: OutputConfig
     ai: AIConfig = field(default_factory=AIConfig)
+    queue: QueueConfig = field(default_factory=QueueConfig)
     # Tên source preset mà ebook này tham chiếu. Rỗng = không dùng preset.
     source: str = ""
     # Cảnh báo xung đột tính năng phát hiện lúc load config (vd preset ép đổi
@@ -628,6 +641,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         auto_glossary=bool(translate_raw.get("auto_glossary", False)),
         glossary_filter=bool(translate_raw.get("glossary_filter", True)),
         batch_size=int(translate_raw.get("batch_size", 1)),
+        prompt_max_chars=int(translate_raw.get("prompt_max_chars", 7000)),
         auto_cleanup_han=bool(translate_raw.get("auto_cleanup_han", False)),
         cleanup_han=CleanupHanConfig(
             max_chars=int(cleanup_han_raw.get("max_chars", CleanupHanConfig.max_chars)),
@@ -652,4 +666,11 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             "trích xuất HTML của preset 'go', kiểm tra translate.openai có phù hợp không."
         )
 
-    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, source=source_name, warnings=warnings)
+    queue_raw = _as_dict(raw.get("queue"))
+    defaults_q = QueueConfig()
+    queue = QueueConfig(
+        translate_workers=max(1, int(queue_raw.get("translate_workers", defaults_q.translate_workers))),
+        crawl_workers=max(1, int(queue_raw.get("crawl_workers", defaults_q.crawl_workers))),
+    )
+
+    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, source=source_name, warnings=warnings)

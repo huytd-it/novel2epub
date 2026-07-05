@@ -84,12 +84,17 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "auto_glossary": False,
         "glossary_filter": True,
         "batch_size": 1,
+        "prompt_max_chars": 7000,
         "auto_cleanup_han": False,
         "cleanup_han": {"max_chars": 8000, "retries": 1},
     },
     "output": {
         "data_dir": "data",
         "epub_path": "",
+    },
+    "queue": {
+        "translate_workers": 5,
+        "crawl_workers": 2,
     },
 }
 

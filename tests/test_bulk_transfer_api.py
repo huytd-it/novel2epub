@@ -15,11 +15,14 @@ from novel2epub.config import (
 from novel2epub.storage import Chapter, Manifest, Storage
 
 
-def _cfg(tmp_path, batch_size=10):
+def _cfg(tmp_path, batch_size=10, glossary_filter=True):
     return Config(
         novel=NovelConfig(slug="t"),
         crawl=CrawlConfig(toc_url="http://x/book/", delay_seconds=0),
-        translate=TranslateConfig(type="cli", delay_seconds=0, batch_size=batch_size),
+        translate=TranslateConfig(
+            type="cli", delay_seconds=0, batch_size=batch_size,
+            glossary_filter=glossary_filter,
+        ),
         output=OutputConfig(data_dir=str(tmp_path)),
     )
 
@@ -78,7 +81,9 @@ def _seed(tmp_path):
 
 
 def test_export_returns_text_with_prompt_and_chapters(tmp_path, monkeypatch):
-    cfg = _cfg(tmp_path)
+    # glossary_filter tắt: test này kiểm tra khối glossary được nhúng nguyên
+    # vào export, không phải hành vi lọc (nội dung không chứa từ glossary).
+    cfg = _cfg(tmp_path, glossary_filter=False)
     storage, _ = _seed(tmp_path)
     storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n")
     client = _client(cfg, monkeypatch)
@@ -647,7 +652,8 @@ def test_batch_translate_all_already_translated_400(tmp_path, monkeypatch):
 
 def test_batch_translate_includes_glossary_in_prompt(tmp_path, monkeypatch):
     """Glossary có sẵn phải được nhúng vào prompt gửi cho AI."""
-    cfg = _cfg(tmp_path)
+    # glossary_filter tắt: kiểm tra nhúng glossary, không phải lọc theo nội dung.
+    cfg = _cfg(tmp_path, glossary_filter=False)
     storage, _ = _seed_with_raw(tmp_path, n=1)
     storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n")
     storage.write_glossary_file("vietphrase.txt", "斗气 = Đấu khí\n")
@@ -814,7 +820,8 @@ def test_batch_translate_splits_into_batches(tmp_path, monkeypatch):
 
 def test_batch_translate_glossary_merges_across_batches(tmp_path, monkeypatch):
     """Glossary từ batch 1 phải xuất hiện trong prompt batch 2."""
-    cfg = _cfg(tmp_path, batch_size=1)
+    # glossary_filter tắt: kiểm tra merge glossary xuyên batch, không phải lọc.
+    cfg = _cfg(tmp_path, batch_size=1, glossary_filter=False)
     storage, _ = _seed_with_raw(tmp_path, n=2)
     client = _client(cfg, monkeypatch)
 

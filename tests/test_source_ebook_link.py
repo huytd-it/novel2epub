@@ -308,7 +308,7 @@ class TestYamlCleanup:
         assert "ai_fallback" in _DEPRECATED_CRAWL_FIELDS
         # Các field này có UI trong tab Dịch — không được strip khi ghi config.
         for field in ("auto_glossary", "glossary_filter", "batch_size",
-                      "auto_cleanup_han", "cleanup_han"):
+                      "prompt_max_chars", "auto_cleanup_han", "cleanup_han"):
             assert field not in _DEPRECATED_TRANSLATE_FIELDS
 
     def test_update_defaults_persists_translate_ui_fields(self, tmp_path):
@@ -321,6 +321,7 @@ class TestYamlCleanup:
             "auto_glossary": True,
             "glossary_filter": False,
             "batch_size": 5,
+            "prompt_max_chars": 9000,
             "auto_cleanup_han": True,
             "cleanup_han": {"max_chars": 4000, "retries": 2},
         }})
@@ -328,6 +329,7 @@ class TestYamlCleanup:
         assert tr["auto_glossary"] is True
         assert tr["glossary_filter"] is False
         assert tr["batch_size"] == 5
+        assert tr["prompt_max_chars"] == 9000
         assert tr["auto_cleanup_han"] is True
         assert tr["cleanup_han"]["max_chars"] == 4000
         assert tr["cleanup_han"]["retries"] == 2

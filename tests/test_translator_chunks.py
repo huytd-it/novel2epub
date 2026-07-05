@@ -113,6 +113,89 @@ def test_callback_for_short_text_called_with_is_final_true(monkeypatch):
     assert seen == [True]
 
 
+def test_prompt_max_chars_shrinks_chunk_budget(monkeypatch):
+    """Tổng prompt (template + glossary + nội dung) phải <= prompt_max_chars —
+    chunk budget bị thu nhỏ theo overhead của template."""
+    # Template có 100 ký tự overhead cố định (không kể {text}).
+    template = ("H" * 100) + "{text}"
+    cfg = TranslateConfig(
+        type="openai",
+        prompt_max_chars=350,
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            prompt_template=template,
+            title_prompt_template="{text}",
+        ),
+        # chunk.max_chars=0 → DEFAULT_MAX_CHARS (6000), phải bị clamp còn 250.
+        chunk=TranslationChunkConfig(max_chars=0, overlap_paragraphs=0),
+    )
+    prompts: list[str] = []
+
+    def _mock_run_chat(cfg_, prompt):
+        prompts.append(prompt)
+        return "ok"
+
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
+    translator = make_translator(cfg)
+    # 3 đoạn 150 ký tự: budget còn 350-100=250 → mỗi chunk chỉ chứa 1 đoạn.
+    text = "\n".join(["A" * 150, "B" * 150, "C" * 150])
+    translator.translate(text)
+
+    assert len(prompts) == 3
+    for p in prompts:
+        assert len(p) <= 350
+
+
+def test_prompt_max_chars_zero_disables_limit(monkeypatch):
+    """prompt_max_chars=0 → không giới hạn, giữ nguyên hành vi chunk cũ."""
+    template = ("H" * 100) + "{text}"
+    cfg = TranslateConfig(
+        type="openai",
+        prompt_max_chars=0,
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            prompt_template=template,
+            title_prompt_template="{text}",
+        ),
+        chunk=TranslationChunkConfig(max_chars=6000, overlap_paragraphs=0),
+    )
+    prompts: list[str] = []
+
+    def _mock_run_chat(cfg_, prompt):
+        prompts.append(prompt)
+        return "ok"
+
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
+    translator = make_translator(cfg)
+    translator.translate("\n".join(["A" * 40, "B" * 40, "C" * 40]))
+    assert len(prompts) == 1  # cả 3 đoạn trong 1 chunk
+
+
+def test_prompt_max_chars_floor_when_overhead_too_big(monkeypatch):
+    """Overhead vượt cả budget → dùng sàn MIN_CHUNK_BUDGET, không chia vô hạn."""
+    from novel2epub.translator import OpenAITranslator
+
+    template = ("H" * 500) + "{text}"
+    cfg = TranslateConfig(
+        type="openai",
+        prompt_max_chars=400,  # nhỏ hơn cả overhead 500
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            prompt_template=template,
+            title_prompt_template="{text}",
+        ),
+        chunk=TranslationChunkConfig(max_chars=0, overlap_paragraphs=0),
+    )
+    monkeypatch.setattr(
+        "novel2epub.translator.openai_client.run_chat_with_meta",
+        lambda cfg_, prompt: "ok",
+    )
+    translator = make_translator(cfg)
+    out = translator.translate("A" * 300)
+    assert out  # không treo/chia vô hạn
+    assert translator._clamp_to_prompt_budget(6000, "A" * 300) == OpenAITranslator.MIN_CHUNK_BUDGET
+
+
 def test_translate_multichunk_filters_glossary_per_chunk(monkeypatch):
     """Mỗi chunk chỉ nhận các mục glossary xuất hiện trong chính chunk đó."""
     cfg = TranslateConfig(

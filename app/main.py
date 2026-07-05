@@ -33,7 +33,25 @@ setup_logging()
 
 app = FastAPI(title="novel2epub")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-app.state.job = JobRunner(history_path=WORKSPACE_DIR / "queue_history.json")
+
+# Đọc queue.translate_workers / queue.crawl_workers từ defaults: trong config.
+# Nếu file chưa tồn tại hoặc parse lỗi → dùng mặc định của QueueConfig (5/2).
+def _load_queue_workers() -> dict[str, int]:
+    from novel2epub.config import QueueConfig, load_config
+    try:
+        _cfg = load_config(WORKSPACE_PATH)
+        return {
+            "translate": _cfg.queue.translate_workers,
+            "crawl": _cfg.queue.crawl_workers,
+        }
+    except Exception:
+        _dq = QueueConfig()
+        return {"translate": _dq.translate_workers, "crawl": _dq.crawl_workers}
+
+app.state.job = JobRunner(
+    history_path=WORKSPACE_DIR / "queue_history.json",
+    workers=_load_queue_workers(),
+)
 # Đăng ký các loại job tuỳ biến còn dang dở lúc shutdown (spec JSON-serializable
 # trong queue_pending.json) trước khi nạp lại — job pending có kind chưa
 # register sẽ bị bỏ qua vĩnh viễn (xem JobQueue.register_kind/load_pending).

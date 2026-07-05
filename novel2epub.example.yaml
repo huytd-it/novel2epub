@@ -63,6 +63,10 @@ defaults:
     retry: { attempts: 1, delay_seconds: 0.0 }
     chunk: { max_chars: 1500, overlap_paragraphs: 0 }
     delay_seconds: 0.5
+    # Giới hạn TỔNG ký tự một prompt gửi AI (prompt mẫu + glossary + nội dung).
+    # Dịch chương: tự chia đoạn nhỏ hơn; batch dịch: cắt batch sớm hơn.
+    # 0 = không giới hạn.
+    prompt_max_chars: 7000
     # Preset: "go" (mặc định OpenCode Go) | "omniroute" (OmniRoute gateway —
     # 237 providers qua 1 endpoint, tự capture cost/tokens/latency từ
     # X-OmniRoute-* headers nếu response từ OmniRoute).
@@ -111,6 +115,10 @@ defaults:
 
   output:
     data_dir: data
+
+  queue:
+    translate_workers: 5  # số job translate/batch-translate chạy song song
+    crawl_workers: 2      # số job crawl chạy song song
 
 
 ebooks:

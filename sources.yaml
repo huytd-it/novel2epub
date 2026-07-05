@@ -536,11 +536,11 @@ sudugu:
   cover_selector: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
-  headless: false
+  headless: true
   magic: false
   js_code: ''
   delay_seconds: 1.0
-  next_page_selector: .prenext > a:last-child
+  next_page_selector: .prenext span:last-child a
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
   strip_patterns: []

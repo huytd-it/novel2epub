@@ -321,7 +321,7 @@
 </nav>
 <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
 <table id="chapter-table" class="w-full text-sm">
-    <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">#</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tiêu đề</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Raw</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Dịch</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Biên tập</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Số từ</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Thiếu</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Action</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr></thead>
+    <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">#</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tiêu đề</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Ký tự ZH</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Số từ</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Thiếu</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Action</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr></thead>
     <tbody>
     </tbody>
 </table>
@@ -511,9 +511,6 @@ function buildChapterRow(ch, newIndex) {
     const indexCell = reindexPreviewMode && newIndex != null && newIndex !== ch.index
         ? `<span class="reindex-old">${ch.index}</span><span class="reindex-arrow">→</span><span class="reindex-new">${newIndex}</span>`
         : ch.index;
-    const bientapCell = ch.bientap
-        ? `<span class="text-xs" title="${escapeHtml(ch.bientap_tooltip || '')}">${escapeHtml(ch.bientap)}</span>`
-        : '<span class="text-muted-light dark:text-muted-dark text-xs">-</span>';
     const skipToggle = ch.skipped
         ? `<button type="button" class="skip-toggle-btn link-btn text-xs" data-index="${ch.index}" data-skip="false" title="Hiện lại chương này trong danh mục.">hiện</button>`
         : `<button type="button" class="skip-toggle-btn link-btn text-xs text-amber-600 dark:text-amber-400" data-index="${ch.index}" data-skip="true" title="Bỏ qua (ẩn) chương này khỏi danh mục.">bỏ qua</button>`;
@@ -521,9 +518,7 @@ function buildChapterRow(ch, newIndex) {
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" class="chapter-check rounded border-border-light dark:border-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${indexCell}</td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-link-light dark:text-link-dark hover:underline">${escapeHtml(ch.visible_title)}</a></td>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_raw ? '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">có</span>' : '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">chưa</span>'}</td>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_translated ? '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">có</span>' : '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">chưa</span>'}</td>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${bientapCell}</td>
+        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_raw ? (ch.zh_char_count ?? 0) : '-'}</td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_translated ? ch.word_count : '-'}</td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${hasMissing ? ch.missing_fields.join(', ') : '-'}</td>
         <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">

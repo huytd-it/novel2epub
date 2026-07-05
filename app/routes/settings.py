@@ -462,6 +462,7 @@ def save_translate(
     auto_glossary: bool = Form(False),
     glossary_filter: bool = Form(False),
     batch_size: int = Form(1),
+    prompt_max_chars: int = Form(7000),
     auto_cleanup_han: bool = Form(False),
     cleanup_han_max_chars: int = Form(8000),
     cleanup_han_retries: int = Form(1),
@@ -507,6 +508,7 @@ def save_translate(
         "auto_glossary": auto_glossary,
         "glossary_filter": glossary_filter,
         "batch_size": max(1, batch_size),
+        "prompt_max_chars": max(0, prompt_max_chars),
         "auto_cleanup_han": auto_cleanup_han,
         "cleanup_han": {
             "max_chars": max(0, cleanup_han_max_chars),
@@ -518,12 +520,12 @@ def save_translate(
         "[config][AI/DỊCH] global (từ %s) lưu vào defaults của %s: type=%s local_model=%s base_url=%r model=%r "
         "hachimimt=%s timeout=%ss temperature=%s tone=%r pronoun=%s title_mode=%s han_viet=%s "
         "keep_paragraphs=%s retry=%s chunk_max_chars=%s delay=%ss "
-        "auto_glossary=%s glossary_filter=%s batch_size=%s auto_cleanup_han=%s cleanup_han=%s/%s",
+        "auto_glossary=%s glossary_filter=%s batch_size=%s prompt_max_chars=%s auto_cleanup_han=%s cleanup_han=%s/%s",
         slug, path, type, local_model, base_url, model,
         hachimimt_model_key, timeout_seconds, temperature, tone,
         pronoun_policy, title_mode, han_viet_level, keep_paragraphs, retry_attempts,
         chunk_max_chars, delay_seconds,
-        auto_glossary, glossary_filter, batch_size, auto_cleanup_han,
+        auto_glossary, glossary_filter, batch_size, prompt_max_chars, auto_cleanup_han,
         cleanup_han_max_chars, cleanup_han_retries,
     )
     # Cấu hình AI dịch dùng chung cho MỌI ebook: ghi vào `defaults:` và gỡ bản

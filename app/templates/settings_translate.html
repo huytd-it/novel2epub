@@ -262,11 +262,19 @@
             <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 1</span>
             {% endif %}
         </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> prompt_max_chars (0 = không giới hạn)
+            <input type="number" name="prompt_max_chars" value="{{ cfg.translate.prompt_max_chars }}" min="0" step="500"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.prompt_max_chars, 'translate', 'prompt_max_chars') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            {% if is_default(cfg.translate.prompt_max_chars, 'translate', 'prompt_max_chars') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 7000</span>
+            {% endif %}
+        </label>
     </div>
     <p class="text-sm text-muted-light dark:text-muted-dark px-3 pb-2">
         <strong>glossary_filter</strong>: chỉ nhét vào prompt các mục glossary xuất hiện trong đoạn đang dịch (tiết kiệm token).
         <strong>auto_glossary</strong>: sau mỗi chương, AI rút glossary mới và merge vào names/vietphrase (chỉ backend openai).
         <strong>batch_size</strong>: số chương gửi 1 lần cho AI khi "Dịch selected".
+        <strong>prompt_max_chars</strong>: giới hạn TỔNG ký tự mỗi prompt gửi AI (gồm cả prompt mẫu + glossary + nội dung) — dịch chương sẽ chia đoạn nhỏ hơn, batch dịch sẽ cắt batch sớm hơn khi chạm giới hạn.
     </p>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
         <label class="inline-flex items-center gap-2 text-sm mt-5">
@@ -321,6 +329,7 @@
   auto_glossary: {{ cfg.translate.auto_glossary }}
   glossary_filter: {{ cfg.translate.glossary_filter }}
   batch_size: {{ cfg.translate.batch_size }}
+  prompt_max_chars: {{ cfg.translate.prompt_max_chars }}
   auto_cleanup_han: {{ cfg.translate.auto_cleanup_han }}
   cleanup_han:
     max_chars: {{ cfg.translate.cleanup_han.max_chars }}

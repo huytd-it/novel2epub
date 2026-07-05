@@ -1,10 +1,20 @@
 """Shared TOC list helpers used by CLI and Web UI."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Iterable
 
 from .storage import Chapter, Storage
+
+# Chi dem ky tu Han (bo qua khoang trang, xuong dong, dau cau markdown) de
+# khop voi cach cac trang Trung tinh "so chu" cua 1 chuong, thay vi len() tho
+# tren toan bo raw md.
+_HAN_RE = re.compile(r"[一-鿿㐀-䶿豈-﫿]")
+
+
+def count_han_chars(text: str) -> int:
+    return len(_HAN_RE.findall(text))
 
 
 @dataclass
@@ -19,6 +29,7 @@ class ChapterRow:
     duplicate_of: int | None
     last_action_status: str
     word_count: int = 0
+    zh_char_count: int = 0
     # Biên tập: trạng thái AI rewrite của chương. `bientap` là label compact
     # hiển thị trong table ("Nháp AI" / "Đã biên tập" / "-"), `bientap_tooltip`
     # là text đầy đủ cho title= (hover).
@@ -75,6 +86,8 @@ def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterR
     for ch in chapters:
         has_translated = storage.has_translated(ch)
         word_count = count_words(storage.read_translated(ch)) if has_translated else 0
+        has_raw = storage.has_raw(ch)
+        zh_char_count = count_han_chars(storage.read_raw(ch)) if has_raw else 0
 
         bientap = ""
         bientap_tooltip = ""
@@ -101,12 +114,13 @@ def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterR
             title=ch.title,
             visible_title=ch.title or f"Chương {ch.index}",
             url=ch.url,
-            has_raw=storage.has_raw(ch),
+            has_raw=has_raw,
             has_translated=has_translated,
             missing_fields=chapter_missing(ch),
             duplicate_of=ch.duplicate_of,
             last_action_status=ch.last_action_status,
             word_count=word_count,
+            zh_char_count=zh_char_count,
             bientap=bientap,
             bientap_tooltip=bientap_tooltip,
             skipped=ch.skipped,

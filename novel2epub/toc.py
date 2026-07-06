@@ -135,10 +135,10 @@ def chapter_crawl_status(ch: Chapter, storage: Storage, min_chars: int = 30) -> 
     (xem spec crawl-management) gộp cả 2 vào 1 danh sách "cần retry" mà không
     coi 2 trường hợp là như nhau khi hiển thị.
     """
-    path = storage.raw_path(ch)
-    if not path.exists():
+    length = storage.raw_len(ch)
+    if length is None:
         return "missing"
-    if path.stat().st_size < min_chars:
+    if length < min_chars:
         return "empty"
     return "ok"
 

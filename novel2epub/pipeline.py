@@ -1002,25 +1002,17 @@ def step_translate_selected(
         if hasattr(inner, "drain_conflicts"):
             conflicts = inner.drain_conflicts()
             if conflicts:
-                conflicts_dir = storage.root / "translation_meta"
-                conflicts_dir.mkdir(parents=True, exist_ok=True)
-                summary_path = conflicts_dir / "_glossary_conflicts.json"
-                existing = []
-                if summary_path.exists():
-                    try:
-                        existing = json.loads(summary_path.read_text(encoding="utf-8"))
-                        if not isinstance(existing, list):
-                            existing = []
-                    except (OSError, json.JSONDecodeError):
-                        existing = []
+                existing = storage.read_extra_json("glossary_conflicts")
+                if not isinstance(existing, list):
+                    existing = []
                 seen = {(c["source"], c["new"], c["target_file"]) for c in existing}
                 for c in conflicts:
                     key = (c["source"], c["new"], c["target_file"])
                     if key not in seen:
                         existing.append(c)
                         seen.add(key)
-                summary_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
-                log(f"[dịch] Auto-glossary: {len(conflicts)} xung đột — xem {summary_path.name}")
+                storage.write_extra_json("glossary_conflicts", existing)
+                log(f"[dịch] Auto-glossary: {len(conflicts)} xung đột — xem trang Glossary")
 
     # OmniRoute cost summary: aggregate từ meta.omniroute của các chương vừa dịch.
     _write_omniroute_cost_summary(storage, to_translate, log)
@@ -1052,10 +1044,7 @@ def _write_omniroute_cost_summary(
     for ch in chapters:
         if not storage.has_meta(ch):
             continue
-        try:
-            meta = json.loads(storage.meta_path(ch).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
+        meta = storage.read_meta(ch)
         omni = meta.get("omniroute")
         if not omni or not isinstance(omni, dict):
             continue
@@ -1097,9 +1086,7 @@ def _write_omniroute_cost_summary(
         "by_model": {k: {**v, "cost_usd": round(v["cost_usd"], 10)} for k, v in by_model.items()},
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    summary_path = storage.root / "translation_meta" / "_cost_summary.json"
-    summary_path.parent.mkdir(parents=True, exist_ok=True)
-    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    storage.write_extra_json("cost_summary", summary)
     log(
         f"[dịch] OmniRoute tổng: ${total_cost:.4f} · {total_tokens_in}+{total_tokens_out} tokens · "
         f"{total_cache_hits} cache hits · {chapter_count} chương · {version or '?'}"
@@ -1531,12 +1518,7 @@ def step_delete_translation_selected(
         if should_cancel and should_cancel():
             log("[xóa-dịch] Đã dừng theo yêu cầu.")
             break
-        has_any = (
-            storage.translated_path(ch).exists()
-            or storage.translated_mt_path(ch).exists()
-            or storage.meta_path(ch).exists()
-        )
-        if not has_any:
+        if not storage.has_any_translation_data(ch):
             continue
         storage.delete_translated(ch)
         ch.last_action_status = ""

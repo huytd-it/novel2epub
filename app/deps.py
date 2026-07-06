@@ -13,21 +13,27 @@ from novel2epub.config import load_config, load_library
 from novel2epub.sources import load_presets
 
 BASE_DIR = Path(__file__).resolve().parent
-# File cấu hình gộp duy nhất (defaults + sources + ebooks). NOVEL2EPUB_CONFIG
-# giữ làm fallback để tương thích lệnh/script cũ.
-WORKSPACE_PATH = os.environ.get(
-    "NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.yaml")
-)
+# DB SQLite thống nhất DUY NHẤT — chứa config (defaults/sources/ebooks), toàn
+# bộ dữ liệu ebook (Storage(cfg.output.data_dir, slug) resolve về ĐÚNG file
+# này vì config.py ép `output.data_dir` = thư mục chứa DB, xem
+# `novel2epub/config.py:load_config`), queue history/pending, automations,
+# archived flags. NOVEL2EPUB_FILE/NOVEL2EPUB_CONFIG giữ làm fallback env cũ.
+DB_PATH = Path(
+    os.environ.get(
+        "NOVEL2EPUB_DB",
+        os.environ.get("NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.db")),
+    )
+).resolve()
+# Tên biến giữ nguyên để route/hàm cũ (load_config(deps.WORKSPACE_PATH, slug),
+# load_automations(deps.AUTOMATIONS_PATH), archived_slugs(deps.LIBRARY_STATE_PATH))
+# không phải đổi — tất cả đều trỏ vào CÙNG 1 file DB.
+WORKSPACE_PATH = str(DB_PATH)
 CONFIG_PATH = WORKSPACE_PATH
 LIBRARY_PATH = WORKSPACE_PATH
-# File sources tách riêng, nằm cùng thư mục với config.
-_cfg_dir = str(Path(WORKSPACE_PATH).resolve().parent)
-SOURCES_PATH = os.path.join(_cfg_dir, "sources.yaml")
-# Sidecar workspace state (lịch sử queue, automation, archived flags...) —
-# nằm cạnh file config gộp, không commit (xem design.md D3).
-WORKSPACE_DIR = Path(WORKSPACE_PATH).resolve().parent / ".n2e"
-AUTOMATIONS_PATH = WORKSPACE_DIR / "automations.yaml"
-LIBRARY_STATE_PATH = WORKSPACE_DIR / "library_state.json"
+SOURCES_PATH = WORKSPACE_PATH
+WORKSPACE_DIR = DB_PATH.parent / ".n2e"
+AUTOMATIONS_PATH = DB_PATH
+LIBRARY_STATE_PATH = DB_PATH
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 

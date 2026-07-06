@@ -1,6 +1,7 @@
 """Đọc và xác thực file cấu hình YAML."""
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -30,8 +31,6 @@ LOCAL_MT_MODEL_PRESETS: dict[str, dict[str, Any]] = {
         "model_key": "HirashibaMT-Tiny",
     },
 }
-
-import yaml
 
 
 @dataclass
@@ -430,23 +429,65 @@ def _resolve_source_overrides(
 
 
 def load_library(path: str | Path) -> LibraryConfig:
-    path = Path(path)
-    if not path.exists():
+    db_path = Path(path).resolve()
+    if not db_path.exists():
         return LibraryConfig()
 
-    raw: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    from .db import get_thread_connection
+
+    conn = get_thread_connection(db_path)
     entries: dict[str, LibraryEntry] = {}
-    for slug, item in (raw.get("ebooks") or {}).items():
-        data = _as_dict(item)
-        if isinstance(item, str):
-            data = {"config": item}
-        entries[slug] = LibraryEntry(
-            slug=slug,
-            name=data.get("name", ""),
-            # File gộp: ebook nằm inline trong cùng file (không còn `config:` riêng).
-            config=data.get("config", ""),
-        )
+    for r in conn.execute("SELECT slug, name FROM ebooks ORDER BY slug"):
+        entries[r["slug"]] = LibraryEntry(slug=r["slug"], name=r["name"] or "", config="")
     return LibraryConfig(ebooks=entries)
+
+
+def _load_raw_from_db(conn) -> dict[str, Any]:
+    """Dựng lại raw dict {"defaults", "sources", "ebooks"} ĐÚNG cấu trúc YAML
+    cũ từ bảng settings/sources/ebooks — để tái dùng nguyên logic merge/parse
+    bên dưới (deep-merge, resolve source preset, dataclass construction...
+    không đổi gì từ `_deep_merge_raw(defaults, override)` trở xuống)."""
+    settings_row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    defaults: dict[str, Any] = {}
+    if settings_row:
+        for section in ("novel", "crawl", "translate", "ai", "output", "queue"):
+            data = json.loads(settings_row[f"{section}_json"] or "{}")
+            if data:
+                defaults[section] = data
+
+    sources: dict[str, Any] = {}
+    for r in conn.execute("SELECT name, data_json FROM sources"):
+        sources[r["name"]] = json.loads(r["data_json"] or "{}")
+
+    ebooks: dict[str, Any] = {}
+    for r in conn.execute("SELECT * FROM ebooks"):
+        block: dict[str, Any] = {}
+        if r["name"]:
+            block["name"] = r["name"]
+        if r["source_preset"]:
+            block["source"] = r["source_preset"]
+        novel_fields = {
+            "slug": r["slug"], "title": r["title"], "author": r["author"],
+            "description": r["description"], "language": r["language"],
+            "publisher": r["publisher"], "pubdate": r["pubdate"],
+            "date_added": r["date_added"],
+            "subjects": json.loads(r["subjects_json"] or "[]"),
+            "series": r["series"], "series_index": r["series_index"],
+            "identifier": r["identifier"], "cover_url": r["cover_url"],
+        }
+        block["novel"] = {k: v for k, v in novel_fields.items() if v not in (None, "", [])}
+        block["novel"]["slug"] = r["slug"]
+        crawl_over = json.loads(r["crawl_overrides_json"] or "{}")
+        if crawl_over:
+            block["crawl"] = crawl_over
+        output_over = json.loads(r["output_overrides_json"] or "{}")
+        if r["epub_path"] and "epub_path" not in output_over:
+            output_over["epub_path"] = r["epub_path"]
+        if output_over:
+            block["output"] = output_over
+        ebooks[r["slug"]] = block
+
+    return {"defaults": defaults, "sources": sources, "ebooks": ebooks}
 
 
 def _build_style(raw: dict[str, Any]) -> TranslationStyleConfig:
@@ -461,59 +502,54 @@ def _build_style(raw: dict[str, Any]) -> TranslationStyleConfig:
 
 
 def load_config(path: str | Path, slug: str = "") -> Config:
-    path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"Không tìm thấy file cấu hình: {path}")
+    from .db import get_thread_connection
 
-    raw: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    base_dir = path.parent
-    is_unified = "ebooks" in raw
+    db_path = Path(path).resolve()
+    if not db_path.exists():
+        raise FileNotFoundError(f"Không tìm thấy DB cấu hình: {db_path}")
+    conn = get_thread_connection(db_path)
+    base_dir = db_path.parent
 
-    # Chế độ "unified": file gộp có khối `ebooks:` -> config hiệu lực của một
-    # ebook = deep_merge(defaults, ebooks[slug]). Không có `ebooks:` thì coi như
-    # file phẳng cũ (novel/crawl/translate/output ở top-level), giữ nguyên hành vi.
-    source_crawl: dict[str, Any] = {}
-    source_name = ""
-    source_warnings: list[str] = []
-    if is_unified:
-        defaults = _as_dict(raw.get("defaults"))
-        ebooks = _as_dict(raw.get("ebooks"))
-        if slug:
-            if slug not in ebooks:
-                raise KeyError(f"không tìm thấy ebook {slug!r} trong {path}")
-            override = _as_dict(ebooks.get(slug))
-        elif ebooks:
-            override = _as_dict(next(iter(ebooks.values())))
-        else:
-            override = {}
-        override = dict(override)
-        override.pop("name", None)  # tên hiển thị cấp ebook, không thuộc Config
-        # `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình DÙNG CHUNG cho
-        # mọi ebook — chỉ đọc từ `defaults:`. Override per-ebook (file cũ còn
-        # sót lại) bị bỏ qua để tránh mỗi ebook một bản cấu hình AI khác nhau.
-        override.pop("translate", None)
-        override.pop("ai", None)
+    raw_all = _load_raw_from_db(conn)
+    defaults = raw_all["defaults"]
+    sources_raw = raw_all["sources"]
+    ebooks = raw_all["ebooks"]
 
-        # Source preset resolution: nếu ebook có field `source`, lookup preset
-        # từ sources block → merge crawl fields từ preset vào TRƯỚC khi ebook
-        # override ghi đè. Source preset = layer giữa defaults và ebook override.
-        sources_raw = _as_dict(raw.get("sources"))
-        source_crawl, source_name, source_warnings = _resolve_source_overrides(override, sources_raw)
-        override.pop("source", None)  # không đưa vào Config raw dict
-        if source_crawl:
-            ebook_crawl = _as_dict(override.get("crawl"))
-            merged_crawl = _deep_merge_raw(source_crawl, ebook_crawl)
-            override["crawl"] = merged_crawl
+    if slug:
+        if slug not in ebooks:
+            raise KeyError(f"không tìm thấy ebook {slug!r} trong {db_path}")
+        override = _as_dict(ebooks.get(slug))
+    elif ebooks:
+        override = _as_dict(next(iter(ebooks.values())))
+    else:
+        override = {}
+    override = dict(override)
+    override.pop("name", None)  # tên hiển thị cấp ebook, không thuộc Config
+    # `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình DÙNG CHUNG cho
+    # mọi ebook — chỉ đọc từ `defaults:`. Override per-ebook (còn sót lại) bị
+    # bỏ qua để tránh mỗi ebook một bản cấu hình AI khác nhau.
+    override.pop("translate", None)
+    override.pop("ai", None)
 
-        raw = _deep_merge_raw(defaults, override)
+    # Source preset resolution: nếu ebook có field `source`, lookup preset
+    # từ bảng `sources` → merge crawl fields từ preset vào TRƯỚC khi ebook
+    # override ghi đè. Source preset = layer giữa defaults và ebook override.
+    source_crawl, source_name, source_warnings = _resolve_source_overrides(override, sources_raw)
+    override.pop("source", None)  # không đưa vào Config raw dict
+    if source_crawl:
+        ebook_crawl = _as_dict(override.get("crawl"))
+        merged_crawl = _deep_merge_raw(source_crawl, ebook_crawl)
+        override["crawl"] = merged_crawl
+
+    raw = _deep_merge_raw(defaults, override)
 
     novel = NovelConfig(**(raw.get("novel") or {}))
-    if not novel.identifier and is_unified and slug:
+    if not novel.identifier and slug:
         # Sinh + lưu 1 lần urn:uuid ổn định cho ebook chưa có identifier (vd
         # tạo trước khi field này tồn tại) — xem spec ebook-metadata.
         from .config_writer import ensure_identifier
 
-        novel.identifier = ensure_identifier(path, slug, "")
+        novel.identifier = ensure_identifier(db_path, slug, "")
 
     crawl_raw = dict(raw.get("crawl") or {})
     # api_key / api_url chỉ dùng cho firecrawl, đã bỏ engine này; bỏ qua cũ.
@@ -649,7 +685,13 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         ),
     )
 
-    output = OutputConfig(**(raw.get("output") or {}))
+    output_raw = dict(raw.get("output") or {})
+    # `data_dir` PHẢI luôn là thư mục chứa chính file DB đang đọc (base_dir) —
+    # đảm bảo Storage(cfg.output.data_dir, slug) resolve về ĐÚNG file .db này
+    # (xem novel2epub/storage.py:resolve_db_path), không phụ thuộc giá trị cũ
+    # còn sót trong settings.output_json (vốn chỉ còn ý nghĩa hiển thị).
+    output_raw["data_dir"] = str(base_dir)
+    output = OutputConfig(**output_raw)
 
     # --- AI (biên tập) config — fallback về translate.openai nếu không có khối `ai:` ---
     ai_raw = raw.get("ai") or {}

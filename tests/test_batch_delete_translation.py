@@ -95,9 +95,7 @@ def test_batch_delete_removes_translated_and_mt_and_meta(tmp_path, monkeypatch):
 
     # _FakeJob.start_custom chạy target sync → file bị xoá ngay trong request
     for ch in chapters:
-        assert not storage.translated_path(ch).exists(), f"translated/{ch.stem}.md còn tồn tại"
-        assert not storage.translated_mt_path(ch).exists(), f"translated_mt/{ch.stem}.md còn tồn tại"
-        assert not storage.meta_path(ch).exists(), f"meta/{ch.stem}.json còn tồn tại"
+        assert not storage.has_any_translation_data(ch), f"chương {ch.stem} còn dữ liệu dịch"
         assert not storage.has_translated(ch)
         assert not storage.has_translated_mt(ch)
 

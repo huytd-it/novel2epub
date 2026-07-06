@@ -7,41 +7,31 @@ from novel2epub.config_writer import (
     update_defaults,
     update_ebook,
 )
-
+from tests.conftest import write_db_config
 
 
 def _write_workspace(path):
-    path.write_text(
-        "# comment đầu file\n"
-        "defaults:\n"
-        "  crawl:\n"
-        "    content_selector: '#default'\n"
-        "  translate:\n"
-        "    openai:\n"
-        "      base_url: https://custom.test/v1\n"
-        "ebooks:\n"
-        "  a:\n"
-        "    name: A  # giữ comment này\n"
-        "    novel:\n"
-        "      slug: a\n"
-        "      title: Cũ\n"
-        "    crawl:\n"
-        "      toc_url: https://a\n"
-        "      content_selector: '#old'\n",
-        encoding="utf-8",
+    return write_db_config(
+        path,
+        defaults={
+            "crawl": {"content_selector": "#default"},
+            "translate": {"openai": {"base_url": "https://custom.test/v1"}},
+        },
+        ebooks={
+            "a": {
+                "name": "A",
+                "novel": {"slug": "a", "title": "Cũ"},
+                "crawl": {"toc_url": "https://a", "content_selector": "#old"},
+            },
+        },
     )
 
 
-def test_update_ebook_preserves_comments_and_inheritance(tmp_path):
-    path = tmp_path / "novel2epub.yaml"
+def test_update_ebook_merges_and_inherits(tmp_path):
+    path = tmp_path / "novel2epub.db"
     _write_workspace(path)
 
     update_ebook(path, "a", {"crawl": {"content_selector": "#new"}})
-
-    text = path.read_text(encoding="utf-8")
-    assert "# comment đầu file" in text
-    assert "# giữ comment này" in text
-    assert "#new" in text
 
     cfg = load_config(path, "a")
     assert cfg.crawl.content_selector == "#new"   # override
@@ -51,7 +41,7 @@ def test_update_ebook_preserves_comments_and_inheritance(tmp_path):
 
 
 def test_update_ebook_does_not_touch_siblings(tmp_path):
-    path = tmp_path / "novel2epub.yaml"
+    path = tmp_path / "novel2epub.db"
     _write_workspace(path)
     # Thêm ebook thứ 2 rồi sửa ebook 'a' -> 'b' phải nguyên vẹn.
     add_ebook(path, "b", name="B", title="Bê", toc_url="https://b")
@@ -64,7 +54,7 @@ def test_update_ebook_does_not_touch_siblings(tmp_path):
 
 
 def test_add_ebook_minimal_override_inherits_defaults(tmp_path):
-    path = tmp_path / "novel2epub.yaml"
+    path = tmp_path / "novel2epub.db"
     _write_workspace(path)
     add_ebook(
         path,
@@ -83,7 +73,7 @@ def test_add_ebook_minimal_override_inherits_defaults(tmp_path):
 
 
 def test_remove_ebook(tmp_path):
-    path = tmp_path / "novel2epub.yaml"
+    path = tmp_path / "novel2epub.db"
     _write_workspace(path)
     add_ebook(path, "b", name="B", title="Bê", toc_url="https://b")
     remove_ebook(path, "a")
@@ -93,7 +83,7 @@ def test_remove_ebook(tmp_path):
 
 
 def test_save_library_syncs_names_keeps_bodies(tmp_path):
-    path = tmp_path / "novel2epub.yaml"
+    path = tmp_path / "novel2epub.db"
     _write_workspace(path)
     lib = LibraryConfig(ebooks={"a": LibraryEntry(slug="a", name="A mới")})
     save_library(path, lib)
@@ -113,56 +103,32 @@ def test_clean_prompt_text_normalizes_whitespace():
     assert cleaned == cleaned.strip("\n")
 
 
-def test_update_defaults_cleans_crlf_prompt_no_blank_lines(tmp_path):
-    path = tmp_path / "novel2epub.yaml"
-    path.write_text(
-        "ebooks:\n  a:\n    crawl:\n      toc_url: https://a\n", encoding="utf-8"
-    )
+def test_update_defaults_persists_prompt_template(tmp_path):
+    path = tmp_path / "novel2epub.db"
+    write_db_config(path, ebooks={"a": {"novel": {"slug": "a"}, "crawl": {"toc_url": "https://a"}}})
     template = clean_prompt_text("Dòng 1\r\nDòng 2\r\nDòng 3")
     update_defaults(path, {"translate": {"openai": {"prompt_template": template}}})
-    text = path.read_text(encoding="utf-8")
-    # Block scalar literal: 3 dòng liền nhau, KHÔNG chèn dòng trống khi round-trip.
-    assert "\n\nDòng 2" not in text and "\r" not in text
     cfg = load_config(path, "a")
     assert cfg.translate.openai.prompt_template == "Dòng 1\nDòng 2\nDòng 3"
 
 
-def test_update_defaults_writes_shared_and_strips_ebook_copies(tmp_path):
-    """`translate`/`ai` dùng chung: ghi vào defaults + gỡ bản copy per-ebook."""
-    path = tmp_path / "novel2epub.yaml"
-    path.write_text(
-        "# comment đầu file\n"
-        "defaults:\n"
-        "  translate:\n"
-        "    type: none\n"
-        "ebooks:\n"
-        "  a:\n"
-        "    novel:\n"
-        "      slug: a\n"
-        "    translate:  # bản copy cũ per-ebook\n"
-        "      openai:\n"
-        "        model: old-model\n"
-        "  b:\n"
-        "    novel:\n"
-        "      slug: b\n"
-        "    crawl:\n"
-        "      toc_url: https://b\n",
-        encoding="utf-8",
+def test_update_defaults_writes_shared_config_to_all_ebooks(tmp_path):
+    """`translate`/`ai` dùng chung: ghi vào defaults, mọi ebook đều thấy."""
+    path = tmp_path / "novel2epub.db"
+    write_db_config(
+        path,
+        defaults={"translate": {"type": "none"}},
+        ebooks={
+            "a": {"novel": {"slug": "a"}},
+            "b": {"novel": {"slug": "b"}, "crawl": {"toc_url": "https://b"}},
+        },
     )
 
     update_defaults(path, {"translate": {"type": "openai", "openai": {"model": "new-model"}}})
 
-    text = path.read_text(encoding="utf-8")
-    assert "# comment đầu file" in text
-    assert "old-model" not in text  # bản copy per-ebook đã bị dọn
-
-    # Cả 2 ebook đều thấy cấu hình mới từ defaults.
     for slug in ("a", "b"):
         cfg = load_config(path, slug)
         assert cfg.translate.type == "openai"
         assert cfg.translate.openai.model == "new-model"
     # Phần per-ebook khác giữ nguyên.
     assert load_config(path, "b").crawl.toc_url == "https://b"
-
-
-

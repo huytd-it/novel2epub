@@ -1,27 +1,18 @@
 """Automation: chuỗi bước pipeline (fetch-toc → crawl-new → translate-pending
-→ build) chạy theo lịch hoặc tay, lưu trong `workspace/.n2e/automations.yaml`
-(xem spec automation-scheduling). Đọc–ghi round-trip bằng ruamel để giữ
-comment người dùng tự thêm, theo cùng pattern với `sources.py`.
+→ build) chạy theo lịch hoặc tay — lưu trong bảng `automations` của DB thống
+nhất (trước đây là `workspace/.n2e/automations.yaml` round-trip ruamel).
 """
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ruamel.yaml import YAML
-from ruamel.yaml.comments import CommentedMap
+from .db import get_thread_connection
 
 STEPS = ("fetch-toc", "crawl-new", "translate-pending", "cleanup-han", "build")
-
-
-def _yaml() -> YAML:
-    y = YAML()
-    y.preserve_quotes = True
-    y.width = 4096
-    y.indent(mapping=2, sequence=4, offset=2)
-    return y
 
 
 @dataclass
@@ -38,63 +29,66 @@ class Automation:
     last_run_stats: dict = field(default_factory=dict)  # {"chapters_total", "crawled", "translated", "han_fixed"}
 
 
-def load_automations(path: str | Path) -> dict[str, Automation]:
-    path = Path(path)
-    if not path.exists():
-        return {}
-    raw = _yaml().load(path.read_text(encoding="utf-8")) or {}
+def load_automations(db_path: str | Path) -> dict[str, Automation]:
+    conn = get_thread_connection(db_path)
+    rows = conn.execute("SELECT * FROM automations").fetchall()
     result: dict[str, Automation] = {}
-    for item_id, item in (raw.get("automations") or {}).items():
-        data = dict(item)
-        data["id"] = item_id
-        data.setdefault("steps", ["build"])
-        result[item_id] = Automation(**data)
+    for r in rows:
+        result[r["id"]] = Automation(
+            id=r["id"],
+            ebook=r["ebook"],
+            steps=json.loads(r["steps_json"] or '["build"]'),
+            schedule=r["schedule"],
+            enabled=bool(r["enabled"]),
+            last_run_at=r["last_run_at"],
+            last_run_outcome=r["last_run_outcome"],
+            last_run_error=r["last_run_error"],
+            last_run_stats=json.loads(r["last_run_stats_json"] or "{}"),
+        )
     return result
 
 
-def save_automations(path: str | Path, automations: dict[str, Automation]) -> None:
-    path = Path(path)
-    data: CommentedMap
-    if path.exists():
-        loaded = _yaml().load(path.read_text(encoding="utf-8"))
-        data = loaded if isinstance(loaded, CommentedMap) else CommentedMap()
-    else:
-        data = CommentedMap()
-    items = CommentedMap()
-    for item_id, automation in automations.items():
-        item = CommentedMap()
-        for k, v in asdict(automation).items():
-            if k == "id":
-                continue
-            item[k] = v
-        items[item_id] = item
-    data["automations"] = items
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        _yaml().dump(data, f)
+def save_automations(db_path: str | Path, automations: dict[str, Automation]) -> None:
+    conn = get_thread_connection(db_path)
+    with conn:
+        conn.execute("DELETE FROM automations")
+        for a in automations.values():
+            conn.execute(
+                """
+                INSERT INTO automations
+                    (id, ebook, steps_json, schedule, enabled,
+                     last_run_at, last_run_outcome, last_run_error, last_run_stats_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    a.id, a.ebook, json.dumps(a.steps, ensure_ascii=False), a.schedule,
+                    int(a.enabled), a.last_run_at, a.last_run_outcome, a.last_run_error,
+                    json.dumps(a.last_run_stats, ensure_ascii=False),
+                ),
+            )
 
 
-def add_automation(path: str | Path, ebook: str, steps: list[str], schedule: str = "manual") -> Automation:
-    automations = load_automations(path)
+def add_automation(db_path: str | Path, ebook: str, steps: list[str], schedule: str = "manual") -> Automation:
+    automations = load_automations(db_path)
     new_id = str(uuid.uuid4())
     automation = Automation(id=new_id, ebook=ebook, steps=list(steps), schedule=schedule)
     automations[new_id] = automation
-    save_automations(path, automations)
+    save_automations(db_path, automations)
     return automation
 
 
-def update_automation(path: str | Path, automation_id: str, updates: dict[str, Any]) -> None:
-    automations = load_automations(path)
+def update_automation(db_path: str | Path, automation_id: str, updates: dict[str, Any]) -> None:
+    automations = load_automations(db_path)
     if automation_id not in automations:
         raise KeyError(f"không tìm thấy automation {automation_id!r}")
     current = automations[automation_id]
     data = asdict(current)
     data.update(updates)
     automations[automation_id] = Automation(**data)
-    save_automations(path, automations)
+    save_automations(db_path, automations)
 
 
-def remove_automation(path: str | Path, automation_id: str) -> None:
-    automations = load_automations(path)
+def remove_automation(db_path: str | Path, automation_id: str) -> None:
+    automations = load_automations(db_path)
     automations.pop(automation_id, None)
-    save_automations(path, automations)
+    save_automations(db_path, automations)

@@ -2,28 +2,18 @@
 (selector, pattern...) để tái sử dụng khi thêm ebook mới hoặc cập nhật
 nguồn của một ebook. Không chứa `toc_url` vì đó là đặc thù từng truyện.
 
-Lưu trong khối `sources:` của file gộp novel2epub.yaml. Đọc–ghi round-trip để
-giữ comment người dùng tự thêm.
+Lưu trong bảng `sources` của DB thống nhất (trước đây là khối `sources:`
+round-trip ruamel trong `sources.yaml`).
 """
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from ruamel.yaml import YAML
-from ruamel.yaml.comments import CommentedMap
-
-
-
-
-def _yaml() -> YAML:
-    y = YAML()
-    y.preserve_quotes = True
-    y.width = 4096
-    y.indent(mapping=2, sequence=4, offset=2)
-    return y
+from .db import get_thread_connection
 
 
 @dataclass
@@ -118,21 +108,17 @@ def _coerce(name: str, value: Any) -> Any:
 
 
 def load_presets(path: str | Path) -> dict[str, SourcePreset]:
-    """Đọc file sources YAML standalone. File chứa trực tiếp các preset
-    (không có key `sources:` bọc ngoài). Tương thích ngược: nếu file có
-    key `sources:` thì vẫn đọc được."""
-    path = Path(path)
-    if not path.exists():
+    """Đọc bảng `sources` của DB tại `path`."""
+    db_path = Path(path).resolve()
+    if not db_path.exists():
         return {}
-    raw = _yaml().load(path.read_text(encoding="utf-8")) or {}
-    # Hỗ trợ cả 2 format: standalone (raw = {name: preset, ...}) và
-    # legacy có wrapper `sources:` (raw = {sources: {name: preset, ...}}).
-    items = raw.get("sources") or raw
+    conn = get_thread_connection(db_path)
     presets: dict[str, SourcePreset] = {}
-    for name, item in items.items():
-        data = {k: _coerce(k, v) for k, v in dict(item).items() if k in _FIELD_NAMES}
-        data["name"] = name
-        presets[name] = SourcePreset(**data)
+    for r in conn.execute("SELECT name, data_json FROM sources ORDER BY name"):
+        item = json.loads(r["data_json"] or "{}")
+        data = {k: _coerce(k, v) for k, v in item.items() if k in _FIELD_NAMES}
+        data["name"] = r["name"]
+        presets[r["name"]] = SourcePreset(**data)
     return presets
 
 
@@ -177,68 +163,49 @@ def propagate_preset_update(
     """Propagate preset update sang ebook có ``source == preset_name``.
 
     Chỉ cập nhật field ebook CHƯA override (key không tồn tại trong
-    ebook.crawl block trong YAML). Trả về danh sách ebook slug bị ảnh hưởng.
+    `crawl_overrides_json` của ebook). Trả về danh sách ebook slug bị ảnh hưởng.
     """
-    from ruamel.yaml import YAML as _YAML
-
     preset = presets.get(preset_name)
     if preset is None:
         return []
 
-    config_path = Path(config_path)
-    if not config_path.exists():
+    db_path = Path(config_path).resolve()
+    if not db_path.exists():
         return []
-
-    y = _YAML()
-    y.preserve_quotes = True
-    data = y.load(config_path.read_text(encoding="utf-8")) or {}
-    ebooks = data.get("ebooks")
-    if not isinstance(ebooks, CommentedMap):
-        return []
+    conn = get_thread_connection(db_path)
 
     overrides = preset.crawl_overrides()
     affected: list[str] = []
-
-    for slug, item in ebooks.items():
-        if not isinstance(item, CommentedMap):
-            continue
-        if item.get("source") != preset_name:
-            continue
-
-        crawl = item.get("crawl")
-        if not isinstance(crawl, CommentedMap):
-            crawl = CommentedMap()
-            item["crawl"] = crawl
-
-        # Chỉ update field ebook CHƯA override (key chưa có trong crawl block)
-        changed = False
-        for key, value in overrides.items():
-            if key not in crawl:
-                crawl[key] = value
-                changed = True
-
-        if changed:
-            affected.append(slug)
-
-    if affected:
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        with config_path.open("w", encoding="utf-8") as f:
-            y.dump(data, f)
-
+    rows = conn.execute(
+        "SELECT slug, crawl_overrides_json FROM ebooks WHERE source_preset = ?",
+        (preset_name,),
+    ).fetchall()
+    with conn:
+        for row in rows:
+            crawl = json.loads(row["crawl_overrides_json"] or "{}")
+            changed = False
+            for key, value in overrides.items():
+                if key not in crawl:
+                    crawl[key] = value
+                    changed = True
+            if changed:
+                conn.execute(
+                    "UPDATE ebooks SET crawl_overrides_json = ? WHERE slug = ?",
+                    (json.dumps(crawl, ensure_ascii=False), row["slug"]),
+                )
+                affected.append(row["slug"])
     return affected
 
 
 def save_presets(path: str | Path, presets: dict[str, SourcePreset]) -> None:
-    """Ghi file sources YAML standalone — mỗi preset là top-level key."""
-    path = Path(path)
-    data = CommentedMap()
-    for name, preset in presets.items():
-        item = CommentedMap()
-        for k, v in asdict(preset).items():
-            if k == "name":
-                continue
-            item[k] = v
-        data[name] = item
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        _yaml().dump(data, f)
+    """Ghi đè toàn bộ bảng `sources` — mỗi preset là 1 row."""
+    db_path = Path(path).resolve()
+    conn = get_thread_connection(db_path)
+    with conn:
+        conn.execute("DELETE FROM sources")
+        for name, preset in presets.items():
+            data = {k: v for k, v in asdict(preset).items() if k != "name"}
+            conn.execute(
+                "INSERT INTO sources (name, data_json) VALUES (?, ?)",
+                (name, json.dumps(data, ensure_ascii=False)),
+            )

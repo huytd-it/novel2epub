@@ -1,26 +1,26 @@
 """Tests cho source-ebook link: resolve preset, propagate, cleanup."""
+import json
 from pathlib import Path
 
 import pytest
-import yaml
-from ruamel.yaml import YAML
 
 from novel2epub.config import load_config, _resolve_source_overrides
 from novel2epub.config_writer import add_ebook, _DEPRECATED_CRAWL_FIELDS, _DEPRECATED_TRANSLATE_FIELDS
+from novel2epub.db import get_connection
 from novel2epub.sources import SourcePreset, propagate_preset_update, save_presets
+from tests.conftest import write_db_config
 
 
-def _write_yaml(path: Path, data: dict) -> None:
-    y = YAML()
-    y.preserve_quotes = True
-    path.write_text("", encoding="utf-8")
-    with path.open("w", encoding="utf-8") as f:
-        y.dump(data, f)
+def _read_ebook_crawl(path: Path, slug: str) -> dict:
+    conn = get_connection(str(path))
+    row = conn.execute("SELECT crawl_overrides_json FROM ebooks WHERE slug=?", (slug,)).fetchone()
+    return json.loads(row["crawl_overrides_json"] or "{}") if row else {}
 
 
-def _read_yaml(path: Path) -> dict:
-    y = YAML()
-    return y.load(path.read_text(encoding="utf-8")) or {}
+def _read_settings_translate(path: Path) -> dict:
+    conn = get_connection(str(path))
+    row = conn.execute("SELECT translate_json FROM settings WHERE id=1").fetchone()
+    return json.loads(row["translate_json"] or "{}") if row else {}
 
 
 # ── Task 9.1: resolve_source_overrides ──────────────────────────────
@@ -61,9 +61,10 @@ class TestResolveSourceOverrides:
 
 class TestBackwardCompat:
     def test_old_ebook_without_source_loads_normally(self, tmp_path):
-        data = {
-            "defaults": {"translate": {"type": "none"}, "output": {"data_dir": "data"}},
-            "ebooks": {
+        config_path = write_db_config(
+            tmp_path / "novel2epub.db",
+            defaults={"translate": {"type": "none"}},
+            ebooks={
                 "old-ebook": {
                     "novel": {"slug": "old-ebook"},
                     "crawl": {
@@ -73,34 +74,31 @@ class TestBackwardCompat:
                     },
                 },
             },
-        }
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, data)
+        )
         cfg = load_config(config_path, "old-ebook")
         assert cfg.source == ""
         assert cfg.crawl.content_selector == ".content"
         assert cfg.crawl.delay_seconds == 2.0
 
     def test_ebook_with_source_resolves_preset(self, tmp_path):
-        data = {
-            "defaults": {"translate": {"type": "none"}, "output": {"data_dir": "data"}},
-            "sources": {
+        config_path = write_db_config(
+            tmp_path / "novel2epub.db",
+            defaults={"translate": {"type": "none"}},
+            sources={
                 "aixdzs": {
                     "content_selector": ".article-content",
                     "delay_seconds": 1.5,
                     "headless": True,
                 },
             },
-            "ebooks": {
+            ebooks={
                 "test-novel": {
                     "source": "aixdzs",
                     "novel": {"slug": "test-novel"},
                     "crawl": {"toc_url": "https://aixdzs.com/novel/test/"},
                 },
             },
-        }
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, data)
+        )
         cfg = load_config(config_path, "test-novel")
         assert cfg.source == "aixdzs"
         assert cfg.crawl.content_selector == ".article-content"
@@ -108,15 +106,13 @@ class TestBackwardCompat:
         assert cfg.crawl.toc_url == "https://aixdzs.com/novel/test/"
 
     def test_ebook_override_takes_priority_over_preset(self, tmp_path):
-        data = {
-            "defaults": {"translate": {"type": "none"}, "output": {"data_dir": "data"}},
-            "sources": {
-                "aixdzs": {
-                    "content_selector": ".article-content",
-                    "delay_seconds": 1.5,
-                },
+        config_path = write_db_config(
+            tmp_path / "novel2epub.db",
+            defaults={"translate": {"type": "none"}},
+            sources={
+                "aixdzs": {"content_selector": ".article-content", "delay_seconds": 1.5},
             },
-            "ebooks": {
+            ebooks={
                 "test-novel": {
                     "source": "aixdzs",
                     "novel": {"slug": "test-novel"},
@@ -126,9 +122,7 @@ class TestBackwardCompat:
                     },
                 },
             },
-        }
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, data)
+        )
         cfg = load_config(config_path, "test-novel")
         # Override wins
         assert cfg.crawl.content_selector == ".custom-css"
@@ -140,9 +134,10 @@ class TestBackwardCompat:
 
 class TestMissingSourcePreset:
     def test_deleted_preset_falls_back_to_ebook_fields(self, tmp_path):
-        data = {
-            "defaults": {"translate": {"type": "none"}, "output": {"data_dir": "data"}},
-            "ebooks": {
+        config_path = write_db_config(
+            tmp_path / "novel2epub.db",
+            defaults={"translate": {"type": "none"}},
+            ebooks={
                 "test-novel": {
                     "source": "deleted-preset",
                     "novel": {"slug": "test-novel"},
@@ -152,9 +147,7 @@ class TestMissingSourcePreset:
                     },
                 },
             },
-        }
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, data)
+        )
         cfg = load_config(config_path, "test-novel")
         assert cfg.source == "deleted-preset"
         assert cfg.crawl.content_selector == ".fallback"
@@ -166,15 +159,11 @@ class TestMissingSourcePreset:
 
 class TestPropagatePresetUpdate:
     def _make_config(self, tmp_path) -> Path:
-        data = {
-            "defaults": {"translate": {"type": "none"}, "output": {"data_dir": "data"}},
-            "sources": {
-                "aixdzs": {
-                    "content_selector": ".old-content",
-                    "delay_seconds": 1.0,
-                },
-            },
-            "ebooks": {
+        return write_db_config(
+            tmp_path / "novel2epub.db",
+            defaults={"translate": {"type": "none"}},
+            sources={"aixdzs": {"content_selector": ".old-content", "delay_seconds": 1.0}},
+            ebooks={
                 "novel-a": {
                     "source": "aixdzs",
                     "novel": {"slug": "novel-a"},
@@ -193,10 +182,7 @@ class TestPropagatePresetUpdate:
                     "crawl": {"toc_url": "https://other.com/c/"},
                 },
             },
-        }
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, data)
-        return config_path
+        )
 
     def test_propagate_updates_non_overridden_ebooks(self, tmp_path):
         config_path = self._make_config(tmp_path)
@@ -214,14 +200,12 @@ class TestPropagatePresetUpdate:
         assert "novel-b" in affected
         assert "novel-c" not in affected
 
-        # Verify novel-a got the new values
-        result = _read_yaml(config_path)
-        novel_a_crawl = result["ebooks"]["novel-a"]["crawl"]
+        novel_a_crawl = _read_ebook_crawl(config_path, "novel-a")
         assert novel_a_crawl["content_selector"] == ".new-content"
         assert novel_a_crawl["delay_seconds"] == 2.0
 
         # Verify novel-b kept its override for content_selector but got new delay_seconds
-        novel_b_crawl = result["ebooks"]["novel-b"]["crawl"]
+        novel_b_crawl = _read_ebook_crawl(config_path, "novel-b")
         assert novel_b_crawl["content_selector"] == ".custom"  # preserved
         assert novel_b_crawl["delay_seconds"] == 2.0  # updated
 
@@ -234,22 +218,20 @@ class TestPropagatePresetUpdate:
             delay_seconds=1.0,
         )
         overrides = preset.crawl_overrides()
-        # Tạo ebook crawl block chứa đầy đủ field từ preset
         full_crawl_a = {"toc_url": "https://aixdzs.com/a/"}
         full_crawl_a.update(overrides)
         full_crawl_b = {"toc_url": "https://aixdzs.com/b/", "content_selector": ".custom"}
         full_crawl_b.update({k: v for k, v in overrides.items() if k != "content_selector"})
 
-        data = {
-            "defaults": {"translate": {"type": "none"}, "output": {"data_dir": "data"}},
-            "sources": {"aixdzs": {"content_selector": ".old-content", "delay_seconds": 1.0}},
-            "ebooks": {
+        config_path = write_db_config(
+            tmp_path / "novel2epub.db",
+            defaults={"translate": {"type": "none"}},
+            sources={"aixdzs": {"content_selector": ".old-content", "delay_seconds": 1.0}},
+            ebooks={
                 "novel-a": {"source": "aixdzs", "novel": {"slug": "novel-a"}, "crawl": full_crawl_a},
                 "novel-b": {"source": "aixdzs", "novel": {"slug": "novel-b"}, "crawl": full_crawl_b},
             },
-        }
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, data)
+        )
 
         presets = {"aixdzs": preset}
         affected = propagate_preset_update(config_path, "aixdzs", presets)
@@ -260,12 +242,11 @@ class TestPropagatePresetUpdate:
 
 class TestPresetUsageSourceField:
     def test_usage_reads_source_field(self, tmp_path):
-        data = {
-            "defaults": {"translate": {"type": "none"}, "output": {"data_dir": "data"}},
-            "sources": {
-                "aixdzs": {"content_selector": ".content"},
-            },
-            "ebooks": {
+        config_path = write_db_config(
+            tmp_path / "novel2epub.db",
+            defaults={"translate": {"type": "none"}},
+            sources={"aixdzs": {"content_selector": ".content"}},
+            ebooks={
                 "novel-a": {
                     "source": "aixdzs",
                     "novel": {"slug": "novel-a"},
@@ -276,11 +257,8 @@ class TestPresetUsageSourceField:
                     "crawl": {"toc_url": "https://other.com/b/"},
                 },
             },
-        }
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, data)
+        )
 
-        # load_config should return source for novel-a
         cfg_a = load_config(config_path, "novel-a")
         assert cfg_a.source == "aixdzs"
 
@@ -288,16 +266,13 @@ class TestPresetUsageSourceField:
         assert cfg_b.source == ""
 
 
-# ── Task 9.4: YAML cleanup — deprecated fields ─────────────────────
+# ── Task 9.4: cleanup — deprecated fields ─────────────────────
 
-class TestYamlCleanup:
+class TestDbCleanup:
     def test_add_ebook_no_deprecated_fields(self, tmp_path):
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, {"defaults": {}, "ebooks": {}})
+        config_path = write_db_config(tmp_path / "novel2epub.db")
         add_ebook(config_path, "new-slug", toc_url="https://example.com", source_name="aixdzs")
-        result = _read_yaml(config_path)
-        ebook = result["ebooks"]["new-slug"]
-        crawl = ebook.get("crawl", {})
+        crawl = _read_ebook_crawl(config_path, "new-slug")
         for field in _DEPRECATED_CRAWL_FIELDS:
             assert field not in crawl, f"deprecated field {field!r} should not be in crawl"
 
@@ -315,8 +290,7 @@ class TestYamlCleanup:
         """Regression: các field tab Dịch từng bị strip như deprecated khi lưu."""
         from novel2epub.config_writer import update_defaults
 
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, {"defaults": {}, "ebooks": {}})
+        config_path = write_db_config(tmp_path / "novel2epub.db")
         update_defaults(config_path, {"translate": {
             "auto_glossary": True,
             "glossary_filter": False,
@@ -325,7 +299,7 @@ class TestYamlCleanup:
             "auto_cleanup_han": True,
             "cleanup_han": {"max_chars": 4000, "retries": 2},
         }})
-        tr = _read_yaml(config_path)["defaults"]["translate"]
+        tr = _read_settings_translate(config_path)
         assert tr["auto_glossary"] is True
         assert tr["glossary_filter"] is False
         assert tr["batch_size"] == 5
@@ -337,15 +311,14 @@ class TestYamlCleanup:
     def test_update_defaults_still_strips_deprecated(self, tmp_path):
         from novel2epub.config_writer import update_defaults
 
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, {"defaults": {}, "ebooks": {}})
+        config_path = write_db_config(tmp_path / "novel2epub.db")
         update_defaults(config_path, {"translate": {
             "batch_size": 3,
             "profile": "x",
             "genre": "y",
             "glossary": {"a": "b"},
         }})
-        tr = _read_yaml(config_path)["defaults"]["translate"]
+        tr = _read_settings_translate(config_path)
         assert tr["batch_size"] == 3
         for field in ("profile", "genre", "glossary"):
             assert field not in tr
@@ -355,18 +328,11 @@ class TestYamlCleanup:
 
 class TestIntegration:
     def test_create_with_source_then_propagate(self, tmp_path):
-        data = {
-            "defaults": {"translate": {"type": "none"}, "output": {"data_dir": "data"}},
-            "sources": {
-                "aixdzs": {
-                    "content_selector": ".article",
-                    "delay_seconds": 1.0,
-                },
-            },
-            "ebooks": {},
-        }
-        config_path = tmp_path / "config.yaml"
-        _write_yaml(config_path, data)
+        config_path = write_db_config(
+            tmp_path / "novel2epub.db",
+            defaults={"translate": {"type": "none"}},
+            sources={"aixdzs": {"content_selector": ".article", "delay_seconds": 1.0}},
+        )
 
         # 1. Create ebook with source
         add_ebook(
@@ -378,10 +344,7 @@ class TestIntegration:
         )
 
         # Verify ebook has source, not copied fields
-        result = _read_yaml(config_path)
-        ebook = result["ebooks"]["new-novel"]
-        assert ebook["source"] == "aixdzs"
-        crawl = ebook.get("crawl", {})
+        crawl = _read_ebook_crawl(config_path, "new-novel")
         assert "content_selector" not in crawl  # not copied
         assert crawl["toc_url"] == "https://aixdzs.com/novel/test/"
 

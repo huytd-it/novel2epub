@@ -377,13 +377,8 @@ def _chapter_translated_payload(storage: Storage, ch) -> dict:
     = False khi meta thiếu hoặc `complete != True` (partial do job crash).
     Xem spec `translate-chunk-streaming` requirement: web-api.
     """
-    p = storage.translated_path(ch)
-    if p.exists():
-        text = p.read_text(encoding="utf-8")
-        mtime = p.stat().st_mtime
-    else:
-        text = ""
-        mtime = 0.0
+    text = storage.read_translated(ch)
+    mtime = storage.translated_updated_at(ch)
     meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
     complete = bool(meta.get("complete", False))
     return {
@@ -501,9 +496,8 @@ async def api_batch_clean_raw(slug: str, indexes: str = Form(...)):
     for ch in manifest.chapters:
         if ch.index not in index_list:
             continue
-        p = storage.raw_path(ch)
-        if p.exists():
-            p.unlink()
+        if storage.has_raw(ch):
+            storage.write_raw(ch, "")
             deleted += 1
     return JSONResponse({"deleted": deleted})
 

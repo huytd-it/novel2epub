@@ -43,10 +43,10 @@ _STEP_CATEGORY: dict[str, str] = {
 class JobRunner:
     """Shim tương thích ngược trên JobQueue — route cũ gọi start()/status() như trước."""
 
-    def __init__(self, max_log_lines: int = 500, workers: dict[str, int] | None = None, history_path=None):
+    def __init__(self, max_log_lines: int = 500, workers: dict[str, int] | None = None, db_path=None):
         if workers is None:
             workers = {"translate": 2}
-        self.queue = JobQueue(workers=workers, history_path=history_path, history_limit=max(max_log_lines, 200))
+        self.queue = JobQueue(workers=workers, db_path=db_path, history_limit=max(max_log_lines, 200))
 
     def status(self) -> dict:
         return {

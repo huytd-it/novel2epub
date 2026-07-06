@@ -259,6 +259,57 @@ def build_export(
     return "\n\n".join(parts) + "\n"
 
 
+# Prompt nhờ web chat AI DỌN LẠI glossary (dedup, sửa Hán-Việt, gộp mâu thuẫn).
+# Trả về đúng format `### NAMES`/`### VIETPHRASE` để `parse_glossary` nạp ngược.
+GLOSSARY_CLEAN_PROMPT = """# Yêu cầu dọn & chuẩn hoá bảng glossary truyện dịch Trung → Việt
+
+Bạn là biên tập viên xây dựng glossary nhất quán cho truyện dịch. Dưới đây là \
+bảng glossary hiện tại (tên riêng + thuật ngữ). Hãy RÀ SOÁT và trả về bảng đã \
+được dọn sạch, theo các nguyên tắc sau:
+
+1. GỘP TRÙNG LẶP: nếu cùng một chữ Hán xuất hiện nhiều lần, chỉ giữ MỘT mục với \
+cách dịch tốt nhất, nhất quán.
+2. XỬ LÝ MÂU THUẪN: một chữ Hán chỉ nên có MỘT cách dịch tiếng Việt. Nếu đang có \
+nhiều cách dịch khác nhau, chọn cách phù hợp nhất và bỏ các cách còn lại.
+3. SỬA HÁN-VIỆT SAI hoặc khó hiểu: chỉnh lại phiên âm Hán Việt cho đúng và tự nhiên.
+4. LOẠI mục rác: từ đời thường, thành ngữ/khẩu ngữ dịch thoát ý, từ độc giả Việt \
+đọc hiểu ngay — những mục KHÔNG cần đồng bộ xuyên suốt truyện.
+5. Phân loại đúng: tên riêng (nhân vật, địa danh, môn phái, chức danh) vào NAMES; \
+thuật ngữ đặc thù của thế giới truyện (công pháp, chiêu thức, cảnh giới, pháp \
+bảo, đan dược...) vào VIETPHRASE.
+6. KHÔNG bịa thêm mục mới không có trong bảng gốc. KHÔNG thêm bình luận, giải thích.
+
+## Quy tắc định dạng đầu ra (bắt buộc để nạp ngược vào hệ thống)
+
+Chỉ trả về đúng cấu trúc sau, mỗi mục một dòng dạng `- <chữ Hán> = <tiếng Việt>`:
+
+## GLOSSARY
+
+### NAMES
+- 萧炎 = Tiêu Viêm
+
+### VIETPHRASE
+- 斗气 = Đấu khí
+"""
+
+
+def build_glossary_export(
+    names: dict[str, str], vietphrase: dict[str, str], *, prompt: str = GLOSSARY_CLEAN_PROMPT
+) -> str:
+    """Gom glossary hiện tại thành khối xuất cho web chat AI dọn lại.
+
+    Dùng heading `## GLOSSARY`/`### NAMES`/`### VIETPHRASE` để `parse_glossary`
+    nạp ngược được kết quả AI trả về (round-trip). Bảng rỗng vẫn xuất khung để
+    AI biết định dạng mong muốn.
+    """
+    parts: list[str] = [prompt.rstrip(), "## GLOSSARY"]
+    names_lines = "\n".join(f"- {s} = {t}" for s, t in names.items() if s and t)
+    vp_lines = "\n".join(f"- {s} = {t}" for s, t in vietphrase.items() if s and t)
+    parts.append("### NAMES\n" + (names_lines or "- "))
+    parts.append("### VIETPHRASE\n" + (vp_lines or "- "))
+    return "\n\n".join(parts) + "\n"
+
+
 def parse_import(text: str) -> list[tuple[int, str, str]]:
     """Tách văn bản đã biên tập thành list `(index, title, content)` theo marker chương.
 

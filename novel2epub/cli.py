@@ -24,7 +24,8 @@ from .toc import apply_chapter_query, chapter_rows, parse_filter, parse_range, s
 
 
 DEFAULT_CONFIG_PATH = os.environ.get(
-    "NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.yaml")
+    "NOVEL2EPUB_DB",
+    os.environ.get("NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.db")),
 )
 
 
@@ -86,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="novel2epub",
         description="Crawl truyện tiếng Trung -> dịch tiếng Việt -> đóng gói EPUB.",
     )
-    parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH, help="Đường dẫn file cấu hình gộp (novel2epub.yaml)")
+    parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH, help="Đường dẫn file DB gộp (novel2epub.db)")
     parser.add_argument("-e", "--ebook", default="", help="Slug ebook trong khối ebooks: của file gộp")
     sub = parser.add_subparsers(dest="command", required=True)
     crawl_parser = sub.add_parser("crawl", help="Crawl mục lục + nội dung chương")
@@ -136,6 +137,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     models_parser.add_argument("--free", action="store_true", help="Chỉ hiện model free (chỉ áp dụng khi endpoint trả pricing info)")
     models_parser.add_argument("--format", dest="output_format", default="text", choices=["text", "json"], help="Định dạng output")
+    backup_parser = sub.add_parser("backup", help="Sao lưu toàn bộ DB ra 1 file .db (nhất quán, an toàn khi đang chạy)")
+    backup_parser.add_argument("--out", default="", help="Đường dẫn file backup (mặc định backups/<db>-<timestamp>.db)")
+    restore_parser = sub.add_parser("restore", help="Phục hồi DB từ 1 file backup .db (ghi đè DB hiện tại)")
+    restore_parser.add_argument("--from", dest="from_path", required=True, help="File backup .db nguồn")
+    restore_parser.add_argument("--yes", action="store_true", help="Không hỏi xác nhận trước khi ghi đè")
 
     translate_parser = sub.choices["translate"]
     translate_parser.add_argument("--force", action="store_true", help="Dịch lại dù đã có bản dịch")
@@ -160,18 +166,52 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{slug}\t{entry.name or slug}")
         return 0
 
+    if args.command == "backup":
+        from .backup import backup_db, timestamped_backup
+
+        db_path = args.config
+        if not os.path.exists(db_path):
+            print(f"Lỗi: không tìm thấy DB {db_path}", file=sys.stderr)
+            return 1
+        try:
+            if args.out:
+                out = backup_db(db_path, args.out)
+            else:
+                out = timestamped_backup(db_path, os.path.join(os.path.dirname(os.path.abspath(db_path)), "backups"))
+        except (OSError, RuntimeError) as e:
+            print(f"Lỗi backup: {e}", file=sys.stderr)
+            return 1
+        print(f"Đã sao lưu -> {out}")
+        return 0
+
+    if args.command == "restore":
+        from .backup import restore_db, validate_backup_file
+
+        ok, message = validate_backup_file(args.from_path)
+        if not ok:
+            print(f"Lỗi: {message}", file=sys.stderr)
+            return 1
+        if not args.yes:
+            print(f"Sắp GHI ĐÈ {args.config} bằng {args.from_path} ({message}).")
+            print("DB hiện tại sẽ được tự sao lưu ra <db>.pre-restore-<timestamp> trước.")
+            resp = input("Tiếp tục? [y/N] ").strip().lower()
+            if resp not in ("y", "yes"):
+                print("Đã hủy.")
+                return 1
+        try:
+            restore_db(args.from_path, args.config)
+        except (OSError, ValueError) as e:
+            print(f"Lỗi restore: {e}", file=sys.stderr)
+            return 1
+        print(f"Đã phục hồi {args.config} từ {args.from_path}.")
+        return 0
+
     if args.command == "search":
         from .search import search_all
         from .sources import load_presets
 
-        config_path = args.config
-        import os
-        config_dir = os.path.dirname(config_path) if os.path.dirname(config_path) else "."
-        sources_path = os.path.join(config_dir, "sources.yaml")
-        if not os.path.exists(sources_path):
-            sources_path = config_path
-
-        presets = load_presets(sources_path)
+        # Sources nay nằm trong chính DB gộp (không còn sources.yaml riêng).
+        presets = load_presets(args.config)
         source_names = [s.strip() for s in args.sources.split(",") if s.strip()] if args.sources else None
 
         response = search_all(

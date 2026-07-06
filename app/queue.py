@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from novel2epub.db import get_thread_connection
+
 from .logging_config import logger
 
 CATEGORIES = ("crawl", "translate")
@@ -74,7 +76,7 @@ class JobQueue:
     def __init__(
         self,
         workers: dict[str, int] | None = None,
-        history_path: str | Path | None = None,
+        db_path: str | Path | None = None,
         history_limit: int = DEFAULT_HISTORY_LIMIT,
     ):
         self._lock = threading.Lock()
@@ -88,13 +90,11 @@ class JobQueue:
         self._ebook_locks: dict[str, set[str]] = {c: set() for c in (*CATEGORIES, "both")}
         self._history: deque[Job] = deque(maxlen=history_limit)
         self._jobs: dict[str, Job] = {}
-        self._history_path = Path(history_path) if history_path else None
-        # File riêng, cùng thư mục với history — lưu job pending/running (job
-        # chưa/đang chạy lúc shutdown) để enqueue lại khi khởi động lại (xem
-        # register_kind/load_pending). Không tự load ở đây: phải đợi route
+        # File `.db` (bảng job_queue_history/job_queue_pending) — trước đây là
+        # 2 file JSON rời. Không tự load_pending() ở đây: phải đợi route
         # register xong các kind cần thiết trước (app/main.py gọi load_pending()
         # sau khi register).
-        self._pending_path = self._history_path.with_name("queue_pending.json") if self._history_path else None
+        self._db_path = Path(db_path) if db_path else None
         self._kind_factories: dict[str, Callable[[dict], Callable[[Callable[[str], None]], object]]] = {}
         self._load_history()
         self._threads: list[threading.Thread] = []
@@ -349,15 +349,18 @@ class JobQueue:
         """Enqueue lại job pending/running đã lưu từ lần chạy trước (xem
         _save_pending). Chỉ khôi phục được job có spec với kind đã register
         qua register_kind — job không rõ kind bị bỏ qua (log cảnh báo)."""
-        if self._pending_path is None or not self._pending_path.exists():
+        if self._db_path is None:
             return 0
-        try:
-            data = json.loads(self._pending_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return 0
+        conn = get_thread_connection(self._db_path)
+        rows = conn.execute(
+            "SELECT category, step, label, ebook, spec_json FROM job_queue_pending"
+        ).fetchall()
         restored = 0
-        for item in data:
-            spec = item.get("spec")
+        for row in rows:
+            try:
+                spec = json.loads(row["spec_json"] or "{}")
+            except json.JSONDecodeError:
+                spec = {}
             kind = (spec or {}).get("kind", "")
             factory = self._kind_factories.get(kind)
             if factory is None:
@@ -371,59 +374,75 @@ class JobQueue:
                 logger.exception("Không tái tạo được job pending kind=%r", kind)
                 continue
             self.enqueue(
-                item.get("category", "translate"),
-                item.get("step", kind),
+                row["category"],
+                row["step"] or kind,
                 target,
-                label=item.get("label", kind),
-                ebook=item.get("ebook", ""),
+                label=row["label"] or kind,
+                ebook=row["ebook"],
                 spec=spec,
             )
             restored += 1
         return restored
 
     def _save_pending(self) -> None:
-        if self._pending_path is None:
+        if self._db_path is None:
             return
         with self._lock:
             jobs = [j for q in self._pending.values() for j in q if j.spec] + [
                 j for j in self._running.values() if j.spec
             ]
-            data = [
-                {
-                    "category": j.category,
-                    "step": j.step,
-                    "label": j.label,
-                    "ebook": j.ebook,
-                    "spec": j.spec,
-                }
-                for j in jobs
-            ]
+        conn = get_thread_connection(self._db_path)
         try:
-            self._pending_path.parent.mkdir(parents=True, exist_ok=True)
-            self._pending_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        except OSError:
-            logger.exception("Không lưu được hàng đợi pending vào %s", self._pending_path)
+            with conn:
+                conn.execute("DELETE FROM job_queue_pending")
+                for j in jobs:
+                    conn.execute(
+                        "INSERT INTO job_queue_pending (id, category, step, label, ebook, spec_json) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (j.id, j.category, j.step, j.label, j.ebook, json.dumps(j.spec, ensure_ascii=False)),
+                    )
+        except Exception:
+            logger.exception("Không lưu được hàng đợi pending vào %s", self._db_path)
 
     # ---------- persistence ----------
 
     def _save_history(self) -> None:
-        if self._history_path is None:
+        """Ghi/UPSERT toàn bộ `self._history` hiện có (bounded bởi maxlen) +
+        cắt bớt bảng DB về đúng giới hạn đó."""
+        if self._db_path is None:
             return
+        conn = get_thread_connection(self._db_path)
+        limit = self._history.maxlen or DEFAULT_HISTORY_LIMIT
         try:
-            self._history_path.parent.mkdir(parents=True, exist_ok=True)
-            data = [j.to_dict() for j in self._history]
-            self._history_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        except OSError:
-            logger.exception("Không lưu được lịch sử job vào %s", self._history_path)
+            with conn:
+                for j in self._history:
+                    conn.execute(
+                        """
+                        INSERT INTO job_queue_history (id, data_json, ended_at) VALUES (?, ?, ?)
+                        ON CONFLICT(id) DO UPDATE SET data_json = excluded.data_json, ended_at = excluded.ended_at
+                        """,
+                        (j.id, json.dumps(j.to_dict(), ensure_ascii=False), j.ended_at),
+                    )
+                conn.execute(
+                    "DELETE FROM job_queue_history WHERE id NOT IN "
+                    "(SELECT id FROM job_queue_history ORDER BY ended_at DESC LIMIT ?)",
+                    (limit,),
+                )
+        except Exception:
+            logger.exception("Không lưu được lịch sử job vào %s", self._db_path)
 
     def _load_history(self) -> None:
-        if self._history_path is None or not self._history_path.exists():
+        if self._db_path is None:
             return
-        try:
-            data = json.loads(self._history_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return
-        for item in reversed(data):
+        conn = get_thread_connection(self._db_path)
+        rows = conn.execute(
+            "SELECT data_json FROM job_queue_history ORDER BY ended_at ASC"
+        ).fetchall()
+        for row in rows:
+            try:
+                item = json.loads(row["data_json"])
+            except json.JSONDecodeError:
+                continue
             job = Job(
                 id=item.get("id", str(uuid.uuid4())),
                 category=item.get("category", "crawl"),

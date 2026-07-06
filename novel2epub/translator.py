@@ -16,7 +16,7 @@ from typing import Any, Callable, Protocol
 
 from . import openai_client
 from .config import LibreTranslateConfig, TranslateConfig
-from .storage import parse_glossary_line
+from .storage import Storage, parse_glossary_line
 
 # Một số mẫu "lời mở đầu" mà LLM hay tự thêm dù đã bảo đừng.
 _PREAMBLE = re.compile(
@@ -151,9 +151,22 @@ def load_glossary_dict(cfg: TranslateConfig) -> dict[str, str]:
         if not path:
             continue
         p = Path(path)
-        if not p.exists():
-            continue
-        for line in p.read_text(encoding="utf-8").splitlines():
+        if p.exists():
+            # File tùy chỉnh do user tự trỏ tới (ngoài Storage/DB) — đọc trực tiếp.
+            lines = p.read_text(encoding="utf-8").splitlines()
+        else:
+            # Đường dẫn mặc định do config.py suy ra (data_dir/<slug>/glossary/
+            # <name>.txt) — glossary nay sống trong DB qua Storage, không còn
+            # file thật ở đây. Suy ngược slug/data_dir từ đúng quy ước đó.
+            try:
+                data_dir = p.parent.parent.parent
+                slug = p.parent.parent.name
+                storage = Storage(data_dir, slug)
+                entries = storage.read_glossary_entries(p.name)
+            except Exception:
+                continue
+            lines = [f"{s} = {t}" + (f" | {n}" if n else "") for s, t, n in entries]
+        for line in lines:
             parsed = parse_glossary_line(line)
             if parsed:
                 zh, vi, _note = parsed

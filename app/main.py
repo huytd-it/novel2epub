@@ -10,7 +10,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .deps import AUTOMATIONS_PATH, BASE_DIR, WORKSPACE_DIR, WORKSPACE_PATH
+from . import deps
+from .deps import BASE_DIR, WORKSPACE_PATH
 from .job import JobRunner
 from .logging_config import setup_logging
 from .routes import (
@@ -49,7 +50,7 @@ def _load_queue_workers() -> dict[str, int]:
         return {"translate": _dq.translate_workers, "crawl": _dq.crawl_workers}
 
 app.state.job = JobRunner(
-    history_path=WORKSPACE_DIR / "queue_history.json",
+    db_path=deps.DB_PATH,
     workers=_load_queue_workers(),
 )
 # Đăng ký các loại job tuỳ biến còn dang dở lúc shutdown (spec JSON-serializable
@@ -57,7 +58,7 @@ app.state.job = JobRunner(
 # register sẽ bị bỏ qua vĩnh viễn (xem JobQueue.register_kind/load_pending).
 app.state.job.queue.register_kind("batch-translate", chapters.batch_translate_job_factory)
 app.state.job.queue.load_pending()
-app.state.scheduler = AutomationScheduler(AUTOMATIONS_PATH, WORKSPACE_PATH, app.state.job.queue)
+app.state.scheduler = AutomationScheduler(deps.DB_PATH, WORKSPACE_PATH, app.state.job.queue)
 
 
 @asynccontextmanager

@@ -165,11 +165,6 @@ class CleanupHanConfig:
 
 DEFAULT_PROMPT = """Bạn là dịch giả tiểu thuyết mạng Trung Quốc sang tiếng Việt, theo phong cách edit mượt mà mà độc giả Việt quen thuộc.
 
-NGUYÊN TẮC CỐT LÕI — VI PHẠM LÀ LỖI NGHIÊM TRỌNG:
-- Đầu ra phải là tiếng Việt 100%: mọi từ, cụm từ, câu tiếng Trung đều PHẢI được chuyển hoàn toàn sang tiếng Việt.
-- KHÔNG dùng định dạng "từ gốc (bản dịch)", "bản dịch (từ gốc)" hay bất kỳ kiểu chú thích song ngữ nào.
-- Gặp từ khó, không chắc nghĩa: chọn cách diễn đạt tiếng Việt gần nghĩa nhất theo ngữ cảnh. Thà dịch thoát ý còn hơn giữ lại chữ Hán — giữ chữ Hán kèm chú nghĩa trong ngoặc là lỗi nặng hơn dịch chưa sát.
-
 Nguyên tắc dịch:
 1. Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp Việt: đảo trật tự từ cho thuận, câu đủ chủ-vị.
 2. Ngôi xưng theo quan hệ và ngữ cảnh: cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu... KHÔNG bê nguyên ta/ngươi.

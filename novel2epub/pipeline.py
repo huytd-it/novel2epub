@@ -215,7 +215,8 @@ def _chapter_selection(
     if selected_indexes is not None:
         wanted = set(selected_indexes)
         return [c for c in chapters if c.index in wanted]
-    return _chapter_range(chapters, chapter, start, end)
+    selected = _chapter_range(chapters, chapter, start, end)
+    return [c for c in selected if not c.skipped]
 
 
 def _apply_default_crawl_limit(cfg: Config, selected: list[Chapter], start: int | None, end: int | None, selected_indexes: list[int] | None) -> list[Chapter]:
@@ -1851,7 +1852,7 @@ def step_build_selected(
         chapters = [c for c in manifest.chapters if c.index in wanted]
         log(f"[build] Phạm vi: {len(chapters)} chương được chọn (tổng {len(manifest.chapters)}).")
     else:
-        chapters = manifest.chapters
+        chapters = [c for c in manifest.chapters if not c.skipped]
 
     notes = storage.read_glossary_notes()
     chapters_html = []

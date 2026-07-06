@@ -619,11 +619,21 @@ document.addEventListener("click", (event) => {
     const skipBtn = event.target.closest && event.target.closest(".skip-toggle-btn");
     if (skipBtn) {
         event.preventDefault();
-        const index = skipBtn.dataset.index;
-        const formData = new FormData();
+        const index = parseInt(skipBtn.dataset.index);
+        const wasSkipped = skipBtn.dataset.skip === "false";
         fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/chapters/${index}/toggle-skip`, { method: "POST" })
-            .then(r => { if (r.ok) renderToc(); else alert("Lỗi khi chuyển trạng thái skipped."); })
-            .catch(() => alert("Lỗi mạng."));
+            .then(r => {
+                if (r.ok) {
+                    const ch = CHAPTERS_DATA.find(c => c.index === index);
+                    if (ch) ch.skipped = !ch.skipped;
+                    const row = document.querySelector(`tr[data-index="${index}"]`);
+                    if (row) row.remove();
+                    toast(wasSkipped ? 'Đã hiện lại chương' : 'Đã bỏ qua chương', 'success');
+                } else {
+                    toast("Lỗi khi chuyển trạng thái skipped.", "error");
+                }
+            })
+            .catch(() => toast("Lỗi mạng.", "error"));
     }
 });
 

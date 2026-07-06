@@ -22,7 +22,7 @@ from novel2epub.db import get_thread_connection
 
 from .logging_config import logger
 
-CATEGORIES = ("crawl", "translate")
+CATEGORIES = ("crawl", "translate", "build")
 DEFAULT_HISTORY_LIMIT = 200
 
 

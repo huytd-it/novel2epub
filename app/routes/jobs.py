@@ -218,7 +218,7 @@ def start_ebook_build_selected(
 
         step_build_selected(cfg, log, selected_indexes=checked_indexes)
 
-    request.app.state.job.start_custom("build-selected", _target, category="both")
+    request.app.state.job.start_custom("build-selected", _target, category="build")
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -265,7 +265,7 @@ def start_ebook_reorder(
 @router.post("/ebooks/{slug}/jobs/{category}/cancel")
 def cancel_ebook_job(request: Request, slug: str, category: str):
     """Yêu cầu dừng job crawl/dịch đang chạy (job tự kiểm tra cờ này giữa các chương)."""
-    if category not in ("crawl", "translate"):
+    if category not in ("crawl", "translate", "build"):
         raise HTTPException(status_code=400, detail=f"category không hợp lệ: {category!r}")
     cancelled = request.app.state.job.request_cancel(category)
     if not cancelled:

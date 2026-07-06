@@ -608,7 +608,8 @@ def step_crawl_selected(
             crawled, failed, replaced = _crawl_chapters_sequential(
                 crawler, storage, to_fetch, force, retry, log, total, should_cancel
             )
-        storage.save_manifest(manifest)
+        for ch in selected:
+            storage.save_chapter(ch)
     finally:
         if crawler is not None:
             crawler.close()
@@ -719,6 +720,7 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
         )
     except Exception as e:  # noqa: BLE001 - caller quyết định dừng sớm hay tiếp tục
         ch.last_action_status = "failed"
+        storage.save_chapter(ch)
         log(f"[dịch]   ({i}/{total}) ! Lỗi chương {ch.stem}: {e}")
         # File `translated/{stem}.md` có thể đã chứa 1 vài chunk trước khi
         # lỗi — đánh dấu `complete: false` vào meta để `has_translated` trả
@@ -806,6 +808,7 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
         except Exception as e:
             log(f"[dịch]   ({i}/{total}) ! Lỗi cleanup Hán: {e}")
 
+    storage.save_chapter(ch)
     return ch.last_action_status, title_changed
 
 
@@ -864,8 +867,6 @@ def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Mani
             if translated_count == 0:
                 # Lỗi ngay chương đầu tiên dịch được => gần như chắc do cấu hình/CLI;
                 # dừng sớm và báo lỗi rõ thay vì thử lỗi hàng loạt.
-                if changed:
-                    storage.save_manifest(manifest)
                 raise RuntimeError(f"Dịch lỗi ngay chương đầu ({ch.stem}): {e}") from e
             continue
         changed = changed or title_changed
@@ -919,8 +920,6 @@ def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manife
         list(pool.map(_work, chapters))
 
     if counters["translated"] == 0 and first_error:
-        if counters["changed"]:
-            storage.save_manifest(manifest)
         raise RuntimeError(f"Dịch lỗi toàn bộ {counters['failed']} chương đã chọn: {first_error[0]}") from first_error[0]
 
     return counters["translated"], counters["failed"], counters["replaced"], counters["changed"]
@@ -967,10 +966,12 @@ def step_translate_selected(
             log(f"[dịch] chưa có raw cho {ch.stem}, bỏ qua.")
             skipped += 1
             ch.last_action_status = "skipped"
+            storage.save_chapter(ch)
             continue
         if not force and storage.has_translated(ch):
             skipped += 1
             ch.last_action_status = "skipped"
+            storage.save_chapter(ch)
             continue
         to_translate.append(ch)
 
@@ -994,9 +995,6 @@ def step_translate_selected(
         translated_count, failed, replaced, changed = _translate_chapters_sequential(
             cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, changed, should_cancel, title_lookup=title_lookup
         )
-
-    if changed or translated_count or skipped or failed:
-        storage.save_manifest(manifest)
 
     if cfg.translate.auto_glossary and cfg.translate.type.lower() == "openai":
         inner = translator.inner if hasattr(translator, "inner") else translator
@@ -1248,8 +1246,9 @@ def step_translate_toc_selected(
             ch.title_note = ""
             changed += 1
 
-    if changed:
-        storage.save_manifest(manifest)
+    if changed or force:
+        for ch in selected:
+            storage.save_chapter(ch)
         log(f"[toc] Đã dịch {changed}/{total} tiêu đề.")
     else:
         log("[toc] Không có tiêu đề nào thay đổi.")

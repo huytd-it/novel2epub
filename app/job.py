@@ -34,7 +34,7 @@ _STEP_CATEGORY: dict[str, str] = {
     "crawl": "crawl",
     "fetch-toc": "crawl",
     "translate": "translate",
-    "build": "both",
+    "build": "build",
     "run": "both",
     "reindex": "both",
 }
@@ -52,6 +52,7 @@ class JobRunner:
         return {
             "crawl": self.queue.category_status("crawl"),
             "translate": self.queue.category_status("translate"),
+            "build": self.queue.category_status("build"),
         }
 
     def start(self, step: str, cfg: Config) -> bool:

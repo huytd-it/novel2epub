@@ -223,6 +223,32 @@ class Storage:
             else:
                 self.conn.execute("DELETE FROM chapters WHERE ebook_slug = ?", (self.slug,))
 
+    def save_chapter(self, ch: Chapter) -> None:
+        """Lưu hoặc cập nhật thông tin chi tiết của 1 chương (metadata, status, skipped...)."""
+        self.ensure_dirs()
+        with self.conn:
+            self._ensure_chapter_row(ch)
+            self.conn.execute(
+                """
+                UPDATE chapters SET
+                    url = ?,
+                    title = ?,
+                    title_zh = ?,
+                    title_note = ?,
+                    missing_fields_json = ?,
+                    duplicate_of = ?,
+                    last_action_status = ?,
+                    skipped = ?
+                WHERE ebook_slug = ? AND idx = ?
+                """,
+                (
+                    ch.url, ch.title, ch.title_zh, ch.title_note,
+                    json.dumps(ch.missing_fields, ensure_ascii=False), ch.duplicate_of,
+                    ch.last_action_status, int(ch.skipped),
+                    self.slug, ch.index
+                ),
+            )
+
     # ----- nội dung chương: raw -----
     def has_raw(self, ch: Chapter) -> bool:
         row = self._chapter_row(ch)

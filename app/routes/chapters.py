@@ -465,7 +465,7 @@ def api_ebook_chapter_delete_translation(slug: str, index: int):
     storage.delete_translated(ch)
     if ch.last_action_status:
         ch.last_action_status = ""
-        storage.save_manifest(manifest)
+        storage.save_chapter(ch)
     return JSONResponse({"deleted": True})
 
 
@@ -475,7 +475,7 @@ def api_ebook_chapter_toggle_skip(slug: str, index: int):
     table mặc định, không bị xoá dữ liệu. Có filter_skipped=yes để xem lại."""
     storage, manifest, ch = _load_chapter_json_or_404(slug, index)
     ch.skipped = not ch.skipped
-    storage.save_manifest(manifest)
+    storage.save_chapter(ch)
     return JSONResponse({"skipped": ch.skipped})
 
 
@@ -519,7 +519,9 @@ async def api_batch_update_skip(slug: str, indexes: str = Form(...), skip: bool 
             ch.skipped = skip
             updated += 1
     if updated:
-        storage.save_manifest(manifest)
+        for ch in manifest.chapters:
+            if ch.index in index_list:
+                storage.save_chapter(ch)
     return JSONResponse({"updated": updated, "skip": skip})
 
 
@@ -1131,11 +1133,7 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
                 ch.title_note = ""
                 titles_updated.append(idx)
                 batch_titles_changed = True
-
-        # Save manifest ngay sau batch có title đổi — batch sau lỗi giữa chừng
-        # thì title các batch trước không mất (translated/ cũng đã ghi).
-        if batch_titles_changed:
-            storage.save_manifest(manifest)
+            storage.save_chapter(ch)
 
         # 5. Merge glossary mới vào dict chung (cho batch kế tiếp dùng tham khảo)
         for source, target in glossary["names"].items():

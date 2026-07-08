@@ -78,6 +78,38 @@ class SourcePreset:
             data.pop(key, None)
         return {k: v for k, v in data.items() if not k.startswith("search_")}
 
+    def to_crawl_config(self, toc_url: str = "", mode_override: str = ""):
+        """Dựng `CrawlConfig` từ preset để fetch/crawl một `toc_url`.
+
+        Chuyển các field scrapling phẳng (scrapling_mode, solve_cloudflare,
+        network_idle, impersonate, proxy, dns_over_https) sang `ScraplingConfig`
+        lồng của CrawlConfig. `mode_override` (nếu có) ép chế độ scrapling —
+        dùng khi người dùng chọn tay lúc Thêm ebook. Gộp logic trước đây lặp ở
+        route test nguồn để mọi nơi fetch nguồn dùng chung 1 đường.
+        """
+        from .config import CrawlConfig, ScraplingConfig
+
+        overrides = self.crawl_overrides()
+        overrides.pop("chapter_link_pattern", None)
+        scrapling_kwargs: dict[str, Any] = {}
+        legacy_mode = overrides.pop("scrapling_mode", None)
+        if legacy_mode is not None:
+            scrapling_kwargs["mode"] = legacy_mode
+        for legacy_key in ("solve_cloudflare", "network_idle", "impersonate", "proxy", "dns_over_https"):
+            val = overrides.pop(legacy_key, None)
+            if val is not None:
+                scrapling_kwargs[legacy_key] = val
+        crawl_cfg = CrawlConfig(
+            toc_url=toc_url,
+            chapter_link_pattern=self.chapter_link_pattern,
+            **overrides,
+        )
+        if scrapling_kwargs:
+            crawl_cfg.scrapling = ScraplingConfig(**scrapling_kwargs)
+        if mode_override:
+            crawl_cfg.scrapling.mode = mode_override
+        return crawl_cfg
+
     def __post_init__(self) -> None:
         # Tự suy `domains` từ `url` khi để trống, để detect_preset vẫn dùng được.
         if self.url and not self.domains:

@@ -159,6 +159,23 @@
             <form method="post" action="/sources" id="preset-form" class="space-y-3" data-ajax data-ajax-reload="#sources-region" data-close-canvas="preset-canvas" data-toast="Đã lưu preset.">
                 <input type="hidden" name="original_name" id="original_name" value="">
                 <input type="hidden" name="engine" value="scrapling">
+
+                <fieldset class="border border-indigo-300 dark:border-indigo-800 rounded-lg px-3 py-2 bg-indigo-50/60 dark:bg-indigo-950/30">
+                    <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">✨ AI phân tích URL (tự điền selector)</legend>
+                    <p class="text-xs text-muted-light dark:text-muted-dark mb-2">Dán URL mục lục của truyện — AI sẽ tải trang mục lục + 1 chương và đề xuất các selector/pattern bên dưới. Có thể mất 30–60s.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                        <label class="flex flex-col gap-1 text-sm min-w-0 md:col-span-2">URL mục lục <input type="url" id="detect-toc-url" placeholder="https://.../book/12345/" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Chế độ tải
+                            <select id="detect-mode" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm">
+                                {% for opt in ["stealthy", "fetcher", "dynamic"] %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+                            </select>
+                        </label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0 md:col-span-2">URL chương mẫu <span class="text-muted-light dark:text-muted-dark">(tùy chọn — để trống sẽ tự đoán)</span> <input type="url" id="detect-chapter-url" placeholder="https://.../book/12345/67890.html" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <button type="button" id="detect-btn" class="px-3 py-2 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-60 disabled:cursor-not-allowed">Phân tích bằng AI</button>
+                    </div>
+                    <div id="detect-status" class="hidden mt-2 px-2 py-1.5 text-xs rounded border"></div>
+                </fieldset>
+
                 <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
                     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Thông tin cơ bản</legend>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
@@ -321,6 +338,98 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const cancelBtn = document.getElementById("source-test-cancel");
     cancelBtn?.addEventListener("click", () => { closeModal('source-test-modal'); });
+
+    // ── AI phân tích URL → tự điền selector ──────────────────────────
+    const _DETECT_LABELS = {
+        content_selector: "Nội dung", chapter_link_pattern: "Pattern link",
+        next_page_selector: "Trang kế", toc_selector: "Mục lục",
+        chapter_title_selector: "Tên chương", title_selector: "Tên truyện",
+        author_selector: "Tác giả", desc_selector: "Mô tả", cover_selector: "Ảnh bìa",
+    };
+
+    function _setDetectStatus(kind, html) {
+        const el = document.getElementById("detect-status");
+        if (!el) return;
+        const styles = {
+            info: "border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300",
+            ok: "border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-300",
+            err: "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-300",
+        };
+        el.className = "mt-2 px-2 py-1.5 text-xs rounded border " + (styles[kind] || styles.info);
+        el.innerHTML = html;
+        el.classList.remove("hidden");
+    }
+
+    const detectBtn = document.getElementById("detect-btn");
+    detectBtn?.addEventListener("click", async function () {
+        const tocUrl = (document.getElementById("detect-toc-url").value
+            || document.getElementById("p-url").value).trim();
+        if (!tocUrl) { _setDetectStatus("err", "Hãy nhập URL mục lục trước."); return; }
+        const chapterUrl = document.getElementById("detect-chapter-url").value.trim();
+        const mode = document.getElementById("detect-mode").value;
+
+        detectBtn.disabled = true;
+        const oldText = detectBtn.textContent;
+        detectBtn.textContent = "Đang phân tích…";
+        _setDetectStatus("info", "⏳ Đang tải trang &amp; hỏi AI… (có thể mất 30–60s)");
+
+        try {
+            const body = new URLSearchParams({ toc_url: tocUrl, chapter_url: chapterUrl, scrapling_mode: mode });
+            const resp = await fetch("/sources/detect", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body,
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) {
+                _setDetectStatus("err", "❌ " + (data.detail || ("Lỗi HTTP " + resp.status)));
+                return;
+            }
+            const f = data.fields || {};
+            const diag = data.diagnostics || {};
+            const setIf = (id, val) => { if (val) document.getElementById(id).value = val; };
+            setIf("p-content_selector", f.content_selector);
+            setIf("p-toc_selector", f.toc_selector);
+            setIf("p-chapter_title_selector", f.chapter_title_selector);
+            setIf("p-title_selector", f.title_selector);
+            setIf("p-author_selector", f.author_selector);
+            setIf("p-desc_selector", f.desc_selector);
+            setIf("p-cover_selector", f.cover_selector);
+            setIf("p-next_page_selector", f.next_page_selector);
+            if (f.chapter_link_pattern) document.getElementById("p-chapter_link_pattern").value = f.chapter_link_pattern;
+            document.getElementById("p-scrapling_mode").value = mode;
+            // Điền URL gốc + tên miền nếu còn trống.
+            if (!document.getElementById("p-url").value) document.getElementById("p-url").value = tocUrl;
+            if (!document.getElementById("p-domains").value) {
+                try { document.getElementById("p-domains").value = new URL(tocUrl).hostname.replace(/^www\./, ""); } catch (_) {}
+            }
+
+            // Tổng hợp cảnh báo selector không khớp phần tử nào.
+            const parts = [];
+            for (const [key, label] of Object.entries(_DETECT_LABELS)) {
+                if (key === "chapter_link_pattern") continue;
+                const v = f[key];
+                if (!v) continue;
+                const n = diag[key];
+                if (n === 0) parts.push("⚠ " + label + " (0 khớp)");
+                else if (n === -1) parts.push("⚠ " + label + " (selector lỗi)");
+            }
+            let patMsg = "";
+            if (f.chapter_link_pattern) {
+                if (!data.pattern_ok) patMsg = " · ⚠ pattern regex lỗi";
+                else patMsg = " · pattern khớp " + (data.pattern_hits || 0) + "/" + (data.sample_count || 0) + " link";
+            }
+            const warn = parts.length ? " · " + parts.join(", ") : "";
+            _setDetectStatus(parts.length ? "info" : "ok",
+                "✅ Đã điền selector từ chương mẫu <code>" + (data.chapter_url || "") + "</code>" + patMsg + warn
+                + ".<br>Kiểm tra lại rồi bấm lưu preset.");
+        } catch (e) {
+            _setDetectStatus("err", "❌ " + e);
+        } finally {
+            detectBtn.disabled = false;
+            detectBtn.textContent = oldText;
+        }
+    });
 });
 </script>
 {% endblock %}

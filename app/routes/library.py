@@ -10,8 +10,8 @@ from fastapi import APIRouter, Form, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from novel2epub.automation import add_automation
-from novel2epub.config import CrawlConfig
-from novel2epub.config_writer import add_ebook, remove_ebook
+from novel2epub.config import CrawlConfig, ScraplingConfig
+from novel2epub.config_writer import add_ebook, remove_ebook, update_ebook
 from novel2epub.crawler import ScraplingCrawler
 from novel2epub.search import search_all, search_all_stream
 from novel2epub.sources import detect_preset, load_presets
@@ -43,9 +43,28 @@ def slugify(value: str) -> str:
     return vn_slugify(value)
 
 
-def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
+def _build_meta_crawl_cfg(toc_url: str, scrapling_mode: str = "") -> tuple[CrawlConfig, str]:
+    """Dựng CrawlConfig để fetch metadata khi Thêm ebook + trả tên preset khớp.
+
+    Nếu URL khớp một source preset đã lưu, dùng luôn cấu hình scrapling của
+    preset đó (mode/proxy/cloudflare/impersonate…) để trang anti-bot vẫn lấy
+    được metadata. `scrapling_mode` (người dùng chọn tay) ép chế độ, thắng cả
+    mặc định lẫn preset.
+    """
+    presets = load_presets(deps.SOURCES_PATH)
+    source_name = detect_preset(toc_url, presets) or ""
+    if source_name:
+        crawl_cfg = presets[source_name].to_crawl_config(toc_url, mode_override=scrapling_mode)
+    else:
+        crawl_cfg = CrawlConfig(toc_url=toc_url)
+        if scrapling_mode:
+            crawl_cfg.scrapling = ScraplingConfig(mode=scrapling_mode)
+    return crawl_cfg, source_name
+
+
+def _fetch_meta(toc_url: str, scrapling_mode: str = "") -> dict:
     """Crawl TOC URL và trả về metadata detect được + slug gợi ý."""
-    crawl_cfg = CrawlConfig(toc_url=toc_url)
+    crawl_cfg, source_name = _build_meta_crawl_cfg(toc_url, scrapling_mode)
 
     crawler = ScraplingCrawler(crawl_cfg)
     try:
@@ -68,6 +87,8 @@ def _fetch_meta(toc_url: str, preset_name: str = "") -> dict:
         "slug": slug,
         "cover_url": cover_url,
         "chapter_count": chapter_count,
+        "source": source_name,
+        "scrapling_mode": crawl_cfg.scrapling.mode,
     }
 
 
@@ -80,6 +101,7 @@ def library_page():
 @router.post("/library/ebooks/preview")
 def preview_ebook_api(
     toc_url: str = Form(""),
+    scrapling_mode: str = Form(""),
 ):
     """API: fetch metadata từ URL mục lục, trả JSON (kèm source preset detect)."""
     toc_url = toc_url.strip()
@@ -87,7 +109,7 @@ def preview_ebook_api(
         return JSONResponse({"error": "Thiếu URL mục lục."}, status_code=400)
 
     try:
-        data = _fetch_meta(toc_url)
+        data = _fetch_meta(toc_url, scrapling_mode=scrapling_mode.strip())
         # Detect source preset từ URL
         presets = load_presets(deps.SOURCES_PATH)
         source_name = detect_preset(toc_url, presets) or ""
@@ -146,12 +168,18 @@ def search_ebooks(
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-def _write_new_ebook(toc_url: str, slug: str, name: str, author: str) -> dict:
+def _write_new_ebook(
+    toc_url: str, slug: str, name: str, author: str, scrapling_mode: str = ""
+) -> dict:
     """Ghi ebook mới (đã có đủ metadata) vào config gộp. Raise HTTPException khi trùng slug.
 
     Trả {"slug", "name"}. Dùng chung bởi `create_ebook` (1 URL, có redirect) và
     `create_ebooks_bulk` (nhiều URL, mỗi URL xử lý độc lập) — tách riêng phần
     fetch-metadata (mỗi caller tự quyết định cách xử lý lỗi fetch) khỏi phần ghi.
+
+    `scrapling_mode` (người dùng chọn tay): chỉ lưu vào crawl override khi ebook
+    KHÔNG khớp preset nào — để crawl thật sau này cũng dùng đúng chế độ đó. Nếu
+    có preset thì chế độ scrapling đã do preset quyết định, không ghi đè.
     """
     if not slug:
         slug = vn_slugify(name)
@@ -172,6 +200,12 @@ def _write_new_ebook(toc_url: str, slug: str, name: str, author: str) -> dict:
         toc_url=toc_url,
         source_name=source_name,
     )
+    if scrapling_mode and not source_name:
+        update_ebook(
+            deps.WORKSPACE_PATH,
+            slug,
+            {"crawl": {"scrapling": {"mode": scrapling_mode}}},
+        )
     return {"slug": slug, "name": name}
 
 

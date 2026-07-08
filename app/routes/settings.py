@@ -33,15 +33,16 @@ def settings_page(request: Request, slug: str):
     if source_name:
         presets = load_presets(deps.SOURCES_PATH)
         source_preset = presets.get(source_name)
-        # Đọc raw YAML để xác định field ebook đã override
+        # Đọc crawl_overrides_json từ DB để xác định field ebook đã override
         if source_preset:
-            from pathlib import Path
-            from novel2epub.config_writer import _load as _load_yaml
-            raw_data = _load_yaml(Path(deps.WORKSPACE_PATH))
-            ebooks = raw_data.get("ebooks", {})
-            ebook_data = ebooks.get(slug, {}) if hasattr(ebooks, "get") else {}
-            crawl_data = ebook_data.get("crawl", {}) if hasattr(ebook_data, "get") else {}
-            if hasattr(crawl_data, "keys"):
+            import json
+            from novel2epub.db import get_thread_connection
+            conn = get_thread_connection(deps.WORKSPACE_PATH)
+            row = conn.execute(
+                "SELECT crawl_overrides_json FROM ebooks WHERE slug = ?", (slug,)
+            ).fetchone()
+            if row is not None:
+                crawl_data = json.loads(row["crawl_overrides_json"] or "{}")
                 overridden_fields = set(crawl_data.keys())
     return deps.templates.TemplateResponse(
         request,

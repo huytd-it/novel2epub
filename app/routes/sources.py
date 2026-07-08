@@ -257,9 +257,20 @@ async def import_source_presets(file: UploadFile = File(...), on_collision: str 
         data = yaml.safe_load(content.decode("utf-8")) or {}
     except yaml.YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML không hợp lệ: {e}") from e
-    incoming = data.get("sources") or {}
-    if not isinstance(incoming, dict):
-        raise HTTPException(status_code=400, detail="File phải có khối 'sources:' dạng mapping.")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="File phải là YAML dạng mapping.")
+    # Chấp nhận cả 2 định dạng:
+    #   - Có khối bọc `sources:` (định dạng export)
+    #   - Mapping phẳng ở cấp cao nhất (sources.yaml cũ) — mỗi key là 1 preset
+    if isinstance(data.get("sources"), dict):
+        incoming = data["sources"]
+    else:
+        incoming = {k: v for k, v in data.items() if isinstance(v, dict)}
+    if not incoming:
+        raise HTTPException(
+            status_code=400,
+            detail="Không tìm thấy preset nào — file phải là mapping preset (có/không có khối 'sources:').",
+        )
 
     presets = deps.presets()
     for name, item in incoming.items():

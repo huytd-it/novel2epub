@@ -89,7 +89,11 @@
         {% block content %}{% endblock %}
     </main>
     <div id="toast-region" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50" aria-live="polite"></div>
+    <footer class="text-center text-xs text-muted-light dark:text-muted-dark py-8 mt-4">
+        novel2epub &middot; <a href="https://github.com/novel2epub/novel2epub" class="hover:underline" target="_blank">GitHub</a>
+    </footer>
     <script src="/static/app.js"></script>
+    <script src="/static/datatable.js"></script>
     <script>
         // Khởi tạo Lucide icons cho mọi phần tử có [data-lucide] trong DOM.
         if (window.lucide) lucide.createIcons();

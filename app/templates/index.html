@@ -22,9 +22,6 @@
 .ebook-card-actions .action-group form { margin: 0; display: inline; }
 .ebook-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.9rem; margin: 0.5rem 0; }
 
-.bulk-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.65rem; background: #f0f7ff; border: 1px solid #b8d4f0; border-radius: 8px; }
-.dark .bulk-bar { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); }
-.bulk-bar .check { margin-left: 0.25rem; }
 
 .step-indicator { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 1.25rem; }
 .step { display: flex; align-items: center; gap: 0.4rem; }
@@ -128,17 +125,7 @@
     <a href="/?show_archived={{ 0 if show_archived else 1 }}" class="text-sm text-link-light dark:text-link-dark hover:underline">{{ 'Ẩn đã lưu trữ' if show_archived else 'Hiện ' + archived_count|string + ' đã lưu trữ' }}</a>
     {% endif %}
 </div>
-<form method="post" action="/library/ebooks/bulk-action" id="bulk-form">
-<div class="bulk-bar">
-    <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" id="bulk-select-all" class="rounded border-border-light dark:border-border-dark"> Chọn tất cả</label>
-    <select name="action" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
-        <option value="crawl">Crawl</option>
-        <option value="translate">Dịch</option>
-        <option value="build">Build EPUB</option>
-        <option value="run">Chạy tất cả</option>
-    </select>
-    <button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Áp dụng cho đã chọn</button>
-</div>
+
 <div class="ebook-grid">
     {% for ebook in ebooks %}
     <div class="ebook-card{% if ebook.archived %} archived{% endif %}">
@@ -347,10 +334,6 @@
 
 {% block scripts %}
 <script>
-document.getElementById("bulk-select-all")?.addEventListener("change", function () {
-    document.querySelectorAll('#bulk-form input[name="slugs"]').forEach((cb) => { cb.checked = this.checked; });
-});
-
 let wasRunning = {
     crawl: {{ "true" if job.crawl.running else "false" }},
     translate: {{ "true" if job.translate.running else "false" }},

@@ -321,7 +321,18 @@
 </nav>
 <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
 <table id="chapter-table" class="w-full text-sm">
-    <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">#</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tiêu đề</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Ký tự ZH</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Số từ</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Thiếu</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Action</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr></thead>
+    <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs">
+    <tr>
+        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th>
+        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark cursor-pointer select-none toc-sort-th" data-sort-key="source">#<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark cursor-pointer select-none toc-sort-th" data-sort-key="title">Tiêu đề<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark cursor-pointer select-none toc-sort-th" data-sort-key="raw">Ký tự ZH<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark cursor-pointer select-none toc-sort-th" data-sort-key="translated">Số từ<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Thiếu</th>
+        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Action</th>
+        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th>
+    </tr>
+    </thead>
     <tbody>
     </tbody>
 </table>
@@ -474,7 +485,7 @@ function isCategoryRunning(status, category, slug) {
         if (slug) return (status.translate.running_ebooks || []).includes(slug);
         return status.translate.running;
     }
-    return status[category].running;
+    return status[category] ? status[category].running : false;
 }
 
 function lastStatus() {
@@ -588,6 +599,7 @@ function renderToc() {
     paginate({ reset: true });
     setJobButtonsDisabled(lastStatus());
     refreshCheckedInfo();
+    syncTocSortIndicators();
 }
 
 document.addEventListener("change", (event) => {
@@ -1088,6 +1100,43 @@ document.getElementById("btn-import-chapters")?.addEventListener("click", () => 
     main.appendChild(report);
     win.document.body.appendChild(main);
     ta.focus();
+});
+
+function syncTocSortIndicators() {
+    const form = document.querySelector(".compact-toolbar");
+    if (!form) return;
+    const currentSort = form.elements["sort"]?.value || "source";
+    const currentDir = form.elements["direction"]?.value || "asc";
+    document.querySelectorAll("#chapter-table .toc-sort-th").forEach((th) => {
+        const ind = th.querySelector(".toc-sort-ind");
+        if (!ind) return;
+        if (th.dataset.sortKey === currentSort) {
+            ind.textContent = currentDir === "desc" ? "▼" : "▲";
+            ind.classList.remove("opacity-40");
+            ind.classList.add("opacity-100");
+        } else {
+            ind.textContent = "⇅";
+            ind.classList.add("opacity-40");
+            ind.classList.remove("opacity-100");
+        }
+    });
+}
+
+document.querySelector("#chapter-table thead")?.addEventListener("click", (e) => {
+    const th = e.target.closest(".toc-sort-th");
+    if (!th) return;
+    const key = th.dataset.sortKey;
+    const form = document.querySelector(".compact-toolbar");
+    if (!form) return;
+    const sortSel = form.elements["sort"];
+    const dirSel = form.elements["direction"];
+    if (sortSel.value === key) {
+        dirSel.value = dirSel.value === "asc" ? "desc" : "asc";
+    } else {
+        sortSel.value = key;
+        dirSel.value = "asc";
+    }
+    renderToc();
 });
 
 (function initToc() {

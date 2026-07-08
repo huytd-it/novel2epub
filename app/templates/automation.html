@@ -8,10 +8,11 @@
 </div>
 <p class="text-muted-light dark:text-muted-dark text-sm mb-3">Chuỗi bước chạy theo lịch hàng ngày hoặc bấm tay, đẩy qua hàng đợi job (job "automation" chiếm độc quyền crawl + dịch trong lúc chạy).</p>
 
+<div id="automation-region">
 <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm" data-dt data-dt-placeholder="Tìm automation…">
         <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs">
-            <tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Ebook</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Các bước</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lịch</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Bật</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lần chạy cuối</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Kết quả</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr>
+            <tr><th data-dt-sort data-dt-filter class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Ebook</th><th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Các bước</th><th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lịch</th><th data-dt-sort data-dt-filter class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Bật</th><th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lần chạy cuối</th><th data-dt-sort data-dt-filter class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Kết quả</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th></tr>
         </thead>
         <tbody>
         {% for a in automations %}
@@ -32,8 +33,8 @@
             </td>
             <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
                 <div class="inline-flex gap-1.5 items-center flex-wrap">
-                    <form method="post" action="/automation/{{ a.id }}/run-now"><button type="submit" class="px-2 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Chạy ngay</button></form>
-                    <form method="post" action="/automation/{{ a.id }}/delete" onsubmit="return confirm('Xóa automation này?');"><button type="submit" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xóa</button></form>
+                    <form method="post" action="/automation/{{ a.id }}/run-now" data-ajax data-ajax-reload="#automation-region" data-toast="Đã đưa automation vào hàng đợi."><button type="submit" class="px-2 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Chạy ngay</button></form>
+                    <form method="post" action="/automation/{{ a.id }}/delete" data-ajax data-ajax-reload="#automation-region" data-toast="Đã xóa automation." data-confirm="Xóa automation này?"><button type="submit" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xóa</button></form>
                 </div>
             </td>
         </tr>
@@ -43,6 +44,7 @@
         </tbody>
     </table>
 </div>
+</div>
 
 <!-- Modal: Add automation -->
 <div id="add-automation-modal" class="modal-backdrop fixed inset-0 z-40 flex items-center justify-center bg-black/45" hidden>
@@ -51,7 +53,7 @@
             <h3 class="m-0 text-lg font-semibold">Thêm automation</h3>
             <button type="button" onclick="closeModal('add-automation-modal')" class="px-2 py-1 rounded-md border border-border-light dark:border-border-dark bg-surface-alt-light dark:bg-surface-alt-dark hover:bg-surface-light dark:hover:bg-surface-dark text-lg leading-none">✕</button>
         </div>
-        <form method="post" action="/automation">
+        <form method="post" action="/automation" data-ajax data-ajax-reload="#automation-region" data-close-modal="add-automation-modal" data-reset="true" data-toast="Đã tạo automation.">
             <fieldset class="border border-border-light dark:border-border-dark rounded-lg p-3 mb-3 bg-surface-alt-light dark:bg-surface-alt-dark">
                 <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Cấu hình</legend>
                 <p class="my-2"><label class="flex flex-col gap-1 text-sm">Ebook

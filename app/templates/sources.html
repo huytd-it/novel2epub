@@ -39,18 +39,19 @@
 </div>
 <p class="text-sm text-muted-light dark:text-muted-dark mb-3">Preset gom selector/pattern theo từng website để dùng lại khi thêm ebook hoặc cập nhật nguồn. Lưu trong <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ sources_path }}</code>. Không chứa <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">toc_url</code> (đặc thù từng truyện). Engine: <strong>scrapling</strong> = stealth/anti-bot (mặc định).</p>
 
+<div id="sources-region">
 {% if presets %}
 <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm" data-dt data-dt-placeholder="Tìm nguồn / URL / selector…">
         <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs">
             <tr>
-                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tên</th>
-                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Engine</th>
+                <th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tên</th>
+                <th data-dt-sort data-dt-filter class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Engine</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">URL</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Selector nội dung</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Pattern link</th>
-                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Đang dùng bởi</th>
-                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lần test gần nhất</th>
+                <th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Đang dùng bởi</th>
+                <th data-dt-sort data-dt-filter class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lần test gần nhất</th>
                 <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th>
             </tr>
         </thead>
@@ -98,12 +99,12 @@
                         data-impersonate="{{ p.impersonate or '' }}" data-user_agent="{{ p.user_agent or '' }}"
                         data-concurrency_cap="{{ p.concurrency_cap }}"
                         data-strip_patterns="{{ p.strip_patterns | join('\n') if p.strip_patterns else '' }}">Sửa</button>
-                    <form method="post" action="/sources/{{ name }}/clone" style="display:inline">
+                    <form method="post" action="/sources/{{ name }}/clone" style="display:inline" data-ajax data-ajax-reload="#sources-region" data-toast="Đã nhân bản preset {{ name }}.">
                         <button type="submit" title="Nhân bản preset này" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhân bản</button>
                     </form>
                     <button type="button" class="btn-test-source px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" data-name="{{ name }}">Test</button>
                     {% set used_list = usage.get(name, []) %}
-                    <form method="post" action="/sources/{{ name }}/delete" style="display:inline" onsubmit="return confirm('{% if used_list %}Nguồn này đang dùng bởi: {{ used_list | join(', ') }}. {% endif %}Xóa preset {{ name }}?');">
+                    <form method="post" action="/sources/{{ name }}/delete" style="display:inline" data-ajax data-ajax-reload="#sources-region" data-toast="Đã xóa preset {{ name }}." data-confirm="{% if used_list %}Nguồn này đang dùng bởi: {{ used_list | join(', ') }}. {% endif %}Xóa preset {{ name }}?">
                         <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950">Xóa</button>
                     </form>
                 </div>
@@ -116,10 +117,11 @@
 {% else %}
 <p class="text-sm text-muted-light dark:text-muted-dark">Chưa có preset nào — bấm "Thêm preset" để thêm mới.</p>
 {% endif %}
+</div>
 
 <details class="mt-3">
 <summary class="cursor-pointer font-semibold text-sm">Import preset (.yaml)</summary>
-<form method="post" action="/sources/import" enctype="multipart/form-data" class="flex flex-wrap gap-4 items-end mt-2">
+<form method="post" action="/sources/import" enctype="multipart/form-data" class="flex flex-wrap gap-4 items-end mt-2" data-ajax data-ajax-reload="#sources-region" data-toast="Đã nhập preset.">
     <label class="flex flex-col gap-1 text-sm">File <input type="file" name="file" accept=".yaml,.yml" required class="text-sm"></label>
     <label class="flex flex-col gap-1 text-sm">Khi trùng tên
         <select name="on_collision" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm">
@@ -135,7 +137,7 @@
     <div class="bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark border border-border-light dark:border-border-dark rounded-card p-5 max-w-lg w-[90vw] shadow-card dark:shadow-card-dark">
         <h3 class="mt-0 text-lg font-semibold">Test nguồn</h3>
         <p class="text-sm">Nhập URL mục lục mẫu để dry-run (không ghi gì xuống đĩa). Kết quả sẽ hiển thị lại ở cột "Lần test gần nhất" sau khi job nền chạy xong.</p>
-        <form id="source-test-form" method="post">
+        <form id="source-test-form" method="post" data-ajax data-ajax-reload="#sources-region" data-close-modal="source-test-modal" data-toast="Đã bắt đầu test nguồn (job nền). Kết quả cập nhật ở cột 'Lần test gần nhất' khi xong.">
             <p><label class="flex flex-col gap-1 text-sm">URL mục lục <input type="url" name="toc_url" required size="50" placeholder="https://..." class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label></p>
             <div class="flex gap-2 mt-3">
                 <button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Chạy test</button>
@@ -153,7 +155,7 @@
             <button type="button" class="canvas-close" onclick="closeCanvas('preset-canvas')">✕</button>
         </div>
         <div class="canvas-body">
-            <form method="post" action="/sources" id="preset-form" class="space-y-3">
+            <form method="post" action="/sources" id="preset-form" class="space-y-3" data-ajax data-ajax-reload="#sources-region" data-close-canvas="preset-canvas" data-toast="Đã lưu preset.">
                 <input type="hidden" name="original_name" id="original_name" value="">
                 <input type="hidden" name="engine" value="scrapling">
                 <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
@@ -270,8 +272,10 @@ document.addEventListener("DOMContentLoaded", function () {
         openCanvas('preset-canvas');
     });
 
-    document.querySelectorAll(".btn-edit-preset").forEach(function (btn) {
-        btn.addEventListener("click", function () {
+    // Delegated: rows are re-rendered on AJAX region swap, so bind on document.
+    document.addEventListener("click", function (e) {
+        const btn = e.target.closest(".btn-edit-preset");
+        if (btn) {
             document.getElementById("preset-canvas-title").textContent = "Sửa preset: " + btn.dataset.name;
             document.getElementById("preset-submit-btn").textContent = "Cập nhật preset";
             document.getElementById("original_name").value = btn.dataset.name;
@@ -301,18 +305,16 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("p-concurrency_cap").value = btn.dataset.concurrency_cap;
             document.getElementById("p-strip_patterns").value = btn.dataset.strip_patterns || '';
             openCanvas('preset-canvas');
-        });
+            return;
+        }
+        const testBtn = e.target.closest(".btn-test-source");
+        if (testBtn) {
+            document.getElementById("source-test-form").action = `/sources/${testBtn.dataset.name}/test`;
+            openModal('source-test-modal');
+        }
     });
 
-    const modal = document.getElementById("source-test-modal");
-    const form = document.getElementById("source-test-form");
     const cancelBtn = document.getElementById("source-test-cancel");
-    document.querySelectorAll(".btn-test-source").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            form.action = `/sources/${btn.dataset.name}/test`;
-            openModal('source-test-modal');
-        });
-    });
     cancelBtn?.addEventListener("click", () => { closeModal('source-test-modal'); });
 });
 </script>

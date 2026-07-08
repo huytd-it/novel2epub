@@ -71,6 +71,66 @@ function toast(message, kind) {
     setInterval(poll, 3000);
 })();
 
+// --- AJAX form helper -------------------------------------------------------
+// Any <form data-ajax> submits via fetch instead of navigating, so background
+// actions (delete/purge/run-now/create…) never reload the whole page. Opt-in
+// data-attributes on the form:
+//   data-confirm="msg"        → window.confirm before sending
+//   data-toast="msg"          → success toast
+//   data-ajax-reload="#id"    → after success, swap that region with the fresh
+//                               copy from the response (routes 303-redirect to
+//                               the page, which fetch follows → we get its HTML)
+//   data-close-modal="id"     → closeModal(id) on success
+//   data-close-canvas="id"    → closeCanvas(id) on success
+//   data-reset="true"         → form.reset() on success
+// Errors surface the FastAPI HTTPException `detail` as an error toast.
+function swapRegion(selector, html) {
+    try {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const fresh = doc.querySelector(selector);
+        const current = document.querySelector(selector);
+        if (fresh && current) {
+            current.replaceWith(fresh);
+            if (window.initDataTablesIn) window.initDataTablesIn(document.querySelector(selector));
+            if (window.lucide) lucide.createIcons();
+        }
+    } catch (e) {
+        console.error("swapRegion error:", e);
+    }
+}
+
+document.addEventListener("submit", async (e) => {
+    const form = e.target.closest("form[data-ajax]");
+    if (!form) return;
+    e.preventDefault();
+    if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) return;
+    const submitBtn = form.querySelector('[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+        const res = await fetch(form.action, {
+            method: (form.method || "post").toUpperCase(),
+            body: new FormData(form),
+            headers: { "X-Requested-With": "fetch" },
+        });
+        const html = await res.text();
+        if (!res.ok) {
+            let detail = "Thao tác thất bại.";
+            try { detail = JSON.parse(html).detail || detail; } catch (_) { /* not JSON */ }
+            toast(detail, "error");
+            return;
+        }
+        if (form.dataset.toast) toast(form.dataset.toast, "success");
+        if (form.dataset.ajaxReload) swapRegion(form.dataset.ajaxReload, html);
+        if (form.dataset.closeModal) closeModal(form.dataset.closeModal);
+        if (form.dataset.closeCanvas) closeCanvas(form.dataset.closeCanvas);
+        if (form.dataset.reset === "true") form.reset();
+    } catch (err) {
+        toast("Lỗi kết nối mạng.", "error");
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
+});
+
 // --- Modal helpers ---
 function openModal(id) {
     const el = document.getElementById(id);

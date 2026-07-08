@@ -1,3 +1,4 @@
+import json
 import threading
 import time
 
@@ -290,3 +291,83 @@ def test_default_workers_in_job_runner():
     runner2 = JobRunner(workers={"translate": 4, "crawl": 2})
     assert runner2.queue._workers["translate"] == 4
     assert runner2.queue._workers["crawl"] == 2
+
+
+# ── Resume sau restart: job pending/running có spec được lưu ra đĩa và có
+# thể enqueue lại (xem JobQueue.register_kind/load_pending). ──────────────
+
+
+def test_pending_job_with_spec_persisted_to_disk(tmp_path):
+    db_path = tmp_path / "novel2epub.db"
+    q = JobQueue(workers={"translate": 1}, db_path=db_path)
+    gate = threading.Event()
+    started = threading.Event()
+
+    # Chiếm worker duy nhất để job thứ 2 (có spec) ở lại pending.
+    q.enqueue("translate", "busy", lambda log: (started.set(), gate.wait(timeout=5)))
+    assert started.wait(timeout=5)
+
+    q.enqueue(
+        "translate", "demo-job", lambda log: None,
+        spec={"kind": "demo", "params": {"n": 1}},
+    )
+
+    from novel2epub.db import get_thread_connection
+
+    def _pending_rows():
+        conn = get_thread_connection(db_path)
+        return conn.execute("SELECT spec_json FROM job_queue_pending").fetchall()
+
+    assert _wait_until(lambda: len(_pending_rows()) == 1)
+    rows = _pending_rows()
+    assert json.loads(rows[0]["spec_json"]) == {"kind": "demo", "params": {"n": 1}}
+
+    gate.set()
+
+
+def test_load_pending_reenqueues_job_with_registered_kind(tmp_path):
+    """Mô phỏng khởi động lại app: DB còn 1 job pending từ lần chạy trước,
+    register_kind rồi load_pending() phải enqueue lại và chạy."""
+    db_path = tmp_path / "novel2epub.db"
+    from novel2epub.db import get_thread_connection
+
+    conn = get_thread_connection(db_path)
+    with conn:
+        conn.execute(
+            "INSERT INTO job_queue_pending (id, category, step, label, ebook, spec_json) "
+            "VALUES ('job1', 'translate', 'demo-job', 'demo-job', '', ?)",
+            (json.dumps({"kind": "demo", "params": {"n": 7}}),),
+        )
+
+    q = JobQueue(workers={"translate": 1}, db_path=db_path)
+    executed = []
+
+    def factory(params):
+        def _target(log):
+            executed.append(params["n"])
+        return _target
+
+    q.register_kind("demo", factory)
+    restored = q.load_pending()
+    assert restored == 1
+    assert _wait_until(lambda: executed == [7])
+
+
+def test_load_pending_skips_unregistered_kind(tmp_path):
+    """Job pending có kind chưa register (vd version cũ hơn/thiếu registration)
+    bị bỏ qua thay vì raise lỗi lúc khởi động."""
+    db_path = tmp_path / "novel2epub.db"
+    from novel2epub.db import get_thread_connection
+
+    conn = get_thread_connection(db_path)
+    with conn:
+        conn.execute(
+            "INSERT INTO job_queue_pending (id, category, step, label, ebook, spec_json) "
+            "VALUES ('job1', 'translate', 'mystery', 'mystery', '', ?)",
+            (json.dumps({"kind": "unknown-kind", "params": {}}),),
+        )
+
+    q = JobQueue(workers={"translate": 1}, db_path=db_path)
+    restored = q.load_pending()
+    assert restored == 0
+    assert q.snapshot()["pending"]["translate"] == []

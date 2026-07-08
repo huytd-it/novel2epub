@@ -112,11 +112,12 @@ def _dedupe_keep_last(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
     last_idx = {url: i for i, (url, _) in enumerate(pairs)}
     return [(url, text) for i, (url, text) in enumerate(pairs) if last_idx[url] == i]
 
-_CHAPTER_BASE_ID_RE = re.compile(r"(\d+)(?:_\d+)?\.\w+(?:[?#].*)?$")
+_CHAPTER_BASE_ID_RE = re.compile(r"(\d+)(?:[_-]\d+)?\.\w+(?:[?#].*)?$")
 
 
 def _chapter_base_id(url: str) -> str | None:
-    """Rút "ID chương" từ URL dạng ``.../<id>.html`` hoặc ``.../<id>_<page>.html``.
+    """Rút "ID chương" từ URL dạng ``.../<id>.html``, ``.../<id>_<page>.html``
+    hoặc ``.../<id>-<page>.html``.
 
     Trả ``None`` nếu URL không khớp dạng này (không đủ tin cậy để so sánh,
     caller nên bỏ qua kiểm tra ranh giới chương trong trường hợp đó).
@@ -467,10 +468,12 @@ class ScraplingCrawler:
                 full = urljoin(self.cfg.toc_url, href.strip())
                 if pattern.search(full):
                     text = a.text if hasattr(a, 'text') else ""
+                    if not (text or "").strip() and hasattr(a, 'get_all_text'):
+                        text = a.get_all_text(strip=True)
                     pairs.append((full, (text or "").strip()))
 
         chapters = [
-            Chapter(index=i, url=url, title=text)
+            Chapter(index=i, url=url, title=text, title_zh=text)
             for i, (url, text) in enumerate(_dedupe_keep_last(pairs), 1)
         ]
         return TocResult(

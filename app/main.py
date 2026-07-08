@@ -10,18 +10,55 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .deps import AUTOMATIONS_PATH, BASE_DIR, WORKSPACE_DIR, WORKSPACE_PATH
+from . import deps
+from .deps import BASE_DIR, WORKSPACE_PATH
 from .job import JobRunner
 from .logging_config import setup_logging
-from .routes import automation, chapters, ebooks, glossary, jobs, library, reader, settings, sources, storage
+from .routes import (
+    automation,
+    chapters,
+    dashboard,
+    ebooks,
+    glossary,
+    jobs,
+    library,
+    notes,
+    reader,
+    settings,
+    sources,
+    storage,
+)
 from .scheduler import AutomationScheduler
 
 setup_logging()
 
 app = FastAPI(title="novel2epub")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-app.state.job = JobRunner(history_path=WORKSPACE_DIR / "queue_history.json")
-app.state.scheduler = AutomationScheduler(AUTOMATIONS_PATH, WORKSPACE_PATH, app.state.job.queue)
+
+# Đọc queue.translate_workers / queue.crawl_workers từ defaults: trong config.
+# Nếu file chưa tồn tại hoặc parse lỗi → dùng mặc định của QueueConfig (5/2).
+def _load_queue_workers() -> dict[str, int]:
+    from novel2epub.config import QueueConfig, load_config
+    try:
+        _cfg = load_config(WORKSPACE_PATH)
+        return {
+            "translate": _cfg.queue.translate_workers,
+            "crawl": _cfg.queue.crawl_workers,
+        }
+    except Exception:
+        _dq = QueueConfig()
+        return {"translate": _dq.translate_workers, "crawl": _dq.crawl_workers}
+
+app.state.job = JobRunner(
+    db_path=deps.DB_PATH,
+    workers=_load_queue_workers(),
+)
+# Đăng ký các loại job tuỳ biến còn dang dở lúc shutdown (spec JSON-serializable
+# trong queue_pending.json) trước khi nạp lại — job pending có kind chưa
+# register sẽ bị bỏ qua vĩnh viễn (xem JobQueue.register_kind/load_pending).
+app.state.job.queue.register_kind("batch-translate", chapters.batch_translate_job_factory)
+app.state.job.queue.load_pending()
+app.state.scheduler = AutomationScheduler(deps.DB_PATH, WORKSPACE_PATH, app.state.job.queue)
 
 
 @asynccontextmanager
@@ -41,5 +78,7 @@ app.include_router(library.router)
 app.include_router(settings.router)
 app.include_router(sources.router)
 app.include_router(storage.router)
+app.include_router(notes.router)
 app.include_router(reader.router)
 app.include_router(automation.router)
+app.include_router(dashboard.router)

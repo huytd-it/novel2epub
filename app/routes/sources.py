@@ -9,9 +9,9 @@ import yaml
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import PlainTextResponse, RedirectResponse
 
-from novel2epub.config import CrawlConfig
+from novel2epub.config import CrawlConfig, ScraplingConfig
 from novel2epub.crawler import ScraplingCrawler
-from novel2epub.sources import SourcePreset, save_presets
+from novel2epub.sources import SourcePreset, propagate_preset_update, save_presets
 
 from .. import deps
 
@@ -43,20 +43,21 @@ def _record_validation(name: str, ok: bool, message: str) -> None:
 
 
 def _preset_usage(presets, library):
-    """Map preset name -> list of ebook slugs whose resolved CrawlConfig matches
-    tất cả cặp key/value trong preset.crawl_overrides(). Chỉ đọc, không ghi."""
+    """Map preset name -> list of ebook slugs có ``source == preset_name``.
+
+    Đọc field ``source`` trực tiếp từ ebook config (không brute-force so sánh).
+    """
     usage = {name: [] for name in presets}
     if not library.ebooks or not presets:
         return usage
     for slug in library.ebooks:
         try:
-            crawl = deps.resolved_cfg(slug).crawl
+            cfg = deps.resolved_cfg(slug)
         except Exception:
             continue
-        for name, preset in presets.items():
-            overrides = preset.crawl_overrides()
-            if all(getattr(crawl, k, None) == v for k, v in overrides.items()):
-                usage[name].append(slug)
+        source = getattr(cfg, "source", "")
+        if source and source in usage:
+            usage[source].append(slug)
     return usage
 
 
@@ -105,8 +106,10 @@ def save_source_preset(
     network_idle: bool = Form(False),
     impersonate: str = Form(""),
     concurrency_cap: int = Form(0),
+    strip_patterns: str = Form(""),
 ):
     name = name.strip()
+    strip_list = [line.strip() for line in strip_patterns.splitlines() if line.strip()]
     presets = deps.presets()
     if name:
         kwargs = dict(
@@ -135,11 +138,20 @@ def save_source_preset(
             network_idle=network_idle,
             impersonate=impersonate.strip(),
             concurrency_cap=max(0, concurrency_cap),
+            strip_patterns=strip_list,
         )
         if user_agent.strip():
             kwargs["user_agent"] = user_agent
         presets[name] = SourcePreset(**kwargs)
         save_presets(deps.SOURCES_PATH, presets)
+        # Propagate preset update sang ebook có source == name
+        affected = propagate_preset_update(deps.WORKSPACE_PATH, name, presets)
+        if affected:
+            import logging
+            logging.getLogger(__name__).info(
+                "[source] preset %r propagate sang %d ebook: %s",
+                name, len(affected), ", ".join(affected),
+            )
     return RedirectResponse(url="/sources", status_code=303)
 
 
@@ -191,7 +203,18 @@ def test_source_preset(request: Request, name: str, toc_url: str = Form(...)):
         try:
             overrides = preset.crawl_overrides()
             overrides.pop("chapter_link_pattern", None)
+            # Legacy flat scrapling fields → nested ScraplingConfig
+            scrapling_kwargs = {}
+            legacy_mode = overrides.pop("scrapling_mode", None)
+            if legacy_mode is not None:
+                scrapling_kwargs["mode"] = legacy_mode
+            for legacy_key in ("solve_cloudflare", "network_idle", "impersonate"):
+                val = overrides.pop(legacy_key, None)
+                if val is not None:
+                    scrapling_kwargs[legacy_key] = val
             crawl_cfg = CrawlConfig(toc_url=toc_url, chapter_link_pattern=preset.chapter_link_pattern, **overrides)
+            if scrapling_kwargs:
+                crawl_cfg.scrapling = ScraplingConfig(**scrapling_kwargs)
             crawler = ScraplingCrawler(crawl_cfg)
             toc = crawler.fetch_toc()
             if not toc.chapters:

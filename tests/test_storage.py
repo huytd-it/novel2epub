@@ -107,12 +107,9 @@ def test_manifest_roundtrip_keeps_metadata(tmp_path):
     assert loaded.chapters[0].last_action_status == "skipped"
 
 
-def test_old_manifest_without_metadata_loads(tmp_path):
+def test_manifest_without_optional_metadata_loads_with_defaults(tmp_path):
     storage = Storage(tmp_path, "slug")
-    storage.root.mkdir(parents=True, exist_ok=True)
-    storage.manifest_path.write_text(
-        '{"slug": "slug", "title": "T", "chapters": []}', encoding="utf-8"
-    )
+    storage.save_manifest(Manifest(slug="slug", title="T", chapters=[]))
     loaded = storage.load_manifest()
     assert loaded.title == "T"
     assert loaded.description == ""
@@ -215,3 +212,26 @@ def test_read_mt_snapshot_empty_when_nothing(tmp_path):
     storage = Storage(tmp_path, "slug")
     ch = Chapter(index=3, url="x")
     assert storage.read_translated_mt(ch) == ""
+
+
+# --- ghi chú lỗi dịch (trang đọc) ---
+
+
+def test_notes_round_trip(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    assert storage.read_notes() == []
+    notes = [{"id": "abc12345", "chapter_index": 1, "note": "sai ngôi xưng"}]
+    storage.write_notes(notes)
+    assert storage.read_notes() == notes
+
+
+def test_read_notes_corrupt_row_skipped(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    storage.ensure_dirs()
+    with storage.conn:
+        storage.conn.execute(
+            "INSERT INTO notes (ebook_slug, data_json) VALUES (?, ?)",
+            ("slug", "{không phải json["),
+        )
+    # Dòng hỏng bị bỏ qua, không raise.
+    assert storage.read_notes() == []

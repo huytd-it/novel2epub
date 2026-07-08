@@ -34,7 +34,7 @@ _STEP_CATEGORY: dict[str, str] = {
     "crawl": "crawl",
     "fetch-toc": "crawl",
     "translate": "translate",
-    "build": "both",
+    "build": "build",
     "run": "both",
     "reindex": "both",
 }
@@ -43,15 +43,16 @@ _STEP_CATEGORY: dict[str, str] = {
 class JobRunner:
     """Shim tương thích ngược trên JobQueue — route cũ gọi start()/status() như trước."""
 
-    def __init__(self, max_log_lines: int = 500, workers: dict[str, int] | None = None, history_path=None):
+    def __init__(self, max_log_lines: int = 500, workers: dict[str, int] | None = None, db_path=None):
         if workers is None:
             workers = {"translate": 2}
-        self.queue = JobQueue(workers=workers, history_path=history_path, history_limit=max(max_log_lines, 200))
+        self.queue = JobQueue(workers=workers, db_path=db_path, history_limit=max(max_log_lines, 200))
 
     def status(self) -> dict:
         return {
             "crawl": self.queue.category_status("crawl"),
             "translate": self.queue.category_status("translate"),
+            "build": self.queue.category_status("build"),
         }
 
     def start(self, step: str, cfg: Config) -> bool:
@@ -80,8 +81,12 @@ class JobRunner:
         step: str,
         target_fn: Callable[[Callable[[str], None]], object],
         category: str,
+        *,
+        ebook: str = "",
+        spec: dict | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> bool:
-        self.queue.enqueue(category, step, target_fn, label=step)
+        self.queue.enqueue(category, step, target_fn, label=step, ebook=ebook, spec=spec, cancel_event=cancel_event)
         return True
 
     def enqueue_step(self, step: str, cfg: Config, *, label: str = "", ebook: str = "") -> dict | None:

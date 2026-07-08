@@ -9,14 +9,21 @@ from typing import Any
 
 GO_PROMPT = """Dịch đoạn văn Trung Quốc sau đây sang tiếng Việt.
 
-Luật:
+LUẬT CỐT LÕI:
+- Đầu ra phải là tiếng Việt 100% — dịch TOÀN BỘ, không để lại chữ Hán nào.
+- KHÔNG dùng kiểu "từ gốc (dịch nghĩa)" hay chú thích song ngữ.
+- Từ khó, không chắc nghĩa: chọn từ tiếng Việt gần nghĩa nhất theo ngữ cảnh — thà dịch thoát ý còn hơn giữ chữ Hán.
+
+Luật dịch:
 1. Dịch tự nhiên, đúng ngữ pháp Việt Nam.
-2. Tên riêng, công pháp, địa danh giữ nguyên Hán Việt.
+2. Tên riêng, công pháp, địa danh giữ Hán Việt.
 3. Ngôi xưng theo quan hệ nhân vật (cha/mẹ/sư phụ/chàng/nàng/ngài…).
-4. Thành ngữ, thơ từ dịch thoát ý, không máy móc.
-5. Giữ nguyên cách chia đoạn.
+4. Thành ngữ, khẩu ngữ, thơ từ dịch thoát ý, không máy móc.
+5. Từ đời thường (động tác, nấu nướng, ăn uống, cảm giác...) dịch tự nhiên như văn nói tiếng Việt, không phiên âm Hán Việt cứng nhắc.
+6. Giữ nguyên cách chia đoạn.
 
 Chỉ trả về bản dịch, không thêm lời dẫn hay chú thích.
+KIỂM TRA CUỐI: rà lại toàn bộ đầu ra; nếu còn ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
 --- Văn bản gốc ---
 {text}"""

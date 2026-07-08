@@ -7,10 +7,11 @@ from novel2epub.config import OpenAIConfig, TranslateConfig, GlossaryFilesConfig
 
 
 class _FakeResponse:
-    def __init__(self, status_code=200, json_data=None, text=""):
+    def __init__(self, status_code=200, json_data=None, text="", headers=None):
         self.status_code = status_code
         self._json_data = json_data or {}
         self.text = text
+        self.headers = headers or {}
 
     def json(self):
         return self._json_data
@@ -147,7 +148,7 @@ def test_go_preset_chapter_translation_uses_openai(monkeypatch):
         captured["model"] = cfg_.model
         return "Bản dịch tiếng Việt."
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     translator = make_translator(cfg)
     result = translator.translate("你好世界")
     assert result == "Bản dịch tiếng Việt."
@@ -174,12 +175,12 @@ def test_translate_retries_when_output_has_residual_chinese(monkeypatch):
             return "Xin chào 世界"
         return "Xin chào thế giới"
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     translator = make_translator(cfg)
     result = translator.translate("你好世界")
     assert result == "Xin chào thế giới"
     assert len(calls) == 2
-    assert "LƯU Ý QUAN TRỌNG" in calls[1]
+    assert "CẢNH BÁO NGHIÊM TRỌNG" in calls[1]
 
 
 def test_translate_stops_retrying_when_chinese_does_not_improve(monkeypatch):
@@ -199,7 +200,7 @@ def test_translate_stops_retrying_when_chinese_does_not_improve(monkeypatch):
         calls.append(prompt)
         return "Xin chào 世界"
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     translator = make_translator(cfg)
     result = translator.translate("你好世界")
     assert result == "Xin chào 世界"
@@ -249,7 +250,187 @@ def test_translate_raises_when_ai_call_fails(monkeypatch):
     def _mock_run_chat(cfg_, prompt):
         raise RuntimeError("AI trả về mã lỗi HTTP 401")
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     translator = make_translator(cfg)
     with pytest.raises(RuntimeError, match="401"):
         translator.translate("test")
+
+
+# ── Tests cho Auto-Glossary (extend_glossary) ──────────────────────
+
+
+class _MockStorage:
+    """Ghi lại các lần gọi append_glossary_line."""
+    def __init__(self):
+        self.written: list[tuple[str, str]] = []
+
+    def append_glossary_line(self, name: str, line: str) -> None:
+        self.written.append((name, line))
+
+    def glossary_path(self, name: str):
+        from pathlib import Path
+        return Path(name)
+
+
+def _make_openai_translator(**kwargs) -> "OpenAITranslator":
+    cfg = TranslateConfig(
+        type="openai",
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            model="test-model",
+            api_key="test-key",
+            prompt_template="",
+            title_prompt_template="",
+        ),
+        **kwargs,
+    )
+    from novel2epub.translator import OpenAITranslator
+    return OpenAITranslator(cfg)
+
+
+def test_extend_glossary_added():
+    """Entry mới → add vào in-memory + ghi file."""
+    t = _make_openai_translator()
+    storage = _MockStorage()
+    result = t.extend_glossary({"叶凡": "Diệp Phàm"}, "names.txt", storage)
+
+    assert len(result["added"]) == 1
+    assert len(result["conflicts"]) == 0
+    assert t.glossary["叶凡"] == "Diệp Phàm"
+    assert storage.written == [("names.txt", "叶凡 = Diệp Phàm")]
+
+
+def test_extend_glossary_unchanged():
+    """Source đã có cùng value → skip, không ghi file."""
+    t = _make_openai_translator()
+    t.glossary["叶凡"] = "Diệp Phàm"
+    storage = _MockStorage()
+    result = t.extend_glossary({"叶凡": "Diệp Phàm"}, "names.txt", storage)
+
+    assert len(result["added"]) == 0
+    assert len(result["conflicts"]) == 0
+    assert storage.written == []
+
+
+def test_extend_glossary_conflict_existing_wins():
+    """Source đã có khác value → existing wins, conflict báo lại."""
+    t = _make_openai_translator()
+    t.glossary["叶凡"] = "Diệp Phàm"
+    storage = _MockStorage()
+    result = t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, "names.txt", storage)
+
+    assert len(result["added"]) == 0
+    assert len(result["conflicts"]) == 1
+    c = result["conflicts"][0]
+    assert c["source"] == "叶凡"
+    assert c["existing"] == "Diệp Phàm"
+    assert c["new"] == "Diệp Phà (cũ)"
+    assert c["target_file"] == "names.txt"
+    # In-memory vẫn giữ giá trị cũ
+    assert t.glossary["叶凡"] == "Diệp Phàm"
+    # File không được ghi
+    assert storage.written == []
+
+
+def test_extend_glossary_accumulates_conflicts():
+    """Nhiều conflict tích lũy trong _auto_glossary_conflicts, drain_conflicts trả hết."""
+    t = _make_openai_translator()
+    t.glossary["叶凡"] = "Diệp Phàm"
+    t.glossary["林动"] = "Lâm Động"
+    storage = _MockStorage()
+    t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, "names.txt", storage)
+    t.extend_glossary({"林动": "Lâm Động (khác)"}, "names.txt", storage)
+
+    drained = t.drain_conflicts()
+    assert len(drained) == 2
+    # drain xong list rỗng
+    assert t.drain_conflicts() == []
+
+
+def test_extend_glossary_skips_empty_source():
+    """Entry với source/suggested rỗng bị bỏ qua."""
+    t = _make_openai_translator()
+    storage = _MockStorage()
+    result = t.extend_glossary({"": "something", "valid": ""}, "names.txt", storage)
+    assert len(result["added"]) == 0
+    assert len(result["conflicts"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# _filter_glossary + lọc glossary theo đoạn khi build prompt
+# ---------------------------------------------------------------------------
+
+def _make_filter_translator(glossary_filter=True):
+    from novel2epub.translator import OpenAITranslator
+
+    cfg = TranslateConfig(
+        type="openai",
+        glossary={"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"},
+        glossary_filter=glossary_filter,
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            prompt_template="{glossary}\n---\n{text}",
+            title_prompt_template="{glossary}\n---\n{text}",
+        ),
+    )
+    return OpenAITranslator(cfg)
+
+
+def test_filter_glossary_keeps_only_matching_zh():
+    from novel2epub.translator import _filter_glossary
+
+    glossary = {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+    out = _filter_glossary(glossary, zh_text="叶凡出场了")
+    assert out == {"叶凡": "Diệp Phàm"}
+    # Không mutate dict gốc
+    assert glossary == {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+
+
+def test_filter_glossary_matches_vi_value():
+    from novel2epub.translator import _filter_glossary
+
+    glossary = {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+    out = _filter_glossary(glossary, zh_text="", vi_text="Diệp Phàm bước ra")
+    assert out == {"叶凡": "Diệp Phàm"}
+
+
+def test_filter_glossary_empty_texts_returns_empty():
+    from novel2epub.translator import _filter_glossary
+
+    assert _filter_glossary({"叶凡": "Diệp Phàm"}) == {}
+
+
+def test_format_glossary_has_no_indent():
+    from novel2epub.translator import _format_glossary
+
+    out = _format_glossary({"叶凡": "Diệp Phàm"})
+    assert out == "Bảng thuật ngữ bắt buộc dùng nhất quán:\n叶凡 = Diệp Phàm"
+
+
+def test_build_prompt_filters_glossary_to_chunk_text():
+    t = _make_filter_translator()
+    prompt = t._build_prompt("却说叶凡今日修炼")
+    assert "叶凡 = Diệp Phàm" in prompt
+    assert "庄国" not in prompt
+    # self.glossary vẫn đầy đủ (chỉ lọc bản copy cho prompt)
+    assert t.glossary == {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
+
+
+def test_build_prompt_unfiltered_when_disabled():
+    t = _make_filter_translator(glossary_filter=False)
+    prompt = t._build_prompt("却说叶凡今日修炼")
+    assert "叶凡 = Diệp Phàm" in prompt
+    assert "庄国 = Trang Quốc" in prompt
+
+
+def test_build_prompt_omits_header_when_no_entry_matches():
+    t = _make_filter_translator()
+    prompt = t._build_prompt("完全无关的文本")
+    assert "Bảng thuật ngữ" not in prompt
+
+
+def test_build_title_prompt_filters_on_title():
+    t = _make_filter_translator()
+    prompt = t._build_title_prompt("庄国大战", kind="tên chương")
+    assert "庄国 = Trang Quốc" in prompt
+    assert "叶凡" not in prompt

@@ -65,7 +65,7 @@ def storage_remove_epub(slug: str):
 def storage_archive(slug: str):
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    if not storage.root.exists():
+    if not storage.exists():
         raise HTTPException(status_code=404, detail="Chưa có dữ liệu cho ebook này.")
     config_snippet = yaml.safe_dump(
         {"novel": asdict(cfg.novel), "crawl": {"toc_url": cfg.crawl.toc_url}},

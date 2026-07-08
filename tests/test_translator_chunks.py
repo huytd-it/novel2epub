@@ -25,7 +25,7 @@ def _openai_cfg(
 
 def test_on_chunk_called_once_for_short_text(monkeypatch):
     monkeypatch.setattr(
-        "novel2epub.translator.openai_client.run_chat",
+        "novel2epub.translator.openai_client.run_chat_with_meta",
         lambda cfg, prompt: "Xin chào thế giới",
     )
     translator = make_translator(_openai_cfg())
@@ -49,7 +49,7 @@ def test_on_chunk_called_per_chunk_in_order(monkeypatch):
     def _mock_run_chat(cfg_, prompt):
         return next(responses)
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     translator = make_translator(cfg)
 
     calls: list[tuple[int, int, str, bool]] = []
@@ -71,7 +71,7 @@ def test_on_chunk_called_per_chunk_in_order(monkeypatch):
 def test_on_chunk_can_be_omitted(monkeypatch):
     """Backward compat: gọi không truyền on_chunk vẫn hoạt động như cũ."""
     monkeypatch.setattr(
-        "novel2epub.translator.openai_client.run_chat",
+        "novel2epub.translator.openai_client.run_chat_with_meta",
         lambda cfg, prompt: "Xin chào",
     )
     translator = make_translator(_openai_cfg())
@@ -85,7 +85,7 @@ def test_callback_exception_propagates_and_aborts(monkeypatch):
     def _mock_run_chat(cfg_, prompt):
         return next(responses)
 
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
     cfg = _openai_cfg(max_chars=10, overlap=0)
     translator = make_translator(cfg)
 
@@ -103,7 +103,7 @@ def test_callback_exception_propagates_and_aborts(monkeypatch):
 def test_callback_for_short_text_called_with_is_final_true(monkeypatch):
     """Văn bản ngắn (1 chunk) vẫn phải gọi callback với is_final=True."""
     monkeypatch.setattr(
-        "novel2epub.translator.openai_client.run_chat",
+        "novel2epub.translator.openai_client.run_chat_with_meta",
         lambda cfg, prompt: "OK",
     )
     cfg = _openai_cfg(max_chars=6000)
@@ -111,3 +111,119 @@ def test_callback_for_short_text_called_with_is_final_true(monkeypatch):
     seen: list[bool] = []
     translator.translate("ngắn", on_chunk=lambda i, t, c, f: seen.append(f))
     assert seen == [True]
+
+
+def test_prompt_max_chars_shrinks_chunk_budget(monkeypatch):
+    """Tổng prompt (template + glossary + nội dung) phải <= prompt_max_chars —
+    chunk budget bị thu nhỏ theo overhead của template."""
+    # Template có 100 ký tự overhead cố định (không kể {text}).
+    template = ("H" * 100) + "{text}"
+    cfg = TranslateConfig(
+        type="openai",
+        prompt_max_chars=350,
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            prompt_template=template,
+            title_prompt_template="{text}",
+        ),
+        # chunk.max_chars=0 → DEFAULT_MAX_CHARS (6000), phải bị clamp còn 250.
+        chunk=TranslationChunkConfig(max_chars=0, overlap_paragraphs=0),
+    )
+    prompts: list[str] = []
+
+    def _mock_run_chat(cfg_, prompt):
+        prompts.append(prompt)
+        return "ok"
+
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
+    translator = make_translator(cfg)
+    # 3 đoạn 150 ký tự: budget còn 350-100=250 → mỗi chunk chỉ chứa 1 đoạn.
+    text = "\n".join(["A" * 150, "B" * 150, "C" * 150])
+    translator.translate(text)
+
+    assert len(prompts) == 3
+    for p in prompts:
+        assert len(p) <= 350
+
+
+def test_prompt_max_chars_zero_disables_limit(monkeypatch):
+    """prompt_max_chars=0 → không giới hạn, giữ nguyên hành vi chunk cũ."""
+    template = ("H" * 100) + "{text}"
+    cfg = TranslateConfig(
+        type="openai",
+        prompt_max_chars=0,
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            prompt_template=template,
+            title_prompt_template="{text}",
+        ),
+        chunk=TranslationChunkConfig(max_chars=6000, overlap_paragraphs=0),
+    )
+    prompts: list[str] = []
+
+    def _mock_run_chat(cfg_, prompt):
+        prompts.append(prompt)
+        return "ok"
+
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
+    translator = make_translator(cfg)
+    translator.translate("\n".join(["A" * 40, "B" * 40, "C" * 40]))
+    assert len(prompts) == 1  # cả 3 đoạn trong 1 chunk
+
+
+def test_prompt_max_chars_floor_when_overhead_too_big(monkeypatch):
+    """Overhead vượt cả budget → dùng sàn MIN_CHUNK_BUDGET, không chia vô hạn."""
+    from novel2epub.translator import OpenAITranslator
+
+    template = ("H" * 500) + "{text}"
+    cfg = TranslateConfig(
+        type="openai",
+        prompt_max_chars=400,  # nhỏ hơn cả overhead 500
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            prompt_template=template,
+            title_prompt_template="{text}",
+        ),
+        chunk=TranslationChunkConfig(max_chars=0, overlap_paragraphs=0),
+    )
+    monkeypatch.setattr(
+        "novel2epub.translator.openai_client.run_chat_with_meta",
+        lambda cfg_, prompt: "ok",
+    )
+    translator = make_translator(cfg)
+    out = translator.translate("A" * 300)
+    assert out  # không treo/chia vô hạn
+    assert translator._clamp_to_prompt_budget(6000, "A" * 300) == OpenAITranslator.MIN_CHUNK_BUDGET
+
+
+def test_translate_multichunk_filters_glossary_per_chunk(monkeypatch):
+    """Mỗi chunk chỉ nhận các mục glossary xuất hiện trong chính chunk đó."""
+    cfg = TranslateConfig(
+        type="openai",
+        glossary={"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"},
+        glossary_filter=True,
+        openai=OpenAIConfig(
+            base_url="https://api.test/v1",
+            prompt_template="{glossary}\n---\n{text}",
+            title_prompt_template="{text}",
+        ),
+        chunk=TranslationChunkConfig(max_chars=10, overlap_paragraphs=0),
+    )
+    prompts: list[str] = []
+    responses = iter(["kết quả A", "kết quả B"])
+
+    def _mock_run_chat(cfg_, prompt):
+        prompts.append(prompt)
+        return next(responses)
+
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
+    translator = make_translator(cfg)
+    # 2 đoạn, mỗi đoạn dài hơn max_chars → 2 chunk riêng.
+    out = translator.translate("叶凡AAAAAAAAAA\n庄国BBBBBBBBBB")
+
+    assert out == "kết quả A\nkết quả B"
+    assert len(prompts) == 2
+    assert "叶凡 = Diệp Phàm" in prompts[0]
+    assert "庄国" not in prompts[0]
+    assert "庄国 = Trang Quốc" in prompts[1]
+    assert "叶凡" not in prompts[1]

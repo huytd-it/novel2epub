@@ -1,6 +1,7 @@
 """Đọc và xác thực file cấu hình YAML."""
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -30,8 +31,6 @@ LOCAL_MT_MODEL_PRESETS: dict[str, dict[str, Any]] = {
         "model_key": "HirashibaMT-Tiny",
     },
 }
-
-import yaml
 
 
 @dataclass
@@ -152,25 +151,39 @@ class TranslationChunkConfig:
     overlap_paragraphs: int = 0
 
 
+@dataclass
+class CleanupHanConfig:
+    """Cấu hình tự động phát hiện và sửa chữa Hán còn sót sau dịch.
+
+    Kích hoạt: translate.auto_cleanup_han: true
+    """
+    # Số ký tự tối đa gửi AI mỗi lần (0 = không giới hạn).
+    max_chars: int = 8000
+    # Số lần thử lại nếu vẫn còn Hán sau cleanup.
+    retries: int = 1
+
+
 DEFAULT_PROMPT = """Bạn là dịch giả tiểu thuyết mạng Trung Quốc sang tiếng Việt, theo phong cách edit mượt mà mà độc giả Việt quen thuộc.
 
-Nguyên tắc bắt buộc:
-1. Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp Việt: đảo trật tự từ cho thuận, đưa trạng ngữ lên đầu câu khi hợp lý, câu phải đủ chủ-vị.
-2. Ngôi xưng phải theo quan hệ và ngữ cảnh, KHÔNG bê nguyên ta/ngươi. Chọn phù hợp giữa cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu...
-3. Tên riêng, công pháp, địa danh, chiêu thức: giữ theo lối Hán Việt quen thuộc, viết hoa và nhất quán.
-4. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, nhưng vẫn giữ chất cổ trang khi cần.
-5. Giữ nguyên cách chia đoạn của bản gốc. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
-6. Thành ngữ nên dịch thoát ý, tự nhiên, không máy móc.
-7. Thơ từ, ca phú, Luận ngữ, trích dẫn cổ văn: nếu nhận ra là câu/bài đã có bản dịch tiếng Việt phổ biến, hãy dùng đúng bản dịch đó và ghi tên dịch giả trong ngoặc ngay sau (vd: "— (bản dịch Tản Đà)"). Nếu không nhận ra bản dịch có sẵn, hãy tự chuyển ngữ sao cho người đọc hiểu được nghĩa, không dịch nguyên xi. TUYỆT ĐỐI không dịch kiểu Vietphrase-một-nghĩa (ghép nghĩa từng chữ máy móc, từ nào dịch được thì dịch từ nào không thì giữ nguyên Hán) — nếu thực sự không thể chuyển ngữ, giữ nguyên cả câu ở dạng phiên âm Hán Việt đầy đủ, không phải kiểu Vietphrase.
+Nguyên tắc dịch:
+1. Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp Việt: đảo trật tự từ cho thuận, câu đủ chủ-vị.
+2. Ngôi xưng theo quan hệ và ngữ cảnh: cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu... KHÔNG bê nguyên ta/ngươi.
+3. Tên riêng, công pháp, địa danh, chiêu thức: giữ Hán Việt quen thuộc, viết hoa, nhất quán.
+4. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, nhưng giữ chất cổ trang khi cần.
+5. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
+6. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người Việt, không máy móc (khẩu ngữ chỉ sự e dè thì dịch "ngại", "ngại ngùng"; chê tác phong ăn uống thì "ăn uống khó coi"...).
+7. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): dịch tự nhiên như văn nói tiếng Việt thông thường, không cần giữ sắc thái Hán, không phiên âm Hán Việt cứng nhắc.
+8. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng bản dịch đó kèm tên dịch giả (vd: "— (bản dịch Tản Đà)"). Nếu không, tự chuyển ngữ cho người đọc hiểu, không dịch nguyên xi từng chữ kiểu Vietphrase.
 
-Phong cách mong muốn:
+Phong cách:
 - Tông giọng: {tone}
-- Mức dùng Hán Việt: {han_viet_level}
+- Mức Hán Việt: {han_viet_level}
 - Xử lý tiêu đề: {title_mode}
 - Quy tắc ngôi xưng: {pronoun_policy}
 - Giữ xuống dòng: {keep_paragraphs}
 
-CHỈ trả về bản dịch tiếng Việt. KHÔNG thêm lời mở đầu, ghi chú, hay giải thích.
+CHỈ trả về bản dịch tiếng Việt thuần túy. KHÔNG thêm lời mở đầu, ghi chú, giải thích, hay đánh dấu song ngữ.
+KIỂM TRA CUỐI (bắt buộc): trước khi trả lời, rà lại toàn bộ bản dịch từ đầu đến cuối; nếu còn BẤT KỲ ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
 --- Nội dung cần dịch ---
 {text}"""
@@ -199,14 +212,14 @@ class OpenAIConfig:
     dịch tiêu đề, review/suggest/rewrite/evaluate. Tương thích bất kỳ provider
     nào lộ endpoint kiểu OpenAI (`POST {base_url}/chat/completions`,
     `GET {base_url}/models`): OpenAI, OpenRouter, Ollama (`/v1`), LM Studio,
-    vLLM, llama.cpp server, v.v.
+    vLLM, llama.cpp server, OpenCode Go, v.v.
     """
-    base_url: str = "https://api.openai.com/v1"
+    base_url: str = "https://opencode.ai/zen/go/v1"
     api_key: str = ""
-    model: str = "gpt-4o-mini"
+    model: str = "opencode-go/kimi-k2.6"
     prompt_template: str = DEFAULT_PROMPT
     title_prompt_template: str = TITLE_PROMPT
-    timeout_seconds: int = 300
+    timeout_seconds: int = 600
     temperature: float = 0.7
 
 
@@ -264,6 +277,30 @@ class TranslateConfig:
     # Số chương dịch song song (luồng riêng, dùng chung 1 translator — HTTP
     # request/Google request đều an toàn gọi đồng thời). 1 = tuần tự như trước.
     max_workers: int = 1
+    # Khi True + translate.type=openai: sau khi dịch xong từng chương, AI sẽ
+    # rút glossary mới từ chính chương đó và merge vào names.txt/vietphrase.txt
+    # (in-memory cho chương kế tiếp + ghi file thread-safe). Xung đột (cùng Hán,
+    # khác Việt) → giữ giá trị cũ + ghi warning vào log và file tổng kết.
+    auto_glossary: bool = False
+    # Khi True (mặc định): mỗi lần gọi AI chỉ nhét vào prompt những mục glossary
+    # THỰC SỰ xuất hiện trong đoạn đang xử lý (lọc chuỗi con thuần Python, không
+    # gọi AI) — tiết kiệm token khi glossary phình to. Bước hậu xử lý
+    # _apply_glossary vẫn luôn dùng toàn bộ glossary.
+    glossary_filter: bool = True
+    # Số chương gửi 1 lần cho AI khi dùng "Dịch selected" (batch translate).
+    # Chia nhỏ index thành các batch có kích thước tối đa bằng giá trị này.
+    # Đặt 1 = dịch tuần tự từng chương (mỗi chương 1 lần gọi AI).
+    batch_size: int = 1
+    # Giới hạn TỔNG ký tự của một prompt gửi AI (gồm cả prompt template,
+    # glossary và nội dung). Dịch chương: chunk bị thu nhỏ để prompt hoàn chỉnh
+    # không vượt giới hạn. Batch dịch: batch bị cắt sớm (ít chương hơn
+    # batch_size) khi khối export chạm giới hạn. 0 = không giới hạn.
+    prompt_max_chars: int = 7000
+    # Tự động chạy cleanup Hán sau mỗi chương được dịch (gọi AI qua config
+    # AI biên tập ai.openai — hoạt động với mọi backend dịch).
+    auto_cleanup_han: bool = False
+    # Cấu hình cleanup Hán.
+    cleanup_han: CleanupHanConfig = field(default_factory=CleanupHanConfig)
 
 
 @dataclass
@@ -285,6 +322,9 @@ class NovelConfig:
     # urn:uuid ổn định qua các lần build lại. Tự sinh khi rỗng (xem
     # `ensure_identifier` trong config_writer.py), người dùng có thể override.
     identifier: str = ""
+    # URL ảnh bìa. Người dùng nhập tay hoặc upload file qua Web UI, lưu YAML
+    # để pipeline dùng làm cover_url cho manifest khi crawl không có.
+    cover_url: str = ""
 
 
 @dataclass
@@ -301,12 +341,22 @@ class OutputConfig:
 
 
 @dataclass
+class QueueConfig:
+    """Số worker thread song song của job queue (app web)."""
+    translate_workers: int = 5  # job translate/batch-translate chạy song song
+    crawl_workers: int = 2      # job crawl chạy song song
+
+
+@dataclass
 class Config:
     novel: NovelConfig
     crawl: CrawlConfig
     translate: TranslateConfig
     output: OutputConfig
     ai: AIConfig = field(default_factory=AIConfig)
+    queue: QueueConfig = field(default_factory=QueueConfig)
+    # Tên source preset mà ebook này tham chiếu. Rỗng = không dùng preset.
+    source: str = ""
     # Cảnh báo xung đột tính năng phát hiện lúc load config (vd preset ép đổi
     # type, selector không áp dụng cho engine hiện tại...). pipeline.py log
     # các dòng này ra job log để hiện trên web UI thay vì chỉ ghi logging nội bộ.
@@ -347,24 +397,92 @@ def _deep_merge_raw(base: dict[str, Any], override: dict[str, Any]) -> dict[str,
     return result
 
 
+def _resolve_source_overrides(
+    ebook_raw: dict[str, Any],
+    sources_raw: dict[str, Any],
+) -> tuple[dict[str, Any], str, list[str]]:
+    """Resolve source preset cho ebook, trả về (crawl_merge, source_name, warnings).
+
+    Nếu ebook có field ``source`` và preset tồn tại trong ``sources_raw``,
+    trả crawl fields từ preset để caller merge vào config. Nếu preset không
+    tồn tại, trả warning và crawl rỗng.
+    """
+    source_name = str(ebook_raw.get("source", "") or "")
+    if not source_name:
+        return {}, "", []
+    preset_data = _as_dict(sources_raw.get(source_name))
+    if not preset_data:
+        return {}, source_name, [
+            f"source {source_name!r} không tồn tại trong sources — dùng crawl fields từ ebook."
+        ]
+    from .sources import SourcePreset, _FIELD_NAMES, _coerce
+
+    data = {k: _coerce(k, v) for k, v in preset_data.items() if k in _FIELD_NAMES}
+    data["name"] = source_name
+    preset = SourcePreset(**data)
+    return preset.crawl_overrides(), source_name, []
+
+
 def load_library(path: str | Path) -> LibraryConfig:
-    path = Path(path)
-    if not path.exists():
+    db_path = Path(path).resolve()
+    if not db_path.exists():
         return LibraryConfig()
 
-    raw: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    from .db import get_thread_connection
+
+    conn = get_thread_connection(db_path)
     entries: dict[str, LibraryEntry] = {}
-    for slug, item in (raw.get("ebooks") or {}).items():
-        data = _as_dict(item)
-        if isinstance(item, str):
-            data = {"config": item}
-        entries[slug] = LibraryEntry(
-            slug=slug,
-            name=data.get("name", ""),
-            # File gộp: ebook nằm inline trong cùng file (không còn `config:` riêng).
-            config=data.get("config", ""),
-        )
+    for r in conn.execute("SELECT slug, name FROM ebooks ORDER BY slug"):
+        entries[r["slug"]] = LibraryEntry(slug=r["slug"], name=r["name"] or "", config="")
     return LibraryConfig(ebooks=entries)
+
+
+def _load_raw_from_db(conn) -> dict[str, Any]:
+    """Dựng lại raw dict {"defaults", "sources", "ebooks"} ĐÚNG cấu trúc YAML
+    cũ từ bảng settings/sources/ebooks — để tái dùng nguyên logic merge/parse
+    bên dưới (deep-merge, resolve source preset, dataclass construction...
+    không đổi gì từ `_deep_merge_raw(defaults, override)` trở xuống)."""
+    settings_row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    defaults: dict[str, Any] = {}
+    if settings_row:
+        for section in ("novel", "crawl", "translate", "ai", "output", "queue"):
+            data = json.loads(settings_row[f"{section}_json"] or "{}")
+            if data:
+                defaults[section] = data
+
+    sources: dict[str, Any] = {}
+    for r in conn.execute("SELECT name, data_json FROM sources"):
+        sources[r["name"]] = json.loads(r["data_json"] or "{}")
+
+    ebooks: dict[str, Any] = {}
+    for r in conn.execute("SELECT * FROM ebooks"):
+        block: dict[str, Any] = {}
+        if r["name"]:
+            block["name"] = r["name"]
+        if r["source_preset"]:
+            block["source"] = r["source_preset"]
+        novel_fields = {
+            "slug": r["slug"], "title": r["title"], "author": r["author"],
+            "description": r["description"], "language": r["language"],
+            "publisher": r["publisher"], "pubdate": r["pubdate"],
+            "date_added": r["date_added"],
+            "subjects": json.loads(r["subjects_json"] or "[]"),
+            "series": r["series"], "series_index": r["series_index"],
+            "identifier": r["identifier"], "cover_url": r["cover_url"],
+        }
+        block["novel"] = {k: v for k, v in novel_fields.items() if v not in (None, "", [])}
+        block["novel"]["slug"] = r["slug"]
+        crawl_over = json.loads(r["crawl_overrides_json"] or "{}")
+        if crawl_over:
+            block["crawl"] = crawl_over
+        output_over = json.loads(r["output_overrides_json"] or "{}")
+        if r["epub_path"] and "epub_path" not in output_over:
+            output_over["epub_path"] = r["epub_path"]
+        if output_over:
+            block["output"] = output_over
+        ebooks[r["slug"]] = block
+
+    return {"defaults": defaults, "sources": sources, "ebooks": ebooks}
 
 
 def _build_style(raw: dict[str, Any]) -> TranslationStyleConfig:
@@ -379,39 +497,54 @@ def _build_style(raw: dict[str, Any]) -> TranslationStyleConfig:
 
 
 def load_config(path: str | Path, slug: str = "") -> Config:
-    path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"Không tìm thấy file cấu hình: {path}")
+    from .db import get_thread_connection
 
-    raw: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    base_dir = path.parent
-    is_unified = "ebooks" in raw
+    db_path = Path(path).resolve()
+    if not db_path.exists():
+        raise FileNotFoundError(f"Không tìm thấy DB cấu hình: {db_path}")
+    conn = get_thread_connection(db_path)
+    base_dir = db_path.parent
 
-    # Chế độ "unified": file gộp có khối `ebooks:` -> config hiệu lực của một
-    # ebook = deep_merge(defaults, ebooks[slug]). Không có `ebooks:` thì coi như
-    # file phẳng cũ (novel/crawl/translate/output ở top-level), giữ nguyên hành vi.
-    if is_unified:
-        defaults = _as_dict(raw.get("defaults"))
-        ebooks = _as_dict(raw.get("ebooks"))
-        if slug:
-            if slug not in ebooks:
-                raise KeyError(f"không tìm thấy ebook {slug!r} trong {path}")
-            override = _as_dict(ebooks.get(slug))
-        elif ebooks:
-            override = _as_dict(next(iter(ebooks.values())))
-        else:
-            override = {}
-        override = dict(override)
-        override.pop("name", None)  # tên hiển thị cấp ebook, không thuộc Config
-        raw = _deep_merge_raw(defaults, override)
+    raw_all = _load_raw_from_db(conn)
+    defaults = raw_all["defaults"]
+    sources_raw = raw_all["sources"]
+    ebooks = raw_all["ebooks"]
+
+    if slug:
+        if slug not in ebooks:
+            raise KeyError(f"không tìm thấy ebook {slug!r} trong {db_path}")
+        override = _as_dict(ebooks.get(slug))
+    elif ebooks:
+        override = _as_dict(next(iter(ebooks.values())))
+    else:
+        override = {}
+    override = dict(override)
+    override.pop("name", None)  # tên hiển thị cấp ebook, không thuộc Config
+    # `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình DÙNG CHUNG cho
+    # mọi ebook — chỉ đọc từ `defaults:`. Override per-ebook (còn sót lại) bị
+    # bỏ qua để tránh mỗi ebook một bản cấu hình AI khác nhau.
+    override.pop("translate", None)
+    override.pop("ai", None)
+
+    # Source preset resolution: nếu ebook có field `source`, lookup preset
+    # từ bảng `sources` → merge crawl fields từ preset vào TRƯỚC khi ebook
+    # override ghi đè. Source preset = layer giữa defaults và ebook override.
+    source_crawl, source_name, source_warnings = _resolve_source_overrides(override, sources_raw)
+    override.pop("source", None)  # không đưa vào Config raw dict
+    if source_crawl:
+        ebook_crawl = _as_dict(override.get("crawl"))
+        merged_crawl = _deep_merge_raw(source_crawl, ebook_crawl)
+        override["crawl"] = merged_crawl
+
+    raw = _deep_merge_raw(defaults, override)
 
     novel = NovelConfig(**(raw.get("novel") or {}))
-    if not novel.identifier and is_unified and slug:
+    if not novel.identifier and slug:
         # Sinh + lưu 1 lần urn:uuid ổn định cho ebook chưa có identifier (vd
         # tạo trước khi field này tồn tại) — xem spec ebook-metadata.
         from .config_writer import ensure_identifier
 
-        novel.identifier = ensure_identifier(path, slug, "")
+        novel.identifier = ensure_identifier(db_path, slug, "")
 
     crawl_raw = dict(raw.get("crawl") or {})
     # api_key / api_url chỉ dùng cho firecrawl, đã bỏ engine này; bỏ qua cũ.
@@ -484,7 +617,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             names_path = str(glossary_dir / "names.txt")
         if not vietphrase_path:
             vietphrase_path = str(glossary_dir / "vietphrase.txt")
-    warnings: list[str] = []
+    warnings: list[str] = list(source_warnings)
     if preset_name:
         from . import presets as _presets
 
@@ -508,6 +641,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
                 f"(chọn: {', '.join(LOCAL_MT_MODEL_PRESETS)}). Dùng raw config."
             )
 
+    cleanup_han_raw = _as_dict(translate_raw.pop("cleanup_han", None))
     translate = TranslateConfig(
         type=translate_raw.get("type", "hachimimt"),
         model=translate_model,
@@ -535,9 +669,24 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         libretranslate=LibreTranslateConfig(**libretranslate_raw) if libretranslate_raw else LibreTranslateConfig(),
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
+        auto_glossary=bool(translate_raw.get("auto_glossary", False)),
+        glossary_filter=bool(translate_raw.get("glossary_filter", True)),
+        batch_size=int(translate_raw.get("batch_size", 1)),
+        prompt_max_chars=int(translate_raw.get("prompt_max_chars", 7000)),
+        auto_cleanup_han=bool(translate_raw.get("auto_cleanup_han", False)),
+        cleanup_han=CleanupHanConfig(
+            max_chars=int(cleanup_han_raw.get("max_chars", CleanupHanConfig.max_chars)),
+            retries=int(cleanup_han_raw.get("retries", CleanupHanConfig.retries)),
+        ),
     )
 
-    output = OutputConfig(**(raw.get("output") or {}))
+    output_raw = dict(raw.get("output") or {})
+    # `data_dir` PHẢI luôn là thư mục chứa chính file DB đang đọc (base_dir) —
+    # đảm bảo Storage(cfg.output.data_dir, slug) resolve về ĐÚNG file .db này
+    # (xem novel2epub/storage.py:resolve_db_path), không phụ thuộc giá trị cũ
+    # còn sót trong settings.output_json (vốn chỉ còn ý nghĩa hiển thị).
+    output_raw["data_dir"] = str(base_dir)
+    output = OutputConfig(**output_raw)
 
     # --- AI (biên tập) config — fallback về translate.openai nếu không có khối `ai:` ---
     ai_raw = raw.get("ai") or {}
@@ -554,4 +703,11 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             "trích xuất HTML của preset 'go', kiểm tra translate.openai có phù hợp không."
         )
 
-    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, warnings=warnings)
+    queue_raw = _as_dict(raw.get("queue"))
+    defaults_q = QueueConfig()
+    queue = QueueConfig(
+        translate_workers=max(1, int(queue_raw.get("translate_workers", defaults_q.translate_workers))),
+        crawl_workers=max(1, int(queue_raw.get("crawl_workers", defaults_q.crawl_workers))),
+    )
+
+    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, source=source_name, warnings=warnings)

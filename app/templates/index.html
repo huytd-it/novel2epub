@@ -77,6 +77,7 @@
 .dark .pv-cell-value.empty { color: #9aa2ad; }
 .pv-desc-truncate { max-height: 4.5rem; overflow: hidden; position: relative; }
 .pv-desc-truncate::after { content: "..."; position: absolute; bottom: 0; right: 0.5rem; background: inherit; padding-left: 0.3rem; }
+.pv-input { width: 100%; box-sizing: border-box; }
 </style>
 
 <div class="flex flex-col md:flex-row gap-4 md:items-start md:justify-between mb-3">
@@ -85,7 +86,7 @@
         <p class="text-sm text-muted-light dark:text-muted-dark mt-1">Library: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ library_path }}</code> · Config mặc định: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ config_path }}</code></p>
     </div>
     <div class="inline-flex gap-1.5 items-center flex-wrap">
-        <button type="button" id="add-ebook-btn" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">+ Thêm ebook</button>
+        <button type="button" id="add-ebook-btn" data-ebook-count="{{ ebooks|length }}" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">+ Thêm ebook</button>
         <button type="button" id="import-config-btn" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhập config</button>
     </div>
 </div>
@@ -142,37 +143,45 @@
     {% for ebook in ebooks %}
     <div class="ebook-card{% if ebook.archived %} archived{% endif %}">
         <label class="ebook-card-select"><input type="checkbox" name="slugs" value="{{ ebook.slug }}" class="rounded border-border-light dark:border-border-dark"></label>
-        <div class="ebook-card-body">
-            <div class="ebook-card-head">
-                <a href="/ebooks/{{ ebook.slug }}" class="text-fg-light dark:text-fg-dark hover:underline">{{ ebook.cfg.novel.title or ebook.name }}</a>
-                {% if ebook.archived %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark">lưu trữ</span>{% endif %}
+        <div class="flex gap-3">
+            <div class="flex-shrink-0 w-16 pt-0.5">
+                <img src="/ebooks/{{ ebook.slug }}/cover" alt="bìa"
+                    class="w-full rounded object-contain"
+                    onerror="this.style.display='none'">
             </div>
-            <div class="ebook-card-meta">{{ ebook.cfg.novel.author }} · <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ ebook.slug }}</code></div>
-            <div class="ebook-card-stats">
-                <span>{{ ebook.manifest.chapters|length if ebook.manifest else 0 }} chương</span>
-                <span>{{ ebook.raw_count }} raw</span>
-                <span>{{ ebook.translated_count }} dịch</span>
-                <span>EPUB {% if ebook.epub_exists %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">có</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">chưa</span>{% endif %}</span>
-            </div>
-            <div class="ebook-card-actions">
-                <div class="action-group">
-                    <a class="px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white no-underline hover:bg-link-hover-light dark:hover:bg-link-hover-dark" href="/ebooks/{{ ebook.slug }}">Mở</a>
-                    <a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/settings">Cài đặt</a>
-                    <a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/config/export">Export</a>
-                    {% if ebook.epub_exists %}<a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/download">EPUB</a>{% endif %}
+            <div class="ebook-card-body min-w-0 flex-1">
+                <div class="ebook-card-head">
+                    <a href="/ebooks/{{ ebook.slug }}" class="text-fg-light dark:text-fg-dark hover:underline">{{ ebook.cfg.novel.title or ebook.name }}</a>
+                    {% if ebook.archived %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark">lưu trữ</span>{% endif %}
                 </div>
-                {% if ebook.in_library %}
-                <div class="action-group">
-                    {% if ebook.archived %}
-                    <form method="post" action="/library/ebooks/{{ ebook.slug }}/unarchive"><button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Bỏ lưu trữ</button></form>
-                    {% else %}
-                    <form method="post" action="/library/ebooks/{{ ebook.slug }}/archive"><button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Lưu trữ</button></form>
+                <div class="ebook-card-meta">{{ ebook.cfg.novel.author }} · <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ ebook.slug }}</code></div>
+                <div class="ebook-card-stats">
+                    <span>{{ ebook.manifest.chapters|length if ebook.manifest else 0 }} chương</span>
+                    <span>{{ ebook.raw_count }} raw</span>
+                    <span>{{ ebook.translated_count }} dịch</span>
+                    <span>EPUB {% if ebook.epub_exists %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">có</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">chưa</span>{% endif %}</span>
+                </div>
+                <div class="ebook-card-actions">
+                    <div class="action-group">
+                        <a class="px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white no-underline hover:bg-link-hover-light dark:hover:bg-link-hover-dark" href="/ebooks/{{ ebook.slug }}">Mở</a>
+                        {% if ebook.translated_count %}<a class="px-2.5 py-1 text-sm rounded-md bg-link-light dark:bg-link-dark text-white no-underline hover:bg-link-hover-light dark:hover:bg-link-hover-dark" href="/ebooks/{{ ebook.slug }}/read">&#128214; Đọc</a>{% endif %}
+                        <a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/settings">Cài đặt</a>
+                        <a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/config/export">Export</a>
+                        {% if ebook.epub_exists %}<a class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark no-underline hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ ebook.slug }}/download">EPUB</a>{% endif %}
+                    </div>
+                    {% if ebook.in_library %}
+                    <div class="action-group">
+                        {% if ebook.archived %}
+                        <form method="post" action="/library/ebooks/{{ ebook.slug }}/unarchive"><button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Bỏ lưu trữ</button></form>
+                        {% else %}
+                        <form method="post" action="/library/ebooks/{{ ebook.slug }}/archive"><button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Lưu trữ</button></form>
+                        {% endif %}
+                        <form method="post" action="/library/ebooks/{{ ebook.slug }}/delete" onsubmit="return confirm('Gỡ ebook {{ ebook.slug }} khỏi thư viện?');">
+                            <button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950">Gỡ</button>
+                        </form>
+                    </div>
                     {% endif %}
-                    <form method="post" action="/library/ebooks/{{ ebook.slug }}/delete" onsubmit="return confirm('Gỡ ebook {{ ebook.slug }} khỏi thư viện?');">
-                        <button type="submit" class="px-2.5 py-1 text-sm rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950">Gỡ</button>
-                    </form>
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -208,6 +217,35 @@
             <button type="button" onclick="closeModal('add-ebook-modal')" class="px-2 py-1 rounded-md border border-border-light dark:border-border-dark bg-surface-alt-light dark:bg-surface-alt-dark hover:bg-surface-light dark:hover:bg-surface-dark text-lg leading-none">✕</button>
         </div>
 
+        <div class="flex gap-2 mb-4">
+            <button type="button" id="add-mode-single-btn" class="add-mode-tab px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white">Nhập 1 link</button>
+            <button type="button" id="add-mode-bulk-btn" class="add-mode-tab px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhập hàng loạt</button>
+        </div>
+
+        <div id="add-ebook-bulk-mode" style="display:none">
+            <fieldset>
+                <legend>Nhập hàng loạt (tối đa 5 URL, mỗi dòng 1 URL)</legend>
+                <textarea id="bulk-toc-urls" rows="5" placeholder="Mỗi dòng 1 URL mục lục, tối đa 5 URL" class="w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></textarea>
+                <div class="flex flex-wrap gap-4 items-center mt-3">
+                    <label class="inline-flex items-center gap-2 text-sm">
+                        <input type="checkbox" id="bulk-enable-continuous" checked> Bật automation liên tục (cào → dịch → xoá Hán → build)
+                    </label>
+                    <label class="inline-flex items-center gap-2 text-sm">Lặp lại mỗi
+                        <input type="number" id="bulk-cooldown" value="30" min="5" class="w-20 rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm"> phút
+                    </label>
+                </div>
+                <div class="flex gap-3 items-center mt-3">
+                    <button type="button" id="bulk-submit-btn" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">📚 Tạo hàng loạt</button>
+                    <span id="bulk-status" class="text-sm text-muted-light dark:text-muted-dark"></span>
+                </div>
+                <div id="bulk-results" class="mt-3 flex flex-col gap-1.5"></div>
+                <div id="bulk-done-actions" class="mt-3" style="display:none">
+                    <button type="button" onclick="window.location.reload()" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Xong, tải lại trang</button>
+                </div>
+            </fieldset>
+        </div>
+
+        <div id="add-ebook-single-mode">
         <div class="step-indicator" id="step-indicator">
             <div class="step active" data-step="1">
                 <span class="step-num">1</span>
@@ -223,6 +261,7 @@
         <form method="post" action="/library/ebooks" id="create-form">
             <input type="hidden" name="name" id="name">
             <input type="hidden" name="author" id="author">
+            <input type="hidden" name="description" id="description">
             <input type="hidden" name="toc_url" id="toc_url">
 
             <div class="step-panel" data-step="1">
@@ -270,15 +309,22 @@
                             <tbody>
                                 <tr id="pv-row-title">
                                     <td class="pv-cell-label">Tên</td>
-                                    <td class="pv-cell-value" id="pv-title"></td>
+                                    <td class="pv-cell-value"><input type="text" id="pv-title-input" class="pv-input w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></td>
                                 </tr>
                                 <tr id="pv-row-author">
                                     <td class="pv-cell-label">Tác giả</td>
-                                    <td class="pv-cell-value" id="pv-author"></td>
+                                    <td class="pv-cell-value"><input type="text" id="pv-author-input" class="pv-input w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></td>
                                 </tr>
                                 <tr id="pv-row-desc">
                                     <td class="pv-cell-label">Mô tả</td>
-                                    <td class="pv-cell-value" id="pv-desc"></td>
+                                    <td class="pv-cell-value"><textarea id="pv-desc-input" rows="3" class="pv-input w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40"></textarea></td>
+                                </tr>
+                                <tr id="pv-row-source" style="display:none">
+                                    <td class="pv-cell-label">Nguồn</td>
+                                    <td class="pv-cell-value">
+                                        <span id="pv-source-name" class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium"></span>
+                                        <span id="pv-source-detail" class="text-xs text-muted-light dark:text-muted-dark ml-1"></span>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -294,6 +340,7 @@
                 </div>
             </div>
         </form>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -398,6 +445,7 @@ function escapeHtml(text) {
 document.addEventListener("DOMContentLoaded", function () {
     var nameEl = document.getElementById("name");
     var authorEl = document.getElementById("author");
+    var descriptionEl = document.getElementById("description");
     var slugEl = document.getElementById("slug");
     var tocUrlEl = document.getElementById("toc_url");
     var tocUrlDisplay = document.getElementById("toc_url_display");
@@ -407,6 +455,9 @@ document.addEventListener("DOMContentLoaded", function () {
     var previewBox = document.getElementById("preview-box");
     var previewPlaceholder = document.getElementById("preview-placeholder");
     var form = document.getElementById("create-form");
+    var pvTitleInput = document.getElementById("pv-title-input");
+    var pvAuthorInput = document.getElementById("pv-author-input");
+    var pvDescInput = document.getElementById("pv-desc-input");
 
     function goToStep(step) {
         document.querySelectorAll('.step-panel').forEach(function (el) {
@@ -438,10 +489,17 @@ document.addEventListener("DOMContentLoaded", function () {
         form.reset();
         nameEl.value = '';
         authorEl.value = '';
+        descriptionEl.value = '';
         slugEl.value = '';
+        pvTitleInput.value = '';
+        pvAuthorInput.value = '';
+        pvDescInput.value = '';
         fetchStatus.textContent = '';
         previewPlaceholder.style.display = '';
         previewBox.style.display = 'none';
+        var nextNum = parseInt(this.dataset.ebookCount || 0) + 1;
+        slugEl.dataset.userEdited = "";
+        slugEl.value = "truyen-" + nextNum;
         goToStep(1);
         openModal('add-ebook-modal');
     });
@@ -450,7 +508,23 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     slugEl.addEventListener("input", function () {
-        slugEl.dataset.userEdited = slugEl.value !== slugify(nameEl.value);
+        var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
+        var autoSlug = (slugify(pvTitleInput.value) || "truyen") + "-" + n;
+        slugEl.dataset.userEdited = slugEl.value !== autoSlug;
+    });
+
+    pvTitleInput.addEventListener("input", function () {
+        nameEl.value = pvTitleInput.value;
+        if (!slugEl.dataset.userEdited) {
+            var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
+            slugEl.value = (slugify(pvTitleInput.value) || "truyen") + "-" + n;
+        }
+    });
+    pvAuthorInput.addEventListener("input", function () {
+        authorEl.value = pvAuthorInput.value;
+    });
+    pvDescInput.addEventListener("input", function () {
+        descriptionEl.value = pvDescInput.value;
     });
 
     function resetPreview() {
@@ -458,13 +532,6 @@ document.addEventListener("DOMContentLoaded", function () {
         previewPlaceholder.style.display = '';
     }
     if (tocUrlDisplay) tocUrlDisplay.addEventListener("input", resetPreview);
-
-    function fillCell(id, val) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        el.textContent = val || "";
-        el.classList.toggle('empty', !val);
-    }
 
     if (previewBtn) {
         previewBtn.addEventListener("click", async function () {
@@ -496,14 +563,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
 
                 nameEl.value = data.name || "";
+                pvTitleInput.value = nameEl.value;
                 authorEl.value = data.author || "";
-                if (!slugEl.dataset.userEdited) slugEl.value = data.slug || "";
-
-                fillCell('pv-title', data.name || "");
-                fillCell('pv-author', data.author || "");
-                fillCell('pv-desc', data.description || "");
-                var descEl = document.getElementById('pv-desc');
-                if (descEl) descEl.classList.toggle('pv-desc-truncate', (data.description || '').length > 120);
+                pvAuthorInput.value = authorEl.value;
+                descriptionEl.value = data.description || "";
+                pvDescInput.value = descriptionEl.value;
+                if (!slugEl.dataset.userEdited) {
+                    var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
+                    slugEl.value = (data.slug || "truyen") + "-" + n;
+                }
 
                 document.getElementById("pv-chapters").textContent = "📄 " + (data.chapter_count || 0) + " chương";
                 var coverEl = document.getElementById("pv-cover");
@@ -513,6 +581,21 @@ document.addEventListener("DOMContentLoaded", function () {
                 } else {
                     coverEl.style.display = "none";
                 }
+                // Source preset info
+                var sourceRow = document.getElementById("pv-row-source");
+                var sourceNameEl = document.getElementById("pv-source-name");
+                var sourceDetailEl = document.getElementById("pv-source-detail");
+                if (data.source) {
+                    sourceNameEl.textContent = data.source;
+                    var details = [];
+                    if (data.source_content_selector) details.push("selector: " + data.source_content_selector);
+                    if (data.source_delay) details.push("delay: " + data.source_delay + "s");
+                    sourceDetailEl.textContent = details.length ? "— " + details.join(", ") : "";
+                    sourceRow.style.display = "";
+                } else {
+                    sourceRow.style.display = "none";
+                }
+
                 previewBox.style.display = "";
                 previewPlaceholder.style.display = 'none';
                 fetchStatus.textContent = "✅ Đã lấy thông tin";
@@ -532,6 +615,96 @@ document.addEventListener("DOMContentLoaded", function () {
             fetchStatus.textContent = "⚠️ Hãy bấm Xem trước trước khi tạo.";
         }
     });
+
+    // ── Tab: nhập 1 link / nhập hàng loạt ──────────────────────────
+    var singleModeEl = document.getElementById("add-ebook-single-mode");
+    var bulkModeEl = document.getElementById("add-ebook-bulk-mode");
+    var singleModeBtn = document.getElementById("add-mode-single-btn");
+    var bulkModeBtn = document.getElementById("add-mode-bulk-btn");
+    var activeTabClasses = ["bg-link-light", "dark:bg-link-dark", "text-white"];
+    var inactiveTabClasses = ["border", "border-border-light", "dark:border-border-dark", "bg-surface-light", "dark:bg-surface-dark", "hover:bg-surface-alt-light", "dark:hover:bg-surface-alt-dark"];
+
+    function setAddMode(mode) {
+        var isBulk = mode === "bulk";
+        singleModeEl.style.display = isBulk ? "none" : "";
+        bulkModeEl.style.display = isBulk ? "" : "none";
+        singleModeBtn.classList.remove.apply(singleModeBtn.classList, activeTabClasses.concat(inactiveTabClasses));
+        bulkModeBtn.classList.remove.apply(bulkModeBtn.classList, activeTabClasses.concat(inactiveTabClasses));
+        singleModeBtn.classList.add.apply(singleModeBtn.classList, isBulk ? inactiveTabClasses : activeTabClasses);
+        bulkModeBtn.classList.add.apply(bulkModeBtn.classList, isBulk ? activeTabClasses : inactiveTabClasses);
+    }
+    singleModeBtn.addEventListener("click", function () { setAddMode("single"); });
+    bulkModeBtn.addEventListener("click", function () { setAddMode("bulk"); });
+
+    // ── Nhập hàng loạt (tối đa 5 URL) ───────────────────────────────
+    var bulkTextarea = document.getElementById("bulk-toc-urls");
+    var bulkSubmitBtn = document.getElementById("bulk-submit-btn");
+    var bulkStatus = document.getElementById("bulk-status");
+    var bulkResults = document.getElementById("bulk-results");
+    var bulkDoneActions = document.getElementById("bulk-done-actions");
+    var bulkEnableContinuous = document.getElementById("bulk-enable-continuous");
+    var bulkCooldown = document.getElementById("bulk-cooldown");
+
+    var BULK_STATUS_STYLE = {
+        "created": "bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300",
+        "skipped-duplicate": "bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300",
+        "failed": "bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300",
+    };
+    var BULK_STATUS_LABEL = {
+        "created": "✅ Đã tạo",
+        "skipped-duplicate": "⚠️ Trùng, bỏ qua",
+        "failed": "❌ Lỗi",
+    };
+
+    if (bulkSubmitBtn) {
+        bulkSubmitBtn.addEventListener("click", async function () {
+            var urls = bulkTextarea.value.split("\n").map(function (u) { return u.trim(); }).filter(Boolean);
+            if (urls.length === 0) {
+                bulkStatus.textContent = "⚠️ Nhập ít nhất 1 URL.";
+                return;
+            }
+            if (urls.length > 5) {
+                bulkStatus.textContent = "⚠️ Tối đa 5 URL mỗi lần nhập.";
+                return;
+            }
+            bulkSubmitBtn.disabled = true;
+            bulkStatus.textContent = "⏳ Đang xử lý " + urls.length + " URL...";
+            bulkResults.innerHTML = "";
+            bulkDoneActions.style.display = "none";
+
+            try {
+                var formData = new FormData();
+                formData.append("toc_urls", urls.join("\n"));
+                formData.append("enable_continuous", bulkEnableContinuous.checked ? "true" : "false");
+                formData.append("cooldown_minutes", bulkCooldown.value || "30");
+                var res = await fetch("/library/ebooks/bulk", { method: "POST", body: formData });
+                var data = await res.json();
+                if (!res.ok) {
+                    bulkStatus.textContent = "⚠️ " + (data.detail || "Lỗi không xác định.");
+                    return;
+                }
+                bulkStatus.textContent = "Hoàn tất.";
+                (data.results || []).forEach(function (r) {
+                    var row = document.createElement("div");
+                    row.className = "flex items-center gap-2 text-sm px-2 py-1.5 rounded-md border border-border-light dark:border-border-dark";
+                    var badge = document.createElement("span");
+                    badge.className = "inline-flex items-center px-2 py-0.5 text-xs rounded-full " + (BULK_STATUS_STYLE[r.status] || "");
+                    badge.textContent = BULK_STATUS_LABEL[r.status] || r.status;
+                    var label = document.createElement("span");
+                    label.className = "flex-1 truncate";
+                    label.textContent = (r.name ? r.name + " — " : "") + r.url + (r.reason ? " (" + r.reason + ")" : "");
+                    row.appendChild(badge);
+                    row.appendChild(label);
+                    bulkResults.appendChild(row);
+                });
+                bulkDoneActions.style.display = "";
+            } catch (e) {
+                bulkStatus.textContent = "⚠️ Lỗi: " + e.message;
+            } finally {
+                bulkSubmitBtn.disabled = false;
+            }
+        });
+    }
 
     var searchBtn = document.getElementById("search-btn");
     var searchQuery = document.getElementById("search_query");
@@ -752,13 +925,14 @@ document.addEventListener("DOMContentLoaded", function () {
         tocUrlEl.value = result.url;
         tocUrlDisplay.value = result.url;
         nameEl.value = result.title || "";
+        pvTitleInput.value = nameEl.value;
         authorEl.value = result.author || "";
+        pvAuthorInput.value = authorEl.value;
+        descriptionEl.value = result.description || "";
+        pvDescInput.value = descriptionEl.value;
         slugEl.dataset.userEdited = "";
-        slugEl.value = slugify(result.title || "");
-
-        fillCell('pv-title', result.title || "");
-        fillCell('pv-author', result.author || "");
-        fillCell('pv-desc', result.description || "");
+        var n = parseInt(document.getElementById("add-ebook-btn").dataset.ebookCount || 0) + 1;
+        slugEl.value = (slugify(result.title || "") || "truyen") + "-" + n;
         document.getElementById('pv-chapters').textContent = "📄 " + (result.chapter_count || 0) + " chương";
         var coverEl = document.getElementById("pv-cover");
         if (result.cover_url) {

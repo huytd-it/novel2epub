@@ -13,21 +13,27 @@ from novel2epub.config import load_config, load_library
 from novel2epub.sources import load_presets
 
 BASE_DIR = Path(__file__).resolve().parent
-# File cấu hình gộp duy nhất (defaults + sources + ebooks). NOVEL2EPUB_CONFIG
-# giữ làm fallback để tương thích lệnh/script cũ.
-WORKSPACE_PATH = os.environ.get(
-    "NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.yaml")
-)
+# DB SQLite thống nhất DUY NHẤT — chứa config (defaults/sources/ebooks), toàn
+# bộ dữ liệu ebook (Storage(cfg.output.data_dir, slug) resolve về ĐÚNG file
+# này vì config.py ép `output.data_dir` = thư mục chứa DB, xem
+# `novel2epub/config.py:load_config`), queue history/pending, automations,
+# archived flags. NOVEL2EPUB_FILE/NOVEL2EPUB_CONFIG giữ làm fallback env cũ.
+DB_PATH = Path(
+    os.environ.get(
+        "NOVEL2EPUB_DB",
+        os.environ.get("NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.db")),
+    )
+).resolve()
+# Tên biến giữ nguyên để route/hàm cũ (load_config(deps.WORKSPACE_PATH, slug),
+# load_automations(deps.AUTOMATIONS_PATH), archived_slugs(deps.LIBRARY_STATE_PATH))
+# không phải đổi — tất cả đều trỏ vào CÙNG 1 file DB.
+WORKSPACE_PATH = str(DB_PATH)
 CONFIG_PATH = WORKSPACE_PATH
 LIBRARY_PATH = WORKSPACE_PATH
-# File sources tách riêng, nằm cùng thư mục với config.
-_cfg_dir = str(Path(WORKSPACE_PATH).resolve().parent)
-SOURCES_PATH = os.path.join(_cfg_dir, "sources.yaml")
-# Sidecar workspace state (lịch sử queue, automation, archived flags...) —
-# nằm cạnh file config gộp, không commit (xem design.md D3).
-WORKSPACE_DIR = Path(WORKSPACE_PATH).resolve().parent / ".n2e"
-AUTOMATIONS_PATH = WORKSPACE_DIR / "automations.yaml"
-LIBRARY_STATE_PATH = WORKSPACE_DIR / "library_state.json"
+SOURCES_PATH = WORKSPACE_PATH
+WORKSPACE_DIR = DB_PATH.parent / ".n2e"
+AUTOMATIONS_PATH = DB_PATH
+LIBRARY_STATE_PATH = DB_PATH
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
@@ -45,6 +51,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "series": "",
         "series_index": "",
         "identifier": "",
+        "cover_url": "",
     },
     "crawl": {
         "toc_url": "",
@@ -64,7 +71,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "ai_fallback_max_html": 32000,
     },
     "ai": {
-        "openai": {"base_url": "https://api.openai.com/v1", "api_key": "", "model": "gpt-4o-mini", "timeout_seconds": 300, "temperature": 0.7},
+        "openai": {"base_url": "https://opencode.ai/zen/go/v1", "api_key": "", "model": "opencode-go/kimi-k2.6", "timeout_seconds": 300, "temperature": 0.7},
     },
     "translate": {
         "type": "hachimimt",
@@ -76,14 +83,24 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "style": {"tone": "mượt, tự nhiên, có chất cổ trang", "pronoun_policy": "contextual", "title_mode": "creative", "han_viet_level": "balanced", "keep_paragraphs": True},
         "retry": {"attempts": 1, "delay_seconds": 0.0},
         "chunk": {"max_chars": 0, "overlap_paragraphs": 0},
-        "openai": {"base_url": "https://api.openai.com/v1", "api_key": "", "model": "gpt-4o-mini", "timeout_seconds": 300, "temperature": 0.7},
+        "openai": {"base_url": "https://opencode.ai/zen/go/v1", "api_key": "", "model": "opencode-go/kimi-k2.6", "timeout_seconds": 300, "temperature": 0.7},
         "hachimimt": {"model_key": "HachimiMT-60", "backend": "ctranslate2", "beam_size": 2, "chunk_mode": "sentence"},
         "delay_seconds": 0.5,
         "max_workers": 1,
+        "auto_glossary": False,
+        "glossary_filter": True,
+        "batch_size": 1,
+        "prompt_max_chars": 7000,
+        "auto_cleanup_han": False,
+        "cleanup_han": {"max_chars": 8000, "retries": 1},
     },
     "output": {
         "data_dir": "data",
         "epub_path": "",
+    },
+    "queue": {
+        "translate_workers": 5,
+        "crawl_workers": 2,
     },
 }
 
@@ -102,8 +119,28 @@ def is_default(current: object, section: str, field: str) -> bool:
     return current == default
 
 
+def short_host(url: str) -> str:
+    """Rút gọn base_url để hiển thị compact: bỏ scheme, bỏ hậu tố '/v1' thừa.
+
+    VD: 'https://opencode.ai/zen/go/v1' -> 'opencode.ai/zen/go'
+        'http://localhost:11434/v1/'    -> 'localhost:11434'
+        ''                              -> ''
+    """
+    if not url:
+        return ""
+    s = url.strip()
+    for prefix in ("https://", "http://"):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+            break
+    if s.endswith("/v1"):
+        s = s[:-3]
+    return s.rstrip("/")
+
+
 templates.env.filters["default_value"] = defaults_for
 templates.env.filters["is_default"] = is_default
+templates.env.filters["short_host"] = short_host
 templates.env.globals["default_value"] = defaults_for
 templates.env.globals["is_default"] = is_default
 

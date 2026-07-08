@@ -8,6 +8,9 @@
 # Preset nguồn tách riêng: sources.yaml
 #
 # Config hiệu lực của 1 ebook = deep_merge(defaults, ebooks[<slug>]).
+# NGOẠI LỆ: `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình GLOBAL —
+# chỉ đọc từ defaults, khai trong ebooks[<slug>] sẽ bị BỎ QUA. Đổi 1 lần,
+# áp dụng cho mọi ebook (web UI Settings tab Dịch / AI biên tập ghi vào đây).
 # Chọn ebook khi chạy: `python -m novel2epub -e <slug> <command>`.
 # Đổi file qua ENV: NOVEL2EPUB_FILE=/đường/dẫn/khác.yaml
 # ============================================================
@@ -16,17 +19,21 @@ defaults:
   # AI backend cho biên tập (glossary suggest/rewrite/evaluate).
   # Tách riêng khỏi translate.openai để dùng provider/model khác với backend dịch.
   # Nếu không khai báo, mặc định dùng translate.openai (tương thích ngược).
+  # OpenCode Go (https://opencode.ai/docs/go/) — endpoint & model gợi ý:
+  #   base_url: "https://opencode.ai/zen/go/v1"
+  #   model:    "opencode-go/minimax-m3"   # format opencode-go/<model-id>
+  #                                       # các model khác: kimi-k2.7-code, deepseek-v4-flash,
+  #                                       # qwen3.7-plus, glm-5.1, mimo-v2.5-pro...
   ai:
     openai:
-      base_url: "https://api.openai.com/v1"
+      base_url: "https://opencode.ai/zen/go/v1"
       api_key: ""
-      model: "gpt-4o-mini"
-      timeout_seconds: 300
+      model: "opencode-go/kimi-k2.6"
+      timeout_seconds: 600
       temperature: 0.7
 
   crawl:
     # Scrapling là engine duy nhất. 3 mode: fetcher (mặc định), stealthy, dynamic.
-    engine: scrapling
     scrapling:
       mode: fetcher
       solve_cloudflare: false   # chỉ dùng cho mode stealthy
@@ -56,11 +63,19 @@ defaults:
     retry: { attempts: 1, delay_seconds: 0.0 }
     chunk: { max_chars: 1500, overlap_paragraphs: 0 }
     delay_seconds: 0.5
+    # Giới hạn TỔNG ký tự một prompt gửi AI (prompt mẫu + glossary + nội dung).
+    # Dịch chương: tự chia đoạn nhỏ hơn; batch dịch: cắt batch sớm hơn.
+    # 0 = không giới hạn.
+    prompt_max_chars: 7000
+    # Preset: "go" (mặc định OpenCode Go) | "omniroute" (OmniRoute gateway —
+    # 237 providers qua 1 endpoint, tự capture cost/tokens/latency từ
+    # X-OmniRoute-* headers nếu response từ OmniRoute).
+    preset: ""
     openai:
-      base_url: "https://api.openai.com/v1"
+      base_url: "https://opencode.ai/zen/go/v1"
       api_key: ""
-      model: "gpt-4o-mini"
-      timeout_seconds: 300
+      model: "opencode-go/kimi-k2.6"
+      timeout_seconds: 600
       temperature: 0.7
     hachimimt:
       model_key: "HachimiMT-60"
@@ -75,8 +90,35 @@ defaults:
     #   source_language: "zh"
     #   target_language: "vi"
 
+    # ---- OmniRoute gateway ----
+    # Khi preset=omniroute, trỏ base_url vào OmniRoute (mặc định chạy local
+    # ở cổng 20128) — 237 providers (90+ free) qua 1 endpoint duy nhất.
+    # Tự động capture cost/tokens/latency từ X-OmniRoute-* headers (chỉ áp
+    # dụng khi response thực sự từ OmniRoute; provider thường → meta rỗng).
+    #
+    # Cài OmniRoute:
+    #   docker run -d -p 20128:20128 diegosouzapw/omniroute
+    #   # hoặc: npm i -g omniroute && omniroute
+    #
+    # Ví dụ config ebook:
+    #   vi-du-truyen:
+    #     translate:
+    #       type: openai
+    #       preset: omniroute
+    #       openai:
+    #         base_url: "http://localhost:20128/v1"
+    #         api_key: "sk-..."  # API key từ OmniRoute dashboard
+    #         model: "auto"  # hoặc model id cụ thể như "cc/claude-opus-4-6"
+    #         timeout_seconds: 600
+    #
+    # Xem chi tiết: https://github.com/diegosouzapw/OmniRoute
+
   output:
     data_dir: data
+
+  queue:
+    translate_workers: 5  # số job translate/batch-translate chạy song song
+    crawl_workers: 2      # số job crawl chạy song song
 
 
 ebooks:

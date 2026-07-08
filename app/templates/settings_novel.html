@@ -73,6 +73,38 @@
 </details>
 
 <details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Ảnh bìa</summary>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <div class="flex flex-col gap-2">
+            <label class="flex flex-col gap-1 text-sm min-w-0"> URL ảnh bìa
+                <input type="url" name="cover_url" value="{{ cfg.novel.cover_url }}" placeholder="https://..."
+                    class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.novel.cover_url, 'novel', 'cover_url') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+                {% if is_default(cfg.novel.cover_url, 'novel', 'cover_url') %}
+                <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: ""</span>
+                {% endif %}
+            </label>
+            <span class="text-xs text-muted-light dark:text-muted-dark">Để trống nếu dùng ảnh bìa từ nguồn crawl. Pipeline sẽ tự động tải xuống.</span>
+        </div>
+        <div class="flex flex-col gap-2">
+            <label class="flex flex-col gap-1 text-sm min-w-0"> Hoặc tải lên
+                <div class="flex items-center gap-2">
+                    <input type="file" id="cover-file-input" accept="image/png,image/jpeg,image/webp,image/gif"
+                        class="block text-sm text-muted-light dark:text-muted-dark file:mr-2 file:py-1 file:px-3 file:rounded-md file:border file:border-border-light dark:file:border-border-dark file:bg-surface-light dark:file:bg-surface-dark file:text-sm file:text-fg-light dark:file:text-fg-dark hover:file:bg-surface-alt-light dark:hover:file:bg-surface-alt-dark">
+                    <button type="button" onclick="uploadCover('{{ slug }}')"
+                        class="px-3 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700">Tải lên</button>
+                </div>
+            </label>
+            <span class="text-xs text-muted-light dark:text-muted-dark">Hỗ trợ PNG, JPG, WEBP, GIF.</span>
+        </div>
+    </div>
+    <div class="px-3 pb-3 flex justify-center">
+        <img src="/ebooks/{{ slug }}/cover" alt="Ảnh bìa"
+            class="max-h-48 rounded shadow-md object-contain"
+            onerror="this.style.display='none'">
+    </div>
+</details>
+
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
     <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Bộ sách &amp; Chủ đề</summary>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
         <label class="flex flex-col gap-1 text-sm min-w-0"> Bộ sách
@@ -110,7 +142,8 @@
   subjects: {{ cfg.novel.subjects }}
   series: {{ cfg.novel.series }}
   series_index: {{ cfg.novel.series_index }}
-  identifier: {{ cfg.novel.identifier }}</code></pre>
+  identifier: {{ cfg.novel.identifier }}
+  cover_url: {{ cfg.novel.cover_url }}</code></pre>
 </div>
 
 </form>

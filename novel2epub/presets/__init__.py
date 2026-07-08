@@ -10,7 +10,10 @@ from __future__ import annotations
 import importlib
 from typing import Any
 
-_PRESETS: dict[str, str] = {"go": "novel2epub.presets.go"}
+_PRESETS: dict[str, str] = {
+    "go": "novel2epub.presets.go",
+    "omniroute": "novel2epub.presets.omniroute",
+}
 
 
 def available() -> list[str]:

@@ -1,12 +1,15 @@
 """Chạy job nền (crawl/dịch/build/run) + trạng thái + tải EPUB."""
 from __future__ import annotations
 
+import dataclasses
+import threading
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Form, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
+from novel2epub.pipeline import step_cleanup_han_selected
 from novel2epub.pipeline import step_crawl_selected
 from novel2epub.pipeline import step_translate_selected
 from novel2epub.pipeline import step_translate_toc_selected
@@ -18,7 +21,7 @@ from ..job import _STEPS, _STEP_CATEGORY
 
 router = APIRouter()
 
-TRANSLATE_CHARS_BUDGET = 8000
+TRANSLATE_CHARS_BUDGET = 8_000
 
 
 def _parse_optional_int(value: str) -> int | None:
@@ -31,28 +34,21 @@ def _parse_optional_int(value: str) -> int | None:
         return None
 
 
-def _group_by_char_budget(
-    selected_indexes: list[int],
-    manifest,
-    storage: Storage,
-    budget: int = TRANSLATE_CHARS_BUDGET,
-) -> list[list[int]]:
-    """Nhóm các chapter index thành batches sao cho tổng ký tự <= budget."""
+def _group_by_char_budget(selected_indexes: list[int], manifest, storage: Storage, budget: int = TRANSLATE_CHARS_BUDGET) -> list[list[int]]:
+    """Gom chapter indexes thành groups sao cho tổng ký tự mỗi group ≤ budget."""
     index_to_chapter = {ch.index: ch for ch in manifest.chapters}
     groups: list[list[int]] = []
     current_group: list[int] = []
     current_chars = 0
-
     for idx in selected_indexes:
         ch = index_to_chapter.get(idx)
         if ch is None:
             continue
         raw_path = storage.raw_path(ch)
         try:
-            char_count = len(raw_path.read_text(encoding="utf-8")) if raw_path.exists() else 2000
+            char_count = len(raw_path.read_text(encoding="utf-8")) if raw_path.exists() else 2_000
         except OSError:
-            char_count = 2000
-
+            char_count = 2_000
         if current_group and current_chars + char_count > budget:
             groups.append(current_group)
             current_group = [idx]
@@ -60,10 +56,8 @@ def _group_by_char_budget(
         else:
             current_group.append(idx)
             current_chars += char_count
-
     if current_group:
         groups.append(current_group)
-
     return groups
 
 
@@ -99,6 +93,8 @@ def start_ebook_crawl_range(
     end_idx = _parse_optional_int(end)
     retries = max(0, min(retries, 10))
 
+    cancel_event = threading.Event()
+
     def _target(log):
         step_crawl_selected(
             cfg,
@@ -107,9 +103,10 @@ def start_ebook_crawl_range(
             end=end_idx,
             force=force,
             retries=retries,
+            should_cancel=cancel_event.is_set,
         )
 
-    request.app.state.job.start_custom("crawl", _target, category="crawl")
+    request.app.state.job.start_custom("crawl", _target, category="crawl", cancel_event=cancel_event)
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -124,6 +121,7 @@ def start_ebook_chapter_action(
     filter_raw: str = Form("any"),
     filter_translated: str = Form("any"),
     filter_missing: str = Form("any"),
+    filter_skipped: str = Form("no"),
     range_start: str = Form(""),
     range_end: str = Form(""),
     checked_indexes: Annotated[list[int], Form()] = [],
@@ -152,57 +150,71 @@ def start_ebook_chapter_action(
     if not selected:
         raise HTTPException(status_code=400, detail="Không có chương nào được chọn.")
 
-    ebook_title = cfg.novel.title or slug
     queue = request.app.state.job.queue
-    index_to_chapter = {ch.index: ch for ch in manifest.chapters}
+    ebook_title = cfg.novel.title or slug
 
     if action == "crawl":
+        # 1 chapter = 1 job
+        index_to_chapter = {ch.index: ch for ch in manifest.chapters}
         for idx in selected:
             ch = index_to_chapter.get(idx)
-            ch_label = (ch.title or f"Ch.{idx}") if ch else f"Ch.{idx}"
-            label = f"Crawl · {ebook_title} · {ch_label}"
+            ch_label = ch.title if ch and ch.title else f"Ch.{idx}"
+            cancel_event = threading.Event()
 
-            def _target(log, _cfg=cfg, _idx=idx, _override=override):
-                log(f"[config] action=crawl chapter={_idx} force={_override!r}")
+            def _target(log, _cfg=cfg, _idx=idx, _ev=cancel_event):
+                log(f"[config] action=crawl force={override!r} chapter={_idx}")
                 try:
-                    step_crawl_selected(_cfg, log, force=_override, selected_indexes=[_idx])
+                    step_crawl_selected(_cfg, log, force=override, selected_indexes=[_idx], should_cancel=_ev.is_set)
                 except Exception as e:
-                    log(f"[config] Lỗi khi crawl ch.{_idx}: {e}")
+                    log(f"[config] Lỗi khi crawl: {e}")
                     raise
 
             queue.enqueue(
                 "crawl", "chapter-crawl", _target,
-                label=label, ebook=slug,
-                lock_ebook=False, chapter_indexes=[idx],
+                label=f"Crawl · {ebook_title} · {ch_label}",
+                ebook=slug, lock_ebook=False, chapter_indexes=[idx],
+                cancel_event=cancel_event,
             )
 
     elif action == "translate":
+        # Group chapters theo char budget
         groups = _group_by_char_budget(selected, manifest, storage)
         for group in groups:
-            if len(group) == 1:
-                ch = index_to_chapter.get(group[0])
-                ch_label = (ch.title or f"Ch.{group[0]}") if ch else f"Ch.{group[0]}"
-                label = f"Dịch · {ebook_title} · {ch_label}"
-            else:
-                label = f"Dịch · {ebook_title} · Ch.{group[0]}–{group[-1]}"
+            cancel_event = threading.Event()
+            first, last = group[0], group[-1]
+            lbl = f"Ch.{first}" if first == last else f"Ch.{first}–{last}"
 
-            def _target(log, _cfg=cfg, _group=group, _override=override):
-                log(
-                    f"[config] action=translate type={_cfg.translate.type!r} "
-                    f"preset={_cfg.translate.preset!r} force={_override!r} "
-                    f"chapters={_group}"
-                )
+            def _target(log, _cfg=cfg, _grp=group, _ev=cancel_event):
+                log(f"[config] action=translate type={_cfg.translate.type!r} "
+                    f"preset={_cfg.translate.preset!r} force={override!r} "
+                    f"selected={len(_grp)} chương")
                 try:
-                    step_translate_selected(_cfg, log, force=_override, selected_indexes=_group)
+                    step_translate_selected(_cfg, log, force=override, selected_indexes=_grp, should_cancel=_ev.is_set)
                 except Exception as e:
-                    log(f"[config] Lỗi khi dịch ch.{_group}: {e}")
+                    log(f"[config] Lỗi khi dịch với type={_cfg.translate.type!r}: {e}")
                     raise
 
             queue.enqueue(
                 "translate", "chapter-translate", _target,
-                label=label, ebook=slug,
-                lock_ebook=False, chapter_indexes=group,
+                label=f"Dịch · {ebook_title} · {lbl}",
+                ebook=slug, lock_ebook=False, chapter_indexes=group,
+                cancel_event=cancel_event,
             )
+
+    elif action == "cleanup-han":
+        cancel_event = threading.Event()
+
+        def _target(log):
+            log(f"[config] action=cleanup-han force={override!r} selected={len(selected)} chương")
+            try:
+                step_cleanup_han_selected(cfg, log, force=override, selected_indexes=selected)
+            except Exception as e:
+                log(f"[config] Lỗi khi cleanup Hán: {e}")
+                raise
+
+        request.app.state.job.start_custom(
+            "chapter-cleanup-han", _target, category="translate", ebook=slug
+        )
 
     else:
         raise HTTPException(status_code=400, detail=f"action không hợp lệ: {action!r}")
@@ -216,16 +228,31 @@ def start_ebook_translate_toc_selected(
     slug: str,
     checked_indexes: Annotated[list[int], Form()] = [],
     override: bool = Form(False),
+    backend: str = Form("openai"),
 ):
     """Dịch tiêu đề chương (TOC) cho các chương đã tick, không đụng nội dung."""
     cfg = deps.resolved_cfg(slug)
     if not checked_indexes:
         raise HTTPException(status_code=400, detail="Không có chương nào được chọn.")
+    backend = (backend or "openai").lower()
+    if backend not in ("openai", "hachimimt"):
+        raise HTTPException(status_code=400, detail=f"backend không hợp lệ: {backend!r}")
+
+    if backend == "hachimimt":
+        mod_cfg = dataclasses.replace(
+            cfg,
+            translate=dataclasses.replace(cfg.translate, type="hachimimt"),
+        )
+    else:
+        mod_cfg = cfg
 
     def _target(log):
-        step_translate_toc_selected(cfg, log, force=override, selected_indexes=checked_indexes)
+        step_translate_toc_selected(
+            mod_cfg, log, force=override, selected_indexes=checked_indexes
+        )
 
-    request.app.state.job.start_custom("translate-toc-selected", _target, category="translate")
+    label = "translate-toc-selected" if backend == "openai" else "translate-toc-selected-local-nmt"
+    request.app.state.job.start_custom(label, _target, category="translate")
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -245,7 +272,20 @@ def start_ebook_build_selected(
 
         step_build_selected(cfg, log, selected_indexes=checked_indexes)
 
-    request.app.state.job.start_custom("build-selected", _target, category="both")
+    request.app.state.job.start_custom("build-selected", _target, category="build")
+    return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
+
+
+@router.post("/ebooks/{slug}/jobs/delete-chapters")
+def start_ebook_delete_chapters(request: Request, slug: str):
+    """Xóa toàn bộ danh mục chương khỏi manifest."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    manifest.chapters.clear()
+    storage.save_manifest(manifest)
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -255,9 +295,7 @@ def start_ebook_reorder(
     slug: str,
     order: str = Form(...),
 ):
-    """Sắp xếp lại chapters trong manifest theo thứ tự các index trong `order`
-    (dấu phẩy), rồi đánh index lại 1..N. Dùng sau preview reindex trên UI.
-    """
+    """Sắp xếp lại chapters trong manifest theo thứ tự các index trong `order`."""
     cfg = deps.resolved_cfg(slug)
     try:
         desired = [int(x) for x in order.split(",") if x.strip()]
@@ -276,8 +314,8 @@ def start_ebook_reorder(
 
 @router.post("/ebooks/{slug}/jobs/{category}/cancel")
 def cancel_ebook_job(request: Request, slug: str, category: str):
-    """Yêu cầu dừng job crawl/dịch đang chạy (job tự kiểm tra cờ này giữa các chương)."""
-    if category not in ("crawl", "translate"):
+    """Yêu cầu dừng job crawl/dịch/build đang chạy."""
+    if category not in ("crawl", "translate", "build"):
         raise HTTPException(status_code=400, detail=f"category không hợp lệ: {category!r}")
     cancelled = request.app.state.job.request_cancel(category)
     if not cancelled:
@@ -368,6 +406,27 @@ def api_queue_delete(request: Request, job_id: str):
     return {"ok": True}
 
 
+@router.post("/api/queue/bulk-cancel")
+def api_queue_bulk_cancel(request: Request, job_ids: list[str] = Body(...)):
+    count = request.app.state.job.queue.bulk_cancel(job_ids)
+    return {"ok": True, "count": count}
+
+
+@router.post("/api/queue/bulk-delete")
+def api_queue_bulk_delete(request: Request, job_ids: list[str] = Body(...)):
+    count = request.app.state.job.queue.bulk_delete(job_ids)
+    return {"ok": True, "count": count}
+
+
+@router.post("/api/queue/workers")
+def api_queue_update_workers(request: Request, category: str = Body(...), count: int = Body(...)):
+    try:
+        new_count = request.app.state.job.queue.update_workers(category, count)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "category": category, "count": new_count}
+
+
 @router.post("/api/queue/enqueue")
 def api_queue_enqueue(
     request: Request,
@@ -384,31 +443,6 @@ def api_queue_enqueue(
     if result is None:
         raise HTTPException(status_code=400, detail=f"Không thể enqueue step {step!r}.")
     return result
-
-
-@router.post("/api/queue/bulk-cancel")
-def api_queue_bulk_cancel(request: Request, job_ids: list[str] = Body(...)):
-    count = request.app.state.job.queue.bulk_cancel(job_ids)
-    return {"ok": True, "cancelled": count}
-
-
-@router.post("/api/queue/bulk-delete")
-def api_queue_bulk_delete(request: Request, job_ids: list[str] = Body(...)):
-    count = request.app.state.job.queue.bulk_delete(job_ids)
-    return {"ok": True, "deleted": count}
-
-
-@router.post("/api/queue/workers")
-def api_queue_update_workers(
-    request: Request,
-    category: str = Body(...),
-    count: int = Body(...),
-):
-    try:
-        new_count = request.app.state.job.queue.update_workers(category, count)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return {"ok": True, "category": category, "workers": new_count}
 
 
 @router.get("/api/queue/{job_id}/log")

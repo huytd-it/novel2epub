@@ -17,6 +17,7 @@
 .cat-badge{display:inline-flex;align-items:center;padding:1px 6px;border-radius:4px;font-size:.65rem;font-weight:700;letter-spacing:.04em}
 .cat-crawl{background:#dbeafe;color:#1e40af}.dark .cat-crawl{background:#1e3a5f;color:#60a5fa}
 .cat-translate{background:#ede9fe;color:#5b21b6}.dark .cat-translate{background:#2e1065;color:#a78bfa}
+.cat-build{background:#fef9c3;color:#854d0e}.dark .cat-build{background:#422006;color:#fde68a}
 .cat-both{background:#fce7f3;color:#9d174d}.dark .cat-both{background:#4a044e;color:#f0abfc}
 #queue-table th{position:sticky;top:0;z-index:1;background:inherit}
 </style>
@@ -183,7 +184,7 @@ function stateBadge(state, cancelling) {
 }
 
 function catBadge(cat) {
-  const map = {crawl:"cat-crawl", translate:"cat-translate", both:"cat-both"};
+  const map = {crawl:"cat-crawl", translate:"cat-translate", build:"cat-build", both:"cat-both"};
   return `<span class="cat-badge ${map[cat]||""}">${cat}</span>`;
 }
 
@@ -352,7 +353,7 @@ async function renderQueue() {
   const history = (data.history || []).map(j => ({...j, _section:"history"}));
   allJobs = [...running, ...pending, ...history];
 
-  // Worker controls
+  // Worker controls (sync from server)
   const wkCrawl = data.workers?.crawl ?? 1;
   const wkTranslate = data.workers?.translate ?? 1;
   document.getElementById("wk-crawl").value = wkCrawl;
@@ -418,7 +419,7 @@ async function bulkCancel() {
   const ids = [...checkedIds];
   if (!ids.length) return;
   const res = await fetch("/api/queue/bulk-cancel", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(ids)});
-  if (res.ok) { const d = await res.json(); toast(`Đã hủy ${d.cancelled} job.`); clearSelection(); }
+  if (res.ok) { const d = await res.json(); toast(`Đã hủy ${d.count} job.`); clearSelection(); }
   else toast("Lỗi khi hủy.", "error");
   renderQueue();
 }
@@ -439,7 +440,7 @@ async function bulkDelete() {
   const ids = [...checkedIds];
   if (!ids.length) return;
   const res = await fetch("/api/queue/bulk-delete", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(ids)});
-  if (res.ok) { const d = await res.json(); toast(`Đã xóa ${d.deleted} job.`); clearSelection(); }
+  if (res.ok) { const d = await res.json(); toast(`Đã xóa ${d.count} job.`); clearSelection(); }
   else toast("Lỗi khi xóa.", "error");
   renderQueue();
 }

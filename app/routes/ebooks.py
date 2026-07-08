@@ -10,10 +10,12 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import PlainTextResponse, RedirectResponse
 
 from novel2epub.config_writer import update_ebook
+from novel2epub.progress import chapter_progress
 from novel2epub.storage import Storage
 from novel2epub.toc import apply_chapter_query, chapter_rows
 
 from .. import deps
+from ..cost_summary import read_cost_summary
 from ..library_state import archived_slugs, set_archived
 
 router = APIRouter()
@@ -65,16 +67,15 @@ def index(request: Request, show_archived: bool = False):
             name = entry.name or cfg.novel.title or slug
         storage = Storage(cfg.output.data_dir, cfg.novel.slug)
         manifest = storage.load_manifest()
-        raw_count = sum(1 for ch in (manifest.chapters if manifest else []) if storage.has_raw(ch))
-        translated_count = sum(1 for ch in (manifest.chapters if manifest else []) if storage.has_translated(ch))
+        progress = chapter_progress(storage, manifest)
         ebooks.append(
             {
                 "slug": slug,
                 "name": name,
                 "cfg": cfg,
                 "manifest": manifest,
-                "raw_count": raw_count,
-                "translated_count": translated_count,
+                "raw_count": progress["raw_count"],
+                "translated_count": progress["translated_count"],
                 "epub_exists": Path(cfg.epub_path).exists(),
                 "in_library": entry is not None,
                 "archived": is_archived,
@@ -156,6 +157,10 @@ async def import_ebook_config(slug: str = Form(...), file: UploadFile = File(...
         raise HTTPException(status_code=400, detail="File config phải là 1 YAML mapping.")
     data.setdefault("novel", {})
     data["novel"]["slug"] = slug
+    # `translate`/`ai` là cấu hình global (defaults) — không nhận qua import
+    # per-ebook, tránh ghi lại bản copy mà load_config sẽ bỏ qua.
+    data.pop("translate", None)
+    data.pop("ai", None)
     update_ebook(deps.WORKSPACE_PATH, slug, data)
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
@@ -170,6 +175,7 @@ def ebook_home(
     filter_raw: str = "any",
     filter_translated: str = "any",
     filter_missing: str = "any",
+    filter_skipped: str = "no",
 ):
     from novel2epub.toc import crawl_problem_indexes
 
@@ -180,6 +186,7 @@ def ebook_home(
     crawl_problems = crawl_problem_indexes(manifest.chapters, storage) if manifest else []
     all_chapters = _chapter_rows(cfg)
     chapters_json = [dataclasses.asdict(r) for r in all_chapters]
+    cost_summary = read_cost_summary(storage)
     return deps.templates.TemplateResponse(
         request,
         "ebook.html",
@@ -198,10 +205,12 @@ def ebook_home(
                 "filter_raw": filter_raw,
                 "filter_translated": filter_translated,
                 "filter_missing": filter_missing,
+                "filter_skipped": filter_skipped,
             },
             "epub_exists": epub_path.exists(),
             "epub_path": str(epub_path),
             "epub_size": epub_path.stat().st_size if epub_path.exists() else None,
             "job": request.app.state.job.status(),
+            "cost_summary": cost_summary,
         },
     )

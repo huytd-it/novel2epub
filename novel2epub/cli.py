@@ -10,6 +10,7 @@ from .config import load_config, load_library, CrawlConfig
 from .pipeline import (
     run_all,
     step_build,
+    step_cleanup_han_selected,
     step_crawl,
     step_crawl_selected,
     step_evaluate_translation,
@@ -23,7 +24,8 @@ from .toc import apply_chapter_query, chapter_rows, parse_filter, parse_range, s
 
 
 DEFAULT_CONFIG_PATH = os.environ.get(
-    "NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.yaml")
+    "NOVEL2EPUB_DB",
+    os.environ.get("NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.db")),
 )
 
 
@@ -85,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="novel2epub",
         description="Crawl truyện tiếng Trung -> dịch tiếng Việt -> đóng gói EPUB.",
     )
-    parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH, help="Đường dẫn file cấu hình gộp (novel2epub.yaml)")
+    parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH, help="Đường dẫn file DB gộp (novel2epub.db)")
     parser.add_argument("-e", "--ebook", default="", help="Slug ebook trong khối ebooks: của file gộp")
     sub = parser.add_subparsers(dest="command", required=True)
     crawl_parser = sub.add_parser("crawl", help="Crawl mục lục + nội dung chương")
@@ -118,7 +120,28 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("reindex", help="Đánh lại index theo thứ tự chapters trong manifest")
     sub.add_parser("build", help="Đóng gói EPUB từ các chương đã dịch")
     sub.add_parser("run", help="Chạy toàn bộ: crawl -> translate -> build")
+    cleanup_parser = sub.add_parser("cleanup-han", help="Phát hiện và sửa chữ Hán còn sót trong bản dịch (chỉ openai)")
+    cleanup_parser.add_argument("--force", action="store_true", help="Chạy lại dù chương đã được cleanup trước đó")
+    cleanup_parser.add_argument("--chapter", type=int, default=None, help="Cleanup một chương cụ thể")
+    cleanup_parser.add_argument("--from", dest="start", type=int, default=None, help="Cleanup từ chương số")
+    cleanup_parser.add_argument("--to", dest="end", type=int, default=None, help="Cleanup đến chương số")
+    cleanup_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Sắp xếp danh sách chương trước khi chọn range")
+    cleanup_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort danh sách chương")
+    cleanup_parser.add_argument("--search", default="", help="Tìm trong tiêu đề hiển thị hoặc URL chương")
+    cleanup_parser.add_argument("--filter", dest="filters", action="append", default=[], help="Lọc chương: raw:yes/no, translated:yes/no, missing:yes/no")
+    cleanup_parser.add_argument("--range", dest="visible_range", default="", help="Chọn range theo danh sách đang sort/filter, ví dụ 1:3")
     sub.add_parser("list", help="Liệt kê các ebook trong library")
+    models_parser = sub.add_parser(
+        "models",
+        help="Liệt kê model khả dụng từ translate.openai.base_url (hỗ trợ OmniRoute, OpenAI, v.v.)",
+    )
+    models_parser.add_argument("--free", action="store_true", help="Chỉ hiện model free (chỉ áp dụng khi endpoint trả pricing info)")
+    models_parser.add_argument("--format", dest="output_format", default="text", choices=["text", "json"], help="Định dạng output")
+    backup_parser = sub.add_parser("backup", help="Sao lưu toàn bộ DB ra 1 file .db (nhất quán, an toàn khi đang chạy)")
+    backup_parser.add_argument("--out", default="", help="Đường dẫn file backup (mặc định backups/<db>-<timestamp>.db)")
+    restore_parser = sub.add_parser("restore", help="Phục hồi DB từ 1 file backup .db (ghi đè DB hiện tại)")
+    restore_parser.add_argument("--from", dest="from_path", required=True, help="File backup .db nguồn")
+    restore_parser.add_argument("--yes", action="store_true", help="Không hỏi xác nhận trước khi ghi đè")
 
     translate_parser = sub.choices["translate"]
     translate_parser.add_argument("--force", action="store_true", help="Dịch lại dù đã có bản dịch")
@@ -143,18 +166,52 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{slug}\t{entry.name or slug}")
         return 0
 
+    if args.command == "backup":
+        from .backup import backup_db, timestamped_backup
+
+        db_path = args.config
+        if not os.path.exists(db_path):
+            print(f"Lỗi: không tìm thấy DB {db_path}", file=sys.stderr)
+            return 1
+        try:
+            if args.out:
+                out = backup_db(db_path, args.out)
+            else:
+                out = timestamped_backup(db_path, os.path.join(os.path.dirname(os.path.abspath(db_path)), "backups"))
+        except (OSError, RuntimeError) as e:
+            print(f"Lỗi backup: {e}", file=sys.stderr)
+            return 1
+        print(f"Đã sao lưu -> {out}")
+        return 0
+
+    if args.command == "restore":
+        from .backup import restore_db, validate_backup_file
+
+        ok, message = validate_backup_file(args.from_path)
+        if not ok:
+            print(f"Lỗi: {message}", file=sys.stderr)
+            return 1
+        if not args.yes:
+            print(f"Sắp GHI ĐÈ {args.config} bằng {args.from_path} ({message}).")
+            print("DB hiện tại sẽ được tự sao lưu ra <db>.pre-restore-<timestamp> trước.")
+            resp = input("Tiếp tục? [y/N] ").strip().lower()
+            if resp not in ("y", "yes"):
+                print("Đã hủy.")
+                return 1
+        try:
+            restore_db(args.from_path, args.config)
+        except (OSError, ValueError) as e:
+            print(f"Lỗi restore: {e}", file=sys.stderr)
+            return 1
+        print(f"Đã phục hồi {args.config} từ {args.from_path}.")
+        return 0
+
     if args.command == "search":
         from .search import search_all
         from .sources import load_presets
 
-        config_path = args.config
-        import os
-        config_dir = os.path.dirname(config_path) if os.path.dirname(config_path) else "."
-        sources_path = os.path.join(config_dir, "sources.yaml")
-        if not os.path.exists(sources_path):
-            sources_path = config_path
-
-        presets = load_presets(sources_path)
+        # Sources nay nằm trong chính DB gộp (không còn sources.yaml riêng).
+        presets = load_presets(args.config)
         source_names = [s.strip() for s in args.sources.split(",") if s.strip()] if args.sources else None
 
         response = search_all(
@@ -217,6 +274,44 @@ def main(argv: list[str] | None = None) -> int:
 
         return 0
 
+    if args.command == "models":
+        from . import openai_client
+        from .config import load_config
+
+        try:
+            cfg = load_config(args.config, args.ebook)
+        except (FileNotFoundError, KeyError) as e:
+            print(f"Lỗi: {e}", file=sys.stderr)
+            return 1
+        oa = cfg.translate.openai
+        if not oa.base_url:
+            print("Lỗi: translate.openai.base_url chưa được cấu hình.", file=sys.stderr)
+            return 1
+        try:
+            model_ids = openai_client.list_models(oa.base_url, oa.api_key)
+        except Exception as e:
+            print(f"Lỗi gọi GET {oa.base_url}/models: {e}", file=sys.stderr)
+            return 1
+
+        # Best-effort filter "--free": model id chứa "free/" hoặc nằm trong
+        # list known free providers của OmniRoute. Không chính xác 100% nếu
+        # endpoint không trả pricing — dùng như gợi ý.
+        free_prefixes = ("kr/", "kf/", "qdr/", "pollinations/", "longcat/", "kiro/", "qoder/")
+        if args.free:
+            model_ids = [
+                m for m in model_ids
+                if m.startswith("free/") or any(m.startswith(p) for p in free_prefixes)
+            ]
+
+        if args.output_format == "json":
+            import json
+            print(json.dumps({"models": model_ids, "count": len(model_ids)}, ensure_ascii=False, indent=2))
+        else:
+            print(f"# {len(model_ids)} model từ {oa.base_url}")
+            for m in model_ids:
+                print(m)
+        return 0
+
     try:
         cfg = load_config(args.config, args.ebook)
     except FileNotFoundError as e:
@@ -242,6 +337,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 step_crawl(cfg)
+        elif args.command == "cleanup-han":
+            selected_indexes = _selected_indexes_from_args(cfg, args)
+            step_cleanup_han_selected(
+                cfg,
+                chapter=args.chapter,
+                start=args.start,
+                end=args.end,
+                force=args.force,
+                selected_indexes=selected_indexes,
+            )
         elif args.command == "translate":
             selected_indexes = _selected_indexes_from_args(cfg, args)
             if args.force or args.missing or args.chapter is not None or args.start is not None or args.end is not None or selected_indexes is not None:

@@ -1,4 +1,6 @@
-<form method="post" action="/ebooks/{{ slug }}/settings/ai" class="settings-form">
+<form method="post" action="/ebooks/{{ slug }}/settings/translate" class="settings-form">
+
+<p class="text-sm text-muted-light dark:text-muted-dark px-3 pt-1">⚠ Cấu hình dịch dùng <strong>chung cho tất cả ebooks</strong> — thay đổi ở đây áp dụng cho mọi truyện.</p>
 
 <details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
     <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Backend &amp; Hiệu suất</summary>
@@ -91,8 +93,8 @@
             <input type="password" id="ai-api-key" name="api_key" value="{{ cfg.translate.openai.api_key }}" autocomplete="off" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
         </label>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
-        <label class="flex flex-col gap-1 text-sm min-w-0"> model
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1.5 text-sm min-w-0 md:col-span-4"> model
             <div class="flex gap-1.5 items-stretch">
                 <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" list="model-options" class="flex-1 min-w-0 rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
                 <button type="button" id="ai-load-models" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-autosave">Tải models</button>
@@ -109,11 +111,17 @@
         </label>
     </div>
     <p class="text-sm text-muted-light dark:text-muted-dark px-3 pb-2">Endpoint kiểu OpenAI. Bấm "Tải models" để kiểm tra kết nối.</p>
+    <div class="px-3 pb-3 flex flex-wrap items-center gap-2">
+        <button type="button" id="ai-test-conn" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-autosave">Test connection</button>
+        <span id="ai-test-conn-status" class="text-xs italic text-muted-light dark:text-muted-dark"></span>
+    </div>
     <datalist id="base-url-options">
         <option value="https://api.openai.com/v1">
         <option value="https://openrouter.ai/api/v1">
+        <option value="https://opencode.ai/zen/go/v1">
         <option value="http://localhost:11434/v1">
         <option value="http://localhost:1234/v1">
+        <option value="http://localhost:20128/v1">
     </datalist>
     <datalist id="model-options">
         <option value="gpt-4o-mini">
@@ -228,6 +236,71 @@
     </div>
 </details>
 
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Glossary / Batch / Cleanup Hán</summary>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="inline-flex items-center gap-2 text-sm mt-2">
+            <input type="checkbox" name="glossary_filter" value="true" {% if cfg.translate.glossary_filter %}checked{% endif %}
+                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.translate.glossary_filter, 'translate', 'glossary_filter') %}border-blue-500{% endif %}">
+            glossary_filter
+            {% if is_default(cfg.translate.glossary_filter, 'translate', 'glossary_filter') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: bật</span>
+            {% endif %}
+        </label>
+        <label class="inline-flex items-center gap-2 text-sm mt-2">
+            <input type="checkbox" name="auto_glossary" value="true" {% if cfg.translate.auto_glossary %}checked{% endif %}
+                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.translate.auto_glossary, 'translate', 'auto_glossary') %}border-blue-500{% endif %}">
+            auto_glossary
+            {% if is_default(cfg.translate.auto_glossary, 'translate', 'auto_glossary') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: tắt</span>
+            {% endif %}
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> batch_size
+            <input type="number" name="batch_size" value="{{ cfg.translate.batch_size }}" min="1" max="50"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.batch_size, 'translate', 'batch_size') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            {% if is_default(cfg.translate.batch_size, 'translate', 'batch_size') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 1</span>
+            {% endif %}
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> prompt_max_chars (0 = không giới hạn)
+            <input type="number" name="prompt_max_chars" value="{{ cfg.translate.prompt_max_chars }}" min="0" step="500"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.prompt_max_chars, 'translate', 'prompt_max_chars') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            {% if is_default(cfg.translate.prompt_max_chars, 'translate', 'prompt_max_chars') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 7000</span>
+            {% endif %}
+        </label>
+    </div>
+    <p class="text-sm text-muted-light dark:text-muted-dark px-3 pb-2">
+        <strong>glossary_filter</strong>: chỉ nhét vào prompt các mục glossary xuất hiện trong đoạn đang dịch (tiết kiệm token).
+        <strong>auto_glossary</strong>: sau mỗi chương, AI rút glossary mới và merge vào names/vietphrase (chỉ backend openai).
+        <strong>batch_size</strong>: số chương gửi 1 lần cho AI khi "Dịch selected".
+        <strong>prompt_max_chars</strong>: giới hạn TỔNG ký tự mỗi prompt gửi AI (gồm cả prompt mẫu + glossary + nội dung) — dịch chương sẽ chia đoạn nhỏ hơn, batch dịch sẽ cắt batch sớm hơn khi chạm giới hạn.
+    </p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="inline-flex items-center gap-2 text-sm mt-5">
+            <input type="checkbox" name="auto_cleanup_han" value="true" {% if cfg.translate.auto_cleanup_han %}checked{% endif %}
+                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.translate.auto_cleanup_han, 'translate', 'auto_cleanup_han') %}border-blue-500{% endif %}">
+            auto_cleanup_han
+            {% if is_default(cfg.translate.auto_cleanup_han, 'translate', 'auto_cleanup_han') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: tắt</span>
+            {% endif %}
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> cleanup_han max_chars (0 = không giới hạn)
+            <input type="number" name="cleanup_han_max_chars" value="{{ cfg.translate.cleanup_han.max_chars }}" min="0"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 8000</span>
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> cleanup_han retries
+            <input type="number" name="cleanup_han_retries" value="{{ cfg.translate.cleanup_han.retries }}" min="0" max="5"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 1</span>
+        </label>
+    </div>
+    <p class="text-sm text-muted-light dark:text-muted-dark px-3 pb-2">
+        <strong>auto_cleanup_han</strong>: sau mỗi chương dịch xong, tự phát hiện chữ Hán còn sót và gọi AI biên tập (<code>ai.openai</code>) sửa lại — hoạt động với mọi backend dịch.
+    </p>
+</details>
+
 <div class="flex gap-2 items-center mt-3 pt-3 border-t border-border-light dark:border-border-dark">
     <button type="button" onclick="toggleRawYaml('raw-translate')" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">YAML</button>
 </div>
@@ -252,10 +325,46 @@
     pronoun_policy: {{ cfg.translate.style.pronoun_policy }}
     title_mode: {{ cfg.translate.style.title_mode }}
     han_viet_level: {{ cfg.translate.style.han_viet_level }}
-    keep_paragraphs: {{ cfg.translate.style.keep_paragraphs }}</code></pre>
+    keep_paragraphs: {{ cfg.translate.style.keep_paragraphs }}
+  auto_glossary: {{ cfg.translate.auto_glossary }}
+  glossary_filter: {{ cfg.translate.glossary_filter }}
+  batch_size: {{ cfg.translate.batch_size }}
+  prompt_max_chars: {{ cfg.translate.prompt_max_chars }}
+  auto_cleanup_han: {{ cfg.translate.auto_cleanup_han }}
+  cleanup_han:
+    max_chars: {{ cfg.translate.cleanup_han.max_chars }}
+    retries: {{ cfg.translate.cleanup_han.retries }}</code></pre>
 </div>
 
 </form>
+
+<script>
+// Sync giữa "Model preset" (local_model) và "model_key" (hachimimt_model_key).
+// Bug: nếu chỉ chọn preset mà không sửa model_key, form gửi cả 2 — config.py thấy
+// `model_key` đã có trong raw nên KHÔNG auto-apply preset → lưu sai (vd chọn
+// `moxhimt-60` preset nhưng vẫn lưu `model_key: HachimiMT-60`). Khi user chọn
+// preset ở dropdown, JS tự fill model_key tương ứng. Nếu user muốn override
+// model_key cho preset, cứ gõ tay vào field sau khi chọn preset.
+(function () {
+    const presetMap = {
+        "hachimimt-60": "HachimiMT-60",
+        "hachimimt-30": "HachimiMT-30",
+        "moxhimt-60": "MoxhiMT-60",
+        "moxhimt-30": "MoxhiMT-30",
+        "hirashiba-medium": "HirashibaMT-Medium",
+        "hirashiba-tiny": "HirashibaMT-Tiny",
+    };
+    const presetSelect = document.getElementById("local-model-select");
+    const modelKeyInput = document.querySelector('input[name="hachimimt_model_key"]');
+    if (!presetSelect || !modelKeyInput) return;
+    presetSelect.addEventListener("change", function () {
+        const preset = presetSelect.value;
+        if (preset && presetMap[preset]) {
+            modelKeyInput.value = presetMap[preset];
+        }
+    });
+})();
+</script>
 
 <script>
 document.getElementById("ai-load-models").addEventListener("click", async function () {
@@ -282,6 +391,34 @@ document.getElementById("ai-load-models").addEventListener("click", async functi
         status.textContent = "Đã tải " + (data.models || []).length + " model.";
     } catch (e) {
         status.textContent = "Lỗi: " + e;
+    }
+});
+
+document.getElementById("ai-test-conn")?.addEventListener("click", async function () {
+    const baseUrl = document.getElementById("ai-base-url").value.trim();
+    const apiKey = document.getElementById("ai-api-key").value.trim();
+    const status = document.getElementById("ai-test-conn-status");
+    if (!baseUrl) { status.textContent = "Nhập base_url trước."; return; }
+    status.textContent = "Đang test...";
+    try {
+        const form = new FormData();
+        form.append("base_url", baseUrl);
+        form.append("api_key", apiKey);
+        const resp = await fetch("/ebooks/{{ slug }}/settings/translate/test", {
+            method: "POST",
+            body: form,
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            const versionTag = data.omniroute_version
+                ? ` · OmniRoute ${data.omniroute_version}`
+                : "";
+            status.textContent = `✓ ${data.model_count} model · ${data.latency_ms}ms${versionTag}`;
+        } else {
+            status.textContent = "✗ " + (data.error || "Lỗi không xác định");
+        }
+    } catch (e) {
+        status.textContent = "✗ " + e;
     }
 });
 </script>

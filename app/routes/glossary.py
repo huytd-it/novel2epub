@@ -1,20 +1,26 @@
-"""Trang quản lý glossary: CRUD thủ công + AI gợi ý + AI rewrite chương."""
+"""Trang quản lý glossary: data table (CRUD inline), xuất/nhập cho AI dọn lại,
+và sửa tên riêng rồi áp dụng lại vào các bản dịch cũ (có preview)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Body, Form, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 
-from novel2epub import glossary_ai
-from novel2epub.pipeline import step_find_replace, step_rewrite_chapters
+from novel2epub import bulk_transfer
+from novel2epub.pipeline import _chapter_range, step_find_replace
 from novel2epub.storage import Storage
 
 from .. import deps
 
 router = APIRouter()
 
-_MAX_SUGGEST_CHAPTERS = 5
-_MAX_EVALUATE_CHAPTERS = 5
 _GLOSSARY_FILES = ("names.txt", "vietphrase.txt")
+# Ánh xạ category (client gửi) ↔ tên file glossary.
+_CATEGORY_FILE = {"names": "names.txt", "vietphrase": "vietphrase.txt"}
+
+
+def _conflicts_count(storage) -> int:
+    data = storage.read_extra_json("glossary_conflicts")
+    return len(data) if isinstance(data, list) else 0
 
 
 def _append_glossary_entry(
@@ -28,158 +34,61 @@ def _append_glossary_entry(
     if storage.read_glossary_file(target_file).get(source) == suggested and not note:
         return False
 
-    path = storage.glossary_path(target_file)
-    existing = path.read_text(encoding="utf-8") if path.exists() else ""
-    if existing and not existing.endswith("\n"):
-        existing += "\n"
     line = f"{source} = {suggested}" + (f" | {note}" if note else "")
-    storage.write_glossary_file(target_file, f"{existing}{line}\n")
+    storage.append_glossary_line(target_file, line)
     return True
+
+
+def _entries_payload(storage: Storage, name: str) -> list[dict]:
+    """Đọc file glossary thành list dict cho data table (giữ ghi chú)."""
+    return [
+        {"source": s, "target": t, "note": n}
+        for s, t, n in storage.read_glossary_entries(name)
+    ]
 
 
 @router.get("/ebooks/{slug}/glossary")
 def ebook_glossary(request: Request, slug: str):
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    names = storage.glossary_path("names.txt")
-    vietphrase = storage.glossary_path("vietphrase.txt")
     return deps.templates.TemplateResponse(
         request,
         "glossary.html",
         {
             "slug": slug,
-            "names": names.read_text(encoding="utf-8") if names.exists() else "",
-            "vietphrase": vietphrase.read_text(encoding="utf-8") if vietphrase.exists() else "",
-            "suggestions": [],
+            "names_entries": _entries_payload(storage, "names.txt"),
+            "vietphrase_entries": _entries_payload(storage, "vietphrase.txt"),
             "job": request.app.state.job.status(),
+            "conflicts_count": _conflicts_count(storage),
         },
     )
 
 
 @router.post("/ebooks/{slug}/glossary")
-def ebook_glossary_save(slug: str, names: str = Form(""), vietphrase: str = Form("")):
+async def ebook_glossary_save(slug: str, payload: dict = Body(...)):
+    """Lưu toàn bộ glossary từ data table. Payload JSON:
+    `{"names": [{source, target, note}, ...], "vietphrase": [...]}`.
+    Ghi đè cả 2 file (trim + dedup theo source trong storage)."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    storage.write_glossary_file("names.txt", names)
-    storage.write_glossary_file("vietphrase.txt", vietphrase)
-    return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)
 
-
-@router.post("/ebooks/{slug}/glossary/suggest")
-def ebook_glossary_suggest(
-    request: Request, slug: str, chapter_from: int = Form(...), chapter_to: int = Form(...)
-):
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    names = storage.glossary_path("names.txt")
-    vietphrase = storage.glossary_path("vietphrase.txt")
-    error = ""
-    suggestions: list[dict] = []
-
-    if manifest is None:
-        error = "Chưa có manifest — hãy crawl trước."
-    else:
-        selected = [c for c in manifest.chapters if chapter_from <= c.index <= chapter_to]
-        if len(selected) > _MAX_SUGGEST_CHAPTERS:
-            error = f"Chỉ phân tích tối đa {_MAX_SUGGEST_CHAPTERS} chương/lần — hãy chọn phạm vi hẹp hơn."
-        else:
-            chapters_text = [
+    def _to_tuples(rows) -> list[tuple[str, str, str]]:
+        out: list[tuple[str, str, str]] = []
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict):
+                continue
+            out.append(
                 (
-                    storage.read_raw(c) if storage.has_raw(c) else "",
-                    storage.read_translated(c) if storage.has_translated(c) else "",
+                    str(row.get("source", "")),
+                    str(row.get("target", "")),
+                    str(row.get("note", "")),
                 )
-                for c in selected
-            ]
-            existing = glossary_ai.load_glossary(cfg.translate)
-            suggestions = glossary_ai.suggest_glossary(cfg.ai.openai, chapters_text, existing)
-            if not suggestions:
-                error = "AI không đề xuất được gì (hoặc gọi CLI lỗi) — kiểm tra log server."
-
-    return deps.templates.TemplateResponse(
-        request,
-        "glossary.html",
-        {
-            "slug": slug,
-            "names": names.read_text(encoding="utf-8") if names.exists() else "",
-            "vietphrase": vietphrase.read_text(encoding="utf-8") if vietphrase.exists() else "",
-            "suggestions": suggestions,
-            "suggest_error": error,
-            "chapter_from": chapter_from,
-            "chapter_to": chapter_to,
-            "job": request.app.state.job.status(),
-        },
-    )
-
-
-@router.post("/ebooks/{slug}/glossary/evaluate")
-def ebook_glossary_evaluate(
-    request: Request, slug: str, chapter_from: int = Form(...), chapter_to: int = Form(...)
-):
-    """AI đánh giá glossary + bản dịch của một phạm vi chương — chỉ trả báo cáo
-    (read-only), không sửa file, không áp dụng gì."""
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    names = storage.glossary_path("names.txt")
-    vietphrase = storage.glossary_path("vietphrase.txt")
-    error = ""
-    report: dict | None = None
-
-    if manifest is None:
-        error = "Chưa có manifest — hãy crawl trước."
-    else:
-        selected = [
-            c for c in manifest.chapters if chapter_from <= c.index <= chapter_to and storage.has_translated(c)
-        ]
-        if not selected:
-            error = "Không có chương đã dịch nào trong phạm vi đã chọn."
-        elif len(selected) > _MAX_EVALUATE_CHAPTERS:
-            error = f"Chỉ đánh giá tối đa {_MAX_EVALUATE_CHAPTERS} chương/lần — hãy chọn phạm vi hẹp hơn."
-        else:
-            chapters_text = [
-                (storage.read_raw(c) if storage.has_raw(c) else "", storage.read_translated(c))
-                for c in selected
-            ]
-            glossary = glossary_ai.load_glossary(cfg.translate)
-            report = glossary_ai.evaluate_translation(cfg.ai.openai, chapters_text, glossary)
-            if not report.get("summary") and not report.get("issues"):
-                error = "AI không trả về đánh giá (hoặc gọi CLI lỗi) — kiểm tra log server."
-
-    return deps.templates.TemplateResponse(
-        request,
-        "glossary.html",
-        {
-            "slug": slug,
-            "names": names.read_text(encoding="utf-8") if names.exists() else "",
-            "vietphrase": vietphrase.read_text(encoding="utf-8") if vietphrase.exists() else "",
-            "suggestions": [],
-            "report": report,
-            "evaluate_error": error,
-            "eval_chapter_from": chapter_from,
-            "eval_chapter_to": chapter_to,
-            "job": request.app.state.job.status(),
-        },
-    )
-
-
-@router.post("/ebooks/{slug}/glossary/apply")
-async def ebook_glossary_apply(slug: str, request: Request):
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    form = await request.form()
-    i = 0
-    while f"source_{i}" in form:
-        if f"selected_{i}" in form:
-            _append_glossary_entry(
-                storage,
-                form.get(f"target_file_{i}", ""),
-                form.get(f"source_{i}", ""),
-                form.get(f"suggested_{i}", ""),
             )
-        i += 1
+        return out
 
-    return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)
+    storage.write_glossary_entries("names.txt", _to_tuples(payload.get("names")))
+    storage.write_glossary_entries("vietphrase.txt", _to_tuples(payload.get("vietphrase")))
+    return JSONResponse({"ok": True})
 
 
 @router.post("/ebooks/{slug}/glossary/quick-add")
@@ -200,40 +109,150 @@ def ebook_glossary_quick_add(
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{chapter_index}", status_code=303)
 
 
-@router.post("/ebooks/{slug}/glossary/find-replace")
-def ebook_glossary_find_replace(
-    request: Request,
+@router.post("/api/ebooks/{slug}/glossary/export")
+def ebook_glossary_export(slug: str):
+    """Xuất glossary hiện tại kèm prompt nhờ web chat AI dọn lại (dedup, sửa
+    Hán-Việt, gộp mâu thuẫn). Trả `{text}` để dán/tải `.md`."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    names = storage.read_glossary_file("names.txt")
+    vietphrase = storage.read_glossary_file("vietphrase.txt")
+    text = bulk_transfer.build_glossary_export(names, vietphrase)
+    return JSONResponse({"text": text, "names": len(names), "vietphrase": len(vietphrase)})
+
+
+@router.post("/api/ebooks/{slug}/glossary/import")
+def ebook_glossary_import(slug: str, text: str = Form(...)):
+    """Nhập glossary AI trả về: parse `### NAMES`/`### VIETPHRASE` rồi MERGE vào
+    glossary hiện tại (source trùng → giá trị mới thắng, giữ ghi chú cũ). Trả
+    thống kê `{added, updated, total}`."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    parsed = bulk_transfer.parse_glossary(text)
+    if not parsed["names"] and not parsed["vietphrase"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Không tìm thấy mục glossary nào (cần khối ### NAMES / ### VIETPHRASE).",
+        )
+
+    added = updated = 0
+    for name, key in (("names.txt", "names"), ("vietphrase.txt", "vietphrase")):
+        current = storage.read_glossary_entries(name)
+        note_by_source = {s: n for s, _t, n in current}
+        merged = {s: t for s, t, _n in current}
+        for source, target in parsed[key].items():
+            if source not in merged:
+                added += 1
+            elif merged[source] != target:
+                updated += 1
+            else:
+                continue
+            merged[source] = target
+        storage.write_glossary_entries(
+            name, [(s, t, note_by_source.get(s, "")) for s, t in merged.items()]
+        )
+
+    return JSONResponse({"added": added, "updated": updated, "total": added + updated})
+
+
+def _reapply_chapters(storage: Storage, manifest, find: str, start, end):
+    """Chương đã dịch trong phạm vi có chứa `find` (dùng cho preview + apply)."""
+    for ch in _chapter_range(manifest.chapters, None, start, end):
+        if storage.has_translated(ch):
+            content = storage.read_translated(ch)
+            count = content.count(find)
+            if count:
+                yield ch, content, count
+
+
+def _snippet(content: str, find: str, width: int = 60) -> str:
+    """Trích một đoạn quanh lần khớp đầu tiên để hiển thị trong preview."""
+    pos = content.find(find)
+    if pos < 0:
+        return ""
+    start = max(0, pos - width)
+    end = min(len(content), pos + len(find) + width)
+    text = content[start:end].replace("\n", " ").strip()
+    return ("…" if start > 0 else "") + text + ("…" if end < len(content) else "")
+
+
+@router.post("/api/ebooks/{slug}/glossary/reapply-preview")
+def ebook_glossary_reapply_preview(
     slug: str,
     find: str = Form(...),
     replace: str = Form(""),
     chapter_from: int = Form(0),
     chapter_to: int = Form(0),
-    also_raw: bool = Form(False),
 ):
-    """Tìm & thay thế literal trên các chương đã dịch (chạy nền qua job system)."""
+    """Xem trước 'sửa tên & áp dụng lại': quét `translated/` trong phạm vi, trả
+    danh sách chương bị ảnh hưởng + số chỗ khớp + snippet. KHÔNG ghi gì."""
+    find = find.strip()
+    if not find:
+        raise HTTPException(status_code=400, detail="Chuỗi cần tìm đang rỗng.")
     cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+
+    start = chapter_from or None
+    end = chapter_to or None
+    chapters = []
+    total = 0
+    for ch, content, count in _reapply_chapters(storage, manifest, find, start, end):
+        total += count
+        chapters.append(
+            {
+                "index": ch.index,
+                "title": ch.title,
+                "count": count,
+                "snippet": _snippet(content, find),
+            }
+        )
+    return JSONResponse(
+        {"find": find, "replace": replace, "total": total, "chapters": chapters}
+    )
+
+
+@router.post("/ebooks/{slug}/glossary/reapply")
+def ebook_glossary_reapply(
+    request: Request,
+    slug: str,
+    find: str = Form(...),
+    replace: str = Form(...),
+    chapter_from: int = Form(0),
+    chapter_to: int = Form(0),
+    source: str = Form(""),
+    category: str = Form(""),
+):
+    """Áp dụng lại: thay `find`→`replace` literal trên các chương ĐÃ DỊCH (chạy
+    nền qua job). Nếu có `source`+`category`, cập nhật luôn mục glossary tương
+    ứng (đổi target sang `replace`) trước khi chạy."""
+    find, replace = find.strip(), replace.strip()
+    if not find or not replace:
+        raise HTTPException(status_code=400, detail="Cần cả chuỗi tìm và chuỗi thay.")
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+
+    target_file = _CATEGORY_FILE.get(category)
+    if source.strip() and target_file:
+        entries = storage.read_glossary_entries(target_file)
+        updated = [
+            (s, replace if s == source.strip() else t, n) for s, t, n in entries
+        ]
+        storage.write_glossary_entries(target_file, updated)
+
     start = chapter_from or None
     end = chapter_to or None
 
     def _target(log):
         step_find_replace(
-            cfg, log, find=find, replace=replace, start=start, end=end, also_raw=also_raw
+            cfg, log, find=find, replace=replace, start=start, end=end, also_raw=False
         )
 
-    started = request.app.state.job.start_custom("find_replace", _target, category="translate")
+    started = request.app.state.job.start_custom(
+        "reapply", _target, category="translate", ebook=cfg.novel.slug
+    )
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
-    return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)
-
-
-@router.post("/ebooks/{slug}/glossary/rewrite")
-def ebook_glossary_rewrite(request: Request, slug: str, chapter_from: int = Form(...), chapter_to: int = Form(...)):
-    cfg = deps.resolved_cfg(slug)
-
-    def _target(log):
-        step_rewrite_chapters(cfg, log, start=chapter_from, end=chapter_to)
-
-    started = request.app.state.job.start_custom("rewrite_chapters", _target, category="translate")
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
-    return RedirectResponse(url=f"/ebooks/{slug}/glossary", status_code=303)
+    return JSONResponse({"ok": True})

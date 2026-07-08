@@ -1,7 +1,7 @@
-"""Hàng đợi job FIFO theo category (crawl/translate) với N worker thread mỗi
-category, chạy song song trong giới hạn cấu hình. Step "build"/"run" là job
-"both" — chiếm quyền độc quyền trên cả 2 category (đợi crawl+translate rỗng
-rồi mới chạy, chặn job crawl/translate mới bắt đầu trong lúc nó chạy).
+"""Hàng đợi job FIFO theo category (crawl/translate/build) với N worker thread
+mỗi category, chạy song song trong giới hạn cấu hình. Step "run" là job
+"both" — chiếm quyền độc quyền trên tất cả category (đợi tất cả rỗng rồi mới
+chạy, chặn job mới bắt đầu trong lúc nó chạy).
 
 `JobRunner` (app/job.py) giữ làm shim mỏng gọi vào đây để các route cũ không
 phải đổi ngay (xem design.md D1/D2 của change pro-management-suite).
@@ -18,16 +18,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from novel2epub.db import get_thread_connection
+
 from .logging_config import logger
 
-CATEGORIES = ("crawl", "translate")
+CATEGORIES = ("crawl", "translate", "build")
 DEFAULT_HISTORY_LIMIT = 5000
 
 
 @dataclass
 class Job:
     id: str
-    category: str  # "crawl" | "translate" | "both"
+    category: str  # "crawl" | "translate" | "build" | "both"
     step: str
     label: str = ""
     ebook: str = ""
@@ -41,6 +43,9 @@ class Job:
     error: str = ""
     log: deque = field(default_factory=lambda: deque(maxlen=500))
     cancel_event: threading.Event = field(default_factory=threading.Event)
+    # spec: {"kind": ..., "params": {...JSON-serializable...}} — cho phép tái
+    # tạo lại `target` sau khi restart (xem JobQueue.register_kind/load_pending).
+    spec: dict | None = None
 
     def to_dict(self, with_log: bool = False) -> dict:
         d = {
@@ -73,7 +78,7 @@ class JobQueue:
     def __init__(
         self,
         workers: dict[str, int] | None = None,
-        history_path: str | Path | None = None,
+        db_path: str | Path | None = None,
         history_limit: int = DEFAULT_HISTORY_LIMIT,
     ):
         self._lock = threading.Lock()
@@ -91,7 +96,9 @@ class JobQueue:
         self._ebook_locks: dict[str, set[str]] = {c: set() for c in (*CATEGORIES, "both")}
         self._history: deque[Job] = deque(maxlen=history_limit)
         self._jobs: dict[str, Job] = {}
-        self._history_path = Path(history_path) if history_path else None
+        # SQLite db (bảng job_queue_history / job_queue_pending)
+        self._db_path = Path(db_path) if db_path else None
+        self._kind_factories: dict[str, Callable[[dict], Callable[[Callable[[str], None]], object]]] = {}
         self._load_history()
         self._threads: list[threading.Thread] = []
         for cat in CATEGORIES:
@@ -119,6 +126,7 @@ class JobQueue:
         cancel_event: threading.Event | None = None,
         lock_ebook: bool = True,
         chapter_indexes: list | None = None,
+        spec: dict | None = None,
     ) -> Job:
         if category not in (*CATEGORIES, "both"):
             raise ValueError(f"category không hợp lệ: {category!r}")
@@ -131,6 +139,7 @@ class JobQueue:
             ebook=ebook,
             lock_ebook=lock_ebook,
             chapter_indexes=chapter_indexes or [],
+            spec=spec,
         )
         if cancel_event is not None:
             job.cancel_event = cancel_event
@@ -138,6 +147,7 @@ class JobQueue:
             self._pending[category].append(job)
             self._jobs[job.id] = job
             self._cv.notify_all()
+        self._save_pending()
         return job
 
     def cancel(self, job_id: str) -> bool:
@@ -155,11 +165,14 @@ class JobQueue:
                 job.ended_at = time.time()
                 self._push_history(job)
                 self._cv.notify_all()
-                return True
-            if job.state == "running":
+                result = True
+            elif job.state == "running":
                 job.cancel_event.set()
-                return True
-            return False
+                result = True
+            else:
+                result = False
+        self._save_pending()
+        return result
 
     def retry(self, job_id: str) -> Job | None:
         with self._lock:
@@ -170,6 +183,7 @@ class JobQueue:
             job.category, job.step, job.target,
             label=job.label, ebook=job.ebook,
             lock_ebook=job.lock_ebook, chapter_indexes=list(job.chapter_indexes),
+            spec=job.spec,
         )
 
     def reorder(self, job_id: str, before_id: str | None) -> bool:
@@ -190,7 +204,8 @@ class JobQueue:
             q.clear()
             q.extend(items)
             self._cv.notify_all()
-            return True
+        self._save_pending()
+        return True
 
     def prioritize(self, job_id: str) -> bool:
         """Đưa job pending lên đầu hàng đợi."""
@@ -231,8 +246,9 @@ class JobQueue:
             except ValueError:
                 pass
             self._jobs.pop(job_id, None)
-            self._save_history()
             self._cv.notify_all()
+        self._save_pending()
+        self._save_history()
         return True
 
     def update_workers(self, category: str, count: int) -> int:
@@ -243,7 +259,6 @@ class JobQueue:
         with self._cv:
             self._workers[category] = count
             # Chỉ spawn thread mới nếu count vượt quá số thread đã spawn
-            # (tránh tích lũy thread khi toggle pause nhiều lần)
             if count > self._spawned[category]:
                 delta = count - self._spawned[category]
                 for _ in range(delta):
@@ -270,7 +285,7 @@ class JobQueue:
             q.extend(items)
             # Nếu category thông thường, đảm bảo có ít nhất 1 slot worker trống.
             # So sánh với base_workers (không tính extra) để tránh thiếu worker
-            # khi start_now được gọi nhiều lần trong lúc queue đang paused.
+            # khi start_now được gọi nhiều lần lúc queue đang paused.
             if category != "both":
                 extra = self._extra_workers.get(category, 0)
                 base = self._workers[category] - extra
@@ -278,10 +293,9 @@ class JobQueue:
                 if need_extra:
                     new_extra = extra + 1
                     self._extra_workers[category] = new_extra
-                    # Bump workers to allow all extra workers to run in parallel
+                    # Bump workers để tất cả extra workers có thể chạy song song
                     self._workers[category] = self._active[category] + new_extra
                     self._spawn_worker(category)
-                    # Không cập nhật _spawned vì đây là thread tạm thời
             self._cv.notify_all()
         return True
 
@@ -326,7 +340,7 @@ class JobQueue:
             recent = [j.to_dict(with_log=True) for j in jobs_list[:limit]]
         return {"running": running, "recent": recent}
 
-    # ----- shim cho JobRunner cũ (status theo "crawl"/"translate") -----
+    # ----- shim cho JobRunner cũ (status theo "crawl"/"translate"/"build") -----
 
     def request_cancel_category(self, category: str) -> bool:
         with self._lock:
@@ -368,7 +382,7 @@ class JobQueue:
         if category == "both":
             if not self._pending["both"]:
                 return None
-            if self._active["crawl"] or self._active["translate"] or self._both_active:
+            if any(self._active[c] for c in CATEGORIES) or self._both_active:
                 return None
             return self._pending["both"][0]
         if self._both_active or self._both_waiting:
@@ -413,6 +427,7 @@ class JobQueue:
                 job.state = "running"
                 job.started_at = time.time()
                 self._running[job.id] = job
+            self._save_pending()
 
             self._execute(job)
 
@@ -430,8 +445,10 @@ class JobQueue:
                     self._extra_workers[category] -= 1
                     self._workers[category] = max(0, self._workers[category] - 1)
                     self._cv.notify_all()
+                    self._save_pending()
                     return
                 self._cv.notify_all()
+            self._save_pending()
 
     def _execute(self, job: Job) -> None:
         def log_fn(msg: str) -> None:
@@ -456,26 +473,109 @@ class JobQueue:
         self._history.appendleft(job)
         self._save_history()
 
+    # ---------- resume sau restart ----------
+
+    def register_kind(
+        self, kind: str, factory: Callable[[dict], Callable[[Callable[[str], None]], object]]
+    ) -> None:
+        """Đăng ký cách tái tạo `target(log)` từ `spec['params']` cho 1 loại
+        job tuỳ biến. Phải gọi TRƯỚC load_pending()."""
+        self._kind_factories[kind] = factory
+
+    def load_pending(self) -> int:
+        """Enqueue lại job pending/running đã lưu từ lần chạy trước."""
+        if self._db_path is None:
+            return 0
+        conn = get_thread_connection(self._db_path)
+        rows = conn.execute(
+            "SELECT category, step, label, ebook, spec_json FROM job_queue_pending"
+        ).fetchall()
+        restored = 0
+        for row in rows:
+            try:
+                spec = json.loads(row["spec_json"] or "{}")
+            except json.JSONDecodeError:
+                spec = {}
+            kind = (spec or {}).get("kind", "")
+            factory = self._kind_factories.get(kind)
+            if factory is None:
+                logger.warning(
+                    "Bỏ qua job pending kind=%r chưa register (mất sau restart)", kind
+                )
+                continue
+            try:
+                target = factory(spec.get("params", {}))
+            except Exception:
+                logger.exception("Không tái tạo được job pending kind=%r", kind)
+                continue
+            self.enqueue(
+                row["category"],
+                row["step"] or kind,
+                target,
+                label=row["label"] or kind,
+                ebook=row["ebook"],
+                spec=spec,
+            )
+            restored += 1
+        return restored
+
+    def _save_pending(self) -> None:
+        if self._db_path is None:
+            return
+        with self._lock:
+            jobs = [j for q in self._pending.values() for j in q if j.spec] + [
+                j for j in self._running.values() if j.spec
+            ]
+        conn = get_thread_connection(self._db_path)
+        try:
+            with conn:
+                conn.execute("DELETE FROM job_queue_pending")
+                for j in jobs:
+                    conn.execute(
+                        "INSERT INTO job_queue_pending (id, category, step, label, ebook, spec_json) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (j.id, j.category, j.step, j.label, j.ebook, json.dumps(j.spec, ensure_ascii=False)),
+                    )
+        except Exception:
+            logger.exception("Không lưu được hàng đợi pending vào %s", self._db_path)
+
     # ---------- persistence ----------
 
     def _save_history(self) -> None:
-        if self._history_path is None:
+        if self._db_path is None:
             return
+        conn = get_thread_connection(self._db_path)
+        limit = self._history.maxlen or DEFAULT_HISTORY_LIMIT
         try:
-            self._history_path.parent.mkdir(parents=True, exist_ok=True)
-            data = [j.to_dict() for j in self._history]
-            self._history_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        except OSError:
-            logger.exception("Không lưu được lịch sử job vào %s", self._history_path)
+            with conn:
+                for j in self._history:
+                    conn.execute(
+                        """
+                        INSERT INTO job_queue_history (id, data_json, ended_at) VALUES (?, ?, ?)
+                        ON CONFLICT(id) DO UPDATE SET data_json = excluded.data_json, ended_at = excluded.ended_at
+                        """,
+                        (j.id, json.dumps(j.to_dict(), ensure_ascii=False), j.ended_at),
+                    )
+                conn.execute(
+                    "DELETE FROM job_queue_history WHERE id NOT IN "
+                    "(SELECT id FROM job_queue_history ORDER BY ended_at DESC LIMIT ?)",
+                    (limit,),
+                )
+        except Exception:
+            logger.exception("Không lưu được lịch sử job vào %s", self._db_path)
 
     def _load_history(self) -> None:
-        if self._history_path is None or not self._history_path.exists():
+        if self._db_path is None:
             return
-        try:
-            data = json.loads(self._history_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return
-        for item in reversed(data):
+        conn = get_thread_connection(self._db_path)
+        rows = conn.execute(
+            "SELECT data_json FROM job_queue_history ORDER BY ended_at ASC"
+        ).fetchall()
+        for row in rows:
+            try:
+                item = json.loads(row["data_json"])
+            except json.JSONDecodeError:
+                continue
             job = Job(
                 id=item.get("id", str(uuid.uuid4())),
                 category=item.get("category", "crawl"),

@@ -2,251 +2,461 @@
 {% block title %}Glossary — novel2epub{% endblock %}
 {% block content %}
 <p><a href="/ebooks/{{ slug }}" class="text-link-light dark:text-link-dark hover:underline">&larr; Quay lại ebook</a></p>
-<h2 class="text-xl font-semibold mt-3 mb-2">Glossary</h2>
-<p class="text-sm text-muted-light dark:text-muted-dark mb-3">Mỗi dòng dạng <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">Hán = Việt</code> hoặc <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">Hán = Việt | ghi chú</code>. Dòng bắt đầu bằng <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">#</code> hoặc không có <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">=</code> sẽ bị bỏ qua. Mục có <strong>ghi chú</strong> sẽ tự sinh footnote ở lần xuất hiện đầu tiên trong mỗi chương khi build EPUB.</p>
+<h2 class="text-xl font-semibold mt-3 mb-1">Glossary</h2>
+<p class="text-sm text-muted-light dark:text-muted-dark mb-3">Bảng đồng bộ cách dịch tên riêng / thuật ngữ xuyên suốt truyện. Mỗi mục có <strong>Hán</strong>, <strong>Việt</strong> và <strong>ghi chú</strong> tuỳ chọn (mục có ghi chú sẽ tự sinh footnote ở lần xuất hiện đầu tiên mỗi chương khi build EPUB). Sửa trực tiếp trong bảng rồi bấm <strong>Lưu tất cả</strong>.</p>
 
-<div id="glossary-tabs">
-    <div class="tab-bar flex border-b-2 border-border-light dark:border-border-dark mb-3 overflow-x-auto">
-        <button class="active px-4 py-2 text-sm border-b-2 border-link-light dark:border-link-dark -mb-0.5 text-link-light dark:text-link-dark font-semibold" data-tab="tab-edit" onclick="switchTab('glossary-tabs', 'tab-edit')">Soạn thảo</button>
-        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-suggest" onclick="switchTab('glossary-tabs', 'tab-suggest')">AI gợi ý</button>
-        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-evaluate" onclick="switchTab('glossary-tabs', 'tab-evaluate')">AI đánh giá</button>
-        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-findreplace" onclick="switchTab('glossary-tabs', 'tab-findreplace')">Tìm &amp; thay thế</button>
-        <button class="px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-rewrite" onclick="switchTab('glossary-tabs', 'tab-rewrite')">AI rewrite</button>
-    </div>
+{% if conflicts_count and conflicts_count > 0 %}
+<div class="mb-3 px-3 py-2 rounded-md bg-warn-light dark:bg-warn-dark border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-sm">
+    ⚠ Có <strong>{{ conflicts_count }}</strong> xung đột glossary từ lần dịch gần nhất (giá trị cũ được giữ).
+    Xem chi tiết trong <code>translation_meta/_glossary_conflicts.json</code>.
+</div>
+{% endif %}
 
-    <div id="tab-edit" class="tab-content active">
-        <form method="post" action="/ebooks/{{ slug }}/glossary">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <h3 class="text-base font-semibold mb-1">names.txt (tên riêng)</h3>
-                    <textarea name="names" rows="20" class="w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-link-light/40">{{ names }}</textarea>
-                </div>
-                <div>
-                    <h3 class="text-base font-semibold mb-1">vietphrase.txt (thuật ngữ)</h3>
-                    <textarea name="vietphrase" rows="20" class="w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-link-light/40">{{ vietphrase }}</textarea>
-                </div>
-            </div>
-            <p class="mt-2"><button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Lưu glossary</button></p>
-        </form>
-    </div>
-
-    <div id="tab-suggest" class="tab-content hidden">
-        <div class="flex items-baseline justify-between gap-4 mb-1">
-            <h3 class="text-base font-semibold m-0">AI gợi ý glossary</h3>
-        </div>
-        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">Phân tích bản gốc + bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần), chỉ đưa gợi ý — bạn tự duyệt trước khi lưu.</p>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/suggest" class="flex flex-wrap gap-4 items-end my-3">
-            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="{{ chapter_from or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="{{ chapter_to or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <button type="submit" class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">AI phân tích</button>
-        </form>
-
-        {% if suggest_error %}<p class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">{{ suggest_error }}</p>{% endif %}
-
-        {% if suggestions %}
-        <form method="post" action="/ebooks/{{ slug }}/glossary/apply">
-            <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
-            <table class="w-full text-sm">
-                <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Nguồn (Trung)</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Đề xuất (Việt)</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Loại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lý do</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">File đích</th></tr></thead>
-                <tbody>
-                {% for s in suggestions %}
-                <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" name="selected_{{ loop.index0 }}" checked></td>
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.source }}<input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.type }}</td>
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark text-muted-light dark:text-muted-dark text-xs">{{ s.reason }}</td>
-                    <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.target_file }}<input type="hidden" name="target_file_{{ loop.index0 }}" value="{{ s.target_file }}"></td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-            </div>
-            <p class="mt-2"><button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Lưu các mục đã chọn vào glossary</button></p>
-        </form>
-        {% endif %}
-    </div>
-
-    <div id="tab-evaluate" class="tab-content hidden">
-        <div class="flex items-baseline justify-between gap-4 mb-1">
-            <h3 class="text-base font-semibold m-0">AI đánh giá bản dịch (chỉ xem)</h3>
-        </div>
-        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">AI đọc glossary + bản gốc/bản dịch của một phạm vi chương nhỏ (tối đa 5 chương/lần) rồi chấm điểm và liệt kê vấn đề (glossary chưa nhất quán, dịch sai/khô, dùng sai thuật ngữ). <strong>Chỉ là báo cáo</strong> — không sửa file, không ghi đè gì.</p>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/evaluate" class="flex flex-wrap gap-4 items-end my-3">
-            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="{{ eval_chapter_from or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="{{ eval_chapter_to or 1 }}" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <button type="submit" class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">AI đánh giá</button>
-        </form>
-
-        {% if evaluate_error %}<p class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">{{ evaluate_error }}</p>{% endif %}
-
-        {% if report %}
-        {% if report.score is not none %}<p><strong>Điểm:</strong> {{ report.score }}/10</p>{% endif %}
-        {% if report.summary %}<p><strong>Nhận xét:</strong> {{ report.summary }}</p>{% endif %}
-        {% if report.issues %}
-        <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
-        <table class="w-full text-sm">
-            <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Mức độ</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Loại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Chương</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Nguồn</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Hiện tại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Đề xuất</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lý do</th></tr></thead>
-            <tbody>
-            {% for it in report.issues %}
-            <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.severity }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.category }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.chapter }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.source }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.current }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ it.suggestion }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark text-muted-light dark:text-muted-dark text-xs">{{ it.reason }}</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        </div>
-        {% elif not evaluate_error %}
-        <p class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Không phát hiện vấn đề nào.</p>
-        {% endif %}
-        {% endif %}
-    </div>
-
-    <div id="tab-findreplace" class="tab-content hidden">
-        <div class="flex items-baseline justify-between gap-4 mb-1">
-            <h3 class="text-base font-semibold m-0">Tìm &amp; thay thế toàn novel (literal, không AI)</h3>
-        </div>
-        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">Thay thế literal mọi chỗ khớp trong các chương <strong>đã dịch</strong> — nhanh, dùng để đổi tên riêng đã dịch hoặc sửa lỗi hàng loạt. Để trống phạm vi = toàn bộ. <strong>Đây là hành động ghi đè trực tiếp</strong>; bản trước khi thay được lưu trong meta của từng chương (<code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">before_find_replace</code>), nhưng nên commit/backup trước khi chạy trên phạm vi lớn.</p>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/find-replace" class="flex flex-wrap gap-4 items-end my-3">
-            <label class="flex flex-col gap-1 text-sm">Tìm <input type="text" name="find" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <label class="flex flex-col gap-1 text-sm">Thay bằng <input type="text" name="replace" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <label class="inline-flex items-center gap-1 text-sm"><input type="checkbox" name="also_raw" value="true" class="rounded border-border-light dark:border-border-dark"> Cả bản gốc (raw)</label>
-            <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed">Tìm &amp; thay thế</button>
-        </form>
-    </div>
-
-    <div id="tab-rewrite" class="tab-content hidden">
-        <div class="flex items-baseline justify-between gap-4 mb-1">
-            <h3 class="text-base font-semibold m-0">AI rewrite chương (ghi đè bản dịch)</h3>
-        </div>
-        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">AI sẽ biên tập lại toàn bộ bản dịch trong phạm vi đã chọn theo glossary + nguyên tắc "edit hay" (dùng từ đồng nghĩa linh hoạt, câu tự nhiên, tên chương hay hơn...). <strong>Đây là hành động ghi đè trực tiếp</strong> — bản trước khi rewrite được lưu lại trong meta của từng chương, nhưng nên backup/commit trước khi chạy trên phạm vi lớn.</p>
-        <form method="post" action="/ebooks/{{ slug }}/glossary/rewrite" class="flex flex-wrap gap-4 items-end my-3">
-            <label class="flex flex-col gap-1 text-sm">Từ chương <input type="number" name="chapter_from" value="1" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <label class="flex flex-col gap-1 text-sm">đến chương <input type="number" name="chapter_to" value="1" min="0" required class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
-            <button type="submit" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} class="px-3 py-2 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed">AI rewrite</button>
-        </form>
+<!-- Thanh công cụ -->
+<div class="flex flex-wrap gap-2 items-center mb-3">
+    <input id="gloss-search" type="search" placeholder="Tìm Hán / Việt / ghi chú…" autocomplete="off"
+        class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-1.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-link-light/40">
+    <select id="gloss-filter" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm">
+        <option value="">Tất cả loại</option>
+        <option value="names">Tên riêng</option>
+        <option value="vietphrase">Thuật ngữ</option>
+    </select>
+    <span id="gloss-count" class="text-sm text-muted-light dark:text-muted-dark"></span>
+    <div class="ml-auto flex flex-wrap gap-2">
+        <button type="button" id="btn-add" class="px-2.5 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">+ Thêm mục</button>
+        <button type="button" id="btn-clean" class="px-2.5 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" title="Trim khoảng trắng, bỏ dòng thiếu Hán/Việt, gộp trùng.">Dọn dữ liệu</button>
+        <button type="button" id="btn-export" class="px-2.5 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xuất cho AI xử lý</button>
+        <button type="button" id="btn-import" class="px-2.5 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhập từ AI</button>
+        <button type="button" id="btn-save" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Lưu tất cả</button>
     </div>
 </div>
 
-<style>
-/* Tab content visibility (Tailwind dùng class .active được thêm bởi switchTab) */
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-</style>
+<!-- Data table -->
+<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-md">
+    <table class="w-full text-sm border-collapse">
+        <thead class="bg-surface-alt-light dark:bg-surface-alt-dark sticky top-0">
+            <tr>
+                <th data-sort="category" class="gloss-th text-left font-semibold px-2 py-2 w-32 cursor-pointer select-none">Loại <span class="sort-ind text-muted-light dark:text-muted-dark"></span></th>
+                <th data-sort="source" class="gloss-th text-left font-semibold px-2 py-2 cursor-pointer select-none">Hán <span class="sort-ind text-muted-light dark:text-muted-dark"></span></th>
+                <th data-sort="target" class="gloss-th text-left font-semibold px-2 py-2 cursor-pointer select-none">Việt <span class="sort-ind text-muted-light dark:text-muted-dark"></span></th>
+                <th class="text-left font-semibold px-2 py-2">Ghi chú</th>
+                <th class="text-left font-semibold px-2 py-2 w-40">Thao tác</th>
+            </tr>
+        </thead>
+        <tbody id="gloss-body"></tbody>
+    </table>
+</div>
+<p id="gloss-empty" class="hidden text-sm text-muted-light dark:text-muted-dark py-6 text-center">Không có mục nào khớp.</p>
+
+<!-- Modal: sửa tên & áp dụng lại bản dịch cũ -->
+<div id="reapply-modal" class="hidden fixed inset-0 z-40 bg-black/50 flex items-start justify-center overflow-y-auto py-10">
+    <div class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg shadow-card dark:shadow-card-dark w-full max-w-2xl mx-4 p-4">
+        <div class="flex items-baseline justify-between mb-2">
+            <h3 class="text-base font-semibold m-0">Sửa tên &amp; áp dụng lại bản dịch cũ</h3>
+            <button type="button" id="reapply-close" class="text-muted-light dark:text-muted-dark hover:text-fg-light dark:hover:text-fg-dark">✕</button>
+        </div>
+        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">Thay literal chuỗi cũ → chuỗi mới trên các chương <strong>đã dịch</strong> (chỉ ghi <code>translated/</code>). Bản trước khi thay được lưu vào meta từng chương để khôi phục. <strong>Bắt buộc xem trước</strong> trước khi áp dụng.</p>
+        <div class="flex flex-wrap gap-3 items-end mb-3">
+            <label class="flex flex-col gap-1 text-sm">Chuỗi cũ (tìm)
+                <input type="text" id="reapply-find" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm w-52"></label>
+            <label class="flex flex-col gap-1 text-sm">Chuỗi mới (thay)
+                <input type="text" id="reapply-replace" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm w-52"></label>
+            <label class="flex flex-col gap-1 text-sm">Từ chương
+                <input type="number" id="reapply-from" value="0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm w-24"></label>
+            <label class="flex flex-col gap-1 text-sm">đến chương
+                <input type="number" id="reapply-to" value="0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm w-24"></label>
+        </div>
+        <div class="flex gap-2 mb-3">
+            <button type="button" id="reapply-preview-btn" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xem trước</button>
+            <button type="button" id="reapply-apply-btn" disabled class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed">Áp dụng</button>
+        </div>
+        <div id="reapply-preview-result" class="text-sm max-h-72 overflow-y-auto"></div>
+    </div>
+</div>
 
 <p class="mt-4">
     Trạng thái job dịch:
     <span id="status-badge-container">
         {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy: {{ job.translate.step }}</span>{% elif job.translate.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy (ebook khác)</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">rảnh</span>{% endif %}
-        {% if job.translate.error %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
 </p>
 
 <script>
 const GLOSSARY_SLUG = {{ slug | tojson }};
+const INITIAL_ENTRIES = (function () {
+    const names = {{ names_entries | tojson }};
+    const vp = {{ vietphrase_entries | tojson }};
+    const out = [];
+    let id = 0;
+    for (const e of names) out.push({ id: id++, category: "names", source: e.source, target: e.target, note: e.note || "" });
+    for (const e of vp) out.push({ id: id++, category: "vietphrase", source: e.source, target: e.target, note: e.note || "" });
+    return out;
+})();
 
-function isTranslateBusyHere(data) {
-    if (!data.translate.running) return false;
-    return (data.translate.running_ebooks || []).includes(GLOSSARY_SLUG);
+let ENTRIES = INITIAL_ENTRIES.slice();
+let nextId = ENTRIES.length;
+let sortField = null;
+let sortDir = 1;
+
+const body = document.getElementById("gloss-body");
+const searchInput = document.getElementById("gloss-search");
+const filterSelect = document.getElementById("gloss-filter");
+const countLabel = document.getElementById("gloss-count");
+const emptyMsg = document.getElementById("gloss-empty");
+
+const CATEGORY_LABEL = { names: "Tên riêng", vietphrase: "Thuật ngữ" };
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function setJobButtonsDisabled(disabled) {
-    const jobButtons = document.querySelectorAll(
-        'form[action*="/rewrite"] button, form[action*="/find-replace"] button, form[action*="/jobs/"] button, form[action*="/action"] button'
-    );
-    for (const btn of jobButtons) {
-        btn.disabled = disabled;
+function visibleEntries() {
+    const q = searchInput.value.trim().toLowerCase();
+    const cat = filterSelect.value;
+    let rows = ENTRIES.filter(e => {
+        if (cat && e.category !== cat) return false;
+        if (!q) return true;
+        return (e.source + " " + e.target + " " + e.note).toLowerCase().includes(q);
+    });
+    if (sortField) {
+        rows = rows.slice().sort((a, b) => {
+            const av = (a[sortField] || "").toString();
+            const bv = (b[sortField] || "").toString();
+            return av.localeCompare(bv, "vi") * sortDir;
+        });
     }
+    return rows;
 }
 
-document.addEventListener("submit", async function(event) {
-    const form = event.target;
-    const action = form.getAttribute("action") || "";
+const inputCls = "w-full bg-transparent border border-transparent hover:border-border-light dark:hover:border-border-dark focus:border-link-light dark:focus:border-link-dark rounded px-1.5 py-1 text-sm focus:outline-none";
 
-    if (action.includes("/rewrite") || action.includes("/find-replace") || action.includes("/jobs/") || action.includes("/action")) {
-        event.preventDefault();
+function render() {
+    const rows = visibleEntries();
+    body.innerHTML = rows.map(e => `
+        <tr class="border-t border-border-light dark:border-border-dark" data-id="${e.id}">
+            <td class="px-2 py-1 align-top">
+                <select data-field="category" class="${inputCls}">
+                    <option value="names"${e.category === "names" ? " selected" : ""}>Tên riêng</option>
+                    <option value="vietphrase"${e.category === "vietphrase" ? " selected" : ""}>Thuật ngữ</option>
+                </select>
+            </td>
+            <td class="px-2 py-1 align-top"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
+            <td class="px-2 py-1 align-top"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top"><input data-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-muted-light dark:text-muted-dark"></td>
+            <td class="px-2 py-1 align-top whitespace-nowrap">
+                <button type="button" data-act="reapply" class="text-xs px-2 py-1 rounded border border-border-light dark:border-border-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" title="Sửa & áp dụng lại bản dịch cũ">Áp dụng lại</button>
+                <button type="button" data-act="delete" class="text-xs px-2 py-1 rounded border border-border-light dark:border-border-dark text-red-600 dark:text-red-400 hover:bg-no-light dark:hover:bg-no-dark" title="Xoá mục">Xoá</button>
+            </td>
+        </tr>`).join("");
+    countLabel.textContent = `${rows.length} / ${ENTRIES.length} mục`;
+    emptyMsg.classList.toggle("hidden", rows.length > 0);
+}
 
-        setJobButtonsDisabled(true);
-        const container = document.getElementById("status-badge-container");
-        if (container) {
-            container.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang kết nối...</span>';
-        }
+function entryById(id) { return ENTRIES.find(e => e.id === Number(id)); }
 
-        try {
-            const formData = new FormData(form);
-            const submitter = event.submitter;
-            if (submitter && submitter.name && submitter.value) {
-                formData.set(submitter.name, submitter.value);
-            }
-
-            const response = await fetch(action, {
-                method: form.method || "POST",
-                body: formData
-            });
-
-            if (!response.ok) {
-                let errMsg = "Có lỗi xảy ra khi bắt đầu job.";
-                try {
-                    const errData = await response.json();
-                    if (errData && errData.detail) {
-                        errMsg = errData.detail;
-                    }
-                } catch (e) {}
-                alert(errMsg);
-                poll();
-            } else {
-                wasRunning = true;
-                setTimeout(poll, 200);
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Lỗi kết nối mạng.");
-            poll();
-        }
+// Sửa inline: cập nhật object khi input đổi.
+body.addEventListener("input", e => {
+    const field = e.target.dataset.field;
+    if (!field) return;
+    const tr = e.target.closest("tr");
+    const entry = entryById(tr.dataset.id);
+    if (entry) entry[field] = e.target.value;
+});
+body.addEventListener("change", e => {
+    if (e.target.dataset.field === "category") {
+        const entry = entryById(e.target.closest("tr").dataset.id);
+        if (entry) entry.category = e.target.value;
     }
 });
 
-let wasRunning = {{ "true" if job.translate.running else "false" }};
+// Nút thao tác trên từng dòng.
+body.addEventListener("click", e => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const entry = entryById(btn.closest("tr").dataset.id);
+    if (!entry) return;
+    if (btn.dataset.act === "delete") {
+        ENTRIES = ENTRIES.filter(x => x.id !== entry.id);
+        render();
+    } else if (btn.dataset.act === "reapply") {
+        openReapply(entry);
+    }
+});
 
-async function poll() {
+searchInput.addEventListener("input", render);
+filterSelect.addEventListener("change", render);
+
+// Sort khi click header.
+document.querySelectorAll(".gloss-th").forEach(th => {
+    th.addEventListener("click", () => {
+        const field = th.dataset.sort;
+        if (sortField === field) sortDir = -sortDir; else { sortField = field; sortDir = 1; }
+        document.querySelectorAll(".sort-ind").forEach(s => s.textContent = "");
+        th.querySelector(".sort-ind").textContent = sortDir > 0 ? "▲" : "▼";
+        render();
+    });
+});
+
+document.getElementById("btn-add").addEventListener("click", () => {
+    ENTRIES.unshift({ id: nextId++, category: filterSelect.value || "names", source: "", target: "", note: "" });
+    sortField = null;
+    document.querySelectorAll(".sort-ind").forEach(s => s.textContent = "");
+    render();
+    const first = body.querySelector('input[data-field="source"]');
+    if (first) first.focus();
+});
+
+document.getElementById("btn-clean").addEventListener("click", () => {
+    const seen = new Map();
+    for (const e of ENTRIES) {
+        e.source = e.source.trim();
+        e.target = e.target.trim();
+        e.note = e.note.trim();
+        if (!e.source || !e.target) continue;
+        seen.set(e.category + " " + e.source, e); // dedup, mục sau thắng
+    }
+    const before = ENTRIES.length;
+    ENTRIES = Array.from(seen.values());
+    nextId = Math.max(nextId, ...ENTRIES.map(e => e.id)) + 1;
+    render();
+    toast(`Đã dọn: còn ${ENTRIES.length} mục (bỏ ${before - ENTRIES.length}). Nhớ bấm Lưu tất cả.`, "success");
+});
+
+document.getElementById("btn-save").addEventListener("click", async () => {
+    const payload = { names: [], vietphrase: [] };
+    for (const e of ENTRIES) {
+        if (!e.source.trim() || !e.target.trim()) continue;
+        (e.category === "names" ? payload.names : payload.vietphrase).push({ source: e.source, target: e.target, note: e.note });
+    }
+    try {
+        const res = await fetch(`/ebooks/${GLOSSARY_SLUG}/glossary`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+        if (!res.ok) { toast("Lưu thất bại.", "error"); return; }
+        toast("Đã lưu glossary.", "success");
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+});
+
+/* ---------- Cửa sổ bulk cho Xuất/Nhập AI (mượn mẫu từ ebook.html) ---------- */
+const BULK_WINDOW_STYLE = `
+    body { margin:0; font-family: ui-monospace, Consolas, monospace; background:#0f172a; color:#e2e8f0;
+        display:flex; flex-direction:column; height:100vh; box-sizing:border-box; }
+    header { padding:0.75rem 1rem; border-bottom:1px solid #334155; background:#111827; flex-shrink:0; }
+    header h2 { margin:0 0 0.3rem; font-family: ui-sans-serif, system-ui, sans-serif; font-size:1.05rem; }
+    header p { margin:0.2rem 0 0; font-size:0.85rem; color:#94a3b8; }
+    main { flex:1; display:flex; flex-direction:column; padding:0.75rem 1rem; gap:0.5rem; min-height:0; }
+    textarea { flex:1; width:100%; box-sizing:border-box; resize:none; font:inherit; font-size:0.85rem;
+        background:#0b1220; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:0.6rem; }
+    .bulk-actions { display:flex; gap:0.5rem; flex-wrap:wrap; flex-shrink:0; }
+    button { font-family: ui-sans-serif, system-ui, sans-serif; font-size:0.9rem; padding:0.4rem 0.8rem;
+        border-radius:6px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; cursor:pointer; }
+    button:hover { background:#334155; }
+`;
+
+function openBulkWindow(title) {
+    const win = window.open("", "_blank");
+    if (!win) { alert("Trình duyệt chặn pop-up — hãy cho phép pop-up cho trang này."); return null; }
+    win.document.title = title;
+    const style = win.document.createElement("style");
+    style.textContent = BULK_WINDOW_STYLE;
+    win.document.head.appendChild(style);
+    return win;
+}
+
+document.getElementById("btn-export").addEventListener("click", async () => {
+    let data;
+    try {
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/export`, { method: "POST" });
+        data = await res.json();
+        if (!res.ok) { toast(data.detail || "Lỗi khi xuất.", "error"); return; }
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); return; }
+
+    const win = openBulkWindow(`Xuất glossary — ${GLOSSARY_SLUG}`);
+    if (!win) return;
+    const header = win.document.createElement("header");
+    header.innerHTML = `<h2>Xuất glossary để nhờ AI dọn lại (Markdown)</h2>
+        <p>${data.names} tên riêng · ${data.vietphrase} thuật ngữ · ${data.text.length.toLocaleString()} ký tự</p>
+        <p>Copy hoặc tải .md rồi đưa vào ChatGPT/Claude/Gemini. AI dọn xong (dedup, sửa Hán-Việt, gộp mâu thuẫn), dán/upload kết quả vào "Nhập từ AI".</p>`;
+    win.document.body.appendChild(header);
+    const main = win.document.createElement("main");
+    const actions = win.document.createElement("div");
+    actions.className = "bulk-actions";
+    const copyBtn = win.document.createElement("button");
+    copyBtn.textContent = "Copy toàn bộ";
+    const downloadBtn = win.document.createElement("button");
+    downloadBtn.textContent = "Tải file .md";
+    const ta = win.document.createElement("textarea");
+    ta.readOnly = true; ta.spellcheck = false; ta.value = data.text;
+    copyBtn.addEventListener("click", async () => {
+        try { await win.navigator.clipboard.writeText(ta.value); }
+        catch (e) { ta.focus(); ta.select(); win.document.execCommand("copy"); }
+        const old = copyBtn.textContent; copyBtn.textContent = "Đã copy ✓";
+        setTimeout(() => { copyBtn.textContent = old; }, 1500);
+    });
+    downloadBtn.addEventListener("click", () => {
+        const blob = new win.Blob([ta.value], { type: "text/markdown;charset=utf-8" });
+        const url = win.URL.createObjectURL(blob);
+        const a = win.document.createElement("a");
+        a.href = url; a.download = `${GLOSSARY_SLUG}-glossary.md`;
+        win.document.body.appendChild(a); a.click(); a.remove();
+        win.URL.revokeObjectURL(url);
+    });
+    actions.appendChild(copyBtn); actions.appendChild(downloadBtn);
+    main.appendChild(actions); main.appendChild(ta);
+    win.document.body.appendChild(main);
+    ta.focus(); ta.select();
+});
+
+document.getElementById("btn-import").addEventListener("click", () => {
+    const win = openBulkWindow(`Nhập glossary từ AI — ${GLOSSARY_SLUG}`);
+    if (!win) return;
+    const header = win.document.createElement("header");
+    header.innerHTML = `<h2>Nhập glossary AI đã dọn</h2>
+        <p>Dán kết quả AI (có khối <code>### NAMES</code> / <code>### VIETPHRASE</code>) hoặc upload file .md rồi bấm Nhập. Các mục sẽ được GỘP vào glossary hiện tại (trùng Hán → lấy giá trị mới).</p>`;
+    win.document.body.appendChild(header);
+    const main = win.document.createElement("main");
+    const actions = win.document.createElement("div");
+    actions.className = "bulk-actions";
+    const fileInput = win.document.createElement("input");
+    fileInput.type = "file"; fileInput.accept = ".md,.txt,text/markdown,text/plain";
+    const importBtn = win.document.createElement("button");
+    importBtn.textContent = "Nhập (gộp)";
+    const ta = win.document.createElement("textarea");
+    ta.spellcheck = false; ta.placeholder = "Dán kết quả AI vào đây…";
+    fileInput.addEventListener("change", async () => {
+        const f = fileInput.files[0];
+        if (f) ta.value = await f.text();
+    });
+    importBtn.addEventListener("click", async () => {
+        if (!ta.value.trim()) { win.alert("Chưa có nội dung để nhập."); return; }
+        importBtn.disabled = true;
+        try {
+            const fd = new FormData();
+            fd.set("text", ta.value);
+            const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/import`, { method: "POST", body: fd });
+            const data = await res.json();
+            if (!res.ok) { win.alert(data.detail || "Lỗi khi nhập."); importBtn.disabled = false; return; }
+            win.alert(`Đã nhập: thêm ${data.added} mục, cập nhật ${data.updated} mục. Tải lại bảng.`);
+            win.close();
+            window.location.reload();
+        } catch (err) { win.alert("Lỗi kết nối mạng."); importBtn.disabled = false; }
+    });
+    actions.appendChild(fileInput); actions.appendChild(importBtn);
+    main.appendChild(actions); main.appendChild(ta);
+    win.document.body.appendChild(main);
+    ta.focus();
+});
+
+/* ---------- Sửa tên & áp dụng lại (modal + preview) ---------- */
+const reapplyModal = document.getElementById("reapply-modal");
+const reapplyFind = document.getElementById("reapply-find");
+const reapplyReplace = document.getElementById("reapply-replace");
+const reapplyFrom = document.getElementById("reapply-from");
+const reapplyTo = document.getElementById("reapply-to");
+const reapplyApplyBtn = document.getElementById("reapply-apply-btn");
+const reapplyResult = document.getElementById("reapply-preview-result");
+let reapplyEntry = null;
+
+function openReapply(entry) {
+    reapplyEntry = entry;
+    reapplyFind.value = entry.target;
+    reapplyReplace.value = entry.target;
+    reapplyFrom.value = 0; reapplyTo.value = 0;
+    reapplyResult.innerHTML = "";
+    reapplyApplyBtn.disabled = true;
+    reapplyModal.classList.remove("hidden");
+    reapplyReplace.focus();
+}
+function closeReapply() { reapplyModal.classList.add("hidden"); reapplyEntry = null; }
+document.getElementById("reapply-close").addEventListener("click", closeReapply);
+reapplyModal.addEventListener("click", e => { if (e.target === reapplyModal) closeReapply(); });
+
+// Đổi ô tìm/thay/phạm vi ⇒ phải xem trước lại trước khi áp dụng.
+[reapplyFind, reapplyReplace, reapplyFrom, reapplyTo].forEach(el =>
+    el.addEventListener("input", () => { reapplyApplyBtn.disabled = true; }));
+
+document.getElementById("reapply-preview-btn").addEventListener("click", async () => {
+    const find = reapplyFind.value.trim();
+    if (!find) { toast("Chuỗi cần tìm đang rỗng.", "error"); return; }
+    reapplyResult.innerHTML = '<p class="text-muted-light dark:text-muted-dark">Đang quét…</p>';
+    try {
+        const fd = new FormData();
+        fd.set("find", find);
+        fd.set("replace", reapplyReplace.value);
+        fd.set("chapter_from", reapplyFrom.value || 0);
+        fd.set("chapter_to", reapplyTo.value || 0);
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/reapply-preview`, { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) { reapplyResult.innerHTML = `<p class="text-red-600 dark:text-red-400">${escapeHtml(data.detail || "Lỗi.")}</p>`; return; }
+        if (!data.chapters.length) {
+            reapplyResult.innerHTML = '<p class="text-muted-light dark:text-muted-dark">Không có chương nào chứa chuỗi này.</p>';
+            reapplyApplyBtn.disabled = true;
+            return;
+        }
+        const rows = data.chapters.map(c => `
+            <tr class="border-t border-border-light dark:border-border-dark">
+                <td class="px-2 py-1 whitespace-nowrap">Ch.${c.index}</td>
+                <td class="px-2 py-1 text-center">${c.count}</td>
+                <td class="px-2 py-1 text-muted-light dark:text-muted-dark">${escapeHtml(c.snippet)}</td>
+            </tr>`).join("");
+        reapplyResult.innerHTML = `
+            <p class="mb-1"><strong>${data.chapters.length}</strong> chương bị ảnh hưởng · tổng <strong>${data.total}</strong> chỗ thay
+            "<span class="font-mono">${escapeHtml(data.find)}</span>" → "<span class="font-mono">${escapeHtml(reapplyReplace.value)}</span>".</p>
+            <table class="w-full text-xs border border-border-light dark:border-border-dark rounded">
+                <thead class="bg-surface-alt-light dark:bg-surface-alt-dark"><tr><th class="px-2 py-1 text-left">Chương</th><th class="px-2 py-1">Số chỗ</th><th class="px-2 py-1 text-left">Ví dụ</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+        reapplyApplyBtn.disabled = reapplyReplace.value.trim() === "";
+    } catch (err) { reapplyResult.innerHTML = '<p class="text-red-600 dark:text-red-400">Lỗi kết nối mạng.</p>'; }
+});
+
+reapplyApplyBtn.addEventListener("click", async () => {
+    const find = reapplyFind.value.trim();
+    const replace = reapplyReplace.value.trim();
+    if (!find || !replace) { toast("Cần cả chuỗi tìm và chuỗi thay.", "error"); return; }
+    reapplyApplyBtn.disabled = true;
+    try {
+        const fd = new FormData();
+        fd.set("find", find);
+        fd.set("replace", replace);
+        fd.set("chapter_from", reapplyFrom.value || 0);
+        fd.set("chapter_to", reapplyTo.value || 0);
+        if (reapplyEntry) { fd.set("source", reapplyEntry.source); fd.set("category", reapplyEntry.category); }
+        const res = await fetch(`/ebooks/${GLOSSARY_SLUG}/glossary/reapply`, { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(data.detail || "Không bắt đầu được job.", "error"); reapplyApplyBtn.disabled = false; return; }
+        // Cập nhật mục trong bảng cho khớp (server đã đổi trong file).
+        if (reapplyEntry) reapplyEntry.target = replace;
+        render();
+        toast("Đã bắt đầu áp dụng (job nền). Theo dõi ở Queue/Logs.", "success");
+        closeReapply();
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); reapplyApplyBtn.disabled = false; }
+});
+
+/* ---------- Poll trạng thái job ---------- */
+async function pollStatus() {
     try {
         const res = await fetch("/api/status");
         if (!res.ok) return;
         const data = await res.json();
         const t = data.translate;
-        const busyHere = isTranslateBusyHere(data);
-
+        const busyHere = t.running && (t.running_ebooks || []).includes(GLOSSARY_SLUG);
         const container = document.getElementById("status-badge-container");
-        if (container) {
-            let html = "";
-            if (busyHere) {
-                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy: ${t.step}</span> `;
-            } else if (t.running) {
-                html += '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy (ebook khác)</span> ';
-            } else {
-                html += '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">rảnh</span> ';
-            }
-            if (t.error) {
-                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: ${t.error}</span>`;
-            }
-            container.innerHTML = html;
+        if (!container) return;
+        if (busyHere) {
+            container.innerHTML = `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy: ${t.step}</span>`;
+        } else if (t.running) {
+            container.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy (ebook khác)</span>';
+        } else {
+            container.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">rảnh</span>';
         }
-
-        setJobButtonsDisabled(busyHere);
-        wasRunning = busyHere;
-    } catch (e) {
-        console.error("Lỗi khi poll status:", e);
-    }
+    } catch (e) { /* im lặng */ }
 }
-poll();
-setInterval(poll, 1500);
+pollStatus();
+setInterval(pollStatus, 2000);
+
+render();
 </script>
 {% endblock %}

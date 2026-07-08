@@ -46,7 +46,7 @@ class _ChunkingTranslator:
     def __init__(self):
         self.calls = 0
 
-    def translate(self, text, *, on_chunk=None):
+    def translate(self, text, *, on_chunk=None, on_glossary=None):
         parts = ["PHẦN 1", "PHẦN 2", "PHẦN 3"]
         if on_chunk is not None:
             for i, p in enumerate(parts, 1):
@@ -81,7 +81,7 @@ def test_translate_one_failure_does_not_mark_complete(tmp_path, monkeypatch):
     """Nếu translator raise giữa chừng, meta KHÔNG có `complete: true`."""
 
     class _FailingTranslator:
-        def translate(self, text, *, on_chunk=None):
+        def translate(self, text, *, on_chunk=None, on_glossary=None):
             if on_chunk is not None:
                 on_chunk(1, 2, "PHẦN 1", False)  # chunk 1 OK
             raise RuntimeError("CLI lỗi giữa chừng")
@@ -115,9 +115,9 @@ def test_partial_chapter_is_retried_on_next_run(tmp_path, monkeypatch):
     seen: list[str] = []
 
     class _RecordingTranslator(_ChunkingTranslator):
-        def translate(self, text, *, on_chunk=None):
+        def translate(self, text, *, on_chunk=None, on_glossary=None):
             seen.append("called")
-            return super().translate(text, on_chunk=on_chunk)
+            return super().translate(text, on_chunk=on_chunk, on_glossary=on_glossary)
 
         def translate_title(self, text, kind="tên chương"):
             return text, ""

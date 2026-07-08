@@ -1,23 +1,26 @@
 from pathlib import Path
 
 import pytest
-import yaml
 
 from novel2epub.config import CrawlConfig, load_config
+from tests.conftest import write_db_config
 
 
 def _write_config(tmp_path: Path, extra: dict | None = None) -> Path:
-    data = {
+    ebook = {
         "novel": {"slug": "my-novel"},
         "crawl": {"toc_url": "https://example.com"},
-        "translate": {"type": "none"},
-        "output": {"data_dir": "data"},
     }
+    defaults = {"translate": {"type": "none"}, "output": {"data_dir": "data"}}
     if extra:
-        data.update(extra)
-    path = tmp_path / "config.yaml"
-    path.write_text(yaml.safe_dump(data), encoding="utf-8")
-    return path
+        for key in ("crawl",):
+            if key in extra:
+                ebook[key] = extra[key]
+        for key in ("translate", "output"):
+            if key in extra:
+                defaults[key] = extra[key]
+    path = tmp_path / "novel2epub.db"
+    return write_db_config(path, defaults=defaults, ebooks={"my-novel": ebook})
 
 
 def test_glossary_files_default_to_data_dir_glossary_folder(tmp_path):
@@ -46,8 +49,8 @@ def test_no_preset_backward_compat(tmp_path):
     config_path = _write_config(tmp_path, extra={"translate": {"type": "none"}})
     cfg = load_config(config_path)
     assert cfg.translate.preset == ""
-    assert cfg.translate.openai.base_url == "https://api.openai.com/v1"
-    assert cfg.translate.openai.model == "gpt-4o-mini"
+    assert cfg.translate.openai.base_url == "https://opencode.ai/zen/go/v1"
+    assert cfg.translate.openai.model == "opencode-go/kimi-k2.6"
 
 
 def test_go_preset_resolution(tmp_path):
@@ -98,7 +101,7 @@ def test_crawl_config_pagination_defaults():
 
 
 def test_crawl_config_pagination_fields_round_trip(tmp_path):
-    """Pagination fields survive load_config / YAML round-trip."""
+    """Pagination fields survive load_config round-trip qua DB."""
     config_path = _write_config(
         tmp_path,
         extra={
@@ -138,30 +141,25 @@ def test_crawl_config_rejects_invalid_regex():
 
 
 def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
-    """File gộp: config hiệu lực = deep_merge(defaults, ebooks[slug])."""
-    path = tmp_path / "novel2epub.yaml"
-    path.write_text(
-        yaml.safe_dump(
-            {
-                "defaults": {
-                    "crawl": {"engine": "scrapling", "content_selector": "#default"},
-                    "translate": {"type": "none", "openai": {"base_url": "https://custom.test/v1"}},
-                    "output": {"data_dir": "data"},
-                },
-                "ebooks": {
-                    "a": {
-                        "name": "Truyện A",
-                        "novel": {"slug": "a", "title": "A"},
-                        "crawl": {"toc_url": "https://a", "scrapling": {"mode": "stealthy"}},
-                    },
-                    "b": {
-                        "novel": {"slug": "b"},
-                        "crawl": {"toc_url": "https://b"},
-                    },
-                },
-            }
-        ),
-        encoding="utf-8",
+    """Config hiệu lực = deep_merge(defaults, ebooks[slug])."""
+    path = write_db_config(
+        tmp_path / "novel2epub.db",
+        defaults={
+            "crawl": {"engine": "scrapling", "content_selector": "#default"},
+            "translate": {"type": "none", "openai": {"base_url": "https://custom.test/v1"}},
+            "output": {"data_dir": "data"},
+        },
+        ebooks={
+            "a": {
+                "name": "Truyện A",
+                "novel": {"slug": "a", "title": "A"},
+                "crawl": {"toc_url": "https://a", "scrapling": {"mode": "stealthy"}},
+            },
+            "b": {
+                "novel": {"slug": "b"},
+                "crawl": {"toc_url": "https://b"},
+            },
+        },
     )
 
     cfg_a = load_config(path, "a")
@@ -171,18 +169,41 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
     assert cfg_a.crawl.toc_url == "https://a"
     assert cfg_a.translate.openai.base_url == "https://custom.test/v1"  # kế thừa defaults
 
-    # Slug rỗng -> lấy ebook đầu tiên.
+    # Slug rỗng -> lấy ebook đầu tiên (theo thứ tự slug).
     assert load_config(path).novel.slug == "a"
     # Ebook 'b' chỉ override toc_url, mọi thứ khác từ defaults.
     cfg_b = load_config(path, "b")
     assert cfg_b.crawl.content_selector == "#default"
 
 
+def test_translate_and_ai_are_global_ignore_ebook_override(tmp_path):
+    """`translate` (AI dịch) và `ai` (AI biên tập) dùng chung cho mọi ebook:
+    chỉ đọc từ defaults, override per-ebook (nếu còn sót) bị bỏ qua."""
+    path = write_db_config(
+        tmp_path / "novel2epub.db",
+        defaults={
+            "translate": {"type": "openai", "openai": {"model": "global-model"}},
+            "ai": {"openai": {"model": "global-editor"}},
+        },
+        ebooks={
+            "a": {
+                "novel": {"slug": "a"},
+                "translate": {"type": "none", "openai": {"model": "per-ebook-model"}},
+                "ai": {"openai": {"model": "per-ebook-editor"}},
+            },
+        },
+    )
+
+    cfg = load_config(path, "a")
+    assert cfg.translate.type == "openai"
+    assert cfg.translate.openai.model == "global-model"
+    assert cfg.ai.openai.model == "global-editor"
+
+
 def test_unified_file_unknown_slug_raises(tmp_path):
-    path = tmp_path / "novel2epub.yaml"
-    path.write_text(
-        yaml.safe_dump({"defaults": {}, "ebooks": {"a": {"novel": {"slug": "a"}}}}),
-        encoding="utf-8",
+    path = write_db_config(
+        tmp_path / "novel2epub.db",
+        ebooks={"a": {"novel": {"slug": "a"}}},
     )
     with pytest.raises(KeyError, match="nonexistent"):
         load_config(path, "nonexistent")
@@ -190,15 +211,10 @@ def test_unified_file_unknown_slug_raises(tmp_path):
 
 def test_default_translate_type_is_hachimimt(tmp_path):
     """Không khai báo translate.type → mặc định type=hachimimt."""
-    path = tmp_path / "novel2epub.yaml"
-    path.write_text(
-        yaml.safe_dump({
-            "novel": {"slug": "test"},
-            "crawl": {"toc_url": "https://example.com"},
-            "translate": {},
-            "output": {"data_dir": "data"},
-        }),
-        encoding="utf-8",
+    path = write_db_config(
+        tmp_path / "novel2epub.db",
+        defaults={"translate": {}},
+        ebooks={"test": {"novel": {"slug": "test"}, "crawl": {"toc_url": "https://example.com"}}},
     )
     cfg = load_config(path)
     assert cfg.translate.type == "hachimimt"
@@ -206,18 +222,10 @@ def test_default_translate_type_is_hachimimt(tmp_path):
 
 def test_hachimimt_auto_preset(tmp_path):
     """model preset HachimiMT-60 → model_key được gán đúng."""
-    path = tmp_path / "novel2epub.yaml"
-    path.write_text(
-        yaml.safe_dump({
-            "novel": {"slug": "test"},
-            "crawl": {"toc_url": "https://example.com"},
-            "translate": {
-                "type": "hachimimt",
-                "model": "hachimimt-60",
-            },
-            "output": {"data_dir": "data"},
-        }),
-        encoding="utf-8",
+    path = write_db_config(
+        tmp_path / "novel2epub.db",
+        defaults={"translate": {"type": "hachimimt", "model": "hachimimt-60"}},
+        ebooks={"test": {"novel": {"slug": "test"}, "crawl": {"toc_url": "https://example.com"}}},
     )
     cfg = load_config(path)
     assert cfg.translate.hachimimt.model_key == "HachimiMT-60"
@@ -225,23 +233,58 @@ def test_hachimimt_auto_preset(tmp_path):
 
 def test_hachimimt_auto_preset_respects_user_override(tmp_path):
     """User override model_key → không bị preset ghi đè."""
-    path = tmp_path / "novel2epub.yaml"
-    path.write_text(
-        yaml.safe_dump({
-            "novel": {"slug": "test"},
-            "crawl": {"toc_url": "https://example.com"},
+    path = write_db_config(
+        tmp_path / "novel2epub.db",
+        defaults={
             "translate": {
                 "type": "hachimimt",
                 "model": "hachimimt-60",
-                "hachimimt": {
-                    "model_key": "MoxhiMT-60",
-                    "beam_size": 4,
-                },
+                "hachimimt": {"model_key": "MoxhiMT-60", "beam_size": 4},
             },
-            "output": {"data_dir": "data"},
-        }),
-        encoding="utf-8",
+        },
+        ebooks={"test": {"novel": {"slug": "test"}, "crawl": {"toc_url": "https://example.com"}}},
     )
     cfg = load_config(path)
     assert cfg.translate.hachimimt.model_key == "MoxhiMT-60"  # user override wins
     assert cfg.translate.hachimimt.beam_size == 4
+
+
+def test_glossary_filter_defaults_true(tmp_path):
+    config_path = _write_config(tmp_path)
+    cfg = load_config(config_path)
+    assert cfg.translate.glossary_filter is True
+
+
+def test_glossary_filter_false_parsed(tmp_path):
+    config_path = _write_config(
+        tmp_path,
+        extra={"translate": {"type": "none", "glossary_filter": False}},
+    )
+    cfg = load_config(config_path)
+    assert cfg.translate.glossary_filter is False
+
+
+def test_auto_glossary_and_batch_size_parsed_from_yaml(tmp_path):
+    """auto_glossary/batch_size từng bị bỏ quên khi load config (luôn dùng default)."""
+    config_path = _write_config(
+        tmp_path,
+        extra={"translate": {"type": "none", "auto_glossary": True, "batch_size": 5}},
+    )
+    cfg = load_config(config_path)
+    assert cfg.translate.auto_glossary is True
+    assert cfg.translate.batch_size == 5
+
+
+def test_prompt_max_chars_defaults_7000(tmp_path):
+    config_path = _write_config(tmp_path)
+    cfg = load_config(config_path)
+    assert cfg.translate.prompt_max_chars == 7000
+
+
+def test_prompt_max_chars_parsed_from_yaml(tmp_path):
+    config_path = _write_config(
+        tmp_path,
+        extra={"translate": {"type": "none", "prompt_max_chars": 12000}},
+    )
+    cfg = load_config(config_path)
+    assert cfg.translate.prompt_max_chars == 12000

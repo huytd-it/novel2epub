@@ -1,6 +1,9 @@
 """Xem & sửa tay 1 chương (raw + bản dịch)."""
 from __future__ import annotations
 
+import dataclasses
+from typing import Callable
+
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
@@ -8,6 +11,7 @@ import html
 
 from novel2epub import bulk_transfer, footnotes
 from novel2epub.pipeline import (
+    step_cleanup_han_selected,
     step_crawl_selected,
     step_delete_translation_selected,
     step_retranslate_title,
@@ -18,6 +22,7 @@ from novel2epub.pipeline import (
 )
 from novel2epub.storage import Storage
 from novel2epub.toc import count_words
+from novel2epub.translator import _filter_glossary
 
 from novel2epub.openai_client import run_chat as openai_run_chat
 
@@ -216,10 +221,12 @@ def ebook_chapter_action(request: Request, slug: str, index: int, action: str = 
             step_crawl_selected(cfg, log, force=override, selected_indexes=[index])
         elif action == "translate":
             step_translate_selected(cfg, log, force=override, selected_indexes=[index])
+        elif action == "cleanup-han":
+            step_cleanup_han_selected(cfg, log, force=override, selected_indexes=[index])
         else:
             raise ValueError(f"action không hợp lệ: {action!r}")
 
-    started = request.app.state.job.start_custom(f"chapter-{action}", _target, category=action)
+    started = request.app.state.job.start_custom(f"chapter-{action}", _target, category="translate")
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
@@ -239,7 +246,7 @@ def ebook_chapter_delete_translation(request: Request, slug: str, index: int):
 
 
 @router.post("/api/ebooks/{slug}/chapters/{index}/retranslate-title")
-async def api_ebook_chapter_retranslate_title(
+def api_ebook_chapter_retranslate_title(
     request: Request,
     slug: str,
     index: int,
@@ -370,13 +377,8 @@ def _chapter_translated_payload(storage: Storage, ch) -> dict:
     = False khi meta thiếu hoặc `complete != True` (partial do job crash).
     Xem spec `translate-chunk-streaming` requirement: web-api.
     """
-    p = storage.translated_path(ch)
-    if p.exists():
-        text = p.read_text(encoding="utf-8")
-        mtime = p.stat().st_mtime
-    else:
-        text = ""
-        mtime = 0.0
+    text = storage.read_translated(ch)
+    mtime = storage.translated_updated_at(ch)
     meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
     complete = bool(meta.get("complete", False))
     return {
@@ -398,6 +400,129 @@ def api_ebook_chapter_translated(slug: str, index: int):
     if ch is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
     return JSONResponse(_chapter_translated_payload(storage, ch))
+
+
+@router.get("/api/ebooks/{slug}/chapters/{index}/translated-mt")
+def api_ebook_chapter_translated_mt(slug: str, index: int):
+    """Snapshot bản dịch máy cho chế độ so sánh của trang đọc.
+
+    `has_mt_snapshot=False` nghĩa là `read_translated_mt` đang fallback về
+    `translated` (chương dịch trước khi có snapshot) — UI báo "hai bản giống
+    nhau" thay vì hiển thị diff rỗng khó hiểu.
+    """
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
+    return JSONResponse({
+        "text": storage.read_translated_mt(ch),
+        "has_mt_snapshot": storage.has_translated_mt(ch),
+    })
+
+
+def _load_chapter_json_or_404(slug: str, index: int):
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
+    return storage, manifest, ch
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/revert-edits")
+def api_ebook_chapter_revert_edits(slug: str, index: int):
+    """Xóa bản biên tập: khôi phục `translated/` về snapshot bản dịch máy.
+
+    Chỉ hoạt động khi chương có snapshot MT thật (không dùng bản fallback —
+    ghi đè translated bằng chính nó là vô nghĩa và gây hiểu lầm đã khôi phục).
+    """
+    storage, _manifest, ch = _load_chapter_json_or_404(slug, index)
+    if not storage.has_translated_mt(ch):
+        raise HTTPException(
+            status_code=400,
+            detail="Chương không có snapshot bản dịch máy để khôi phục.",
+        )
+    storage.write_translated(ch, storage.read_translated_mt(ch))
+    return JSONResponse({"reverted": True})
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/delete-translation")
+def api_ebook_chapter_delete_translation(slug: str, index: int):
+    """Xóa toàn bộ bản dịch của 1 chương (translated + snapshot MT + meta).
+
+    Bản sync cho trang đọc — khác route form `/ebooks/.../delete-translation`
+    (job nền + redirect về editor): xóa vài file là thao tác tức thời, không
+    cần queue.
+    """
+    storage, manifest, ch = _load_chapter_json_or_404(slug, index)
+    storage.delete_translated(ch)
+    if ch.last_action_status:
+        ch.last_action_status = ""
+        storage.save_chapter(ch)
+    return JSONResponse({"deleted": True})
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/toggle-skip")
+def api_ebook_chapter_toggle_skip(slug: str, index: int):
+    """Bật/tắt trạng thái skipped của 1 chương. Skipped chapters bị ẩn khỏi
+    table mặc định, không bị xoá dữ liệu. Có filter_skipped=yes để xem lại."""
+    storage, manifest, ch = _load_chapter_json_or_404(slug, index)
+    ch.skipped = not ch.skipped
+    storage.save_chapter(ch)
+    return JSONResponse({"skipped": ch.skipped})
+
+
+@router.post("/api/ebooks/{slug}/batch/clean-raw")
+async def api_batch_clean_raw(slug: str, indexes: str = Form(...)):
+    """Xóa hàng loạt file raw cho các chương đã chọn. Không đụng translated/
+    translated_mt/meta — chỉ xóa raw/*.md để có thể crawl lại."""
+    from pathlib import Path as _Path
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    deleted = 0
+    for ch in manifest.chapters:
+        if ch.index not in index_list:
+            continue
+        if storage.has_raw(ch):
+            storage.write_raw(ch, "")
+            deleted += 1
+    return JSONResponse({"deleted": deleted})
+
+
+@router.post("/api/ebooks/{slug}/batch/update-skip")
+async def api_batch_update_skip(slug: str, indexes: str = Form(...), skip: bool = Form(True)):
+    """Bật (skip=True) hoặc tắt (skip=False) skipped cho hàng loạt chương."""
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    updated = 0
+    for ch in manifest.chapters:
+        if ch.index in index_list and ch.skipped != skip:
+            ch.skipped = skip
+            updated += 1
+    if updated:
+        for ch in manifest.chapters:
+            if ch.index in index_list:
+                storage.save_chapter(ch)
+    return JSONResponse({"updated": updated, "skip": skip})
 
 
 _POLISH_PROMPT = """Bạn là biên tập viên truyện dịch Trung → Việt.
@@ -541,6 +666,29 @@ async def api_batch_translate_titles(
     return JSONResponse({"started": True, "total": len(index_list)})
 
 
+@router.post("/api/ebooks/{slug}/batch/delete-translation")
+async def api_batch_delete_translation(request: Request, slug: str, indexes: str = Form(...)):
+    """Xóa hàng loạt bản dịch (translated + snapshot MT + meta) cho các chương đã chọn.
+
+    Thao tác phá huỷ — UI phải xác nhận trước khi gọi. Raw KHÔNG bị xoá, có thể
+    dịch lại. Job category=translate để dùng chung khoá với các batch dịch khác.
+    """
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào. Hãy tick checkbox trước.")
+
+    def _target(log):
+        step_delete_translation_selected(cfg, log, selected_indexes=index_list)
+
+    started = request.app.state.job.start_custom(
+        f"batch-delete-translation-{len(index_list)}", _target, category="translate"
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "total": len(index_list)})
+
+
 @router.post("/api/ebooks/{slug}/batch/suggest-glossary")
 async def api_batch_suggest_glossary(
     request: Request,
@@ -566,7 +714,97 @@ async def api_batch_suggest_glossary(
     return JSONResponse({"started": True, "total": len(index_list)})
 
 
+@router.post("/api/ebooks/{slug}/batch/ai-rewrite")
+async def api_batch_ai_rewrite(
+    request: Request,
+    slug: str,
+    indexes: str = Form(...),
+    backend: str = Form("openai"),
+):
+    """Batch "Biên tập đã chọn" — backend chọn qua form field `backend`.
+
+    - backend="openai" (mặc định): gọi `step_rewrite_preview` cho từng chương.
+      LUÔN xoá bản nháp cũ (nếu có) rồi tạo lại bản nháp mới trong
+      meta['ai_rewrite']. KHÔNG ghi đè bản dịch hiện hành — user vào từng
+      chương để xem diff rồi áp dụng/bỏ (giống flow per-chapter /ai/rewrite).
+
+    - backend="hachimimt": dịch lại bằng Local NMT, ghi đè bản dịch hiện
+      hành (force=True). Hữu ích khi muốn thử lại bằng model NMT khác.
+    """
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+    backend = (backend or "openai").lower()
+    if backend not in ("openai", "hachimimt"):
+        raise HTTPException(status_code=400, detail=f"backend không hợp lệ: {backend!r}")
+
+    if backend == "hachimimt":
+        # Local NMT: dịch lại từ raw, ghi đè bản dịch cũ.
+        mod_cfg = dataclasses.replace(
+            cfg,
+            translate=dataclasses.replace(cfg.translate, type="hachimimt"),
+        )
+
+        def _target(log):
+            try:
+                step_translate_selected(
+                    mod_cfg, log, force=True, selected_indexes=index_list
+                )
+            except Exception as e:  # noqa: BLE001
+                log(f"[batch-rewrite-local-nmt] Lỗi: {e}")
+
+        started = request.app.state.job.start_custom(
+            f"batch-rewrite-local-nmt-{len(index_list)}", _target, category="translate"
+        )
+    else:
+        def _target(log):
+            from novel2epub.storage import Storage
+            storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+            manifest = storage.load_manifest()
+            if manifest:
+                idx_set = set(index_list)
+                cleared = 0
+                for ch in manifest.chapters:
+                    if ch.index in idx_set and storage.has_meta(ch):
+                        meta = storage.read_meta(ch)
+                        if "ai_rewrite" in meta:
+                            meta.pop("ai_rewrite", None)
+                            storage.write_meta(ch, meta)
+                            cleared += 1
+                if cleared:
+                    log(f"[batch-rewrite] Đã xoá {cleared} bản nháp cũ, tạo lại.")
+            for idx in index_list:
+                try:
+                    step_rewrite_preview(cfg, log, index=idx)
+                except RuntimeError as e:
+                    log(f"[batch-rewrite] Lỗi chương {idx}: {e}")
+
+        started = request.app.state.job.start_custom(
+            f"batch-ai-rewrite-{len(index_list)}", _target, category="translate"
+        )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "total": len(index_list), "backend": backend})
+
+
 _EXPORT_PROMPTS = {"translated": bulk_transfer.EDIT_PROMPT, "raw": bulk_transfer.TRANSLATE_PROMPT}
+
+
+def _filter_glossary_for_batch(
+    names: dict[str, str],
+    vietphrase: dict[str, str],
+    items: list[tuple[int, str, str]],
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Rút gọn glossary về đúng các mục xuất hiện trong batch (translate.glossary_filter).
+
+    Khối glossary nhét vào export dùng chung cho cả nguồn raw (ZH) lẫn translated
+    (VI), nên so khớp key Hán VÀ value Việt với toàn bộ text (title + content)."""
+    combined = "\n".join(f"{title}\n{content}" for _, title, content in items)
+    return (
+        _filter_glossary(names, zh_text=combined, vi_text=combined),
+        _filter_glossary(vietphrase, zh_text=combined, vi_text=combined),
+    )
 
 
 @router.post("/api/ebooks/{slug}/batch/export")
@@ -609,10 +847,14 @@ async def api_batch_export(slug: str, indexes: str = Form(""), source: str = For
             else "Không có chương đã dịch nào trong số đã chọn."
         raise HTTPException(status_code=400, detail=detail)
 
+    names = storage.read_glossary_file("names.txt")
+    vietphrase = storage.read_glossary_file("vietphrase.txt")
+    if cfg.translate.glossary_filter:
+        names, vietphrase = _filter_glossary_for_batch(names, vietphrase, items)
     text = bulk_transfer.build_export(
         items,
-        names=storage.read_glossary_file("names.txt"),
-        vietphrase=storage.read_glossary_file("vietphrase.txt"),
+        names=names,
+        vietphrase=vietphrase,
         prompt=_EXPORT_PROMPTS[source],
     )
     return JSONResponse({"text": text, "skipped": skipped, "total": len(items), "source": source})
@@ -642,7 +884,7 @@ async def api_batch_import(
 
     expected = [int(i.strip()) for i in indexes.split(",") if i.strip()]
     by_index = {c.index: c for c in manifest.chapters}
-    content_by_index = dict(parsed)
+    content_by_index = {idx: content for idx, _title, content in parsed}
     report = bulk_transfer.validate_import(
         list(content_by_index.keys()), expected, list(by_index.keys())
     )
@@ -704,6 +946,297 @@ async def api_batch_import(
         "missing": report["missing"],
         "unknown": report["unknown"],
     })
+
+
+def _ai_call_with_retry(
+    openai_cfg,
+    prompt: str,
+    log: Callable[[str], None],
+    label: str,
+):
+    """Gọi AI qua `run_chat_with_meta` với retry 1 lần. Trả `(content, meta)`
+    nếu thành công, hoặc `None` nếu CẢ 2 lần đều lỗi — caller tự quyết định
+    skip batch hay raise.
+
+    Lý do retry 1 lần: API có round-robin — gọi lại ngay thường đổi sang
+    model/node khác và pass khi lần 1 bị timeout/5xx. Nếu lần 2 vẫn fail
+    (provider tạch hẳn, hoặc lỗi logic) thì skip để job vẫn chạy tiếp
+    các batch sau thay vì chết cả job.
+    """
+    from novel2epub.openai_client import run_chat_with_meta
+
+    for attempt in (1, 2):
+        try:
+            return run_chat_with_meta(openai_cfg, prompt)
+        except Exception as e:
+            if attempt == 1:
+                log(f"[batch-dịch] {label}: AI lỗi lần 1, thử lại: {e}")
+            else:
+                log(f"[batch-dịch] {label}: AI lỗi lần 2: {e}")
+    log(f"[batch-dịch] {label}: ⚠ Cả 2 lần đều lỗi, bỏ qua batch này, tiếp tục batch kế tiếp.")
+    return None
+
+
+def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], None]) -> None:
+    """Target chạy trong job queue cho POST batch/translate (xem route bên
+    dưới). `index_list` là danh sách GỐC chưa lọc — việc lọc "đã dịch rồi"/
+    "chưa có raw" xảy ra ở ĐÂY (lúc job thực sự chạy), không phải lúc enqueue,
+    nên job này idempotent: enqueue lại y hệt spec cũ sau khi app restart
+    (xem JobQueue.load_pending) là an toàn, chỉ dịch phần còn thiếu.
+    """
+    from novel2epub.pipeline import _clean_title
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        log(f"[batch-dịch] Lỗi: ebook {slug!r} chưa có manifest.")
+        return
+
+    by_index = {c.index: c for c in manifest.chapters}
+    items: list[tuple[int, str, str]] = []
+    skipped: list[int] = []
+    already_translated: list[int] = []
+    for idx in index_list:
+        ch = by_index.get(idx)
+        if ch is None or not storage.has_raw(ch):
+            skipped.append(idx)
+            continue
+        if storage.has_translated(ch):
+            already_translated.append(idx)
+            continue
+        items.append((idx, ch.title, storage.read_raw(ch)))
+
+    if already_translated:
+        log(f"[batch-dịch] Bỏ qua {len(already_translated)} chương đã dịch: {already_translated}")
+    if skipped:
+        log(f"[batch-dịch] Bỏ qua {len(skipped)} chương chưa có raw: {skipped}")
+    if not items:
+        log("[batch-dịch] Không có chương nào cần dịch.")
+        return
+
+    # Glossary chung — đọc 1 lần, merge dần qua các batch
+    names_glossary = dict(storage.read_glossary_file("names.txt"))
+    vietphrase_glossary = dict(storage.read_glossary_file("vietphrase.txt"))
+
+    # Chia items thành các batch: tối đa translate.batch_size chương/batch,
+    # VÀ khối export (prompt + glossary + chương) không vượt
+    # translate.prompt_max_chars — batch bị cắt sớm khi chạm giới hạn.
+    # Chương đơn lẻ đã vượt giới hạn vẫn đi 1 mình (không chia nhỏ được).
+    def _export_len(batch: list[tuple[int, str, str]]) -> int:
+        bn, bv = names_glossary, vietphrase_glossary
+        if cfg.translate.glossary_filter:
+            bn, bv = _filter_glossary_for_batch(names_glossary, vietphrase_glossary, batch)
+        return len(bulk_transfer.build_export(
+            batch, names=bn, vietphrase=bv, prompt=bulk_transfer.TRANSLATE_PROMPT,
+        ))
+
+    batch_size = max(1, cfg.translate.batch_size)
+    budget = cfg.translate.prompt_max_chars
+    batches: list[list[tuple[int, str, str]]] = []
+    cur: list[tuple[int, str, str]] = []
+    for item in items:
+        cand = cur + [item]
+        if cur and (len(cand) > batch_size or (budget > 0 and _export_len(cand) > budget)):
+            batches.append(cur)
+            cur = [item]
+        else:
+            cur = cand
+    if cur:
+        batches.append(cur)
+    total_batches = len(batches)
+    log(f"[batch-dịch] Dịch {len(items)} chương, chia {total_batches} batch "
+        f"(batch_size={batch_size}, prompt_max_chars={budget or 'tắt'}).")
+    if budget > 0:
+        for b in batches:
+            if len(b) == 1 and _export_len(b) > budget:
+                log(f"[batch-dịch] ⚠ Chương {b[0][0]} một mình đã vượt prompt_max_chars "
+                    f"({_export_len(b)} > {budget} ký tự) — vẫn gửi nguyên chương.")
+
+    all_written: list[int] = []
+    all_missing: list[int] = []
+    all_unknown: list[int] = []
+    all_skipped: list[int] = []  # chương thuộc batch fail cả 2 lần gọi AI
+    titles_updated: list[int] = []
+    glossary_added = 0
+    batch_metas: list[dict] = []
+
+    for batch_idx, batch_items in enumerate(batches, 1):
+        label = f"Batch {batch_idx}/{total_batches}"
+
+        # 1. Build export cho batch này (dùng glossary đã merge từ các batch trước).
+        # glossary_filter: chỉ nhét mục glossary xuất hiện trong batch (giữ nguyên
+        # names_glossary/vietphrase_glossary đầy đủ cho các batch sau).
+        batch_names, batch_vietphrase = names_glossary, vietphrase_glossary
+        if cfg.translate.glossary_filter:
+            batch_names, batch_vietphrase = _filter_glossary_for_batch(
+                names_glossary, vietphrase_glossary, batch_items
+            )
+        export_text = bulk_transfer.build_export(
+            batch_items,
+            names=batch_names,
+            vietphrase=batch_vietphrase,
+            prompt=bulk_transfer.TRANSLATE_PROMPT,
+        )
+
+        # 2. Gọi AI (retry 1 lần — fail cả 2 lần → skip batch này, tiếp tục batch kế tiếp)
+        result = _ai_call_with_retry(
+            cfg.translate.openai, export_text, log, label,
+        )
+        if result is None:
+            all_skipped.extend(i for i, _, _ in batch_items)
+            continue
+
+        response_text, meta = result
+        batch_metas.append(meta or {})
+
+        # 3. Parse response
+        parsed = bulk_transfer.parse_import(response_text)
+        if not parsed:
+            log(f"[batch-dịch] {label}: raw response (200 ký tự đầu): {response_text[:200]!r}")
+            raise RuntimeError(
+                f"Batch {batch_idx}/{total_batches}: AI trả về nhưng không có "
+                "marker chương nào (## Chương N). "
+                "Xem log để debug — raw response đã được ghi ở trên."
+            )
+
+        content_by_index = {idx: content for idx, _title, content in parsed}
+        title_by_index = {idx: title for idx, title, _content in parsed if title.strip()}
+        expected = [i for i, _, _ in batch_items]
+        report = bulk_transfer.validate_import(
+            list(content_by_index.keys()), expected, list(by_index.keys())
+        )
+        glossary = bulk_transfer.parse_glossary(response_text)
+
+        # 4. Ghi translated/ — giữ snapshot MT trước khi ghi bản AI. Tiêu đề AI
+        # dịch trong heading ghi đè manifest title (match theo index của marker,
+        # KHÔNG theo số chương trong tiêu đề — hai số này có thể lệch nhau).
+        batch_titles_changed = False
+        for idx in report["matched"]:
+            ch = by_index[idx]
+            if not storage.has_translated_mt(ch):
+                storage.write_translated_mt(ch, content_by_index[idx])
+            storage.write_translated(ch, content_by_index[idx])
+            all_written.append(idx)
+
+            new_title = _clean_title(title_by_index.get(idx, ""))
+            if new_title:
+                # Ép lại số chương THẬT (第M章 trong tiêu đề gốc) — AI hay dịch
+                # "gọn" làm rơi số, hoặc echo nhầm index vị trí vào tiêu đề.
+                new_title = bulk_transfer.ensure_title_number(
+                    ch.title_zh or ch.title, new_title
+                )
+            if new_title and new_title != ch.title:
+                if not ch.title_zh:
+                    ch.title_zh = ch.title
+                ch.title = new_title
+                ch.title_note = ""
+                titles_updated.append(idx)
+                batch_titles_changed = True
+            storage.save_chapter(ch)
+
+        # 5. Merge glossary mới vào dict chung (cho batch kế tiếp dùng tham khảo)
+        for source, target in glossary["names"].items():
+            if source not in names_glossary:
+                names_glossary[source] = target
+                if _append_glossary_entry(storage, "names.txt", source, target):
+                    glossary_added += 1
+        for source, target in glossary["vietphrase"].items():
+            if source not in vietphrase_glossary:
+                vietphrase_glossary[source] = target
+                if _append_glossary_entry(storage, "vietphrase.txt", source, target):
+                    glossary_added += 1
+
+        all_missing.extend(report["missing"])
+        all_unknown.extend(report["unknown"])
+        log(f"[batch-dịch] Batch {batch_idx}/{total_batches}: ghi {len(report['matched'])} chương.")
+
+    # Tổng hợp ai_meta từ tất cả batch
+    cost = sum(m.get("cost_usd", 0) for m in batch_metas)
+    tokens = sum((m.get("tokens_in", 0) + m.get("tokens_out", 0)) for m in batch_metas)
+    summary = (
+        f"[batch-dịch] Hoàn tất: {len(all_written)}/{len(items)} chương"
+        f" · {len(titles_updated)} tiêu đề cập nhật · {glossary_added} mục glossary mới"
+    )
+    if cost:
+        summary += f" · {cost:.4f} USD"
+    if tokens:
+        summary += f" · {tokens} tokens"
+    log(summary)
+    if all_missing:
+        log(f"[batch-dịch] ⚠ AI bỏ sót: {all_missing}")
+    if all_unknown:
+        log(f"[batch-dịch] ⚠ Index lạ (bỏ qua): {all_unknown}")
+    if all_skipped:
+        log(f"[batch-dịch] ⚠ Bỏ qua do AI lỗi 2 lần liên tiếp: {all_skipped}")
+
+
+def batch_translate_job_factory(params: dict) -> Callable[[Callable[[str], None]], object]:
+    """Tái tạo `target(log)` từ spec đã lưu (xem JobQueue.register_kind) —
+    dùng để enqueue lại job batch/translate còn dang dở sau khi app restart."""
+    slug = params["slug"]
+    index_list = params["indexes"]
+
+    def _target(log: Callable[[str], None]) -> None:
+        _run_batch_translate(slug, index_list, log)
+
+    return _target
+
+
+@router.post("/api/ebooks/{slug}/batch/translate")
+async def api_batch_translate(request: Request, slug: str, indexes: str = Form("")):
+    """Enqueue dịch hàng loạt theo luồng "Xuất RAW" → gọi AI → "Nhập" — chạy
+    NỀN qua job queue (category=translate), KHÔNG block request. Chia nhỏ
+    thành các batch để tránh gửi quá nhiều chương 1 lần cho AI.
+
+    Config: `translate.batch_size` (mặc định 10) — tối đa số chương / lần gọi AI.
+
+    Chương đã có bản dịch (`storage.has_translated`) tự động bị BỎ QUA — muốn
+    dịch lại thì xoá bản dịch cũ trước (nút "Xóa bản dịch selected"). Việc lọc
+    xảy ra lúc job THỰC SỰ chạy (xem `_run_batch_translate`), không phải lúc
+    enqueue, nên job idempotent — an toàn khi được enqueue lại tự động sau khi
+    app restart trong lúc job còn pending/đang chạy (xem `JobQueue.load_pending`,
+    đăng ký kind ở `app/main.py`).
+
+    Tiêu đề AI dịch trong heading `## Chương N: <title>` được ghi đè vào
+    `manifest.chapters[].title` (backfill `title_zh` nếu đang rỗng) — xem chi
+    tiết trong `_run_batch_translate`.
+
+    Trả `{started, total, pending, skip_hint}` NGAY (không đợi dịch xong) — kết
+    quả chi tiết (written/glossary/ai_meta) nằm trong log của job, xem trang
+    /queue hoặc /logs, hoặc GET /api/queue/{job_id}/log.
+    """
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+
+    by_index = {c.index: c for c in manifest.chapters}
+    pending = sum(
+        1
+        for idx in index_list
+        if (ch := by_index.get(idx)) is not None and storage.has_raw(ch) and not storage.has_translated(ch)
+    )
+    if pending == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Không có chương nào cần dịch (đã dịch hết hoặc chưa có raw).",
+        )
+
+    spec = {"kind": "batch-translate", "params": {"slug": slug, "indexes": index_list}}
+    request.app.state.job.start_custom(
+        f"batch-translate-{len(index_list)}",
+        batch_translate_job_factory(spec["params"]),
+        category="translate",
+        ebook=slug,
+        spec=spec,
+    )
+    return JSONResponse({"started": True, "total": len(index_list), "pending": pending})
 
 
 @router.patch("/api/ebooks/{slug}/meta")

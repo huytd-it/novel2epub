@@ -76,10 +76,11 @@ def test_create_ebook_calls_add_ebook(monkeypatch, tmp_path):
 
     captured = {}
 
-    def fake_add_ebook(path, slug, *, name="", title="", author="", toc_url=""):
+    def fake_add_ebook(path, slug, *, name="", title="", author="", toc_url="", source_name=""):
         captured.update(path=str(path), slug=slug, name=name, title=title)
 
     monkeypatch.setattr(library, "add_ebook", fake_add_ebook)
+    monkeypatch.setattr(library, "load_presets", lambda path: {})
 
     res = client.post("/library/ebooks", data={
         "toc_url": "https://www.shuhaige.net/372421/",

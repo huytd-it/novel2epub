@@ -96,7 +96,8 @@
                         data-js_code="{{ p.js_code or '' }}" data-scrapling_mode="{{ p.scrapling_mode or '' }}"
                         data-solve_cloudflare="{{ 'true' if p.solve_cloudflare else '' }}" data-network_idle="{{ 'true' if p.network_idle else '' }}"
                         data-impersonate="{{ p.impersonate or '' }}" data-user_agent="{{ p.user_agent or '' }}"
-                        data-concurrency_cap="{{ p.concurrency_cap }}">Sửa</button>
+                        data-concurrency_cap="{{ p.concurrency_cap }}"
+                        data-strip_patterns="{{ p.strip_patterns | join('\n') if p.strip_patterns else '' }}">Sửa</button>
                     <form method="post" action="/sources/{{ name }}/clone" style="display:inline">
                         <button type="submit" title="Nhân bản preset này" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhân bản</button>
                     </form>
@@ -212,6 +213,13 @@
                 </fieldset>
 
                 <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
+                    <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Lọc nội dung rác</legend>
+                    <label class="flex flex-col gap-1 text-sm min-w-0">strip_patterns (mỗi dòng 1 regex)
+                        <textarea name="strip_patterns" id="p-strip_patterns" rows="3" placeholder="^请记住本书首发域名.*$" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm font-mono"></textarea>
+                    </label>
+                </fieldset>
+
+                <fieldset class="border border-border-light dark:border-border-dark rounded-lg px-3 py-2 bg-surface-alt-light dark:bg-surface-alt-dark">
                     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-muted-light dark:text-muted-dark">Mạng &amp; song song</legend>
                     <div class="canvas-form-row grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
                         <label class="flex flex-col gap-1 text-sm min-w-0">User Agent <input type="text" name="user_agent" id="p-user_agent" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
@@ -220,6 +228,7 @@
                 </fieldset>
 
                 <div class="canvas-footer pt-3 mt-3 border-t border-border-light dark:border-border-dark">
+                    <div id="preset-propagate-warning" class="hidden mb-2 px-2 py-1.5 text-xs rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300"></div>
                     <div class="flex gap-2 justify-end">
                         <button type="submit" id="preset-submit-btn" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Thêm preset</button>
                         <button type="button" onclick="closeCanvas('preset-canvas')" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Hủy</button>
@@ -233,7 +242,20 @@
 
 {% block scripts %}
 <script>
+const _presetUsage = {{ usage | tojson }};
 document.addEventListener("DOMContentLoaded", function () {
+    function _updatePropagateWarning(presetName) {
+        const el = document.getElementById("preset-propagate-warning");
+        if (!el) return;
+        const used = _presetUsage[presetName] || [];
+        if (used.length > 0) {
+            el.textContent = "Thay đổi sẽ propagate sang " + used.length + " ebook: " + used.join(", ");
+            el.classList.remove("hidden");
+        } else {
+            el.classList.add("hidden");
+        }
+    }
+
     document.getElementById("add-preset-btn").addEventListener("click", function () {
         document.getElementById("preset-canvas-title").textContent = "Thêm preset";
         document.getElementById("preset-submit-btn").textContent = "Thêm preset";
@@ -244,6 +266,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("p-chapter_link_pattern").value = ".*";
         document.getElementById("p-max_pages_per_chapter").value = "10";
         document.getElementById("p-network_idle").checked = true;
+        _updatePropagateWarning("");
         openCanvas('preset-canvas');
     });
 
@@ -254,6 +277,7 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("original_name").value = btn.dataset.name;
             document.getElementById("p-name").value = btn.dataset.name;
             document.getElementById("p-name").required = false;
+            _updatePropagateWarning(btn.dataset.name);
             document.getElementById("p-url").value = btn.dataset.url;
             document.getElementById("p-domains").value = btn.dataset.domains;
             document.getElementById("p-delay_seconds").value = btn.dataset.delay_seconds;
@@ -275,6 +299,7 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("p-impersonate").value = btn.dataset.impersonate;
             document.getElementById("p-user_agent").value = btn.dataset.user_agent;
             document.getElementById("p-concurrency_cap").value = btn.dataset.concurrency_cap;
+            document.getElementById("p-strip_patterns").value = btn.dataset.strip_patterns || '';
             openCanvas('preset-canvas');
         });
     });

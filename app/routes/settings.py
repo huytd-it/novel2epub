@@ -1,13 +1,17 @@
-"""Cấu hình per-ebook: metadata truyện, nguồn crawl, AI OpenAI-Compatible dịch."""
+"""Cấu hình ebook: metadata truyện + nguồn crawl per-ebook; AI dịch (`translate`)
+và AI biên tập (`ai`) là cấu hình GLOBAL dùng chung mọi ebook (ghi vào `defaults:`)."""
 from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Form, HTTPException, Request
+import requests
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import openai_client
-from novel2epub.config_writer import clean_prompt_text, update_ebook
+from novel2epub.config_writer import clean_prompt_text, update_defaults, update_ebook
+from novel2epub.sources import load_presets
+from novel2epub.storage import Storage
 
 from .. import deps
 from ..logging_config import logger
@@ -22,6 +26,23 @@ router = APIRouter()
 @router.get("/ebooks/{slug}/settings")
 def settings_page(request: Request, slug: str):
     cfg = deps.resolved_cfg(slug)
+    # Source preset context: resolved preset + overridden fields
+    source_preset = None
+    overridden_fields: set[str] = set()
+    source_name = getattr(cfg, "source", "")
+    if source_name:
+        presets = load_presets(deps.SOURCES_PATH)
+        source_preset = presets.get(source_name)
+        # Đọc raw YAML để xác định field ebook đã override
+        if source_preset:
+            from pathlib import Path
+            from novel2epub.config_writer import _load as _load_yaml
+            raw_data = _load_yaml(Path(deps.WORKSPACE_PATH))
+            ebooks = raw_data.get("ebooks", {})
+            ebook_data = ebooks.get(slug, {}) if hasattr(ebooks, "get") else {}
+            crawl_data = ebook_data.get("crawl", {}) if hasattr(ebook_data, "get") else {}
+            if hasattr(crawl_data, "keys"):
+                overridden_fields = set(crawl_data.keys())
     return deps.templates.TemplateResponse(
         request,
         "settings.html",
@@ -29,6 +50,8 @@ def settings_page(request: Request, slug: str):
             "slug": slug,
             "config_path": deps.ebook_config_path(slug),
             "cfg": cfg,
+            "source_preset": source_preset,
+            "overridden_fields": overridden_fields,
             "job": request.app.state.job.status(),
         },
     )
@@ -47,32 +70,146 @@ def save_novel(
     series: str = Form(""),
     series_index: str = Form(""),
     identifier: str = Form(""),
+    cover_url: str = Form(""),
 ):
     path = deps.ebook_config_path(slug)
     subject_list = [s.strip() for s in re.split(r"[\n,]", subjects) if s.strip()]
     logger.info(
         "[config][NOVEL] slug=%s lưu vào %s: title=%r author=%r language=%r "
-        "publisher=%r pubdate=%r subjects=%r series=%r series_index=%r",
+        "publisher=%r pubdate=%r subjects=%r series=%r series_index=%r cover_url=%r",
         slug, path, title, author, language,
-        publisher, pubdate, subject_list, series, series_index,
+        publisher, pubdate, subject_list, series, series_index, cover_url,
     )
-    update_ebook(deps.WORKSPACE_PATH, slug, {
-        "novel": {
-            "title": title,
-            "author": author,
-            "description": description,
-            "language": language,
-            "publisher": publisher,
-            "pubdate": pubdate,
-            "subjects": subject_list,
-            "series": series,
-            "series_index": series_index,
-            # identifier: chỉ ghi đè khi người dùng thật sự nhập — field rỗng
-            # không xóa identifier tự sinh trước đó (xem spec ebook-metadata
-            # "Identifier stable across rebuilds").
-            **({"identifier": identifier} if identifier.strip() else {}),
-        },
-    })
+
+    novel_update = {
+        "title": title,
+        "author": author,
+        "description": description,
+        "language": language,
+        "publisher": publisher,
+        "pubdate": pubdate,
+        "subjects": subject_list,
+        "series": series,
+        "series_index": series_index,
+        "cover_url": cover_url,
+        # identifier: chỉ ghi đè khi người dùng thật sự nhập — field rỗng
+        # không xóa identifier tự sinh trước đó (xem spec ebook-metadata
+        # "Identifier stable across rebuilds").
+        **({"identifier": identifier} if identifier.strip() else {}),
+    }
+    update_ebook(deps.WORKSPACE_PATH, slug, {"novel": novel_update})
+
+    # Tải ảnh bìa ngay lập tức khi có URL, lưu local bằng Scrapling.
+    if cover_url.strip():
+        try:
+            cfg = deps.resolved_cfg(slug)
+            storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+            content, ctype = _fetch_cover_content(cover_url)
+            if content:
+                ext = _cover_ext(cover_url, ctype)
+                cover_name = storage.write_cover(content, ext)
+                logger.info(
+                    "[config][COVER] slug=%s tải ảnh bìa từ %s: %s (%d bytes)",
+                    slug, cover_url, cover_name, len(content),
+                )
+                manifest = storage.load_manifest()
+                if manifest:
+                    manifest.cover_url = cover_url
+                    manifest.cover_file = cover_name
+                    storage.save_manifest(manifest)
+            else:
+                logger.warning("[config][COVER] slug=%s không tải được ảnh từ %s", slug, cover_url)
+        except Exception:
+            logger.warning("[config][COVER] slug=%s lỗi tải ảnh bìa từ %s", slug, cover_url, exc_info=True)
+    else:
+        # Xoá URL khỏi manifest nhưng giữ cover_file nếu có (ảnh đã upload).
+        try:
+            cfg = deps.resolved_cfg(slug)
+            storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+            manifest = storage.load_manifest()
+            if manifest:
+                manifest.cover_url = ""
+                storage.save_manifest(manifest)
+        except Exception:
+            pass
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+def _cover_ext(url: str, content_type: str) -> str:
+    """Đoán đuôi file ảnh từ Content-Type rồi tới URL, mặc định jpg."""
+    ct = (content_type or "").lower()
+    for key, ext in (("png", "png"), ("webp", "webp"), ("gif", "gif"), ("jpeg", "jpg"), ("jpg", "jpg")):
+        if key in ct:
+            return ext
+    m = re.search(r"\.(png|webp|gif|jpe?g)(?:\?|$)", url, re.IGNORECASE)
+    if m:
+        ext = m.group(1).lower()
+        return "jpg" if ext == "jpeg" else ext
+    return "jpg"
+
+
+def _fetch_cover_content(url: str) -> tuple[bytes | None, str]:
+    """Tải ảnh bìa bằng Scrapling Fetcher (fallback requests)."""
+    try:
+        from scrapling.fetchers import Fetcher
+        page = Fetcher.get(url, timeout=30)
+        status = getattr(page, "status", None)
+        if status and status >= 400:
+            logger.warning("[cover] Scrapling HTTP %s cho %s", status, url)
+            return None, ""
+        content = getattr(page, "content", None)
+        if content:
+            ctype = (getattr(page, "headers", {}) or {}).get("Content-Type", "")
+            return content, ctype
+    except Exception as e:
+        logger.warning("[cover] Scrapling lỗi %s, fallback requests: %s", url, e)
+
+    try:
+        import requests as _requests
+        resp = _requests.get(url, timeout=30)
+        resp.raise_for_status()
+        return resp.content, resp.headers.get("Content-Type", "")
+    except Exception as e:
+        logger.warning("[cover] requests cũng lỗi %s: %s", url, e)
+    return None, ""
+
+
+@router.post("/ebooks/{slug}/settings/cover-upload")
+def upload_cover(slug: str, cover_file: UploadFile = File(...)):
+    """Tải ảnh bìa lên, lưu vào storage, cập nhật manifest."""
+    if not cover_file.content_type or not cover_file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file ảnh.")
+
+    ext = "jpg"
+    ct = cover_file.content_type.lower()
+    for key, e in (("png", "png"), ("webp", "webp"), ("gif", "gif"), ("jpeg", "jpg"), ("jpg", "jpg")):
+        if key in ct:
+            ext = e
+            break
+
+    contents = cover_file.file.read()
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+
+    cover_name = storage.write_cover(contents, ext)
+
+    manifest = storage.load_manifest()
+    if manifest:
+        manifest.cover_file = cover_name
+        # Xoá cover_url cũ vì đã có file upload.
+        manifest.cover_url = ""
+        storage.save_manifest(manifest)
+        logger.info(
+            "[config][COVER] slug=%s upload ảnh bìa: %s (%d bytes)",
+            slug, cover_name, len(contents),
+        )
+
+    # Xoá cover_url trong config YAML để tránh nhầm lẫn.
+    try:
+        update_ebook(deps.WORKSPACE_PATH, slug, {"novel": {"cover_url": ""}})
+    except Exception:
+        pass
+
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -98,7 +235,9 @@ def save_source(
     retry_max_delay_seconds: float = Form(120.0),
     retry_respect_retry_after: bool = Form(False),
     headless: bool = Form(False),
+    strip_patterns: str = Form(""),
 ):
+    strip_list = [line.strip() for line in strip_patterns.splitlines() if line.strip()]
     crawl: dict = {
         "toc_url": toc_url,
         "chapter_link_pattern": chapter_link_pattern,
@@ -107,6 +246,7 @@ def save_source(
         "delay_seconds": delay_seconds,
         "content_selector": content_selector,
         "headless": headless,
+        "strip_patterns": strip_list,
         "scrapling": {
             "mode": scrapling_mode,
             "solve_cloudflare": solve_cloudflare,
@@ -124,6 +264,36 @@ def save_source(
             "respect_retry_after": retry_respect_retry_after,
         },
     }
+
+    # Nếu ebook có source, chỉ ghi field khác preset (tránh mark toàn bộ
+    # là override, giữ nguyên khả năng propagate từ preset).
+    cfg = deps.resolved_cfg(slug)
+    source_name = getattr(cfg, "source", "")
+    if source_name:
+        presets = load_presets(deps.SOURCES_PATH)
+        preset = presets.get(source_name)
+        if preset:
+            preset_vals = preset.crawl_overrides()
+            filtered: dict = {}
+            for key, value in crawl.items():
+                if key == "toc_url":
+                    filtered[key] = value  # luôn ghi toc_url
+                elif key == "retry":
+                    filtered[key] = value  # retry không từ preset
+                elif isinstance(value, dict):
+                    # Nested dict (scrapling): so sánh từng key
+                    nested_filtered = {}
+                    for nk, nv in value.items():
+                        preset_nv = preset_vals.get(nk)
+                        if preset_nv != nv:
+                            nested_filtered[nk] = nv
+                    if nested_filtered:
+                        filtered[key] = nested_filtered
+                else:
+                    if preset_vals.get(key) != value:
+                        filtered[key] = value
+            crawl = filtered
+
     path = deps.ebook_config_path(slug)
     logger.info(
         "[config][CRAWL] slug=%s lưu vào %s: engine=scrapling mode=%s toc_url=%r content_selector=%r "
@@ -132,6 +302,60 @@ def save_source(
         next_page_selector or next_page_url_pattern or "off",
     )
     update_ebook(deps.WORKSPACE_PATH, slug, {"crawl": crawl})
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+@router.post("/ebooks/{slug}/settings/sync-to-source")
+def sync_to_source(slug: str):
+    """Lấy crawl config hiện tại của ebook (đã resolve), update source preset
+    với các field ebook đã override, rồi propagate sang ebook khác."""
+    from novel2epub.sources import SourcePreset, save_presets, propagate_preset_update
+
+    cfg = deps.resolved_cfg(slug)
+    source_name = getattr(cfg, "source", "")
+    if not source_name:
+        raise HTTPException(status_code=400, detail="Ebook không có source preset.")
+
+    presets = load_presets(deps.SOURCES_PATH)
+    preset = presets.get(source_name)
+    if preset is None:
+        raise HTTPException(status_code=404, detail=f"Nguồn '{source_name}' không tồn tại.")
+
+    # Lấy crawl config hiện tại (đã resolve) và cập nhật preset
+    from dataclasses import asdict
+    crawl = cfg.crawl
+    overrides = preset.crawl_overrides()
+    changed_fields: list[str] = []
+
+    # So sánh từng field: nếu ebook khác preset → update preset
+    for key, current_val in overrides.items():
+        ebook_val = getattr(crawl, key, None)
+        if ebook_val is not None and ebook_val != current_val:
+            setattr(preset, key, ebook_val)
+            changed_fields.append(key)
+
+    # Scrapling nested fields
+    if crawl.scrapling:
+        for key in ("mode", "solve_cloudflare", "network_idle", "impersonate"):
+            preset_key = f"scrapling_{key}" if key != "mode" else "scrapling_mode"
+            ebook_val = getattr(crawl.scrapling, key, None)
+            preset_val = getattr(preset, preset_key, None)
+            if ebook_val is not None and ebook_val != preset_val:
+                setattr(preset, preset_key, ebook_val)
+                changed_fields.append(preset_key)
+
+    if not changed_fields:
+        return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+    presets[source_name] = preset
+    save_presets(deps.SOURCES_PATH, presets)
+
+    # Propagate sang ebook khác
+    affected = propagate_preset_update(deps.WORKSPACE_PATH, source_name, presets)
+    logger.info(
+        "[source] sync ebook=%s → preset=%s: fields=%s, propagate sang %d ebook: %s",
+        slug, source_name, changed_fields, len(affected), ", ".join(affected),
+    )
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -149,13 +373,69 @@ def list_ai_models(base_url: str, api_key: str = ""):
         return JSONResponse({"models": [], "error": str(e)})
 
 
-@router.post("/ebooks/{slug}/settings/ai")
-def save_ai(
+@router.post("/ebooks/{slug}/settings/translate/test")
+def test_translate_connection(
+    slug: str,
+    base_url: str = Form(...),
+    api_key: str = Form(""),
+    timeout_seconds: int = Form(15),
+):
+    """Test kết nối translate.openai base_url — gọi GET /models, đo latency,
+    detect OmniRoute qua header `X-OmniRoute-Version`.
+
+    Trả {ok, latency_ms, model_count, omniroute_version?, error?}. UI dùng
+    để hiển thị "✓ Kết nối OK — 50 models" hoặc "✗ Lỗi kết nối".
+    """
+    from types import SimpleNamespace
+    import time as _time
+
+    try:
+        start = _time.monotonic()
+        resp = requests.get(
+            base_url.rstrip("/") + "/models",
+            headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+            timeout=timeout_seconds,
+        )
+        latency_ms = int((_time.monotonic() - start) * 1000)
+    except requests.exceptions.Timeout as e:
+        return JSONResponse({"ok": False, "error": f"Timeout: {e}"}, status_code=200)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=200)
+
+    if resp.status_code != 200:
+        return JSONResponse({
+            "ok": False,
+            "latency_ms": latency_ms,
+            "error": f"HTTP {resp.status_code}: {resp.text.strip()[:200]}",
+        }, status_code=200)
+
+    # Parse models
+    data = resp.json()
+    items = data.get("data", data) if isinstance(data, dict) else data
+    if not isinstance(items, list):
+        items = []
+    model_count = len(items)
+
+    # Detect OmniRoute
+    headers_obj = resp.headers if hasattr(resp.headers, "get") else SimpleNamespace(get=lambda k, d=None: d)
+    omniroute_version = headers_obj.get("X-OmniRoute-Version")
+    result: dict = {
+        "ok": True,
+        "latency_ms": latency_ms,
+        "model_count": model_count,
+    }
+    if omniroute_version:
+        result["omniroute_version"] = omniroute_version
+    return JSONResponse(result, status_code=200)
+
+
+@router.post("/ebooks/{slug}/settings/translate")
+def save_translate(
     slug: str,
     type: str = Form("openai"),
-    base_url: str = Form("https://api.openai.com/v1"),
+    base_url: str = Form("https://opencode.ai/zen/go/v1"),
     api_key: str = Form(""),
-    model: str = Form(""),
+    model: str = Form("opencode-go/kimi-k2.6"),
     timeout_seconds: int = Form(300),
     temperature: float = Form(0.7),
     prompt_template: str = Form(""),
@@ -178,6 +458,14 @@ def save_ai(
     hachimimt_backend: str = Form("ctranslate2"),
     hachimimt_beam_size: int = Form(2),
     hachimimt_chunk_mode: str = Form("sentence"),
+    # Glossary / batch / cleanup Hán
+    auto_glossary: bool = Form(False),
+    glossary_filter: bool = Form(False),
+    batch_size: int = Form(1),
+    prompt_max_chars: int = Form(7000),
+    auto_cleanup_han: bool = Form(False),
+    cleanup_han_max_chars: int = Form(8000),
+    cleanup_han_retries: int = Form(1),
 ):
     openai_cfg: dict = {
         "base_url": base_url,
@@ -217,18 +505,63 @@ def save_ai(
         },
         "delay_seconds": delay_seconds,
         "max_workers": max(1, max_workers),
+        "auto_glossary": auto_glossary,
+        "glossary_filter": glossary_filter,
+        "batch_size": max(1, batch_size),
+        "prompt_max_chars": max(0, prompt_max_chars),
+        "auto_cleanup_han": auto_cleanup_han,
+        "cleanup_han": {
+            "max_chars": max(0, cleanup_han_max_chars),
+            "retries": max(0, cleanup_han_retries),
+        },
     }
     path = deps.ebook_config_path(slug)
     logger.info(
-        "[config][AI/DỊCH] slug=%s lưu vào %s: type=%s local_model=%s base_url=%r model=%r "
+        "[config][AI/DỊCH] global (từ %s) lưu vào defaults của %s: type=%s local_model=%s base_url=%r model=%r "
         "hachimimt=%s timeout=%ss temperature=%s tone=%r pronoun=%s title_mode=%s han_viet=%s "
-        "keep_paragraphs=%s retry=%s chunk_max_chars=%s delay=%ss",
+        "keep_paragraphs=%s retry=%s chunk_max_chars=%s delay=%ss "
+        "auto_glossary=%s glossary_filter=%s batch_size=%s prompt_max_chars=%s auto_cleanup_han=%s cleanup_han=%s/%s",
         slug, path, type, local_model, base_url, model,
         hachimimt_model_key, timeout_seconds, temperature, tone,
         pronoun_policy, title_mode, han_viet_level, keep_paragraphs, retry_attempts,
         chunk_max_chars, delay_seconds,
+        auto_glossary, glossary_filter, batch_size, prompt_max_chars, auto_cleanup_han,
+        cleanup_han_max_chars, cleanup_han_retries,
     )
-    update_ebook(deps.WORKSPACE_PATH, slug, {"translate": translate})
+    # Cấu hình AI dịch dùng chung cho MỌI ebook: ghi vào `defaults:` và gỡ bản
+    # copy per-ebook cũ (update_defaults tự dọn).
+    update_defaults(deps.WORKSPACE_PATH, {"translate": translate})
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+@router.post("/ebooks/{slug}/settings/ai")
+def save_ai(
+    slug: str,
+    base_url: str = Form("https://opencode.ai/zen/go/v1"),
+    api_key: str = Form(""),
+    model: str = Form("opencode-go/kimi-k2.6"),
+    timeout_seconds: int = Form(300),
+    temperature: float = Form(0.7),
+):
+    """Lưu cấu hình AI biên tập (`ai.openai`) — tách riêng khỏi translate.openai.
+
+    Dùng cho: glossary suggest/rewrite/evaluate. Không lưu prompt_template
+    vì AI biên tập dùng prompt cứng trong glossary_ai.py. Cấu hình dùng chung
+    cho MỌI ebook (ghi vào `defaults:`).
+    """
+    ai_openai_cfg: dict = {
+        "base_url": base_url,
+        "api_key": api_key,
+        "model": model,
+        "timeout_seconds": timeout_seconds,
+        "temperature": temperature,
+    }
+    path = deps.ebook_config_path(slug)
+    logger.info(
+        "[config][AI/BIÊN TẬP] global (từ %s) lưu vào defaults của %s: base_url=%r model=%r timeout=%ss temperature=%s",
+        slug, path, base_url, model, timeout_seconds, temperature,
+    )
+    update_defaults(deps.WORKSPACE_PATH, {"ai": {"openai": ai_openai_cfg}})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -247,9 +580,6 @@ def save_output(
     crawl: dict = {
         "max_workers": max(1, crawl_max_workers),
     }
-    translate: dict = {
-        "max_workers": max(1, translate_max_workers),
-    }
     path = deps.ebook_config_path(slug)
     logger.info(
         "[config][OUTPUT] slug=%s lưu vào %s: data_dir=%r epub_path=%r "
@@ -259,6 +589,9 @@ def save_output(
     update_ebook(deps.WORKSPACE_PATH, slug, {
         "output": output,
         "crawl": crawl,
-        "translate": translate,
+    })
+    # translate.* là cấu hình global — max_workers ghi vào defaults như tab Dịch.
+    update_defaults(deps.WORKSPACE_PATH, {
+        "translate": {"max_workers": max(1, translate_max_workers)},
     })
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)

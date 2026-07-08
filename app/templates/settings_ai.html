@@ -1,0 +1,115 @@
+<form method="post" action="/ebooks/{{ slug }}/settings/ai" class="settings-form">
+
+<p class="text-sm text-muted-light dark:text-muted-dark px-3 pt-1">AI biên tập dùng cho: <strong>gợi ý glossary</strong>, <strong>rewrite chương</strong>, <strong>đánh giá bản dịch</strong>. Tách riêng khỏi backend dịch chương để có thể dùng provider/model khác (vd OpenCode Go cho gợi ý nhanh, GPT-4o cho rewrite chất lượng cao). ⚠ Cấu hình dùng <strong>chung cho tất cả ebooks</strong> — thay đổi ở đây áp dụng cho mọi truyện.</p>
+
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">OpenAI-Compatible</summary>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> base_url
+            <input type="text" id="ai-editor-base-url" name="base_url" value="{{ cfg.ai.openai.base_url }}" list="ai-editor-base-url-options"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.ai.openai.base_url, 'ai', 'openai') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> api_key
+            <input type="password" id="ai-editor-api-key" name="api_key" value="{{ cfg.ai.openai.api_key }}" autocomplete="off" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+        </label>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0 md:col-span-4"> model
+            <div class="flex gap-1.5 items-stretch">
+                <input type="text" id="ai-editor-model" name="model" value="{{ cfg.ai.openai.model }}" list="ai-editor-model-options" class="flex-1 min-w-0 rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+                <button type="button" id="ai-editor-load-models" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-autosave">Tải models</button>
+            </div>
+            <span id="ai-editor-models-status" class="text-xs italic text-muted-light dark:text-muted-dark"></span>
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> timeout_seconds
+            <input type="number" name="timeout_seconds" value="{{ cfg.ai.openai.timeout_seconds }}" min="1"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.ai.openai.timeout_seconds, 'ai', 'openai') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            {% if is_default(cfg.ai.openai.timeout_seconds, 'ai', 'openai') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 300</span>
+            {% endif %}
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> temperature
+            <input type="number" step="0.1" name="temperature" value="{{ cfg.ai.openai.temperature }}" min="0" max="2"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.ai.openai.temperature, 'ai', 'openai') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            {% if is_default(cfg.ai.openai.temperature, 'ai', 'openai') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 0.7</span>
+            {% endif %}
+        </label>
+    </div>
+    <p class="text-sm text-muted-light dark:text-muted-dark px-3 pb-2">Endpoint kiểu OpenAI. Bấm "Tải models" để kiểm tra kết nối.</p>
+    <datalist id="ai-editor-base-url-options">
+        <option value="https://api.openai.com/v1">
+        <option value="https://openrouter.ai/api/v1">
+        <option value="https://opencode.ai/zen/go/v1">
+        <option value="http://localhost:11434/v1">
+        <option value="http://localhost:1234/v1">
+    </datalist>
+    <datalist id="ai-editor-model-options">
+        <option value="gpt-4o-mini">
+        <option value="gpt-4o">
+        <option value="gpt-4.1-mini">
+        <option value="gpt-4.1">
+        <option value="o4-mini">
+        <option value="claude-sonnet-4-20250514">
+        <option value="claude-3-5-haiku-20241022">
+        <option value="deepseek-chat">
+        <option value="deepseek-reasoner">
+        <option value="opencode-go/glm-5.2">
+        <option value="opencode-go/glm-5.1">
+        <option value="opencode-go/kimi-k2.7-code">
+        <option value="opencode-go/kimi-k2.6">
+        <option value="opencode-go/mimo-v2.5">
+        <option value="opencode-go/mimo-v2.5-pro">
+        <option value="opencode-go/minimax-m3">
+        <option value="opencode-go/minimax-m2.7">
+        <option value="opencode-go/qwen3.7-max">
+        <option value="opencode-go/qwen3.7-plus">
+        <option value="opencode-go/qwen3.6-plus">
+        <option value="opencode-go/deepseek-v4-pro">
+        <option value="opencode-go/deepseek-v4-flash">
+    </datalist>
+</details>
+
+<div class="flex gap-2 items-center mt-3 pt-3 border-t border-border-light dark:border-border-dark">
+    <button type="button" onclick="toggleRawYaml('raw-ai')" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">YAML</button>
+</div>
+
+<div id="raw-ai" class="my-2 bg-surface-alt-light dark:bg-zinc-900 border border-border-light dark:border-border-dark rounded-md px-3 py-2 overflow-x-auto" hidden>
+<pre class="m-0"><code class="text-xs">ai:
+  openai:
+    base_url: {{ cfg.ai.openai.base_url }}
+    model: {{ cfg.ai.openai.model }}
+    timeout_seconds: {{ cfg.ai.openai.timeout_seconds }}
+    temperature: {{ cfg.ai.openai.temperature }}</code></pre>
+</div>
+
+</form>
+
+<script>
+document.getElementById("ai-editor-load-models").addEventListener("click", async function () {
+    const baseUrl = document.getElementById("ai-editor-base-url").value.trim();
+    const apiKey = document.getElementById("ai-editor-api-key").value.trim();
+    const status = document.getElementById("ai-editor-models-status");
+    const datalist = document.getElementById("ai-editor-model-options");
+    if (!baseUrl) { status.textContent = "Nhập base_url trước."; return; }
+    status.textContent = "Đang tải...";
+    try {
+        const url = "/settings/ai/models?base_url=" + encodeURIComponent(baseUrl) + "&api_key=" + encodeURIComponent(apiKey);
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.error) {
+            status.textContent = "Lỗi: " + data.error;
+            return;
+        }
+        datalist.innerHTML = "";
+        (data.models || []).forEach(function (m) {
+            const opt = document.createElement("option");
+            opt.value = m;
+            datalist.appendChild(opt);
+        });
+        status.textContent = "Đã tải " + (data.models || []).length + " model.";
+    } catch (e) {
+        status.textContent = "Lỗi: " + e;
+    }
+});
+</script>

@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Bảng điều khiển — novel2epub{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+{% block content %}
+<div class="flex items-baseline justify-between gap-4 mb-1">
+    <h2 class="m-0 text-xl font-semibold">Bảng điều khiển</h2>
+</div>
+<p class="text-muted-light dark:text-muted-dark text-sm mb-3">Tổng hợp tiến độ, lỗi automation, chi phí dịch và dung lượng của mọi ebook. Tự làm mới mỗi 4 giây.</p>
+
+<div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 mb-5 border border-border-light dark:border-border-dark rounded-lg p-4 items-center">
+    <div class="flex items-center justify-center">
+        <canvas id="dashboard-donut" width="160" height="160"></canvas>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        <div><div class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide">Ebook</div><div class="text-xl font-semibold" id="stat-ebook-count">0</div></div>
+        <div><div class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide">Chương</div><div class="text-xl font-semibold" id="stat-total-chapters">0</div></div>
+        <div><div class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide">Đang lỗi</div><div class="text-xl font-semibold" id="stat-error-count">0</div></div>
+        <div><div class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide">Job đang chạy</div><div class="text-xl font-semibold" id="stat-running-jobs">0</div></div>
+    </div>
+</div>
+
+<div id="dashboard-rows" class="flex flex-col gap-3"></div>
+
+<template id="dashboard-row-tpl">
+    <div class="dashboard-row border border-border-light dark:border-border-dark rounded-lg p-4">
+        <div class="flex items-baseline justify-between gap-3 flex-wrap">
+            <a class="row-name text-link-light dark:text-link-dark hover:underline font-semibold" href="#"></a>
+            <span class="row-error-badge inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300" style="display:none">có lỗi</span>
+        </div>
+        <div class="mt-2 flex flex-col gap-1.5">
+            <div class="flex items-center gap-2 text-xs">
+                <span class="w-16 text-muted-light dark:text-muted-dark">Cào</span>
+                <div class="flex-1 h-2 rounded-full bg-surface-alt-light dark:bg-surface-alt-dark overflow-hidden"><div class="row-raw-bar h-full bg-link-light dark:bg-link-dark" style="width:0%"></div></div>
+                <span class="row-raw-label w-28 text-right text-muted-light dark:text-muted-dark"></span>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+                <span class="w-16 text-muted-light dark:text-muted-dark">Dịch</span>
+                <div class="flex-1 h-2 rounded-full bg-surface-alt-light dark:bg-surface-alt-dark overflow-hidden"><div class="row-translated-bar h-full bg-ok-light dark:bg-ok-dark" style="width:0%"></div></div>
+                <span class="row-translated-label w-28 text-right text-muted-light dark:text-muted-dark"></span>
+            </div>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-light dark:text-muted-dark">
+            <span class="row-crawl-problems"></span>
+            <span class="row-han-fixed"></span>
+            <span class="row-disk"></span>
+            <span class="row-cost"></span>
+        </div>
+        <div class="row-automations mt-2 flex flex-col gap-1"></div>
+    </div>
+</template>
+
+<template id="dashboard-automation-tpl">
+    <div class="automation-item flex items-center gap-2 text-xs flex-wrap">
+        <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded"></code>
+        <span class="automation-outcome-badge inline-flex items-center px-2 py-0.5 rounded-full"></span>
+        <span class="automation-stats text-muted-light dark:text-muted-dark"></span>
+    </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let donutChart = null;
+let _prevSnapshot = "";
+
+function fmtBytes(n) {
+    return (n / 1024 / 1024).toFixed(1) + " MB";
+}
+
+function outcomeBadgeClass(outcome) {
+    if (outcome === "success") return "bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300";
+    if (outcome === "failure") return "bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300";
+    if (outcome === "partial") return "bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300";
+    return "bg-surface-alt-light dark:bg-surface-alt-dark text-muted-light dark:text-muted-dark";
+}
+
+function outcomeBadgeLabel(outcome) {
+    if (outcome === "success") return "thành công";
+    if (outcome === "failure") return "lỗi";
+    if (outcome === "partial") return "một phần";
+    return "chưa chạy";
+}
+
+function renderDonut(summary) {
+    const translated = summary.translated_count || 0;
+    const rawOnly = Math.max((summary.raw_count || 0) - translated, 0);
+    const remaining = Math.max((summary.total_chapters || 0) - translated - rawOnly, 0);
+    const data = [translated, rawOnly, remaining];
+    const ctx = document.getElementById("dashboard-donut").getContext("2d");
+    if (donutChart) {
+        donutChart.data.datasets[0].data = data;
+        donutChart.update();
+        return;
+    }
+    donutChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+            labels: ["Đã dịch", "Đã cào (chưa dịch)", "Chưa cào"],
+            datasets: [{ data: data, backgroundColor: ["#22c55e", "#6ea8fe", "#9aa2ad"] }],
+        },
+        options: { plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } } } },
+    });
+}
+
+const rowTpl = document.getElementById("dashboard-row-tpl");
+const autoTpl = document.getElementById("dashboard-automation-tpl");
+
+function renderRow(row) {
+    const el = rowTpl.content.cloneNode(true);
+    const nameEl = el.querySelector(".row-name");
+    nameEl.textContent = row.name;
+    nameEl.href = "/ebooks/" + row.slug;
+
+    const hasError = row.automations.some(a => a.last_run_error);
+    el.querySelector(".row-error-badge").style.display = hasError ? "" : "none";
+
+    const p = row.progress;
+    el.querySelector(".row-raw-bar").style.width = p.raw_pct + "%";
+    el.querySelector(".row-raw-label").textContent = p.raw_count + "/" + p.total + " (" + p.raw_pct + "%)";
+    el.querySelector(".row-translated-bar").style.width = p.translated_pct + "%";
+    el.querySelector(".row-translated-label").textContent = p.translated_count + "/" + p.total + " (" + p.translated_pct + "%)";
+
+    el.querySelector(".row-crawl-problems").textContent = row.crawl_problems ? "⚠️ " + row.crawl_problems + " chương lỗi cào" : "";
+    el.querySelector(".row-han-fixed").textContent = row.han_fixed ? "🈶 " + row.han_fixed + " chỗ Hán đã sửa" : "";
+    el.querySelector(".row-disk").textContent = "💾 " + fmtBytes(row.disk_total);
+    if (row.cost_summary) {
+        el.querySelector(".row-cost").textContent = "💰 $" + (row.cost_summary.total_cost_usd || 0).toFixed(4);
+    }
+
+    const autoContainer = el.querySelector(".row-automations");
+    row.automations.forEach(a => {
+        const aEl = autoTpl.content.cloneNode(true);
+        aEl.querySelector("code").textContent = a.steps.join(" → ") + " (" + a.schedule + (a.enabled ? "" : ", tắt") + ")";
+        const badge = aEl.querySelector(".automation-outcome-badge");
+        badge.className = "automation-outcome-badge inline-flex items-center px-2 py-0.5 rounded-full " + outcomeBadgeClass(a.last_run_outcome);
+        badge.textContent = outcomeBadgeLabel(a.last_run_outcome);
+        if (a.last_run_error) badge.title = a.last_run_error;
+        const stats = a.last_run_stats || {};
+        if (Object.keys(stats).length) {
+            aEl.querySelector(".automation-stats").textContent = "+" + (stats.crawled || 0) + " cào, +" + (stats.translated || 0) + " dịch, " + (stats.han_fixed || 0) + " Hán";
+        }
+        autoContainer.appendChild(aEl);
+    });
+
+    return el;
+}
+
+function rebuild(data) {
+    document.getElementById("stat-ebook-count").textContent = data.summary.ebook_count;
+    document.getElementById("stat-total-chapters").textContent = data.summary.total_chapters;
+    document.getElementById("stat-error-count").textContent = data.summary.error_count;
+    document.getElementById("stat-running-jobs").textContent = data.summary.running_jobs;
+    renderDonut(data.summary);
+
+    const rowsEl = document.getElementById("dashboard-rows");
+    rowsEl.innerHTML = "";
+    if (data.rows.length === 0) {
+        rowsEl.innerHTML = '<p class="text-muted-light dark:text-muted-dark text-sm">Chưa có ebook nào.</p>';
+        return;
+    }
+    data.rows.forEach(row => rowsEl.appendChild(renderRow(row)));
+}
+
+async function pollDashboard() {
+    try {
+        const res = await fetch("/api/dashboard");
+        if (!res.ok) return;
+        const data = await res.json();
+        const key = JSON.stringify(data);
+        if (key !== _prevSnapshot) {
+            _prevSnapshot = key;
+            rebuild(data);
+        }
+    } catch (e) {
+        console.error("Poll dashboard error:", e);
+    }
+}
+
+pollDashboard();
+setInterval(pollDashboard, 4000);
+</script>
+{% endblock %}

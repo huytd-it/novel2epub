@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Body, Form, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
 from novel2epub.pipeline import step_crawl_selected
@@ -18,6 +18,8 @@ from ..job import _STEPS, _STEP_CATEGORY
 
 router = APIRouter()
 
+TRANSLATE_CHARS_BUDGET = 8000
+
 
 def _parse_optional_int(value: str) -> int | None:
     value = (value or "").strip()
@@ -27,6 +29,42 @@ def _parse_optional_int(value: str) -> int | None:
         return int(value)
     except ValueError:
         return None
+
+
+def _group_by_char_budget(
+    selected_indexes: list[int],
+    manifest,
+    storage: Storage,
+    budget: int = TRANSLATE_CHARS_BUDGET,
+) -> list[list[int]]:
+    """Nhóm các chapter index thành batches sao cho tổng ký tự <= budget."""
+    index_to_chapter = {ch.index: ch for ch in manifest.chapters}
+    groups: list[list[int]] = []
+    current_group: list[int] = []
+    current_chars = 0
+
+    for idx in selected_indexes:
+        ch = index_to_chapter.get(idx)
+        if ch is None:
+            continue
+        raw_path = storage.raw_path(ch)
+        try:
+            char_count = len(raw_path.read_text(encoding="utf-8")) if raw_path.exists() else 2000
+        except OSError:
+            char_count = 2000
+
+        if current_group and current_chars + char_count > budget:
+            groups.append(current_group)
+            current_group = [idx]
+            current_chars = char_count
+        else:
+            current_group.append(idx)
+            current_chars += char_count
+
+    if current_group:
+        groups.append(current_group)
+
+    return groups
 
 
 @router.post("/jobs/{step}")
@@ -114,33 +152,61 @@ def start_ebook_chapter_action(
     if not selected:
         raise HTTPException(status_code=400, detail="Không có chương nào được chọn.")
 
-    def _target(log):
-        if action == "crawl":
-            log(
-                f"[config] action=crawl "
-                f"ai_fallback={cfg.crawl.ai_fallback!r} force={override!r} "
-                f"selected={len(selected)} chương"
-            )
-            try:
-                step_crawl_selected(cfg, log, force=override, selected_indexes=selected)
-            except Exception as e:  # noqa: BLE001 - log chi tiết config trước khi job.py ghi traceback
-                log(f"[config] Lỗi khi crawl: {e}")
-                raise
-        elif action == "translate":
-            log(
-                f"[config] action=translate type={cfg.translate.type!r} "
-                f"preset={cfg.translate.preset!r} force={override!r} "
-                f"selected={len(selected)} chương"
-            )
-            try:
-                step_translate_selected(cfg, log, force=override, selected_indexes=selected)
-            except Exception as e:  # noqa: BLE001 - log chi tiết config trước khi job.py ghi traceback
-                log(f"[config] Lỗi khi dịch với type={cfg.translate.type!r} preset={cfg.translate.preset!r}: {e}")
-                raise
-        else:
-            raise ValueError(f"action không hợp lệ: {action!r}")
+    ebook_title = cfg.novel.title or slug
+    queue = request.app.state.job.queue
+    index_to_chapter = {ch.index: ch for ch in manifest.chapters}
 
-    request.app.state.job.start_custom(f"chapter-{action}", _target, category=action)
+    if action == "crawl":
+        for idx in selected:
+            ch = index_to_chapter.get(idx)
+            ch_label = (ch.title or f"Ch.{idx}") if ch else f"Ch.{idx}"
+            label = f"Crawl · {ebook_title} · {ch_label}"
+
+            def _target(log, _cfg=cfg, _idx=idx, _override=override):
+                log(f"[config] action=crawl chapter={_idx} force={_override!r}")
+                try:
+                    step_crawl_selected(_cfg, log, force=_override, selected_indexes=[_idx])
+                except Exception as e:
+                    log(f"[config] Lỗi khi crawl ch.{_idx}: {e}")
+                    raise
+
+            queue.enqueue(
+                "crawl", "chapter-crawl", _target,
+                label=label, ebook=slug,
+                lock_ebook=False, chapter_indexes=[idx],
+            )
+
+    elif action == "translate":
+        groups = _group_by_char_budget(selected, manifest, storage)
+        for group in groups:
+            if len(group) == 1:
+                ch = index_to_chapter.get(group[0])
+                ch_label = (ch.title or f"Ch.{group[0]}") if ch else f"Ch.{group[0]}"
+                label = f"Dịch · {ebook_title} · {ch_label}"
+            else:
+                label = f"Dịch · {ebook_title} · Ch.{group[0]}–{group[-1]}"
+
+            def _target(log, _cfg=cfg, _group=group, _override=override):
+                log(
+                    f"[config] action=translate type={_cfg.translate.type!r} "
+                    f"preset={_cfg.translate.preset!r} force={_override!r} "
+                    f"chapters={_group}"
+                )
+                try:
+                    step_translate_selected(_cfg, log, force=_override, selected_indexes=_group)
+                except Exception as e:
+                    log(f"[config] Lỗi khi dịch ch.{_group}: {e}")
+                    raise
+
+            queue.enqueue(
+                "translate", "chapter-translate", _target,
+                label=label, ebook=slug,
+                lock_ebook=False, chapter_indexes=group,
+            )
+
+    else:
+        raise HTTPException(status_code=400, detail=f"action không hợp lệ: {action!r}")
+
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -286,6 +352,22 @@ def api_queue_reorder(request: Request, job_id: str, before_id: str = Form("")):
     return {"ok": True}
 
 
+@router.post("/api/queue/{job_id}/start-now")
+def api_queue_start_now(request: Request, job_id: str):
+    ok = request.app.state.job.queue.start_now(job_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Job không tồn tại hoặc không ở trạng thái pending.")
+    return {"ok": True}
+
+
+@router.delete("/api/queue/{job_id}")
+def api_queue_delete(request: Request, job_id: str):
+    ok = request.app.state.job.queue.delete(job_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Job không tồn tại hoặc đang chạy.")
+    return {"ok": True}
+
+
 @router.post("/api/queue/enqueue")
 def api_queue_enqueue(
     request: Request,
@@ -294,7 +376,6 @@ def api_queue_enqueue(
 ):
     if step not in _STEPS:
         raise HTTPException(status_code=400, detail=f"Step không hợp lệ: {step!r}")
-    category = _STEP_CATEGORY.get(step, "crawl")
     if ebook:
         cfg = deps.resolved_cfg(ebook)
     else:
@@ -303,6 +384,31 @@ def api_queue_enqueue(
     if result is None:
         raise HTTPException(status_code=400, detail=f"Không thể enqueue step {step!r}.")
     return result
+
+
+@router.post("/api/queue/bulk-cancel")
+def api_queue_bulk_cancel(request: Request, job_ids: list[str] = Body(...)):
+    count = request.app.state.job.queue.bulk_cancel(job_ids)
+    return {"ok": True, "cancelled": count}
+
+
+@router.post("/api/queue/bulk-delete")
+def api_queue_bulk_delete(request: Request, job_ids: list[str] = Body(...)):
+    count = request.app.state.job.queue.bulk_delete(job_ids)
+    return {"ok": True, "deleted": count}
+
+
+@router.post("/api/queue/workers")
+def api_queue_update_workers(
+    request: Request,
+    category: str = Body(...),
+    count: int = Body(...),
+):
+    try:
+        new_count = request.app.state.job.queue.update_workers(category, count)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "category": category, "workers": new_count}
 
 
 @router.get("/api/queue/{job_id}/log")

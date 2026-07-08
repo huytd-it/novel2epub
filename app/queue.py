@@ -21,7 +21,7 @@ from typing import Callable
 from .logging_config import logger
 
 CATEGORIES = ("crawl", "translate")
-DEFAULT_HISTORY_LIMIT = 200
+DEFAULT_HISTORY_LIMIT = 5000
 
 
 @dataclass
@@ -31,6 +31,8 @@ class Job:
     step: str
     label: str = ""
     ebook: str = ""
+    lock_ebook: bool = True  # False = cho phép nhiều job song song cùng ebook
+    chapter_indexes: list = field(default_factory=list)  # Chapters job này xử lý
     target: Callable[[Callable[[str], None]], object] | None = None
     state: str = "pending"  # pending|running|done|failed|cancelled
     enqueued_at: float = field(default_factory=time.time)
@@ -47,6 +49,8 @@ class Job:
             "step": self.step,
             "label": self.label or self.step,
             "ebook": self.ebook,
+            "lock_ebook": self.lock_ebook,
+            "chapter_indexes": self.chapter_indexes,
             "state": self.state,
             "enqueued_at": self.enqueued_at,
             "started_at": self.started_at,
@@ -74,7 +78,11 @@ class JobQueue:
     ):
         self._lock = threading.Lock()
         self._cv = threading.Condition(self._lock)
-        self._workers = {c: max(1, int((workers or {}).get(c, 1))) for c in CATEGORIES}
+        # Allow 0 workers (paused state)
+        self._workers = {c: max(0, int((workers or {}).get(c, 1))) for c in CATEGORIES}
+        self._extra_workers: dict[str, int] = {c: 0 for c in CATEGORIES}
+        # Số thread thực tế đã spawn cho mỗi category (tránh spawn thừa khi toggle pause)
+        self._spawned: dict[str, int] = {c: 0 for c in CATEGORIES}
         self._pending: dict[str, deque[Job]] = {c: deque() for c in (*CATEGORIES, "both")}
         self._running: dict[str, Job] = {}
         self._active: dict[str, int] = {c: 0 for c in CATEGORIES}
@@ -87,8 +95,10 @@ class JobQueue:
         self._load_history()
         self._threads: list[threading.Thread] = []
         for cat in CATEGORIES:
-            for _ in range(self._workers[cat]):
+            initial = max(1, self._workers[cat])
+            for _ in range(initial):
                 self._spawn_worker(cat)
+            self._spawned[cat] = initial
         self._spawn_worker("both")
 
     def _spawn_worker(self, category: str) -> None:
@@ -107,10 +117,21 @@ class JobQueue:
         label: str = "",
         ebook: str = "",
         cancel_event: threading.Event | None = None,
+        lock_ebook: bool = True,
+        chapter_indexes: list | None = None,
     ) -> Job:
         if category not in (*CATEGORIES, "both"):
             raise ValueError(f"category không hợp lệ: {category!r}")
-        job = Job(id=str(uuid.uuid4()), category=category, step=step, label=label, target=target, ebook=ebook)
+        job = Job(
+            id=str(uuid.uuid4()),
+            category=category,
+            step=step,
+            label=label,
+            target=target,
+            ebook=ebook,
+            lock_ebook=lock_ebook,
+            chapter_indexes=chapter_indexes or [],
+        )
         if cancel_event is not None:
             job.cancel_event = cancel_event
         with self._cv:
@@ -126,8 +147,10 @@ class JobQueue:
                 return False
             if job.state == "pending":
                 q = self._pending[job.category]
-                if job in q:
+                try:
                     q.remove(job)
+                except ValueError:
+                    pass
                 job.state = "cancelled"
                 job.ended_at = time.time()
                 self._push_history(job)
@@ -143,7 +166,11 @@ class JobQueue:
             job = self._jobs.get(job_id)
         if job is None or job.target is None:
             return None
-        return self.enqueue(job.category, job.step, job.target, label=job.label, ebook=job.ebook)
+        return self.enqueue(
+            job.category, job.step, job.target,
+            label=job.label, ebook=job.ebook,
+            lock_ebook=job.lock_ebook, chapter_indexes=list(job.chapter_indexes),
+        )
 
     def reorder(self, job_id: str, before_id: str | None) -> bool:
         with self._cv:
@@ -164,6 +191,105 @@ class JobQueue:
             q.extend(items)
             self._cv.notify_all()
             return True
+
+    def prioritize(self, job_id: str) -> bool:
+        """Đưa job pending lên đầu hàng đợi."""
+        with self._cv:
+            job = self._jobs.get(job_id)
+            if job is None or job.state != "pending":
+                return False
+            q = self._pending[job.category]
+            items = list(q)
+            if job not in items:
+                return False
+            items.remove(job)
+            items.insert(0, job)
+            q.clear()
+            q.extend(items)
+            self._cv.notify_all()
+        return True
+
+    def delete(self, job_id: str) -> bool:
+        """Xóa job khỏi lịch sử (hoặc hàng đợi pending). Không xóa job đang chạy."""
+        with self._cv:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return False
+            if job.state == "running":
+                return False  # Phải cancel trước
+            if job.state == "pending":
+                q = self._pending[job.category]
+                try:
+                    q.remove(job)
+                except ValueError:
+                    pass
+                job.state = "cancelled"
+                job.ended_at = time.time()
+            # Xóa khỏi history
+            try:
+                self._history.remove(job)
+            except ValueError:
+                pass
+            self._jobs.pop(job_id, None)
+            self._save_history()
+            self._cv.notify_all()
+        return True
+
+    def update_workers(self, category: str, count: int) -> int:
+        """Cập nhật số worker của category tại chỗ. 0 = tạm dừng."""
+        if category not in CATEGORIES:
+            raise ValueError(f"category không hợp lệ: {category!r}")
+        count = max(0, int(count))
+        with self._cv:
+            self._workers[category] = count
+            # Chỉ spawn thread mới nếu count vượt quá số thread đã spawn
+            # (tránh tích lũy thread khi toggle pause nhiều lần)
+            if count > self._spawned[category]:
+                delta = count - self._spawned[category]
+                for _ in range(delta):
+                    self._spawn_worker(category)
+                self._spawned[category] = count
+            self._cv.notify_all()
+        return count
+
+    def start_now(self, job_id: str) -> bool:
+        """Đưa job lên đầu hàng đợi + đảm bảo có worker chạy ngay."""
+        with self._cv:
+            job = self._jobs.get(job_id)
+            if job is None or job.state != "pending":
+                return False
+            category = job.category
+            q = self._pending[category]
+            items = list(q)
+            if job not in items:
+                return False
+            # Đưa lên đầu
+            items.remove(job)
+            items.insert(0, job)
+            q.clear()
+            q.extend(items)
+            # Nếu category thông thường, đảm bảo có ít nhất 1 slot worker trống.
+            # So sánh với base_workers (không tính extra) để tránh thiếu worker
+            # khi start_now được gọi nhiều lần trong lúc queue đang paused.
+            if category != "both":
+                extra = self._extra_workers.get(category, 0)
+                base = self._workers[category] - extra
+                need_extra = base <= 0 or self._active[category] >= self._workers[category]
+                if need_extra:
+                    new_extra = extra + 1
+                    self._extra_workers[category] = new_extra
+                    # Bump workers to allow all extra workers to run in parallel
+                    self._workers[category] = self._active[category] + new_extra
+                    self._spawn_worker(category)
+                    # Không cập nhật _spawned vì đây là thread tạm thời
+            self._cv.notify_all()
+        return True
+
+    def bulk_cancel(self, job_ids: list[str]) -> int:
+        return sum(1 for jid in job_ids if self.cancel(jid))
+
+    def bulk_delete(self, job_ids: list[str]) -> int:
+        return sum(1 for jid in job_ids if self.delete(jid))
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -251,10 +377,12 @@ class JobQueue:
             return None
         if not self._pending[category]:
             return None
-        candidate = self._pending[category][0]
-        if candidate.ebook and candidate.ebook in self._ebook_locks.get(category, set()):
-            return None
-        return candidate
+        # Scan queue for first runnable job (skip ebook-locked jobs)
+        ebook_locks = self._ebook_locks.get(category, set())
+        for candidate in self._pending[category]:
+            if not candidate.lock_ebook or not candidate.ebook or candidate.ebook not in ebook_locks:
+                return candidate
+        return None
 
     def _worker_loop(self, category: str) -> None:
         while True:
@@ -267,13 +395,20 @@ class JobQueue:
                     if category == "both":
                         self._both_waiting = bool(self._pending["both"])
                     job = self._can_start(category)
-                self._pending[category].popleft()
+                # Dequeue (may not be at front if ebook-locking skipped jobs)
+                if category == "both":
+                    self._pending[category].popleft()
+                else:
+                    try:
+                        self._pending[category].remove(job)
+                    except ValueError:
+                        pass
                 if category == "both":
                     self._both_active = True
                     self._both_waiting = False
                 else:
                     self._active[category] += 1
-                if job.ebook:
+                if job.ebook and job.lock_ebook:
                     self._ebook_locks[category].add(job.ebook)
                 job.state = "running"
                 job.started_at = time.time()
@@ -287,9 +422,15 @@ class JobQueue:
                     self._both_active = False
                 else:
                     self._active[category] -= 1
-                if job.ebook:
+                if job.ebook and job.lock_ebook:
                     self._ebook_locks[category].discard(job.ebook)
                 self._push_history(job)
+                # Worker tạm thời (start_now): thoát sau 1 job để restore worker count
+                if category != "both" and self._extra_workers.get(category, 0) > 0:
+                    self._extra_workers[category] -= 1
+                    self._workers[category] = max(0, self._workers[category] - 1)
+                    self._cv.notify_all()
+                    return
                 self._cv.notify_all()
 
     def _execute(self, job: Job) -> None:
@@ -341,6 +482,8 @@ class JobQueue:
                 step=item.get("step", ""),
                 label=item.get("label", item.get("step", "")),
                 ebook=item.get("ebook", ""),
+                lock_ebook=item.get("lock_ebook", True),
+                chapter_indexes=item.get("chapter_indexes", []),
             )
             job.state = item.get("state", "done")
             job.enqueued_at = item.get("enqueued_at") or time.time()

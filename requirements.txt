@@ -12,6 +12,10 @@ pytest>=8.0.0
 # pip install scrapling[fetchers] && scrapling install
 scrapling[fetchers]>=0.2
 
+# Optional: dùng crawl.scrapling.proxy dạng socks5:// — requests (tải ảnh bìa)
+# cần PySocks: pip install "requests[socks]" (Scrapling/curl_cffi không cần)
+# requests[socks]
+
 # Optional: backend dịch cục bộ MoxhiMT (translate.type=moxhimt) — chỉ cần khi dùng
 # pip install ctranslate2 sentencepiece huggingface_hub
 # ctranslate2>=4.0.0

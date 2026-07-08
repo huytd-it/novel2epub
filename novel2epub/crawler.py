@@ -338,7 +338,11 @@ class ScraplingCrawler:
 
         impersonate = kwargs.get("impersonate", "chrome")
         with CurlSession() as s:
-            resp = s.get(url, impersonate=impersonate or "chrome")
+            resp = s.get(
+                url,
+                impersonate=impersonate or "chrome",
+                proxy=self.cfg.scrapling.proxy or None,
+            )
             body = resp.content
         if not body:
             return Selector(content=b"<html/>", url=url, encoding="utf-8")
@@ -372,12 +376,18 @@ class ScraplingCrawler:
             kwargs["network_idle"] = s.network_idle
             if s.solve_cloudflare:
                 kwargs["solve_cloudflare"] = True
+            if s.dns_over_https:
+                kwargs["dns_over_https"] = True
         elif self._mode == "dynamic":
             kwargs["network_idle"] = s.network_idle
+            if s.dns_over_https:
+                kwargs["dns_over_https"] = True
         elif self._mode == "fetcher":
             if s.impersonate:
                 kwargs["impersonate"] = s.impersonate
             kwargs.pop("headless", None)
+        if s.proxy:
+            kwargs["proxy"] = s.proxy
 
         try:
             if self._mode == "fetcher":

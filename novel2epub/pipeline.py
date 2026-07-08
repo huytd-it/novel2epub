@@ -350,7 +350,7 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, for
                     merged.append(new_ch)
             manifest.chapters = mark_duplicate_chapters(merged)
 
-        _download_cover(storage, manifest, log)
+        _download_cover(storage, manifest, log, proxy=cfg.crawl.scrapling.proxy)
         storage.save_manifest(manifest)
         log(f"[crawl] Cập nhật mục lục thành công: {len(manifest.chapters)} chương.")
     except Exception as e:
@@ -360,14 +360,15 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, for
     return manifest
 
 
-def _download_cover(storage: Storage, manifest: Manifest, log: LogFn) -> None:
+def _download_cover(storage: Storage, manifest: Manifest, log: LogFn, proxy: str = "") -> None:
     """Tải ảnh bìa về (best-effort) nếu có cover_url mà chưa lưu file."""
     if not manifest.cover_url or manifest.cover_file:
         return
     try:
         import requests
 
-        resp = requests.get(manifest.cover_url, timeout=30)
+        proxies = {"http": proxy, "https": proxy} if proxy else None
+        resp = requests.get(manifest.cover_url, timeout=30, proxies=proxies)
         resp.raise_for_status()
         ext = _cover_ext(manifest.cover_url, resp.headers.get("Content-Type", ""))
         manifest.cover_file = storage.write_cover(resp.content, ext)
@@ -1873,7 +1874,7 @@ def step_build_selected(
     if not chapters_html:
         raise RuntimeError("Không có chương nào để build. Hãy crawl/dịch trước.")
 
-    _download_cover(storage, manifest, log)
+    _download_cover(storage, manifest, log, proxy=cfg.crawl.scrapling.proxy)
     if manifest.cover_file:
         storage.save_manifest(manifest)
     cover_path = storage.cover_fs_path(manifest)

@@ -81,6 +81,11 @@
             <input type="text" name="impersonate" value="{{ cfg.crawl.scrapling.impersonate }}" placeholder="chrome, firefox135"
                 class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.scrapling.impersonate, 'crawl', 'scrapling') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
         </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0 md:col-span-2"> proxy
+            <input type="text" name="proxy" value="{{ cfg.crawl.scrapling.proxy }}" placeholder="socks5://host:port hoặc http://user:pass@host:port"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.scrapling.proxy, 'crawl', 'scrapling') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">SOCKS5/HTTP proxy cho request crawl — vượt chặn ISP không cần VPN toàn máy (vd node Tailscale: socks5://100.x.y.z:1080).</span>
+        </label>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
         <label class="inline-flex items-center gap-2 text-sm">
@@ -97,6 +102,11 @@
             <input type="checkbox" name="network_idle" value="true" {% if cfg.crawl.scrapling.network_idle %}checked{% endif %}
                 class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.crawl.scrapling.network_idle, 'crawl', 'scrapling') %}border-blue-500{% endif %}">
             network_idle
+        </label>
+        <label class="inline-flex items-center gap-2 text-sm" title="Route DNS qua Cloudflare DNS-over-HTTPS — vượt DNS poisoning của ISP. Chỉ áp dụng mode stealthy/dynamic.">
+            <input type="checkbox" name="dns_over_https" value="true" {% if cfg.crawl.scrapling.dns_over_https %}checked{% endif %}
+                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.crawl.scrapling.dns_over_https, 'crawl', 'scrapling') %}border-blue-500{% endif %}">
+            dns_over_https <span class="text-xs italic text-muted-light dark:text-muted-dark">(stealthy/dynamic)</span>
         </label>
     </div>
 </details>

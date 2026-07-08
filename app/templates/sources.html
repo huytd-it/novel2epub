@@ -97,6 +97,7 @@
                         data-js_code="{{ p.js_code or '' }}" data-scrapling_mode="{{ p.scrapling_mode or '' }}"
                         data-solve_cloudflare="{{ 'true' if p.solve_cloudflare else '' }}" data-network_idle="{{ 'true' if p.network_idle else '' }}"
                         data-impersonate="{{ p.impersonate or '' }}" data-user_agent="{{ p.user_agent or '' }}"
+                        data-proxy="{{ p.proxy or '' }}" data-dns_over_https="{{ 'true' if p.dns_over_https else '' }}"
                         data-concurrency_cap="{{ p.concurrency_cap }}"
                         data-strip_patterns="{{ p.strip_patterns | join('\n') if p.strip_patterns else '' }}">Sửa</button>
                     <form method="post" action="/sources/{{ name }}/clone" style="display:inline" data-ajax data-ajax-reload="#sources-region" data-toast="Đã nhân bản preset {{ name }}.">
@@ -211,6 +212,8 @@
                         <label class="flex flex-col gap-1 text-sm min-w-0">Giả danh trình duyệt <input type="text" name="impersonate" id="p-impersonate" placeholder="chrome, firefox135" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
                         <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" name="solve_cloudflare" id="p-solve_cloudflare" value="true" class="rounded border-border-light dark:border-border-dark">Bỏ qua Cloudflare</label>
                         <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" name="network_idle" id="p-network_idle" value="true" checked class="rounded border-border-light dark:border-border-dark">Chờ network idle</label>
+                        <label class="flex flex-col gap-1 text-sm min-w-0">Proxy <input type="text" name="proxy" id="p-proxy" placeholder="socks5://host:port" title="SOCKS5/HTTP proxy cho request crawl — vượt chặn ISP không cần VPN toàn máy (vd node Tailscale: socks5://100.x.y.z:1080)" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm"></label>
+                        <label class="inline-flex items-center gap-1 text-sm check" title="Route DNS qua Cloudflare DNS-over-HTTPS — vượt DNS poisoning của ISP. Chỉ áp dụng mode stealthy/dynamic."><input type="checkbox" name="dns_over_https" id="p-dns_over_https" value="true" class="rounded border-border-light dark:border-border-dark">DNS-over-HTTPS (stealthy/dynamic)</label>
                     </div>
                 </fieldset>
 
@@ -301,6 +304,8 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("p-solve_cloudflare").checked = btn.dataset.solve_cloudflare === "true";
             document.getElementById("p-network_idle").checked = btn.dataset.network_idle !== "false";
             document.getElementById("p-impersonate").value = btn.dataset.impersonate;
+            document.getElementById("p-proxy").value = btn.dataset.proxy || '';
+            document.getElementById("p-dns_over_https").checked = btn.dataset.dns_over_https === "true";
             document.getElementById("p-user_agent").value = btn.dataset.user_agent;
             document.getElementById("p-concurrency_cap").value = btn.dataset.concurrency_cap;
             document.getElementById("p-strip_patterns").value = btn.dataset.strip_patterns || '';

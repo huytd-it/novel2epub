@@ -64,6 +64,13 @@ class ScraplingConfig:
     solve_cloudflare: bool = False       # chỉ scrapling_mode=stealthy
     network_idle: bool = True            # stealthy/dynamic mode
     impersonate: str = ""                # TLS fingerprint cho fetcher
+    # Proxy cho MỌI request crawl (mọi mode) — vượt chặn ISP mà không cần VPN
+    # toàn máy. Dạng URL: http://user:pass@host:port | socks5://host:port
+    # (vd SOCKS5 qua node Tailscale: socks5://100.x.y.z:1080).
+    proxy: str = ""
+    # Route DNS qua Cloudflare DNS-over-HTTPS — vượt DNS poisoning của ISP
+    # không cần proxy. Chỉ áp dụng mode stealthy/dynamic (browser).
+    dns_over_https: bool = False
 
 
 @dataclass
@@ -562,6 +569,8 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     legacy_solve_cf = crawl_raw.pop("solve_cloudflare", None)
     legacy_network_idle = crawl_raw.pop("network_idle", None)
     legacy_impersonate = crawl_raw.pop("impersonate", None)
+    legacy_proxy = crawl_raw.pop("proxy", None)
+    legacy_doh = crawl_raw.pop("dns_over_https", None)
     scrapling_raw = _as_dict(crawl_raw.pop("scrapling", None))
     if legacy_scrapling_mode and "mode" not in scrapling_raw:
         scrapling_raw["mode"] = legacy_scrapling_mode
@@ -571,6 +580,10 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         scrapling_raw["network_idle"] = legacy_network_idle
     if legacy_impersonate and "impersonate" not in scrapling_raw:
         scrapling_raw["impersonate"] = legacy_impersonate
+    if legacy_proxy and "proxy" not in scrapling_raw:
+        scrapling_raw["proxy"] = legacy_proxy
+    if legacy_doh is not None and "dns_over_https" not in scrapling_raw:
+        scrapling_raw["dns_over_https"] = legacy_doh
     crawl_retry_raw = _as_dict(crawl_raw.pop("retry", None))
     crawl = CrawlConfig(**crawl_raw)
     if scrapling_raw:

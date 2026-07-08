@@ -45,6 +45,10 @@ class SourcePreset:
     solve_cloudflare: bool = False
     network_idle: bool = True
     impersonate: str = ""
+    # Proxy URL cho request crawl nguồn này (http://... | socks5://host:port).
+    proxy: str = ""
+    # DNS-over-HTTPS (Cloudflare DoH) — chỉ scrapling_mode stealthy/dynamic.
+    dns_over_https: bool = False
     # Trần song song hóa cứng cho nguồn này (xem CrawlConfig.concurrency_cap).
     # 0 = dùng mặc định theo scrapling_mode.
     concurrency_cap: int = 0
@@ -87,7 +91,7 @@ _FIELD_NAMES = {f.name for f in fields(SourcePreset)}
 
 
 def _coerce(name: str, value: Any) -> Any:
-    if name in {"headless", "magic", "solve_cloudflare", "network_idle"}:
+    if name in {"headless", "magic", "solve_cloudflare", "network_idle", "dns_over_https"}:
         return bool(value)
     if name == "delay_seconds":
         try:

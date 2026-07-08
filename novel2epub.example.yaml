@@ -39,6 +39,11 @@ defaults:
       solve_cloudflare: false   # chỉ dùng cho mode stealthy
       network_idle: true        # stealthy/dynamic
       impersonate: ""           # TLS fingerprint cho fetcher (vd "chrome")
+      # Vượt chặn ISP với trang Trung Quốc mà KHÔNG cần VPN toàn máy:
+      proxy: ""                 # SOCKS5/HTTP proxy cho mọi request crawl,
+                                # vd qua node Tailscale: "socks5://100.x.y.z:1080"
+      dns_over_https: false     # DNS qua Cloudflare DoH (vượt DNS poisoning),
+                                # chỉ áp dụng mode stealthy/dynamic
     delay_seconds: 1.0
     content_selector: ""        # CSS vùng nội dung chương, vd "#content"
     headless: true              # stealthy/dynamic mode

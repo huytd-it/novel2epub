@@ -60,7 +60,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "delay_seconds": 1.0,
         "content_selector": "",
         "headless": True,
-        "scrapling": {"mode": "fetcher", "solve_cloudflare": False, "network_idle": True, "impersonate": ""},
+        "scrapling": {"mode": "fetcher", "solve_cloudflare": False, "network_idle": True, "impersonate": "", "proxy": "", "dns_over_https": False},
         "next_page_selector": "",
         "next_page_url_pattern": "",
         "max_pages_per_chapter": 10,

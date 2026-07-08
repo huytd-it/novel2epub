@@ -47,11 +47,15 @@ def _fetch_page(url: str, preset: SourcePreset) -> Any:
 
     mode = (preset.scrapling_mode or "fetcher").lower()
     kwargs: dict = {}
+    if preset.proxy:
+        kwargs["proxy"] = preset.proxy
     if mode == "stealthy":
         kwargs["headless"] = preset.headless
         kwargs["network_idle"] = preset.network_idle
         if preset.solve_cloudflare:
             kwargs["solve_cloudflare"] = True
+        if preset.dns_over_https:
+            kwargs["dns_over_https"] = True
         page = StealthyFetcher.fetch(url, **kwargs)
     else:
         if preset.impersonate:
@@ -160,6 +164,16 @@ def _enrich_metadata(result: SearchResult, preset: SourcePreset) -> SearchResult
         overrides = preset.crawl_overrides()
         overrides.pop("chapter_link_pattern", None)
         overrides.pop("engine", None)
+        # Field scrapling phẳng của preset → nested ScraplingConfig
+        _scrapling_map = {
+            "scrapling_mode": "mode", "solve_cloudflare": "solve_cloudflare",
+            "network_idle": "network_idle", "impersonate": "impersonate",
+            "proxy": "proxy", "dns_over_https": "dns_over_https",
+        }
+        for flat, nested in _scrapling_map.items():
+            v = overrides.pop(flat, None)
+            if v not in ("", None):
+                setattr(crawl_cfg.scrapling, nested, v)
         for k, v in overrides.items():
             if hasattr(crawl_cfg, k) and v not in ("", None):
                 setattr(crawl_cfg, k, v)

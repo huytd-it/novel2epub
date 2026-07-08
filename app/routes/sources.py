@@ -105,6 +105,8 @@ def save_source_preset(
     solve_cloudflare: bool = Form(False),
     network_idle: bool = Form(False),
     impersonate: str = Form(""),
+    proxy: str = Form(""),
+    dns_over_https: bool = Form(False),
     concurrency_cap: int = Form(0),
     strip_patterns: str = Form(""),
 ):
@@ -137,6 +139,8 @@ def save_source_preset(
             solve_cloudflare=solve_cloudflare,
             network_idle=network_idle,
             impersonate=impersonate.strip(),
+            proxy=proxy.strip(),
+            dns_over_https=dns_over_https,
             concurrency_cap=max(0, concurrency_cap),
             strip_patterns=strip_list,
         )
@@ -208,7 +212,7 @@ def test_source_preset(request: Request, name: str, toc_url: str = Form(...)):
             legacy_mode = overrides.pop("scrapling_mode", None)
             if legacy_mode is not None:
                 scrapling_kwargs["mode"] = legacy_mode
-            for legacy_key in ("solve_cloudflare", "network_idle", "impersonate"):
+            for legacy_key in ("solve_cloudflare", "network_idle", "impersonate", "proxy", "dns_over_https"):
                 val = overrides.pop(legacy_key, None)
                 if val is not None:
                     scrapling_kwargs[legacy_key] = val

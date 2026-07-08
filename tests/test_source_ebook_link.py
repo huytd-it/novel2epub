@@ -238,6 +238,62 @@ class TestPropagatePresetUpdate:
         assert affected == []
 
 
+# ── Proxy / DNS-over-HTTPS: preset flat fields → crawl.scrapling ────
+
+class TestProxyResolution:
+    def test_preset_proxy_and_doh_resolve_to_scrapling_config(self, tmp_path):
+        config_path = write_db_config(
+            tmp_path / "novel2epub.db",
+            defaults={"translate": {"type": "none"}},
+            sources={
+                "blocked-site": {
+                    "content_selector": ".content",
+                    "scrapling_mode": "stealthy",
+                    "proxy": "socks5://100.64.0.1:1080",
+                    "dns_over_https": True,
+                },
+            },
+            ebooks={
+                "test-novel": {
+                    "source": "blocked-site",
+                    "novel": {"slug": "test-novel"},
+                    "crawl": {"toc_url": "https://example.cn/book/1/"},
+                },
+            },
+        )
+        cfg = load_config(config_path, "test-novel")
+        assert cfg.crawl.scrapling.mode == "stealthy"
+        assert cfg.crawl.scrapling.proxy == "socks5://100.64.0.1:1080"
+        assert cfg.crawl.scrapling.dns_over_https is True
+
+    def test_ebook_nested_scrapling_proxy_wins_over_preset(self, tmp_path):
+        config_path = write_db_config(
+            tmp_path / "novel2epub.db",
+            defaults={"translate": {"type": "none"}},
+            sources={"blocked-site": {"proxy": "socks5://preset:1080"}},
+            ebooks={
+                "test-novel": {
+                    "source": "blocked-site",
+                    "novel": {"slug": "test-novel"},
+                    "crawl": {
+                        "toc_url": "https://example.cn/book/1/",
+                        "scrapling": {"proxy": "socks5://ebook:1080"},
+                    },
+                },
+            },
+        )
+        cfg = load_config(config_path, "test-novel")
+        assert cfg.crawl.scrapling.proxy == "socks5://ebook:1080"
+
+    def test_crawl_overrides_emits_proxy_fields(self):
+        preset = SourcePreset(
+            name="x", proxy="socks5://h:1080", dns_over_https=True,
+        )
+        overrides = preset.crawl_overrides()
+        assert overrides["proxy"] == "socks5://h:1080"
+        assert overrides["dns_over_https"] is True
+
+
 # ── Task 9.3: _preset_usage with source field ──────────────────────
 
 class TestPresetUsageSourceField:

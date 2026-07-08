@@ -227,6 +227,8 @@ def save_source(
     solve_cloudflare: bool = Form(False),
     network_idle: bool = Form(False),
     impersonate: str = Form(""),
+    proxy: str = Form(""),
+    dns_over_https: bool = Form(False),
     next_page_selector: str = Form(""),
     next_page_url_pattern: str = Form(""),
     max_pages_per_chapter: int = Form(10),
@@ -253,6 +255,8 @@ def save_source(
             "solve_cloudflare": solve_cloudflare,
             "network_idle": network_idle,
             "impersonate": impersonate,
+            "proxy": proxy.strip(),
+            "dns_over_https": dns_over_https,
         },
         "next_page_selector": next_page_selector,
         "next_page_url_pattern": next_page_url_pattern,
@@ -337,8 +341,10 @@ def sync_to_source(slug: str):
 
     # Scrapling nested fields
     if crawl.scrapling:
-        for key in ("mode", "solve_cloudflare", "network_idle", "impersonate"):
-            preset_key = f"scrapling_{key}" if key != "mode" else "scrapling_mode"
+        for key in ("mode", "solve_cloudflare", "network_idle", "impersonate",
+                    "proxy", "dns_over_https"):
+            # SourcePreset dùng tên phẳng, riêng mode là `scrapling_mode`.
+            preset_key = "scrapling_mode" if key == "mode" else key
             ebook_val = getattr(crawl.scrapling, key, None)
             preset_val = getattr(preset, preset_key, None)
             if ebook_val is not None and ebook_val != preset_val:

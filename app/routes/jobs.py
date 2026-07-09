@@ -128,6 +128,10 @@ def start_ebook_chapter_action(
         index_to_chapter = {ch.index: ch for ch in manifest.chapters}
         for idx in selected:
             ch = index_to_chapter.get(idx)
+            if ch is None:
+                continue
+            if not override and storage.has_raw(ch):
+                continue
             ch_label = ch.title if ch and ch.title else f"Ch.{idx}"
             cancel_event = threading.Event()
 
@@ -150,6 +154,10 @@ def start_ebook_chapter_action(
         index_to_chapter = {ch.index: ch for ch in manifest.chapters}
         for idx in selected:
             ch = index_to_chapter.get(idx)
+            if ch is None:
+                continue
+            if not override and storage.has_translated(ch):
+                continue
             ch_label = ch.title if ch and ch.title else f"Ch.{idx}"
             cancel_event = threading.Event()
 

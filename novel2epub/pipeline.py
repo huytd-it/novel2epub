@@ -578,42 +578,45 @@ def step_crawl_selected(
     if cfg.crawl.ai_fallback:
         cfg.crawl._openai_fallback = cfg.translate.openai
         _emit_translate_config(cfg, log, feature="CRAWL AI fallback")
-    crawler = ScraplingCrawler(cfg.crawl)
-    try:
-        manifest = _refresh_manifest(cfg, storage, crawler, log)
 
-        selected = _chapter_selection(manifest.chapters, None, start, end, selected_indexes)
-        selected = _apply_default_crawl_limit(cfg, selected, start, end, selected_indexes)
-        if start is not None or end is not None:
-            log(f"[crawl] Phạm vi: {len(selected)} chương "
-                f"(từ {start or 1} đến {end or len(manifest.chapters)}).")
+    manifest = storage.load_manifest()
+    if manifest is None or not manifest.chapters:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'fetch-toc' trước.")
 
-        total = len(selected)
-        to_fetch = []
-        skipped = 0
-        for ch in selected:
-            if storage.has_raw(ch) and not force:
-                skipped += 1
-                ch.last_action_status = "skipped"
-            else:
-                to_fetch.append(ch)
+    selected = _chapter_selection(manifest.chapters, None, start, end, selected_indexes)
+    selected = _apply_default_crawl_limit(cfg, selected, start, end, selected_indexes)
+    if start is not None or end is not None:
+        log(f"[crawl] Phạm vi: {len(selected)} chương "
+            f"(từ {start or 1} đến {end or len(manifest.chapters)}).")
 
-        workers = cfg.crawl.effective_workers(cfg.crawl.max_workers)
-        if workers > 1 and len(to_fetch) > 1:
-            crawler.close()
-            crawled, failed, replaced = _crawl_chapters_parallel(
-                cfg, storage, to_fetch, force, retry, log, total, workers, should_cancel
-            )
-            crawler = None
+    total = len(selected)
+    to_fetch = []
+    skipped = 0
+    for ch in selected:
+        if storage.has_raw(ch) and not force:
+            skipped += 1
+            ch.last_action_status = "skipped"
         else:
+            to_fetch.append(ch)
+
+    workers = cfg.crawl.effective_workers(cfg.crawl.max_workers)
+    if workers > 1 and len(to_fetch) > 1:
+        crawled, failed, replaced = _crawl_chapters_parallel(
+            cfg, storage, to_fetch, force, retry, log, total, workers, should_cancel
+        )
+    elif to_fetch:
+        crawler = ScraplingCrawler(cfg.crawl)
+        try:
             crawled, failed, replaced = _crawl_chapters_sequential(
                 crawler, storage, to_fetch, force, retry, log, total, should_cancel
             )
-        for ch in selected:
-            storage.save_chapter(ch)
-    finally:
-        if crawler is not None:
+        finally:
             crawler.close()
+    else:
+        crawled = failed = replaced = 0
+
+    for ch in selected:
+        storage.save_chapter(ch)
 
     log(f"[crawl] Hoàn tất. Đã tải {crawled} chương, bỏ qua {skipped}, lỗi {failed}, ghi đè {replaced}.")
     return manifest

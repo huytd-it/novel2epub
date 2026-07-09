@@ -64,6 +64,7 @@ def test_step_crawl_selected_stops_when_cancelled(tmp_path, monkeypatch):
     def log(msg):
         seen.append(msg)
 
+    pipeline.step_fetch_toc(cfg, lambda m: None)
     pipeline.step_crawl_selected(cfg, log, should_cancel=should_cancel)
 
     storage = Storage(tmp_path, "t")
@@ -79,6 +80,7 @@ def test_step_translate_selected_stops_when_cancelled(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: _UpperTranslator())
 
     cfg = _cfg(tmp_path)
+    pipeline.step_fetch_toc(cfg, lambda m: None)
     pipeline.step_crawl_selected(cfg, lambda m: None)
 
     seen = []

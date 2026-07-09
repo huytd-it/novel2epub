@@ -72,6 +72,7 @@ def test_hachimimt_ignores_max_workers_and_runs_sequential(tmp_path, monkeypatch
     monkeypatch.setattr(pipeline, "_translate_chapters_sequential", _wrap_sequential)
 
     cfg = _cfg(tmp_path, "hachimimt", max_workers=4)
+    pipeline.step_fetch_toc(cfg, lambda m: None)
     pipeline.step_crawl_selected(cfg, lambda m: None)
     pipeline.step_translate_selected(cfg, lambda m: None)
 
@@ -99,6 +100,7 @@ def test_cli_honors_max_workers_and_runs_parallel(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "_translate_chapters_sequential", _wrap_sequential)
 
     cfg = _cfg(tmp_path, "cli", max_workers=4)
+    pipeline.step_fetch_toc(cfg, lambda m: None)
     pipeline.step_crawl_selected(cfg, lambda m: None)
     pipeline.step_translate_selected(cfg, lambda m: None)
 

@@ -463,28 +463,53 @@ class ScraplingCrawler:
         return title, author, description, cover_url
 
     # ---------- mục lục ----------
-    def fetch_toc(self) -> TocResult:
-        page = self._fetch_page(self.cfg.toc_url)
-        title, author, description, cover_url = self._extract_meta(page)
-
-        pattern = re.compile(self.cfg.chapter_link_pattern)
+    def _page_chapter_pairs(self, page_obj, base_url: str, pattern: re.Pattern) -> list[tuple[str, str]]:
+        """Trích (url, title) từ các link trong 1 trang mục lục."""
         pairs: list[tuple[str, str]] = []
-        links = page.css("a[href]")
+        links = page_obj.css("a[href]")
         if links:
             for a in links:
                 href = a.attrib.get("href", "")
                 if not href:
                     continue
-                full = urljoin(self.cfg.toc_url, href.strip())
+                full = urljoin(base_url, href.strip())
                 if pattern.search(full):
                     text = a.text if hasattr(a, 'text') else ""
                     if not (text or "").strip() and hasattr(a, 'get_all_text'):
                         text = a.get_all_text(strip=True)
                     pairs.append((full, (text or "").strip()))
+        return pairs
+
+    def fetch_toc(self) -> TocResult:
+        page = self._fetch_page(self.cfg.toc_url)
+        title, author, description, cover_url = self._extract_meta(page)
+
+        pattern = re.compile(self.cfg.chapter_link_pattern)
+        all_pairs = self._page_chapter_pairs(page, self.cfg.toc_url, pattern)
+
+        # TOC multi-page: follow next-page links
+        toc_next_sel = (self.cfg.toc_next_page_selector or "").strip()
+        if toc_next_sel:
+            seen_urls: set[str] = {self.cfg.toc_url}
+            current_url = self.cfg.toc_url
+            for _ in range(max(1, self.cfg.toc_max_pages) - 1):
+                href = _extract_href(page, toc_next_sel)
+                if not href or href.startswith("javascript:") or href.startswith("#"):
+                    break
+                next_url = urljoin(current_url, href.strip())
+                if not next_url or next_url in seen_urls:
+                    break
+                seen_urls.add(next_url)
+                current_url = next_url
+                try:
+                    page = self._fetch_page(current_url)
+                except Exception:
+                    break
+                all_pairs.extend(self._page_chapter_pairs(page, current_url, pattern))
 
         chapters = [
             Chapter(index=i, url=url, title=text, title_zh=text)
-            for i, (url, text) in enumerate(_dedupe_keep_last(pairs), 1)
+            for i, (url, text) in enumerate(_dedupe_keep_last(all_pairs), 1)
         ]
         return TocResult(
             title=title,

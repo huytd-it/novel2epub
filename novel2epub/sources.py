@@ -39,6 +39,8 @@ class SourcePreset:
     next_page_selector: str = ""
     next_page_url_pattern: str = ""
     max_pages_per_chapter: int = 10
+    toc_next_page_selector: str = ""
+    toc_max_pages: int = 5
     # Regex lines matching these patterns sẽ bị xoá khỏi text chương (loại bỏ ads/junk).
     strip_patterns: list[str] = field(default_factory=list)
     scrapling_mode: str = "stealthy"
@@ -130,11 +132,11 @@ def _coerce(name: str, value: Any) -> Any:
             return float(value)
         except (TypeError, ValueError):
             return 1.0
-    if name == "max_pages_per_chapter":
+    if name in {"max_pages_per_chapter", "toc_max_pages"}:
         try:
             return int(value)
         except (TypeError, ValueError):
-            return 10
+            return 10 if name == "max_pages_per_chapter" else 5
     if name in {"concurrency_cap", "max_search_results"}:
         try:
             return int(value)

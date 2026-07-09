@@ -49,6 +49,8 @@ defaults:
     headless: true              # stealthy/dynamic mode
     next_page_selector: ""      # phân trang trong 1 chương (vd "a#pager_next")
     max_pages_per_chapter: 10
+    toc_next_page_selector: ""  # CSS "trang kế" của mục lục nhiều trang (vd "a.next")
+    toc_max_pages: 5            # số trang mục lục tối đa
     max_chapters: 0             # 0 = tải tất cả
     retry:
       attempts: 3

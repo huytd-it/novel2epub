@@ -103,6 +103,12 @@ class CrawlConfig:
     next_page_url_pattern: str = ""
     max_pages_per_chapter: int = 10
 
+    # ----- multi-page TOC (pagination) -----
+    # CSS selector cho link "trang kế" trên trang mục lục
+    toc_next_page_selector: str = ""
+    # Số trang mục lục tối đa (1 = chỉ trang đầu, không phân trang)
+    toc_max_pages: int = 5
+
     def __post_init__(self) -> None:
         if self.next_page_url_pattern:
             try:

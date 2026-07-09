@@ -663,7 +663,7 @@ def _batch_translate_titles(
     return dict(zip(to_translate, translated))
 
 
-def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, title_lookup: dict[str, str] | None = None, *, translate_title: bool = False) -> tuple[str, bool]:
+def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, title_lookup: dict[str, str] | None = None, *, translate_title: bool = False, should_cancel: CancelFn | None = None) -> tuple[str, bool]:
     """Dịch nội dung 1 chương (và tiêu đề nếu translate_title=True), ghi translated+meta.
 
     Mặc định translate_title=False — title được dịch riêng qua "Dịch TOC" hoặc
@@ -861,7 +861,7 @@ def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Mani
             log(f"[dịch] Đã dừng theo yêu cầu — còn {total - i + 1} chương chưa xử lý.")
             break
         try:
-            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, title_lookup=title_lookup)
+            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, title_lookup=title_lookup, should_cancel=should_cancel)
         except Exception as e:
             failed += 1
             changed = changed or getattr(e, "title_changed", False)
@@ -903,7 +903,7 @@ def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manife
             progress["done"] += 1
             i = progress["done"]
         try:
-            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, title_lookup=title_lookup)
+            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, title_lookup=title_lookup, should_cancel=should_cancel)
         except Exception as e:  # noqa: BLE001 - đã log trong _translate_one, gom lại để quyết định ở cuối
             with counters_lock:
                 counters["failed"] += 1

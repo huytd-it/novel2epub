@@ -350,7 +350,7 @@ class OutputConfig:
 @dataclass
 class QueueConfig:
     """Số worker thread song song của job queue (app web)."""
-    translate_workers: int = 5  # job translate/batch-translate chạy song song
+    translate_workers: int = 2  # job translate/batch-translate chạy song song
     crawl_workers: int = 2      # job crawl chạy song song
 
 

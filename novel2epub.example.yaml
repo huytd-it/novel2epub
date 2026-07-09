@@ -122,7 +122,7 @@ defaults:
     data_dir: data
 
   queue:
-    translate_workers: 5  # số job translate/batch-translate chạy song song
+    translate_workers: 2  # số job translate/batch-translate chạy song song
     crawl_workers: 2      # số job crawl chạy song song
 
 

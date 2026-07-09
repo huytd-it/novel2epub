@@ -221,9 +221,10 @@
         <input type="hidden" name="targeting_mode" value="checked">
         <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Crawl selected</button>
     </form>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/translate" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Dịch {n} chương đã chọn theo luồng Xuất RAW → gọi AI → Nhập? Chương đã dịch rồi hoặc chưa có raw tự động bị bỏ qua. Job chạy nền qua hàng đợi — theo dõi tiến trình ở trang Queue/Logs.">
-        <input type="hidden" name="indexes" id="batch-indexes-translate" value="">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed"  title="Dịch theo luồng Xuất RAW → gọi AI → Nhập: tự sinh prompt + glossary, gọi AI theo batch, parse response, ghi translated/ + merge glossary. Chương đã dịch rồi tự động bỏ qua.">Dịch selected</button>
+    <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate" data-confirm="Dịch {n} chương đã chọn? Mỗi chương = 1 job riêng trong hàng đợi. Chương đã dịch rồi hoặc chưa có raw tự động bị bỏ qua.">
+        <input type="hidden" name="action" value="translate">
+        <input type="hidden" name="targeting_mode" value="checked">
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed"  title="Dịch: mỗi chương = 1 job riêng trong hàng đợi. Tăng worker để chạy song song.">Dịch selected</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/delete-translation" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Xóa bản dịch (và biên tập) của {n} chương đã chọn? Hành động không thể hoàn tác. Raw sẽ được giữ lại để dịch lại.">
         <input type="hidden" name="indexes" id="batch-indexes-delete" value="">

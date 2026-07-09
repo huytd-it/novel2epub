@@ -340,6 +340,18 @@ class JobQueue:
             "workers": dict(self._workers),
         }
 
+    def has_pending_step(self, step: str, ebook: str = "") -> bool:
+        """Kiểm tra có job pending/running với step và ebook cho trước không."""
+        with self._lock:
+            for job in self._running.values():
+                if job.step == step and (not ebook or job.ebook == ebook):
+                    return True
+            for q in self._pending.values():
+                for job in q:
+                    if job.step == step and (not ebook or job.ebook == ebook):
+                        return True
+        return False
+
     def job_log(self, job_id: str) -> list[str] | None:
         with self._lock:
             job = self._jobs.get(job_id)
@@ -407,16 +419,22 @@ class JobQueue:
             if any(self._active[c] for c in CATEGORIES) or self._both_active:
                 return None
             return self._pending["both"][0]
-        if self._both_active or self._both_waiting:
-            return None
         if self._active[category] >= self._workers[category]:
             return None
         if not self._pending[category]:
             return None
-        # Scan queue for first runnable job (skip ebook-locked jobs)
+        # Build set of ebooks locked by running "both" jobs
+        both_ebooks: set[str] = set()
+        if self._both_active:
+            both_ebooks = {
+                j.ebook for j in self._running.values()
+                if j.category == "both" and j.ebook
+            }
         ebook_locks = self._ebook_locks.get(category, set())
         for candidate in self._pending[category]:
-            if not candidate.lock_ebook or not candidate.ebook or candidate.ebook not in ebook_locks:
+            cat_blocked = candidate.lock_ebook and candidate.ebook and candidate.ebook in ebook_locks
+            both_blocked = candidate.lock_ebook and candidate.ebook and candidate.ebook in both_ebooks
+            if not cat_blocked and not both_blocked:
                 return candidate
         return None
 

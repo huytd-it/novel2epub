@@ -175,8 +175,11 @@ class AutomationScheduler:
     def _tick(self) -> None:
         now = datetime.now()
         for automation in load_automations(self.automations_path).values():
-            if _is_due(automation, now):
-                self.run_now(automation.id)
+            if not _is_due(automation, now):
+                continue
+            if self.queue.has_pending_step("automation", automation.ebook):
+                continue
+            self.run_now(automation.id)
 
     def run_now(self, automation_id: str) -> str | None:
         automations = load_automations(self.automations_path)

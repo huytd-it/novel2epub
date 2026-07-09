@@ -4,6 +4,7 @@ Engine duy nhất: Scrapling (3 mode: fetcher/stealthy/dynamic).
 """
 from __future__ import annotations
 
+import logging
 import re
 import time
 from dataclasses import dataclass, field
@@ -13,6 +14,8 @@ from urllib.parse import urljoin
 from .config import CrawlConfig
 from .storage import Chapter
 from .toc import mark_duplicate_chapters, missing_metadata
+
+logger = logging.getLogger(__name__)
 
 
 def _detect_encoding(raw: bytes) -> str:
@@ -165,6 +168,7 @@ def fetch_chapter_paginated(
       5. URL kế tiếp trỏ sang một chương khác (xem ``_crosses_chapter_boundary``).
     """
     max_pages = max(1, int(getattr(cfg, "max_pages_per_chapter", 1) or 1))
+    logger.info("Pagination bắt đầu cho chương %s (url=%s, max_pages=%s)", ch.stem, ch.url, max_pages)
 
     current_url = ch.url
     seen_urls: set[str] = {current_url}
@@ -175,38 +179,54 @@ def fetch_chapter_paginated(
     # decompose thẻ <a>).
     try:
         current_page = fetch_page(current_url)
-    except Exception:
+    except Exception as e:
+        logger.warning("Pagination chương %s — lỗi fetch trang đầu: %s", ch.stem, e)
         return ""
     try:
         next_url = next_page_url(current_url, current_page)
-    except Exception:
+    except Exception as e:
+        logger.warning("Pagination chương %s — lỗi resolve next_url trang đầu: %s", ch.stem, e)
         next_url = None
     if _crosses_chapter_boundary(base_chapter_id, next_url):
+        logger.info("Pagination chương %s — next_url %s vượt sang chương khác, dừng", ch.stem, next_url)
         next_url = None
     first_text = (extract_text(current_page) or "").strip()
     if not first_text:
+        logger.info("Pagination chương %s — nội dung trang đầu rỗng, kết thúc", ch.stem)
         return first_text
 
     pages: list[str] = [first_text]
     title_line = first_text.splitlines()[0].strip() if first_text else ""
 
-    for _ in range(max_pages - 1):
-        if not next_url or next_url in seen_urls:
+    for page_num in range(max_pages - 1):
+        if not next_url:
+            logger.info("Pagination chương %s — hết next_url (trang %s)", ch.stem, page_num + 2)
+            break
+        if next_url in seen_urls:
+            logger.info("Pagination chương %s — next_url %s đã gặp, dừng (trang %s)", ch.stem, next_url, page_num + 2)
             break
         seen_urls.add(next_url)
         current_url = next_url
+        logger.info("Pagination chương %s — đang tải trang %s: %s", ch.stem, page_num + 2, current_url)
         try:
             current_page = fetch_page(current_url)
-        except Exception:
+        except Exception as e:
+            logger.warning("Pagination chương %s — lỗi fetch trang %s: %s", ch.stem, page_num + 2, e)
             break
         try:
             next_url = next_page_url(current_url, current_page)
-        except Exception:
+        except Exception as e:
+            logger.warning("Pagination chương %s — lỗi resolve next_url trang %s: %s", ch.stem, page_num + 2, e)
             next_url = None
         if _crosses_chapter_boundary(base_chapter_id, next_url):
+            logger.info("Pagination chương %s — next_url %s vượt sang chương khác, dừng", ch.stem, next_url)
             next_url = None
         new_text = (extract_text(current_page) or "").strip()
-        if not new_text or new_text in pages:
+        if not new_text:
+            logger.info("Pagination chương %s — nội dung trang %s rỗng, dừng", ch.stem, page_num + 2)
+            break
+        if new_text in pages:
+            logger.info("Pagination chương %s — nội dung trang %s trùng lặp, dừng", ch.stem, page_num + 2)
             break
         if title_line:
             lines = new_text.splitlines()
@@ -214,7 +234,9 @@ def fetch_chapter_paginated(
                 new_text = "\n".join(lines[1:]).lstrip()
         pages.append(new_text)
 
-    return "\n\n".join(p for p in pages if p)
+    result = "\n\n".join(p for p in pages if p)
+    logger.info("Pagination chương %s — hoàn tất: %s trang, %s ký tự", ch.stem, len(pages), len(result))
+    return result
 
 
 def _make_css_resolver(cfg: CrawlConfig):
@@ -481,36 +503,56 @@ class ScraplingCrawler:
         return pairs
 
     def fetch_toc(self) -> TocResult:
+        logger.info("Đang lấy mục lục: %s", self.cfg.toc_url)
         page = self._fetch_page(self.cfg.toc_url)
         title, author, description, cover_url = self._extract_meta(page)
+        logger.info("Mục lục — metadata: title=%r author=%r has_description=%s", title, author, bool(description))
 
         pattern = re.compile(self.cfg.chapter_link_pattern)
         all_pairs = self._page_chapter_pairs(page, self.cfg.toc_url, pattern)
+        logger.info("Mục lục — trang 1: %s chương", len(all_pairs))
 
         # TOC multi-page: follow next-page links
         toc_next_sel = (self.cfg.toc_next_page_selector or "").strip()
         if toc_next_sel:
+            logger.info("Mục lục — phát hiện phân trang (selector=%r, max_pages=%s)", toc_next_sel, self.cfg.toc_max_pages)
             seen_urls: set[str] = {self.cfg.toc_url}
             current_url = self.cfg.toc_url
-            for _ in range(max(1, self.cfg.toc_max_pages) - 1):
+            for page_num in range(max(1, self.cfg.toc_max_pages) - 1):
                 href = _extract_href(page, toc_next_sel)
-                if not href or href.startswith("javascript:") or href.startswith("#"):
+                if not href:
+                    logger.info("Mục lục — không tìm thấy link trang kế (trang %s), dừng", page_num + 2)
+                    break
+                if href.startswith("javascript:") or href.startswith("#"):
+                    logger.info("Mục lục — link trang kế là %r (javascript/#), bỏ qua", href[:50])
                     break
                 next_url = urljoin(current_url, href.strip())
-                if not next_url or next_url in seen_urls:
+                if not next_url:
+                    break
+                if next_url in seen_urls:
+                    logger.info("Mục lục — URL %s đã gặp, dừng (trang %s)", next_url, page_num + 2)
                     break
                 seen_urls.add(next_url)
                 current_url = next_url
+                logger.info("Mục lục — đang tải trang %s: %s", page_num + 2, current_url)
                 try:
                     page = self._fetch_page(current_url)
-                except Exception:
+                except Exception as e:
+                    logger.warning("Mục lục — lỗi fetch trang %s: %s", page_num + 2, e)
                     break
-                all_pairs.extend(self._page_chapter_pairs(page, current_url, pattern))
+                page_pairs = self._page_chapter_pairs(page, current_url, pattern)
+                logger.info("Mục lục — trang %s: %s chương", page_num + 2, len(page_pairs))
+                all_pairs.extend(page_pairs)
+        else:
+            logger.info("Mục lục — không cấu hình toc_next_page_selector, chỉ 1 trang")
 
+        deduped = _dedupe_keep_last(all_pairs)
+        dup_removed = len(all_pairs) - len(deduped)
         chapters = [
             Chapter(index=i, url=url, title=text, title_zh=text)
-            for i, (url, text) in enumerate(_dedupe_keep_last(all_pairs), 1)
+            for i, (url, text) in enumerate(deduped, 1)
         ]
+        logger.info("Mục lục — tổng %s link, loại %s trùng, còn %s chương", len(all_pairs), dup_removed, len(chapters))
         return TocResult(
             title=title,
             author=author,
@@ -526,6 +568,11 @@ class ScraplingCrawler:
         if not (self.cfg.next_page_selector or self.cfg.next_page_url_pattern):
             return self._fetch_chapter_single(ch)
 
+        logger.info(
+            "Tải chương %s — phân trang (next_page_selector=%r, next_page_url_pattern=%r, max_pages=%s)",
+            ch.stem, self.cfg.next_page_selector, self.cfg.next_page_url_pattern,
+            self.cfg.max_pages_per_chapter,
+        )
         css_resolver = _make_css_resolver(self.cfg)
         pattern_resolver = _next_page_url_from_pattern(self.cfg)
 
@@ -556,8 +603,15 @@ class ScraplingCrawler:
         return self._ai_fallback_extract(ch.url)
 
     def _fetch_chapter_single(self, ch: Chapter) -> str:
+        logger.info("Tải chương 1 trang: %s %s", ch.stem, ch.url)
         page = self._fetch_page(ch.url)
         text = self._extract_text(page)
+        if text:
+            logger.info("Tải chương %s — %s ký tự", ch.stem, len(text))
+        elif self.cfg.ai_fallback and self.cfg._openai_fallback:
+            logger.info("Tải chương %s — nội dung rỗng, thử AI fallback", ch.stem)
+        else:
+            logger.info("Tải chương %s — nội dung rỗng", ch.stem)
         if text or not self.cfg.ai_fallback or self.cfg._openai_fallback is None:
             return text
         return self._ai_fallback_extract(ch.url)

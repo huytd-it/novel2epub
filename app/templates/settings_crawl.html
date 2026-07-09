@@ -143,6 +143,24 @@
 </details>
 
 <details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Pagination (mục lục nhiều trang)</summary>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> toc_next_page_selector
+            <input type="text" name="toc_next_page_selector" value="{{ cfg.crawl.toc_next_page_selector }}" placeholder="a.next"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.toc_next_page_selector, 'crawl', 'toc_next_page_selector') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">CSS selector cho link "trang kế" trên trang mục lục</span>
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> toc_max_pages
+            <input type="number" name="toc_max_pages" value="{{ cfg.crawl.toc_max_pages }}" min="1"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.crawl.toc_max_pages, 'crawl', 'toc_max_pages') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            {% if is_default(cfg.crawl.toc_max_pages, 'crawl', 'toc_max_pages') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 5</span>
+            {% endif %}
+        </label>
+    </div>
+</details>
+
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
     <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Retry / Chống lỗi 429</summary>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
         <label class="flex flex-col gap-1 text-sm min-w-0"> retry attempts

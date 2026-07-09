@@ -232,6 +232,8 @@ def save_source(
     next_page_selector: str = Form(""),
     next_page_url_pattern: str = Form(""),
     max_pages_per_chapter: int = Form(10),
+    toc_next_page_selector: str = Form(""),
+    toc_max_pages: int = Form(5),
     retry_attempts: int = Form(3),
     retry_delay_seconds: float = Form(5.0),
     retry_backoff: float = Form(2.0),
@@ -261,6 +263,8 @@ def save_source(
         "next_page_selector": next_page_selector,
         "next_page_url_pattern": next_page_url_pattern,
         "max_pages_per_chapter": max_pages_per_chapter,
+        "toc_next_page_selector": toc_next_page_selector,
+        "toc_max_pages": toc_max_pages,
         "retry": {
             "attempts": retry_attempts,
             "delay_seconds": retry_delay_seconds,

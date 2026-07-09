@@ -21,9 +21,6 @@ from ..job import _STEPS, _STEP_CATEGORY
 
 router = APIRouter()
 
-TRANSLATE_CHARS_BUDGET = 8_000
-
-
 def _parse_optional_int(value: str) -> int | None:
     value = (value or "").strip()
     if not value:
@@ -32,33 +29,6 @@ def _parse_optional_int(value: str) -> int | None:
         return int(value)
     except ValueError:
         return None
-
-
-def _group_by_char_budget(selected_indexes: list[int], manifest, storage: Storage, budget: int = TRANSLATE_CHARS_BUDGET) -> list[list[int]]:
-    """Gom chapter indexes thành groups sao cho tổng ký tự mỗi group ≤ budget."""
-    index_to_chapter = {ch.index: ch for ch in manifest.chapters}
-    groups: list[list[int]] = []
-    current_group: list[int] = []
-    current_chars = 0
-    for idx in selected_indexes:
-        ch = index_to_chapter.get(idx)
-        if ch is None:
-            continue
-        raw_path = storage.raw_path(ch)
-        try:
-            char_count = len(raw_path.read_text(encoding="utf-8")) if raw_path.exists() else 2_000
-        except OSError:
-            char_count = 2_000
-        if current_group and current_chars + char_count > budget:
-            groups.append(current_group)
-            current_group = [idx]
-            current_chars = char_count
-        else:
-            current_group.append(idx)
-            current_chars += char_count
-    if current_group:
-        groups.append(current_group)
-    return groups
 
 
 @router.post("/jobs/{step}")
@@ -177,44 +147,69 @@ def start_ebook_chapter_action(
             )
 
     elif action == "translate":
-        # Group chapters theo char budget
-        groups = _group_by_char_budget(selected, manifest, storage)
-        for group in groups:
+        index_to_chapter = {ch.index: ch for ch in manifest.chapters}
+        for idx in selected:
+            ch = index_to_chapter.get(idx)
+            ch_label = ch.title if ch and ch.title else f"Ch.{idx}"
             cancel_event = threading.Event()
-            first, last = group[0], group[-1]
-            lbl = f"Ch.{first}" if first == last else f"Ch.{first}–{last}"
 
-            def _target(log, _cfg=cfg, _grp=group, _ev=cancel_event):
+            def _target(log, _cfg=cfg, _idx=idx, _ev=cancel_event):
                 log(f"[config] action=translate type={_cfg.translate.type!r} "
                     f"preset={_cfg.translate.preset!r} force={override!r} "
-                    f"selected={len(_grp)} chương")
+                    f"chapter={_idx}")
                 try:
-                    step_translate_selected(_cfg, log, force=override, selected_indexes=_grp, should_cancel=_ev.is_set)
+                    step_translate_selected(_cfg, log, force=override, selected_indexes=[_idx], should_cancel=_ev.is_set)
                 except Exception as e:
                     log(f"[config] Lỗi khi dịch với type={_cfg.translate.type!r}: {e}")
                     raise
 
             queue.enqueue(
                 "translate", "chapter-translate", _target,
-                label=f"Dịch · {ebook_title} · {lbl}",
-                ebook=slug, lock_ebook=False, chapter_indexes=group,
+                label=f"Dịch · {ebook_title} · {ch_label}",
+                ebook=slug, lock_ebook=False, chapter_indexes=[idx],
                 cancel_event=cancel_event,
             )
 
     elif action == "cleanup-han":
-        cancel_event = threading.Event()
+        batch_cleanup = override and (request.form.get("batch_cleanup") == "1")
+        if batch_cleanup:
+            cancel_event = threading.Event()
 
-        def _target(log):
-            log(f"[config] action=cleanup-han force={override!r} selected={len(selected)} chương")
-            try:
-                step_cleanup_han_selected(cfg, log, force=override, selected_indexes=selected)
-            except Exception as e:
-                log(f"[config] Lỗi khi cleanup Hán: {e}")
-                raise
+            def _target(log):
+                log(f"[config] action=cleanup-han batch force={override!r} selected={len(selected)} chương")
+                try:
+                    step_cleanup_han_selected(cfg, log, force=True, selected_indexes=selected, should_cancel=cancel_event.is_set)
+                except Exception as e:
+                    log(f"[config] Lỗi khi cleanup Hán: {e}")
+                    raise
 
-        request.app.state.job.start_custom(
-            "chapter-cleanup-han", _target, category="translate", ebook=slug
-        )
+            queue.enqueue(
+                "translate", "chapter-cleanup-han", _target,
+                label=f"Cleanup Hán · {ebook_title} · {len(selected)} chương",
+                ebook=slug, lock_ebook=False, chapter_indexes=selected,
+                cancel_event=cancel_event,
+            )
+        else:
+            index_to_chapter = {ch.index: ch for ch in manifest.chapters}
+            for idx in selected:
+                ch = index_to_chapter.get(idx)
+                ch_label = ch.title if ch and ch.title else f"Ch.{idx}"
+                cancel_event = threading.Event()
+
+                def _target(log, _cfg=cfg, _idx=idx, _ev=cancel_event):
+                    log(f"[config] action=cleanup-han force={override!r} chapter={_idx}")
+                    try:
+                        step_cleanup_han_selected(_cfg, log, force=override, selected_indexes=[_idx], should_cancel=_ev.is_set)
+                    except Exception as e:
+                        log(f"[config] Lỗi khi cleanup Hán: {e}")
+                        raise
+
+                queue.enqueue(
+                    "translate", "chapter-cleanup-han", _target,
+                    label=f"Cleanup Hán · {ebook_title} · {ch_label}",
+                    ebook=slug, lock_ebook=False, chapter_indexes=[idx],
+                    cancel_event=cancel_event,
+                )
 
     else:
         raise HTTPException(status_code=400, detail=f"action không hợp lệ: {action!r}")
@@ -415,6 +410,18 @@ def api_queue_bulk_cancel(request: Request, job_ids: list[str] = Body(...)):
 @router.post("/api/queue/bulk-delete")
 def api_queue_bulk_delete(request: Request, job_ids: list[str] = Body(...)):
     count = request.app.state.job.queue.bulk_delete(job_ids)
+    return {"ok": True, "count": count}
+
+
+@router.post("/api/queue/bulk-clear-failed")
+def api_queue_bulk_clear_failed(request: Request, category: str = Body("all")):
+    count = request.app.state.job.queue.bulk_clear_failed(category)
+    return {"ok": True, "count": count}
+
+
+@router.post("/api/queue/bulk-retry-failed")
+def api_queue_bulk_retry_failed(request: Request, category: str = Body("all")):
+    count = request.app.state.job.queue.bulk_retry_failed(category)
     return {"ok": True, "count": count}
 
 

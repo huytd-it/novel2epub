@@ -611,32 +611,12 @@ function jobCategoryFor(form) {
     if (input && (input.value === "crawl" || input.value === "translate")) {
         return input.value;
     }
-    if (input && input.value === "cleanup-han") return "none";
+    if (input && input.value === "cleanup-han") return "translate";
     const el = form && form.closest ? form.closest("[data-job-category]") : null;
-    return (el && el.dataset.jobCategory) || "both";
+    return (el && el.dataset.jobCategory) || "translate";
 }
 
-function isCategoryRunning(status, category, slug) {
-    if (category === "none") return false;
-    if (category === "both") return status.crawl.running || status.translate.running;
-    if (category === "translate") {
-        if (!status.translate.running) return false;
-        if (slug) return (status.translate.running_ebooks || []).includes(slug);
-        return status.translate.running;
-    }
-    return status[category].running;
-}
-
-function setJobButtonsDisabled(status) {
-    const jobButtons = document.querySelectorAll(
-        'form[action*="/action"] button, form[action*="/jobs/"] button, .ai-job-form button'
-    );
-    for (const btn of jobButtons) {
-        const form = btn.closest("form");
-        const category = jobCategoryFor(form);
-        btn.disabled = isCategoryRunning(status, category, CHAPTER_SLUG);
-    }
-}
+const statusSection = document.getElementById("job-status-section");
 
 document.addEventListener("submit", async function(event) {
     const form = event.target;
@@ -804,8 +784,6 @@ async function poll() {
             if (wasRunning[cat] && !data[cat].running) anyJustFinished = true;
             wasRunning[cat] = data[cat].running;
         }
-
-        setJobButtonsDisabled(data);
 
         if (data.translate && data.translate.running) {
             schedulePollTranslated();

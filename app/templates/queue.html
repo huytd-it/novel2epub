@@ -81,6 +81,13 @@
   <button onclick="clearSelection()" class="ml-auto text-xs text-muted-light dark:text-muted-dark hover:underline">Bỏ chọn</button>
 </div>
 
+<!-- Category-level failed actions -->
+<div id="failed-actions" class="bulk-bar flex flex-wrap items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800" hidden>
+  <span class="text-xs font-semibold text-red-800 dark:text-red-300">Thao tác hàng loạt cho job lỗi</span>
+  <button onclick="bulkClearFailed()" class="px-2.5 py-1 text-xs rounded bg-no-light dark:bg-no-dark text-white hover:opacity-80">🗑 Xóa tất cả lỗi</button>
+  <button onclick="bulkRetryFailed()" class="px-2.5 py-1 text-xs rounded bg-link-light dark:bg-link-dark text-white hover:opacity-80">🔄 Retry tất cả lỗi</button>
+</div>
+
 <!-- Filter toolbar -->
 <div class="flex flex-wrap items-center gap-2 mb-2">
   <!-- Status tabs -->
@@ -238,6 +245,8 @@ function setFilter(f, btn) {
     b.classList.toggle("dark:bg-link-dark", active);
     b.classList.toggle("text-white", active);
   });
+  const bar = document.getElementById("failed-actions");
+  if (bar) bar.hidden = f !== "failed";
   renderTable();
 }
 
@@ -442,6 +451,23 @@ async function bulkDelete() {
   const res = await fetch("/api/queue/bulk-delete", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(ids)});
   if (res.ok) { const d = await res.json(); toast(`Đã xóa ${d.count} job.`); clearSelection(); }
   else toast("Lỗi khi xóa.", "error");
+  renderQueue();
+}
+
+async function bulkClearFailed() {
+  if (!confirm(`Xóa TẤT CẢ job lỗi? Hành động không thể hoàn tác.`)) return;
+  const res = await fetch("/api/queue/bulk-clear-failed", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify("all")});
+  if (res.ok) { const d = await res.json(); toast(`Đã xóa ${d.count} job lỗi.`); }
+  else toast("Lỗi khi xóa.", "error");
+  renderQueue();
+}
+
+async function bulkRetryFailed() {
+  if (!confirm(`Retry TẤT CẢ job lỗi?`)) return;
+  const category = "all";
+  const res = await fetch("/api/queue/bulk-retry-failed", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(category)});
+  if (res.ok) { const d = await res.json(); toast(`Đã retry ${d.count} job.`); }
+  else toast("Lỗi khi retry.", "error");
   renderQueue();
 }
 

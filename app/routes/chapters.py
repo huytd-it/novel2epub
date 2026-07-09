@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import threading
 from typing import Callable
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -216,19 +217,32 @@ def ebook_chapter_action(request: Request, slug: str, index: int, action: str = 
     if action == "translate" and translate_backend:
         cfg.translate.type = translate_backend
 
-    def _target(log):
-        if action == "crawl":
-            step_crawl_selected(cfg, log, force=override, selected_indexes=[index])
-        elif action == "translate":
-            step_translate_selected(cfg, log, force=override, selected_indexes=[index])
-        elif action == "cleanup-han":
-            step_cleanup_han_selected(cfg, log, force=override, selected_indexes=[index])
-        else:
-            raise ValueError(f"action không hợp lệ: {action!r}")
+    category_map = {"crawl": "crawl", "translate": "translate", "cleanup-han": "translate"}
+    category = category_map.get(action, "translate")
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    ch = next((c for c in manifest.chapters if c.index == index), None) if manifest else None
+    ebook_title = cfg.novel.title or slug
+    ch_label = ch.title if ch and ch.title else f"Ch.{index}"
+    cancel_event = threading.Event()
 
-    started = request.app.state.job.start_custom(f"chapter-{action}", _target, category="translate")
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    def _target(log, _cfg=cfg, _act=action, _idx=index, _ev=cancel_event):
+        if _act == "crawl":
+            step_crawl_selected(_cfg, log, force=override, selected_indexes=[_idx], should_cancel=_ev.is_set)
+        elif _act == "translate":
+            step_translate_selected(_cfg, log, force=override, selected_indexes=[_idx], should_cancel=_ev.is_set)
+        elif _act == "cleanup-han":
+            step_cleanup_han_selected(_cfg, log, force=override, selected_indexes=[_idx], should_cancel=_ev.is_set)
+        else:
+            raise ValueError(f"action không hợp lệ: {_act!r}")
+
+    step_label = {"crawl": "Crawl", "translate": "Dịch", "cleanup-han": "Cleanup Hán"}.get(action, action)
+    request.app.state.job.queue.enqueue(
+        category, f"chapter-{action}", _target,
+        label=f"{step_label} · {ebook_title} · {ch_label}",
+        ebook=slug, lock_ebook=False, chapter_indexes=[index],
+        cancel_event=cancel_event,
+    )
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
 
 
@@ -236,12 +250,17 @@ def ebook_chapter_action(request: Request, slug: str, index: int, action: str = 
 def ebook_chapter_delete_translation(request: Request, slug: str, index: int):
     cfg = deps.resolved_cfg(slug)
 
-    def _target(log):
-        step_delete_translation_selected(cfg, log, selected_indexes=[index])
+    cancel_event = threading.Event()
 
-    started = request.app.state.job.start_custom(f"delete-translation-{index}", _target, category="translate")
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    def _target(log, _cfg=cfg, _idx=index, _ev=cancel_event):
+        step_delete_translation_selected(_cfg, log, selected_indexes=[_idx])
+
+    request.app.state.job.queue.enqueue(
+        "translate", f"delete-translation-{index}", _target,
+        label=f"Xóa bản dịch · {cfg.novel.title or slug} · Ch.{index}",
+        ebook=slug, lock_ebook=False, chapter_indexes=[index],
+        cancel_event=cancel_event,
+    )
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
 
 
@@ -358,12 +377,17 @@ def ebook_chapter_ai(request: Request, slug: str, index: int, op: str):
     if step is None:
         raise HTTPException(status_code=400, detail=f"Thao tác AI không hợp lệ: {op!r}")
 
-    def _target(log):
-        step(cfg, log, index=index)
+    cancel_event = threading.Event()
 
-    started = request.app.state.job.start_custom(f"ai-{op}-{index}", _target, category="translate")
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    def _target(log, _step=step, _cfg=cfg, _idx=index):
+        _step(_cfg, log, index=_idx)
+
+    request.app.state.job.queue.enqueue(
+        "translate", f"ai-{op}-{index}", _target,
+        label=f"AI {op} · {cfg.novel.title or slug} · Ch.{index}",
+        ebook=slug, lock_ebook=False, chapter_indexes=[index],
+        cancel_event=cancel_event,
+    )
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
 
 

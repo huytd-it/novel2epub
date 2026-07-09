@@ -305,6 +305,28 @@ class JobQueue:
     def bulk_delete(self, job_ids: list[str]) -> int:
         return sum(1 for jid in job_ids if self.delete(jid))
 
+    def bulk_clear_failed(self, category: str) -> int:
+        """Xóa tất cả job failed trong 1 category. Trả số job đã xóa."""
+        with self._lock:
+            failed_ids = [
+                j.id for j in self._jobs.values()
+                if j.state == "failed" and (category == "all" or j.category == category)
+            ]
+        return sum(1 for jid in failed_ids if self.delete(jid))
+
+    def bulk_retry_failed(self, category: str) -> int:
+        """Retry tất cả job failed trong 1 category. Trả số job đã retry."""
+        with self._lock:
+            failed = [
+                j for j in self._jobs.values()
+                if j.state == "failed" and (category == "all" or j.category == category)
+            ]
+        count = 0
+        for job in failed:
+            if self.retry(job.id):
+                count += 1
+        return count
+
     def snapshot(self) -> dict:
         with self._lock:
             running = [j.to_dict() for j in self._running.values()]

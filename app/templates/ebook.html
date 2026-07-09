@@ -125,7 +125,7 @@
 <div class="flex flex-wrap gap-1.5 mt-3">
     <div class="action-group" role="group" aria-label="Xuất bản">
         <span class="action-group-label">Xuất bản</span>
-        <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="build"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.build.running %}disabled{% endif %}>Build EPUB</button></form>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="build"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Build EPUB</button></form>
         {% if epub_exists %}<a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/download">Tải EPUB</a> <span class="text-muted-light dark:text-muted-dark text-xs">({{ "%.1f"|format(epub_size / 1024 / 1024) }} MB)</span>{% endif %}
     </div>
     <div class="action-group" role="group" aria-label="Đọc">
@@ -136,7 +136,7 @@
         <a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/glossary">Glossary</a>
         <a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
         <form method="post" action="/ebooks/{{ slug }}/jobs/delete-chapters" data-job-category="both" data-confirm="Xóa toàn bộ danh mục ({{ chapters|length or '?' }} chương)? Raw, translated, và dữ liệu sẽ được giữ nguyên — cần Crawl lại để có danh sách mới.">
-            <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %}>Xóa danh mục</button>
+            <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed" >Xóa danh mục</button>
         </form>
     </div>
 </div>
@@ -165,7 +165,7 @@
 <div class="toc-actions">
     <form method="post" action="/ebooks/{{ slug }}/jobs/fetch-toc" class="inline-form" data-job-category="crawl">
         <input type="hidden" name="force" value="true">
-        <button type="submit" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running %}disabled{% endif %}>Lấy toàn bộ danh mục</button>
+        <button type="submit" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Lấy toàn bộ danh mục</button>
     </form>
 </div>
 
@@ -219,24 +219,24 @@
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="crawl">
         <input type="hidden" name="action" value="crawl">
         <input type="hidden" name="targeting_mode" value="checked">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running %}disabled{% endif %}>Crawl selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Crawl selected</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/translate" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Dịch {n} chương đã chọn theo luồng Xuất RAW → gọi AI → Nhập? Chương đã dịch rồi hoặc chưa có raw tự động bị bỏ qua. Job chạy nền qua hàng đợi — theo dõi tiến trình ở trang Queue/Logs.">
         <input type="hidden" name="indexes" id="batch-indexes-translate" value="">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} title="Dịch theo luồng Xuất RAW → gọi AI → Nhập: tự sinh prompt + glossary, gọi AI theo batch, parse response, ghi translated/ + merge glossary. Chương đã dịch rồi tự động bỏ qua.">Dịch selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed"  title="Dịch theo luồng Xuất RAW → gọi AI → Nhập: tự sinh prompt + glossary, gọi AI theo batch, parse response, ghi translated/ + merge glossary. Chương đã dịch rồi tự động bỏ qua.">Dịch selected</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/delete-translation" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Xóa bản dịch (và biên tập) của {n} chương đã chọn? Hành động không thể hoàn tác. Raw sẽ được giữ lại để dịch lại.">
         <input type="hidden" name="indexes" id="batch-indexes-delete" value="">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} title="Xóa toàn bộ bản dịch của các chương đã chọn (translated + snapshot MT + meta). Không xóa raw.">Xóa bản dịch selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"  title="Xóa toàn bộ bản dịch của các chương đã chọn (translated + snapshot MT + meta). Không xóa raw.">Xóa bản dịch selected</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/clean-raw" class="selected-action-form batch-form" data-selected-action="crawl" data-confirm="Xóa raw của {n} chương đã chọn? Hành động không thể hoàn tác. Translated/biên tập không bị ảnh hưởng, có thể Crawl lại.">
         <input type="hidden" name="indexes" id="batch-indexes-raw" value="">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running %}disabled{% endif %} title="Xóa file raw của các chương đã chọn. Dịch không bị ảnh hưởng.">Làm sạch raw</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"  title="Xóa file raw của các chương đã chọn. Dịch không bị ảnh hưởng.">Làm sạch raw</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Bỏ qua (ẩn) {n} chương trong danh mục? Dữ liệu raw/dịch/biên tập được giữ nguyên, dùng filter 'Bỏ qua: tất cả' để xem lại.">
         <input type="hidden" name="indexes" id="batch-indexes-skip" value="">
         <input type="hidden" name="skip" value="true">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-amber-300 dark:border-amber-700 bg-surface-light dark:bg-surface-dark text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running or job.crawl.running %}disabled{% endif %} title="Đánh dấu bỏ qua: ẩn khỏi table mặc định.">Bỏ qua TOC selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-amber-300 dark:border-amber-700 bg-surface-light dark:bg-surface-dark text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed"  title="Đánh dấu bỏ qua: ẩn khỏi table mặc định.">Bỏ qua TOC selected</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate">
         <input type="hidden" name="indexes" id="batch-indexes-unskip" value="">
@@ -246,16 +246,16 @@
 
     <form method="post" action="/api/ebooks/{{ slug }}/batch/suggest-glossary" class="selected-action-form batch-form" data-selected-action="translate">
         <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %}>Glossary suggest selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Glossary suggest selected</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
         <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} title="Dịch tiêu đề TOC cho các chương đã tick. Không đụng nội dung. Tick 'Ghi đè' để dịch lại cả title đã có. Backend chọn ở dropdown bên dưới.">Dịch TOC</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed"  title="Dịch tiêu đề TOC cho các chương đã tick. Không đụng nội dung. Tick 'Ghi đè' để dịch lại cả title đã có. Backend chọn ở dropdown bên dưới.">Dịch TOC</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/ai-rewrite" class="selected-action-form batch-form" data-selected-action="translate">
         <input type="hidden" name="indexes" id="batch-indexes-rewrite" value="">
         <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.translate.running and slug in job.translate.running_ebooks %}disabled{% endif %} title="OpenAI: tạo bản nháp AI rewrite, vào từng chương để áp dụng/bỏ. Local NMT: dịch lại bằng NMT cục bộ (ghi đè). Backend chọn ở dropdown bên dưới.">Biên tập đã chọn</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed"  title="OpenAI: tạo bản nháp AI rewrite, vào từng chương để áp dụng/bỏ. Local NMT: dịch lại bằng NMT cục bộ (ghi đè). Backend chọn ở dropdown bên dưới.">Biên tập đã chọn</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate">
         <input type="hidden" name="action" value="cleanup-han">
@@ -267,14 +267,14 @@
         <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch đã chọn (dùng config AI biên tập).">Làm sạch Hán</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="build">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" {% if job.build.running %}disabled{% endif %}>Build EPUB selected</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Build EPUB selected</button>
     </form>
     <button type="button" id="btn-export-chapters" data-export-source="translated" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xuất để biên tập</button>
     <button type="button" id="btn-export-raw" data-export-source="raw" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xuất RAW để dịch</button>
     <button type="button" id="btn-import-chapters" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhập bản biên tập/dịch</button>
     <button type="button" id="btn-preview-reindex" class="px-2.5 py-1 text-xs rounded-md border border-amber-400 dark:border-amber-600 bg-surface-light dark:bg-surface-dark hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed">Xem trước đánh index</button>
     <form method="post" action="/ebooks/{{ slug }}/jobs/reorder" class="inline-form" data-job-category="both" style="margin:0">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-amber-500 dark:border-amber-700 bg-surface-light dark:bg-surface-dark hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed" {% if job.crawl.running or job.translate.running %}disabled{% endif %} title="Đánh lại index theo thứ tự hiển thị hiện tại (đã sort/filter).">Đánh index lại</button>
+        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-amber-500 dark:border-amber-700 bg-surface-light dark:bg-surface-dark hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed"  title="Đánh lại index theo thứ tự hiển thị hiện tại (đã sort/filter).">Đánh index lại</button>
     </form>
     <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" id="selected-override" value="true" class="rounded border-border-light dark:border-border-dark"> Ghi đè</label>
     <label class="inline-flex items-center gap-1 text-sm check">
@@ -477,38 +477,11 @@ function jobCategoryFor(form, btn) {
     return (el && el.dataset.jobCategory) || "both";
 }
 
-function isCategoryRunning(status, category, slug) {
-    if (category === "none") return false;
-    if (category === "both") return status.crawl.running || status.translate.running;
-    if (category === "translate") {
-        if (!status.translate.running) return false;
-        if (slug) return (status.translate.running_ebooks || []).includes(slug);
-        return status.translate.running;
-    }
-    return status[category] ? status[category].running : false;
-}
-
-function lastStatus() {
-    return lastStatusData;
-}
-
 function refreshCheckedInfo() {
     const info = document.getElementById("checked-info");
     if (!info) return;
     const count = document.querySelectorAll(".chapter-check:checked").length;
     info.textContent = `Đã tick ${count} chương.`;
-}
-
-function setJobButtonsDisabled(status) {
-    const jobButtons = document.querySelectorAll(
-        'form[action*="/jobs/"] button, form[action*="/action"] button'
-    );
-    for (const btn of jobButtons) {
-        const form = btn.closest("form");
-        const category = jobCategoryFor(form, btn);
-        const running = isCategoryRunning(status, category, SLUG);
-        btn.disabled = btn.classList.contains("btn-stop") ? !running : running;
-    }
 }
 
 function escapeHtml(str) {
@@ -597,7 +570,6 @@ function renderToc() {
     const pill = document.querySelector(".count-pill");
     if (pill) pill.textContent = String(data.length);
     paginate({ reset: true });
-    setJobButtonsDisabled(lastStatus());
     refreshCheckedInfo();
     syncTocSortIndicators();
 }
@@ -851,8 +823,6 @@ async function poll() {
         for (const cat of ["crawl", "translate"]) {
             if (updateCategoryUI(cat, data)) anyJustFinished = true;
         }
-
-        setJobButtonsDisabled(data);
 
         if (anyJustFinished) {
             if (pendingFetchToc || pendingReindex) {

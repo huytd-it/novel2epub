@@ -649,21 +649,26 @@ def step_translate(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn 
 
 def _batch_translate_titles(
     translator, chapters: list[Chapter], log: LogFn,
-) -> dict[str, str]:
+) -> dict[int, str]:
     """Dịch hàng loạt tiêu đề chương bằng 1 lần gọi translate_batch.
 
-    Chỉ dịch các tiêu đề chưa có `title`. Trả dict mapping title → title.
-    Fallback về dịch từng cái nếu translator không hỗ trợ batch.
+    LUÔN dịch từ `title_zh` (tiêu đề gốc chữ Hán) nếu chương đã từng dịch tiêu
+    đề trước đó — KHÔNG dùng `title` hiện tại làm nguồn, vì lúc đó `title` đã
+    là bản dịch tiếng Việt của lần dịch trước, gửi cho AI "dịch" lại tiếng
+    Việt là sai. Chưa dịch lần nào thì `title_zh` còn rỗng, dùng `title` (lúc
+    này vẫn là ZH gốc từ crawl). Trả dict mapping index chương → tiêu đề đã
+    dịch. Fallback về dịch từng cái nếu translator không hỗ trợ batch.
     """
     inner = translator.inner if hasattr(translator, "inner") else translator
     if not hasattr(inner, "translate_titles"):
         return {}
-    to_translate = [ch.title for ch in chapters if ch.title]
-    if not to_translate:
+    items = [(ch.index, ch.title_zh or ch.title) for ch in chapters if (ch.title_zh or ch.title)]
+    if not items:
         return {}
-    log(f"[dịch] Đang dịch hàng loạt {len(to_translate)} tiêu đề…")
-    translated = inner.translate_titles(to_translate)
-    return dict(zip(to_translate, translated))
+    indexes, sources = zip(*items)
+    log(f"[dịch] Đang dịch hàng loạt {len(sources)} tiêu đề…")
+    translated = inner.translate_titles(list(sources))
+    return dict(zip(indexes, translated))
 
 
 def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, title_lookup: dict[str, str] | None = None, *, translate_title: bool = False, should_cancel: CancelFn | None = None) -> tuple[str, bool]:
@@ -703,17 +708,20 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
 
     try:
         if ch.title and not is_noop and translate_title:
-            if title_lookup and ch.title in title_lookup:
-                ch.title_zh = ch.title
-                ch.title = _clean_title(title_lookup[ch.title])
+            zh_title = ch.title_zh or ch.title
+            if title_lookup and ch.index in title_lookup:
+                if not ch.title_zh:
+                    ch.title_zh = ch.title
+                ch.title = _clean_title(title_lookup[ch.index])
                 ch.title_note = ""
                 title_changed = True
             else:
                 log(f"[dịch]   ({i}/{total}) → đang dịch tiêu đề…")
-                ch.title_zh = ch.title
+                if not ch.title_zh:
+                    ch.title_zh = ch.title
                 title, note = _run_with_heartbeat(
                     log, f"[dịch]   ({i}/{total})",
-                    lambda: translator.translate_title(ch.title, kind="tên chương"),
+                    lambda: translator.translate_title(zh_title, kind="tên chương"),
                 )
                 ch.title = _clean_title(title)
                 ch.title_note = note
@@ -1213,7 +1221,14 @@ def step_translate_toc_selected(
 ) -> Manifest:
     """Dịch tiêu đề chương (TOC) cho các chương đã chọn, không đụng nội dung.
 
-    Nếu force=True, xoá `title_vi` cũ trước khi dịch để ghi đè.
+    LUÔN dịch từ `title_zh` (tiêu đề gốc chữ Hán) khi chương đã từng dịch tiêu
+    đề trước đó — KHÔNG dùng `title` hiện tại (lúc đó đã là bản dịch tiếng
+    Việt) làm nguồn gửi AI. Chưa dịch lần nào thì `title_zh` còn rỗng, dùng
+    chính `title` (vẫn là ZH gốc từ crawl) — xem `_batch_translate_titles`.
+
+    force=False (mặc định): CHỈ dịch chương CHƯA có `title_zh` (chưa dịch tiêu
+    đề lần nào). force=True: dịch lại TẤT CẢ chương đã chọn có tiêu đề gốc,
+    ghi đè `title` hiện tại — `title_zh` (tiêu đề gốc) không bị đụng vào.
     Không dùng prompt template — gọi trực tiếp translator.translate_title().
     """
     _emit_translate_config(cfg, log, feature="DỊCH TIÊU ĐỀ TOC")
@@ -1231,27 +1246,25 @@ def step_translate_toc_selected(
 
     log(f"[toc] Xử lý {total} tiêu đề chương.")
     if force:
-        for ch in selected:
-            ch.title = ""
-            ch.title_note = ""
-        log("[toc] Đã xoá title cũ (force).")
-
-    to_translate = [ch for ch in selected if ch.title]
+        to_translate = [ch for ch in selected if (ch.title_zh or ch.title)]
+    else:
+        to_translate = [ch for ch in selected if not ch.title_zh and ch.title]
     if not to_translate:
         log("[toc] Không có tiêu đề nào cần dịch (đã có sẵn — dùng 'force' để dịch lại).")
         return manifest
 
     title_lookup = _batch_translate_titles(translator, to_translate, log)
     changed = 0
-    for ch in selected:
-        if ch.title and ch.title in title_lookup:
-            ch.title_zh = ch.title
-            ch.title = _clean_title(title_lookup[ch.title])
+    for ch in to_translate:
+        if ch.index in title_lookup:
+            if not ch.title_zh:
+                ch.title_zh = ch.title
+            ch.title = _clean_title(title_lookup[ch.index])
             ch.title_note = ""
             changed += 1
 
-    if changed or force:
-        for ch in selected:
+    if changed:
+        for ch in to_translate:
             storage.save_chapter(ch)
         log(f"[toc] Đã dịch {changed}/{total} tiêu đề.")
     else:
@@ -1666,11 +1679,17 @@ def step_retranslate_title(
     if ch is None:
         raise RuntimeError(f"Không tìm thấy chương {index}.")
 
-    if not ch.title:
+    if not ch.title and not ch.title_zh:
         raise RuntimeError(f"Chương {index} không có tiêu đề (title).")
 
     if not storage.has_translated(ch):
         raise RuntimeError(f"Chương {index} chưa có bản dịch. Hãy dịch chương trước.")
+
+    # Luôn dịch từ tiêu đề gốc chữ Hán (title_zh) nếu chương đã từng dịch tiêu
+    # đề trước đó — `title` lúc này đã là bản dịch tiếng Việt, gửi cho AI
+    # "dịch lại" tiếng Việt là sai. Chưa dịch lần nào thì title_zh còn rỗng,
+    # dùng chính title (vẫn là ZH gốc từ crawl).
+    zh_title = ch.title_zh or ch.title
 
     translated = storage.read_translated(ch)
     summary = translated.strip()[:summary_max_chars]
@@ -1680,23 +1699,23 @@ def step_retranslate_title(
     glossary = load_glossary_dict(cfg.translate)
     prompt_glossary = glossary
     if cfg.translate.glossary_filter:
-        prompt_glossary = _filter_glossary(glossary, zh_text=ch.title, vi_text=summary)
+        prompt_glossary = _filter_glossary(glossary, zh_text=zh_title, vi_text=summary)
 
     # Use custom prompt if provided, otherwise use default
     if custom_prompt:
         prompt = custom_prompt.format(
-            title=ch.title,
+            title=zh_title,
             summary=summary,
             glossary=_format_glossary(prompt_glossary),
         )
     else:
         prompt = _RETRANSLATE_TITLE_PROMPT.format(
-            title=ch.title,
+            title=zh_title,
             summary=summary,
             glossary=_format_glossary(prompt_glossary),
         )
 
-    log(f"[dịch-tiêu-đề] Chương {index}: {ch.title} (engine: {selected_engine})")
+    log(f"[dịch-tiêu-đề] Chương {index}: {zh_title} (engine: {selected_engine})")
     
     if selected_engine == "openai":
         # OpenAI supports prompt-based translation with context
@@ -1713,7 +1732,7 @@ def step_retranslate_title(
     elif selected_engine in ("google", "hachimimt"):
         # Google/HachimiMT: literal translation without context
         # Use simple prompt for these engines
-        simple_prompt = _RETRANSLATE_TITLE_SIMPLE_PROMPT.format(title=ch.title)
+        simple_prompt = _RETRANSLATE_TITLE_SIMPLE_PROMPT.format(title=zh_title)
         translator = make_translator(cfg.translate)
         title_vi = translator.translate(simple_prompt)
         title_vi = _clean_title(title_vi)

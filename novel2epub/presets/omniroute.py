@@ -20,7 +20,7 @@ Luật dịch:
 2. Tên riêng, công pháp, địa danh giữ Hán Việt quen thuộc, viết hoa, nhất quán.
 3. Ngôi xưng theo quan hệ nhân vật và ngữ cảnh (ta/ngươi, chàng/nàng, sư phụ/đồ nhi, lão phu/tiểu hữu…). Tránh dùng "ta/ngươi" máy móc.
 4. Thành ngữ, điển tích, thơ từ dịch thoát ý hoặc dùng bản quen thuộc.
-5. Giữ nguyên cách chia đoạn.
+5. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
 6. Output phải là tiếng Việt 100% — KHÔNG để sót chữ Hán, KHÔNG chú thích song ngữ kiểu "từ gốc (nghĩa)". Từ không chắc nghĩa: dịch thoát theo ngữ cảnh, không giữ chữ Hán. Trước khi trả lời, rà lại: nếu còn ký tự Trung Quốc nào trong bản dịch, dịch nốt rồi mới trả lời.
 
 {glossary}

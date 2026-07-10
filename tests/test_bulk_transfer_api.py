@@ -93,7 +93,7 @@ def test_export_returns_text_with_prompt_and_chapters(tmp_path, monkeypatch):
     data = res.json()
     assert data["total"] == 2
     assert data["skipped"] == []
-    assert "## Chương 1" in data["text"]
+    assert "## idx:1" in data["text"]
     assert "Bản dịch chương 1" in data["text"]
     assert "萧炎 = Tiêu Viêm" in data["text"]
 
@@ -129,7 +129,7 @@ def test_export_raw_returns_translate_prompt_and_raw_text(tmp_path, monkeypatch)
     assert "Yêu cầu dịch truyện" in data["text"]
     assert "BIÊN TẬP LẠI" not in data["text"]
     assert "原文内容" in data["text"]
-    assert "## Chương 1: 第一章" in data["text"]
+    assert "## idx:1: 第一章" in data["text"]
 
 
 def test_export_raw_skips_chapters_without_raw(tmp_path, monkeypatch):
@@ -372,8 +372,9 @@ def test_batch_translate_uses_TRANSLATE_PROMPT(tmp_path, monkeypatch):
     # Prompt phải chứa yêu cầu dịch (không phải biên tập)
     assert "Yêu cầu dịch truyện" in p
     assert "BIÊN TẬP LẠI" not in p
-    # Phải có marker chương
-    assert "## Chương 1: 第1章" in p
+    # Phải có marker chương (idx:N — không dùng "Chương N" để tránh AI nhầm
+    # N với số chương thật)
+    assert "## idx:1: 第1章" in p
     # Phải có raw text
     assert "原文内容 chương 1" in p
 
@@ -680,7 +681,7 @@ def test_batch_translate_includes_glossary_in_prompt(tmp_path, monkeypatch):
 
 
 def test_batch_translate_updates_manifest_titles(tmp_path, monkeypatch):
-    """Tiêu đề AI dịch trong heading `## Chương N: <title>` ghi đè manifest.title,
+    """Tiêu đề AI dịch trong heading `## idx:N: <title>` ghi đè manifest.title,
     backfill title_zh (đang rỗng) bằng title cũ."""
     cfg = _cfg(tmp_path)
     storage, _ = _seed_with_raw(tmp_path, n=2)
@@ -790,6 +791,44 @@ def test_batch_translate_reprefixes_real_chapter_number_when_ai_drops_it(tmp_pat
     ch2 = storage.load_manifest().chapters[0]
     assert ch2.title == "Chương 911: Ta muốn đóng băng tất cả pháp điều!"
     assert ch2.title_zh == "第911章 我要冻结所有法条！"
+
+
+def test_batch_translate_idx_marker_end_to_end(tmp_path, monkeypatch):
+    """Export dùng `## idx:N` (N = vị trí manifest, ở đây 1353) tách biệt với
+    số chương thật nằm trong tiêu đề gốc (1338 — vd truyện đăng phiên ngoại,
+    số thứ tự lệch số chương thật). AI giữ nguyên idx, chỉ dịch phần tiêu đề
+    → import phải khớp đúng theo idx và ensure_title_number giữ số chương
+    thật 1338, không lẫn với idx 1353."""
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    zh_title = "第1338章 番外一（就是先前把完本感言发错了，直接全盘修改重写成番外了）"
+    ch = Chapter(index=1353, url="http://x/1353", title=zh_title)
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_raw(ch, "正文")
+    client = _client(cfg, monkeypatch)
+
+    captured_prompt: dict = {}
+
+    def _capture(openai_cfg, prompt):
+        captured_prompt["text"] = prompt
+        return (
+            "## idx:1353: Chương 1338: Phiên ngoại 1 (...)\nBản dịch\n",
+            {},
+        )
+
+    monkeypatch.setattr(openai_client, "run_chat_with_meta", _capture)
+    res = client.post("/api/ebooks/t/batch/translate", data={"indexes": "1353"})
+    assert res.status_code == 200
+
+    # Export gửi AI phải dùng idx:1353, KHÔNG phải "Chương 1353" (tránh AI
+    # nhầm 1353 là số chương thật khi tiêu đề cũng chứa 第1338章).
+    assert f"## idx:1353: {zh_title}" in captured_prompt["text"]
+    assert "## Chương 1353" not in captured_prompt["text"]
+
+    ch2 = storage.load_manifest().chapters[0]
+    assert ch2.index == 1353
+    assert ch2.title == "Chương 1338: Phiên ngoại 1 (...)"
+    assert ch2.title_zh == zh_title
 
 
 # ── Tests cho batch splitting ──────────────────────────────────────────

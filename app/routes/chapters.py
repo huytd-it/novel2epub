@@ -903,7 +903,7 @@ async def api_batch_import(
     if not parsed:
         raise HTTPException(
             status_code=400,
-            detail="Không tìm thấy marker chương nào (========== CHƯƠNG N ==========).",
+            detail="Không tìm thấy marker chương nào (## idx:N hoặc ========== CHƯƠNG N ==========).",
         )
 
     expected = [int(i.strip()) for i in indexes.split(",") if i.strip()]
@@ -1120,7 +1120,7 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
             log(f"[batch-dịch] {label}: raw response (200 ký tự đầu): {response_text[:200]!r}")
             raise RuntimeError(
                 f"Batch {batch_idx}/{total_batches}: AI trả về nhưng không có "
-                "marker chương nào (## Chương N). "
+                "marker chương nào (## idx:N). "
                 "Xem log để debug — raw response đã được ghi ở trên."
             )
 
@@ -1222,7 +1222,7 @@ async def api_batch_translate(request: Request, slug: str, indexes: str = Form("
     app restart trong lúc job còn pending/đang chạy (xem `JobQueue.load_pending`,
     đăng ký kind ở `app/main.py`).
 
-    Tiêu đề AI dịch trong heading `## Chương N: <title>` được ghi đè vào
+    Tiêu đề AI dịch trong heading `## idx:N: <title>` được ghi đè vào
     `manifest.chapters[].title` (backfill `title_zh` nếu đang rỗng) — xem chi
     tiết trong `_run_batch_translate`.
 

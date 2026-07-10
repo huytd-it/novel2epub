@@ -16,16 +16,21 @@ Cấu trúc một khối xuất:
     ### Thuật ngữ
     - 斗气 = Đấu khí
 
-    ## Chương 1: <tiêu đề>
+    ## idx:1: <tiêu đề>
     <bản dịch chương 1>
 
-    ## Chương 2
+    ## idx:2
     <bản dịch chương 2>
 
-Web chat trả về các chương đã biên tập (giữ tiêu đề `## Chương N`) kèm một mục
-`## GLOSSARY` mới ở cuối — `parse_import` tách chương, `parse_glossary` gom
-glossary. Marker `===== CHƯƠNG N =====` kiểu cũ vẫn được nhận diện để tương
-thích ngược với các bản xuất trước đó.
+Marker dùng `idx:N` (N = VỊ TRÍ trong manifest, không phải số chương thật)
+thay vì `Chương N` — tránh AI nhầm lẫn giữa số thứ tự này và số chương thật
+thường nằm ngay trong tiêu đề gốc (vd tiêu đề "第1338章 番外一" bên trong dòng
+`## idx:1353: 第1338章 番外一` dễ khiến AI tưởng 1353 là số chương thật nếu
+marker viết "Chương 1353"). Web chat trả về các chương đã dịch/biên tập (giữ
+nguyên `idx:N`, chỉ dịch phần tiêu đề sau đó) kèm một mục `## GLOSSARY` mới ở
+cuối — `parse_import` tách chương, `parse_glossary` gom glossary. Marker
+`## Chương N` (định dạng cũ) và `===== CHƯƠNG N =====` (kiểu cũ hơn) vẫn được
+nhận diện để tương thích ngược với các bản xuất trước đó.
 """
 from __future__ import annotations
 
@@ -33,15 +38,19 @@ import re
 
 from .storage import parse_glossary_line
 
-# Marker phân tách — chấp nhận cả tiêu đề Markdown (`## CHƯƠNG N`, định dạng mới,
-# tốt cho AI hơn) lẫn marker `=====` kiểu cũ (tương thích ngược). `re.IGNORECASE`
-# để khoan dung hoa/thường khi AI viết lại tiêu đề. Group 2 = phần tiêu đề sau
-# số chương (có thể rỗng), chuẩn hóa qua `_marker_title`.
-# Cũng bắt biến thể AI hay tự thêm bold/italic: `## **CHƯƠNG N**`, `**CHƯƠNG N**`.
+# Marker phân tách — chấp nhận tiêu đề Markdown `## idx:N` (định dạng hiện tại,
+# N = vị trí trong manifest, KHÔNG phải số chương thật — dùng "idx" thay vì
+# "Chương" để AI không nhầm N với số chương thật thường có sẵn trong tiêu đề
+# gốc), lẫn `## CHƯƠNG N` (định dạng cũ) và marker `=====` kiểu cũ hơn (tương
+# thích ngược với các bản xuất trước đó). `re.IGNORECASE` để khoan dung hoa/
+# thường khi AI viết lại tiêu đề. Group 2 = phần tiêu đề sau số (có thể rỗng),
+# chuẩn hóa qua `_marker_title`.
+# Cũng bắt biến thể AI hay tự thêm bold/italic: `## **idx:N**`, `**idx:N**`.
 # Vẫn yêu cầu ít nhất một trong `#` / `=` / `*` làm prefix để tránh parse nhầm
-# các dòng văn bản thường bắt đầu bằng "Chương ...".
+# các dòng văn bản thường bắt đầu bằng "idx" hoặc "Chương ...".
 CHAPTER_MARKER_RE = re.compile(
-    r"^(?:\*{1,2}\s*)?(?:#{1,6}\s*\*{0,2}\s*|={3,}\s*|\*{1,2}\s*)CHƯƠNG\s+(\d+)\b\s*(.*)$",
+    r"^(?:\*{1,2}\s*)?(?:#{1,6}\s*\*{0,2}\s*|={3,}\s*|\*{1,2}\s*)"
+    r"(?:IDX\s*[:.]?\s*|CHƯƠNG\s+)(\d+)\b\s*(.*)$",
     re.IGNORECASE,
 )
 GLOSSARY_MARKER_RE = re.compile(r"^(?:#{1,6}\s*|={3,}\s*)GLOSSARY\b", re.IGNORECASE)
@@ -96,8 +105,14 @@ def _marker_title(rest: str) -> str:
 
 
 def chapter_marker(index: int, title: str = "") -> str:
-    """Dòng tiêu đề Markdown mở đầu một chương."""
-    label = f"Chương {index}"
+    """Dòng tiêu đề Markdown mở đầu một chương.
+
+    Dùng `idx:N` chứ không phải `Chương N` — N là vị trí trong manifest, không
+    phải số chương thật (số đó nằm trong `title`, vd `第1338章 ...`). Ghi
+    "Chương N" sẽ khiến AI nhầm N là số chương thật khi title cũng chứa một số
+    chương khác ngay sau đó.
+    """
+    label = f"idx:{index}"
     if title.strip():
         label += f": {title.strip()}"
     return f"## {label}"
@@ -162,8 +177,9 @@ hoa, NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary th
 
 ## Quy tắc định dạng đầu ra (bắt buộc để nạp ngược vào hệ thống)
 
-- GIỮ NGUYÊN các dòng tiêu đề `## Chương N`; chỉ sửa phần nội dung BÊN DƯỚI mỗi \
-tiêu đề. KHÔNG gộp/đổi/xóa tiêu đề, không tự thêm tiêu đề chương mới.
+- GIỮ NGUYÊN các dòng tiêu đề `## idx:N` (N chỉ là số thứ tự để đối chiếu, \
+KHÔNG phải số chương thật — KHÔNG sửa/xóa số này); chỉ sửa phần tiêu đề/nội \
+dung phía sau. KHÔNG gộp/đổi/xóa dòng tiêu đề, không tự thêm tiêu đề chương mới.
 """ + _GLOSSARY_OUTPUT_RULE
 
 
@@ -204,10 +220,17 @@ giải thích, hay đánh dấu song ngữ.
 - KIỂM TRA CUỐI (bắt buộc): trước khi trả lời, rà lại toàn bộ nội dung các \
 chương; nếu còn BẤT KỲ ký tự Trung Quốc nào ngoài mục `## GLOSSARY`, dịch nốt \
 sang tiếng Việt rồi mới trả lời.
-- GIỮ NGUYÊN các dòng tiêu đề `## Chương N`; điền bản dịch tiếng Việt BÊN DƯỚI \
-mỗi tiêu đề. Tiêu đề chương trong ngoặc sau `## Chương N:` cũng dịch cho hay, \
-gọn — không dịch sát nghĩa kiểu máy. KHÔNG gộp/đổi/xóa tiêu đề, không tự thêm \
-tiêu đề chương mới.
+- GIỮ NGUYÊN số `idx:N` ở đầu mỗi dòng tiêu đề — đây CHỈ LÀ SỐ THỨ TỰ để đối \
+chiếu, KHÔNG PHẢI số chương thật của truyện, TUYỆT ĐỐI không dùng số này khi \
+dịch tiêu đề. Dịch phần tiêu đề tiếng Trung đứng sau `idx:N:` sang tiếng Việt \
+cho hay, gọn — không dịch sát nghĩa kiểu máy; nếu phần đó chứa số chương thật \
+kiểu `第M章`/`第M卷`/`第M回`, chuyển thành `Chương M`/`Quyển M`/`Hồi M` (dùng \
+đúng số M trong tiêu đề, không phải N của idx). Ví dụ: dòng \
+`## idx:1353: 第1338章 番外一` phải trả về dạng \
+`## idx:1353: Chương 1338: Phiên ngoại 1` — giữ nguyên `idx:1353`, đổi \
+`第1338章 番外一` thành tiêu đề tiếng Việt có số chương thật là 1338. Điền \
+bản dịch tiếng Việt BÊN DƯỚI mỗi dòng tiêu đề. KHÔNG gộp/đổi/xóa dòng tiêu đề, \
+không tự thêm tiêu đề chương mới.
 """ + _GLOSSARY_OUTPUT_RULE
 
 

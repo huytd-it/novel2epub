@@ -13,37 +13,34 @@ from .. import deps
 
 router = APIRouter()
 
-_GLOSSARY_FILES = ("names.txt", "vietphrase.txt")
-# Ánh xạ category (client gửi) ↔ tên file glossary.
-_CATEGORY_FILE = {"names": "names.txt", "vietphrase": "vietphrase.txt"}
-
-
 def _conflicts_count(storage) -> int:
     data = storage.read_extra_json("glossary_conflicts")
     return len(data) if isinstance(data, list) else 0
 
 
 def _append_glossary_entry(
-    storage: Storage, target_file: str, source: str, suggested: str, note: str = ""
+    storage: Storage, source: str, suggested: str, note: str = ""
 ) -> bool:
-    """Thêm 1 dòng `source = suggested [| note]` vào file glossary, bỏ qua nếu thiếu
-    dữ liệu hoặc mục đã tồn tại với đúng giá trị đó. Trả True nếu có ghi thật."""
+    """Thêm 1 dòng `source = suggested [| note]` vào glossary (list chuẩn duy
+    nhất names.txt — đã bỏ phân loại), bỏ qua nếu thiếu dữ liệu hoặc mục đã
+    tồn tại với đúng giá trị đó. Trả True nếu có ghi thật."""
     source, suggested, note = source.strip(), suggested.strip(), note.strip()
-    if not source or not suggested or target_file not in _GLOSSARY_FILES:
+    if not source or not suggested:
         return False
-    if storage.read_glossary_file(target_file).get(source) == suggested and not note:
+    existing = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
+    if existing.get(source) == suggested and not note:
         return False
 
     line = f"{source} = {suggested}" + (f" | {note}" if note else "")
-    storage.append_glossary_line(target_file, line)
+    storage.append_glossary_line("names.txt", line)
     return True
 
 
-def _entries_payload(storage: Storage, name: str) -> list[dict]:
-    """Đọc file glossary thành list dict cho data table (giữ ghi chú)."""
+def _entries_payload(storage: Storage) -> list[dict]:
+    """Đọc glossary (2 list gộp 1) thành list dict cho data table (giữ ghi chú)."""
     return [
         {"source": s, "target": t, "note": n}
-        for s, t, n in storage.read_glossary_entries(name)
+        for s, t, n in storage.read_glossary_entries_merged()
     ]
 
 
@@ -56,8 +53,7 @@ def ebook_glossary(request: Request, slug: str):
         "glossary.html",
         {
             "slug": slug,
-            "names_entries": _entries_payload(storage, "names.txt"),
-            "vietphrase_entries": _entries_payload(storage, "vietphrase.txt"),
+            "entries": _entries_payload(storage),
             "job": request.app.state.job.status(),
             "conflicts_count": _conflicts_count(storage),
         },
@@ -67,8 +63,9 @@ def ebook_glossary(request: Request, slug: str):
 @router.post("/ebooks/{slug}/glossary")
 async def ebook_glossary_save(slug: str, payload: dict = Body(...)):
     """Lưu toàn bộ glossary từ data table. Payload JSON:
-    `{"names": [{source, target, note}, ...], "vietphrase": [...]}`.
-    Ghi đè cả 2 file (trim + dedup theo source trong storage)."""
+    `{"entries": [{source, target, note}, ...]}`.
+    Ghi tất cả vào names.txt (list chuẩn duy nhất) và dọn sạch vietphrase.txt
+    — lazy consolidation dữ liệu cũ sau lần lưu đầu tiên."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
 
@@ -86,8 +83,8 @@ async def ebook_glossary_save(slug: str, payload: dict = Body(...)):
             )
         return out
 
-    storage.write_glossary_entries("names.txt", _to_tuples(payload.get("names")))
-    storage.write_glossary_entries("vietphrase.txt", _to_tuples(payload.get("vietphrase")))
+    storage.write_glossary_entries("names.txt", _to_tuples(payload.get("entries")))
+    storage.write_glossary_entries("vietphrase.txt", [])
     return JSONResponse({"ok": True})
 
 
@@ -98,14 +95,13 @@ def ebook_glossary_quick_add(
     source: str = Form(""),
     suggested: str = Form(""),
     note: str = Form(""),
-    target_file: str = Form("vietphrase.txt"),
 ):
     """Thêm nhanh 1 mục glossary ngay từ trang chương — dùng khi đang đọc bản
     dịch và phát hiện thuật ngữ/tên riêng cần thống nhất, không cần qua trang
     Glossary riêng."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    _append_glossary_entry(storage, target_file, source, suggested, note)
+    _append_glossary_entry(storage, source, suggested, note)
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{chapter_index}", status_code=303)
 
 
@@ -115,42 +111,42 @@ def ebook_glossary_export(slug: str):
     Hán-Việt, gộp mâu thuẫn). Trả `{text}` để dán/tải `.md`."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    names = storage.read_glossary_file("names.txt")
-    vietphrase = storage.read_glossary_file("vietphrase.txt")
-    text = bulk_transfer.build_glossary_export(names, vietphrase)
-    return JSONResponse({"text": text, "names": len(names), "vietphrase": len(vietphrase)})
+    glossary = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
+    text = bulk_transfer.build_glossary_export(glossary)
+    return JSONResponse({"text": text, "count": len(glossary)})
 
 
 @router.post("/api/ebooks/{slug}/glossary/import")
 def ebook_glossary_import(slug: str, text: str = Form(...)):
-    """Nhập glossary AI trả về: parse `### NAMES`/`### VIETPHRASE` rồi MERGE vào
-    glossary hiện tại (source trùng → giá trị mới thắng, giữ ghi chú cũ). Trả
-    thống kê `{added, updated, total}`."""
+    """Nhập glossary AI trả về: parse các dòng `Hán = Việt` trong khối
+    `## GLOSSARY` rồi MERGE vào glossary hiện tại (source trùng → giá trị mới
+    thắng, giữ ghi chú cũ). Ghi tất cả vào names.txt + dọn vietphrase.txt
+    (consolidation). Trả thống kê `{added, updated, total}`."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     parsed = bulk_transfer.parse_glossary(text)
-    if not parsed["names"] and not parsed["vietphrase"]:
+    if not parsed:
         raise HTTPException(
             status_code=400,
-            detail="Không tìm thấy mục glossary nào (cần khối ### NAMES / ### VIETPHRASE).",
+            detail="Không tìm thấy mục glossary nào (cần khối ## GLOSSARY với các dòng `Hán = Việt`).",
         )
 
+    current = storage.read_glossary_entries_merged()
+    note_by_source = {s: n for s, _t, n in current}
+    merged = {s: t for s, t, _n in current}
     added = updated = 0
-    for name, key in (("names.txt", "names"), ("vietphrase.txt", "vietphrase")):
-        current = storage.read_glossary_entries(name)
-        note_by_source = {s: n for s, _t, n in current}
-        merged = {s: t for s, t, _n in current}
-        for source, target in parsed[key].items():
-            if source not in merged:
-                added += 1
-            elif merged[source] != target:
-                updated += 1
-            else:
-                continue
-            merged[source] = target
-        storage.write_glossary_entries(
-            name, [(s, t, note_by_source.get(s, "")) for s, t in merged.items()]
-        )
+    for source, target in parsed.items():
+        if source not in merged:
+            added += 1
+        elif merged[source] != target:
+            updated += 1
+        else:
+            continue
+        merged[source] = target
+    storage.write_glossary_entries(
+        "names.txt", [(s, t, note_by_source.get(s, "")) for s, t in merged.items()]
+    )
+    storage.write_glossary_entries("vietphrase.txt", [])
 
     return JSONResponse({"added": added, "updated": updated, "total": added + updated})
 
@@ -223,24 +219,26 @@ def ebook_glossary_reapply(
     chapter_from: int = Form(0),
     chapter_to: int = Form(0),
     source: str = Form(""),
-    category: str = Form(""),
 ):
     """Áp dụng lại: thay `find`→`replace` literal trên các chương ĐÃ DỊCH (chạy
-    nền qua job). Nếu có `source`+`category`, cập nhật luôn mục glossary tương
-    ứng (đổi target sang `replace`) trước khi chạy."""
+    nền qua job). Nếu có `source`, cập nhật luôn mục glossary tương ứng (đổi
+    target sang `replace`) trước khi chạy — quét CẢ 2 list vì DB cũ có thể
+    chưa consolidate."""
     find, replace = find.strip(), replace.strip()
     if not find or not replace:
         raise HTTPException(status_code=400, detail="Cần cả chuỗi tìm và chuỗi thay.")
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
 
-    target_file = _CATEGORY_FILE.get(category)
-    if source.strip() and target_file:
-        entries = storage.read_glossary_entries(target_file)
-        updated = [
-            (s, replace if s == source.strip() else t, n) for s, t, n in entries
-        ]
-        storage.write_glossary_entries(target_file, updated)
+    if source.strip():
+        for list_name in ("names.txt", "vietphrase.txt"):
+            entries = storage.read_glossary_entries(list_name)
+            if not any(s == source.strip() for s, _t, _n in entries):
+                continue
+            updated = [
+                (s, replace if s == source.strip() else t, n) for s, t, n in entries
+            ]
+            storage.write_glossary_entries(list_name, updated)
 
     start = chapter_from or None
     end = chapter_to or None

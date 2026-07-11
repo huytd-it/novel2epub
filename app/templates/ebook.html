@@ -1022,14 +1022,13 @@ document.getElementById("btn-import-chapters")?.addEventListener("click", () => 
     function renderReport(data) {
         const changed = data.chapters.filter((c) => c.changed);
         const unchanged = data.chapters.filter((c) => !c.changed);
-        const gNames = Object.entries(data.glossary_names || {});
-        const gVp = Object.entries(data.glossary_vietphrase || {});
+        const gNew = Object.entries(data.glossary_new || {});
         let html = `<p><strong>${data.chapters.length}</strong> chương khớp — ${changed.length} thay đổi, ${unchanged.length} không đổi.</p>`;
         if (data.missing && data.missing.length) html += `<p class="bulk-bad">Thiếu (AI bỏ sót): ${data.missing.join(", ")}</p>`;
         if (data.unknown && data.unknown.length) html += `<p class="bulk-bad">Index lạ (không thuộc truyện, sẽ bỏ): ${data.unknown.join(", ")}</p>`;
         if (data.extra && data.extra.length) html += `<p>Ngoài tập đã chọn: ${data.extra.join(", ")}</p>`;
-        if (gNames.length || gVp.length) {
-            html += `<p>Glossary mới sẽ thêm: <strong>${gNames.length}</strong> tên riêng, <strong>${gVp.length}</strong> thuật ngữ.</p>`;
+        if (gNew.length) {
+            html += `<p>Glossary mới sẽ thêm: <strong>${gNew.length}</strong> mục.</p>`;
         }
         report.innerHTML = html;
     }

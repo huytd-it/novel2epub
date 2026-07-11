@@ -6,18 +6,17 @@ from novel2epub import bulk_transfer as b
 
 def test_round_trip_build_then_parse():
     items = [(2, "Tiêu đề 2", "Nội dung chương hai."), (1, "", "Nội dung chương một.")]
-    text = b.build_export(items, names={"萧炎": "Tiêu Viêm"}, vietphrase={})
+    text = b.build_export(items, glossary={"萧炎": "Tiêu Viêm"})
     parsed = b.parse_import(text)
     # Sắp theo index, giữ đúng tiêu đề + nội dung.
     assert parsed == [(1, "", "Nội dung chương một."), (2, "Tiêu đề 2", "Nội dung chương hai.")]
 
 
 def test_export_includes_prompt_and_glossary_as_markdown():
-    text = b.build_export([(1, "", "x")], names={"萧炎": "Tiêu Viêm"}, vietphrase={"斗气": "Đấu khí"})
+    text = b.build_export([(1, "", "x")], glossary={"萧炎": "Tiêu Viêm", "斗气": "Đấu khí"})
     assert "biên tập" in text.lower()
     assert "## GLOSSARY" in text
-    assert "### Tên riêng" in text
-    assert "### Thuật ngữ" in text
+    assert "## Glossary tham khảo" in text
     assert "萧炎 = Tiêu Viêm" in text
     assert "斗气 = Đấu khí" in text
     assert "## idx:1" in text
@@ -96,37 +95,36 @@ def test_parse_import_no_marker_returns_empty():
     assert b.parse_import("Chỉ là văn bản thường, không có marker.") == []
 
 
-def test_parse_glossary_groups_markdown():
-    text = (
-        "## GLOSSARY\n\n"
-        "### NAMES\n- 林动 = Lâm Động\n- 萧炎 = Tiêu Viêm\n\n"
-        "### VIETPHRASE\n- 斗气 = Đấu khí\n"
-    )
-    g = b.parse_glossary(text)
-    assert g["names"] == {"林动": "Lâm Động", "萧炎": "Tiêu Viêm"}
-    assert g["vietphrase"] == {"斗气": "Đấu khí"}
-
-
-def test_parse_glossary_legacy_bracket_headers_still_work():
+def test_parse_glossary_flat_markdown():
     text = (
         "## GLOSSARY\n"
-        "[NAMES]\n林动 = Lâm Động\n"
+        "- 林动 = Lâm Động\n- 萧炎 = Tiêu Viêm\n- 斗气 = Đấu khí\n"
+    )
+    g = b.parse_glossary(text)
+    assert g == {"林动": "Lâm Động", "萧炎": "Tiêu Viêm", "斗气": "Đấu khí"}
+
+
+def test_parse_glossary_legacy_subheadings_still_parse_flat():
+    """File .md xuất theo định dạng cũ (subheading NAMES/VIETPHRASE) vẫn parse
+    được — subheading không chứa `=` nên tự bị bỏ, mọi entry vào 1 dict."""
+    text = (
+        "## GLOSSARY\n"
+        "### NAMES\n- 林动 = Lâm Động\n"
         "[VIETPHRASE]\n斗气 = Đấu khí\n"
     )
     g = b.parse_glossary(text)
-    assert g["names"] == {"林动": "Lâm Động"}
-    assert g["vietphrase"] == {"斗气": "Đấu khí"}
+    assert g == {"林动": "Lâm Động", "斗气": "Đấu khí"}
 
 
 def test_parse_glossary_skips_placeholder_lines_from_prompt():
     # Khi user dán cả prompt mẫu (chứa "<chữ Hán> = <Hán Việt>") thì không nạp nhầm.
-    text = b.build_export([(1, "", "x")]) + "\n## GLOSSARY\n### NAMES\n- 林动 = Lâm Động\n"
+    text = b.build_export([(1, "", "x")]) + "\n## GLOSSARY\n- 林动 = Lâm Động\n"
     g = b.parse_glossary(text)
-    assert g["names"] == {"林动": "Lâm Động"}
+    assert g == {"林动": "Lâm Động"}
 
 
 def test_parse_glossary_no_block():
-    assert b.parse_glossary("## Chương 1\nnội dung") == {"names": {}, "vietphrase": {}}
+    assert b.parse_glossary("## Chương 1\nnội dung") == {}
 
 
 def test_validate_import_matched_missing_extra_unknown():
@@ -213,3 +211,11 @@ def test_ensure_title_number_juan_and_hui_labels():
 def test_ensure_title_number_title_only_number():
     # Bản gốc chỉ có 第5章, AI trả "Chương 5" → giữ dạng không dấu ':'.
     assert b.ensure_title_number("第5章", "Chương 5") == "Chương 5"
+
+
+def test_glossary_export_round_trip_flat():
+    """build_glossary_export → parse_glossary phải nạp lại đúng bảng phẳng."""
+    glossary = {"萧炎": "Tiêu Viêm", "斗气": "Đấu khí"}
+    text = b.build_glossary_export(glossary)
+    assert "## GLOSSARY" in text
+    assert b.parse_glossary(text) == glossary

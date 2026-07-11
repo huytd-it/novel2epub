@@ -55,43 +55,44 @@ def test_append_new_entry_writes_line(tmp_path):
     storage = Storage(tmp_path, "slug")
     storage.ensure_dirs()
 
-    changed = _append_glossary_entry(storage, "vietphrase.txt", "庄国", "Trang Quốc")
+    changed = _append_glossary_entry(storage, "庄国", "Trang Quốc")
 
     assert changed is True
-    assert storage.read_glossary_file("vietphrase.txt") == {"庄国": "Trang Quốc"}
+    assert storage.read_glossary_file("names.txt") == {"庄国": "Trang Quốc"}
 
 
 def test_append_skips_when_already_present_with_same_value(tmp_path):
     storage = Storage(tmp_path, "slug")
     storage.ensure_dirs()
+    # Entry cũ nằm ở vietphrase.txt (DB chưa consolidate) → dup-check trên
+    # merged vẫn phải nhận ra và skip.
     storage.write_glossary_file("vietphrase.txt", "庄国 = Trang Quốc\n")
 
-    changed = _append_glossary_entry(storage, "vietphrase.txt", "庄国", "Trang Quốc")
+    changed = _append_glossary_entry(storage, "庄国", "Trang Quốc")
 
     assert changed is False
-    entries = storage.read_glossary_entries("vietphrase.txt")
-    assert [s for s, _t, _n in entries].count("庄国") == 1
+    merged = storage.read_glossary_entries_merged()
+    assert [s for s, _t, _n in merged].count("庄国") == 1
 
 
 def test_append_updates_when_value_differs(tmp_path):
     storage = Storage(tmp_path, "slug")
     storage.ensure_dirs()
-    storage.write_glossary_file("vietphrase.txt", "庄国 = Trang Quốc cũ\n")
+    storage.write_glossary_file("names.txt", "庄国 = Trang Quốc cũ\n")
 
-    changed = _append_glossary_entry(storage, "vietphrase.txt", "庄国", "Trang Quốc mới")
+    changed = _append_glossary_entry(storage, "庄国", "Trang Quốc mới")
 
     assert changed is True
     # UPSERT theo source: giá trị mới thắng, không giữ dòng cũ trùng source.
-    assert storage.read_glossary_file("vietphrase.txt") == {"庄国": "Trang Quốc mới"}
+    assert storage.read_glossary_file("names.txt") == {"庄国": "Trang Quốc mới"}
 
 
-def test_append_rejects_blank_or_invalid_target(tmp_path):
+def test_append_rejects_blank_fields(tmp_path):
     storage = Storage(tmp_path, "slug")
     storage.ensure_dirs()
 
-    assert _append_glossary_entry(storage, "vietphrase.txt", "", "Trang Quốc") is False
-    assert _append_glossary_entry(storage, "vietphrase.txt", "庄国", "") is False
-    assert _append_glossary_entry(storage, "khong-hop-le.txt", "庄国", "Trang Quốc") is False
+    assert _append_glossary_entry(storage, "", "Trang Quốc") is False
+    assert _append_glossary_entry(storage, "庄国", "") is False
 
 
 # ----- storage entry helpers (data table cần giữ ghi chú + trim/dedup) -----
@@ -121,22 +122,30 @@ def test_write_glossary_entries_trims_and_dedups(tmp_path):
 
 # ----- route: lưu toàn bộ glossary từ data table (JSON) -----
 
-def test_save_glossary_json_writes_both_files(tmp_path, monkeypatch):
+def test_save_glossary_json_writes_single_list_and_consolidates(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    # Dữ liệu cũ còn trong vietphrase.txt — lưu xong phải được consolidate.
+    storage.write_glossary_file("vietphrase.txt", "旧词 = từ cũ\n")
     client = _client(cfg, monkeypatch)
 
     res = client.post(
         "/ebooks/t/glossary",
         json={
-            "names": [{"source": "萧炎", "target": "Tiêu Viêm", "note": "chính"}],
-            "vietphrase": [{"source": "斗气", "target": "Đấu khí", "note": ""}],
+            "entries": [
+                {"source": "萧炎", "target": "Tiêu Viêm", "note": "chính"},
+                {"source": "斗气", "target": "Đấu khí", "note": ""},
+            ],
         },
     )
     assert res.status_code == 200
 
-    storage = Storage(tmp_path, "t")
-    assert storage.read_glossary_entries("names.txt") == [("萧炎", "Tiêu Viêm", "chính")]
-    assert storage.read_glossary_file("vietphrase.txt") == {"斗气": "Đấu khí"}
+    assert storage.read_glossary_entries("names.txt") == [
+        ("萧炎", "Tiêu Viêm", "chính"), ("斗气", "Đấu khí", ""),
+    ]
+    # vietphrase.txt được dọn sạch sau khi lưu (lazy consolidation).
+    assert storage.read_glossary_entries("vietphrase.txt") == []
 
 
 # ----- route: nhập glossary từ AI (merge) -----
@@ -148,7 +157,7 @@ def test_import_glossary_merges(tmp_path, monkeypatch):
     storage.write_glossary_file("names.txt", "萧炎 = Tên cũ | giữ note\n")
     client = _client(cfg, monkeypatch)
 
-    text = "## GLOSSARY\n### NAMES\n- 萧炎 = Tiêu Viêm\n- 林动 = Lâm Động\n### VIETPHRASE\n- 斗气 = Đấu khí\n"
+    text = "## GLOSSARY\n- 萧炎 = Tiêu Viêm\n- 林动 = Lâm Động\n- 斗气 = Đấu khí\n"
     res = client.post("/api/ebooks/t/glossary/import", data={"text": text})
     assert res.status_code == 200
     data = res.json()
@@ -156,9 +165,10 @@ def test_import_glossary_merges(tmp_path, monkeypatch):
     assert data["updated"] == 1  # 萧炎 đổi giá trị
 
     names = storage.read_glossary_entries("names.txt")
-    # 萧炎 cập nhật target nhưng GIỮ ghi chú cũ.
+    # 萧炎 cập nhật target nhưng GIỮ ghi chú cũ; mọi mục đều vào names.txt.
     assert ("萧炎", "Tiêu Viêm", "giữ note") in names
-    assert storage.read_glossary_file("vietphrase.txt") == {"斗气": "Đấu khí"}
+    assert ("斗气", "Đấu khí", "") in names
+    assert storage.read_glossary_entries("vietphrase.txt") == []
 
 
 def test_import_glossary_rejects_empty(tmp_path, monkeypatch):
@@ -208,7 +218,6 @@ def test_reapply_applies_and_updates_glossary(tmp_path, monkeypatch):
             "find": "Trương Tam",
             "replace": "Trần Tam",
             "source": "张三",
-            "category": "names",
         },
     )
     assert res.status_code == 200

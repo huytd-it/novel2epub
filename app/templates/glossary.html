@@ -16,11 +16,6 @@
 <div class="flex flex-wrap gap-2 items-center mb-3">
     <input id="gloss-search" type="search" placeholder="Tìm Hán / Việt / ghi chú…" autocomplete="off"
         class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-1.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-link-light/40">
-    <select id="gloss-filter" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm">
-        <option value="">Tất cả loại</option>
-        <option value="names">Tên riêng</option>
-        <option value="vietphrase">Thuật ngữ</option>
-    </select>
     <span id="gloss-count" class="text-sm text-muted-light dark:text-muted-dark"></span>
     <div class="ml-auto flex flex-wrap gap-2">
         <button type="button" id="btn-add" class="px-2.5 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">+ Thêm mục</button>
@@ -36,7 +31,6 @@
     <table class="w-full text-sm border-collapse">
         <thead class="bg-surface-alt-light dark:bg-surface-alt-dark sticky top-0">
             <tr>
-                <th data-sort="category" class="gloss-th text-left font-semibold px-2 py-2 w-32 cursor-pointer select-none">Loại <span class="sort-ind text-muted-light dark:text-muted-dark"></span></th>
                 <th data-sort="source" class="gloss-th text-left font-semibold px-2 py-2 cursor-pointer select-none">Hán <span class="sort-ind text-muted-light dark:text-muted-dark"></span></th>
                 <th data-sort="target" class="gloss-th text-left font-semibold px-2 py-2 cursor-pointer select-none">Việt <span class="sort-ind text-muted-light dark:text-muted-dark"></span></th>
                 <th class="text-left font-semibold px-2 py-2">Ghi chú</th>
@@ -84,13 +78,8 @@
 <script>
 const GLOSSARY_SLUG = {{ slug | tojson }};
 const INITIAL_ENTRIES = (function () {
-    const names = {{ names_entries | tojson }};
-    const vp = {{ vietphrase_entries | tojson }};
-    const out = [];
-    let id = 0;
-    for (const e of names) out.push({ id: id++, category: "names", source: e.source, target: e.target, note: e.note || "" });
-    for (const e of vp) out.push({ id: id++, category: "vietphrase", source: e.source, target: e.target, note: e.note || "" });
-    return out;
+    const entries = {{ entries | tojson }};
+    return entries.map((e, id) => ({ id, source: e.source, target: e.target, note: e.note || "" }));
 })();
 
 let ENTRIES = INITIAL_ENTRIES.slice();
@@ -100,11 +89,8 @@ let sortDir = 1;
 
 const body = document.getElementById("gloss-body");
 const searchInput = document.getElementById("gloss-search");
-const filterSelect = document.getElementById("gloss-filter");
 const countLabel = document.getElementById("gloss-count");
 const emptyMsg = document.getElementById("gloss-empty");
-
-const CATEGORY_LABEL = { names: "Tên riêng", vietphrase: "Thuật ngữ" };
 
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -112,9 +98,7 @@ function escapeHtml(s) {
 
 function visibleEntries() {
     const q = searchInput.value.trim().toLowerCase();
-    const cat = filterSelect.value;
     let rows = ENTRIES.filter(e => {
-        if (cat && e.category !== cat) return false;
         if (!q) return true;
         return (e.source + " " + e.target + " " + e.note).toLowerCase().includes(q);
     });
@@ -134,12 +118,6 @@ function render() {
     const rows = visibleEntries();
     body.innerHTML = rows.map(e => `
         <tr class="border-t border-border-light dark:border-border-dark" data-id="${e.id}">
-            <td class="px-2 py-1 align-top">
-                <select data-field="category" class="${inputCls}">
-                    <option value="names"${e.category === "names" ? " selected" : ""}>Tên riêng</option>
-                    <option value="vietphrase"${e.category === "vietphrase" ? " selected" : ""}>Thuật ngữ</option>
-                </select>
-            </td>
             <td class="px-2 py-1 align-top"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
             <td class="px-2 py-1 align-top"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
             <td class="px-2 py-1 align-top"><input data-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-muted-light dark:text-muted-dark"></td>
@@ -162,12 +140,6 @@ body.addEventListener("input", e => {
     const entry = entryById(tr.dataset.id);
     if (entry) entry[field] = e.target.value;
 });
-body.addEventListener("change", e => {
-    if (e.target.dataset.field === "category") {
-        const entry = entryById(e.target.closest("tr").dataset.id);
-        if (entry) entry.category = e.target.value;
-    }
-});
 
 // Nút thao tác trên từng dòng.
 body.addEventListener("click", e => {
@@ -184,7 +156,6 @@ body.addEventListener("click", e => {
 });
 
 searchInput.addEventListener("input", render);
-filterSelect.addEventListener("change", render);
 
 // Sort khi click header.
 document.querySelectorAll(".gloss-th").forEach(th => {
@@ -198,7 +169,7 @@ document.querySelectorAll(".gloss-th").forEach(th => {
 });
 
 document.getElementById("btn-add").addEventListener("click", () => {
-    ENTRIES.unshift({ id: nextId++, category: filterSelect.value || "names", source: "", target: "", note: "" });
+    ENTRIES.unshift({ id: nextId++, source: "", target: "", note: "" });
     sortField = null;
     document.querySelectorAll(".sort-ind").forEach(s => s.textContent = "");
     render();
@@ -213,7 +184,7 @@ document.getElementById("btn-clean").addEventListener("click", () => {
         e.target = e.target.trim();
         e.note = e.note.trim();
         if (!e.source || !e.target) continue;
-        seen.set(e.category + " " + e.source, e); // dedup, mục sau thắng
+        seen.set(e.source, e); // dedup theo Hán, mục sau thắng
     }
     const before = ENTRIES.length;
     ENTRIES = Array.from(seen.values());
@@ -223,10 +194,10 @@ document.getElementById("btn-clean").addEventListener("click", () => {
 });
 
 document.getElementById("btn-save").addEventListener("click", async () => {
-    const payload = { names: [], vietphrase: [] };
+    const payload = { entries: [] };
     for (const e of ENTRIES) {
         if (!e.source.trim() || !e.target.trim()) continue;
-        (e.category === "names" ? payload.names : payload.vietphrase).push({ source: e.source, target: e.target, note: e.note });
+        payload.entries.push({ source: e.source, target: e.target, note: e.note });
     }
     try {
         const res = await fetch(`/ebooks/${GLOSSARY_SLUG}/glossary`, {
@@ -277,7 +248,7 @@ document.getElementById("btn-export").addEventListener("click", async () => {
     if (!win) return;
     const header = win.document.createElement("header");
     header.innerHTML = `<h2>Xuất glossary để nhờ AI dọn lại (Markdown)</h2>
-        <p>${data.names} tên riêng · ${data.vietphrase} thuật ngữ · ${data.text.length.toLocaleString()} ký tự</p>
+        <p>${data.count} mục glossary · ${data.text.length.toLocaleString()} ký tự</p>
         <p>Copy hoặc tải .md rồi đưa vào ChatGPT/Claude/Gemini. AI dọn xong (dedup, sửa Hán-Việt, gộp mâu thuẫn), dán/upload kết quả vào "Nhập từ AI".</p>`;
     win.document.body.appendChild(header);
     const main = win.document.createElement("main");
@@ -314,7 +285,7 @@ document.getElementById("btn-import").addEventListener("click", () => {
     if (!win) return;
     const header = win.document.createElement("header");
     header.innerHTML = `<h2>Nhập glossary AI đã dọn</h2>
-        <p>Dán kết quả AI (có khối <code>### NAMES</code> / <code>### VIETPHRASE</code>) hoặc upload file .md rồi bấm Nhập. Các mục sẽ được GỘP vào glossary hiện tại (trùng Hán → lấy giá trị mới).</p>`;
+        <p>Dán kết quả AI (khối <code>## GLOSSARY</code> với các dòng <code>Hán = Việt</code>) hoặc upload file .md rồi bấm Nhập. Các mục sẽ được GỘP vào glossary hiện tại (trùng Hán → lấy giá trị mới).</p>`;
     win.document.body.appendChild(header);
     const main = win.document.createElement("main");
     const actions = win.document.createElement("div");
@@ -423,7 +394,7 @@ reapplyApplyBtn.addEventListener("click", async () => {
         fd.set("replace", replace);
         fd.set("chapter_from", reapplyFrom.value || 0);
         fd.set("chapter_to", reapplyTo.value || 0);
-        if (reapplyEntry) { fd.set("source", reapplyEntry.source); fd.set("category", reapplyEntry.category); }
+        if (reapplyEntry) { fd.set("source", reapplyEntry.source); }
         const res = await fetch(`/ebooks/${GLOSSARY_SLUG}/glossary/reapply`, { method: "POST", body: fd });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) { toast(data.detail || "Không bắt đầu được job.", "error"); reapplyApplyBtn.disabled = false; return; }

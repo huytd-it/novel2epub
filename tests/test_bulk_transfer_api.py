@@ -184,7 +184,7 @@ def test_import_preview_does_not_write(tmp_path, monkeypatch):
     by_idx = {c["index"]: c for c in data["chapters"]}
     assert by_idx[1]["changed"] is True
     assert by_idx[2]["changed"] is False
-    assert data["glossary_names"] == {"林动": "Lâm Động"}
+    assert data["glossary_new"] == {"林动": "Lâm Động"}
     # Preview KHÔNG ghi.
     assert storage.read_translated(chapters[0]) == "Bản dịch chương 1"
     assert storage.read_glossary_file("names.txt") == {}
@@ -211,9 +211,10 @@ def test_import_confirm_writes_and_merges_glossary(tmp_path, monkeypatch):
     assert storage.read_translated(chapters[0]) == "Đã sửa chương 1"
     # KHÔNG đụng translated_mt/.
     assert storage.read_translated_mt(chapters[0]) == "MT 1"
-    # Glossary đã merge.
-    assert storage.read_glossary_file("names.txt") == {"林动": "Lâm Động"}
-    assert storage.read_glossary_file("vietphrase.txt") == {"斗气": "Đấu khí"}
+    # Glossary đã merge — không còn phân loại, mọi mục (kể cả từ subheading
+    # [VIETPHRASE] định dạng cũ) đều vào list chuẩn names.txt.
+    assert storage.read_glossary_file("names.txt") == {"林动": "Lâm Động", "斗气": "Đấu khí"}
+    assert storage.read_glossary_file("vietphrase.txt") == {}
 
 
 def test_import_confirm_backfills_translated_mt_when_missing(tmp_path, monkeypatch):

@@ -9,7 +9,7 @@ from novel2epub import pipeline
 from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig, ScraplingConfig, TranslateConfig
 from novel2epub.crawl_throttle import AdaptiveConcurrency, DomainRateLimiter
 from novel2epub.crawler import TocResult
-from novel2epub.storage import Chapter, Storage
+from novel2epub.storage import Chapter, Manifest, Storage
 
 
 # ---------- CrawlConfig.effective_workers / default_concurrency_cap ----------
@@ -161,8 +161,10 @@ def test_step_crawl_selected_caps_concurrency_to_source_default(tmp_path, monkey
         output=OutputConfig(data_dir=str(tmp_path)),
     )
     assert cfg.crawl.effective_workers(cfg.crawl.max_workers) == 5
+    # step_crawl_selected nay yêu cầu manifest có sẵn (fetch-toc là bước riêng).
+    storage = Storage(tmp_path, "t")
+    storage.save_manifest(Manifest(slug="t", chapters=_toc(10).chapters))
     pipeline.step_crawl_selected(cfg, lambda m: None)
 
-    storage = Storage(tmp_path, "t")
     manifest = storage.load_manifest()
     assert sum(1 for ch in manifest.chapters if storage.has_raw(ch)) == 10

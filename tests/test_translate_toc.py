@@ -45,7 +45,7 @@ def _seed(tmp_path, chapters):
 
 def test_toc_first_time_translates_from_title_and_backfills_title_zh(tmp_path, monkeypatch):
     tr = _FakeTitleTranslator()
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: tr)
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
 
     ch = Chapter(index=1, url="http://x/1", title="第一章")
     storage = _seed(tmp_path, [ch])
@@ -64,7 +64,7 @@ def test_toc_skips_already_translated_without_force(tmp_path, monkeypatch):
     """Chương đã có title_zh (đã dịch tiêu đề trước đó) → KHÔNG gửi lại AI khi
     không bật force."""
     tr = _FakeTitleTranslator()
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: tr)
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
 
     ch = Chapter(index=1, url="http://x/1", title="Chương 1: Tiêu đề cũ VI", title_zh="第一章")
     storage = _seed(tmp_path, [ch])
@@ -82,7 +82,7 @@ def test_toc_force_retranslates_from_title_zh_not_current_title(tmp_path, monkey
     """force=True dịch lại — phải lấy nguồn từ title_zh (ZH gốc), KHÔNG phải
     title hiện tại (đã là tiếng Việt), và title_zh không bị đụng vào."""
     tr = _FakeTitleTranslator()
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: tr)
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
 
     ch = Chapter(index=1, url="http://x/1", title="Chương 1: Tiêu đề cũ VI", title_zh="第一章")
     storage = _seed(tmp_path, [ch])
@@ -107,7 +107,7 @@ def test_retranslate_title_uses_title_zh_when_already_translated(tmp_path, monke
     tr = _FakeTitleTranslator()
     # step_retranslate_title import make_translator cục bộ từ novel2epub.translator
     # (không qua pipeline.make_translator) — phải patch đúng module đó.
-    monkeypatch.setattr(translator_module, "make_translator", lambda c, log=None: tr)
+    monkeypatch.setattr(translator_module, "make_translator", lambda c, log=None, **kw: tr)
 
     ch = Chapter(index=1, url="http://x/1", title="Chương 1: Tiêu đề cũ VI", title_zh="第一章")
     storage = _seed(tmp_path, [ch])

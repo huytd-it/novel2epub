@@ -141,10 +141,20 @@ def _merge_glossaries(*parts: dict[str, str]) -> dict[str, str]:
     return merged
 
 
-def load_glossary_dict(cfg: TranslateConfig) -> dict[str, str]:
-    """Gộp glossary inline trong config + 2 file names/vietphrase đang trỏ tới.
+def load_glossary_dict(cfg: TranslateConfig, storage: "Storage | None" = None) -> dict[str, str]:
+    """Gộp glossary inline trong config + 2 list names/vietphrase.
 
     Dùng chung cho OpenAITranslator (dịch chương) và glossary_ai (gợi ý/rewrite).
+
+    Khi caller có sẵn `storage` (pipeline/web routes) thì ĐỌC TRỰC TIẾP 2 list
+    chuẩn từ DB — nguồn mà auto-glossary + trang Glossary đang ghi. Path trong
+    `cfg.glossary_files` chỉ còn dùng cho file NGOÀI user tự trỏ (tồn tại thật
+    trên đĩa). Thứ tự merge: inline cfg.glossary < file ngoài < DB (DB thắng —
+    tránh file legacy thời trước migration SQLite che mất entry mới trong DB).
+
+    Khi không có `storage` (backward-compat): giữ hành vi cũ — đọc file nếu
+    tồn tại, ngược lại suy ngược data_dir/slug từ quy ước path
+    `data_dir/<slug>/glossary/<name>.txt` để đọc DB.
     """
     glossary: dict[str, str] = dict(cfg.glossary)
     for path in (cfg.glossary_files.names, cfg.glossary_files.vietphrase):
@@ -152,25 +162,37 @@ def load_glossary_dict(cfg: TranslateConfig) -> dict[str, str]:
             continue
         p = Path(path)
         if p.exists():
-            # File tùy chỉnh do user tự trỏ tới (ngoài Storage/DB) — đọc trực tiếp.
+            # File thật trên đĩa: file ngoài user tự trỏ, hoặc file legacy
+            # thời trước migration SQLite. Đọc trực tiếp; entry DB (đọc bên
+            # dưới khi có storage) sẽ ghi đè nếu trùng source.
             lines = p.read_text(encoding="utf-8").splitlines()
-        else:
+        elif storage is None:
             # Đường dẫn mặc định do config.py suy ra (data_dir/<slug>/glossary/
             # <name>.txt) — glossary nay sống trong DB qua Storage, không còn
             # file thật ở đây. Suy ngược slug/data_dir từ đúng quy ước đó.
             try:
                 data_dir = p.parent.parent.parent
                 slug = p.parent.parent.name
-                storage = Storage(data_dir, slug)
-                entries = storage.read_glossary_entries(p.name)
+                entries = Storage(data_dir, slug).read_glossary_entries(p.name)
             except Exception:
                 continue
             lines = [f"{s} = {t}" + (f" | {n}" if n else "") for s, t, n in entries]
+        else:
+            continue  # có storage: DB đọc tập trung bên dưới, không suy path
         for line in lines:
             parsed = parse_glossary_line(line)
             if parsed:
                 zh, vi, _note = parsed
                 glossary[zh] = vi
+    if storage is not None:
+        for list_name in ("names.txt", "vietphrase.txt"):
+            try:
+                entries = storage.read_glossary_entries(list_name)
+            except Exception:
+                continue
+            for source, target, _note in entries:
+                if source and target:
+                    glossary[source] = target
     return glossary
 
 
@@ -251,10 +273,10 @@ class OpenAITranslator:
     # quá dài (timeout, model cắt bớt output) — chia thành nhiều batch nếu cần.
     TITLES_BATCH_SIZE = 50
 
-    def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None):
+    def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None, storage: "Storage | None" = None):
         self.cfg = cfg
         self.openai = cfg.openai
-        self.glossary = load_glossary_dict(cfg)
+        self.glossary = load_glossary_dict(cfg, storage)
         self.log = log or (lambda _: None)
         self._glossary_lock = threading.Lock()
         self._auto_glossary_conflicts: list[dict] = []
@@ -602,9 +624,9 @@ class OpenAITranslator:
 class GoogleTranslator:
     MAX_CHARS = 4500
 
-    def __init__(self, cfg: TranslateConfig):
+    def __init__(self, cfg: TranslateConfig, storage: "Storage | None" = None):
         self.cfg = cfg
-        self.glossary = _merge_glossaries(cfg.glossary)
+        self.glossary = load_glossary_dict(cfg, storage) if storage is not None else _merge_glossaries(cfg.glossary)
         try:
             from deep_translator import GoogleTranslator as _G
         except ImportError as e:  # pragma: no cover
@@ -658,10 +680,10 @@ class HachimiMTTranslator:
     "instruction" như LLM).
     """
 
-    def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None):
+    def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None, storage: "Storage | None" = None):
         self.cfg = cfg
         self.hmt = cfg.hachimimt
-        self.glossary = load_glossary_dict(cfg)
+        self.glossary = load_glossary_dict(cfg, storage)
         self.log = log or (lambda _: None)
         self._inner: HachimiTranslator | None = None
 
@@ -720,10 +742,10 @@ class LibreTranslateTranslator:
     ngắn (title, author, description) — nhanh, không tốn token LLM.
     """
 
-    def __init__(self, cfg: TranslateConfig):
+    def __init__(self, cfg: TranslateConfig, storage: "Storage | None" = None):
         self.cfg = cfg
         self.lt = cfg.libretranslate
-        self.glossary = _merge_glossaries(cfg.glossary)
+        self.glossary = load_glossary_dict(cfg, storage) if storage is not None else _merge_glossaries(cfg.glossary)
 
     def _translate_text(self, text: str) -> str:
         import requests
@@ -768,16 +790,19 @@ class LibreTranslateTranslator:
         return _apply_glossary(translated, self.glossary), ""
 
 
-def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = None) -> Translator:
+def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = None, storage: "Storage | None" = None) -> Translator:
+    """`storage` (tùy chọn): Storage của ebook đang dịch — khi truyền vào,
+    glossary được đọc thẳng từ DB (nguồn auto-glossary/trang Glossary ghi)
+    thay vì suy path, xem load_glossary_dict."""
     kind = (cfg.type or "none").lower()
     if kind == "openai":
-        return OpenAITranslator(cfg, log=log)
+        return OpenAITranslator(cfg, log=log, storage=storage)
     if kind == "google":
-        return GoogleTranslator(cfg)
+        return GoogleTranslator(cfg, storage=storage)
     if kind in ("hachimimt", "moxhimt"):
-        return HachimiMTTranslator(cfg, log=log)
+        return HachimiMTTranslator(cfg, log=log, storage=storage)
     if kind == "libretranslate":
-        return LibreTranslateTranslator(cfg)
+        return LibreTranslateTranslator(cfg, storage=storage)
     if kind == "none":
         return NoopTranslator()
     raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (openai|google|hachimimt|none)")

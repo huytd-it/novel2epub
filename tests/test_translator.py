@@ -99,6 +99,75 @@ def test_load_glossary_dict_ignores_missing_files():
     assert load_glossary_dict(cfg) == {"元宵": "Nguyên Tiêu"}
 
 
+def _storage_with_glossary(tmp_path):
+    from novel2epub.storage import Storage
+
+    storage = Storage(tmp_path / "data", "t")
+    storage.ensure_dirs()
+    storage.append_glossary_line("names.txt", "庄国 = Trang Quốc")
+    storage.append_glossary_line("vietphrase.txt", "元气 = nguyên khí")
+    return storage
+
+
+def test_load_glossary_dict_storage_first_reads_db(tmp_path):
+    """Có `storage`: đọc thẳng DB, không phụ thuộc path glossary_files."""
+    storage = _storage_with_glossary(tmp_path)
+    cfg = TranslateConfig(
+        glossary={"元宵": "Nguyên Tiêu"},
+        # Path mặc định (không tồn tại trên đĩa) — trước đây phải suy ngược
+        # data_dir/slug từ path; nay bỏ qua hoàn toàn khi có storage.
+        glossary_files=GlossaryFilesConfig(
+            names=str(tmp_path / "data" / "t" / "glossary" / "names.txt"),
+            vietphrase=str(tmp_path / "data" / "t" / "glossary" / "vietphrase.txt"),
+        ),
+    )
+    assert load_glossary_dict(cfg, storage) == {
+        "元宵": "Nguyên Tiêu",
+        "庄国": "Trang Quốc",
+        "元气": "nguyên khí",
+    }
+
+
+def test_load_glossary_dict_db_wins_over_legacy_file(tmp_path):
+    """File legacy (trước migration SQLite) còn trên đĩa KHÔNG được che entry
+    mới trong DB — lỗi từng khiến auto-glossary không vào prompt các chương sau."""
+    storage = _storage_with_glossary(tmp_path)
+    legacy = tmp_path / "data" / "t" / "glossary"
+    legacy.mkdir(parents=True)
+    (legacy / "names.txt").write_text("庄国 = Bản Cũ Sai\n林凡 = Lâm Phàm\n", encoding="utf-8")
+
+    cfg = TranslateConfig(
+        glossary_files=GlossaryFilesConfig(names=str(legacy / "names.txt"), vietphrase=""),
+    )
+    result = load_glossary_dict(cfg, storage)
+    assert result["庄国"] == "Trang Quốc"  # DB thắng
+    assert result["林凡"] == "Lâm Phàm"    # entry chỉ có trong file vẫn giữ
+    assert result["元气"] == "nguyên khí"  # list DB còn lại vẫn được đọc
+
+
+def test_load_glossary_dict_stale_path_with_storage_still_reads_db(tmp_path):
+    """Path stale trỏ lung tung + có storage → vẫn ra glossary đúng từ DB."""
+    storage = _storage_with_glossary(tmp_path)
+    cfg = TranslateConfig(
+        glossary_files=GlossaryFilesConfig(names="/khong/ton/tai.txt", vietphrase=""),
+    )
+    result = load_glossary_dict(cfg, storage)
+    assert result == {"庄国": "Trang Quốc", "元气": "nguyên khí"}
+
+
+def test_make_translator_passes_storage_to_prompt_glossary(tmp_path):
+    """End-to-end: translator tạo qua make_translator(storage=...) phải chèn
+    glossary DB vào prompt dịch chương."""
+    from novel2epub.translator import make_translator
+
+    storage = _storage_with_glossary(tmp_path)
+    cfg = TranslateConfig(type="openai")
+    translator = make_translator(cfg, storage=storage)
+    prompt = translator._build_prompt("庄国大军压境")
+    assert "Bảng thuật ngữ bắt buộc dùng nhất quán:" in prompt
+    assert "庄国 = Trang Quốc" in prompt
+
+
 def test_parse_title_response_standard_format():
     raw = "TIÊU ĐỀ: Tay nắm tay, cùng nhau cất bước\nGIẢI THÍCH: "
     title, note = _parse_title_response(raw)

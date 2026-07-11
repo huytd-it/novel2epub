@@ -15,6 +15,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Callable
 
+from .bulk_transfer import ensure_title_number
 from .config import Config, CrawlRetryConfig
 from .crawl_throttle import AdaptiveConcurrency, DomainRateLimiter
 from .crawler import ScraplingCrawler, is_rate_limited
@@ -170,6 +171,27 @@ def _clean_title(vi: str) -> str:
     vi = re.sub(r"第\s*(\d+)\s*回", r"Hồi \1", vi)
     vi = vi.replace("楔子", "Mở đầu").replace("序章", "Khúc dạo đầu")
     return vi.strip()
+
+
+# Dòng đầu output dài hơn ngưỡng này thì coi là văn xuôi, không phải tiêu đề.
+_MAX_TITLE_LINE = 120
+
+
+def _split_translated_title(translated: str) -> tuple[str, str]:
+    """Tách dòng đầu (tiêu đề đã dịch) khỏi phần thân bản dịch.
+
+    Dùng khi tiêu đề ZH được prepend vào content trước khi gửi AI (dịch tiêu đề
+    chung với nội dung trong 1 lời gọi). Trả ("", translated) nếu dòng đầu
+    không giống tiêu đề: rỗng, quá dài (> _MAX_TITLE_LINE — nhiều khả năng model
+    đã bỏ dòng tiêu đề và đây là câu văn đầu chương), hoặc sau nó không còn thân.
+    """
+    text = translated.lstrip("\n")
+    first, sep, rest = text.partition("\n")
+    first = first.strip()
+    body = rest.lstrip("\n")
+    if not sep or not first or len(first) > _MAX_TITLE_LINE or not body.strip():
+        return "", translated
+    return first, body
 
 
 def _strip_repeated_title(content: str, ch: Chapter) -> str:
@@ -671,13 +693,13 @@ def _batch_translate_titles(
     return dict(zip(indexes, translated))
 
 
-def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, title_lookup: dict[str, str] | None = None, *, translate_title: bool = False, should_cancel: CancelFn | None = None) -> tuple[str, bool]:
-    """Dịch nội dung 1 chương (và tiêu đề nếu translate_title=True), ghi translated+meta.
-
-    Mặc định translate_title=False — title được dịch riêng qua "Dịch TOC" hoặc
-    "Dịch lại tiêu đề" để tiết kiệm token AI và tránh lãng phí (tiêu đề ngắn,
-    không cần chunk). Khi translate_title=True: nhánh gốc (từ CLI pipeline cũ)
-    vẫn dịch cả title như trước.
+def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, *, should_cancel: CancelFn | None = None) -> tuple[str, bool]:
+    """Dịch 1 chương: tiêu đề được prepend vào đầu content và dịch CHUNG trong
+    cùng lời gọi AI (giống bulk-transfer `## idx:N: title` + body) — tiêu đề
+    dịch đồng bộ văn phong với nội dung, không tốn thêm lời gọi riêng. Nguồn
+    tiêu đề luôn là `title_zh or title` (dịch lại content cũng refresh tiêu đề
+    từ bản ZH gốc); "Dịch TOC"/"Dịch lại tiêu đề" vẫn là đường title-only cho
+    chương chưa dịch nội dung.
 
     Trả (status, title_changed) với status 'completed'/'replaced'/'failed'.
     Raise lại exception sau khi đã log + đánh dấu failed, để caller (nhánh
@@ -685,9 +707,12 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
 
     Streaming: truyền `on_chunk` cho translator để mỗi chunk dịch xong được
     ghi ngay vào `translated/{stem}.md` (chunk đầu = write, các chunk sau =
-    append với `\n` ngăn cách). Cuối cùng `mark_translated_complete` set
-    `complete: true` trong meta — phân biệt với partial do job bị crash.
-    Xem spec `translate-chunk-streaming`.
+    append với `\n` ngăn cách). Chunk đầu chứa dòng tiêu đề — sau khi dịch
+    xong toàn bộ, dòng này được tách ra làm `ch.title` và file được ghi đè
+    lại chỉ còn phần thân (file partial do crash còn dòng tiêu đề nhưng
+    `complete: false` buộc dịch lại nên vô hại). Cuối cùng
+    `mark_translated_complete` set `complete: true` trong meta — phân biệt
+    với partial do job bị crash. Xem spec `translate-chunk-streaming`.
     """
     had_translated = storage.has_translated(ch)
     raw = storage.read_raw(ch)
@@ -706,29 +731,16 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     def _on_glossary(entries: list[dict]) -> None:
         chapter_glossary.extend(entries)
 
+    # Dịch tiêu đề chung với content: prepend tiêu đề ZH làm dòng đầu — prompt
+    # đã có sẵn hint "Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn".
+    zh_title = ch.title_zh or ch.title
+    send_title = bool(zh_title) and not is_noop and bool(raw.strip())
+    source_text = f"{zh_title}\n\n{raw}" if send_title else raw
+
     try:
-        if ch.title and not is_noop and translate_title:
-            zh_title = ch.title_zh or ch.title
-            if title_lookup and ch.index in title_lookup:
-                if not ch.title_zh:
-                    ch.title_zh = ch.title
-                ch.title = _clean_title(title_lookup[ch.index])
-                ch.title_note = ""
-                title_changed = True
-            else:
-                log(f"[dịch]   ({i}/{total}) → đang dịch tiêu đề…")
-                if not ch.title_zh:
-                    ch.title_zh = ch.title
-                title, note = _run_with_heartbeat(
-                    log, f"[dịch]   ({i}/{total})",
-                    lambda: translator.translate_title(zh_title, kind="tên chương"),
-                )
-                ch.title = _clean_title(title)
-                ch.title_note = note
-                title_changed = True
         _run_with_heartbeat(
             log, f"[dịch]   ({i}/{total})",
-            lambda: translator.translate(raw, on_chunk=_on_chunk, on_glossary=_on_glossary),
+            lambda: translator.translate(source_text, on_chunk=_on_chunk, on_glossary=_on_glossary),
         )
     except Exception as e:  # noqa: BLE001 - caller quyết định dừng sớm hay tiếp tục
         ch.last_action_status = "failed"
@@ -749,6 +761,20 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
 
     elapsed = time.monotonic() - started
     translated = "\n".join(pieces)
+    if send_title:
+        vi_line, body = _split_translated_title(translated)
+        if vi_line:
+            if not ch.title_zh:
+                ch.title_zh = ch.title
+            ch.title = ensure_title_number(zh_title, _clean_title(vi_line))
+            ch.title_note = ""
+            title_changed = True
+            translated = body
+            # Chunk đầu đã stream dòng tiêu đề vào file — ghi đè lại body-only
+            # để tiêu đề không bị lặp với H1 do epub_builder sinh từ ch.title.
+            storage.write_translated(ch, translated)
+        else:
+            log(f"[dịch]   ({i}/{total}) ⚠ không tách được tiêu đề từ dòng đầu — giữ tiêu đề hiện tại")
     # Snapshot bản dịch máy (cột "VI" editor 3 cột): ghi bản máy gốc tách khỏi
     # `translated` (cột "Biên tập" — sẽ bị sửa tay/AI rewrite về sau). Cho phép
     # luôn đối chiếu "máy dịch ra gì" kể cả sau khi đã biên tập nhiều.
@@ -865,14 +891,14 @@ def _maybe_extract_chapter_glossary(
             log(f"[dịch]   ({i}/{total}) ! Không ghi được glossary_conflicts vào meta: {e}")
 
 
-def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool, should_cancel: CancelFn | None = None, title_lookup: dict[str, str] | None = None) -> tuple[int, int, int, bool]:
+def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool, should_cancel: CancelFn | None = None) -> tuple[int, int, int, bool]:
     translated_count = failed = replaced = 0
     for i, ch in enumerate(chapters, 1):
         if should_cancel and should_cancel():
             log(f"[dịch] Đã dừng theo yêu cầu — còn {total - i + 1} chương chưa xử lý.")
             break
         try:
-            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, title_lookup=title_lookup, should_cancel=should_cancel)
+            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, should_cancel=should_cancel)
         except Exception as e:
             failed += 1
             changed = changed or getattr(e, "title_changed", False)
@@ -888,7 +914,7 @@ def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Mani
     return translated_count, failed, replaced, changed
 
 
-def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool, should_cancel: CancelFn | None = None, title_lookup: dict[str, str] | None = None) -> tuple[int, int, int, bool]:
+def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool, should_cancel: CancelFn | None = None) -> tuple[int, int, int, bool]:
     """Dịch nhiều chương song song. Translator được dùng chung giữa các luồng:
     OpenAITranslator chỉ gửi 1 HTTP request riêng mỗi lần gọi (không state dùng
     chung), GoogleTranslator gọi HTTP riêng mỗi lần — cả hai an toàn gọi đồng
@@ -914,7 +940,7 @@ def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manife
             progress["done"] += 1
             i = progress["done"]
         try:
-            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, title_lookup=title_lookup, should_cancel=should_cancel)
+            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, should_cancel=should_cancel)
         except Exception as e:  # noqa: BLE001 - đã log trong _translate_one, gom lại để quyết định ở cuối
             with counters_lock:
                 counters["failed"] += 1
@@ -948,14 +974,13 @@ def step_translate_selected(
     missing: bool = False,
     selected_indexes: list[int] | None = None,
     should_cancel: CancelFn | None = None,
-    translate_title: bool = False,
 ) -> Manifest:
     """translate.max_workers > 1 trong config sẽ dịch nhiều chương song song
     bằng 1 translator dùng chung (xem _translate_chapters_parallel).
 
-    translate_title=False (mặc định): chỉ dịch nội dung, không dịch tiêu đề.
-    Tiêu đề được dịch riêng qua 'Dịch TOC' hoặc 'Dịch lại tiêu đề' — tiết kiệm
-    token AI (không cần chunk cho title ngắn) và tránh lãng phí khi dịch selected.
+    Tiêu đề chương được dịch CHUNG với nội dung trong cùng lời gọi AI (prepend
+    tiêu đề ZH làm dòng đầu — xem _translate_one). 'Dịch TOC' / 'Dịch lại
+    tiêu đề' vẫn là đường dịch title-only cho chương chưa dịch nội dung.
     """
     _emit_config_warnings(cfg, log)
     _emit_translate_config(cfg, log)
@@ -964,8 +989,14 @@ def step_translate_selected(
     if manifest is None:
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
 
-    translator = RateLimited(make_translator(cfg.translate, log), cfg.translate.delay_seconds)
+    translator = RateLimited(make_translator(cfg.translate, log, storage=storage), cfg.translate.delay_seconds)
     is_noop = cfg.translate.type.lower() == "none"
+    inner_glossary = getattr(getattr(translator, "inner", translator), "glossary", None)
+    if inner_glossary is not None and not is_noop:
+        if inner_glossary:
+            log(f"[dịch] Glossary: {len(inner_glossary)} mục sẽ được chèn vào prompt")
+        elif cfg.translate.auto_glossary:
+            log("[dịch] ⚠ Glossary rỗng — tên riêng có thể không nhất quán giữa các chương")
 
     selected = _chapter_selection(manifest.chapters, chapter, start, end, selected_indexes)
     total = len(selected)
@@ -995,17 +1026,14 @@ def step_translate_selected(
     else:
         workers = max(1, int(cfg.translate.max_workers))
 
-    # Batch translate all chapter titles before the content loop (nếu translate_title).
-    title_lookup = _batch_translate_titles(translator, to_translate, log) if translate_title else {}
-
     changed = 0
     if workers > 1 and len(to_translate) > 1:
         translated_count, failed, replaced, changed = _translate_chapters_parallel(
-            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed, should_cancel, title_lookup=title_lookup
+            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed, should_cancel
         )
     else:
         translated_count, failed, replaced, changed = _translate_chapters_sequential(
-            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, changed, should_cancel, title_lookup=title_lookup
+            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, changed, should_cancel
         )
 
     if cfg.translate.auto_glossary and cfg.translate.type.lower() == "openai":
@@ -1237,7 +1265,7 @@ def step_translate_toc_selected(
     if manifest is None:
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
 
-    translator = RateLimited(make_translator(cfg.translate, log), cfg.translate.delay_seconds)
+    translator = RateLimited(make_translator(cfg.translate, log, storage=storage), cfg.translate.delay_seconds)
     selected = _chapter_selection(manifest.chapters, None, None, None, selected_indexes)
     total = len(selected)
     if total == 0:
@@ -1292,7 +1320,7 @@ def step_rewrite_chapters(
     if manifest is None:
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
 
-    glossary = glossary_ai.load_glossary(cfg.translate)
+    glossary = glossary_ai.load_glossary(cfg.translate, storage)
     selected = _chapter_range(manifest.chapters, None, start, end)
     selected = [c for c in selected if storage.has_translated(c)]
     total = len(selected)
@@ -1397,7 +1425,7 @@ def step_evaluate_translation(
     if manifest is None:
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
 
-    glossary = glossary_ai.load_glossary(cfg.translate)
+    glossary = glossary_ai.load_glossary(cfg.translate, storage)
     selected = _chapter_range(manifest.chapters, None, start, end)
     selected = [c for c in selected if storage.has_translated(c)]
     if not selected:
@@ -1461,7 +1489,7 @@ def step_review_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> dict
     _emit_translate_config(cfg, log, feature="REVIEW")
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
     translated = storage.read_translated(ch)
-    glossary = glossary_ai.load_glossary(cfg.translate)
+    glossary = glossary_ai.load_glossary(cfg.translate, storage)
     log(f"[review] Đang phân tích chương {ch.index}: {ch.title or ch.stem}")
     report = glossary_ai.evaluate_translation(cfg.ai.openai, [(raw, translated)], glossary)
     _update_chapter_meta(storage, ch, ai_review={"report": report, "generated_at": _now_iso()})
@@ -1478,7 +1506,7 @@ def step_suggest_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> lis
     _emit_translate_config(cfg, log, feature="GỢI Ý GLOSSARY")
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
     translated = storage.read_translated(ch) if storage.has_translated(ch) else ""
-    existing = glossary_ai.load_glossary(cfg.translate)
+    existing = glossary_ai.load_glossary(cfg.translate, storage)
     log(f"[gợi ý] Đang phân tích chương {ch.index}: {ch.title or ch.stem}")
     suggestions = glossary_ai.suggest_glossary(
         cfg.ai.openai, [(raw, translated)], existing,
@@ -1502,7 +1530,7 @@ def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> str
     _emit_translate_config(cfg, log, feature="REWRITE PREVIEW")
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
     current = storage.read_translated(ch)
-    glossary = glossary_ai.load_glossary(cfg.translate)
+    glossary = glossary_ai.load_glossary(cfg.translate, storage)
     log(f"[rewrite] Đang biên tập lại chương {ch.index}: {ch.title or ch.stem}")
     rewritten = glossary_ai.rewrite_chapter(
         cfg.ai.openai, raw, current, glossary,
@@ -1696,7 +1724,7 @@ def step_retranslate_title(
     if len(translated) > summary_max_chars:
         summary = summary.rsplit("\n", 1)[0] or summary
 
-    glossary = load_glossary_dict(cfg.translate)
+    glossary = load_glossary_dict(cfg.translate, storage)
     prompt_glossary = glossary
     if cfg.translate.glossary_filter:
         prompt_glossary = _filter_glossary(glossary, zh_text=zh_title, vi_text=summary)
@@ -1733,7 +1761,7 @@ def step_retranslate_title(
         # Google/HachimiMT: literal translation without context
         # Use simple prompt for these engines
         simple_prompt = _RETRANSLATE_TITLE_SIMPLE_PROMPT.format(title=zh_title)
-        translator = make_translator(cfg.translate)
+        translator = make_translator(cfg.translate, storage=storage)
         title_vi = translator.translate(simple_prompt)
         title_vi = _clean_title(title_vi)
         title_note = ""  # No explanation for simple translation

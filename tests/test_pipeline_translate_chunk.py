@@ -34,7 +34,9 @@ def _cfg(tmp_path):
 
 def _seed(tmp_path):
     storage = Storage(tmp_path, "t")
-    ch = Chapter(index=1, url="http://x/1", title="第一章")
+    # title rỗng: các test này pin chunk-streaming; dịch tiêu đề chung content
+    # được cover riêng ở tests/test_translate_title_combined.py.
+    ch = Chapter(index=1, url="http://x/1", title="")
     storage.save_manifest(Manifest(slug="t", chapters=[ch]))
     storage.write_raw(ch, "原文\n" * 50)  # đủ dài để chia chunk
     return storage, ch
@@ -64,7 +66,7 @@ def test_translate_one_writes_file_progressively(tmp_path, monkeypatch):
     cfg.translate.type = "openai"  # is_noop = False
 
     # Patch make_translator để trả translator giả.
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: translator)
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: translator)
 
     pipeline.step_translate_selected(cfg, lambda m: None, selected_indexes=[1])
 
@@ -91,7 +93,7 @@ def test_translate_one_failure_does_not_mark_complete(tmp_path, monkeypatch):
 
     storage, ch = _seed(tmp_path)
     cfg = _cfg(tmp_path)
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: _FailingTranslator())
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: _FailingTranslator())
 
     with __import__("pytest").raises(RuntimeError, match="CLI lỗi"):
         pipeline.step_translate_selected(cfg, lambda m: None, selected_indexes=[1])
@@ -123,7 +125,7 @@ def test_partial_chapter_is_retried_on_next_run(tmp_path, monkeypatch):
             return text, ""
 
     cfg = _cfg(tmp_path)
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: _RecordingTranslator())
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: _RecordingTranslator())
     pipeline.step_translate_selected(cfg, lambda m: None, selected_indexes=[1])
     assert seen == ["called"], "Translator phải được gọi lại vì partial không phải complete"
     # File đã được ghi đè với đầy đủ 3 chunk.

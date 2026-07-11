@@ -35,7 +35,7 @@ def test_preview_returns_metadata(monkeypatch):
     from app.routes import library
 
     app, client = _client(monkeypatch)
-    monkeypatch.setattr(library, "_fetch_meta", lambda url, preset_name="": {
+    monkeypatch.setattr(library, "_fetch_meta", lambda url, scrapling_mode="": {
         "name": "Tên Truyện", "author": "Tác Giả", "slug": "ten-truyen",
         "cover_url": "https://x/cover.jpg", "chapter_count": 798,
     })
@@ -59,7 +59,7 @@ def test_preview_fetch_error_returns_400(monkeypatch):
     from app.routes import library
 
     app, client = _client(monkeypatch)
-    monkeypatch.setattr(library, "_fetch_meta", lambda url, preset_name="": (_ for _ in ()).throw(Exception("Lỗi mạng")))
+    monkeypatch.setattr(library, "_fetch_meta", lambda url, scrapling_mode="": (_ for _ in ()).throw(Exception("Lỗi mạng")))
     res = client.post("/library/ebooks/preview", data={
         "toc_url": "https://example.com/toc"})
     assert res.status_code == 400

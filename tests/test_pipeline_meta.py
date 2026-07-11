@@ -154,7 +154,7 @@ def test_translate_selected_reports_per_chapter_error_and_continues(tmp_path, mo
 
     # Chương 1 dịch được (nên không fail-fast), chương 2 lỗi, chương 3 dịch được.
     tr = _FlakyTranslator(fail_on={"raw2"})
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: tr)
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
 
     logs = []
     cfg = _cfg(tmp_path)
@@ -176,7 +176,7 @@ def test_translate_selected_fails_fast_on_first_chapter(tmp_path, monkeypatch):
         storage.write_raw(ch, f"raw{ch.index}")
 
     tr = _FlakyTranslator(fail_on={"raw1", "raw2"})
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: tr)
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
 
     cfg = _cfg(tmp_path)
     import pytest

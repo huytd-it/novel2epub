@@ -863,24 +863,22 @@ def _maybe_extract_chapter_glossary(
     if not chapter_glossary:
         return
 
-    grouped: dict[str, dict[str, str]] = defaultdict(dict)
-    for s in chapter_glossary:
-        grouped[s["target_file"]][s["source"]] = s["suggested"]
+    # Không còn phân loại names/vietphrase — mọi entry vào list chuẩn names.txt.
+    entries = {s["source"]: s["suggested"] for s in chapter_glossary if s.get("source")}
+    if not entries:
+        return
 
     chapter_conflicts: list[dict] = []
-    for target_file, entries in grouped.items():
-        if target_file not in ("names.txt", "vietphrase.txt"):
-            continue
-        result = translator.extend_glossary(entries, target_file, storage)
-        for source, target in result["added"]:
-            log(f"[dịch]   ({i}/{total}) + glossary ({target_file}): {source} = {target}")
-        for c in result["conflicts"]:
-            c["chapter_index"] = ch.index
-            chapter_conflicts.append(c)
-            log(
-                f"[dịch]   ({i}/{total}) ⚠ conflict {c['source']}: "
-                f"hiện có '{c['existing']}', AI đề xuất '{c['new']}' (giữ giá trị cũ)"
-            )
+    result = translator.extend_glossary(entries, storage)
+    for source, target in result["added"]:
+        log(f"[dịch]   ({i}/{total}) + glossary: {source} = {target}")
+    for c in result["conflicts"]:
+        c["chapter_index"] = ch.index
+        chapter_conflicts.append(c)
+        log(
+            f"[dịch]   ({i}/{total}) ⚠ conflict {c['source']}: "
+            f"hiện có '{c['existing']}', AI đề xuất '{c['new']}' (giữ giá trị cũ)"
+        )
 
     if chapter_conflicts:
         try:
@@ -1044,9 +1042,10 @@ def step_translate_selected(
                 existing = storage.read_extra_json("glossary_conflicts")
                 if not isinstance(existing, list):
                     existing = []
-                seen = {(c["source"], c["new"], c["target_file"]) for c in existing}
+                # `.get` vì entry cũ đã persist còn mang target_file, entry mới không.
+                seen = {(c["source"], c["new"]) for c in existing}
                 for c in conflicts:
-                    key = (c["source"], c["new"], c["target_file"])
+                    key = (c["source"], c["new"])
                     if key not in seen:
                         existing.append(c)
                         seen.add(key)

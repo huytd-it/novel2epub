@@ -235,3 +235,15 @@ def test_read_notes_corrupt_row_skipped(tmp_path):
         )
     # Dòng hỏng bị bỏ qua, không raise.
     assert storage.read_notes() == []
+
+
+def test_read_glossary_entries_merged_names_wins(tmp_path):
+    """Gộp 2 list: names.txt trước; entry vietphrase trùng source bị bỏ
+    (names.txt là list chuẩn duy nhất sau khi bỏ phân loại)."""
+    storage = Storage(tmp_path, "slug")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n")
+    storage.write_glossary_file("vietphrase.txt", "萧炎 = Bản Cũ\n斗气 = Đấu khí\n")
+
+    merged = storage.read_glossary_entries_merged()
+    assert merged == [("萧炎", "Tiêu Viêm", ""), ("斗气", "Đấu khí", "")]

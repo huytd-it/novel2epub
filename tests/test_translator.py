@@ -361,7 +361,7 @@ def test_extend_glossary_added():
     """Entry mới → add vào in-memory + ghi file."""
     t = _make_openai_translator()
     storage = _MockStorage()
-    result = t.extend_glossary({"叶凡": "Diệp Phàm"}, "names.txt", storage)
+    result = t.extend_glossary({"叶凡": "Diệp Phàm"}, storage)
 
     assert len(result["added"]) == 1
     assert len(result["conflicts"]) == 0
@@ -374,7 +374,7 @@ def test_extend_glossary_unchanged():
     t = _make_openai_translator()
     t.glossary["叶凡"] = "Diệp Phàm"
     storage = _MockStorage()
-    result = t.extend_glossary({"叶凡": "Diệp Phàm"}, "names.txt", storage)
+    result = t.extend_glossary({"叶凡": "Diệp Phàm"}, storage)
 
     assert len(result["added"]) == 0
     assert len(result["conflicts"]) == 0
@@ -386,7 +386,7 @@ def test_extend_glossary_conflict_existing_wins():
     t = _make_openai_translator()
     t.glossary["叶凡"] = "Diệp Phàm"
     storage = _MockStorage()
-    result = t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, "names.txt", storage)
+    result = t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, storage)
 
     assert len(result["added"]) == 0
     assert len(result["conflicts"]) == 1
@@ -394,7 +394,7 @@ def test_extend_glossary_conflict_existing_wins():
     assert c["source"] == "叶凡"
     assert c["existing"] == "Diệp Phàm"
     assert c["new"] == "Diệp Phà (cũ)"
-    assert c["target_file"] == "names.txt"
+    assert "target_file" not in c
     # In-memory vẫn giữ giá trị cũ
     assert t.glossary["叶凡"] == "Diệp Phàm"
     # File không được ghi
@@ -407,8 +407,8 @@ def test_extend_glossary_accumulates_conflicts():
     t.glossary["叶凡"] = "Diệp Phàm"
     t.glossary["林动"] = "Lâm Động"
     storage = _MockStorage()
-    t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, "names.txt", storage)
-    t.extend_glossary({"林动": "Lâm Động (khác)"}, "names.txt", storage)
+    t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, storage)
+    t.extend_glossary({"林动": "Lâm Động (khác)"}, storage)
 
     drained = t.drain_conflicts()
     assert len(drained) == 2
@@ -420,7 +420,7 @@ def test_extend_glossary_skips_empty_source():
     """Entry với source/suggested rỗng bị bỏ qua."""
     t = _make_openai_translator()
     storage = _MockStorage()
-    result = t.extend_glossary({"": "something", "valid": ""}, "names.txt", storage)
+    result = t.extend_glossary({"": "something", "valid": ""}, storage)
     assert len(result["added"]) == 0
     assert len(result["conflicts"]) == 0
 
@@ -503,3 +503,70 @@ def test_build_title_prompt_filters_on_title():
     prompt = t._build_title_prompt("庄国大战", kind="tên chương")
     assert "庄国 = Trang Quốc" in prompt
     assert "叶凡" not in prompt
+
+
+# ── Auto-glossary format dòng đơn giản (không JSON) ─────────────────
+
+
+def _openai_t(**kw):
+    cfg = TranslateConfig(type="openai", auto_glossary=True, **kw)
+    from novel2epub.translator import OpenAITranslator
+    return OpenAITranslator(cfg)
+
+
+def test_split_response_plain_lines():
+    t = _openai_t()
+    text = "Bản dịch.\n===GLOSSARY===\n林凡 = Lâm Phàm\n斗气 = Đấu khí"
+    translation, entries = t._split_response(text)
+    assert translation == "Bản dịch."
+    assert entries == [
+        {"source": "林凡", "suggested": "Lâm Phàm"},
+        {"source": "斗气", "suggested": "Đấu khí"},
+    ]
+
+
+def test_split_response_bullet_lines_and_prose_dropped():
+    t = _openai_t()
+    text = (
+        "Bản dịch.\n===GLOSSARY===\n"
+        "- 林凡 = Lâm Phàm\n"
+        "* 斗气 = Đấu khí\n"
+        "Đây là các mục mới tôi tìm được.\n"  # prose không có '=' → bỏ
+        "<Hán> = <Việt>\n"  # placeholder bị echo → bỏ
+    )
+    _translation, entries = t._split_response(text)
+    assert entries == [
+        {"source": "林凡", "suggested": "Lâm Phàm"},
+        {"source": "斗气", "suggested": "Đấu khí"},
+    ]
+
+
+def test_split_response_bare_marker_returns_none():
+    t = _openai_t()
+    translation, entries = t._split_response("Bản dịch.\n===GLOSSARY===\n")
+    assert translation == "Bản dịch."
+    assert entries is None
+
+
+def test_split_response_legacy_json_still_parses():
+    """Back-compat: user pin prompt cũ dạng JSON trong config vẫn hoạt động."""
+    t = _openai_t()
+    text = (
+        'Bản dịch.\n===GLOSSARY===\n'
+        '[{"source": "林凡", "suggested": "Lâm Phàm", "target_file": "names.txt"}]'
+    )
+    translation, entries = t._split_response(text)
+    assert translation == "Bản dịch."
+    assert entries is not None and entries[0]["source"] == "林凡"
+
+
+def test_build_prompt_glossary_suffix_is_line_format_not_json():
+    t = _openai_t()
+    prompt = t._build_prompt("原文")
+    assert "===GLOSSARY===" in prompt
+    assert "<Hán> = <Việt>" in prompt
+    suffix = prompt[prompt.index("SAU KHI DỊCH XONG"):]
+    assert "target_file" not in suffix
+    assert "names.txt" not in suffix
+    assert "vietphrase.txt" not in suffix
+    assert '"source"' not in suffix  # không còn schema JSON

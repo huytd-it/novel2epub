@@ -468,6 +468,20 @@ class Storage:
         ).fetchall()
         return [(r["source"], r["target"], r["note"]) for r in rows]
 
+    def read_glossary_entries_merged(self) -> list[tuple[str, str, str]]:
+        """Gộp 2 list thành MỘT danh sách (source, target, note).
+
+        `names.txt` là list chuẩn duy nhất (đã bỏ phân loại names/vietphrase);
+        entry `vietphrase.txt` cũ chưa consolidate vẫn được đọc kèm, nhưng khi
+        trùng source thì names.txt thắng.
+        """
+        merged = list(self.read_glossary_entries("names.txt"))
+        seen = {source for source, _t, _n in merged}
+        for entry in self.read_glossary_entries("vietphrase.txt"):
+            if entry[0] not in seen:
+                merged.append(entry)
+        return merged
+
     def write_glossary_entries(self, name: str, entries: list[tuple[str, str, str]]) -> None:
         """Ghi list `(source, target, note)` — trim từng field, bỏ mục thiếu
         source/target, dedup theo source (mục SAU thắng)."""

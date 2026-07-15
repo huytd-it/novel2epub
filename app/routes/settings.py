@@ -2,7 +2,9 @@
 và AI biên tập (`ai`) là cấu hình GLOBAL dùng chung mọi ebook (ghi vào `defaults:`)."""
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 
 import requests
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
@@ -10,7 +12,12 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import openai_client
 from novel2epub.config_writer import clean_prompt_text, update_defaults, update_ebook
-from novel2epub.sources import load_presets
+from novel2epub.sources import (
+    SCRAPLING_FIELD_MAP,
+    load_presets,
+    save_preset,
+    strip_preset_defaults,
+)
 from novel2epub.storage import Storage
 
 from .. import deps
@@ -274,34 +281,19 @@ def save_source(
         },
     }
 
-    # Nếu ebook có source, chỉ ghi field khác preset (tránh mark toàn bộ
-    # là override, giữ nguyên khả năng propagate từ preset).
+    # Ebook gắn source chỉ lưu field nó CỐ Ý override — field trùng preset là
+    # thừa và sẽ đóng băng ebook ở giá trị preset lúc ghi. `retry` không đến từ
+    # preset nên luôn giữ; `toc_url` không có trong SourcePreset nên
+    # strip_preset_defaults tự khắc giữ.
     cfg = deps.resolved_cfg(slug)
     source_name = getattr(cfg, "source", "")
     if source_name:
-        presets = load_presets(deps.SOURCES_PATH)
-        preset = presets.get(source_name)
+        preset = load_presets(deps.DB_PATH).get(source_name)
         if preset:
-            preset_vals = preset.crawl_overrides()
-            filtered: dict = {}
-            for key, value in crawl.items():
-                if key == "toc_url":
-                    filtered[key] = value  # luôn ghi toc_url
-                elif key == "retry":
-                    filtered[key] = value  # retry không từ preset
-                elif isinstance(value, dict):
-                    # Nested dict (scrapling): so sánh từng key
-                    nested_filtered = {}
-                    for nk, nv in value.items():
-                        preset_nv = preset_vals.get(nk)
-                        if preset_nv != nv:
-                            nested_filtered[nk] = nv
-                    if nested_filtered:
-                        filtered[key] = nested_filtered
-                else:
-                    if preset_vals.get(key) != value:
-                        filtered[key] = value
-            crawl = filtered
+            retry = crawl.pop("retry", None)
+            crawl, _removed = strip_preset_defaults(crawl, preset)
+            if retry is not None:
+                crawl["retry"] = retry
 
     path = deps.ebook_config_path(slug)
     logger.info(
@@ -314,57 +306,72 @@ def save_source(
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
+def _read_crawl_overrides(db_path, slug: str) -> dict:
+    """Đọc raw `crawl_overrides_json` của ebook (KHÔNG resolve preset)."""
+    from novel2epub.db import get_thread_connection
+
+    conn = get_thread_connection(Path(db_path).resolve())
+    row = conn.execute(
+        "SELECT crawl_overrides_json FROM ebooks WHERE slug = ?", (slug,)
+    ).fetchone()
+    return json.loads(row["crawl_overrides_json"] or "{}") if row else {}
+
+
 @router.post("/ebooks/{slug}/settings/sync-to-source")
 def sync_to_source(slug: str):
-    """Lấy crawl config hiện tại của ebook (đã resolve), update source preset
-    với các field ebook đã override."""
-    from novel2epub.sources import SourcePreset, save_presets
+    """Nâng override riêng của ebook thành cấu hình chung của preset.
 
+    Sau khi đẩy field lên preset, XOÁ chính các override đó khỏi ebook: preset
+    đã mang giá trị ấy nên override chỉ còn là bản sao thừa, và là thứ khiến
+    ebook không còn ăn theo preset về sau.
+
+    Không cần propagate sang ebook khác — `load_config` resolve preset live.
+    """
     cfg = deps.resolved_cfg(slug)
     source_name = getattr(cfg, "source", "")
     if not source_name:
         raise HTTPException(status_code=400, detail="Ebook không có source preset.")
 
-    presets = load_presets(deps.SOURCES_PATH)
+    presets = load_presets(deps.DB_PATH)
     preset = presets.get(source_name)
     if preset is None:
         raise HTTPException(status_code=404, detail=f"Nguồn '{source_name}' không tồn tại.")
 
-    # Lấy crawl config hiện tại (đã resolve) và cập nhật preset
-    from dataclasses import asdict
     crawl = cfg.crawl
-    overrides = preset.crawl_overrides()
     changed_fields: list[str] = []
 
-    # So sánh từng field: nếu ebook khác preset → update preset
-    for key, current_val in overrides.items():
+    # Field phẳng: so crawl đã resolve với preset; khác nghĩa là ebook đã override.
+    for key, preset_val in preset.crawl_overrides().items():
+        if key in SCRAPLING_FIELD_MAP.values():
+            continue  # xử lý riêng bên dưới (tên lồng khác tên phẳng)
         ebook_val = getattr(crawl, key, None)
-        if ebook_val is not None and ebook_val != current_val:
+        if ebook_val is not None and ebook_val != preset_val:
             setattr(preset, key, ebook_val)
             changed_fields.append(key)
 
-    # Scrapling nested fields
+    # Field scrapling: crawl dùng tên lồng (`mode`), preset dùng tên phẳng
+    # (`scrapling_mode`) — quy đổi qua SCRAPLING_FIELD_MAP.
     if crawl.scrapling:
-        for key in ("mode", "solve_cloudflare", "network_idle", "impersonate",
-                    "proxy", "dns_over_https"):
-            # SourcePreset dùng tên phẳng, riêng mode là `scrapling_mode`.
-            preset_key = "scrapling_mode" if key == "mode" else key
-            ebook_val = getattr(crawl.scrapling, key, None)
-            preset_val = getattr(preset, preset_key, None)
-            if ebook_val is not None and ebook_val != preset_val:
-                setattr(preset, preset_key, ebook_val)
-                changed_fields.append(preset_key)
+        for nested_key, flat_key in SCRAPLING_FIELD_MAP.items():
+            ebook_val = getattr(crawl.scrapling, nested_key, None)
+            if ebook_val is not None and ebook_val != getattr(preset, flat_key, None):
+                setattr(preset, flat_key, ebook_val)
+                changed_fields.append(flat_key)
 
     if not changed_fields:
         return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
-    presets[source_name] = preset
-    save_presets(deps.SOURCES_PATH, presets)
+    save_preset(deps.DB_PATH, preset)
 
-    # Không propagate: ebook chỉ lưu TÊN preset, `load_config` resolve preset live.
+    # Ebook về tham chiếu thuần: bỏ override giờ đã trùng khít preset.
+    raw = _read_crawl_overrides(deps.DB_PATH, slug)
+    cleaned, removed = strip_preset_defaults(raw, preset)
+    if removed:
+        update_ebook(deps.DB_PATH, slug, {"crawl": cleaned}, replace_crawl=True)
+
     logger.info(
-        "[source] sync ebook=%s → preset=%s: fields=%s",
-        slug, source_name, changed_fields,
+        "[source] sync ebook=%s → preset=%s: đẩy lên %s, dọn override %s",
+        slug, source_name, changed_fields, removed,
     )
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 

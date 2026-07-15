@@ -53,9 +53,19 @@ def clean_prompt_text(value: str) -> str:
     return value.strip("\n")
 
 
-def update_ebook(path: str | Path, slug: str, updates: dict[str, Any]) -> None:
+def update_ebook(
+    path: str | Path,
+    slug: str,
+    updates: dict[str, Any],
+    *,
+    replace_crawl: bool = False,
+) -> None:
     """Merge `updates` (khối "novel"/"crawl"/"output"/"source") vào row
-    `ebooks.<slug>` — chỉ chạm đúng cột liên quan, ebook khác giữ nguyên."""
+    `ebooks.<slug>` — chỉ chạm đúng cột liên quan, ebook khác giữ nguyên.
+
+    `replace_crawl=True`: ghi đè NGUYÊN KHỐI `crawl_overrides_json` thay vì
+    merge — cách duy nhất để XOÁ một override (merge không bỏ được key).
+    """
     db_path = Path(path).resolve()
     conn = get_thread_connection(db_path)
     with conn:
@@ -77,13 +87,15 @@ def update_ebook(path: str | Path, slug: str, updates: dict[str, Any]) -> None:
 
         crawl_updates = updates.get("crawl")
         if isinstance(crawl_updates, dict):
-            current_crawl = json.loads(row["crawl_overrides_json"] or "{}")
-            merged_crawl = _deep_merge_raw(
-                current_crawl,
-                {k: v for k, v in crawl_updates.items() if k not in _DEPRECATED_CRAWL_FIELDS},
-            )
+            filtered = {k: v for k, v in crawl_updates.items()
+                        if k not in _DEPRECATED_CRAWL_FIELDS}
+            if replace_crawl:
+                new_crawl = filtered
+            else:
+                current_crawl = json.loads(row["crawl_overrides_json"] or "{}")
+                new_crawl = _deep_merge_raw(current_crawl, filtered)
             set_clauses.append("crawl_overrides_json = ?")
-            params.append(json.dumps(merged_crawl, ensure_ascii=False))
+            params.append(json.dumps(new_crawl, ensure_ascii=False))
 
         output_updates = updates.get("output")
         if isinstance(output_updates, dict):

@@ -4,10 +4,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from novel2epub.db import get_connection
 from tests.conftest import write_db_config
 
-from scripts.cleanup_preset_overrides import cleanup_overrides
+from scripts.cleanup_preset_overrides import cleanup_overrides, main
 
 
 def _crawl(path: Path, slug: str) -> dict:
@@ -88,3 +90,30 @@ def test_idempotent(tmp_path):
     report = cleanup_overrides(db)
     assert report == {}
     assert _crawl(db, "a") == after_first
+
+
+def test_main_db_khong_ton_tai_thi_bao_loi_va_exit_khac_0(tmp_path, capsys):
+    """DB không tồn tại KHÔNG được báo thành công như DB sạch — script chỉ chạy
+    một lần, operator gõ sai -c mà thấy "không cần làm gì" là mất DB thật."""
+    missing = tmp_path / "khong-co.db"
+    with pytest.raises(SystemExit) as exc:
+        main(["-c", str(missing)])
+    assert exc.value.code != 0
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+    assert "Không tìm thấy DB" in out
+    assert str(missing.resolve()) in out
+    assert "Không cần làm gì" not in out
+    assert not missing.exists()  # không được tạo DB rỗng
+
+
+def test_main_dry_run_bao_cao_db_that(tmp_path, capsys):
+    """main() với DB có thật vẫn chạy bình thường — guard mới không chặn nhầm."""
+    db = _db(tmp_path, {"a": {"name": "A", "source": "aixdzs", "crawl": {
+        "toc_url": "https://aixdzs.com/d/1",
+        "content_selector": ".content",
+    }}})
+    main(["-c", str(db), "--dry-run"])
+    out = capsys.readouterr().out
+    assert "content_selector" in out
+    assert _crawl(db, "a")["content_selector"] == ".content"  # dry-run: chưa ghi

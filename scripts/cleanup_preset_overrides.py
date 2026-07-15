@@ -16,10 +16,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 from novel2epub.db import get_thread_connection
 from novel2epub.sources import load_presets, strip_preset_defaults
+
+# Chuỗi fallback env GIỐNG HỆT `novel2epub/cli.py` và `app/deps.py`: operator chỉ
+# set NOVEL2EPUB_FILE (env override chính của repo) vẫn trỏ đúng DB thật.
+DEFAULT_DB_PATH = os.environ.get(
+    "NOVEL2EPUB_DB",
+    os.environ.get("NOVEL2EPUB_FILE", os.environ.get("NOVEL2EPUB_CONFIG", "novel2epub.db")),
+)
 
 
 def cleanup_overrides(
@@ -64,20 +72,28 @@ def cleanup_overrides(
     return report
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "-c", "--config",
-        default=os.environ.get("NOVEL2EPUB_DB", "novel2epub.db"),
+        default=DEFAULT_DB_PATH,
         help="Đường dẫn file DB gộp (mặc định: novel2epub.db)",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
         help="Chỉ in ra những gì SẼ xoá, không ghi vào DB.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    report = cleanup_overrides(args.config, dry_run=args.dry_run)
+    # Kiểm tra TRƯỚC khi gọi cleanup_overrides: DB không tồn tại cũng trả {} như
+    # DB sạch thật, mà script chỉ chạy MỘT LẦN — báo "không cần làm gì" cho một
+    # đường dẫn gõ sai sẽ để override bẩn nằm lại trong DB thật mãi mãi.
+    path = Path(args.config).resolve()
+    if not path.exists():
+        print(f"Không tìm thấy DB: {path}", file=sys.stderr)
+        raise SystemExit(1)
+
+    report = cleanup_overrides(path, dry_run=args.dry_run)
     if not report:
         print("Không có override thừa nào. Không cần làm gì.")
         return

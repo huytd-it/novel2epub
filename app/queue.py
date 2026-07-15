@@ -20,7 +20,7 @@ from typing import Callable
 
 from novel2epub.db import get_thread_connection
 
-from .logging_config import logger
+from .logging_config import job_log_capture, logger
 
 CATEGORIES = ("crawl", "translate", "build")
 DEFAULT_HISTORY_LIMIT = 5000
@@ -498,7 +498,10 @@ class JobQueue:
         logger.info("Bắt đầu job %r (%s)", job.step, job.id)
         try:
             assert job.target is not None
-            job.target(log_fn)
+            # Log nội bộ của novel2epub.* (crawler, search...) chảy vào job.log
+            # để hiện trên UI, thay vì biến mất.
+            with job_log_capture(job.log):
+                job.target(log_fn)
             job.state = "cancelled" if job.cancel_event.is_set() else "done"
             logger.info("Job %r hoàn tất", job.step)
         except Exception as e:  # noqa: BLE001 - hiển thị lỗi bất kỳ lên UI

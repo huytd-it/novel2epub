@@ -71,6 +71,11 @@ def _emit_crawl_config(cfg: Config, log: LogFn) -> None:
         log(f"[config] CRAWL pagination: {rule} (tối đa {c.max_pages_per_chapter} trang/chương)")
     else:
         log("[config] CRAWL pagination: off")
+    if c.toc_next_page_selector:
+        log(f"[config] CRAWL TOC pagination: {c.toc_next_page_selector} "
+            f"(tối đa {c.toc_max_pages} trang mục lục)")
+    else:
+        log("[config] CRAWL TOC pagination: off")
     if s.mode == "stealthy" and s.solve_cloudflare:
         log("[config] CRAWL scrapling: stealth + solve_cloudflare")
     if s.mode == "fetcher" and s.impersonate:

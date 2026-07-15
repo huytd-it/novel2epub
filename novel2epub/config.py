@@ -722,6 +722,14 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             "trích xuất HTML của preset 'go', kiểm tra translate.openai có phù hợp không."
         )
 
+    if crawl.scrapling.solve_cloudflare and crawl.scrapling.mode != "stealthy":
+        warnings.append(
+            f"crawl.scrapling.solve_cloudflare=true nhưng mode={crawl.scrapling.mode!r} "
+            "— cờ này BỊ BỎ QUA, chỉ mode 'stealthy' mới dùng được. Trang bị "
+            "Cloudflare chặn sẽ trả về HTML thử thách ('Just a moment...') và mục "
+            "lục ra 0 chương."
+        )
+
     queue_raw = _as_dict(raw.get("queue"))
     defaults_q = QueueConfig()
     queue = QueueConfig(

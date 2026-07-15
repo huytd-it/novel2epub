@@ -119,6 +119,44 @@ def test_crawl_config_pagination_fields_round_trip(tmp_path):
     assert cfg.crawl.max_pages_per_chapter == 4
 
 
+def test_solve_cloudflare_warns_when_mode_not_stealthy(tmp_path):
+    """solve_cloudflare chỉ có tác dụng ở mode stealthy — mode khác phải cảnh báo.
+
+    Không cảnh báo = user set cờ, hệ thống im lặng vứt đi, rồi crawl fail với
+    lý do hoàn toàn khác (mục lục 0 chương).
+    """
+    config_path = _write_config(
+        tmp_path,
+        extra={
+            "crawl": {
+                "toc_url": "https://example.com/book/",
+                "scrapling": {"mode": "dynamic", "solve_cloudflare": True},
+            }
+        },
+    )
+    cfg = load_config(config_path)
+
+    assert any(
+        "solve_cloudflare" in w and "dynamic" in w for w in cfg.warnings
+    ), f"thiếu cảnh báo solve_cloudflare bị bỏ qua; warnings={cfg.warnings}"
+
+
+def test_solve_cloudflare_no_warning_when_stealthy(tmp_path):
+    """Mode stealthy dùng được solve_cloudflare — không được cảnh báo thừa."""
+    config_path = _write_config(
+        tmp_path,
+        extra={
+            "crawl": {
+                "toc_url": "https://example.com/book/",
+                "scrapling": {"mode": "stealthy", "solve_cloudflare": True},
+            }
+        },
+    )
+    cfg = load_config(config_path)
+
+    assert not any("solve_cloudflare" in w for w in cfg.warnings)
+
+
 def test_crawl_config_rejects_pattern_with_zero_capturing_groups():
     with pytest.raises(ValueError, match="capturing group"):
         CrawlConfig(toc_url="https://example.com", next_page_url_pattern=r"\.html$")

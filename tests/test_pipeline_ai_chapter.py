@@ -39,7 +39,7 @@ def test_review_chapter_writes_report_to_meta(tmp_path, monkeypatch):
     storage, ch = _seed(tmp_path)
     report = {"summary": "ổn", "score": 7, "issues": []}
     monkeypatch.setattr(glossary_ai, "evaluate_translation", lambda *a, **k: report)
-    monkeypatch.setattr(glossary_ai, "load_glossary", lambda cfg: {})
+    monkeypatch.setattr(glossary_ai, "load_glossary", lambda cfg, *a, **kw: {})
 
     out = pipeline.step_review_chapter(_cfg(tmp_path), lambda m: None, index=1)
 
@@ -64,7 +64,7 @@ def test_suggest_chapter_writes_suggestions_to_meta(tmp_path, monkeypatch):
     storage, ch = _seed(tmp_path)
     suggestions = [{"source": "原文", "suggested": "Nguyên Văn", "type": "term", "reason": "", "target_file": "vietphrase.txt"}]
     monkeypatch.setattr(glossary_ai, "suggest_glossary", lambda *a, **k: suggestions)
-    monkeypatch.setattr(glossary_ai, "load_glossary", lambda cfg: {})
+    monkeypatch.setattr(glossary_ai, "load_glossary", lambda cfg, *a, **kw: {})
 
     pipeline.step_suggest_chapter(_cfg(tmp_path), lambda m: None, index=1)
 
@@ -74,7 +74,7 @@ def test_suggest_chapter_writes_suggestions_to_meta(tmp_path, monkeypatch):
 def test_rewrite_preview_does_not_overwrite_translation(tmp_path, monkeypatch):
     storage, ch = _seed(tmp_path, translated="bản dịch cũ")
     monkeypatch.setattr(glossary_ai, "rewrite_chapter", lambda *a, **k: "bản nháp mới")
-    monkeypatch.setattr(glossary_ai, "load_glossary", lambda cfg: {})
+    monkeypatch.setattr(glossary_ai, "load_glossary", lambda cfg, *a, **kw: {})
 
     pipeline.step_rewrite_preview(_cfg(tmp_path), lambda m: None, index=1)
 
@@ -86,7 +86,7 @@ def test_rewrite_preview_does_not_overwrite_translation(tmp_path, monkeypatch):
 def test_rewrite_preview_empty_result_skips(tmp_path, monkeypatch):
     storage, ch = _seed(tmp_path)
     monkeypatch.setattr(glossary_ai, "rewrite_chapter", lambda *a, **k: "   ")
-    monkeypatch.setattr(glossary_ai, "load_glossary", lambda cfg: {})
+    monkeypatch.setattr(glossary_ai, "load_glossary", lambda cfg, *a, **kw: {})
 
     pipeline.step_rewrite_preview(_cfg(tmp_path), lambda m: None, index=1)
 

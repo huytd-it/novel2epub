@@ -2,7 +2,7 @@ from novel2epub.glossary_ai import _parse_evaluation, _parse_suggestions, format
 
 
 def test_parse_plain_json_array():
-    text = '[{"source": "庄国", "suggested": "Trang Quốc", "type": "place", "reason": "x", "target_file": "names.txt"}]'
+    text = '[{"source": "庄国", "suggested": "Trang Quốc", "type": "place", "reason": "x"}]'
     result = _parse_suggestions(text)
     assert result == [
         {
@@ -10,7 +10,6 @@ def test_parse_plain_json_array():
             "suggested": "Trang Quốc",
             "type": "place",
             "reason": "x",
-            "target_file": "names.txt",
         }
     ]
 
@@ -19,7 +18,7 @@ def test_parse_json_wrapped_in_code_fence():
     text = '```json\n[{"source": "a", "suggested": "b"}]\n```'
     result = _parse_suggestions(text)
     assert result == [
-        {"source": "a", "suggested": "b", "type": "term", "reason": "", "target_file": "vietphrase.txt"}
+        {"source": "a", "suggested": "b", "type": "term", "reason": ""}
     ]
 
 
@@ -30,11 +29,13 @@ def test_parse_json_embedded_in_explanation_text():
     assert result[0]["source"] == "a"
 
 
-def test_invalid_type_and_target_file_fall_back_to_defaults():
+def test_invalid_type_falls_back_to_term_and_target_file_dropped():
+    """type sai → fallback "term"; target_file (đã bỏ phân loại) không còn
+    trong output kể cả khi AI cũ vẫn emit."""
     text = '[{"source": "a", "suggested": "b", "type": "bogus", "target_file": "bogus.txt"}]'
     result = _parse_suggestions(text)
     assert result[0]["type"] == "term"
-    assert result[0]["target_file"] == "vietphrase.txt"
+    assert "target_file" not in result[0]
 
 
 def test_missing_source_or_suggested_is_dropped():

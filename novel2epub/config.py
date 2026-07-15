@@ -615,6 +615,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     chunk_raw = _as_dict(translate_raw.pop("chunk", None))
     names_path = glossary_files_raw.get("names", "")
     vietphrase_path = glossary_files_raw.get("vietphrase", "")
+    glossary_warnings: list[str] = []
     if names_path:
         names_path = str((base_dir / names_path).resolve()) if not Path(names_path).is_absolute() else names_path
     if vietphrase_path:
@@ -623,6 +624,21 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             if not Path(vietphrase_path).is_absolute()
             else vietphrase_path
         )
+    # `glossary_files` là field deprecated (config_writer không ghi nữa nhưng
+    # DB cũ có thể còn giữ). Path khai báo tường minh mà file KHÔNG tồn tại
+    # trên đĩa = cấu hình stale — bỏ qua (dùng path mặc định suy ra bên dưới,
+    # trỏ đúng vào DB glossary) + cảnh báo, tránh glossary âm thầm rỗng làm
+    # bản dịch mất nhất quán tên riêng.
+    for label in ("names", "vietphrase"):
+        current = names_path if label == "names" else vietphrase_path
+        if current and not Path(current).exists():
+            glossary_warnings.append(
+                f"translate.glossary_files.{label} trỏ tới file không tồn tại ({current}) — bỏ qua, dùng glossary trong DB."
+            )
+            if label == "names":
+                names_path = ""
+            else:
+                vietphrase_path = ""
     # Nếu không khai báo riêng, mặc định dùng đúng thư mục glossary mà
     # Storage/trang web Glossary đang đọc-ghi (data_dir/<slug>/glossary/).
     if not names_path or not vietphrase_path:
@@ -636,7 +652,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             names_path = str(glossary_dir / "names.txt")
         if not vietphrase_path:
             vietphrase_path = str(glossary_dir / "vietphrase.txt")
-    warnings: list[str] = list(source_warnings)
+    warnings: list[str] = list(source_warnings) + glossary_warnings
     if preset_name:
         from . import presets as _presets
 

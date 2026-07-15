@@ -281,7 +281,7 @@ textarea.jump-flash { outline: 2px solid #d97706; }
     <form method="post" action="{{ base }}/ai/suggest/apply">
         <div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
         <table class="w-full text-sm">
-            <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Hán</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Việt</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Loại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">File</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lý do</th></tr></thead>
+            <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Hán</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Việt</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Loại</th><th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Lý do</th></tr></thead>
             <tbody>
             {% for s in meta.ai_suggestions %}
             <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
@@ -289,7 +289,6 @@ textarea.jump-flash { outline: 2px solid #d97706; }
                 <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ s.source }}</code><input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
                 <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
                 <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.type }}</td>
-                <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ s.target_file }}<input type="hidden" name="target_file_{{ loop.index0 }}" value="{{ s.target_file }}"></td>
                 <td class="px-3 py-2 border-b border-border-light dark:border-border-dark text-muted-light dark:text-muted-dark text-sm">{{ s.reason }}</td>
             </tr>
             {% endfor %}

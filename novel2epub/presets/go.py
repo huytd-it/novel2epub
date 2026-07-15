@@ -20,7 +20,7 @@ Luật dịch:
 3. Ngôi xưng theo quan hệ nhân vật (cha/mẹ/sư phụ/chàng/nàng/ngài…).
 4. Thành ngữ, khẩu ngữ, thơ từ dịch thoát ý, không máy móc.
 5. Từ đời thường (động tác, nấu nướng, ăn uống, cảm giác...) dịch tự nhiên như văn nói tiếng Việt, không phiên âm Hán Việt cứng nhắc.
-6. Giữ nguyên cách chia đoạn.
+6. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
 
 Chỉ trả về bản dịch, không thêm lời dẫn hay chú thích.
 KIỂM TRA CUỐI: rà lại toàn bộ đầu ra; nếu còn ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.

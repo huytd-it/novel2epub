@@ -31,6 +31,8 @@ _RESIDUAL_HAN_RETRIES = 2
 
 # Marker để AI đánh dấu phần glossary trong response dịch.
 _GLOSSARY_MARKER = re.compile(r"^===GLOSSARY===\s*$", re.MULTILINE)
+# Bullet `- `/`* `/`+ ` AI hay tự thêm trước mỗi dòng glossary.
+_GLOSSARY_BULLET_RE = re.compile(r"^[-*+]\s+")
 
 
 def _clean_output(text: str) -> str:
@@ -141,36 +143,61 @@ def _merge_glossaries(*parts: dict[str, str]) -> dict[str, str]:
     return merged
 
 
-def load_glossary_dict(cfg: TranslateConfig) -> dict[str, str]:
-    """Gộp glossary inline trong config + 2 file names/vietphrase đang trỏ tới.
+def load_glossary_dict(cfg: TranslateConfig, storage: "Storage | None" = None) -> dict[str, str]:
+    """Gộp glossary inline trong config + 2 list names/vietphrase.
 
     Dùng chung cho OpenAITranslator (dịch chương) và glossary_ai (gợi ý/rewrite).
+
+    Khi caller có sẵn `storage` (pipeline/web routes) thì ĐỌC TRỰC TIẾP 2 list
+    chuẩn từ DB — nguồn mà auto-glossary + trang Glossary đang ghi. Path trong
+    `cfg.glossary_files` chỉ còn dùng cho file NGOÀI user tự trỏ (tồn tại thật
+    trên đĩa). Thứ tự merge: inline cfg.glossary < file ngoài < DB (DB thắng —
+    tránh file legacy thời trước migration SQLite che mất entry mới trong DB).
+    Khi trùng source giữa 2 list, `names.txt` (list chuẩn duy nhất sau khi bỏ
+    phân loại) thắng `vietphrase.txt` (dữ liệu cũ chưa consolidate).
+
+    Khi không có `storage` (backward-compat): giữ hành vi cũ — đọc file nếu
+    tồn tại, ngược lại suy ngược data_dir/slug từ quy ước path
+    `data_dir/<slug>/glossary/<name>.txt` để đọc DB.
     """
     glossary: dict[str, str] = dict(cfg.glossary)
-    for path in (cfg.glossary_files.names, cfg.glossary_files.vietphrase):
+    # vietphrase đọc TRƯỚC, names đọc SAU → names.txt thắng khi trùng source.
+    for path in (cfg.glossary_files.vietphrase, cfg.glossary_files.names):
         if not path:
             continue
         p = Path(path)
         if p.exists():
-            # File tùy chỉnh do user tự trỏ tới (ngoài Storage/DB) — đọc trực tiếp.
+            # File thật trên đĩa: file ngoài user tự trỏ, hoặc file legacy
+            # thời trước migration SQLite. Đọc trực tiếp; entry DB (đọc bên
+            # dưới khi có storage) sẽ ghi đè nếu trùng source.
             lines = p.read_text(encoding="utf-8").splitlines()
-        else:
+        elif storage is None:
             # Đường dẫn mặc định do config.py suy ra (data_dir/<slug>/glossary/
             # <name>.txt) — glossary nay sống trong DB qua Storage, không còn
             # file thật ở đây. Suy ngược slug/data_dir từ đúng quy ước đó.
             try:
                 data_dir = p.parent.parent.parent
                 slug = p.parent.parent.name
-                storage = Storage(data_dir, slug)
-                entries = storage.read_glossary_entries(p.name)
+                entries = Storage(data_dir, slug).read_glossary_entries(p.name)
             except Exception:
                 continue
             lines = [f"{s} = {t}" + (f" | {n}" if n else "") for s, t, n in entries]
+        else:
+            continue  # có storage: DB đọc tập trung bên dưới, không suy path
         for line in lines:
             parsed = parse_glossary_line(line)
             if parsed:
                 zh, vi, _note = parsed
                 glossary[zh] = vi
+    if storage is not None:
+        for list_name in ("vietphrase.txt", "names.txt"):
+            try:
+                entries = storage.read_glossary_entries(list_name)
+            except Exception:
+                continue
+            for source, target, _note in entries:
+                if source and target:
+                    glossary[source] = target
     return glossary
 
 
@@ -251,10 +278,10 @@ class OpenAITranslator:
     # quá dài (timeout, model cắt bớt output) — chia thành nhiều batch nếu cần.
     TITLES_BATCH_SIZE = 50
 
-    def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None):
+    def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None, storage: "Storage | None" = None):
         self.cfg = cfg
         self.openai = cfg.openai
-        self.glossary = load_glossary_dict(cfg)
+        self.glossary = load_glossary_dict(cfg, storage)
         self.log = log or (lambda _: None)
         self._glossary_lock = threading.Lock()
         self._auto_glossary_conflicts: list[dict] = []
@@ -263,13 +290,13 @@ class OpenAITranslator:
     def extend_glossary(
         self,
         new_entries: dict[str, str],
-        target_file: str,
         storage: "Storage",
     ) -> dict:
-        """Merge new_entries vào in-memory glossary + ghi file. Thread-safe.
+        """Merge new_entries vào in-memory glossary + ghi DB. Thread-safe.
 
-        Trả {'added': [(source, target), ...], 'conflicts': [{source, existing,
-        new, target_file}, ...]}. Existing wins khi conflict.
+        Không còn phân loại names/vietphrase — mọi entry mới ghi vào list
+        chuẩn duy nhất `names.txt`. Trả {'added': [(source, target), ...],
+        'conflicts': [{source, existing, new}, ...]}. Existing wins khi conflict.
         """
         added, conflicts = [], []
         with self._glossary_lock:
@@ -279,7 +306,7 @@ class OpenAITranslator:
                 existing = self.glossary.get(source)
                 if existing is None:
                     self.glossary[source] = new_target
-                    storage.append_glossary_line(target_file, f"{source} = {new_target}")
+                    storage.append_glossary_line("names.txt", f"{source} = {new_target}")
                     added.append((source, new_target))
                 elif existing == new_target:
                     continue
@@ -288,7 +315,6 @@ class OpenAITranslator:
                         "source": source,
                         "existing": existing,
                         "new": new_target,
-                        "target_file": target_file,
                     }
                     conflicts.append(c)
                     self._auto_glossary_conflicts.append(c)
@@ -322,23 +348,21 @@ class OpenAITranslator:
         )
         if self.cfg.auto_glossary:
             prompt += (
-                "\n\nSAU KHI DỊCH XONG, thêm một dòng ===GLOSSARY=== rồi viết JSON "
-                "array các mục glossary mới. Glossary là bảng ĐỒNG BỘ cách dịch xuyên "
-                "suốt truyện, KHÔNG phải từ điển — thà bỏ sót còn hơn đưa nhầm từ "
-                "thông thường.\n"
-                "CHỈ đưa vào: names.txt = tên riêng (nhân vật, địa danh, môn phái/tổ "
-                "chức, chức danh); vietphrase.txt = thuật ngữ ĐẶC THÙ lặp lại nhiều "
-                "lần (công pháp, chiêu thức, cảnh giới, pháp bảo, đan dược, chủng tộc, "
-                "hệ thống sức mạnh, biệt danh cố định).\n"
+                "\n\nSAU KHI DỊCH XONG, thêm một dòng ===GLOSSARY=== rồi liệt kê "
+                "các mục glossary MỚI, mỗi mục MỘT DÒNG theo đúng dạng:\n"
+                "<Hán> = <Việt>\n"
+                "Glossary là bảng ĐỒNG BỘ cách dịch xuyên suốt truyện, KHÔNG phải "
+                "từ điển — thà bỏ sót còn hơn đưa nhầm từ thông thường.\n"
+                "CHỈ đưa vào: tên riêng (nhân vật, địa danh, môn phái/tổ chức, "
+                "chức danh) và thuật ngữ ĐẶC THÙ lặp lại nhiều lần (công pháp, "
+                "chiêu thức, cảnh giới, pháp bảo, đan dược, chủng tộc, hệ thống "
+                "sức mạnh, biệt danh cố định).\n"
                 "TUYỆT ĐỐI KHÔNG đưa vào: từ đời thường (đồ ăn, mua sắm, động tác, "
                 "cảm xúc, nghề nghiệp, vật dụng phổ thông); thành ngữ/khẩu ngữ/tiếng "
                 "lóng dịch thoát ý; từ hiện đại phổ thông; từ độc giả Việt hiểu ngay "
                 "hoặc chỉ xuất hiện một lần.\n"
-                'Mỗi mục: {"source": "<Hán>", "suggested": "<Việt>", '
-                '"type": "name|place|skill|item|term", '
-                '"reason": "<vì sao cần nhất quán xuyên suốt>", '
-                '"target_file": "names.txt|vietphrase.txt"}\n'
-                "Nếu không có mục nào đạt tiêu chí: ===GLOSSARY===\n[]"
+                "Không giải thích, không đánh số, không JSON. Nếu không có mục nào "
+                "đạt tiêu chí: chỉ in đúng dòng ===GLOSSARY=== và không thêm gì sau đó."
             )
         return prompt
 
@@ -353,6 +377,13 @@ class OpenAITranslator:
         )
 
     def _split_response(self, raw: str) -> tuple[str, list[dict] | None]:
+        """Tách phần dịch và glossary sau ===GLOSSARY===.
+
+        Format chuẩn: mỗi dòng `Hán = Việt` (parse bằng parse_glossary_line,
+        chấp nhận bullet `- `/`* ` đầu dòng, bỏ dòng prose/placeholder).
+        Back-compat: nếu phần glossary bắt đầu bằng `[`/`{` (prompt cũ dạng
+        JSON còn pin trong config user) → parse JSON như trước.
+        """
         parts = _GLOSSARY_MARKER.split(raw, maxsplit=1)
         if len(parts) < 2:
             return raw, None
@@ -360,17 +391,29 @@ class OpenAITranslator:
         glossary_text = parts[1].strip()
         if not glossary_text:
             return translation, None
-        try:
-            data = json.loads(glossary_text)
-            if isinstance(data, list):
-                valid = [
-                    e for e in data
-                    if isinstance(e, dict) and e.get("source") and e.get("suggested")
-                ]
-                return translation, valid if valid else None
+        if glossary_text[0] in "[{":
+            try:
+                data = json.loads(glossary_text)
+                if isinstance(data, list):
+                    valid = [
+                        e for e in data
+                        if isinstance(e, dict) and e.get("source") and e.get("suggested")
+                    ]
+                    return translation, valid if valid else None
+            except (json.JSONDecodeError, ValueError):
+                pass
             return translation, None
-        except (json.JSONDecodeError, ValueError):
-            return translation, None
+        entries: list[dict] = []
+        for line in glossary_text.splitlines():
+            line = _GLOSSARY_BULLET_RE.sub("", line.strip())
+            parsed = parse_glossary_line(line)
+            if not parsed:
+                continue  # dòng prose/heading — bỏ qua
+            source, target, _note = parsed
+            if "<" in source or ">" in source or "<" in target or ">" in target:
+                continue  # placeholder `<Hán> = <Việt>` bị AI echo lại
+            entries.append({"source": source, "suggested": target})
+        return translation, entries if entries else None
 
     def _build_title_prompt(self, text: str, kind: str) -> str:
         return self.openai.title_prompt_template.format(
@@ -602,9 +645,9 @@ class OpenAITranslator:
 class GoogleTranslator:
     MAX_CHARS = 4500
 
-    def __init__(self, cfg: TranslateConfig):
+    def __init__(self, cfg: TranslateConfig, storage: "Storage | None" = None):
         self.cfg = cfg
-        self.glossary = _merge_glossaries(cfg.glossary)
+        self.glossary = load_glossary_dict(cfg, storage) if storage is not None else _merge_glossaries(cfg.glossary)
         try:
             from deep_translator import GoogleTranslator as _G
         except ImportError as e:  # pragma: no cover
@@ -658,10 +701,10 @@ class HachimiMTTranslator:
     "instruction" như LLM).
     """
 
-    def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None):
+    def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None, storage: "Storage | None" = None):
         self.cfg = cfg
         self.hmt = cfg.hachimimt
-        self.glossary = load_glossary_dict(cfg)
+        self.glossary = load_glossary_dict(cfg, storage)
         self.log = log or (lambda _: None)
         self._inner: HachimiTranslator | None = None
 
@@ -720,10 +763,10 @@ class LibreTranslateTranslator:
     ngắn (title, author, description) — nhanh, không tốn token LLM.
     """
 
-    def __init__(self, cfg: TranslateConfig):
+    def __init__(self, cfg: TranslateConfig, storage: "Storage | None" = None):
         self.cfg = cfg
         self.lt = cfg.libretranslate
-        self.glossary = _merge_glossaries(cfg.glossary)
+        self.glossary = load_glossary_dict(cfg, storage) if storage is not None else _merge_glossaries(cfg.glossary)
 
     def _translate_text(self, text: str) -> str:
         import requests
@@ -768,16 +811,19 @@ class LibreTranslateTranslator:
         return _apply_glossary(translated, self.glossary), ""
 
 
-def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = None) -> Translator:
+def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = None, storage: "Storage | None" = None) -> Translator:
+    """`storage` (tùy chọn): Storage của ebook đang dịch — khi truyền vào,
+    glossary được đọc thẳng từ DB (nguồn auto-glossary/trang Glossary ghi)
+    thay vì suy path, xem load_glossary_dict."""
     kind = (cfg.type or "none").lower()
     if kind == "openai":
-        return OpenAITranslator(cfg, log=log)
+        return OpenAITranslator(cfg, log=log, storage=storage)
     if kind == "google":
-        return GoogleTranslator(cfg)
+        return GoogleTranslator(cfg, storage=storage)
     if kind in ("hachimimt", "moxhimt"):
-        return HachimiMTTranslator(cfg, log=log)
+        return HachimiMTTranslator(cfg, log=log, storage=storage)
     if kind == "libretranslate":
-        return LibreTranslateTranslator(cfg)
+        return LibreTranslateTranslator(cfg, storage=storage)
     if kind == "none":
         return NoopTranslator()
     raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (openai|google|hachimimt|none)")
@@ -814,8 +860,8 @@ class RateLimited:
             time.sleep(self.delay)
         return out
 
-    def extend_glossary(self, new_entries: dict[str, str], target_file: str, storage) -> dict:
-        return self.inner.extend_glossary(new_entries, target_file, storage)
+    def extend_glossary(self, new_entries: dict[str, str], storage) -> dict:
+        return self.inner.extend_glossary(new_entries, storage)
 
     def drain_conflicts(self) -> list[dict]:
         return self.inner.drain_conflicts() if hasattr(self.inner, "drain_conflicts") else []

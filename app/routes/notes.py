@@ -130,7 +130,7 @@ def ai_fix_notes(slug: str, note_ids: str = Form(...), chapter_index: int = Form
         raise HTTPException(status_code=400, detail="Chương chưa có bản dịch.")
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
     translated = storage.read_translated(ch)
-    glossary = glossary_ai.load_glossary(cfg.translate)
+    glossary = glossary_ai.load_glossary(cfg.translate, storage)
 
     try:
         fixes = glossary_ai.fix_passages(

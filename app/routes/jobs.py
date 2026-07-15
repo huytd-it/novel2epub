@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Form, HTTPException, Request
+from fastapi import APIRouter, Body, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
 from novel2epub.pipeline import step_cleanup_han_selected
@@ -460,9 +460,20 @@ def api_queue_log(request: Request, job_id: str):
     return {"log": log_lines}
 
 
+@router.get("/api/logs/{source}")
+def api_logs(source: str, from_: int = Query(0, alias="from"), limit: int = Query(200)):
+    from ..logging_config import LOG_DIR
+    log_path = LOG_DIR / f"{source}.log"
+    if not log_path.exists():
+        return {"lines": [], "total": 0, "source": source}
+    with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+        all_lines = f.read().splitlines()
+    lines = all_lines[from_:from_ + limit] if from_ > 0 else all_lines[:limit]
+    return {"lines": lines, "total": len(all_lines), "source": source}
+
 @router.get("/api/logs")
-def api_logs(request: Request):
-    return request.app.state.job.queue.logs_snapshot(limit=30)
+def api_logs_default(source: str = Query("app"), from_: int = Query(0, alias="from"), limit: int = Query(200)):
+    return api_logs(source, from_=from_, limit=limit)
 
 
 @router.get("/logs")

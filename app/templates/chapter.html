@@ -464,7 +464,7 @@ if (glossarySearch) {
 }
 
 function escapeHtml(s) {
-    return s.replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
+    return String(s).replace(/&/g, "\x26amp;").replace(/</g, "\x26lt;").replace(/>/g, "\x26gt;").replace(/"/g, "\x26quot;").replace(/'/g, "\x26#039;");
 }
 function escapeRegex(s) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

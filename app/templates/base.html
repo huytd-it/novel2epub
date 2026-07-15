@@ -136,7 +136,8 @@
             .input-lg { @apply px-4 py-2.5 text-base; }
 
             .select {
-                @apply input appearance-none bg-right-3 bg-no-repeat pr-10;
+                @apply input appearance-none bg-no-repeat pr-10;
+                background-position: right 0.75rem center;
                 background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
             }
             .dark .select {
@@ -161,7 +162,7 @@
             .badge-neutral { @apply bg-surface-muted dark:bg-surface-muted-dark text-fg-muted dark:text-fg-muted-dark border border-surface-border dark:border-surface-border-dark; }
 
             .table-container { @apply overflow-x-auto border border-surface-border dark:border-surface-border-dark rounded-xl; }
-            .table { @apply w-full text-sm border-collapse; }
+            .table { @apply w-full text-sm border-collapse; table-layout: fixed; }
             .table th { @apply px-3 py-2.5 text-left font-semibold text-fg-muted dark:text-fg-muted-dark uppercase tracking-wider text-xs bg-surface-muted dark:bg-surface-muted-dark border-b border-surface-border dark:border-surface-border-dark sticky top-0 z-10; }
             .table td { @apply px-3 py-2.5 border-b border-surface-border dark:border-surface-border-dark text-fg-light dark:text-fg-dark; }
             .table tbody tr { @apply hover:bg-surface-muted/50 dark:hover:bg-surface-muted-dark/50 transition-colors duration-fast; }
@@ -281,6 +282,23 @@
     <script src="/static/datatable.js"></script>
     <script>
         if (window.lucide) lucide.createIcons();
+
+        function openModal(id) {
+            const el = document.getElementById(id);
+            if (el) { el.hidden = false; el.classList.add("open"); }
+        }
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            if (el) { el.hidden = true; el.classList.remove("open"); }
+        }
+        function openCanvas(id) {
+            const el = document.getElementById(id);
+            if (el) { el.hidden = false; setTimeout(() => el.classList.add("open"), 10); }
+        }
+        function closeCanvas(id) {
+            const el = document.getElementById(id);
+            if (el) { el.classList.remove("open"); setTimeout(() => el.hidden = true, 200); }
+        }
     </script>
     {% block scripts %}{% endblock %}
 </body>

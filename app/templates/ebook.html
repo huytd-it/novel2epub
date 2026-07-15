@@ -318,7 +318,7 @@
     </div>
 </nav>
 <div class="table-container">
-<table id="chapter-table" class="table scrollbar-thin">
+<table id="chapter-table" class="table scrollbar-thin" style="table-layout:fixed">
     <thead>
     <tr>
         <th class="w-10"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị" class="rounded border-surface-border dark:border-surface-border-dark"></th>
@@ -328,7 +328,7 @@
         <th class="w-20 cursor-pointer select-none toc-sort-th" data-sort-key="translated">Số từ<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
         <th class="w-28">Thiếu</th>
         <th class="w-40">Action</th>
-        <th class="w-10"></th>
+        <th class="w-44"></th>
     </tr>
     </thead>
     <tbody>
@@ -488,7 +488,7 @@ function refreshCheckedInfo() {
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"');
+    return str.replace(/&/g, '\x26amp;').replace(/</g, '\x26lt;').replace(/>/g, '\x26gt;').replace(/"/g, '\x26quot;');
 }
 
 function buildChapterRow(ch, newIndex) {
@@ -503,7 +503,7 @@ function buildChapterRow(ch, newIndex) {
     return `<tr data-index="${ch.index}" ${ch.skipped ? 'class="opacity-50"' : ''}>
         <td class="px-3 py-2"><input type="checkbox" class="chapter-check rounded border-surface-border dark:border-surface-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
         <td class="px-3 py-2 font-mono text-fg-muted dark:text-fg-muted-dark">${indexCell}</td>
-        <td class="px-3 py-2"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline truncate block">${escapeHtml(ch.visible_title)}</a></td>
+        <td class="px-3 py-2 overflow-hidden"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline truncate block" title="${escapeHtml(ch.visible_title)}">${escapeHtml(ch.visible_title)}</a></td>
         <td class="px-3 py-2 font-mono tabular-nums">${ch.has_raw ? (ch.zh_char_count ?? 0) : '-'}</td>
         <td class="px-3 py-2 font-mono tabular-nums">${ch.has_translated ? ch.word_count : '-'}</td>
         <td class="px-3 py-2 text-fg-muted dark:text-fg-muted-dark text-xs">${hasMissing ? ch.missing_fields.join(', ') : '-'}</td>
@@ -574,6 +574,7 @@ function renderToc() {
     paginate({ reset: true });
     refreshCheckedInfo();
     syncTocSortIndicators();
+    document.getElementById("toc-region")?.classList.remove("toc-loading");
 }
 
 document.addEventListener("change", (event) => {

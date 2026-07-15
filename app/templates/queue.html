@@ -49,27 +49,6 @@
   </div>
 </div>
 
-<!-- Add job form -->
-<div class="card p-3 mb-3">
-  <details>
-    <summary class="cursor-pointer font-semibold text-sm">➕ Thêm job vào hàng đợi</summary>
-    <form id="enqueue-form" class="flex flex-wrap gap-3 items-end mt-2">
-      <label class="form-group"><span class="label">Step</span>
-        <select name="step" required class="select">
-          {% for s in steps %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
-        </select>
-      </label>
-      <label class="form-group"><span class="label">Ebook</span>
-        <select name="ebook" class="select">
-          <option value="">(mặc định)</option>
-          {% for e in ebooks %}<option value="{{ e }}">{{ e }}</option>{% endfor %}
-        </select>
-      </label>
-      <button type="submit" class="btn btn-sm btn-primary">Thêm</button>
-    </form>
-  </details>
-</div>
-
 <!-- Bulk action bar -->
 <div id="bulk-bar" class="bulk-bar flex flex-wrap items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-status-warn-light dark:bg-status-warn-dark border border-status-warn-light dark:border-status-warn-dark" hidden>
   <span id="bulk-count" class="text-xs font-semibold text-status-warn-fg dark:text-status-warn-fg-dark">0 đã chọn</span>
@@ -232,7 +211,7 @@ function renderRow(j, pos) {
 }
 
 function escHtml(s) {
-  return String(s||"").replace(/&/g,"&").replace(/</g,"<").replace(/>/g,">").replace(/"/g,""");
+  return String(s||"").replace(/&/g,"\x26amp;").replace(/</g,"\x26lt;").replace(/>/g,"\x26gt;").replace(/"/g,"\x26quot;");
 }
 
 // ── Filters ────────────────────────────────────────────────────────────────

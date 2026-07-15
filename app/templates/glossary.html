@@ -93,7 +93,7 @@ const countLabel = document.getElementById("gloss-count");
 const emptyMsg = document.getElementById("gloss-empty");
 
 function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ "&": "&", "<": "<", ">": ">", '"': """, "'": "'" }[c]));
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "\x26amp;", "<": "\x26lt;", ">": "\x26gt;", '"': "\x26quot;", "'": "\x26#039;" }[c]));
 }
 
 function visibleEntries() {

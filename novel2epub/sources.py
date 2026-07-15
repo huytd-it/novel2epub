@@ -193,46 +193,55 @@ def detect_preset(url: str, presets: dict[str, SourcePreset]) -> str | None:
     return candidates[0][1]
 
 
-def propagate_preset_update(
-    config_path: str | Path,
-    preset_name: str,
-    presets: dict[str, SourcePreset],
-) -> list[str]:
-    """Propagate preset update sang ebook có ``source == preset_name``.
+# Key lồng trong `crawl.scrapling` → tên field PHẲNG tương ứng của SourcePreset.
+# `preset.crawl_overrides()` trả tên phẳng (`scrapling_mode`), còn ebook override
+# ghi kiểu lồng (`{"scrapling": {"mode": ...}}`) — không quy đổi thì so sánh trượt.
+SCRAPLING_FIELD_MAP = {
+    "mode": "scrapling_mode",
+    "solve_cloudflare": "solve_cloudflare",
+    "network_idle": "network_idle",
+    "impersonate": "impersonate",
+    "proxy": "proxy",
+    "dns_over_https": "dns_over_https",
+}
 
-    Chỉ cập nhật field ebook CHƯA override (key không tồn tại trong
-    `crawl_overrides_json` của ebook). Trả về danh sách ebook slug bị ảnh hưởng.
+
+def strip_preset_defaults(
+    crawl_over: dict[str, Any],
+    preset: SourcePreset,
+) -> tuple[dict[str, Any], list[str]]:
+    """Bỏ khỏi ``crawl_over`` những key có giá trị TRÙNG KHÍT preset.
+
+    Ebook gắn source chỉ nên lưu field nó CỐ Ý override; field trùng preset là
+    thừa và có hại — nó đóng băng ebook ở giá trị preset tại thời điểm ghi,
+    khiến preset sửa về sau không còn tác dụng.
+
+    ``toc_url`` không bao giờ bị bỏ: `SourcePreset` không có field này nên nó
+    không xuất hiện trong ``preset.crawl_overrides()``.
+
+    Trả ``(crawl_over đã lọc, danh sách key đã bỏ)``. Key lồng báo dạng
+    ``"scrapling.mode"``. Hàm thuần, idempotent.
     """
-    preset = presets.get(preset_name)
-    if preset is None:
-        return []
-
-    db_path = Path(config_path).resolve()
-    if not db_path.exists():
-        return []
-    conn = get_thread_connection(db_path)
-
-    overrides = preset.crawl_overrides()
-    affected: list[str] = []
-    rows = conn.execute(
-        "SELECT slug, crawl_overrides_json FROM ebooks WHERE source_preset = ?",
-        (preset_name,),
-    ).fetchall()
-    with conn:
-        for row in rows:
-            crawl = json.loads(row["crawl_overrides_json"] or "{}")
-            changed = False
-            for key, value in overrides.items():
-                if key not in crawl:
-                    crawl[key] = value
-                    changed = True
-            if changed:
-                conn.execute(
-                    "UPDATE ebooks SET crawl_overrides_json = ? WHERE slug = ?",
-                    (json.dumps(crawl, ensure_ascii=False), row["slug"]),
-                )
-                affected.append(row["slug"])
-    return affected
+    preset_vals = preset.crawl_overrides()
+    cleaned: dict[str, Any] = {}
+    removed: list[str] = []
+    for key, value in crawl_over.items():
+        if key == "scrapling" and isinstance(value, dict):
+            nested: dict[str, Any] = {}
+            for nk, nv in value.items():
+                flat = SCRAPLING_FIELD_MAP.get(nk, nk)
+                if flat in preset_vals and preset_vals[flat] == nv:
+                    removed.append(f"scrapling.{nk}")
+                else:
+                    nested[nk] = nv
+            if nested:
+                cleaned[key] = nested
+            continue
+        if key in preset_vals and preset_vals[key] == value:
+            removed.append(key)
+        else:
+            cleaned[key] = value
+    return cleaned, removed
 
 
 def save_preset(path: str | Path, preset: SourcePreset) -> None:

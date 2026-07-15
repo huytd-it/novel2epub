@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from novel2epub import openai_client, selector_ai
 from novel2epub.config import CrawlConfig, ScraplingConfig
 from novel2epub.crawler import ScraplingCrawler
-from novel2epub.sources import SourcePreset, delete_preset, propagate_preset_update, save_preset, save_presets
+from novel2epub.sources import SourcePreset, delete_preset, save_preset, save_presets
 
 from .. import deps
 
@@ -113,7 +113,6 @@ def save_source_preset(
 ):
     name = name.strip()
     strip_list = [line.strip() for line in strip_patterns.splitlines() if line.strip()]
-    presets = deps.presets()
     if name:
         kwargs = dict(
             name=name,
@@ -148,16 +147,9 @@ def save_source_preset(
         if user_agent.strip():
             kwargs["user_agent"] = user_agent
         preset = SourcePreset(**kwargs)
-        presets[name] = preset
         save_preset(deps.DB_PATH, preset)
-        # Propagate preset update sang ebook có source == name
-        affected = propagate_preset_update(deps.DB_PATH, name, presets)
-        if affected:
-            import logging
-            logging.getLogger(__name__).info(
-                "[source] preset %r propagate sang %d ebook: %s",
-                name, len(affected), ", ".join(affected),
-            )
+        # Không propagate: ebook chỉ lưu TÊN preset, `load_config` resolve giá trị
+        # preset live nên sửa preset là ebook ăn theo ngay.
     return RedirectResponse(url="/sources", status_code=303)
 
 

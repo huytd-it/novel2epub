@@ -317,8 +317,8 @@ def save_source(
 @router.post("/ebooks/{slug}/settings/sync-to-source")
 def sync_to_source(slug: str):
     """Lấy crawl config hiện tại của ebook (đã resolve), update source preset
-    với các field ebook đã override, rồi propagate sang ebook khác."""
-    from novel2epub.sources import SourcePreset, save_presets, propagate_preset_update
+    với các field ebook đã override."""
+    from novel2epub.sources import SourcePreset, save_presets
 
     cfg = deps.resolved_cfg(slug)
     source_name = getattr(cfg, "source", "")
@@ -361,11 +361,10 @@ def sync_to_source(slug: str):
     presets[source_name] = preset
     save_presets(deps.SOURCES_PATH, presets)
 
-    # Propagate sang ebook khác
-    affected = propagate_preset_update(deps.WORKSPACE_PATH, source_name, presets)
+    # Không propagate: ebook chỉ lưu TÊN preset, `load_config` resolve preset live.
     logger.info(
-        "[source] sync ebook=%s → preset=%s: fields=%s, propagate sang %d ebook: %s",
-        slug, source_name, changed_fields, len(affected), ", ".join(affected),
+        "[source] sync ebook=%s → preset=%s: fields=%s",
+        slug, source_name, changed_fields,
     )
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 

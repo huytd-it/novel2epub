@@ -7,7 +7,7 @@ import pytest
 from novel2epub.config import load_config, _resolve_source_overrides
 from novel2epub.config_writer import add_ebook, _DEPRECATED_CRAWL_FIELDS, _DEPRECATED_TRANSLATE_FIELDS
 from novel2epub.db import get_connection
-from novel2epub.sources import SourcePreset, propagate_preset_update, save_presets
+from novel2epub.sources import SourcePreset, save_presets, strip_preset_defaults
 from tests.conftest import write_db_config
 
 
@@ -155,87 +155,40 @@ class TestMissingSourcePreset:
         assert "không tồn tại" in cfg.warnings[0]
 
 
-# ── Task 9.2: propagate_preset_update ──────────────────────────────
+# ── Luật: preset resolve LIVE, ebook không giữ bản sao ──────────────
 
-class TestPropagatePresetUpdate:
-    def _make_config(self, tmp_path) -> Path:
-        return write_db_config(
+class TestPresetResolveLive:
+    def test_sua_preset_thi_ebook_an_theo_ngay_ma_khong_ghi_gi_vao_ebook(self, tmp_path):
+        db = write_db_config(
             tmp_path / "novel2epub.db",
             defaults={"translate": {"type": "none"}},
-            sources={"aixdzs": {"content_selector": ".old-content", "delay_seconds": 1.0}},
-            ebooks={
-                "novel-a": {
-                    "source": "aixdzs",
-                    "novel": {"slug": "novel-a"},
-                    "crawl": {"toc_url": "https://aixdzs.com/a/"},
-                },
-                "novel-b": {
-                    "source": "aixdzs",
-                    "novel": {"slug": "novel-b"},
-                    "crawl": {
-                        "toc_url": "https://aixdzs.com/b/",
-                        "content_selector": ".custom",
-                    },
-                },
-                "novel-c": {
-                    "novel": {"slug": "novel-c"},
-                    "crawl": {"toc_url": "https://other.com/c/"},
-                },
-            },
+            sources={"aixdzs": {"content_selector": ".old", "delay_seconds": 1.0}},
+            ebooks={"novel-a": {"name": "A", "source": "aixdzs",
+                                "crawl": {"toc_url": "https://aixdzs.com/d/1"}}},
         )
+        before = _read_ebook_crawl(db, "novel-a")
 
-    def test_propagate_updates_non_overridden_ebooks(self, tmp_path):
-        config_path = self._make_config(tmp_path)
-        presets = {
-            "aixdzs": SourcePreset(
-                name="aixdzs",
-                content_selector=".new-content",
-                delay_seconds=2.0,
-            ),
-        }
-        affected = propagate_preset_update(config_path, "aixdzs", presets)
-        assert "novel-a" in affected
-        # novel-b has override for content_selector, should NOT be in affected
-        # (but delay_seconds is not overridden, so it should be affected)
-        assert "novel-b" in affected
-        assert "novel-c" not in affected
+        save_presets(db, {"aixdzs": SourcePreset(
+            name="aixdzs", content_selector=".new", delay_seconds=2.0,
+        )})
 
-        novel_a_crawl = _read_ebook_crawl(config_path, "novel-a")
-        assert novel_a_crawl["content_selector"] == ".new-content"
-        assert novel_a_crawl["delay_seconds"] == 2.0
+        cfg = load_config(db, "novel-a")
+        assert cfg.crawl.content_selector == ".new"
+        assert cfg.crawl.delay_seconds == 2.0
+        # Điểm mấu chốt: ebook KHÔNG bị ghi thêm gì.
+        assert _read_ebook_crawl(db, "novel-a") == before
 
-        # Verify novel-b kept its override for content_selector but got new delay_seconds
-        novel_b_crawl = _read_ebook_crawl(config_path, "novel-b")
-        assert novel_b_crawl["content_selector"] == ".custom"  # preserved
-        assert novel_b_crawl["delay_seconds"] == 2.0  # updated
-
-    def test_propagate_no_affected_returns_empty(self, tmp_path):
-        """Khi ebook đã có TẤT CẢ field từ crawl_overrides với giá trị đúng,
-        propagate không thay đổi gì."""
-        preset = SourcePreset(
-            name="aixdzs",
-            content_selector=".old-content",
-            delay_seconds=1.0,
-        )
-        overrides = preset.crawl_overrides()
-        full_crawl_a = {"toc_url": "https://aixdzs.com/a/"}
-        full_crawl_a.update(overrides)
-        full_crawl_b = {"toc_url": "https://aixdzs.com/b/", "content_selector": ".custom"}
-        full_crawl_b.update({k: v for k, v in overrides.items() if k != "content_selector"})
-
-        config_path = write_db_config(
+    def test_override_cua_ebook_thang_preset(self, tmp_path):
+        db = write_db_config(
             tmp_path / "novel2epub.db",
             defaults={"translate": {"type": "none"}},
-            sources={"aixdzs": {"content_selector": ".old-content", "delay_seconds": 1.0}},
-            ebooks={
-                "novel-a": {"source": "aixdzs", "novel": {"slug": "novel-a"}, "crawl": full_crawl_a},
-                "novel-b": {"source": "aixdzs", "novel": {"slug": "novel-b"}, "crawl": full_crawl_b},
-            },
+            sources={"aixdzs": {"content_selector": ".preset"}},
+            ebooks={"novel-a": {"name": "A", "source": "aixdzs",
+                                "crawl": {"toc_url": "https://aixdzs.com/d/1",
+                                          "content_selector": ".rieng"}}},
         )
-
-        presets = {"aixdzs": preset}
-        affected = propagate_preset_update(config_path, "aixdzs", presets)
-        assert affected == []
+        cfg = load_config(db, "novel-a")
+        assert cfg.crawl.content_selector == ".rieng"
 
 
 # ── Proxy / DNS-over-HTTPS: preset flat fields → crawl.scrapling ────
@@ -383,7 +336,7 @@ class TestDbCleanup:
 # ── Task 9.5: Integration — create ebook → update preset → verify ──
 
 class TestIntegration:
-    def test_create_with_source_then_propagate(self, tmp_path):
+    def test_create_with_source_then_update_preset(self, tmp_path):
         config_path = write_db_config(
             tmp_path / "novel2epub.db",
             defaults={"translate": {"type": "none"}},
@@ -410,18 +363,79 @@ class TestIntegration:
         assert cfg.crawl.content_selector == ".article"
         assert cfg.crawl.delay_seconds == 1.0
 
-        # 3. Update preset and propagate
-        presets = {
+        # 3. Sửa preset — không ghi gì xuống ebook
+        save_presets(config_path, {
             "aixdzs": SourcePreset(
                 name="aixdzs",
                 content_selector=".new-article",
                 delay_seconds=2.0,
             ),
-        }
-        affected = propagate_preset_update(config_path, "aixdzs", presets)
-        assert "new-novel" in affected
+        })
+        assert "content_selector" not in _read_ebook_crawl(config_path, "new-novel")
 
-        # 4. Verify ebook got updated
+        # 4. Ebook ăn theo preset mới ngay ở lần load kế tiếp
         cfg2 = load_config(config_path, "new-novel")
         assert cfg2.crawl.content_selector == ".new-article"
         assert cfg2.crawl.delay_seconds == 2.0
+
+
+# ── strip_preset_defaults ───────────────────────────────────────────
+
+class TestStripPresetDefaults:
+    def _preset(self) -> SourcePreset:
+        return SourcePreset(
+            name="aixdzs",
+            content_selector=".content",
+            delay_seconds=2.0,
+            scrapling_mode="stealthy",
+        )
+
+    def test_key_trung_preset_bi_bo(self):
+        cleaned, removed = strip_preset_defaults(
+            {"content_selector": ".content"}, self._preset()
+        )
+        assert cleaned == {}
+        assert removed == ["content_selector"]
+
+    def test_key_khac_preset_duoc_giu(self):
+        cleaned, removed = strip_preset_defaults(
+            {"content_selector": "#khac"}, self._preset()
+        )
+        assert cleaned == {"content_selector": "#khac"}
+        assert removed == []
+
+    def test_toc_url_luon_duoc_giu(self):
+        cleaned, removed = strip_preset_defaults(
+            {"toc_url": "https://example.com/book/1"}, self._preset()
+        )
+        assert cleaned == {"toc_url": "https://example.com/book/1"}
+        assert removed == []
+
+    def test_scrapling_long_duoc_quy_doi_ve_phang(self):
+        # crawl.scrapling.mode ↔ preset.scrapling_mode — cùng nghĩa, khác tên.
+        cleaned, removed = strip_preset_defaults(
+            {"scrapling": {"mode": "stealthy"}}, self._preset()
+        )
+        assert cleaned == {}
+        assert removed == ["scrapling.mode"]
+
+    def test_scrapling_long_khac_preset_duoc_giu(self):
+        cleaned, removed = strip_preset_defaults(
+            {"scrapling": {"mode": "fetcher"}}, self._preset()
+        )
+        assert cleaned == {"scrapling": {"mode": "fetcher"}}
+        assert removed == []
+
+    def test_scrapling_giu_key_khac_bo_key_trung(self):
+        cleaned, removed = strip_preset_defaults(
+            {"scrapling": {"mode": "stealthy", "proxy": "http://p:1"}}, self._preset()
+        )
+        assert cleaned == {"scrapling": {"proxy": "http://p:1"}}
+        assert removed == ["scrapling.mode"]
+
+    def test_idempotent(self):
+        preset = self._preset()
+        once, _ = strip_preset_defaults({"content_selector": ".content"}, preset)
+        twice, removed = strip_preset_defaults(once, preset)
+        assert twice == once
+        assert removed == []

@@ -129,6 +129,37 @@ class Storage:
             (self.slug, ch.index),
         ).fetchone()
 
+    def bulk_chapter_stats(self) -> dict[int, dict]:
+        rows = self.conn.execute(
+            "SELECT idx,"
+            " CASE WHEN raw_text IS NOT NULL AND raw_text != '' THEN 1 ELSE 0 END AS has_raw_int,"
+            " CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END AS has_tr_int,"
+            " LENGTH(translated_text) AS translated_len,"
+            " LENGTH(raw_text) AS raw_len,"
+            " meta_json"
+            " FROM chapters WHERE ebook_slug = ?",
+            (self.slug,),
+        ).fetchall()
+        result: dict[int, dict] = {}
+        for row in rows:
+            has_tr_raw = bool(row["has_tr_int"])
+            if has_tr_raw:
+                try:
+                    meta = json.loads(row["meta_json"] or "{}")
+                except Exception:
+                    meta = {}
+                has_translated = bool(meta.get("complete", True))
+            else:
+                has_translated = False
+            result[row["idx"]] = {
+                "has_raw": bool(row["has_raw_int"]),
+                "has_translated": has_translated,
+                "translated_len": row["translated_len"] or 0,
+                "raw_len": row["raw_len"] or 0,
+                "meta_json": row["meta_json"],
+            }
+        return result
+
     # ----- manifest -----
     def load_manifest(self) -> Manifest | None:
         row = self.conn.execute(

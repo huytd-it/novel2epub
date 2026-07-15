@@ -33,6 +33,9 @@ from .scheduler import AutomationScheduler
 setup_logging()
 
 app = FastAPI(title="novel2epub")
+# ponytail: add GZip compression for faster page loads
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 # Đọc queue.translate_workers / queue.crawl_workers từ defaults: trong config.

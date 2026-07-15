@@ -235,15 +235,48 @@ def propagate_preset_update(
     return affected
 
 
-def save_presets(path: str | Path, presets: dict[str, SourcePreset]) -> None:
-    """Ghi đè toàn bộ bảng `sources` — mỗi preset là 1 row."""
+def save_preset(path: str | Path, preset: SourcePreset) -> None:
+    """Lưu đúng 1 preset bằng UPSERT — không ảnh hưởng preset khác."""
     db_path = Path(path).resolve()
     conn = get_thread_connection(db_path)
+    data = {k: v for k, v in asdict(preset).items() if k != "name"}
     with conn:
-        conn.execute("DELETE FROM sources")
+        conn.execute(
+            "INSERT OR REPLACE INTO sources (name, data_json) VALUES (?, ?)",
+            (preset.name, json.dumps(data, ensure_ascii=False)),
+        )
+
+
+def delete_preset(path: str | Path, name: str) -> None:
+    """Xóa đúng 1 preset theo name; nếu không tồn tại thì bỏ qua."""
+    db_path = Path(path).resolve()
+    if not db_path.exists():
+        return
+    conn = get_thread_connection(db_path)
+    with conn:
+        conn.execute("DELETE FROM sources WHERE name = ?", (name,))
+
+
+def save_presets(path: str | Path, presets: dict[str, SourcePreset]) -> None:
+    """Ghi đè toàn bộ bảng `sources` bằng UPSERT per-row trong 1 transaction.
+
+    Preset nào có trong DB nhưng không có trong dict sẽ bị xóa để đồng bộ.
+    Dùng `save_preset()` để lưu 1 preset độc lập mà không xóa preset khác.
+    """
+    db_path = Path(path).resolve()
+    conn = get_thread_connection(db_path)
+    names = list(presets.keys())
+    with conn:
         for name, preset in presets.items():
             data = {k: v for k, v in asdict(preset).items() if k != "name"}
             conn.execute(
-                "INSERT INTO sources (name, data_json) VALUES (?, ?)",
+                "INSERT OR REPLACE INTO sources (name, data_json) VALUES (?, ?)",
                 (name, json.dumps(data, ensure_ascii=False)),
             )
+        if names:
+            placeholders = ",".join("?" * len(names))
+            conn.execute(
+                f"DELETE FROM sources WHERE name NOT IN ({placeholders})", names
+            )
+        else:
+            conn.execute("DELETE FROM sources")

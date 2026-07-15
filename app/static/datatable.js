@@ -43,7 +43,7 @@
         const headers = Array.from(thead.rows[0].cells);
 
         // ── Toolbar (search + filters + count) ─────────────────────────────
-        const wrapper = table.closest(".overflow-x-auto") || table;
+        const wrapper = table.closest(".table-container") || table;
         const toolbar = document.createElement("div");
         toolbar.className = "flex flex-wrap items-center gap-2 mb-2";
 
@@ -51,7 +51,7 @@
         search.type = "search";
         search.placeholder = table.dataset.dtPlaceholder || "Tìm kiếm…";
         search.className =
-            "rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-1.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-link-light/40";
+            "input input-sm w-full md:w-64";
         toolbar.appendChild(search);
 
         const filters = []; // {col, select}
@@ -65,12 +65,12 @@
             });
             const sel = document.createElement("select");
             sel.className =
-                "rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm";
+                "select select-sm";
             sel.innerHTML =
                 `<option value="">${label}: tất cả</option>` +
                 Array.from(values)
                     .sort((a, b) => a.localeCompare(b, "vi"))
-                    .map((v) => `<option value="${v.replace(/"/g, "&quot;")}">${v}</option>`)
+                    .map((v) => `<option value="${v.replace(/"/g, '&quot;')}">${v}</option>`)
                     .join("");
             sel.addEventListener("change", render);
             toolbar.appendChild(sel);
@@ -78,7 +78,7 @@
         });
 
         const count = document.createElement("span");
-        count.className = "text-sm text-muted-light dark:text-muted-dark ml-auto";
+        count.className = "text-sm text-fg-muted dark:text-fg-muted-dark ml-auto";
         toolbar.appendChild(count);
 
         wrapper.parentNode.insertBefore(toolbar, wrapper);
@@ -90,7 +90,7 @@
             if (!th.hasAttribute("data-dt-sort")) return;
             th.classList.add("cursor-pointer", "select-none");
             const ind = document.createElement("span");
-            ind.className = "dt-ind text-muted-light dark:text-muted-dark ml-1 opacity-40";
+            ind.className = "dt-ind text-fg-muted dark:text-fg-muted-dark ml-1 opacity-40";
             ind.textContent = "⇅";
             th.appendChild(ind);
             th.addEventListener("click", () => {
@@ -153,7 +153,7 @@
                     empty = document.createElement("tr");
                     empty.className = "dt-empty";
                     empty.innerHTML =
-                        `<td colspan="${headers.length}" class="text-center text-muted-light dark:text-muted-dark py-6 text-sm">Không có mục nào khớp.</td>`;
+                        `<td colspan="${headers.length}" class="text-center text-fg-muted dark:text-fg-muted-dark py-6 text-sm">Không có mục nào khớp.</td>`;
                     tbody.appendChild(empty);
                 }
                 empty.style.display = "";

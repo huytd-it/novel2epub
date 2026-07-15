@@ -1,77 +1,77 @@
 {% extends "base.html" %}
 {% block title %}Glossary — novel2epub{% endblock %}
 {% block content %}
-<p><a href="/ebooks/{{ slug }}" class="text-link-light dark:text-link-dark hover:underline">&larr; Quay lại ebook</a></p>
+<p><a href="/ebooks/{{ slug }}" class="text-brand-600 dark:text-brand-400 hover:underline">&larr; Quay lại ebook</a></p>
 <h2 class="text-xl font-semibold mt-3 mb-1">Glossary</h2>
-<p class="text-sm text-muted-light dark:text-muted-dark mb-3">Bảng đồng bộ cách dịch tên riêng / thuật ngữ xuyên suốt truyện. Mỗi mục có <strong>Hán</strong>, <strong>Việt</strong> và <strong>ghi chú</strong> tuỳ chọn (mục có ghi chú sẽ tự sinh footnote ở lần xuất hiện đầu tiên mỗi chương khi build EPUB). Sửa trực tiếp trong bảng rồi bấm <strong>Lưu tất cả</strong>.</p>
+<p class="text-sm text-fg-muted dark:text-fg-muted-dark mb-3">Bảng đồng bộ cách dịch tên riêng / thuật ngữ xuyên suốt truyện. Mỗi mục có <strong>Hán</strong>, <strong>Việt</strong> và <strong>ghi chú</strong> tuỳ chọn (mục có ghi chú sẽ tự sinh footnote ở lần xuất hiện đầu tiên mỗi chương khi build EPUB). Sửa trực tiếp trong bảng rồi bấm <strong>Lưu tất cả</strong>.</p>
 
 {% if conflicts_count and conflicts_count > 0 %}
-<div class="mb-3 px-3 py-2 rounded-md bg-warn-light dark:bg-warn-dark border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-sm">
+<div class="mb-3 px-3 py-2 rounded-lg bg-status-warn-light dark:bg-status-warn-dark border border-status-warn-light dark:border-status-warn-dark text-status-warn-fg dark:text-status-warn-fg-dark text-sm">
     ⚠ Có <strong>{{ conflicts_count }}</strong> xung đột glossary từ lần dịch gần nhất (giá trị cũ được giữ).
-    Xem chi tiết trong <code>translation_meta/_glossary_conflicts.json</code>.
+    Xem chi tiết trong <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">translation_meta/_glossary_conflicts.json</code>.
 </div>
 {% endif %}
 
 <!-- Thanh công cụ -->
 <div class="flex flex-wrap gap-2 items-center mb-3">
     <input id="gloss-search" type="search" placeholder="Tìm Hán / Việt / ghi chú…" autocomplete="off"
-        class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-1.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-link-light/40">
-    <span id="gloss-count" class="text-sm text-muted-light dark:text-muted-dark"></span>
+        class="input input-sm w-64">
+    <span id="gloss-count" class="text-sm text-fg-muted dark:text-fg-muted-dark"></span>
     <div class="ml-auto flex flex-wrap gap-2">
-        <button type="button" id="btn-add" class="px-2.5 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">+ Thêm mục</button>
-        <button type="button" id="btn-clean" class="px-2.5 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" title="Trim khoảng trắng, bỏ dòng thiếu Hán/Việt, gộp trùng.">Dọn dữ liệu</button>
-        <button type="button" id="btn-export" class="px-2.5 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xuất cho AI xử lý</button>
-        <button type="button" id="btn-import" class="px-2.5 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhập từ AI</button>
-        <button type="button" id="btn-save" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Lưu tất cả</button>
+        <button type="button" id="btn-add" class="btn btn-sm btn-secondary">+ Thêm mục</button>
+        <button type="button" id="btn-clean" class="btn btn-sm btn-secondary" title="Trim khoảng trắng, bỏ dòng thiếu Hán/Việt, gộp trùng.">Dọn dữ liệu</button>
+        <button type="button" id="btn-export" class="btn btn-sm btn-secondary">Xuất cho AI xử lý</button>
+        <button type="button" id="btn-import" class="btn btn-sm btn-secondary">Nhập từ AI</button>
+        <button type="button" id="btn-save" class="btn btn-sm btn-primary">Lưu tất cả</button>
     </div>
 </div>
 
 <!-- Data table -->
-<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-md">
-    <table class="w-full text-sm border-collapse">
-        <thead class="bg-surface-alt-light dark:bg-surface-alt-dark sticky top-0">
+<div class="table-container">
+    <table class="table">
+        <thead>
             <tr>
-                <th data-sort="source" class="gloss-th text-left font-semibold px-2 py-2 cursor-pointer select-none">Hán <span class="sort-ind text-muted-light dark:text-muted-dark"></span></th>
-                <th data-sort="target" class="gloss-th text-left font-semibold px-2 py-2 cursor-pointer select-none">Việt <span class="sort-ind text-muted-light dark:text-muted-dark"></span></th>
-                <th class="text-left font-semibold px-2 py-2">Ghi chú</th>
-                <th class="text-left font-semibold px-2 py-2 w-40">Thao tác</th>
+                <th data-dt-sort class="gloss-th">Hán <span class="sort-ind"></span></th>
+                <th data-dt-sort data-dt-filter class="gloss-th">Việt <span class="sort-ind"></span></th>
+                <th>Ghi chú</th>
+                <th class="w-40">Thao tác</th>
             </tr>
         </thead>
         <tbody id="gloss-body"></tbody>
     </table>
 </div>
-<p id="gloss-empty" class="hidden text-sm text-muted-light dark:text-muted-dark py-6 text-center">Không có mục nào khớp.</p>
+<p id="gloss-empty" class="hidden text-sm text-fg-muted dark:text-fg-muted-dark py-6 text-center">Không có mục nào khớp.</p>
 
 <!-- Modal: sửa tên & áp dụng lại bản dịch cũ -->
-<div id="reapply-modal" class="hidden fixed inset-0 z-40 bg-black/50 flex items-start justify-center overflow-y-auto py-10">
-    <div class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg shadow-card dark:shadow-card-dark w-full max-w-2xl mx-4 p-4">
-        <div class="flex items-baseline justify-between mb-2">
-            <h3 class="text-base font-semibold m-0">Sửa tên &amp; áp dụng lại bản dịch cũ</h3>
-            <button type="button" id="reapply-close" class="text-muted-light dark:text-muted-dark hover:text-fg-light dark:hover:text-fg-dark">✕</button>
+<div id="reapply-modal" class="modal-backdrop" hidden>
+    <div class="modal">
+        <div class="p-5 border-b border-surface-border dark:border-surface-border-dark flex items-center justify-between">
+            <h3 class="m-0 text-lg font-semibold">Sửa tên & áp dụng lại bản dịch cũ</h3>
+            <button type="button" id="reapply-close" class="btn btn-sm btn-ghost text-lg leading-none">✕</button>
         </div>
-        <p class="text-sm text-muted-light dark:text-muted-dark mb-3">Thay literal chuỗi cũ → chuỗi mới trên các chương <strong>đã dịch</strong> (chỉ ghi <code>translated/</code>). Bản trước khi thay được lưu vào meta từng chương để khôi phục. <strong>Bắt buộc xem trước</strong> trước khi áp dụng.</p>
-        <div class="flex flex-wrap gap-3 items-end mb-3">
-            <label class="flex flex-col gap-1 text-sm">Chuỗi cũ (tìm)
-                <input type="text" id="reapply-find" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm w-52"></label>
-            <label class="flex flex-col gap-1 text-sm">Chuỗi mới (thay)
-                <input type="text" id="reapply-replace" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm w-52"></label>
-            <label class="flex flex-col gap-1 text-sm">Từ chương
-                <input type="number" id="reapply-from" value="0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm w-24"></label>
-            <label class="flex flex-col gap-1 text-sm">đến chương
-                <input type="number" id="reapply-to" value="0" min="0" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1.5 text-sm w-24"></label>
+        <div class="p-5 space-y-4">
+            <p class="text-sm text-fg-muted dark:text-fg-muted-dark">Thay literal chuỗi cũ → chuỗi mới trên các chương <strong>đã dịch</strong> (chỉ ghi <code>translated/</code>). Bản trước khi thay được lưu vào meta từng chương để khôi phục. <strong>Bắt buộc xem trước</strong> trước khi áp dụng.</p>
+            <div class="form-row">
+                <label class="form-group"><span class="label">Chuỗi cũ (tìm)</span><input type="text" id="reapply-find" class="input"></label>
+                <label class="form-group"><span class="label">Chuỗi mới (thay)</span><input type="text" id="reapply-replace" class="input"></label>
+            </div>
+            <div class="form-row">
+                <label class="form-group"><span class="label">Từ chương</span><input type="number" id="reapply-from" value="0" min="0" class="input input-sm"></label>
+                <label class="form-group"><span class="label">đến chương</span><input type="number" id="reapply-to" value="0" min="0" class="input input-sm"></label>
+            </div>
+            <div class="flex gap-2">
+                <button type="button" id="reapply-preview-btn" class="btn btn-sm btn-secondary">Xem trước</button>
+                <button type="button" id="reapply-apply-btn" disabled class="btn btn-sm btn-primary">Áp dụng</button>
+            </div>
+            <div id="reapply-preview-result" class="text-sm max-h-72 overflow-y-auto"></div>
         </div>
-        <div class="flex gap-2 mb-3">
-            <button type="button" id="reapply-preview-btn" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xem trước</button>
-            <button type="button" id="reapply-apply-btn" disabled class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark disabled:opacity-40 disabled:cursor-not-allowed">Áp dụng</button>
-        </div>
-        <div id="reapply-preview-result" class="text-sm max-h-72 overflow-y-auto"></div>
     </div>
 </div>
 
 <p class="mt-4">
     Trạng thái job dịch:
     <span id="status-badge-container">
-        {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy: {{ job.translate.step }}</span>{% elif job.translate.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy (ebook khác)</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">rảnh</span>{% endif %}
+        {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="badge badge-run">đang chạy: {{ job.translate.step }}</span>{% elif job.translate.running %}<span class="badge badge-run">đang chạy (ebook khác)</span>{% else %}<span class="badge badge-ok">rảnh</span>{% endif %}
     </span>
 </p>
 
@@ -93,7 +93,7 @@ const countLabel = document.getElementById("gloss-count");
 const emptyMsg = document.getElementById("gloss-empty");
 
 function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&", "<": "<", ">": ">", '"': """, "'": "'" }[c]));
 }
 
 function visibleEntries() {
@@ -112,18 +112,18 @@ function visibleEntries() {
     return rows;
 }
 
-const inputCls = "w-full bg-transparent border border-transparent hover:border-border-light dark:hover:border-border-dark focus:border-link-light dark:focus:border-link-dark rounded px-1.5 py-1 text-sm focus:outline-none";
+const inputCls = "w-full bg-transparent border border-transparent hover:border-surface-border dark:hover:border-surface-border-dark focus:border-brand-500 dark:focus:border-brand-500 rounded px-1.5 py-1 text-sm focus:outline-none";
 
 function render() {
     const rows = visibleEntries();
     body.innerHTML = rows.map(e => `
-        <tr class="border-t border-border-light dark:border-border-dark" data-id="${e.id}">
+        <tr class="border-t border-surface-border dark:border-surface-border-dark" data-id="${e.id}">
             <td class="px-2 py-1 align-top"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
             <td class="px-2 py-1 align-top"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top"><input data-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-muted-light dark:text-muted-dark"></td>
+            <td class="px-2 py-1 align-top"><input data-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-fg-muted dark:text-fg-muted-dark"></td>
             <td class="px-2 py-1 align-top whitespace-nowrap">
-                <button type="button" data-act="reapply" class="text-xs px-2 py-1 rounded border border-border-light dark:border-border-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" title="Sửa & áp dụng lại bản dịch cũ">Áp dụng lại</button>
-                <button type="button" data-act="delete" class="text-xs px-2 py-1 rounded border border-border-light dark:border-border-dark text-red-600 dark:text-red-400 hover:bg-no-light dark:hover:bg-no-dark" title="Xoá mục">Xoá</button>
+                <button type="button" data-act="reapply" class="btn btn-sm btn-ghost text-xs" title="Sửa & áp dụng lại bản dịch cũ">Áp dụng lại</button>
+                <button type="button" data-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá mục">Xoá</button>
             </td>
         </tr>`).join("");
     countLabel.textContent = `${rows.length} / ${ENTRIES.length} mục`;
@@ -351,7 +351,7 @@ reapplyModal.addEventListener("click", e => { if (e.target === reapplyModal) clo
 document.getElementById("reapply-preview-btn").addEventListener("click", async () => {
     const find = reapplyFind.value.trim();
     if (!find) { toast("Chuỗi cần tìm đang rỗng.", "error"); return; }
-    reapplyResult.innerHTML = '<p class="text-muted-light dark:text-muted-dark">Đang quét…</p>';
+    reapplyResult.innerHTML = '<p class="text-fg-muted dark:text-fg-muted-dark">Đang quét…</p>';
     try {
         const fd = new FormData();
         fd.set("find", find);
@@ -360,27 +360,27 @@ document.getElementById("reapply-preview-btn").addEventListener("click", async (
         fd.set("chapter_to", reapplyTo.value || 0);
         const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/reapply-preview`, { method: "POST", body: fd });
         const data = await res.json();
-        if (!res.ok) { reapplyResult.innerHTML = `<p class="text-red-600 dark:text-red-400">${escapeHtml(data.detail || "Lỗi.")}</p>`; return; }
+        if (!res.ok) { reapplyResult.innerHTML = `<p class="text-status-err-fg dark:text-status-err-fg-dark">${escapeHtml(data.detail || "Lỗi.")}</p>`; return; }
         if (!data.chapters.length) {
-            reapplyResult.innerHTML = '<p class="text-muted-light dark:text-muted-dark">Không có chương nào chứa chuỗi này.</p>';
+            reapplyResult.innerHTML = '<p class="text-fg-muted dark:text-fg-muted-dark">Không có chương nào chứa chuỗi này.</p>';
             reapplyApplyBtn.disabled = true;
             return;
         }
         const rows = data.chapters.map(c => `
-            <tr class="border-t border-border-light dark:border-border-dark">
+            <tr class="border-t border-surface-border dark:border-surface-border-dark">
                 <td class="px-2 py-1 whitespace-nowrap">Ch.${c.index}</td>
                 <td class="px-2 py-1 text-center">${c.count}</td>
-                <td class="px-2 py-1 text-muted-light dark:text-muted-dark">${escapeHtml(c.snippet)}</td>
+                <td class="px-2 py-1 text-fg-muted dark:text-fg-muted-dark">${escapeHtml(c.snippet)}</td>
             </tr>`).join("");
         reapplyResult.innerHTML = `
             <p class="mb-1"><strong>${data.chapters.length}</strong> chương bị ảnh hưởng · tổng <strong>${data.total}</strong> chỗ thay
             "<span class="font-mono">${escapeHtml(data.find)}</span>" → "<span class="font-mono">${escapeHtml(reapplyReplace.value)}</span>".</p>
-            <table class="w-full text-xs border border-border-light dark:border-border-dark rounded">
-                <thead class="bg-surface-alt-light dark:bg-surface-alt-dark"><tr><th class="px-2 py-1 text-left">Chương</th><th class="px-2 py-1">Số chỗ</th><th class="px-2 py-1 text-left">Ví dụ</th></tr></thead>
+            <table class="w-full text-xs border border-surface-border dark:border-surface-border-dark rounded">
+                <thead class="bg-surface-muted dark:bg-surface-muted-dark"><tr><th class="px-2 py-1 text-left">Chương</th><th class="px-2 py-1">Số chỗ</th><th class="px-2 py-1 text-left">Ví dụ</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>`;
         reapplyApplyBtn.disabled = reapplyReplace.value.trim() === "";
-    } catch (err) { reapplyResult.innerHTML = '<p class="text-red-600 dark:text-red-400">Lỗi kết nối mạng.</p>'; }
+    } catch (err) { reapplyResult.innerHTML = '<p class="text-status-err-fg dark:text-status-err-fg-dark">Lỗi kết nối mạng.</p>'; }
 });
 
 reapplyApplyBtn.addEventListener("click", async () => {
@@ -417,11 +417,11 @@ async function pollStatus() {
         const container = document.getElementById("status-badge-container");
         if (!container) return;
         if (busyHere) {
-            container.innerHTML = `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy: ${t.step}</span>`;
+            container.innerHTML = `<span class="badge badge-run">đang chạy: ${t.step}</span>`;
         } else if (t.running) {
-            container.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang chạy (ebook khác)</span>';
+            container.innerHTML = '<span class="badge badge-run">đang chạy (ebook khác)</span>';
         } else {
-            container.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">rảnh</span>';
+            container.innerHTML = '<span class="badge badge-ok">rảnh</span>';
         }
     } catch (e) { /* im lặng */ }
 }

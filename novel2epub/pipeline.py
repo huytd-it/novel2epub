@@ -306,8 +306,12 @@ def _quality_warnings(raw: str, translated: str) -> list[str]:
     return warnings
 
 
-def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, force_meta: bool = False) -> Manifest:
+def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn) -> Manifest:
     """Lấy mục lục mới (nếu được) và trộn vào manifest cache, giữ title cũ.
+
+    KHÔNG đụng tới metadata của manifest đã tồn tại: title/author/description/
+    cover_url thuộc quyền ebook, chỉ form Settings mới được ghi. Metadata chỉ
+    được điền ở lần đầu (chưa có manifest).
 
     Nếu không lấy được mục lục mới mà đã có cache => dùng lại cache. Nếu vừa
     không lấy được vừa chưa có cache => báo lỗi.
@@ -338,14 +342,6 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn, *, for
             )
         else:
             manifest.source_url = toc.source_url or manifest.source_url or cfg.crawl.toc_url
-            if force_meta or not manifest.title:
-                manifest.title = cfg.novel.title or manifest.title
-            if force_meta or not manifest.author:
-                manifest.author = cfg.novel.author or manifest.author
-            if force_meta or not manifest.description:
-                manifest.description = toc.description or manifest.description
-            if force_meta or not manifest.cover_url:
-                manifest.cover_url = cfg.novel.cover_url or toc.cover_url or manifest.cover_url
             manifest.metadata_missing = toc.metadata_missing
 
             # Trộn danh sách chương: giữ nguyên index và thứ tự cũ của các
@@ -649,11 +645,12 @@ def step_crawl_selected(
     return manifest
 
 
-def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False, should_cancel: CancelFn | None = None) -> Manifest:
-    """Chỉ lấy mục lục + metadata (không crawl nội dung chương).
+def step_fetch_toc(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> Manifest:
+    """Chỉ lấy mục lục + metadata lần đầu (không crawl nội dung chương).
 
-    Dùng để xem nhanh danh sách chương + thông tin truyện trước khi chọn phạm vi
-    crawl, hoặc làm mới ảnh bìa/mô tả.
+    Dùng để xem nhanh danh sách chương trước khi chọn phạm vi crawl. KHÔNG làm
+    mới metadata của ebook đã có — dùng `POST /api/v1/ebooks/{slug}/meta/refresh`
+    cho việc đó.
     """
     _emit_config_warnings(cfg, log)
     _emit_crawl_config(cfg, log)
@@ -663,7 +660,7 @@ def step_fetch_toc(cfg: Config, log: LogFn = _print, *, force: bool = False, sho
         _emit_translate_config(cfg, log, feature="CRAWL AI fallback")
     crawler = ScraplingCrawler(cfg.crawl)
     try:
-        manifest = _refresh_manifest(cfg, storage, crawler, log, force_meta=force)
+        manifest = _refresh_manifest(cfg, storage, crawler, log)
     finally:
         crawler.close()
     log("[crawl] Lấy mục lục xong.")

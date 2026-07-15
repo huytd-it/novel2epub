@@ -327,17 +327,9 @@ def cancel_ebook_job(request: Request, slug: str, category: str):
 
 
 @router.post("/ebooks/{slug}/jobs/{step}")
-def start_ebook_job(request: Request, slug: str, step: str, force: bool = Form(False)):
+def start_ebook_job(request: Request, slug: str, step: str):
     cfg = deps.resolved_cfg(slug)
-    if step == "fetch-toc" and force:
-        def _target(log):
-            from novel2epub.pipeline import step_fetch_toc
-
-            step_fetch_toc(cfg, log, force=True)
-
-        request.app.state.job.start_custom(step, _target, category="crawl")
-    else:
-        request.app.state.job.start(step, cfg)
+    request.app.state.job.start(step, cfg)
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 

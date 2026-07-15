@@ -101,8 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     crawl_parser.add_argument("--filter", dest="filters", action="append", default=[], help="Lọc chương: raw:yes/no, translated:yes/no, missing:yes/no")
     crawl_parser.add_argument("--range", dest="visible_range", default="", help="Chọn range theo danh sách đang sort/filter, ví dụ 1:3")
     sub.add_parser("translate", help="Dịch các chương đã crawl sang tiếng Việt")
-    toc_parser = sub.add_parser("toc", help="Lấy mục lục + metadata, không crawl nội dung chương")
-    toc_parser.add_argument("--force", action="store_true", help="Làm mới metadata nguồn dù manifest đã có giá trị")
+    sub.add_parser("toc", help="Lấy mục lục, không crawl nội dung chương")
     chapters_parser = sub.add_parser("chapters", help="Liệt kê chương với sort/search/filter")
     chapters_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Khóa sắp xếp")
     chapters_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort")
@@ -362,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 step_translate(cfg)
         elif args.command == "toc":
-            step_fetch_toc(cfg, force=args.force)
+            step_fetch_toc(cfg)
         elif args.command == "chapters":
             _print_chapters(cfg, args)
         elif args.command == "evaluate":

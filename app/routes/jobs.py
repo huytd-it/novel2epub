@@ -476,6 +476,15 @@ def api_logs_default(source: str = Query("app"), from_: int = Query(0, alias="fr
     return api_logs(source, from_=from_, limit=limit)
 
 
+@router.delete("/api/logs/{source}")
+def api_logs_delete(source: str):
+    from ..logging_config import LOG_DIR
+    log_path = LOG_DIR / f"{source}.log"
+    if log_path.exists():
+        log_path.write_text("")
+    return {"ok": True, "source": source}
+
+
 @router.get("/logs")
 def logs_page(request: Request):
     from ..deps import library

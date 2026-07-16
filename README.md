@@ -244,8 +244,9 @@ Mở `http://127.0.0.1:8010`.
 - **Crawl console** — hiển thị chương thiếu/lỗi, retry đúng chương đó
   bằng 1 nút.
 - **Automation** — chuỗi bước (fetch-toc → crawl-new → translate-pending →
-  cleanup-han → build → publish-reader) chạy theo lịch `daily@HH:MM`,
-  `continuous@N` hoặc bấm tay.
+  cleanup-han → build → publish-reader) chạy theo lịch cron 5 trường
+  (`*/30 * * * *`, `0 3 * * *`...) hoặc bấm tay; lịch cũ `daily@HH:MM`/
+  `continuous@N` tự migrate. Lỡ mốc (máy tắt) → chạy bù 1 lần khi bật lại.
 - **Đẩy lên Reader** — đồng bộ chương lên app đọc novel-reader (Supabase),
   chỉ đẩy phần thay đổi, giữ nguyên `chapters.id` nên không hỏng bookmark.
   Có xem trước trước khi đẩy thật.
@@ -253,6 +254,17 @@ Mở `http://127.0.0.1:8010`.
   gói .zip.
 - **Metadata EPUB đầy đủ** — nhà xuất bản, ngày xuất bản, chủ đề, bộ sách,
   định danh, miêu tả.
+
+### Chạy nền khi khởi động máy
+
+```sh
+python -m novel2epub service install     # Windows: Task Scheduler (khi đăng nhập); Linux: systemd user service
+python -m novel2epub service status
+python -m novel2epub service uninstall
+```
+
+Tùy chọn `--host`/`--port` (mặc định `127.0.0.1:8010`). Linux muốn chạy khi
+chưa đăng nhập: `loginctl enable-linger $USER`.
 
 ## Quy trình cho truyện mới
 

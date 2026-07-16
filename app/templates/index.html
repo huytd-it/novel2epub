@@ -225,8 +225,14 @@
                         <label class="inline-flex items-center gap-2 text-sm">
                             <input type="checkbox" id="bulk-enable-continuous" checked> Bật automation liên tục (cào → dịch → xoá Hán → build)
                         </label>
-                        <label class="inline-flex items-center gap-2 text-sm">Lặp lại mỗi
-                            <input type="number" id="bulk-cooldown" value="30" min="5" class="input input-sm w-20"> phút
+                        <label class="inline-flex items-center gap-2 text-sm">Lịch
+                            <select id="bulk-cron" class="select input-sm">
+                                <option value="*/15 * * * *">Mỗi 15 phút</option>
+                                <option value="*/30 * * * *" selected>Mỗi 30 phút</option>
+                                <option value="0 * * * *">Mỗi giờ</option>
+                                <option value="0 3 * * *">Hàng ngày 03:00</option>
+                                <option value="0 3 * * 0">Hàng tuần CN 03:00</option>
+                            </select>
                         </label>
                     </div>
                     <div class="flex gap-3 items-center">
@@ -633,7 +639,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var bulkResults = document.getElementById("bulk-results");
     var bulkDoneActions = document.getElementById("bulk-done-actions");
     var bulkEnableContinuous = document.getElementById("bulk-enable-continuous");
-    var bulkCooldown = document.getElementById("bulk-cooldown");
+    var bulkCron = document.getElementById("bulk-cron");
 
     var BULK_STATUS_STYLE = {
         "created": "badge-ok",
@@ -666,7 +672,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 var formData = new FormData();
                 formData.append("toc_urls", urls.join("\n"));
                 formData.append("enable_continuous", bulkEnableContinuous.checked ? "true" : "false");
-                formData.append("cooldown_minutes", bulkCooldown.value || "30");
+                formData.append("cron", bulkCron.value || "*/30 * * * *");
                 var res = await fetch("/library/ebooks/bulk", { method: "POST", body: formData });
                 var data = await res.json();
                 if (!res.ok) {

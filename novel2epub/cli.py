@@ -141,6 +141,13 @@ def main(argv: list[str] | None = None) -> int:
     restore_parser = sub.add_parser("restore", help="Phục hồi DB từ 1 file backup .db (ghi đè DB hiện tại)")
     restore_parser.add_argument("--from", dest="from_path", required=True, help="File backup .db nguồn")
     restore_parser.add_argument("--yes", action="store_true", help="Không hỏi xác nhận trước khi ghi đè")
+    service_parser = sub.add_parser(
+        "service",
+        help="Đăng ký web server chạy nền khi khởi động máy (Windows Task Scheduler / Linux systemd)",
+    )
+    service_parser.add_argument("action", choices=["install", "uninstall", "status"])
+    service_parser.add_argument("--host", default="127.0.0.1", help="Host uvicorn (mặc định 127.0.0.1)")
+    service_parser.add_argument("--port", type=int, default=8010, help="Port uvicorn (mặc định 8010)")
 
     translate_parser = sub.choices["translate"]
     translate_parser.add_argument("--force", action="store_true", help="Dịch lại dù đã có bản dịch")
@@ -164,6 +171,11 @@ def main(argv: list[str] | None = None) -> int:
         for slug, entry in library.ebooks.items():
             print(f"{slug}\t{entry.name or slug}")
         return 0
+
+    if args.command == "service":
+        from .service import service_main
+
+        return service_main(args.action, args.host, args.port)
 
     if args.command == "backup":
         from .backup import backup_db, timestamped_backup

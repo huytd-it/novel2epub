@@ -261,6 +261,20 @@ def ebook_chapter_delete_translation(request: Request, slug: str, index: int):
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
 
 
+@router.post("/ebooks/{slug}/chapters/{index}/delete-raw")
+def ebook_chapter_delete_raw(slug: str, index: int):
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
+    storage.write_raw(ch, "")
+    return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
+
+
 @router.post("/api/ebooks/{slug}/chapters/{index}/retranslate-title")
 def api_ebook_chapter_retranslate_title(
     request: Request,

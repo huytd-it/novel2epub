@@ -17,7 +17,7 @@
             <input type="checkbox" id="log-auto" checked> Tự động tải
         </label>
         <button type="button" id="log-refresh" class="btn btn-sm btn-secondary">Làm mới</button>
-        <button type="button" id="log-clear" class="btn btn-sm btn-secondary">Xóa hiển thị</button>
+        <button type="button" id="log-clear" class="btn btn-sm btn-danger">Xóa</button>
     </div>
 </div>
 
@@ -137,10 +137,17 @@ document.getElementById("log-refresh").addEventListener("click", () => {
     loadLogs(false);
 });
 
-document.getElementById("log-clear").addEventListener("click", () => {
-    tbody.innerHTML = "";
-    lastLine = 0;
-    countEl.textContent = "0 dòng";
+document.getElementById("log-clear").addEventListener("click", async () => {
+    if (!confirm(`Xóa toàn bộ file ${currentSource}.log?`)) return;
+    const res = await fetch(`/api/logs/${currentSource}`, {method:"DELETE"});
+    if (res.ok) {
+        toast("Đã xóa file log.", "info");
+        tbody.innerHTML = "";
+        lastLine = 0;
+        countEl.textContent = "0 dòng";
+    } else {
+        toast("Không thể xóa log.", "error");
+    }
 });
 
 setInterval(() => {

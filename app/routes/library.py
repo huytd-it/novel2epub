@@ -6,10 +6,10 @@ import unicodedata
 
 import json
 
-from fastapi import APIRouter, Form, HTTPException
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
-from novel2epub.automation import add_automation
+from novel2epub.automation import add_automation, validate_schedule
 from novel2epub.config import CrawlConfig, ScraplingConfig
 from novel2epub.config_writer import add_ebook, remove_ebook, update_ebook
 from novel2epub.crawler import ScraplingCrawler
@@ -236,12 +236,13 @@ def create_ebook(
 
 @router.post("/library/ebooks/bulk")
 def create_ebooks_bulk(
+    request: Request,
     toc_urls: str = Form(...),
     enable_continuous: bool = Form(True),
-    cooldown_minutes: int = Form(30),
+    cron: str = Form("*/30 * * * *"),
 ):
     """Nhập hàng loạt tối đa 5 URL mục lục: tạo ebook + (tùy chọn) bật automation
-    liên tục (cào → dịch → xoá Hán → build, lặp lại mỗi `cooldown_minutes` phút).
+    (cào → dịch → xoá Hán → build) theo lịch cron; chạy ngay lần đầu sau khi tạo.
 
     Mỗi URL xử lý độc lập — 1 URL lỗi không chặn các URL còn lại.
     """
@@ -250,8 +251,9 @@ def create_ebooks_bulk(
         raise HTTPException(status_code=400, detail="Thiếu URL mục lục.")
     if len(urls) > MAX_BULK_URLS:
         raise HTTPException(status_code=400, detail=f"Tối đa {MAX_BULK_URLS} URL mỗi lần nhập.")
+    if enable_continuous and (cron == "manual" or not validate_schedule(cron)):
+        raise HTTPException(status_code=400, detail=f"Lịch cron không hợp lệ: {cron!r}")
 
-    cooldown_minutes = max(1, cooldown_minutes)
     results = []
     for url in urls:
         try:
@@ -271,7 +273,10 @@ def create_ebooks_bulk(
 
         slug = created["slug"]
         if enable_continuous:
-            add_automation(deps.AUTOMATIONS_PATH, slug, list(CONTINUOUS_STEPS), f"continuous@{cooldown_minutes}")
+            automation = add_automation(deps.AUTOMATIONS_PATH, slug, list(CONTINUOUS_STEPS), cron)
+            scheduler = getattr(request.app.state, "scheduler", None)
+            if scheduler is not None:
+                scheduler.run_now(automation.id)  # chạy ngay lần đầu — lịch cron chỉ tự nổ từ mốc kế tiếp
         results.append({
             "url": url,
             "status": "created",

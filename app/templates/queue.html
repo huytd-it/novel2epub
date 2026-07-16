@@ -2,7 +2,6 @@
 {% block title %}Hàng đợi — novel2epub{% endblock %}
 {% block content %}
 <style>
-.modal-backdrop[hidden]{display:none!important}
 .job-row-running{background:rgba(251,191,36,.07)}
 .job-row-failed{background:rgba(239,68,68,.07)}
 .dark .job-row-running{background:rgba(251,191,36,.12)}
@@ -454,10 +453,12 @@ async function bulkRetryFailed() {
 
 // ── Log viewer ─────────────────────────────────────────────────────────────
 async function openLog(jobId, label) {
+  const el = document.getElementById("log-viewer");
+  el.hidden = false;
+  el.classList.add("open");
   document.getElementById("log-viewer-title").textContent = label || jobId;
   const pre = document.getElementById("log-viewer-content");
   pre.textContent = "Đang tải...";
-  document.getElementById("log-viewer").hidden = false;
   try {
     const res = await fetch(`/api/queue/${jobId}/log`);
     if (!res.ok) { pre.textContent = "Không thể tải nhật ký."; return; }
@@ -468,7 +469,11 @@ async function openLog(jobId, label) {
   }
 }
 
-function closeLog() { document.getElementById("log-viewer").hidden = true; }
+function closeLog() {
+  const el = document.getElementById("log-viewer");
+  el.classList.remove("open");
+  el.hidden = true;
+}
 
 // ── Enqueue form ──────────────────────────────────────────────────────────
 document.getElementById("enqueue-form")?.addEventListener("submit", async e => {

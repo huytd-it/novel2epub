@@ -26,6 +26,16 @@ def _client(monkeypatch, tmp_path):
     monkeypatch.setattr(deps, "SOURCES_PATH", str(tmp_path / "sources.yaml"))
     monkeypatch.setattr(deps, "AUTOMATIONS_PATH", tmp_path / "automations.yaml")
     app.state.job = _fake_job()
+
+    class _FakeScheduler:
+        def __init__(self):
+            self.ran = []
+
+        def run_now(self, automation_id):
+            self.ran.append(automation_id)
+            return "job-id"
+
+    app.state.scheduler = _FakeScheduler()
     return app, TestClient(app)
 
 
@@ -53,8 +63,10 @@ def test_bulk_create_happy_path_three_urls(monkeypatch, tmp_path):
     automations = load_automations(tmp_path / "automations.yaml")
     assert len(automations) == 3
     for a in automations.values():
-        assert a.schedule == "continuous@30"
+        assert a.schedule == "*/30 * * * *"
         assert a.steps == ["crawl-new", "translate-pending", "cleanup-han", "build"]
+    # tạo xong chạy ngay lần đầu — lịch cron chỉ tự nổ từ mốc kế tiếp
+    assert sorted(app.state.scheduler.ran) == sorted(automations.keys())
 
 
 def test_bulk_create_partial_failure_does_not_block_others(monkeypatch, tmp_path):
@@ -114,6 +126,35 @@ def test_bulk_create_rejects_more_than_five_urls(monkeypatch, tmp_path):
 
     automations = load_automations(tmp_path / "automations.yaml")
     assert len(automations) == 0
+
+
+def test_bulk_create_accepts_custom_cron(monkeypatch, tmp_path):
+    from app.routes import library
+
+    app, client = _client(monkeypatch, tmp_path)
+    monkeypatch.setattr(library, "_fetch_meta", lambda url, preset_name="": _meta_for(url))
+
+    res = client.post("/library/ebooks/bulk", data={
+        "toc_urls": "https://a.com/truyen-a",
+        "cron": "0 3 * * *",
+    })
+    assert res.status_code == 200
+    automations = load_automations(tmp_path / "automations.yaml")
+    assert next(iter(automations.values())).schedule == "0 3 * * *"
+
+
+def test_bulk_create_rejects_invalid_cron(monkeypatch, tmp_path):
+    from app.routes import library
+
+    app, client = _client(monkeypatch, tmp_path)
+    monkeypatch.setattr(library, "_fetch_meta", lambda url, preset_name="": _meta_for(url))
+
+    res = client.post("/library/ebooks/bulk", data={
+        "toc_urls": "https://a.com/truyen-a",
+        "cron": "continuous@30",
+    })
+    assert res.status_code == 400
+    assert load_automations(tmp_path / "automations.yaml") == {}
 
 
 def test_bulk_create_without_continuous_creates_no_automation(monkeypatch, tmp_path):

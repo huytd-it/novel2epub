@@ -147,7 +147,7 @@
         <div class="flex gap-1.5 mb-1">
             <button type="button" id="load-default-prompt" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-autosave">Nạp prompt mẫu theo ngôn ngữ nguồn</button>
         </div>
-        {% set _pt = cfg.translate.openai.prompt_template %}{% if '{auto_glossary_block}' not in _pt %}{% set _pt = _pt ~ '{auto_glossary_block}{fixup_warning}' %}{% endif %}
+        {% set _pt = cfg.translate.openai.prompt_template %}{% if '{auto_glossary_block}' not in _pt %}{% set _pt = _pt ~ '{auto_glossary_block}' %}{% endif %}
         <textarea name="prompt_template" rows="40" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 font-mono">{{ _pt }}</textarea>
     </label>
     <label class="flex flex-col gap-1 text-sm min-w-0 px-3 pb-3"> title_prompt_template (để trống = giữ nguyên)

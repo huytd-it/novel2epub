@@ -11,12 +11,12 @@ from novel2epub.automation import Automation, add_automation, load_automations, 
 
 def test_add_and_load_automation_roundtrip(tmp_path):
     path = tmp_path / "automations.yaml"
-    a = add_automation(path, "myebook", ["fetch-toc", "build"], schedule="daily@03:00")
+    a = add_automation(path, "myebook", ["fetch-toc", "build"], schedule="0 3 * * *")
     loaded = load_automations(path)
     assert a.id in loaded
     assert loaded[a.id].ebook == "myebook"
     assert loaded[a.id].steps == ["fetch-toc", "build"]
-    assert loaded[a.id].schedule == "daily@03:00"
+    assert loaded[a.id].schedule == "0 3 * * *"
     assert loaded[a.id].enabled is True
 
 
@@ -269,6 +269,67 @@ def test_run_now_returns_none_for_unknown_id(tmp_path):
     queue = JobQueue(workers={"crawl": 1, "translate": 1})
     sched = AutomationScheduler(tmp_path / "automations.yaml", tmp_path, queue, poll_seconds=1000)
     assert sched.run_now("does-not-exist") is None
+
+
+# ---------- migrate_schedule ----------
+
+
+def test_migrate_schedule_mapping():
+    from novel2epub.automation import migrate_schedule
+
+    assert migrate_schedule("daily@03:00") == "0 3 * * *"
+    assert migrate_schedule("daily@23:59") == "59 23 * * *"
+    assert migrate_schedule("continuous") == "*/30 * * * *"
+    assert migrate_schedule("continuous@15") == "*/15 * * * *"
+    assert migrate_schedule("continuous@59") == "*/59 * * * *"
+    assert migrate_schedule("continuous@60") == "0 */1 * * *"
+    assert migrate_schedule("continuous@120") == "0 */2 * * *"
+    assert migrate_schedule("continuous@5000") == "0 */23 * * *"  # kẹp 23h
+
+
+def test_migrate_schedule_garbage_falls_back_to_manual():
+    from novel2epub.automation import migrate_schedule
+
+    assert migrate_schedule("daily@25:00") == "manual"
+    assert migrate_schedule("daily@10:99") == "manual"
+    assert migrate_schedule("continuous@0") == "manual"
+    assert migrate_schedule("continuous@-5") == "manual"
+    assert migrate_schedule("contineous@30") == "manual"
+    assert migrate_schedule("Daily@03:00") == "manual"
+    assert migrate_schedule("") == "manual"
+
+
+def test_migrate_schedule_keeps_valid_values():
+    from novel2epub.automation import migrate_schedule
+
+    assert migrate_schedule("manual") == "manual"
+    assert migrate_schedule("*/30 * * * *") == "*/30 * * * *"
+
+
+def test_load_automations_migrates_legacy_schedule_and_backfills_created_at(tmp_path):
+    import json
+
+    from novel2epub.db import get_thread_connection
+
+    path = tmp_path / "automations.yaml"
+    conn = get_thread_connection(path)
+    with conn:
+        conn.execute(
+            "INSERT INTO automations (id, ebook, steps_json, schedule, enabled,"
+            " last_run_at, last_run_outcome, last_run_error, last_run_stats_json, created_at)"
+            " VALUES (?, ?, ?, ?, 1, '', '', '', '{}', '')",
+            ("legacy-id", "e", json.dumps(["build"]), "continuous@30"),
+        )
+    loaded = load_automations(path)
+    assert loaded["legacy-id"].schedule == "*/30 * * * *"
+    assert loaded["legacy-id"].created_at != ""
+    # đã ghi lại DB — load lần 2 không đổi gì thêm (idempotent)
+    row = conn.execute("SELECT schedule, created_at FROM automations WHERE id='legacy-id'").fetchone()
+    assert row["schedule"] == "*/30 * * * *"
+    persisted_created = row["created_at"]
+    loaded2 = load_automations(path)
+    assert loaded2["legacy-id"].schedule == "*/30 * * * *"
+    assert loaded2["legacy-id"].created_at == persisted_created
 
 
 # ---------- validate_schedule ----------

@@ -6,6 +6,8 @@ round-trip ruamel).
 from __future__ import annotations
 
 import json
+import logging
+import re
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -28,12 +30,46 @@ def validate_schedule(s: str) -> bool:
     return croniter.is_valid(s)
 
 
+logger = logging.getLogger("novel2epub.automation")
+
+_LEGACY_DAILY = re.compile(r"^daily@(\d{1,2}):(\d{1,2})$")
+_LEGACY_CONTINUOUS = re.compile(r"^continuous(?:@(-?\d+))?$")
+
+
+def migrate_schedule(s: str) -> str:
+    """Đổi lịch cú pháp cũ (daily@HH:MM / continuous[@N]) sang cron 5 trường.
+
+    Giá trị đã hợp lệ giữ nguyên; không nhận diện được (kể cả daily@25:00,
+    continuous@0, typo) → "manual" + log warning. Idempotent."""
+    if validate_schedule(s):
+        return s
+    m = _LEGACY_DAILY.match(s)
+    if m:
+        hh, mm = int(m.group(1)), int(m.group(2))
+        if 0 <= hh <= 23 and 0 <= mm <= 59:
+            return f"{mm} {hh} * * *"
+        logger.warning("Lịch cũ không hợp lệ %r → manual", s)
+        return "manual"
+    m = _LEGACY_CONTINUOUS.match(s)
+    if m:
+        n = int(m.group(1)) if m.group(1) else 30
+        if n < 1:
+            logger.warning("Lịch cũ không hợp lệ %r → manual", s)
+            return "manual"
+        if n <= 59:
+            return f"*/{n} * * * *"
+        return f"0 */{min(23, max(1, round(n / 60)))} * * *"
+    logger.warning("Lịch không nhận diện được %r → manual", s)
+    return "manual"
+
+
 @dataclass
 class Automation:
     id: str
     ebook: str
     steps: list[str] = field(default_factory=lambda: ["build"])
-    # "manual" | "daily@HH:MM" | "continuous" | "continuous@N" (N phút cooldown)
+    # "manual" | biểu thức cron 5 trường (vd "*/30 * * * *") — cú pháp cũ
+    # daily@HH:MM / continuous[@N] được load_automations tự migrate
     schedule: str = "manual"
     enabled: bool = True
     last_run_at: str = ""
@@ -44,22 +80,31 @@ class Automation:
 
 
 def load_automations(db_path: str | Path) -> dict[str, Automation]:
+    """Đọc toàn bộ automation; tiện thể migrate lịch cú pháp cũ sang cron và
+    backfill `created_at` còn trống (ghi lại DB khi có thay đổi — idempotent)."""
     conn = get_thread_connection(db_path)
     rows = conn.execute("SELECT * FROM automations").fetchall()
     result: dict[str, Automation] = {}
+    changed = False
     for r in rows:
+        schedule = migrate_schedule(r["schedule"])
+        created_at = r["created_at"] or datetime.now().isoformat()
+        if schedule != r["schedule"] or created_at != r["created_at"]:
+            changed = True
         result[r["id"]] = Automation(
             id=r["id"],
             ebook=r["ebook"],
             steps=json.loads(r["steps_json"] or '["build"]'),
-            schedule=r["schedule"],
+            schedule=schedule,
             enabled=bool(r["enabled"]),
             last_run_at=r["last_run_at"],
             last_run_outcome=r["last_run_outcome"],
             last_run_error=r["last_run_error"],
             last_run_stats=json.loads(r["last_run_stats_json"] or "{}"),
-            created_at=r["created_at"],
+            created_at=created_at,
         )
+    if changed:
+        save_automations(db_path, result)
     return result
 
 

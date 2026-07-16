@@ -6,7 +6,7 @@
     <h2 class="m-0 text-xl font-semibold">Tự động hóa</h2>
     <button type="button" id="add-automation-btn" class="btn btn-sm btn-primary">+ Thêm automation</button>
 </div>
-<p class="text-fg-muted dark:text-fg-muted-dark text-sm mb-3">Chuỗi bước chạy theo lịch hàng ngày hoặc bấm tay, đẩy qua hàng đợi job (job "automation" chiếm độc quyền crawl + dịch trong lúc chạy).</p>
+<p class="text-fg-muted dark:text-fg-muted-dark text-sm mb-3">Chuỗi bước chạy theo lịch cron hoặc bấm tay, đẩy qua hàng đợi job (job "automation" chiếm độc quyền crawl + dịch trong lúc chạy).</p>
 
 <div id="automation-region">
 <div class="table-container">
@@ -16,6 +16,7 @@
                 <th data-dt-sort data-dt-filter class="text-left">Ebook</th>
                 <th data-dt-sort class="text-left">Các bước</th>
                 <th data-dt-sort class="text-left">Lịch</th>
+                <th data-dt-sort class="text-left">Chạy kế tiếp</th>
                 <th data-dt-sort data-dt-filter class="text-left">Bật</th>
                 <th data-dt-sort class="text-left">Lần chạy cuối</th>
                 <th data-dt-sort data-dt-filter class="text-left">Kết quả</th>
@@ -28,6 +29,7 @@
             <td class="px-3 py-2">{{ a.ebook }}</td>
             <td class="px-3 py-2">{{ a.steps | join(' → ') }}</td>
             <td class="px-3 py-2"><code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ a.schedule }}</code></td>
+            <td class="px-3 py-2">{{ next_runs[a.id] or '—' }}</td>
             <td class="px-3 py-2">{% if a.enabled %}<span class="badge badge-ok">bật</span>{% else %}<span class="badge badge-err">tắt</span>{% endif %}</td>
             <td class="px-3 py-2">{{ a.last_run_at or '—' }}</td>
             <td class="px-3 py-2">
@@ -47,7 +49,7 @@
             </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-fg-muted dark:text-fg-muted-dark text-sm px-3 py-2">Chưa có automation nào.</td></tr>
+        <tr><td colspan="8" class="text-fg-muted dark:text-fg-muted-dark text-sm px-3 py-2">Chưa có automation nào.</td></tr>
         {% endfor %}
         </tbody>
     </table>
@@ -76,8 +78,16 @@
                         {% endfor %}
                     </div>
                     <div class="form-group my-2"><label class="label">Lịch chạy</label>
-                        <input type="text" name="schedule" value="manual" placeholder="manual, daily@03:00, hoặc continuous@30" class="input">
-                        <span class="text-xs text-fg-muted dark:text-fg-muted-dark">continuous@N: tự chạy lại mỗi N phút nếu có chương mới (mặc định 30 phút nếu chỉ ghi "continuous").</span>
+                        <div class="flex flex-wrap gap-1.5 mb-1" id="schedule-presets">
+                            <button type="button" class="btn btn-sm btn-secondary" data-cron="*/15 * * * *">Mỗi 15p</button>
+                            <button type="button" class="btn btn-sm btn-secondary" data-cron="*/30 * * * *">Mỗi 30p</button>
+                            <button type="button" class="btn btn-sm btn-secondary" data-cron="0 * * * *">Mỗi giờ</button>
+                            <button type="button" class="btn btn-sm btn-secondary" data-cron="0 3 * * *">Hàng ngày 03:00</button>
+                            <button type="button" class="btn btn-sm btn-secondary" data-cron="0 3 * * 0">CN 03:00</button>
+                            <button type="button" class="btn btn-sm btn-secondary" data-cron="manual">Thủ công</button>
+                        </div>
+                        <input type="text" name="schedule" value="manual" placeholder="manual hoặc cron 5 trường: phút giờ ngày tháng thứ" class="input">
+                        <span class="text-xs text-fg-muted dark:text-fg-muted-dark">Cron 5 trường, ví dụ <code>*/30 * * * *</code> = mỗi 30 phút, <code>0 3 * * *</code> = 3h sáng hàng ngày.</span>
                     </div>
                 </fieldset>
             </div>
@@ -92,6 +102,11 @@
 <script>
 document.getElementById("add-automation-btn").addEventListener("click", function () {
     openModal('add-automation-modal');
+});
+document.querySelectorAll("#schedule-presets [data-cron]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+        document.querySelector('#add-automation-modal input[name="schedule"]').value = btn.dataset.cron;
+    });
 });
 </script>
 {% endblock %}

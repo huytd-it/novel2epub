@@ -2,7 +2,7 @@
 và service_main gọi đúng lệnh theo OS (mock subprocess)."""
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from novel2epub.service import (
     TASK_NAME,
@@ -20,7 +20,9 @@ def test_render_cmd_launcher():
 
 
 def test_render_systemd_unit():
-    out = render_systemd_unit(Path("/opt/n2e"), "/opt/n2e/.venv/bin/python", "0.0.0.0", 9000)
+    # PurePosixPath: trên Linux thật project_dir là PosixPath; Path("/opt/...")
+    # trên máy dev Windows sẽ thành WindowsPath in ra "\opt\..." — sai bản chất
+    out = render_systemd_unit(PurePosixPath("/opt/n2e"), "/opt/n2e/.venv/bin/python", "0.0.0.0", 9000)
     assert "WorkingDirectory=/opt/n2e" in out
     assert "ExecStart=/opt/n2e/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 9000" in out
     assert "Restart=on-failure" in out

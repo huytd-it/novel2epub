@@ -342,11 +342,13 @@ async function renderQueue() {
   const history = (data.history || []).map(j => ({...j, _section:"history"}));
   allJobs = [...running, ...pending, ...history];
 
-  // Worker controls (sync from server)
+  // Worker controls (sync from server — skip if user is editing)
   const wkCrawl = data.workers?.crawl ?? 1;
   const wkTranslate = data.workers?.translate ?? 1;
-  document.getElementById("wk-crawl").value = wkCrawl;
-  document.getElementById("wk-translate").value = wkTranslate;
+  const crawlInput = document.getElementById("wk-crawl");
+  const translateInput = document.getElementById("wk-translate");
+  if (document.activeElement !== crawlInput) crawlInput.value = wkCrawl;
+  if (document.activeElement !== translateInput) translateInput.value = wkTranslate;
   document.getElementById("wk-crawl-paused").classList.toggle("hidden", wkCrawl > 0);
   document.getElementById("wk-translate-paused").classList.toggle("hidden", wkTranslate > 0);
   const anyPaused = wkCrawl === 0 || wkTranslate === 0;

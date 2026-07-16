@@ -11,9 +11,20 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from croniter import croniter
+
 from .db import get_thread_connection
 
 STEPS = ("fetch-toc", "crawl-new", "translate-pending", "cleanup-han", "build", "publish-reader")
+
+
+def validate_schedule(s: str) -> bool:
+    """True nếu `s` là lịch hợp lệ: "manual" hoặc biểu thức cron croniter
+    chấp nhận (5 trường chuẩn; croniter cũng nhận @daily/6 trường — vẫn coi
+    là hợp lệ vì scheduler xử lý được)."""
+    if s == "manual":
+        return True
+    return croniter.is_valid(s)
 
 
 @dataclass

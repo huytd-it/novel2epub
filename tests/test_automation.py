@@ -261,3 +261,26 @@ def test_run_now_returns_none_for_unknown_id(tmp_path):
     queue = JobQueue(workers={"crawl": 1, "translate": 1})
     sched = AutomationScheduler(tmp_path / "automations.yaml", tmp_path, queue, poll_seconds=1000)
     assert sched.run_now("does-not-exist") is None
+
+
+# ---------- validate_schedule ----------
+
+
+def test_validate_schedule_accepts_manual_and_cron():
+    from novel2epub.automation import validate_schedule
+
+    assert validate_schedule("manual") is True
+    assert validate_schedule("*/30 * * * *") is True
+    assert validate_schedule("0 3 * * *") is True
+    assert validate_schedule("0 3 * * 0") is True
+
+
+def test_validate_schedule_rejects_legacy_and_garbage():
+    from novel2epub.automation import validate_schedule
+
+    assert validate_schedule("daily@03:00") is False
+    assert validate_schedule("continuous@30") is False
+    assert validate_schedule("61 * * * *") is False
+    assert validate_schedule("abc") is False
+    assert validate_schedule("") is False
+    assert validate_schedule("Manual") is False

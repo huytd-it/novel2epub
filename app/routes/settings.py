@@ -587,7 +587,7 @@ def save_translate(
     auto_glossary: bool = Form(False),
     glossary_filter: bool = Form(False),
     batch_size: int = Form(1),
-    prompt_max_chars: int = Form(7000),
+    prompt_max_chars: int = Form(0),
     auto_cleanup_han: bool = Form(False),
     cleanup_han_max_chars: int = Form(8000),
     cleanup_han_retries: int = Form(1),

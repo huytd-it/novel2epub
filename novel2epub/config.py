@@ -354,7 +354,7 @@ class TranslateConfig:
     # glossary và nội dung). Dịch chương: chunk bị thu nhỏ để prompt hoàn chỉnh
     # không vượt giới hạn. Batch dịch: batch bị cắt sớm (ít chương hơn
     # batch_size) khi khối export chạm giới hạn. 0 = không giới hạn.
-    prompt_max_chars: int = 7000
+    prompt_max_chars: int = 0
     # Tự động chạy cleanup Hán sau mỗi chương được dịch (gọi AI qua config
     # AI biên tập ai.openai — hoạt động với mọi backend dịch).
     auto_cleanup_han: bool = False
@@ -806,7 +806,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         auto_glossary=bool(translate_raw.get("auto_glossary", True)),
         glossary_filter=bool(translate_raw.get("glossary_filter", True)),
         batch_size=int(translate_raw.get("batch_size", 1)),
-        prompt_max_chars=int(translate_raw.get("prompt_max_chars", 7000)),
+        prompt_max_chars=int(translate_raw.get("prompt_max_chars", 20000)),
         auto_cleanup_han=bool(translate_raw.get("auto_cleanup_han", False)),
         cleanup_han=CleanupHanConfig(
             max_chars=int(cleanup_han_raw.get("max_chars", CleanupHanConfig.max_chars)),

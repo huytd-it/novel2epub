@@ -263,7 +263,7 @@
             <input type="number" name="prompt_max_chars" value="{{ cfg.translate.prompt_max_chars }}" min="0" step="500"
                 class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.prompt_max_chars, 'translate', 'prompt_max_chars') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
             {% if is_default(cfg.translate.prompt_max_chars, 'translate', 'prompt_max_chars') %}
-            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 7000</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 20000</span>
             {% endif %}
         </label>
     </div>

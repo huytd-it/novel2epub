@@ -37,40 +37,67 @@ pip install fastapi uvicorn jinja2 python-multipart
 
 ## Cấu hình
 
-Toàn bộ cấu hình nằm trong 1 file `novel2epub.yaml` và 1 file `novel2epub.db`:
+**Mọi thứ nằm trong 1 file `novel2epub.db`** (SQLite) — cấu hình lẫn dữ liệu:
+chapters, glossary, job queue, automations, covers, notes. Backup toàn bộ state
+chỉ bằng cách copy 1 file.
+
+Tạo file đó cho cài đặt mới:
 
 ```bash
-cp novel2epub.example.yaml novel2epub.yaml   # chỉnh sửa
+python scripts/init_db.py          # tạo novel2epub.db với cấu hình mặc định
 ```
 
-**`novel2epub.yaml`** — 3 khối top-level:
+Sau đó chỉnh cấu hình qua **Web UI → Cài đặt** (`/ebooks/<slug>/settings`).
+Không cần (và không thể) sửa cấu hình bằng cách viết tay file YAML — `.yaml`
+chỉ còn là mẫu khởi tạo, xem [Vai trò của các file YAML](#vai-trò-của-các-file-yaml).
 
-| Khối | Nội dung |
-|------|----------|
-| `defaults` | Cấu hình dùng chung: crawl, translate, AI, output, queue, reader |
-| `sources` | Preset crawl cho từng website (selector, engine, delay...) |
-| `ebooks` | Mỗi ebook chỉ khai phần KHÁC với `defaults` |
+### Cấu trúc cấu hình
 
-Config hiệu lực của ebook = `deep_merge(defaults, ebooks[<slug>])`.
+Cấu hình chia 3 tầng, hợp nhất khi load:
+
+| Tầng | Bảng DB | Nội dung |
+|------|---------|----------|
+| `defaults` | `settings` | Dùng chung: crawl, translate, AI, output, queue, reader |
+| `sources` | `sources` | Preset crawl từng website (selector, engine, delay...) |
+| `ebooks` | `ebooks` | Mỗi ebook chỉ lưu phần KHÁC với `defaults` |
+
+Config hiệu lực của ebook = `deep_merge(defaults, sources[<preset>], ebooks[<slug>])`.
 
 **Ngoại lệ — cấu hình chỉ đọc từ `defaults`:** `translate` (AI dịch), `ai`
 (AI biên tập) và 4 field kết nối của `reader` (`url`, `service_key`,
-`timeout_seconds`, `batch_size`) dùng CHUNG cho mọi ebook. Khai chúng trong
-khối `ebooks` sẽ bị bỏ qua lúc load — để không mỗi truyện một bản cấu hình AI
-khác nhau, và để `service_key` chỉ nằm đúng một chỗ.
+`timeout_seconds`, `batch_size`) dùng CHUNG cho mọi ebook — override theo ebook
+bị bỏ qua lúc load. Để không mỗi truyện một bản cấu hình AI khác nhau, và để
+`service_key` chỉ nằm đúng một chỗ.
 
-**`novel2epub.db`** — SQLite chứa toàn bộ dữ liệu runtime: chapters, glossary,
-job queue, automations, covers, notes. File này được tạo tự động, không cần
-tạo thủ công. Web UI dùng `NOVEL2EPUB_DB` env để trỏ đường dẫn (mặc định:
-`novel2epub.db` cùng thư mục với file YAML).
+### Vai trò của các file YAML
 
-### Cấu trúc dữ liệu trong DB
+Trước đây cấu hình nằm trong `novel2epub.yaml` + `sources.yaml` + `config.yaml`
++ `library.yaml` + `configs/*.yaml`. Nay tất cả đã gộp vào `novel2epub.db`;
+YAML chỉ còn 3 vai trò hẹp:
 
-Tất cả state trước đây nằm rải rác trong `data/<slug>/` và `.n2e/` nay đã
-gộp vào `novel2epub.db`:
+| File | Vai trò hiện tại |
+|------|------------------|
+| `novel2epub.example.yaml` | Mẫu `scripts/init_db.py` đọc để seed `defaults` + `sources` cho DB mới. Cũng là tài liệu tham chiếu đầy đủ mọi field. |
+| `sources.yaml` | **Di sản** — chỉ `scripts/migrate_to_sqlite.py` còn đọc. Preset nay nằm trong bảng `sources`, quản lý ở `/sources`. |
+| Export/import 1 ebook | Web UI xuất/nhập cấu hình 1 truyện dạng `.yaml` (`/ebooks/<slug>/config/export`). |
+
+> `novel2epub.yaml` **không còn được đọc**. Nếu chỉ có file này mà không có
+> `.db`, mọi lệnh sẽ báo `Không tìm thấy DB cấu hình` — hãy chạy
+> `scripts/migrate_to_sqlite.py` để chuyển sang DB.
+
+### Chuyển từ bản cũ sang DB
+
+Cài đặt cũ (còn `novel2epub.yaml`, `data/<slug>/`, `workspace/.n2e/`):
+
+```bash
+python scripts/migrate_to_sqlite.py    # đọc file cũ -> ghi vào novel2epub.db
+```
+
+Toàn bộ state cũ được gộp vào DB:
 
 | Dữ liệu cũ | Bảng DB |
 |------------|---------|
+| `novel2epub.yaml` (`defaults`/`sources`/`ebooks`) | `settings` + `sources` + `ebooks` |
 | `manifest.json` | `ebooks` + `chapters` |
 | `raw/*.md` | `chapters.raw_text` |
 | `translated/*.md` | `chapters.translated_text` |
@@ -80,7 +107,7 @@ gộp vào `novel2epub.db`:
 | `automations.yaml` | `automations` |
 | `library_state.json` | `ebooks.archived` |
 
-Có thể backup/toàn bộ state chỉ bằng 1 file `.db`.
+Script không xoá file cũ — kiểm tra DB chạy đúng rồi tự dọn.
 
 ### Crawl engines
 
@@ -229,12 +256,13 @@ Mở `http://127.0.0.1:8010`.
 
 ## Quy trình cho truyện mới
 
-1. Đặt `max_chapters: 2`, `translate.type: none`, chạy `crawl` → kiểm tra
-   `raw` lấy đúng nội dung, chỉnh `content_selector` nếu cần.
-2. Đổi `translate.type: openai` (hoặc `hachimimt`), dịch 2 chương → xem
-   chất lượng, bổ sung `glossary`.
-3. Đặt `max_chapters: 0`, tăng `max_workers` (10-30 cho `fetcher`).
-   Chạy `run`.
+Tạo ebook ở Web UI, rồi chỉnh các giá trị dưới đây ở **Cài đặt** của truyện đó:
+
+1. Tab **Nguồn**: đặt `max_chapters` = 2, tab **Dịch**: `type` = `none`. Chạy
+   `crawl` → kiểm tra `raw` lấy đúng nội dung, chỉnh `content_selector` nếu cần.
+2. Đổi `type` sang `openai` (hoặc `hachimimt`), dịch 2 chương → xem chất lượng,
+   bổ sung `glossary`.
+3. Đặt `max_chapters` = 0, tăng `max_workers` (10-30 cho `fetcher`). Chạy `run`.
 4. (Tuỳ chọn) Muốn đưa lên app đọc: điền `reader.url` + `reader.service_key`
    ở Cài đặt → tab **Reader**, đặt `slug`/`free_chapters` cho truyện, rồi bấm
    **🚀 Đẩy lên Reader**. Từ đó về sau chỉ cần thêm step `publish-reader` vào
@@ -245,7 +273,12 @@ Mở `http://127.0.0.1:8010`.
 | Biến | Ý nghĩa |
 |------|---------|
 | `NOVEL2EPUB_DB` | Đường dẫn file SQLite (mặc định: `novel2epub.db`) |
-| `NOVEL2EPUB_FILE` | Fallback nếu `NOVEL2EPUB_DB` không set |
+| `NOVEL2EPUB_FILE` | Fallback nếu `NOVEL2EPUB_DB` không set — tên cũ từ thời config YAML |
+| `NOVEL2EPUB_CONFIG` | Fallback cuối, dùng khi cả hai biến trên đều không set |
+
+Thứ tự ưu tiên: `NOVEL2EPUB_DB` → `NOVEL2EPUB_FILE` → `NOVEL2EPUB_CONFIG` →
+`novel2epub.db`. Hai biến sau giữ lại cho tương thích ngược; cài mới chỉ cần
+`NOVEL2EPUB_DB`. Cả ba đều phải trỏ tới file `.db`.
 
 ## Hạn chế
 

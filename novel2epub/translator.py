@@ -357,6 +357,8 @@ class OpenAITranslator:
                 "chức danh) và thuật ngữ ĐẶC THÙ lặp lại nhiều lần (công pháp, "
                 "chiêu thức, cảnh giới, pháp bảo, đan dược, chủng tộc, hệ thống "
                 "sức mạnh, biệt danh cố định).\n"
+                "Tên người nước ngoài ghi dạng chữ Latin gốc (夏洛克 → Sherlock), "
+                "không ghi Hán Việt.\n"
                 "TUYỆT ĐỐI KHÔNG đưa vào: từ đời thường (đồ ăn, mua sắm, động tác, "
                 "cảm xúc, nghề nghiệp, vật dụng phổ thông); thành ngữ/khẩu ngữ/tiếng "
                 "lóng dịch thoát ý; từ hiện đại phổ thông; từ độc giả Việt hiểu ngay "

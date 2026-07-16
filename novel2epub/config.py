@@ -182,11 +182,12 @@ Nguyên tắc dịch:
 1. Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp Việt: đảo trật tự từ cho thuận, câu đủ chủ-vị.
 2. Ngôi xưng theo quan hệ và ngữ cảnh: cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu... KHÔNG bê nguyên ta/ngươi.
 3. Tên riêng, công pháp, địa danh, chiêu thức: giữ Hán Việt quen thuộc, viết hoa, nhất quán.
-4. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, nhưng giữ chất cổ trang khi cần.
-5. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
-6. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người Việt, không máy móc (khẩu ngữ chỉ sự e dè thì dịch "ngại", "ngại ngùng"; chê tác phong ăn uống thì "ăn uống khó coi"...).
-7. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): dịch tự nhiên như văn nói tiếng Việt thông thường, không cần giữ sắc thái Hán, không phiên âm Hán Việt cứng nhắc.
-8. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng bản dịch đó kèm tên dịch giả (vd: "— (bản dịch Tản Đà)"). Nếu không, tự chuyển ngữ cho người đọc hiểu, không dịch nguyên xi từng chữ kiểu Vietphrase.
+4. NGOẠI LỆ của luật 3 — tên người nước ngoài (Âu-Mỹ, Nhật, Hàn...) được bản gốc phiên âm sang chữ Hán: trả về ĐÚNG dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura), KHÔNG chuyển thành Hán Việt (KHÔNG "Hạ Lạc Khắc", "Minh Nhân"). Viết hoa và NHẤT QUÁN xuyên suốt. CHỈ áp dụng khi nhận ra CHẮC CHẮN tên gốc; không chắc thì giữ Hán Việt theo luật 3.
+5. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, nhưng giữ chất cổ trang khi cần.
+6. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
+7. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người Việt, không máy móc (khẩu ngữ chỉ sự e dè thì dịch "ngại", "ngại ngùng"; chê tác phong ăn uống thì "ăn uống khó coi"...).
+8. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): dịch tự nhiên như văn nói tiếng Việt thông thường, không cần giữ sắc thái Hán, không phiên âm Hán Việt cứng nhắc.
+9. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng bản dịch đó kèm tên dịch giả (vd: "— (bản dịch Tản Đà)"). Nếu không, tự chuyển ngữ cho người đọc hiểu, không dịch nguyên xi từng chữ kiểu Vietphrase.
 
 Phong cách:
 - Tông giọng: {tone}
@@ -208,7 +209,8 @@ Nguyên tắc bắt buộc:
 1. Không bê nguyên âm Hán Việt nếu người đọc Việt không hiểu nghĩa.
 2. Có thể đảo cấu trúc, dùng hình ảnh/ẩn dụ tương đương trong tiếng Việt, miễn giữ đúng tinh thần và nội dung cốt lõi.
 3. Ví dụ: "Nắm tay người, kéo người đi" nên dịch thành "Tay nắm tay, cùng nhau cất bước" — hay và tự nhiên hơn nhiều so với dịch sát chữ.
-4. Nếu thực sự không tìm được cách chuyển ngữ hay mà vẫn giữ đúng nghĩa, hãy dịch nghĩa rõ ràng dù kém mượt hơn là giữ Hán Việt khó hiểu, và điền dòng GIẢI THÍCH để người đọc hiểu nghĩa gốc/lý do chọn từ.
+4. Tên người nước ngoài giữ dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto), không chuyển Hán Việt.
+5. Nếu thực sự không tìm được cách chuyển ngữ hay mà vẫn giữ đúng nghĩa, hãy dịch nghĩa rõ ràng dù kém mượt hơn là giữ Hán Việt khó hiểu, và điền dòng GIẢI THÍCH để người đọc hiểu nghĩa gốc/lý do chọn từ.
 
 {glossary}
 Trả lời ĐÚNG 2 dòng theo định dạng sau, không thêm gì khác:

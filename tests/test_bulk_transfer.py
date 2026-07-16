@@ -1,7 +1,11 @@
 """Test module novel2epub.bulk_transfer (xuất/nhập biên tập hàng loạt, định dạng Markdown)."""
 from __future__ import annotations
 
+import pytest
+
 from novel2epub import bulk_transfer as b
+from novel2epub import config
+from novel2epub.presets import go, omniroute
 
 
 def test_round_trip_build_then_parse():
@@ -43,6 +47,33 @@ def test_translate_prompt_distinct_from_edit_prompt():
     assert b.TRANSLATE_PROMPT != b.EDIT_PROMPT
     assert "BIÊN TẬP LẠI" not in b.TRANSLATE_PROMPT
     assert "DỊCH" in b.TRANSLATE_PROMPT
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        config.DEFAULT_PROMPT,
+        b.TRANSLATE_PROMPT,
+        b.EDIT_PROMPT,
+        go.GO_PROMPT,
+        omniroute.OMNIPROUTE_PROMPT,
+    ],
+)
+def test_foreign_name_rule_present_in_every_prompt(prompt):
+    """Luật "tên người nước ngoài giữ dạng Latin" phải có ở MỌI prompt dịch/biên
+    tập — nếu chỉ sửa một chỗ, cùng một truyện sẽ ra 2 kiểu tên (Sherlock ở
+    luồng này, Hạ Lạc Khắc ở luồng kia)."""
+    assert "Sherlock" in prompt
+    assert "夏洛克" in prompt
+
+
+@pytest.mark.parametrize("prompt", [b.TRANSLATE_PROMPT, b.EDIT_PROMPT])
+def test_foreign_name_example_in_prompt_never_imported_as_glossary(prompt):
+    """Ví dụ tên nước ngoài trong prompt KHÔNG được nạp thành entry glossary thật
+    khi user dán ngược cả prompt — ví dụ dùng mũi tên `→` (không phải `=`) và
+    nằm trên heading `## GLOSSARY` mẫu, nên parse_glossary bỏ qua."""
+    text = b.build_export([(1, "", "x")], prompt=prompt) + "\n## GLOSSARY\n- 林动 = Lâm Động\n"
+    assert b.parse_glossary(text) == {"林动": "Lâm Động"}
 
 
 def test_parse_import_markdown_headers():

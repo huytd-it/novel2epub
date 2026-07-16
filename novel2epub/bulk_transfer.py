@@ -125,6 +125,9 @@ phái/tổ chức, chức danh/tước vị; hoặc thuật ngữ ĐẶC THÙ c�
 lặp lại nhiều lần — công pháp, chiêu thức, cảnh giới tu luyện, pháp bảo, đan \
 dược, chủng tộc, hệ thống sức mạnh, biệt danh/xưng hiệu cố định của nhân vật.
 
+Tên người nước ngoài ghi ở dạng chữ Latin gốc đúng như trong bản dịch \
+(vd 夏洛克 → Sherlock), KHÔNG ghi Hán Việt.
+
 TUYỆT ĐỐI KHÔNG đưa vào (đây là lỗi làm bẩn glossary):
 - Từ ngữ đời thường: đồ ăn thức uống, mua sắm, động tác, cảm xúc, nghề nghiệp \
 thông thường, vật dụng phổ thông (vd: kệ hàng, cơm thừa canh cặn, chạy việc \
@@ -161,6 +164,10 @@ câu đủ chủ – vị, ngắt câu/dấu câu hợp lý).
 đừng để câu khó hiểu; thành ngữ/tục ngữ phải đúng nghĩa gốc.
 5. TÊN RIÊNG (nhân vật, địa danh, môn phái, chức danh) giữ ở dạng Hán Việt viết \
 hoa, NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary tham khảo.
+6. TÊN NGƯỜI NƯỚC NGOÀI (Âu-Mỹ, Nhật, Hàn...) phải ở dạng chữ Latin gốc, KHÔNG \
+phải Hán Việt: gặp "Hạ Lạc Khắc" → sửa thành "Sherlock", "Minh Nhân" → \
+"Naruto", "Tiểu Anh" → "Sakura". CHỈ sửa khi nhận ra CHẮC CHẮN tên gốc; không \
+chắc thì giữ nguyên như bản dịch. Ưu tiên tên trong Glossary tham khảo.
 
 ## Quy tắc định dạng đầu ra (bắt buộc để nạp ngược vào hệ thống)
 
@@ -170,7 +177,7 @@ dung phía sau. KHÔNG gộp/đổi/xóa dòng tiêu đề, không tự thêm ti
 """ + _GLOSSARY_OUTPUT_RULE
 
 
-# Prompt dịch (Trung → Việt) cho luồng "xuất raw để dịch" — nguyên tắc 1-8 lấy
+# Prompt dịch (Trung → Việt) cho luồng "xuất raw để dịch" — nguyên tắc 1-9 lấy
 # nguyên từ `DEFAULT_PROMPT` trong `config.py` (prompt dịch chính thức của hệ
 # thống, dùng cho backend AI `openai`), giữ nguyên tinh thần, chỉ đổi phần
 # đầu/cuối cho phù hợp batch nhiều chương theo Markdown, để dịch thủ công qua
@@ -187,16 +194,21 @@ câu phải đủ chủ — vị.
 giữa cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu...
 3. Tên riêng, công pháp, địa danh, chiêu thức: giữ Hán Việt quen thuộc, viết \
 hoa và NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary tham khảo.
-4. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, \
+4. NGOẠI LỆ của luật 3 — tên người nước ngoài (Âu-Mỹ, Nhật, Hàn...) được bản \
+gốc phiên âm sang chữ Hán: trả về ĐÚNG dạng chữ Latin gốc (夏洛克 → Sherlock, \
+鸣人 → Naruto, 小樱 → Sakura), KHÔNG chuyển thành Hán Việt (KHÔNG "Hạ Lạc Khắc", \
+"Minh Nhân"). Viết hoa và NHẤT QUÁN xuyên suốt. CHỈ áp dụng khi nhận ra CHẮC \
+CHẮN tên gốc; không chắc thì giữ Hán Việt theo luật 3.
+5. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, \
 nhưng giữ chất cổ trang khi cần.
-5. Giữ nguyên cách chia đoạn của bản gốc.
-6. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người \
+6. Giữ nguyên cách chia đoạn của bản gốc.
+7. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người \
 Việt, không máy móc (khẩu ngữ chỉ sự e dè thì dịch "ngại", "ngại ngùng"; chê \
 tác phong ăn uống thì "ăn uống khó coi"...).
-7. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): \
+8. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): \
 dịch tự nhiên như văn nói tiếng Việt thông thường, không cần giữ sắc thái Hán, \
 không phiên âm Hán Việt cứng nhắc.
-8. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng và ghi \
+9. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng và ghi \
 tên dịch giả trong ngoặc (vd: "— (bản dịch Tản Đà)"); nếu không, tự chuyển ngữ \
 cho người đọc hiểu, không dịch nguyên xi từng chữ kiểu Vietphrase.
 

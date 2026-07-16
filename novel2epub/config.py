@@ -362,6 +362,34 @@ class QueueConfig:
     crawl_workers: int = 2      # job crawl chạy song song
 
 
+# Các field của `reader` CHỈ đọc từ `defaults:` — override per-ebook bị bỏ đi
+# lúc load (xem `load_config`). Chủ yếu để `service_key` chỉ nằm ĐÚNG MỘT chỗ.
+READER_GLOBAL_FIELDS = ("url", "service_key", "timeout_seconds", "batch_size")
+
+
+@dataclass
+class ReaderConfig:
+    """Đẩy chương lên app đọc novel-reader (Supabase PostgREST).
+
+    `url`/`service_key`/`timeout_seconds`/`batch_size` dùng chung mọi ebook
+    (chỉ đọc từ `defaults:`); `slug`/`free_chapters`/`published` đặt riêng
+    từng ebook.
+    """
+    # ── dùng chung ──
+    url: str = ""            # https://<ref>.supabase.co
+    service_key: str = ""    # service_role key — bypass RLS, TUYỆT ĐỐI không log
+    timeout_seconds: int = 60
+    batch_size: int = 50
+    # ── theo ebook ──
+    slug: str = ""           # books.slug bên Reader; rỗng = dùng novel.slug
+    free_chapters: int = 5   # số chương đầu đọc miễn phí (như cờ --free của ingest-epub.ts)
+    published: bool = False  # books.is_published, chỉ set khi tạo sách lần đầu
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.url and self.service_key)
+
+
 @dataclass
 class Config:
     novel: NovelConfig
@@ -370,6 +398,7 @@ class Config:
     output: OutputConfig
     ai: AIConfig = field(default_factory=AIConfig)
     queue: QueueConfig = field(default_factory=QueueConfig)
+    reader: ReaderConfig = field(default_factory=ReaderConfig)
     # Tên source preset mà ebook này tham chiếu. Rỗng = không dùng preset.
     source: str = ""
     # Cảnh báo xung đột tính năng phát hiện lúc load config (vd preset ép đổi
@@ -460,7 +489,7 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
     settings_row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
     defaults: dict[str, Any] = {}
     if settings_row:
-        for section in ("novel", "crawl", "translate", "ai", "output", "queue"):
+        for section in ("novel", "crawl", "translate", "ai", "output", "queue", "reader"):
             data = json.loads(settings_row[f"{section}_json"] or "{}")
             if data:
                 defaults[section] = data
@@ -495,6 +524,9 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
             output_over["epub_path"] = r["epub_path"]
         if output_over:
             block["output"] = output_over
+        reader_over = json.loads(r["reader_overrides_json"] or "{}")
+        if reader_over:
+            block["reader"] = reader_over
         ebooks[r["slug"]] = block
 
     return {"defaults": defaults, "sources": sources, "ebooks": ebooks}
@@ -540,6 +572,13 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     # bỏ qua để tránh mỗi ebook một bản cấu hình AI khác nhau.
     override.pop("translate", None)
     override.pop("ai", None)
+    # `reader` merge được per-ebook (slug/free_chapters/published), NHƯNG phần
+    # kết nối Supabase thì không — giữ `service_key` ở đúng một chỗ (defaults).
+    ebook_reader = _as_dict(override.get("reader"))
+    if ebook_reader:
+        override["reader"] = {
+            k: v for k, v in ebook_reader.items() if k not in READER_GLOBAL_FIELDS
+        }
 
     # Source preset resolution: nếu ebook có field `source`, lookup preset
     # từ bảng `sources` → merge crawl fields từ preset vào TRƯỚC khi ebook
@@ -755,4 +794,25 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         crawl_workers=max(1, int(queue_raw.get("crawl_workers", defaults_q.crawl_workers))),
     )
 
-    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, source=source_name, warnings=warnings)
+    reader_raw = _as_dict(raw.get("reader"))
+    defaults_r = ReaderConfig()
+    reader = ReaderConfig(
+        url=str(reader_raw.get("url", defaults_r.url)).strip().rstrip("/"),
+        service_key=str(reader_raw.get("service_key", defaults_r.service_key)).strip(),
+        timeout_seconds=max(1, int(reader_raw.get("timeout_seconds", defaults_r.timeout_seconds))),
+        batch_size=max(1, int(reader_raw.get("batch_size", defaults_r.batch_size))),
+        # Rỗng = dùng slug của ebook, để không phải khai lại cho mọi truyện.
+        slug=str(reader_raw.get("slug", defaults_r.slug)).strip() or novel.slug,
+        free_chapters=max(0, int(reader_raw.get("free_chapters", defaults_r.free_chapters))),
+        published=bool(reader_raw.get("published", defaults_r.published)),
+    )
+    if reader.url and not reader.url.startswith(("http://", "https://")):
+        warnings.append(
+            f"reader.url={reader.url!r} thiếu scheme http(s):// — đẩy lên Reader sẽ lỗi."
+        )
+    if reader.service_key and not reader.url:
+        warnings.append(
+            "reader.service_key đã điền nhưng reader.url trống — đẩy lên Reader sẽ bị bỏ qua."
+        )
+
+    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, reader=reader, source=source_name, warnings=warnings)

@@ -13,7 +13,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from .config import LibraryConfig, _deep_merge_raw
+from .config import READER_GLOBAL_FIELDS, LibraryConfig, _deep_merge_raw
 from .db import get_thread_connection
 
 # Field deprecated — không có UI counterpart, config_writer không ghi.
@@ -107,6 +107,18 @@ def update_ebook(
                 set_clauses.append("epub_path = ?")
                 params.append(merged_output["epub_path"])
 
+        reader_updates = updates.get("reader")
+        if isinstance(reader_updates, dict):
+            # Phần kết nối Supabase là cấu hình chung — chặn ngay ở đây để
+            # `service_key` không bị nhân bản vào từng ebook (load_config cũng
+            # strip, nhưng không nên ghi vào DB ngay từ đầu).
+            filtered = {k: v for k, v in reader_updates.items()
+                        if k not in READER_GLOBAL_FIELDS}
+            current_reader = json.loads(row["reader_overrides_json"] or "{}")
+            merged_reader = _deep_merge_raw(current_reader, filtered)
+            set_clauses.append("reader_overrides_json = ?")
+            params.append(json.dumps(merged_reader, ensure_ascii=False))
+
         if "source" in updates:
             set_clauses.append("source_preset = ?")
             params.append(updates["source"] or None)
@@ -126,7 +138,7 @@ def update_defaults(path: str | Path, updates: dict[str, Any]) -> None:
     """
     db_path = Path(path).resolve()
     conn = get_thread_connection(db_path)
-    sections = ("novel", "crawl", "translate", "ai", "output", "queue")
+    sections = ("novel", "crawl", "translate", "ai", "output", "queue", "reader")
     with conn:
         row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
         current: dict[str, dict[str, Any]] = {
@@ -148,8 +160,8 @@ def update_defaults(path: str | Path, updates: dict[str, Any]) -> None:
                 current[key] = value
         conn.execute(
             """
-            INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json)
-            VALUES (1, ?, ?, ?, ?, ?, ?)
+            INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json, reader_json)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 novel_json = excluded.novel_json,
                 crawl_json = excluded.crawl_json,
@@ -157,6 +169,7 @@ def update_defaults(path: str | Path, updates: dict[str, Any]) -> None:
                 ai_json = excluded.ai_json,
                 output_json = excluded.output_json,
                 queue_json = excluded.queue_json,
+                reader_json = excluded.reader_json,
                 updated_at = datetime('now')
             """,
             tuple(json.dumps(current[s], ensure_ascii=False) for s in sections),

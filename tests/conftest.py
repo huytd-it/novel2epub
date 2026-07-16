@@ -9,7 +9,7 @@ from typing import Any
 
 from novel2epub.db import get_connection, init_schema
 
-_SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "output", "queue")
+_SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "output", "queue", "reader")
 
 
 def write_db_config(
@@ -31,12 +31,13 @@ def write_db_config(
     with conn:
         conn.execute(
             """
-            INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json)
-            VALUES (1, ?, ?, ?, ?, ?, ?)
+            INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json, reader_json)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 novel_json = excluded.novel_json, crawl_json = excluded.crawl_json,
                 translate_json = excluded.translate_json, ai_json = excluded.ai_json,
-                output_json = excluded.output_json, queue_json = excluded.queue_json
+                output_json = excluded.output_json, queue_json = excluded.queue_json,
+                reader_json = excluded.reader_json
             """,
             tuple(json.dumps(defaults.get(s, {}), ensure_ascii=False) for s in _SETTINGS_SECTIONS),
         )
@@ -50,13 +51,15 @@ def write_db_config(
             novel.setdefault("slug", slug)
             crawl_over = block.get("crawl") or {}
             output_over = block.get("output") or {}
+            reader_over = block.get("reader") or {}
             conn.execute(
                 """
                 INSERT INTO ebooks
                     (slug, name, source_preset, title, author, description, language,
                      publisher, pubdate, date_added, subjects_json, series, series_index,
-                     identifier, cover_url, crawl_overrides_json, output_overrides_json, epub_path)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     identifier, cover_url, crawl_overrides_json, output_overrides_json, epub_path,
+                     reader_overrides_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     slug, block.get("name", ""), block.get("source"),
@@ -66,6 +69,7 @@ def write_db_config(
                     novel.get("series", ""), novel.get("series_index", ""), novel.get("identifier", ""),
                     novel.get("cover_url", ""), json.dumps(crawl_over, ensure_ascii=False),
                     json.dumps(output_over, ensure_ascii=False), output_over.get("epub_path", ""),
+                    json.dumps(reader_over, ensure_ascii=False),
                 ),
             )
     conn.close()

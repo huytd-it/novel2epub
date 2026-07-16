@@ -1,8 +1,8 @@
 """Daemon thread chạy automation theo lịch, đẩy qua JobQueue (xem spec
 automation-scheduling). Mỗi automation = 1 chuỗi step tuần tự (fetch-toc →
-crawl-new → translate-pending → build), enqueue thành 1 job "both" duy nhất
-để được JobQueue cấp quyền độc quyền crawl+dịch (an toàn vì step có thể đụng
-cả 2 lẫn build).
+crawl-new → translate-pending → build → publish-reader), enqueue thành 1 job
+"both" duy nhất để được JobQueue cấp quyền độc quyền crawl+dịch (an toàn vì
+step có thể đụng cả 2 lẫn build).
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from novel2epub.pipeline import (
     step_cleanup_han_selected,
     step_crawl_selected,
     step_fetch_toc,
+    step_publish_reader,
     step_translate_selected,
 )
 from novel2epub.storage import Storage
@@ -29,6 +30,7 @@ _STEP_FN = {
     "translate-pending": lambda cfg, log: step_translate_selected(cfg, log),
     "cleanup-han": lambda cfg, log: step_cleanup_han_selected(cfg, log),
     "build": lambda cfg, log: step_build(cfg, log),
+    "publish-reader": lambda cfg, log: step_publish_reader(cfg, log),
 }
 
 _DEFAULT_CONTINUOUS_COOLDOWN_MINUTES = 30

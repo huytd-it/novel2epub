@@ -7,7 +7,7 @@ from typing import Annotated
 
 import yaml
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
 from novel2epub.config_writer import update_ebook
 from novel2epub.progress import chapter_progress
@@ -218,5 +218,73 @@ def ebook_home(
             "epub_size": epub_path.stat().st_size if epub_path.exists() else None,
             "job": request.app.state.job.status(),
             "cost_summary": cost_summary,
+            "reader_configured": cfg.reader.configured,
         },
     )
+
+
+# ───────────────────────── đẩy lên app đọc novel-reader ─────────────────────
+
+
+@router.get("/api/ebooks/{slug}/publish/preview")
+def api_publish_preview(slug: str):
+    """Xem trước: sẽ thêm/sửa/bỏ qua bao nhiêu chương. Không ghi gì.
+
+    Chạy đồng bộ (không qua queue) vì chỉ có 2 request GET nhẹ lên Supabase —
+    người dùng cần thấy số liệu ngay trước khi bấm đẩy thật.
+    """
+    from novel2epub.pipeline import step_publish_reader
+
+    cfg = deps.resolved_cfg(slug)
+    if not cfg.reader.configured:
+        raise HTTPException(
+            status_code=400,
+            detail="Chưa cấu hình Reader — điền URL Supabase và service_role key ở Cài đặt > Reader.",
+        )
+    try:
+        counts = step_publish_reader(cfg, lambda _msg: None, dry_run=True)
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return JSONResponse(counts)
+
+
+def publish_reader_job_factory(params: dict):
+    """Dựng lại job đẩy từ spec đã lưu — cho phép khôi phục sau khi restart
+    (xem JobQueue.register_kind/load_pending)."""
+    slug = params["slug"]
+
+    def _target(log) -> None:
+        from novel2epub.pipeline import step_publish_reader
+
+        step_publish_reader(deps.resolved_cfg(slug), log)
+
+    return _target
+
+
+@router.post("/api/ebooks/{slug}/publish/push")
+def api_publish_push(request: Request, slug: str):
+    """Enqueue job đẩy chương lên Reader.
+
+    Cố ý KHÔNG lọc chương ở đây: việc phân loại mới/sửa diễn ra lúc job chạy,
+    nên job idempotent và tự khôi phục đúng sau restart (cùng lối với
+    chapters.api_batch_translate).
+
+    Category "build": đẩy là hành động đầu ra như build, không nên chiếm worker
+    của translate. Không cần độc quyền với job dịch vì `has_translated` đã chặn
+    bản dịch dở, và lần đẩy sau sẽ bắt được thay đổi qua content hash.
+    """
+    cfg = deps.resolved_cfg(slug)
+    if not cfg.reader.configured:
+        raise HTTPException(
+            status_code=400,
+            detail="Chưa cấu hình Reader — điền URL Supabase và service_role key ở Cài đặt > Reader.",
+        )
+    spec = {"kind": "publish-reader", "params": {"slug": slug}}
+    request.app.state.job.start_custom(
+        f"publish-reader:{slug}",
+        publish_reader_job_factory(spec["params"]),
+        category="build",
+        ebook=slug,
+        spec=spec,
+    )
+    return JSONResponse({"started": True})

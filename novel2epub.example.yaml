@@ -127,6 +127,19 @@ defaults:
     translate_workers: 2  # số job translate/batch-translate chạy song song
     crawl_workers: 2      # số job crawl chạy song song
 
+  # ---- Đẩy chương lên app đọc novel-reader (Supabase) ----
+  # Chỉ đẩy phần THAY ĐỔI: chương mới được thêm, chương đã biên tập lại được
+  # cập nhật mà GIỮ NGUYÊN chapters.id (nên bookmark / tiến độ đọc / review bên
+  # Reader không hỏng), chương không đổi thì bỏ qua. Không bao giờ xoá gì.
+  #
+  # 4 field dưới đây dùng CHUNG cho mọi ebook — chỉ đọc từ `defaults:`, đặt
+  # trong khối ebook sẽ bị bỏ qua (để service_key chỉ nằm đúng một chỗ).
+  reader:
+    url: ""          # https://<ref>.supabase.co — KHÔNG kèm /rest/v1
+    service_key: ""  # SUPABASE_SERVICE_ROLE_KEY — bypass toàn bộ RLS, không chia sẻ
+    timeout_seconds: 60
+    batch_size: 50   # số chương mỗi request
+
 
 ebooks:
   vi-du-truyen:
@@ -143,3 +156,8 @@ ebooks:
       scrapling:
         mode: fetcher
         impersonate: chrome
+    # Phần `reader` đặt riêng từng truyện (kết nối Supabase ở `defaults:`).
+    reader:
+      slug: ""           # books.slug bên Reader; để trống = dùng novel.slug
+      free_chapters: 5   # số chương ĐẦU đọc miễn phí
+      published: false   # books.is_published, CHỈ set khi tạo sách lần đầu

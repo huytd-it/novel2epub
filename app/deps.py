@@ -102,6 +102,15 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "translate_workers": 5,
         "crawl_workers": 2,
     },
+    "reader": {
+        "url": "",
+        "service_key": "",
+        "timeout_seconds": 60,
+        "batch_size": 50,
+        "slug": "",
+        "free_chapters": 5,
+        "published": False,
+    },
 }
 
 

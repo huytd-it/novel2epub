@@ -1,6 +1,7 @@
 """Automation: chuỗi bước pipeline (fetch-toc → crawl-new → translate-pending
-→ build) chạy theo lịch hoặc tay — lưu trong bảng `automations` của DB thống
-nhất (trước đây là `workspace/.n2e/automations.yaml` round-trip ruamel).
+→ build → publish-reader) chạy theo lịch hoặc tay — lưu trong bảng
+`automations` của DB thống nhất (trước đây là `workspace/.n2e/automations.yaml`
+round-trip ruamel).
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from typing import Any
 
 from .db import get_thread_connection
 
-STEPS = ("fetch-toc", "crawl-new", "translate-pending", "cleanup-han", "build")
+STEPS = ("fetch-toc", "crawl-new", "translate-pending", "cleanup-han", "build", "publish-reader")
 
 
 @dataclass

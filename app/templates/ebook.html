@@ -125,6 +125,11 @@
         <span class="action-group-label">Xuất bản</span>
         <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="build"><button class="btn btn-sm btn-primary" >Build EPUB</button></form>
         {% if epub_exists %}<a class="btn btn-sm btn-secondary" href="/ebooks/{{ slug }}/download">Tải EPUB</a> <span class="text-fg-muted dark:text-fg-muted-dark text-xs">({{ "%.1f"|format(epub_size / 1024 / 1024) }} MB)</span>{% endif %}
+        {% if reader_configured %}
+        <button type="button" id="publish-reader-btn" class="btn btn-sm btn-secondary">🚀 Đẩy lên Reader</button>
+        {% else %}
+        <a class="btn btn-sm btn-secondary opacity-60" href="/ebooks/{{ slug }}/settings" title="Chưa cấu hình Reader — bấm để tới Cài đặt > Reader">🚀 Đẩy lên Reader</a>
+        {% endif %}
     </div>
     <div class="action-group" role="group" aria-label="Đọc">
         <span class="action-group-label">Đọc</span>
@@ -868,6 +873,47 @@ document.getElementById("btn-preview-reindex")?.addEventListener("click", functi
     const banner = document.getElementById("reindex-preview-banner");
     if (banner) banner.classList.toggle("hidden", !reindexPreviewMode);
     renderToc();
+});
+
+// --- Đẩy lên Reader: xem trước rồi mới đẩy thật ---
+document.getElementById("publish-reader-btn")?.addEventListener("click", async function () {
+    const btn = this;
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Đang kiểm tra...";
+    try {
+        const resp = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/publish/preview`);
+        const data = await resp.json();
+        if (!resp.ok) {
+            alert("Lỗi: " + (data.detail || resp.status));
+            return;
+        }
+        if (!data.new && !data.edited) {
+            alert(`Không có gì để đẩy.\n\n${data.unchanged} chương đã đồng bộ, ${data.skipped} chương bỏ qua (chưa dịch xong hoặc bị skip).`);
+            return;
+        }
+        const ok = confirm(
+            `Đẩy lên Reader?\n\n` +
+            `• Thêm mới: ${data.new} chương\n` +
+            `• Cập nhật: ${data.edited} chương\n` +
+            `• Không đổi: ${data.unchanged} chương (bỏ qua)\n` +
+            `• Bỏ qua: ${data.skipped} chương (chưa dịch xong / skip)\n\n` +
+            `Không có chương nào bị xoá trên Reader.`
+        );
+        if (!ok) return;
+        const push = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/publish/push`, { method: "POST" });
+        const pushData = await push.json();
+        if (!push.ok) {
+            alert("Lỗi: " + (pushData.detail || push.status));
+            return;
+        }
+        location.href = "/queue";
+    } catch (e) {
+        alert("Lỗi: " + e);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+    }
 });
 </script>
 {% endblock %}

@@ -582,6 +582,47 @@ def save_ai(
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
+@router.post("/ebooks/{slug}/settings/reader")
+def save_reader(
+    slug: str,
+    url: str = Form(""),
+    service_key: str = Form(""),
+    timeout_seconds: int = Form(60),
+    batch_size: int = Form(50),
+    reader_slug: str = Form(""),
+    free_chapters: int = Form(5),
+    published: bool = Form(False),
+):
+    """Lưu cấu hình đẩy chương lên app đọc novel-reader.
+
+    Khối này tách đôi: phần kết nối Supabase (`url`/`service_key`/`timeout`/
+    `batch_size`) dùng chung MỌI ebook nên ghi vào `defaults:`; phần
+    `slug`/`free_chapters`/`published` là của riêng từng truyện nên ghi vào
+    override của ebook.
+
+    KHÔNG log `service_key`.
+    """
+    path = deps.ebook_config_path(slug)
+    logger.info(
+        "[config][READER] global (từ %s) lưu vào defaults của %s: url=%r timeout=%ss batch_size=%s "
+        "| ebook %s: slug=%r free_chapters=%s published=%s",
+        slug, path, url, timeout_seconds, batch_size,
+        slug, reader_slug, free_chapters, published,
+    )
+    update_defaults(deps.WORKSPACE_PATH, {"reader": {
+        "url": url,
+        "service_key": service_key,
+        "timeout_seconds": timeout_seconds,
+        "batch_size": batch_size,
+    }})
+    update_ebook(deps.WORKSPACE_PATH, slug, {"reader": {
+        "slug": reader_slug,
+        "free_chapters": free_chapters,
+        "published": published,
+    }})
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
 @router.post("/ebooks/{slug}/settings/output")
 def save_output(
     slug: str,

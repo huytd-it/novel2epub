@@ -1942,6 +1942,156 @@ def step_build_selected(
     return str(out)
 
 
+def _collect_publishable(storage: Storage, manifest: Manifest) -> list[tuple[int, str, str, dict]]:
+    """`(index, title, markdown, meta)` của các chương ĐỦ ĐIỀU KIỆN đẩy.
+
+    Bỏ chương bị skip và chương chưa dịch xong — `has_translated` đã chặn bản
+    dịch dở (meta['complete'] is False) nên job dịch đang chạy song song không
+    làm rò bản nửa vời lên Reader.
+    """
+    items: list[tuple[int, str, str, dict]] = []
+    for ch in manifest.chapters:
+        if ch.skipped or not storage.has_translated(ch):
+            continue
+        meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+        items.append((ch.index, ch.title, storage.read_translated(ch), meta))
+    return items
+
+
+def step_publish_reader(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    should_cancel: CancelFn | None = None,
+    dry_run: bool = False,
+) -> dict:
+    """Đẩy chương đã dịch lên app đọc novel-reader (Supabase).
+
+    Chỉ đẩy phần thay đổi: chương MỚI được insert (kèm `is_free` theo cấu
+    hình), chương ĐÃ SỬA được update mà GIỮ NGUYÊN `chapters.id` (nên bookmark
+    và tiến độ đọc bên Reader không hỏng), chương không đổi thì bỏ qua. Không
+    bao giờ xoá gì trên Reader.
+
+    `dry_run=True`: chỉ đếm và trả về số liệu, không ghi gì (cả Reader lẫn
+    meta local) — dùng cho nút "Xem trước".
+
+    Trả dict `{"new", "edited", "unchanged", "skipped"}`.
+    """
+    from . import reader_client
+    from .reader_sync import classify_chapters
+
+    _emit_config_warnings(cfg, log)
+    reader = cfg.reader
+    if not reader.url or not reader.service_key:
+        raise RuntimeError(
+            "Chưa cấu hình Reader — cần điền reader.url và reader.service_key "
+            "ở Cài đặt > Reader trước khi đẩy."
+        )
+    book_slug = reader.slug or cfg.novel.slug
+    if not book_slug:
+        raise RuntimeError("Chưa có slug sách bên Reader (reader.slug).")
+
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    # KHÔNG log service_key — job log hiện công khai ở /queue, /logs.
+    log(f"[đẩy-reader] Đích: {reader.url} | sách: {book_slug!r} "
+        f"| miễn phí {reader.free_chapters} chương đầu"
+        + (" | XEM TRƯỚC (không ghi gì)" if dry_run else ""))
+
+    items = _collect_publishable(storage, manifest)
+    not_ready = len(manifest.chapters) - len(items)
+    if not items:
+        log(f"[đẩy-reader] Không có chương nào đã dịch xong để đẩy "
+            f"(bỏ qua {not_ready} chương chưa dịch/bị skip).")
+        return {"new": 0, "edited": 0, "unchanged": 0, "skipped": not_ready}
+
+    book_id = reader_client.upsert_book(
+        reader,
+        slug=book_slug,
+        title=cfg.novel.title,
+        author=cfg.novel.author,
+        description=cfg.novel.description,
+        cover_url=cfg.novel.cover_url,
+        log=log,
+    ) if not dry_run else _peek_book_id(reader, book_slug, log)
+
+    remote_ids = (
+        reader_client.fetch_remote_chapter_ids(reader, book_id, log=log) if book_id else {}
+    )
+    plan = classify_chapters(items, remote_ids)
+    plan.skipped += not_ready
+
+    counts = plan.counts()
+    log(f"[đẩy-reader] {counts['new']} chương mới | {counts['edited']} chương sửa "
+        f"| {counts['unchanged']} không đổi | {counts['skipped']} bỏ qua.")
+    if dry_run or plan.total_changed == 0:
+        if not dry_run:
+            log("[đẩy-reader] Không có gì thay đổi — không gửi request ghi nào.")
+        return counts
+
+    by_index = {ch.index: ch for ch in manifest.chapters}
+    size = reader.batch_size
+    # Chương MỚI và chương SỬA phải đi hai đường riêng: lô SỬA cố ý KHÔNG gửi
+    # `is_free` để không đạp lên chỉnh tay bên Reader (PostgREST merge-duplicates
+    # chỉ update các cột có trong payload).
+    for label, pushes, include_is_free in (
+        ("mới", plan.new, True),
+        ("sửa", plan.edited, False),
+    ):
+        for start in range(0, len(pushes), size):
+            if should_cancel and should_cancel():
+                log("[đẩy-reader] Đã dừng theo yêu cầu.")
+                return counts
+            batch = pushes[start:start + size]
+            ids = reader_client.upsert_chapters(
+                reader, book_id, batch,
+                include_is_free=include_is_free,
+                free_chapters=reader.free_chapters,
+                log=log,
+            )
+            reader_client.upsert_contents(
+                reader,
+                [(ids[p.index], p.content) for p in batch if p.index in ids],
+                log=log,
+            )
+            # Ghi state NGAY sau mỗi lô: job dừng giữa chừng thì lần chạy sau
+            # tiếp tục từ đây chứ không đẩy lại từ đầu.
+            now = time.time()
+            for p in batch:
+                remote_id = ids.get(p.index)
+                if not remote_id:
+                    continue
+                ch = by_index.get(p.index)
+                if ch is None:
+                    continue
+                _update_chapter_meta(
+                    storage, ch,
+                    reader={"hash": p.hash, "remote_id": remote_id, "pushed_at": now},
+                )
+            done = min(start + size, len(pushes))
+            log(f"[đẩy-reader]   ({done}/{len(pushes)}) chương {label} đã đẩy.")
+
+    total = reader_client.count_remote_chapters(reader, book_id, log=log)
+    reader_client.update_chapter_count(reader, book_id, total, log=log)
+    log(f"[đẩy-reader] Xong. Sách có {total} chương trên Reader.")
+    return counts
+
+
+def _peek_book_id(reader, book_slug: str, log: LogFn) -> str:
+    """`books.id` nếu sách đã có trên Reader, "" nếu chưa — dùng cho xem trước
+    (không được tạo sách)."""
+    from . import reader_client
+
+    book = reader_client.fetch_book(reader, book_slug, log=log)
+    if book is None:
+        log(f"[đẩy-reader] Sách {book_slug!r} chưa có trên Reader — sẽ tạo mới khi đẩy thật.")
+        return ""
+    return str(book["id"])
+
+
 def run_all(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> str:
     step_crawl(cfg, log, should_cancel=should_cancel)
     if should_cancel and should_cancel():

@@ -1,13 +1,16 @@
-"""Daemon thread chạy automation theo lịch, đẩy qua JobQueue (xem spec
-automation-scheduling). Mỗi automation = 1 chuỗi step tuần tự (fetch-toc →
-crawl-new → translate-pending → build → publish-reader), enqueue thành 1 job
-"both" duy nhất để được JobQueue cấp quyền độc quyền crawl+dịch (an toàn vì
-step có thể đụng cả 2 lẫn build).
+"""Daemon thread chạy automation theo lịch cron 5 trường — croniter, stateless
+từ last_run_at/created_at, lỡ mốc chạy bù tối đa 1 lần (xem spec cron-schedule).
+Mỗi automation = 1 chuỗi step tuần tự (fetch-toc → crawl-new →
+translate-pending → build → publish-reader), enqueue thành 1 job "both" duy
+nhất để được JobQueue cấp quyền độc quyền crawl+dịch (an toàn vì step có thể
+đụng cả 2 lẫn build).
 """
 from __future__ import annotations
 
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
+
+from croniter import croniter
 
 from novel2epub.automation import Automation, load_automations, update_automation
 from novel2epub.config import load_config
@@ -33,53 +36,30 @@ _STEP_FN = {
     "publish-reader": lambda cfg, log: step_publish_reader(cfg, log),
 }
 
-_DEFAULT_CONTINUOUS_COOLDOWN_MINUTES = 30
-
-
-def _is_due_daily(automation: Automation, now: datetime) -> bool:
-    hhmm = automation.schedule.split("@", 1)[1]
-    try:
-        hh, mm = (int(x) for x in hhmm.split(":"))
-    except ValueError:
-        return False
-    scheduled_today = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-    if now < scheduled_today:
-        return False
-    if automation.last_run_at:
-        try:
-            last_run = datetime.fromisoformat(automation.last_run_at)
-        except ValueError:
-            last_run = None
-        if last_run is not None and last_run.date() == now.date():
-            return False
-    return True
-
-
-def _is_due_continuous(automation: Automation, now: datetime) -> bool:
-    cooldown = _DEFAULT_CONTINUOUS_COOLDOWN_MINUTES
-    if "@" in automation.schedule:
-        raw = automation.schedule.split("@", 1)[1]
-        try:
-            cooldown = int(raw)
-        except ValueError:
-            cooldown = _DEFAULT_CONTINUOUS_COOLDOWN_MINUTES
-    if not automation.last_run_at:
-        return True
-    try:
-        last_run = datetime.fromisoformat(automation.last_run_at)
-    except ValueError:
-        return True
-    return now - last_run >= timedelta(minutes=cooldown)
-
-
 def _is_due(automation: Automation, now: datetime) -> bool:
+    """Đến hạn = đã qua mốc cron kế tiếp kể từ lần chạy cuối (hoặc từ lúc tạo
+    nếu chưa từng chạy) → lỡ nhiều mốc chỉ chạy bù đúng 1 lần. Cron rác ném
+    ValueError — `_tick` bắt và bỏ qua automation đó."""
     if not automation.enabled or automation.schedule == "manual":
         return False
-    if automation.schedule.startswith("continuous"):
-        return _is_due_continuous(automation, now)
-    if automation.schedule.startswith("daily@"):
-        return _is_due_daily(automation, now)
-    return False
+    base_iso = automation.last_run_at or automation.created_at
+    if not base_iso:
+        return True  # hàng tiền-migration, chưa chạy lần nào → chạy luôn
+    base = datetime.fromisoformat(base_iso)
+    return croniter(automation.schedule, base).get_next(datetime) <= now
+
+
+def next_run_at(automation: Automation, now: datetime | None = None) -> datetime | None:
+    """Mốc chạy kế tiếp để hiển thị — None nếu manual/tắt/cron rác. Mốc đã
+    qua (đang chờ chạy bù) vẫn trả về nguyên vẹn."""
+    if not automation.enabled or automation.schedule == "manual":
+        return None
+    base_iso = automation.last_run_at or automation.created_at
+    try:
+        base = datetime.fromisoformat(base_iso) if base_iso else (now or datetime.now())
+        return croniter(automation.schedule, base).get_next(datetime)
+    except (ValueError, KeyError):
+        return None
 
 
 def _count_progress(cfg) -> dict:
@@ -177,11 +157,17 @@ class AutomationScheduler:
     def _tick(self) -> None:
         now = datetime.now()
         for automation in load_automations(self.automations_path).values():
-            if not _is_due(automation, now):
-                continue
-            if self.queue.has_pending_step("automation", automation.ebook):
-                continue
-            self.run_now(automation.id)
+            try:
+                if not _is_due(automation, now):
+                    continue
+                if self.queue.has_pending_step("automation", automation.ebook):
+                    continue
+                self.run_now(automation.id)
+            except Exception:  # noqa: BLE001 - 1 automation hỏng không được chặn các cái sau
+                logger.exception(
+                    "Lỗi đánh giá automation %s (ebook=%s, schedule=%r)",
+                    automation.id, automation.ebook, automation.schedule,
+                )
 
     def run_now(self, automation_id: str) -> str | None:
         automations = load_automations(self.automations_path)

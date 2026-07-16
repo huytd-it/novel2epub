@@ -57,80 +57,90 @@ def test_remove_automation(tmp_path):
     assert load_automations(path) == {}
 
 
-# ---------- _is_due ----------
+# ---------- _is_due (cron) ----------
+
+T0 = datetime(2026, 7, 16, 12, 0, 0)
 
 
 def test_manual_schedule_never_due():
-    a = Automation(id="x", ebook="e", schedule="manual")
-    assert _is_due(a, datetime.now()) is False
+    a = Automation(id="x", ebook="e", schedule="manual", created_at=T0.isoformat())
+    assert _is_due(a, T0 + timedelta(days=1)) is False
 
 
 def test_disabled_automation_never_due():
-    a = Automation(id="x", ebook="e", schedule="daily@00:00", enabled=False)
-    assert _is_due(a, datetime.now()) is False
+    a = Automation(id="x", ebook="e", schedule="*/30 * * * *", enabled=False,
+                   created_at=T0.isoformat())
+    assert _is_due(a, T0 + timedelta(days=1)) is False
 
 
-def test_daily_schedule_due_after_scheduled_time_today():
-    now = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
-    a = Automation(id="x", ebook="e", schedule="daily@09:00")
-    assert _is_due(a, now) is True
+def test_cron_due_after_next_mark_since_last_run():
+    a = Automation(id="x", ebook="e", schedule="*/30 * * * *", last_run_at=T0.isoformat())
+    assert _is_due(a, T0 + timedelta(minutes=29)) is False
+    assert _is_due(a, T0 + timedelta(minutes=30)) is True
 
 
-def test_daily_schedule_not_due_before_scheduled_time():
-    now = datetime.now().replace(hour=8, minute=0, second=0, microsecond=0)
-    a = Automation(id="x", ebook="e", schedule="daily@09:00")
-    assert _is_due(a, now) is False
+def test_cron_daily_equivalent():
+    a = Automation(id="x", ebook="e", schedule="0 9 * * *",
+                   last_run_at=datetime(2026, 7, 16, 9, 0, 5).isoformat())
+    assert _is_due(a, datetime(2026, 7, 16, 23, 0)) is False   # mốc kế = 9h mai
+    assert _is_due(a, datetime(2026, 7, 17, 9, 0)) is True
 
 
-def test_daily_schedule_not_due_twice_same_day():
-    now = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
-    a = Automation(id="x", ebook="e", schedule="daily@09:00", last_run_at=now.isoformat())
-    assert _is_due(a, now) is False
+def test_cron_missed_marks_catch_up_once():
+    # lỡ nhiều mốc (máy tắt 3 ngày) → đến hạn ngay; sau khi chạy (last_run_at
+    # = giờ xong) thì mốc kế mới lại là tương lai → chỉ bù 1 lần
+    a = Automation(id="x", ebook="e", schedule="*/30 * * * *",
+                   last_run_at=(T0 - timedelta(days=3)).isoformat())
+    assert _is_due(a, T0) is True
+    a.last_run_at = T0.isoformat()
+    assert _is_due(a, T0 + timedelta(minutes=5)) is False
 
 
-def test_daily_schedule_due_again_next_day():
-    yesterday = datetime.now() - timedelta(days=1)
-    now = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
-    a = Automation(id="x", ebook="e", schedule="daily@09:00", last_run_at=yesterday.isoformat())
-    assert _is_due(a, now) is True
+def test_never_run_uses_created_at_as_base():
+    a = Automation(id="x", ebook="e", schedule="*/30 * * * *", created_at=T0.isoformat())
+    assert _is_due(a, T0 + timedelta(minutes=5)) is False
+    assert _is_due(a, T0 + timedelta(minutes=30)) is True
 
 
-def test_continuous_schedule_due_when_never_run():
-    a = Automation(id="x", ebook="e", schedule="continuous@30")
-    assert _is_due(a, datetime.now()) is True
+def test_never_run_without_created_at_is_due():
+    # hàng tiền-migration (không created_at, chưa chạy lần nào) → coi như đến hạn
+    a = Automation(id="x", ebook="e", schedule="*/30 * * * *")
+    assert _is_due(a, T0) is True
 
 
-def test_continuous_schedule_not_due_within_cooldown():
-    now = datetime.now()
-    a = Automation(id="x", ebook="e", schedule="continuous@30", last_run_at=(now - timedelta(minutes=5)).isoformat())
-    assert _is_due(a, now) is False
+def test_is_due_raises_on_garbage_cron():
+    import pytest
+
+    a = Automation(id="x", ebook="e", schedule="not a cron", created_at=T0.isoformat())
+    with pytest.raises(Exception):
+        _is_due(a, T0)
 
 
-def test_continuous_schedule_due_after_cooldown():
-    now = datetime.now()
-    a = Automation(id="x", ebook="e", schedule="continuous@30", last_run_at=(now - timedelta(minutes=31)).isoformat())
-    assert _is_due(a, now) is True
+def test_tick_survives_one_garbage_automation(tmp_path, monkeypatch):
+    # 1 automation dữ liệu rác không được chặn các automation sau trong cùng
+    # vòng poll. Lưu ý: schedule rác đã bị load_automations migrate → "manual"
+    # nên phải dùng last_run_at rác (migration không đụng) để ép exception
+    # trong _is_due (datetime.fromisoformat nổ ValueError).
+    import json
 
+    from novel2epub.db import get_thread_connection
 
-def test_continuous_bare_defaults_to_30_minutes():
-    now = datetime.now()
-    a = Automation(id="x", ebook="e", schedule="continuous", last_run_at=(now - timedelta(minutes=31)).isoformat())
-    assert _is_due(a, now) is True
-    a2 = Automation(id="x", ebook="e", schedule="continuous", last_run_at=(now - timedelta(minutes=5)).isoformat())
-    assert _is_due(a2, now) is False
-
-
-def test_continuous_malformed_cooldown_falls_back_to_default():
-    now = datetime.now()
-    a = Automation(id="x", ebook="e", schedule="continuous@abc", last_run_at=(now - timedelta(minutes=5)).isoformat())
-    assert _is_due(a, now) is False
-    a2 = Automation(id="x", ebook="e", schedule="continuous@abc", last_run_at=(now - timedelta(minutes=31)).isoformat())
-    assert _is_due(a2, now) is True
-
-
-def test_continuous_disabled_never_due():
-    a = Automation(id="x", ebook="e", schedule="continuous@30", enabled=False)
-    assert _is_due(a, datetime.now()) is False
+    path = tmp_path / "automations.yaml"
+    conn = get_thread_connection(path)
+    with conn:
+        for aid, last_run in [("bad", "không-phải-ISO"), ("good", (T0 - timedelta(hours=2)).isoformat())]:
+            conn.execute(
+                "INSERT INTO automations (id, ebook, steps_json, schedule, enabled,"
+                " last_run_at, last_run_outcome, last_run_error, last_run_stats_json, created_at)"
+                " VALUES (?, ?, ?, '*/30 * * * *', 1, ?, '', '', '{}', ?)",
+                (aid, f"ebook-{aid}", json.dumps(["build"]), last_run, T0.isoformat()),
+            )
+    queue = JobQueue(workers={"crawl": 1, "translate": 1})
+    sched = AutomationScheduler(path, tmp_path, queue, poll_seconds=1000)
+    ran = []
+    monkeypatch.setattr(sched, "run_now", lambda aid: ran.append(aid))
+    sched._tick()
+    assert ran == ["good"]
 
 
 # ---------- run_automation_steps ----------

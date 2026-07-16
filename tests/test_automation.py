@@ -42,6 +42,14 @@ def test_automation_roundtrip_includes_error_and_stats_fields(tmp_path):
     assert loaded[a.id].last_run_stats == stats
 
 
+def test_add_automation_sets_created_at(tmp_path):
+    path = tmp_path / "automations.yaml"
+    a = add_automation(path, "myebook", ["build"])
+    assert a.created_at != ""
+    loaded = load_automations(path)
+    assert loaded[a.id].created_at == a.created_at
+
+
 def test_remove_automation(tmp_path):
     path = tmp_path / "automations.yaml"
     a = add_automation(path, "myebook", ["build"])

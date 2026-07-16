@@ -172,7 +172,8 @@ _SCHEMA_STATEMENTS = [
         last_run_at TEXT NOT NULL DEFAULT '',
         last_run_outcome TEXT NOT NULL DEFAULT '',
         last_run_error TEXT NOT NULL DEFAULT '',
-        last_run_stats_json TEXT NOT NULL DEFAULT '{}'
+        last_run_stats_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT ''
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_automations_ebook ON automations(ebook)",
@@ -186,6 +187,8 @@ _ADDED_COLUMNS = [
     # v2: đẩy chương lên app đọc (novel-reader / Supabase)
     ("settings", "reader_json", "TEXT NOT NULL DEFAULT '{}'"),
     ("ebooks", "reader_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
+    # v3: lịch cron — base tính "đến hạn" cho automation chưa từng chạy
+    ("automations", "created_at", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 

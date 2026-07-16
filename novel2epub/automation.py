@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,7 @@ class Automation:
     last_run_outcome: str = ""  # "" | "success" | "failure" | "partial"
     last_run_error: str = ""  # "{step}: {lỗi}" của lần chạy gần nhất, "" nếu thành công
     last_run_stats: dict = field(default_factory=dict)  # {"chapters_total", "crawled", "translated", "han_fixed"}
+    created_at: str = ""  # ISO datetime lúc tạo — base tính đến hạn khi chưa từng chạy
 
 
 def load_automations(db_path: str | Path) -> dict[str, Automation]:
@@ -56,6 +58,7 @@ def load_automations(db_path: str | Path) -> dict[str, Automation]:
             last_run_outcome=r["last_run_outcome"],
             last_run_error=r["last_run_error"],
             last_run_stats=json.loads(r["last_run_stats_json"] or "{}"),
+            created_at=r["created_at"],
         )
     return result
 
@@ -69,13 +72,14 @@ def save_automations(db_path: str | Path, automations: dict[str, Automation]) ->
                 """
                 INSERT INTO automations
                     (id, ebook, steps_json, schedule, enabled,
-                     last_run_at, last_run_outcome, last_run_error, last_run_stats_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     last_run_at, last_run_outcome, last_run_error, last_run_stats_json,
+                     created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     a.id, a.ebook, json.dumps(a.steps, ensure_ascii=False), a.schedule,
                     int(a.enabled), a.last_run_at, a.last_run_outcome, a.last_run_error,
-                    json.dumps(a.last_run_stats, ensure_ascii=False),
+                    json.dumps(a.last_run_stats, ensure_ascii=False), a.created_at,
                 ),
             )
 
@@ -83,7 +87,10 @@ def save_automations(db_path: str | Path, automations: dict[str, Automation]) ->
 def add_automation(db_path: str | Path, ebook: str, steps: list[str], schedule: str = "manual") -> Automation:
     automations = load_automations(db_path)
     new_id = str(uuid.uuid4())
-    automation = Automation(id=new_id, ebook=ebook, steps=list(steps), schedule=schedule)
+    automation = Automation(
+        id=new_id, ebook=ebook, steps=list(steps), schedule=schedule,
+        created_at=datetime.now().isoformat(),
+    )
     automations[new_id] = automation
     save_automations(db_path, automations)
     return automation

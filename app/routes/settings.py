@@ -542,6 +542,17 @@ def test_translate_connection(
     return JSONResponse(result, status_code=200)
 
 
+@router.get("/settings/translate/default-prompts")
+def get_default_prompts(source_language: str = ""):
+    """Trả prompt_template + title_prompt_template mặc định theo ngôn ngữ nguồn.
+    Dùng cho nút 'Nạp prompt mẫu theo ngôn ngữ nguồn' trong UI."""
+    from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT, EN_TITLE_PROMPT, TITLE_PROMPT
+
+    if source_language == "en":
+        return JSONResponse({"prompt_template": EN_DEFAULT_PROMPT, "title_prompt_template": EN_TITLE_PROMPT})
+    return JSONResponse({"prompt_template": DEFAULT_PROMPT, "title_prompt_template": TITLE_PROMPT})
+
+
 @router.post("/ebooks/{slug}/settings/translate")
 def save_translate(
     slug: str,
@@ -560,6 +571,7 @@ def save_translate(
     keep_paragraphs: bool = Form(False),
     delay_seconds: float = Form(0.5),
     max_workers: int = Form(1),
+    source_language: str = Form(""),
     # Local NMT model selector
     local_model: str = Form(""),
     retry_attempts: int = Form(1),
@@ -601,6 +613,7 @@ def save_translate(
 
     translate: dict = {
         "type": type,
+        "source_language": source_language,
         "model": local_model,
         "openai": openai_cfg,
         "hachimimt": hachimimt_cfg,
@@ -630,11 +643,11 @@ def save_translate(
     }
     path = deps.ebook_config_path(slug)
     logger.info(
-        "[config][AI/DỊCH] slug=%s lưu riêng cho ebook (DB %s): type=%s local_model=%s base_url=%r model=%r "
+        "[config][AI/DỊCH] slug=%s lưu riêng cho ebook (DB %s): type=%s source_lang=%s local_model=%s base_url=%r model=%r "
         "hachimimt=%s timeout=%ss temperature=%s tone=%r pronoun=%s title_mode=%s han_viet=%s "
         "keep_paragraphs=%s retry=%s chunk_max_chars=%s delay=%ss "
         "auto_glossary=%s glossary_filter=%s batch_size=%s prompt_max_chars=%s auto_cleanup_han=%s cleanup_han=%s/%s",
-        slug, path, type, local_model, base_url, model,
+        slug, path, type, source_language, local_model, base_url, model,
         hachimimt_model_key, timeout_seconds, temperature, tone,
         pronoun_policy, title_mode, han_viet_level, keep_paragraphs, retry_attempts,
         chunk_max_chars, delay_seconds,

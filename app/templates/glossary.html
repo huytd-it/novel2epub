@@ -337,10 +337,13 @@ function openReapply(entry) {
     reapplyFrom.value = 0; reapplyTo.value = 0;
     reapplyResult.innerHTML = "";
     reapplyApplyBtn.disabled = true;
-    reapplyModal.classList.remove("hidden");
+    // Modal ẩn qua thuộc tính HTML `hidden` (xem base.html) — dùng đúng
+    // openModal/closeModal chung của app, không tự toggle class "hidden"
+    // (class đó không nằm trong class="" của phần tử nên không có tác dụng).
+    openModal("reapply-modal");
     reapplyReplace.focus();
 }
-function closeReapply() { reapplyModal.classList.add("hidden"); reapplyEntry = null; }
+function closeReapply() { closeModal("reapply-modal"); reapplyEntry = null; }
 document.getElementById("reapply-close").addEventListener("click", closeReapply);
 reapplyModal.addEventListener("click", e => { if (e.target === reapplyModal) closeReapply(); });
 

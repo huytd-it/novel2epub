@@ -200,7 +200,7 @@ CHỈ trả về bản dịch tiếng Việt thuần túy. KHÔNG thêm lời m�
 KIỂM TRA CUỐI (bắt buộc): trước khi trả lời, rà lại toàn bộ bản dịch từ đầu đến cuối; nếu còn BẤT KỲ ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
 --- Nội dung cần dịch ---
-{text}"""
+{text}{auto_glossary_block}{fixup_warning}"""
 
 
 TITLE_PROMPT = """Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt. Nhiệm vụ: chuyển ngữ {kind} sau sang tiếng Việt thật HAY, có hồn, KHÔNG dịch sát nghĩa kiểu máy/Quick Translate.
@@ -218,6 +218,50 @@ TIÊU ĐỀ: <bản dịch tiếng Việt>
 GIẢI THÍCH: <để trống nếu tên đã rõ nghĩa, tự nhiên; chỉ điền nếu cần giải thích thêm cho người đọc>
 
 --- {kind} cần dịch ---
+{text}"""
+
+
+EN_DEFAULT_PROMPT = """You are a professional translator converting English web novel text into Vietnamese, following a polished editing style familiar to Vietnamese readers.
+
+Translation rules:
+1. Translate into natural, grammatically correct Vietnamese — restructure word order as needed.
+2. Pronouns based on relationship and context: cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu... Do NOT blindly copy English pronouns.
+3. Keep well-known Hán Việt names for characters, techniques, and places. Write in uppercase, be consistent.
+4. EXCEPTION to rule 3 — foreign character names (Western, Japanese, Korean...) that appear as pinyin or English glosses in the source: try to resolve them to the familiar Hán Việt form when confident (e.g. "Xie Lian" → "Tạ Liên", "Wei Wuxian" → "Ngụy Vô Tiện"). If not confident, keep the English/pinyin form as-is. Capitalize and be consistent throughout.
+5. Avoid obscure Hán Việt when a pure Vietnamese word is clearer, but keep the ancient/fantasy tone where appropriate.
+6. Preserve paragraph breaks. If the first line is a chapter title, translate it well and concisely.
+7. Idioms, colloquialisms, slang: translate by natural Vietnamese equivalents, not word-for-word.
+8. Everyday vocabulary (cooking, eating, emotions, body language...): translate naturally as everyday Vietnamese speech.
+9. Poetry, songs, classical quotations: if a well-known Vietnamese translation exists, use it with credit (e.g. "— (bản dịch Tản Đà)"). Otherwise, translate freely for reader comprehension.
+
+Style:
+- Tone: {tone}
+- Hán Việt level: {han_viet_level}
+- Title handling: {title_mode}
+- Pronoun policy: {pronoun_policy}
+- Preserve line breaks: {keep_paragraphs}
+
+ONLY return the pure Vietnamese translation. NO preamble, notes, explanations, or bilingual annotations.
+FINAL CHECK (mandatory): before answering, scan the entire translation end to end; if ANY Chinese characters remain, translate them to Vietnamese before answering.
+{glossary}
+--- Content to translate ---
+{text}{auto_glossary_block}{fixup_warning}"""
+
+
+EN_TITLE_PROMPT = """You are a title editor for English-to-Vietnamese translated novels. Task: translate the following {kind} into Vietnamese that is BEAUTIFUL and NATURAL, NOT a stiff machine translation.
+
+Mandatory rules:
+1. Do not keep English words when a Vietnamese equivalent sounds better.
+2. You may restructure, use metaphors or imagery natural to Vietnamese, as long as the core meaning is preserved.
+3. Character names: resolve pinyin/English-gloss names to familiar Hán Việt when confident (e.g. "Xie Lian" → "Tạ Liên"), otherwise keep as-is.
+4. If you truly cannot find a good translation that preserves meaning, translate for clarity even if less poetic, and fill in the GIẢI THÍCH line to explain.
+
+{glossary}
+Reply EXACTLY 2 lines in this format, nothing else:
+TIÊU ĐỀ: <Vietnamese translation>
+GIẢI THÍCH: <leave blank if name is already clear/natural; only fill if extra explanation helps readers>
+
+--- {kind} to translate ---
 {text}"""
 
 
@@ -296,7 +340,7 @@ class TranslateConfig:
     # rút glossary mới từ chính chương đó và merge vào names.txt/vietphrase.txt
     # (in-memory cho chương kế tiếp + ghi file thread-safe). Xung đột (cùng Hán,
     # khác Việt) → giữ giá trị cũ + ghi warning vào log và file tổng kết.
-    auto_glossary: bool = False
+    auto_glossary: bool = True
     # Khi True (mặc định): mỗi lần gọi AI chỉ nhét vào prompt những mục glossary
     # THỰC SỰ xuất hiện trong đoạn đang xử lý (lọc chuỗi con thuần Python, không
     # gọi AI) — tiết kiệm token khi glossary phình to. Bước hậu xử lý
@@ -707,6 +751,15 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         merged.update({k: v for k, v in openai_raw.items() if v != "" and v is not None})
         openai_raw = merged
 
+    # EN source: auto-select EN prompts (same mechanism as preset resolution).
+    # Explicit non-empty user values still win.
+    _src_lang = translate_raw.get("source_language", "")
+    if _src_lang == "en":
+        _en_overrides = {"prompt_template": EN_DEFAULT_PROMPT, "title_prompt_template": EN_TITLE_PROMPT}
+        for _k, _v in _en_overrides.items():
+            if not openai_raw.get(_k):
+                openai_raw[_k] = _v
+
     # Resolve local NMT model preset: translate.model tên preset → model_key.
     translate_model = translate_raw.get("model", "") or ""
     hachimimt = HachimiMTConfig(**hachimimt_raw) if hachimimt_raw else HachimiMTConfig()
@@ -750,7 +803,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         libretranslate=LibreTranslateConfig(**libretranslate_raw) if libretranslate_raw else LibreTranslateConfig(),
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
-        auto_glossary=bool(translate_raw.get("auto_glossary", False)),
+        auto_glossary=bool(translate_raw.get("auto_glossary", True)),
         glossary_filter=bool(translate_raw.get("glossary_filter", True)),
         batch_size=int(translate_raw.get("batch_size", 1)),
         prompt_max_chars=int(translate_raw.get("prompt_max_chars", 7000)),

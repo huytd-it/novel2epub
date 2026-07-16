@@ -34,6 +34,39 @@ _GLOSSARY_MARKER = re.compile(r"^===GLOSSARY===\s*$", re.MULTILINE)
 # Bullet `- `/`* `/`+ ` AI hay tự thêm trước mỗi dòng glossary.
 _GLOSSARY_BULLET_RE = re.compile(r"^[-*+]\s+")
 
+# Block hướng dẫn auto-glossary — được nhét vào prompt_template qua placeholder
+# {auto_glossary_block} khi cfg.auto_glossary bật. Nếu template cũ (pin từ autosave)
+# không chứa placeholder, fallback: append sau format (xem _build_prompt).
+_AUTO_GLOSSARY_BLOCK = (
+    "\n\nSAU KHI DỊCH XONG, thêm một dòng ===GLOSSARY=== rồi liệt kê "
+    "các mục glossary MỚI, mỗi mục MỘT DÒNG theo đúng dạng:\n"
+    "<Hán> = <Việt>\n"
+    "Glossary là bảng ĐỒNG BỘ cách dịch xuyên suốt truyện, KHÔNG phải "
+    "từ điển — thà bỏ sót còn hơn đưa nhầm từ thông thường.\n"
+    "CHỈ đưa vào: tên riêng (nhân vật, địa danh, môn phái/tổ chức, "
+    "chức danh) và thuật ngữ ĐẶC THÙ lặp lại nhiều lần (công pháp, "
+    "chiêu thức, cảnh giới, pháp bảo, đan dược, chủng tộc, hệ thống "
+    "sức mạnh, biệt danh cố định).\n"
+    "Tên người nước ngoài ghi dạng chữ Latin gốc (夏洛克 → Sherlock), "
+    "không ghi Hán Việt.\n"
+    "TUYỆT ĐỐI KHÔNG đưa vào: từ đời thường (đồ ăn, mua sắm, động tác, "
+    "cảm xúc, nghề nghiệp, vật dụng phổ thông); thành ngữ/khẩu ngữ/tiếng "
+    "lóng dịch thoát ý; từ hiện đại phổ thông; từ độc giả Việt hiểu ngay "
+    "hoặc chỉ xuất hiện một lần.\n"
+    "Không giải thích, không đánh số, không JSON. Nếu không có mục nào "
+    "đạt tiêu chí: chỉ in đúng dòng ===GLOSSARY=== và không thêm gì sau đó."
+)
+
+# Cảnh báo fixup cho retry Hán — nhét qua placeholder {fixup_warning}.
+_FIXUP_WARNING = (
+    "\n\nCẢNH BÁO NGHIÊM TRỌNG: Bản dịch trước đó còn chứa chữ Hán chưa được dịch. "
+    "Đây là lỗi KHÔNG THỂ CHẤP NHẬN. "
+    "Hãy dịch TOÀN BỘ văn bản gốc sang tiếng Việt thuần túy. "
+    "KHÔNG được giữ lại bất kỳ ký tự Trung Quốc nào. "
+    "KHÔNG được dùng định dạng 'từ gốc (dịch nghĩa)' — "
+    "chỉ trả về tiếng Việt 100%."
+)
+
 
 def _clean_output(text: str) -> str:
     """Bỏ ```fence``` và dòng mở đầu kiểu 'Đây là bản dịch:' nếu có."""
@@ -336,47 +369,35 @@ class OpenAITranslator:
             return snapshot
         return _filter_glossary(snapshot, zh_text=zh_text, vi_text=vi_text)
 
-    def _build_prompt(self, text: str) -> str:
-        prompt = self.openai.prompt_template.format(
-            text=text,
-            glossary=_format_glossary(self._glossary_for_prompt(text)),
-            tone=self.cfg.style.tone,
-            pronoun_policy=self.cfg.style.pronoun_policy,
-            keep_paragraphs=self.cfg.style.keep_paragraphs,
-            title_mode=self.cfg.style.title_mode,
-            han_viet_level=self.cfg.style.han_viet_level,
+    def _build_prompt(self, text: str, fixup_warning: str = "") -> str:
+        tpl = self.openai.prompt_template
+        auto_block = _AUTO_GLOSSARY_BLOCK if self.cfg.auto_glossary else ""
+        # Use .replace() instead of .format() so that {auto_glossary_block}
+        # and {fixup_warning} stay as literal text in the template visible in
+        # the settings textarea (autosave pins whatever the textarea contains).
+        prompt = (
+            tpl
+            .replace("{text}", text)
+            .replace("{glossary}", _format_glossary(self._glossary_for_prompt(text)))
+            .replace("{tone}", self.cfg.style.tone)
+            .replace("{pronoun_policy}", self.cfg.style.pronoun_policy)
+            .replace("{keep_paragraphs}", str(self.cfg.style.keep_paragraphs))
+            .replace("{title_mode}", self.cfg.style.title_mode)
+            .replace("{han_viet_level}", self.cfg.style.han_viet_level)
         )
-        if self.cfg.auto_glossary:
-            prompt += (
-                "\n\nSAU KHI DỊCH XONG, thêm một dòng ===GLOSSARY=== rồi liệt kê "
-                "các mục glossary MỚI, mỗi mục MỘT DÒNG theo đúng dạng:\n"
-                "<Hán> = <Việt>\n"
-                "Glossary là bảng ĐỒNG BỘ cách dịch xuyên suốt truyện, KHÔNG phải "
-                "từ điển — thà bỏ sót còn hơn đưa nhầm từ thông thường.\n"
-                "CHỈ đưa vào: tên riêng (nhân vật, địa danh, môn phái/tổ chức, "
-                "chức danh) và thuật ngữ ĐẶC THÙ lặp lại nhiều lần (công pháp, "
-                "chiêu thức, cảnh giới, pháp bảo, đan dược, chủng tộc, hệ thống "
-                "sức mạnh, biệt danh cố định).\n"
-                "Tên người nước ngoài ghi dạng chữ Latin gốc (夏洛克 → Sherlock), "
-                "không ghi Hán Việt.\n"
-                "TUYỆT ĐỐI KHÔNG đưa vào: từ đời thường (đồ ăn, mua sắm, động tác, "
-                "cảm xúc, nghề nghiệp, vật dụng phổ thông); thành ngữ/khẩu ngữ/tiếng "
-                "lóng dịch thoát ý; từ hiện đại phổ thông; từ độc giả Việt hiểu ngay "
-                "hoặc chỉ xuất hiện một lần.\n"
-                "Không giải thích, không đánh số, không JSON. Nếu không có mục nào "
-                "đạt tiêu chí: chỉ in đúng dòng ===GLOSSARY=== và không thêm gì sau đó."
-            )
+        # Back-compat: old pinned templates without the placeholder → append.
+        if "{auto_glossary_block}" in tpl:
+            prompt = prompt.replace("{auto_glossary_block}", auto_block)
+        elif auto_block:
+            prompt += auto_block
+        if "{fixup_warning}" in tpl:
+            prompt = prompt.replace("{fixup_warning}", fixup_warning)
+        elif fixup_warning:
+            prompt += fixup_warning
         return prompt
 
     def _build_fixup_prompt(self, text: str) -> str:
-        return self._build_prompt(text) + (
-            "\n\nCẢNH BÁO NGHIÊM TRỌNG: Bản dịch trước đó còn chứa chữ Hán chưa được dịch. "
-            "Đây là lỗi KHÔNG THỂ CHẤP NHẬN. "
-            "Hãy dịch TOÀN BỘ văn bản gốc sang tiếng Việt thuần túy. "
-            "KHÔNG được giữ lại bất kỳ ký tự Trung Quốc nào. "
-            "KHÔNG được dùng định dạng 'từ gốc (dịch nghĩa)' — "
-            "chỉ trả về tiếng Việt 100%."
-        )
+        return self._build_prompt(text, fixup_warning=_FIXUP_WARNING)
 
     def _split_response(self, raw: str) -> tuple[str, list[dict] | None]:
         """Tách phần dịch và glossary sau ===GLOSSARY===.
@@ -504,22 +525,24 @@ class OpenAITranslator:
             self._merge_meta(meta_accumulator, meta)
         translation_text, glossary_entries = self._split_response(out)
         cleaned = _clean_output(translation_text)
-        for _ in range(_RESIDUAL_HAN_RETRIES):
-            residual = len(_HAN_RE.findall(cleaned))
-            if residual == 0:
-                break
-            out, fixup_meta = self._run_chat_with_retry_meta(
-                self._build_fixup_prompt(chunk_text)
-            )
-            if meta_accumulator is not None:
-                self._merge_meta(meta_accumulator, fixup_meta)
-            fixup_text, fixup_glossary = self._split_response(out)
-            retried = _clean_output(fixup_text)
-            if len(_HAN_RE.findall(retried)) < residual:
-                cleaned = retried
-                glossary_entries = fixup_glossary or glossary_entries
-            else:
-                break
+        # EN source: Han-leftover retry is meaningless (source has no Chinese).
+        if self.cfg.source_language != "en":
+            for _ in range(_RESIDUAL_HAN_RETRIES):
+                residual = len(_HAN_RE.findall(cleaned))
+                if residual == 0:
+                    break
+                out, fixup_meta = self._run_chat_with_retry_meta(
+                    self._build_fixup_prompt(chunk_text)
+                )
+                if meta_accumulator is not None:
+                    self._merge_meta(meta_accumulator, fixup_meta)
+                fixup_text, fixup_glossary = self._split_response(out)
+                retried = _clean_output(fixup_text)
+                if len(_HAN_RE.findall(retried)) < residual:
+                    cleaned = retried
+                    glossary_entries = fixup_glossary or glossary_entries
+                else:
+                    break
         if glossary_entries and glossary_accumulator is not None:
             glossary_accumulator.extend(glossary_entries)
         return cleaned

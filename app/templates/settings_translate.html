@@ -30,6 +30,14 @@
             <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 1</span>
             {% endif %}
         </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> Ngôn ngữ nguồn
+            <select name="source_language" id="source-language-select"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if cfg.translate.source_language %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+                <option value="" {% if not cfg.translate.source_language %}selected{% endif %}>Trung (mặc định)</option>
+                <option value="en" {% if cfg.translate.source_language == 'en' %}selected{% endif %}>Anh</option>
+            </select>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">EN = nguồn là bản dịch Anh, chỉ dùng backend openai</span>
+        </label>
     </div>
 </details>
 
@@ -136,7 +144,11 @@
         <option value="deepseek-reasoner">
     </datalist>
     <label class="flex flex-col gap-1 text-sm min-w-0 px-3 pb-3"> prompt_template (để trống = giữ nguyên)
-        <textarea name="prompt_template" rows="40" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 font-mono">{{ cfg.translate.openai.prompt_template }}</textarea>
+        <div class="flex gap-1.5 mb-1">
+            <button type="button" id="load-default-prompt" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-autosave">Nạp prompt mẫu theo ngôn ngữ nguồn</button>
+        </div>
+        {% set _pt = cfg.translate.openai.prompt_template %}{% if '{auto_glossary_block}' not in _pt %}{% set _pt = _pt ~ '{auto_glossary_block}{fixup_warning}' %}{% endif %}
+        <textarea name="prompt_template" rows="40" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 font-mono">{{ _pt }}</textarea>
     </label>
     <label class="flex flex-col gap-1 text-sm min-w-0 px-3 pb-3"> title_prompt_template (để trống = giữ nguyên)
         <textarea name="title_prompt_template" rows="24" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 font-mono">{{ cfg.translate.openai.title_prompt_template }}</textarea>
@@ -240,22 +252,6 @@
 <details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark">
     <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Glossary / Batch / Cleanup Hán</summary>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
-        <label class="inline-flex items-center gap-2 text-sm mt-2">
-            <input type="checkbox" name="glossary_filter" value="true" {% if cfg.translate.glossary_filter %}checked{% endif %}
-                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.translate.glossary_filter, 'translate', 'glossary_filter') %}border-blue-500{% endif %}">
-            glossary_filter
-            {% if is_default(cfg.translate.glossary_filter, 'translate', 'glossary_filter') %}
-            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: bật</span>
-            {% endif %}
-        </label>
-        <label class="inline-flex items-center gap-2 text-sm mt-2">
-            <input type="checkbox" name="auto_glossary" value="true" {% if cfg.translate.auto_glossary %}checked{% endif %}
-                class="rounded border-border-light dark:border-border-dark {% if not is_default(cfg.translate.auto_glossary, 'translate', 'auto_glossary') %}border-blue-500{% endif %}">
-            auto_glossary
-            {% if is_default(cfg.translate.auto_glossary, 'translate', 'auto_glossary') %}
-            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: tắt</span>
-            {% endif %}
-        </label>
         <label class="flex flex-col gap-1 text-sm min-w-0"> batch_size
             <input type="number" name="batch_size" value="{{ cfg.translate.batch_size }}" min="1" max="50"
                 class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.batch_size, 'translate', 'batch_size') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
@@ -272,8 +268,7 @@
         </label>
     </div>
     <p class="text-sm text-muted-light dark:text-muted-dark px-3 pb-2">
-        <strong>glossary_filter</strong>: chỉ nhét vào prompt các mục glossary xuất hiện trong đoạn đang dịch (tiết kiệm token).
-        <strong>auto_glossary</strong>: sau mỗi chương, AI rút glossary mới và merge vào names/vietphrase (chỉ backend openai).
+        <strong>glossary_filter</strong> &amp; <strong>auto_glossary</strong>: luôn bật — chỉ nhét glossary liên quan vào prompt, AI tự rút glossary mới sau mỗi chương.
         <strong>batch_size</strong>: số chương gửi 1 lần cho AI khi "Dịch selected".
         <strong>prompt_max_chars</strong>: giới hạn TỔNG ký tự mỗi prompt gửi AI (gồm cả prompt mẫu + glossary + nội dung) — dịch chương sẽ chia đoạn nhỏ hơn, batch dịch sẽ cắt batch sớm hơn khi chạm giới hạn.
     </p>
@@ -312,6 +307,7 @@
 <div id="raw-translate" class="my-2 bg-surface-alt-light dark:bg-zinc-900 border border-border-light dark:border-border-dark rounded-md px-3 py-2 overflow-x-auto" hidden>
 <pre class="m-0"><code class="text-xs">translate:
   type: {{ cfg.translate.type }}
+  source_language: {{ cfg.translate.source_language or '""' }}
   delay_seconds: {{ cfg.translate.delay_seconds }}
   max_workers: {{ cfg.translate.max_workers }}
   openai:
@@ -423,6 +419,46 @@ document.getElementById("ai-test-conn")?.addEventListener("click", async functio
         }
     } catch (e) {
         status.textContent = "✗ " + e;
+    }
+});
+
+// --- Source language: hide NMT section + force openai when EN ---
+(function () {
+    const srcLangSelect = document.getElementById("source-language-select");
+    if (!srcLangSelect) return;
+    function applySourceLanguage() {
+        const isEn = srcLangSelect.value === "en";
+        const typeSelect = document.querySelector('select[name="type"]');
+        const hachimimtSection = document.getElementById("section-hachimimt");
+        if (isEn) {
+            if (typeSelect && typeSelect.value !== "openai") {
+                typeSelect.value = "openai";
+                typeSelect.dispatchEvent(new Event("change", {bubbles: true}));
+            }
+            if (hachimimtSection) hachimimtSection.style.display = "none";
+        } else {
+            if (hachimimtSection) hachimimtSection.style.display = "";
+            updateTranslateTypeUI();
+        }
+    }
+    srcLangSelect.addEventListener("change", applySourceLanguage);
+    document.addEventListener("DOMContentLoaded", applySourceLanguage);
+})();
+
+// --- Load default prompt button ---
+document.getElementById("load-default-prompt")?.addEventListener("click", async function () {
+    const srcLang = (document.getElementById("source-language-select") || {}).value || "";
+    const promptTa = document.querySelector('textarea[name="prompt_template"]');
+    const titleTa = document.querySelector('textarea[name="title_prompt_template"]');
+    if (!promptTa || !titleTa) return;
+    try {
+        const resp = await fetch("/settings/translate/default-prompts?source_language=" + encodeURIComponent(srcLang));
+        const data = await resp.json();
+        if (data.prompt_template) promptTa.value = data.prompt_template;
+        if (data.title_prompt_template) titleTa.value = data.title_prompt_template;
+        promptTa.dispatchEvent(new Event("input", {bubbles: true}));
+    } catch (e) {
+        alert("Lỗi: " + e);
     }
 });
 </script>

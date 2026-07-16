@@ -814,9 +814,11 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
 
     # Auto-cleanup Hán: rà soát bản dịch, sửa chữ Hán còn sót.
     # Dùng config AI biên tập (ai.openai) — chạy được với mọi backend dịch.
+    # EN source: meaningless (source has no Chinese characters).
     if (
         cfg.translate.auto_cleanup_han
         and not is_noop
+        and cfg.translate.source_language != "en"
         and (cfg.ai.openai.base_url or cfg.ai.openai.api_key)
     ):
         try:

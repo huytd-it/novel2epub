@@ -668,6 +668,32 @@ class Storage:
             "cover": cover_row["n"],
         }
 
+    def content_counts(self) -> dict[str, int]:
+        """Số chương CÓ nội dung theo từng loại + số mục glossary — trang
+        /storage hiển thị kèm dung lượng. Tách khỏi `content_bytes` để
+        `ebook_storage_report` (dashboard cũng gọi, mỗi lần là 1 lượt quét bảng)
+        không phải gánh thêm query mà nó không dùng."""
+        row = self.conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(CASE WHEN raw_text IS NOT NULL AND raw_text != '' THEN 1 ELSE 0 END), 0) AS raw,
+                COALESCE(SUM(CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END), 0) AS translated,
+                COALESCE(SUM(CASE WHEN translated_mt_text IS NOT NULL AND translated_mt_text != '' THEN 1 ELSE 0 END), 0) AS translated_mt
+            FROM chapters WHERE ebook_slug = ?
+            """,
+            (self.slug,),
+        ).fetchone()
+        glossary_row = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM glossary_entries WHERE ebook_slug = ?",
+            (self.slug,),
+        ).fetchone()
+        return {
+            "raw": row["raw"],
+            "translated": row["translated"],
+            "translated_mt": row["translated_mt"],
+            "glossary": glossary_row["n"],
+        }
+
     def purge_raw(self) -> int:
         """Xóa toàn bộ raw_text (bản gốc đã crawl). KHÔNG đụng translated_text
         (bản đã biên tập tay). Trả số byte ước lượng đã giải phóng."""

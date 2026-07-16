@@ -4,7 +4,7 @@ from __future__ import annotations
 import zipfile
 
 from app.storage_report import build_archive_bundle, ebook_storage_report, purge_raw, purge_translated_mt, remove_epub
-from novel2epub.storage import Chapter, Storage
+from novel2epub.storage import Chapter, Manifest, Storage
 
 
 def _storage_with_data(tmp_path):
@@ -34,6 +34,40 @@ def test_ebook_storage_report_includes_epub_when_present(tmp_path):
     epub_path.write_bytes(b"x" * 100)
     report = ebook_storage_report(storage, epub_path)
     assert report["epub"] == 100
+    assert report["epub_exists"] is True
+
+
+def test_epub_exists_false_when_not_built(tmp_path):
+    storage, ch = _storage_with_data(tmp_path)
+    assert ebook_storage_report(storage, tmp_path / "missing.epub")["epub_exists"] is False
+
+
+def test_epub_exists_distinguishes_empty_file_from_missing(tmp_path):
+    """File 0 byte vẫn là "đã build" — `epub > 0` không phân biệt được."""
+    storage, ch = _storage_with_data(tmp_path)
+    epub_path = tmp_path / "empty.epub"
+    epub_path.write_bytes(b"")
+    report = ebook_storage_report(storage, epub_path)
+    assert report["epub"] == 0
+    assert report["epub_exists"] is True
+
+
+def test_content_counts_counts_chapters_with_content(tmp_path):
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    ch1, ch2, ch3 = (Chapter(index=i, url=f"http://x/{i}") for i in (1, 2, 3))
+    storage.write_raw(ch1, "raw 1")
+    storage.write_raw(ch2, "raw 2")
+    storage.write_translated(ch2, "dịch 2")
+    storage.write_translated_mt(ch2, "mt 2")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch1, ch2, ch3]))
+
+    counts = storage.content_counts()
+
+    assert counts["raw"] == 2
+    assert counts["translated"] == 1
+    assert counts["translated_mt"] == 1
+    assert counts["glossary"] == 0
 
 
 def test_purge_raw_removes_raw_but_keeps_translated(tmp_path):

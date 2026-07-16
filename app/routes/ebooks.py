@@ -68,7 +68,7 @@ def index(request: Request, show_archived: bool = False):
             name = entry.name or cfg.novel.title or slug
         storage = Storage(cfg.output.data_dir, cfg.novel.slug)
         manifest = storage.load_manifest()
-        progress = chapter_progress(storage, manifest)
+        progress = chapter_progress(storage, manifest, stats_map=storage.bulk_chapter_stats())
         ebooks.append(
             {
                 "slug": slug,
@@ -184,8 +184,12 @@ def ebook_home(
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     epub_path = Path(cfg.epub_path)
-    crawl_problems = crawl_problem_indexes(manifest.chapters, storage) if manifest else []
     stats_map = storage.bulk_chapter_stats()
+    crawl_problems = (
+        crawl_problem_indexes(manifest.chapters, storage, stats_map=stats_map)
+        if manifest
+        else []
+    )
     all_chapters = _chapter_rows(cfg, stats_map=stats_map)
     chapters_json = [dataclasses.asdict(r) for r in all_chapters]
     cost_summary = read_cost_summary(storage)

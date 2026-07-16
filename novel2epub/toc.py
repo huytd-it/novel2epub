@@ -159,9 +159,25 @@ def chapter_crawl_status(ch: Chapter, storage: Storage, min_chars: int = 30) -> 
     return "ok"
 
 
-def crawl_problem_indexes(chapters: Iterable[Chapter], storage: Storage, min_chars: int = 30) -> list[int]:
-    """Index các chương 'missing' hoặc 'empty' — dùng cho hành động "Retry lỗi"."""
-    return [ch.index for ch in chapters if chapter_crawl_status(ch, storage, min_chars) != "ok"]
+def crawl_problem_indexes(
+    chapters: Iterable[Chapter],
+    storage: Storage,
+    min_chars: int = 30,
+    stats_map: dict[int, dict] | None = None,
+) -> list[int]:
+    """Index các chương 'missing' hoặc 'empty' — dùng cho hành động "Retry lỗi".
+
+    `stats_map` (từ `Storage.bulk_chapter_stats()`) gộp N query thành 1. Ở nhánh
+    này 'missing' và 'empty' không phân biệt được (bulk stats quy cả NULL lẫn ''
+    về 0) nhưng cũng không cần: cả hai đều != 'ok' nên đều là chương cần retry.
+    """
+    if stats_map is None:
+        return [ch.index for ch in chapters if chapter_crawl_status(ch, storage, min_chars) != "ok"]
+    return [
+        ch.index
+        for ch in chapters
+        if stats_map.get(ch.index, {}).get("raw_len", 0) < min_chars
+    ]
 
 
 def _matches_filter(value: bool, flt: str) -> bool:

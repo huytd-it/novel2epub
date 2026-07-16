@@ -25,22 +25,22 @@
             <div class="p-3 rounded-lg bg-surface-muted dark:bg-surface-muted-dark">
                 <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark">Raw</div>
                 <div class="text-xl font-mono tabular-nums text-fg-light dark:text-fg-dark">{{ "%.1f"|format(row.report.raw / 1024 / 1024) }} MB</div>
-                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ row.report.raw_files }} files</div>
+                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ row.report.raw_chapters }} chương</div>
             </div>
             <div class="p-3 rounded-lg bg-surface-muted dark:bg-surface-muted-dark">
                 <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark">Translated</div>
                 <div class="text-xl font-mono tabular-nums text-fg-light dark:text-fg-dark">{{ "%.1f"|format(row.report.translated / 1024 / 1024) }} MB</div>
-                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ row.report.translated_files }} files</div>
+                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ row.report.translated_chapters }} chương</div>
             </div>
             <div class="p-3 rounded-lg bg-surface-muted dark:bg-surface-muted-dark">
                 <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark">Glossary</div>
                 <div class="text-xl font-mono tabular-nums text-fg-light dark:text-fg-dark">{{ "%.1f"|format(row.report.glossary / 1024) }} KB</div>
-                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ row.report.glossary_entries }} entries</div>
+                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ row.report.glossary_entries }} mục</div>
             </div>
             <div class="p-3 rounded-lg bg-surface-muted dark:bg-surface-muted-dark">
                 <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark">EPUB</div>
-                <div class="text-xl font-mono tabular-nums text-fg-light dark:text-fg-dark">{{ row.report.epub_exists ? ("%.1f"|format(row.report.epub_size / 1024 / 1024) + " MB") : "—" }}</div>
-                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ row.report.epub_exists ? "Có" : "Chưa có" }}</div>
+                <div class="text-xl font-mono tabular-nums text-fg-light dark:text-fg-dark">{{ ("%.1f"|format(row.report.epub / 1024 / 1024) + " MB") if row.report.epub_exists else "—" }}</div>
+                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ "Có" if row.report.epub_exists else "Chưa có" }}</div>
             </div>
         </div>
         

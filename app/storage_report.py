@@ -16,7 +16,8 @@ def ebook_storage_report(storage: Storage, epub_path: str | Path | None = None) 
     sizes = storage.content_bytes()
     epub = 0
     epub_p = Path(epub_path) if epub_path else None
-    if epub_p and epub_p.exists():
+    epub_exists = bool(epub_p and epub_p.exists())
+    if epub_exists:
         epub = epub_p.stat().st_size
     total = sum(sizes.values()) + epub
     return {
@@ -26,6 +27,8 @@ def ebook_storage_report(storage: Storage, epub_path: str | Path | None = None) 
         "meta": sizes["meta"],
         "glossary": sizes["glossary"],
         "epub": epub,
+        # Phân biệt "chưa build" với "build ra file 0 byte" — `epub > 0` không đủ.
+        "epub_exists": epub_exists,
         "total": total,
     }
 

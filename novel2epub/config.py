@@ -229,12 +229,12 @@ class OpenAIConfig:
     `GET {base_url}/models`): OpenAI, OpenRouter, Ollama (`/v1`), LM Studio,
     vLLM, llama.cpp server, OpenCode Go, v.v.
     """
-    base_url: str = "https://opencode.ai/zen/go/v1"
+    base_url: str = "http://localhost:20128/v1"
     api_key: str = ""
-    model: str = "opencode-go/kimi-k2.6"
+    model: str = "free-stack"
     prompt_template: str = DEFAULT_PROMPT
     title_prompt_template: str = TITLE_PROMPT
-    timeout_seconds: int = 600
+    timeout_seconds: int = 120000
     temperature: float = 0.7
 
 
@@ -270,7 +270,7 @@ class LibreTranslateConfig:
 
 @dataclass
 class TranslateConfig:
-    type: str = "hachimimt"  # hachimimt | openai | google | libretranslate | none
+    type: str = "openai"  # openai | hachimimt | google | libretranslate | none
     preset: str = ""
     # Local NMT model: "hachimimt-60" | "hachimimt-30" | "moxhimt-60" | ...
     # Khi set, tự động gán model_key cho HachimiMTConfig.
@@ -527,6 +527,12 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
         reader_over = json.loads(r["reader_overrides_json"] or "{}")
         if reader_over:
             block["reader"] = reader_over
+        translate_over = json.loads(r["translate_overrides_json"] or "{}")
+        if translate_over:
+            block["translate"] = translate_over
+        ai_over = json.loads(r["ai_overrides_json"] or "{}")
+        if ai_over:
+            block["ai"] = ai_over
         ebooks[r["slug"]] = block
 
     return {"defaults": defaults, "sources": sources, "ebooks": ebooks}
@@ -567,11 +573,10 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         override = {}
     override = dict(override)
     override.pop("name", None)  # tên hiển thị cấp ebook, không thuộc Config
-    # `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình DÙNG CHUNG cho
-    # mọi ebook — chỉ đọc từ `defaults:`. Override per-ebook (còn sót lại) bị
-    # bỏ qua để tránh mỗi ebook một bản cấu hình AI khác nhau.
-    override.pop("translate", None)
-    override.pop("ai", None)
+    # `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình RIÊNG từng ebook
+    # (translate_overrides_json/ai_overrides_json) merge đè lên `defaults:` —
+    # defaults chỉ còn là fallback cho ebook chưa cấu hình riêng và là giá trị
+    # quay về khi bấm Reset.
     # `reader` merge được per-ebook (slug/free_chapters/published), NHƯNG phần
     # kết nối Supabase thì không — giữ `service_key` ở đúng một chỗ (defaults).
     ebook_reader = _as_dict(override.get("reader"))
@@ -719,7 +724,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
 
     cleanup_han_raw = _as_dict(translate_raw.pop("cleanup_han", None))
     translate = TranslateConfig(
-        type=translate_raw.get("type", "hachimimt"),
+        type=translate_raw.get("type", TranslateConfig.type),
         model=translate_model,
         preset=preset_name,
         profile=translate_raw.get("profile", "traditional_cn_novel"),

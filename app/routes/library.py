@@ -98,12 +98,54 @@ def library_page():
     return RedirectResponse(url="/", status_code=302)
 
 
+@router.get("/library/ebooks/new")
+def new_ebook_page(request: Request):
+    """Trang riêng Thêm ebook: nhập URL → preview TOÀN BỘ thông tin + config
+    hiệu lực (metadata truyện, source preset, config crawl, config global
+    Dịch/AI biên tập) trước khi lưu."""
+    return deps.templates.TemplateResponse(
+        request,
+        "library_new.html",
+        {
+            "cfg": deps.cfg(),  # defaults global — hiển thị khối Dịch/AI dùng chung
+            "ebook_count": len(deps.library().ebooks),
+            "presets": load_presets(deps.SOURCES_PATH),
+        },
+    )
+
+
+def _crawl_preview(crawl_cfg: CrawlConfig) -> dict:
+    """Config crawl hiệu lực (preset + mặc định) mà ebook sẽ dùng — cho UI
+    preview trước khi lưu. Cùng nguồn với config fetch metadata nên preview
+    luôn khớp những gì crawl thật sẽ chạy."""
+    s = crawl_cfg.scrapling
+    return {
+        "chapter_link_pattern": crawl_cfg.chapter_link_pattern,
+        "content_selector": crawl_cfg.content_selector,
+        "delay_seconds": crawl_cfg.delay_seconds,
+        "headless": crawl_cfg.headless,
+        "scrapling_mode": s.mode,
+        "solve_cloudflare": s.solve_cloudflare,
+        "network_idle": s.network_idle,
+        "impersonate": s.impersonate,
+        "proxy": s.proxy,
+        "dns_over_https": s.dns_over_https,
+        "next_page_selector": crawl_cfg.next_page_selector,
+        "next_page_url_pattern": crawl_cfg.next_page_url_pattern,
+        "max_pages_per_chapter": crawl_cfg.max_pages_per_chapter,
+        "toc_next_page_selector": crawl_cfg.toc_next_page_selector,
+        "toc_max_pages": crawl_cfg.toc_max_pages,
+        "strip_patterns": list(crawl_cfg.strip_patterns or []),
+    }
+
+
 @router.post("/library/ebooks/preview")
 def preview_ebook_api(
     toc_url: str = Form(""),
     scrapling_mode: str = Form(""),
 ):
-    """API: fetch metadata từ URL mục lục, trả JSON (kèm source preset detect)."""
+    """API: fetch metadata từ URL mục lục, trả JSON (kèm source preset detect
+    + config crawl hiệu lực sẽ áp cho ebook — `crawl_preview`)."""
     toc_url = toc_url.strip()
     if not toc_url:
         return JSONResponse({"error": "Thiếu URL mục lục."}, status_code=400)
@@ -121,6 +163,8 @@ def preview_ebook_api(
             data["source_delay"] = preset.delay_seconds
         else:
             data["source"] = ""
+        crawl_cfg, _ = _build_meta_crawl_cfg(toc_url, scrapling_mode.strip())
+        data["crawl_preview"] = _crawl_preview(crawl_cfg)
         return JSONResponse(data)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -215,6 +259,9 @@ def create_ebook(
     name: str = Form(""),
     author: str = Form(""),
     toc_url: str = Form(""),
+    description: str = Form(""),
+    cover_url: str = Form(""),
+    scrapling_mode: str = Form(""),
 ):
     toc_url = toc_url.strip()
     if not toc_url:
@@ -230,7 +277,18 @@ def create_ebook(
         except Exception:
             pass  # fallback: dùng slug từ name trống
 
-    result = _write_new_ebook(toc_url, slug, name, author)
+    result = _write_new_ebook(
+        toc_url, slug, name, author, scrapling_mode=scrapling_mode.strip()
+    )
+    # Metadata phụ đã duyệt ở bước preview (trang Thêm ebook) — lưu luôn để
+    # không phải nhập lại trong Settings.
+    novel_extra = {}
+    if description.strip():
+        novel_extra["description"] = description.strip()
+    if cover_url.strip():
+        novel_extra["cover_url"] = cover_url.strip()
+    if novel_extra:
+        update_ebook(deps.WORKSPACE_PATH, result["slug"], {"novel": novel_extra})
     return RedirectResponse(url=f"/ebooks/{result['slug']}/settings", status_code=303)
 
 

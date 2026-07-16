@@ -11,7 +11,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _SCHEMA_STATEMENTS = [
     """
@@ -72,6 +72,8 @@ _SCHEMA_STATEMENTS = [
         crawl_overrides_json TEXT NOT NULL DEFAULT '{}',
         output_overrides_json TEXT NOT NULL DEFAULT '{}',
         reader_overrides_json TEXT NOT NULL DEFAULT '{}',
+        translate_overrides_json TEXT NOT NULL DEFAULT '{}',
+        ai_overrides_json TEXT NOT NULL DEFAULT '{}',
         epub_path TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -189,6 +191,10 @@ _ADDED_COLUMNS = [
     ("ebooks", "reader_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
     # v3: lịch cron — base tính "đến hạn" cho automation chưa từng chạy
     ("automations", "created_at", "TEXT NOT NULL DEFAULT ''"),
+    # v3: translate/ai per-ebook — mỗi ebook một config AI riêng, defaults
+    # (bảng settings) chỉ còn là fallback + nguồn khi Reset.
+    ("ebooks", "translate_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ("ebooks", "ai_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
 ]
 
 

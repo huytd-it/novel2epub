@@ -1,5 +1,7 @@
-"""Cấu hình ebook: metadata truyện + nguồn crawl per-ebook; AI dịch (`translate`)
-và AI biên tập (`ai`) là cấu hình GLOBAL dùng chung mọi ebook (ghi vào `defaults:`)."""
+"""Cấu hình ebook: metadata truyện + nguồn crawl + AI dịch (`translate`) +
+AI biên tập (`ai`) đều là cấu hình RIÊNG từng ebook. `defaults:` (bảng
+settings) chỉ còn là fallback cho ebook chưa cấu hình riêng và là giá trị
+quay về khi bấm Reset."""
 from __future__ import annotations
 
 import json
@@ -11,10 +13,16 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import openai_client
-from novel2epub.config_writer import clean_prompt_text, update_defaults, update_ebook
+from novel2epub.config_writer import (
+    clean_prompt_text,
+    update_defaults,
+    update_ebook,
+)
 from novel2epub.sources import (
     SCRAPLING_FIELD_MAP,
+    detect_preset,
     load_presets,
+    neutralize_defaults_crawl,
     save_preset,
     strip_preset_defaults,
 )
@@ -33,24 +41,23 @@ router = APIRouter()
 @router.get("/ebooks/{slug}/settings")
 def settings_page(request: Request, slug: str):
     cfg = deps.resolved_cfg(slug)
-    # Source preset context: resolved preset + overridden fields
+    # Source preset context: resolved preset + overridden fields. Ebook chưa
+    # gắn nguồn nhưng toc_url khớp domain một preset → vẫn hiện banner nguồn
+    # (dạng "tự nhận diện") để nút Lưu vào nguồn/Reset dùng được.
     source_preset = None
+    source_detected = False
     overridden_fields: set[str] = set()
-    source_name = getattr(cfg, "source", "")
+    presets = load_presets(deps.SOURCES_PATH)
+    source_name = getattr(cfg, "source", "") or ""
+    if not source_name:
+        toc_url = getattr(cfg.crawl, "toc_url", "")
+        source_name = (detect_preset(toc_url, presets) or "") if toc_url else ""
+        source_detected = bool(source_name)
     if source_name:
-        presets = load_presets(deps.SOURCES_PATH)
         source_preset = presets.get(source_name)
         # Đọc crawl_overrides_json từ DB để xác định field ebook đã override
         if source_preset:
-            import json
-            from novel2epub.db import get_thread_connection
-            conn = get_thread_connection(deps.WORKSPACE_PATH)
-            row = conn.execute(
-                "SELECT crawl_overrides_json FROM ebooks WHERE slug = ?", (slug,)
-            ).fetchone()
-            if row is not None:
-                crawl_data = json.loads(row["crawl_overrides_json"] or "{}")
-                overridden_fields = set(crawl_data.keys())
+            overridden_fields = set(_read_crawl_overrides(deps.DB_PATH, slug).keys())
     return deps.templates.TemplateResponse(
         request,
         "settings.html",
@@ -59,6 +66,7 @@ def settings_page(request: Request, slug: str):
             "config_path": deps.ebook_config_path(slug),
             "cfg": cfg,
             "source_preset": source_preset,
+            "source_detected": source_detected,
             "overridden_fields": overridden_fields,
             "job": request.app.state.job.status(),
         },
@@ -317,6 +325,16 @@ def _read_crawl_overrides(db_path, slug: str) -> dict:
     return json.loads(row["crawl_overrides_json"] or "{}") if row else {}
 
 
+def _read_defaults_crawl(db_path) -> dict:
+    """Đọc raw khối `crawl` trong defaults (settings.crawl_json) — phần config
+    chung legacy cần trung hoà khi Reset Nguồn."""
+    from novel2epub.db import get_thread_connection
+
+    conn = get_thread_connection(Path(db_path).resolve())
+    row = conn.execute("SELECT crawl_json FROM settings WHERE id = 1").fetchone()
+    return json.loads(row["crawl_json"] or "{}") if row else {}
+
+
 @router.post("/ebooks/{slug}/settings/sync-to-source")
 def sync_to_source(slug: str):
     """Nâng override riêng của ebook thành cấu hình chung của preset.
@@ -325,14 +343,24 @@ def sync_to_source(slug: str):
     đã mang giá trị ấy nên override chỉ còn là bản sao thừa, và là thứ khiến
     ebook không còn ăn theo preset về sau.
 
+    Ebook chưa gắn nguồn nhưng `toc_url` khớp domain một preset (ebook tạo
+    trước khi preset tồn tại, hoặc bị bug INSERT OR REPLACE cũ gỡ nguồn) thì
+    tự gắn lại nguồn đó rồi sync như thường.
+
     Không cần propagate sang ebook khác — `load_config` resolve preset live.
     """
     cfg = deps.resolved_cfg(slug)
-    source_name = getattr(cfg, "source", "")
-    if not source_name:
-        raise HTTPException(status_code=400, detail="Ebook không có source preset.")
-
     presets = load_presets(deps.DB_PATH)
+    source_name = getattr(cfg, "source", "") or ""
+    if not source_name:
+        toc_url = getattr(cfg.crawl, "toc_url", "")
+        source_name = (detect_preset(toc_url, presets) or "") if toc_url else ""
+    if not source_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Ebook không có source preset và URL mục lục không khớp nguồn nào.",
+        )
+
     preset = presets.get(source_name)
     if preset is None:
         raise HTTPException(status_code=404, detail=f"Nguồn '{source_name}' không tồn tại.")
@@ -359,20 +387,88 @@ def sync_to_source(slug: str):
                 changed_fields.append(flat_key)
 
     if not changed_fields:
+        # Không có gì để đẩy nhưng vẫn ghi lại liên kết nguồn (ebook có thể
+        # vừa được detect từ URL, hoặc từng bị gỡ nguồn bởi bug cũ).
+        update_ebook(deps.DB_PATH, slug, {"source": source_name})
         return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
     save_preset(deps.DB_PATH, preset)
 
-    # Ebook về tham chiếu thuần: bỏ override giờ đã trùng khít preset.
+    # Ebook về tham chiếu thuần: bỏ override giờ đã trùng khít preset. Ghi kèm
+    # `source` trong CÙNG lần update: gắn nguồn vừa detect, đồng thời tự lành
+    # cột source_preset nếu DB cũ (FK ON DELETE SET NULL) từng gỡ mất.
     raw = _read_crawl_overrides(deps.DB_PATH, slug)
     cleaned, removed = strip_preset_defaults(raw, preset)
-    if removed:
-        update_ebook(deps.DB_PATH, slug, {"crawl": cleaned}, replace_crawl=True)
+    update_ebook(
+        deps.DB_PATH, slug,
+        {"crawl": cleaned, "source": source_name},
+        replace_crawl=True,
+    )
 
     logger.info(
         "[source] sync ebook=%s → preset=%s: đẩy lên %s, dọn override %s",
         slug, source_name, changed_fields, removed,
     )
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+@router.post("/ebooks/{slug}/settings/source/reset")
+def reset_source_overrides(slug: str):
+    """Xoá TOÀN BỘ override crawl của ebook — quay về ĐÚNG "source preset +
+    mặc định". Chỉ giữ lại `toc_url` vì nó là định danh của ebook.
+
+    Để reset chính xác, ngoài xoá override còn phải:
+    - Dò lại nguồn theo `toc_url` nếu ebook chưa gắn preset (ebook tạo trước
+      khi preset tồn tại) — có khớp thì gắn để "về nguồn" đúng nghĩa.
+    - Trung hoà khối `crawl` còn sót trong defaults (config chung cũ) bằng
+      `neutralize_defaults_crawl` — không thì các giá trị rác đó lại merge
+      vào ebook ngay sau khi override bị xoá.
+    """
+    raw = _read_crawl_overrides(deps.DB_PATH, slug)
+    toc_url = raw.get("toc_url", "")
+    kept: dict = {"toc_url": toc_url} if toc_url else {}
+
+    presets = load_presets(deps.DB_PATH)
+    cfg = deps.resolved_cfg(slug)
+    source_name = getattr(cfg, "source", "") or ""
+    attached = False
+    if not source_name and toc_url:
+        source_name = detect_preset(toc_url, presets) or ""
+        attached = bool(source_name)
+    preset = presets.get(source_name) if source_name else None
+
+    neutral = neutralize_defaults_crawl(_read_defaults_crawl(deps.DB_PATH), preset)
+    updates: dict = {"crawl": {**neutral, **kept}}
+    if attached:
+        updates["source"] = source_name
+
+    update_ebook(deps.WORKSPACE_PATH, slug, updates, replace_crawl=True)
+    removed = sorted(set(raw) - set(kept))
+    logger.info(
+        "[config][RESET/CRAWL] slug=%s xoá override %s (giữ %s)%s%s",
+        slug, removed, list(kept),
+        f" — gắn lại nguồn '{source_name}'" if attached else "",
+        f" — trung hoà defaults.crawl: {sorted(neutral)}" if neutral else "",
+    )
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+@router.post("/ebooks/{slug}/settings/translate/reset")
+def reset_translate_overrides(slug: str):
+    """Xoá cấu hình AI dịch RIÊNG của ebook — quay về config chung
+    (`defaults.translate`, hoặc dataclass default nếu defaults trống).
+    Chỉ đụng ebook này, các ebook khác giữ nguyên config riêng của chúng."""
+    update_ebook(deps.WORKSPACE_PATH, slug, {"translate": {}}, replace_translate=True)
+    logger.info("[config][RESET/DỊCH] slug=%s xoá translate riêng — về config chung", slug)
+    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+@router.post("/ebooks/{slug}/settings/ai/reset")
+def reset_ai_overrides(slug: str):
+    """Xoá cấu hình AI biên tập RIÊNG của ebook — quay về config chung
+    (`defaults.ai`, fallback translate.openai nếu cũng trống)."""
+    update_ebook(deps.WORKSPACE_PATH, slug, {"ai": {}}, replace_ai=True)
+    logger.info("[config][RESET/AI] slug=%s xoá ai riêng — về config chung", slug)
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -450,10 +546,10 @@ def test_translate_connection(
 def save_translate(
     slug: str,
     type: str = Form("openai"),
-    base_url: str = Form("https://opencode.ai/zen/go/v1"),
+    base_url: str = Form("http://localhost:20128/v1"),
     api_key: str = Form(""),
-    model: str = Form("opencode-go/kimi-k2.6"),
-    timeout_seconds: int = Form(300),
+    model: str = Form("free-stack"),
+    timeout_seconds: int = Form(120000),
     temperature: float = Form(0.7),
     prompt_template: str = Form(""),
     title_prompt_template: str = Form(""),
@@ -534,7 +630,7 @@ def save_translate(
     }
     path = deps.ebook_config_path(slug)
     logger.info(
-        "[config][AI/DỊCH] global (từ %s) lưu vào defaults của %s: type=%s local_model=%s base_url=%r model=%r "
+        "[config][AI/DỊCH] slug=%s lưu riêng cho ebook (DB %s): type=%s local_model=%s base_url=%r model=%r "
         "hachimimt=%s timeout=%ss temperature=%s tone=%r pronoun=%s title_mode=%s han_viet=%s "
         "keep_paragraphs=%s retry=%s chunk_max_chars=%s delay=%ss "
         "auto_glossary=%s glossary_filter=%s batch_size=%s prompt_max_chars=%s auto_cleanup_han=%s cleanup_han=%s/%s",
@@ -545,26 +641,25 @@ def save_translate(
         auto_glossary, glossary_filter, batch_size, prompt_max_chars, auto_cleanup_han,
         cleanup_han_max_chars, cleanup_han_retries,
     )
-    # Cấu hình AI dịch dùng chung cho MỌI ebook: ghi vào `defaults:` và gỡ bản
-    # copy per-ebook cũ (update_defaults tự dọn).
-    update_defaults(deps.WORKSPACE_PATH, {"translate": translate})
+    # Cấu hình AI dịch RIÊNG của ebook này — defaults (config chung) không đổi.
+    update_ebook(deps.WORKSPACE_PATH, slug, {"translate": translate})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
 @router.post("/ebooks/{slug}/settings/ai")
 def save_ai(
     slug: str,
-    base_url: str = Form("https://opencode.ai/zen/go/v1"),
+    base_url: str = Form("http://localhost:20128/v1"),
     api_key: str = Form(""),
-    model: str = Form("opencode-go/kimi-k2.6"),
-    timeout_seconds: int = Form(300),
+    model: str = Form("free-stack"),
+    timeout_seconds: int = Form(120000),
     temperature: float = Form(0.7),
 ):
     """Lưu cấu hình AI biên tập (`ai.openai`) — tách riêng khỏi translate.openai.
 
     Dùng cho: glossary suggest/rewrite/evaluate. Không lưu prompt_template
-    vì AI biên tập dùng prompt cứng trong glossary_ai.py. Cấu hình dùng chung
-    cho MỌI ebook (ghi vào `defaults:`).
+    vì AI biên tập dùng prompt cứng trong glossary_ai.py. Cấu hình RIÊNG của
+    từng ebook — defaults (config chung) chỉ dùng làm fallback/Reset.
     """
     ai_openai_cfg: dict = {
         "base_url": base_url,
@@ -575,10 +670,10 @@ def save_ai(
     }
     path = deps.ebook_config_path(slug)
     logger.info(
-        "[config][AI/BIÊN TẬP] global (từ %s) lưu vào defaults của %s: base_url=%r model=%r timeout=%ss temperature=%s",
+        "[config][AI/BIÊN TẬP] slug=%s lưu riêng cho ebook (DB %s): base_url=%r model=%r timeout=%ss temperature=%s",
         slug, path, base_url, model, timeout_seconds, temperature,
     )
-    update_defaults(deps.WORKSPACE_PATH, {"ai": {"openai": ai_openai_cfg}})
+    update_ebook(deps.WORKSPACE_PATH, slug, {"ai": {"openai": ai_openai_cfg}})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
@@ -647,9 +742,7 @@ def save_output(
     update_ebook(deps.WORKSPACE_PATH, slug, {
         "output": output,
         "crawl": crawl,
-    })
-    # translate.* là cấu hình global — max_workers ghi vào defaults như tab Dịch.
-    update_defaults(deps.WORKSPACE_PATH, {
+        # translate per-ebook — max_workers ghi vào override riêng như tab Dịch.
         "translate": {"max_workers": max(1, translate_max_workers)},
     })
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)

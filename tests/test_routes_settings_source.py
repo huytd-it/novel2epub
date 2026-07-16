@@ -44,6 +44,11 @@ def _client(monkeypatch, tmp_path):
             # Ebook thứ hai cùng preset — dùng để khẳng định không ai ghi vào nó.
             "b": {"name": "B", "source": "aixdzs",
                   "crawl": {"toc_url": "https://aixdzs.com/d/2"}},
+            # Ebook CHƯA gắn nguồn nhưng URL khớp domain aixdzs — sync phải
+            # tự nhận diện, gắn nguồn rồi đẩy override lên preset.
+            "c": {"name": "C",
+                  "crawl": {"toc_url": "https://aixdzs.com/d/3",
+                            "content_selector": "#tu-c"}},
         },
     )
     from app import deps
@@ -156,6 +161,89 @@ def test_sync_to_source_day_len_preset_va_don_override_cua_ebook(monkeypatch, tm
     assert load_presets(db)["aixdzs"].content_selector == "#rieng"
     # Ebook về tham chiếu thuần — không giữ bản sao thừa.
     assert "content_selector" not in _crawl(db, "a")
+
+
+def _source_preset(path: Path, slug: str):
+    conn = get_connection(str(path))
+    row = conn.execute("SELECT source_preset FROM ebooks WHERE slug=?", (slug,)).fetchone()
+    return row["source_preset"] if row else None
+
+
+def test_sync_to_source_giu_nguyen_lien_ket_nguon(monkeypatch, tmp_path):
+    """Sau sync, ebook PHẢI còn gắn nguồn — bug cũ: save_preset dùng INSERT OR
+    REPLACE (xoá+chèn lại row sources), trên DB có FK ON DELETE SET NULL sẽ gỡ
+    source_preset của mọi ebook, khiến 'Lưu vào nguồn' đẩy được giá trị nhưng
+    ebook mất liên kết và config rơi về defaults."""
+    db, client = _client(monkeypatch, tmp_path)
+    client.post("/ebooks/a/settings/source", data=_form(content_selector="#rieng"))
+    r = client.post("/ebooks/a/settings/sync-to-source")
+    assert r.status_code == 303
+    assert _source_preset(db, "a") == "aixdzs"
+    assert _source_preset(db, "b") == "aixdzs"
+    # Resolve vẫn ăn theo preset (đã mang giá trị mới).
+    from novel2epub.config import load_config
+    assert load_config(db, "a").crawl.content_selector == "#rieng"
+
+
+def test_save_preset_khong_kich_hoat_fk_set_null_tren_db_cu(tmp_path):
+    """DB tạo từ schema cũ còn FK `ebooks.source_preset → sources(name)
+    ON DELETE SET NULL`: save_preset (update preset đã có) không được làm mất
+    liên kết nguồn của ebook — tức không được xoá row sources dù chỉ tức thời."""
+    import sqlite3
+
+    db = tmp_path / "legacy.db"
+    conn = sqlite3.connect(db)
+    conn.executescript("""
+        CREATE TABLE sources (
+            name TEXT PRIMARY KEY,
+            data_json TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE ebooks (
+            slug TEXT PRIMARY KEY,
+            source_preset TEXT REFERENCES sources(name) ON DELETE SET NULL,
+            archived INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT INTO sources (name, data_json) VALUES ('sudugu', '{"content_selector": ".cu"}');
+        INSERT INTO ebooks (slug, source_preset) VALUES ('a', 'sudugu');
+    """)
+    conn.commit()
+    conn.close()
+
+    from novel2epub.sources import SourcePreset, save_preset
+
+    save_preset(db, SourcePreset(name="sudugu", content_selector=".moi"))
+
+    check = get_connection(str(db))
+    assert check.execute(
+        "SELECT source_preset FROM ebooks WHERE slug='a'"
+    ).fetchone()["source_preset"] == "sudugu"
+    assert load_presets(db)["sudugu"].content_selector == ".moi"
+
+
+def test_sync_to_source_tu_gan_nguon_khop_url(monkeypatch, tmp_path):
+    """Ebook chưa gắn nguồn (source_preset=NULL) nhưng toc_url khớp domain
+    preset: sync tự nhận diện + gắn nguồn + đẩy override lên preset + dọn."""
+    db, client = _client(monkeypatch, tmp_path)
+    assert _source_preset(db, "c") is None
+
+    r = client.post("/ebooks/c/settings/sync-to-source")
+    assert r.status_code == 303
+
+    assert _source_preset(db, "c") == "aixdzs"
+    assert load_presets(db)["aixdzs"].content_selector == "#tu-c"
+    # Override về tham chiếu thuần (giá trị đã lên preset).
+    assert "content_selector" not in _crawl(db, "c")
+    from novel2epub.config import load_config
+    assert load_config(db, "c").crawl.content_selector == "#tu-c"
+
+
+def test_settings_page_hien_banner_nguon_tu_nhan_dien(monkeypatch, tmp_path):
+    db, client = _client(monkeypatch, tmp_path)
+    r = client.get("/ebooks/c/settings")
+    assert r.status_code == 200
+    assert "tự nhận diện" in r.text
+    assert "aixdzs" in r.text
 
 
 def test_sync_to_source_khong_ghi_vao_ebook_khac(monkeypatch, tmp_path):

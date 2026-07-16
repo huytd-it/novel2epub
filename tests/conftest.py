@@ -52,14 +52,16 @@ def write_db_config(
             crawl_over = block.get("crawl") or {}
             output_over = block.get("output") or {}
             reader_over = block.get("reader") or {}
+            translate_over = block.get("translate") or {}
+            ai_over = block.get("ai") or {}
             conn.execute(
                 """
                 INSERT INTO ebooks
                     (slug, name, source_preset, title, author, description, language,
                      publisher, pubdate, date_added, subjects_json, series, series_index,
                      identifier, cover_url, crawl_overrides_json, output_overrides_json, epub_path,
-                     reader_overrides_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     reader_overrides_json, translate_overrides_json, ai_overrides_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     slug, block.get("name", ""), block.get("source"),
@@ -70,6 +72,8 @@ def write_db_config(
                     novel.get("cover_url", ""), json.dumps(crawl_over, ensure_ascii=False),
                     json.dumps(output_over, ensure_ascii=False), output_over.get("epub_path", ""),
                     json.dumps(reader_over, ensure_ascii=False),
+                    json.dumps(translate_over, ensure_ascii=False),
+                    json.dumps(ai_over, ensure_ascii=False),
                 ),
             )
     conn.close()

@@ -206,6 +206,72 @@ SCRAPLING_FIELD_MAP = {
 }
 
 
+# Tên PHẲNG (SourcePreset / legacy defaults.crawl) → key lồng trong `crawl.scrapling`.
+_FLAT_SCRAPLING_TO_NESTED = {v: k for k, v in SCRAPLING_FIELD_MAP.items()}
+
+
+def neutralize_defaults_crawl(
+    defaults_crawl: dict[str, Any],
+    preset: SourcePreset | None,
+) -> dict[str, Any]:
+    """Override tối thiểu để ebook (sau khi xoá override riêng) resolve ra ĐÚNG
+    "preset + mặc định dataclass" — bất chấp khối `crawl` còn sót trong
+    defaults (config chung cũ, vd `content_selector: "#content"`).
+
+    `load_config` merge `defaults.crawl` bên dưới preset/override, nên key nào
+    defaults có mà preset KHÔNG phủ sẽ rò vào ebook — làm nút Reset "về
+    nguồn/mặc định" không chính xác. Hàm trả dict các key rò rỉ đó với giá trị
+    MẶC ĐỊNH (dataclass) để ghi vào override của ebook, trung hoà đúng chỗ rò
+    mà không đụng config chung (ebook khác giữ nguyên). Hàm thuần.
+    """
+    from .config import CrawlConfig, CrawlRetryConfig, ScraplingConfig
+
+    covered = set(preset.crawl_overrides()) if preset else set()
+    base = CrawlConfig()
+    s_base = ScraplingConfig()
+    out: dict[str, Any] = {}
+    scrapling_out: dict[str, Any] = {}
+    for key, val in (defaults_crawl or {}).items():
+        if key == "toc_url":
+            continue  # định danh ebook — caller tự giữ
+        if key == "scrapling" and isinstance(val, dict):
+            for nk, nv in val.items():
+                flat = SCRAPLING_FIELD_MAP.get(nk, nk)
+                if flat in covered or not hasattr(s_base, nk):
+                    continue
+                dv = getattr(s_base, nk)
+                if nv != dv:
+                    scrapling_out.setdefault(nk, dv)
+            continue
+        if key == "retry" and isinstance(val, dict):
+            r_base = CrawlRetryConfig()
+            sub = {rk: getattr(r_base, rk) for rk, rv in val.items()
+                   if hasattr(r_base, rk) and rv != getattr(r_base, rk)}
+            if sub:
+                out["retry"] = sub
+            continue
+        if key in _FLAT_SCRAPLING_TO_NESTED:
+            # Key scrapling phẳng legacy trong defaults (`scrapling_mode`...) —
+            # load_config vẫn map vào ScraplingConfig nên phải trung hoà dạng lồng.
+            if key in covered:
+                continue
+            nk = _FLAT_SCRAPLING_TO_NESTED[key]
+            dv = getattr(s_base, nk)
+            if val != dv:
+                scrapling_out.setdefault(nk, dv)
+            continue
+        if key in covered:
+            continue
+        if not hasattr(base, key):
+            continue  # key legacy bị load_config bỏ qua — không cần trung hoà
+        dv = getattr(base, key)
+        if val != dv:
+            out[key] = dv
+    if scrapling_out:
+        out["scrapling"] = scrapling_out
+    return out
+
+
 def strip_preset_defaults(
     crawl_over: dict[str, Any],
     preset: SourcePreset,
@@ -244,16 +310,26 @@ def strip_preset_defaults(
     return cleaned, removed
 
 
+# UPSERT THẬT (ON CONFLICT DO UPDATE) — tuyệt đối KHÔNG dùng INSERT OR REPLACE
+# cho bảng `sources`: OR REPLACE xoá row cũ rồi chèn lại, và trên DB tạo từ
+# schema cũ (ebooks còn FK `source_preset → sources(name) ON DELETE SET NULL`)
+# cú xoá ngầm đó lặng lẽ GỠ NGUỒN khỏi mọi ebook đang gắn preset — chính là bug
+# "Lưu vào nguồn" đẩy được giá trị nhưng ebook mất liên kết nguồn.
+_UPSERT_SOURCE_SQL = """
+    INSERT INTO sources (name, data_json) VALUES (?, ?)
+    ON CONFLICT(name) DO UPDATE SET
+        data_json = excluded.data_json,
+        updated_at = datetime('now')
+"""
+
+
 def save_preset(path: str | Path, preset: SourcePreset) -> None:
     """Lưu đúng 1 preset bằng UPSERT — không ảnh hưởng preset khác."""
     db_path = Path(path).resolve()
     conn = get_thread_connection(db_path)
     data = {k: v for k, v in asdict(preset).items() if k != "name"}
     with conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO sources (name, data_json) VALUES (?, ?)",
-            (preset.name, json.dumps(data, ensure_ascii=False)),
-        )
+        conn.execute(_UPSERT_SOURCE_SQL, (preset.name, json.dumps(data, ensure_ascii=False)))
 
 
 def delete_preset(path: str | Path, name: str) -> None:
@@ -278,10 +354,7 @@ def save_presets(path: str | Path, presets: dict[str, SourcePreset]) -> None:
     with conn:
         for name, preset in presets.items():
             data = {k: v for k, v in asdict(preset).items() if k != "name"}
-            conn.execute(
-                "INSERT OR REPLACE INTO sources (name, data_json) VALUES (?, ?)",
-                (name, json.dumps(data, ensure_ascii=False)),
-            )
+            conn.execute(_UPSERT_SOURCE_SQL, (name, json.dumps(data, ensure_ascii=False)))
         if names:
             placeholders = ",".join("?" * len(names))
             conn.execute(

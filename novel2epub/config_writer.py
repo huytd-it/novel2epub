@@ -31,6 +31,9 @@ _NOVEL_COLUMNS = frozenset({
     "date_added", "series", "series_index", "identifier", "cover_url",
 })
 
+# Các section của bảng `settings` — thứ tự khớp cột trong _upsert_settings.
+_SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "output", "queue", "reader")
+
 
 def clean_prompt_text(value: str) -> str:
     """Làm sạch nội dung prompt nhập từ textarea cho gọn gàng, thống nhất.
@@ -59,12 +62,17 @@ def update_ebook(
     updates: dict[str, Any],
     *,
     replace_crawl: bool = False,
+    replace_translate: bool = False,
+    replace_ai: bool = False,
 ) -> None:
-    """Merge `updates` (khối "novel"/"crawl"/"output"/"source") vào row
-    `ebooks.<slug>` — chỉ chạm đúng cột liên quan, ebook khác giữ nguyên.
+    """Merge `updates` (khối "novel"/"crawl"/"translate"/"ai"/"output"/
+    "reader"/"source") vào row `ebooks.<slug>` — chỉ chạm đúng cột liên quan,
+    ebook khác giữ nguyên.
 
-    `replace_crawl=True`: ghi đè NGUYÊN KHỐI `crawl_overrides_json` thay vì
-    merge — cách duy nhất để XOÁ một override (merge không bỏ được key).
+    `replace_crawl`/`replace_translate`/`replace_ai` =True: ghi đè NGUYÊN KHỐI
+    `*_overrides_json` tương ứng thay vì merge — cách duy nhất để XOÁ một
+    override (merge không bỏ được key); truyền khối rỗng `{}` = reset về
+    defaults (config chung).
     """
     db_path = Path(path).resolve()
     conn = get_thread_connection(db_path)
@@ -96,6 +104,28 @@ def update_ebook(
                 new_crawl = _deep_merge_raw(current_crawl, filtered)
             set_clauses.append("crawl_overrides_json = ?")
             params.append(json.dumps(new_crawl, ensure_ascii=False))
+
+        translate_updates = updates.get("translate")
+        if isinstance(translate_updates, dict):
+            filtered = {k: v for k, v in translate_updates.items()
+                        if k not in _DEPRECATED_TRANSLATE_FIELDS}
+            if replace_translate:
+                new_translate = filtered
+            else:
+                current_translate = json.loads(row["translate_overrides_json"] or "{}")
+                new_translate = _deep_merge_raw(current_translate, filtered)
+            set_clauses.append("translate_overrides_json = ?")
+            params.append(json.dumps(new_translate, ensure_ascii=False))
+
+        ai_updates = updates.get("ai")
+        if isinstance(ai_updates, dict):
+            if replace_ai:
+                new_ai = ai_updates
+            else:
+                current_ai = json.loads(row["ai_overrides_json"] or "{}")
+                new_ai = _deep_merge_raw(current_ai, ai_updates)
+            set_clauses.append("ai_overrides_json = ?")
+            params.append(json.dumps(new_ai, ensure_ascii=False))
 
         output_updates = updates.get("output")
         if isinstance(output_updates, dict):
@@ -130,20 +160,13 @@ def update_ebook(
 
 
 def update_defaults(path: str | Path, updates: dict[str, Any]) -> None:
-    """Merge `updates` vào bảng `settings` (cấu hình dùng chung cho MỌI ebook).
-
-    Không cần "gỡ bản copy per-ebook cũ" như trước (ruamel/YAML) — schema DB
-    không có chỗ lưu override per-ebook cho `translate`/`ai` nên không có gì
-    để dọn.
-    """
+    """Merge `updates` vào bảng `settings` — CONFIG CHUNG: fallback cho ebook
+    chưa cấu hình riêng + giá trị quay về khi Reset. Cấu hình riêng từng ebook
+    (kể cả `translate`/`ai`) ghi qua `update_ebook`."""
     db_path = Path(path).resolve()
     conn = get_thread_connection(db_path)
-    sections = ("novel", "crawl", "translate", "ai", "output", "queue", "reader")
     with conn:
-        row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
-        current: dict[str, dict[str, Any]] = {
-            s: json.loads(row[f"{s}_json"]) if row and row[f"{s}_json"] else {} for s in sections
-        }
+        current = _read_settings_sections(conn)
         for key, value in updates.items():
             if key not in current:
                 current[key] = {}
@@ -158,22 +181,56 @@ def update_defaults(path: str | Path, updates: dict[str, Any]) -> None:
                 )
             else:
                 current[key] = value
-        conn.execute(
-            """
-            INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json, reader_json)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                novel_json = excluded.novel_json,
-                crawl_json = excluded.crawl_json,
-                translate_json = excluded.translate_json,
-                ai_json = excluded.ai_json,
-                output_json = excluded.output_json,
-                queue_json = excluded.queue_json,
-                reader_json = excluded.reader_json,
-                updated_at = datetime('now')
-            """,
-            tuple(json.dumps(current[s], ensure_ascii=False) for s in sections),
-        )
+        _upsert_settings(conn, current)
+
+
+def _read_settings_sections(conn) -> dict[str, Any]:
+    row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    return {
+        s: json.loads(row[f"{s}_json"]) if row and row[f"{s}_json"] else {}
+        for s in _SETTINGS_SECTIONS
+    }
+
+
+def _upsert_settings(conn, current: dict[str, Any]) -> None:
+    conn.execute(
+        """
+        INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json, reader_json)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            novel_json = excluded.novel_json,
+            crawl_json = excluded.crawl_json,
+            translate_json = excluded.translate_json,
+            ai_json = excluded.ai_json,
+            output_json = excluded.output_json,
+            queue_json = excluded.queue_json,
+            reader_json = excluded.reader_json,
+            updated_at = datetime('now')
+        """,
+        tuple(json.dumps(current[s], ensure_ascii=False) for s in _SETTINGS_SECTIONS),
+    )
+
+
+def reset_defaults(path: str | Path, sections: list[str] | tuple[str, ...]) -> list[str]:
+    """Xoá trắng các section trong bảng `settings` (config chung) — load_config
+    quay về default của dataclass (novel2epub/config.py). Lưu ý: nút Reset ở
+    trang Settings ebook KHÔNG gọi hàm này — nó xoá override RIÊNG của ebook
+    (`update_ebook(..., replace_translate/ai=True)`) để quay VỀ config chung;
+    hàm này dành cho việc đưa chính config chung về mặc định.
+
+    Trả về danh sách section thật sự được reset (section không hợp lệ bị bỏ qua).
+    """
+    targets = [s for s in sections if s in _SETTINGS_SECTIONS]
+    if not targets:
+        return []
+    db_path = Path(path).resolve()
+    conn = get_thread_connection(db_path)
+    with conn:
+        current = _read_settings_sections(conn)
+        for s in targets:
+            current[s] = {}
+        _upsert_settings(conn, current)
+    return targets
 
 
 def add_ebook(

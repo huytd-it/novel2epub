@@ -67,8 +67,8 @@ def test_no_preset_backward_compat(tmp_path):
     config_path = _write_config(tmp_path, extra={"translate": {"type": "none"}})
     cfg = load_config(config_path)
     assert cfg.translate.preset == ""
-    assert cfg.translate.openai.base_url == "https://opencode.ai/zen/go/v1"
-    assert cfg.translate.openai.model == "opencode-go/kimi-k2.6"
+    assert cfg.translate.openai.base_url == "http://localhost:20128/v1"
+    assert cfg.translate.openai.model == "free-stack"
 
 
 def test_go_preset_resolution(tmp_path):
@@ -232,9 +232,10 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
     assert cfg_b.crawl.content_selector == "#default"
 
 
-def test_translate_and_ai_are_global_ignore_ebook_override(tmp_path):
-    """`translate` (AI dịch) và `ai` (AI biên tập) dùng chung cho mọi ebook:
-    chỉ đọc từ defaults, override per-ebook (nếu còn sót) bị bỏ qua."""
+def test_translate_and_ai_per_ebook_override_wins(tmp_path):
+    """`translate` (AI dịch) và `ai` (AI biên tập) là cấu hình RIÊNG từng ebook:
+    override per-ebook đè lên defaults; ebook không có override thì rơi về
+    defaults (config chung — cũng là giá trị khi Reset)."""
     path = write_db_config(
         tmp_path / "novel2epub.db",
         defaults={
@@ -247,13 +248,19 @@ def test_translate_and_ai_are_global_ignore_ebook_override(tmp_path):
                 "translate": {"type": "none", "openai": {"model": "per-ebook-model"}},
                 "ai": {"openai": {"model": "per-ebook-editor"}},
             },
+            "b": {"novel": {"slug": "b"}},  # không override — dùng config chung
         },
     )
 
     cfg = load_config(path, "a")
-    assert cfg.translate.type == "openai"
-    assert cfg.translate.openai.model == "global-model"
-    assert cfg.ai.openai.model == "global-editor"
+    assert cfg.translate.type == "none"
+    assert cfg.translate.openai.model == "per-ebook-model"
+    assert cfg.ai.openai.model == "per-ebook-editor"
+
+    cfg_b = load_config(path, "b")
+    assert cfg_b.translate.type == "openai"
+    assert cfg_b.translate.openai.model == "global-model"
+    assert cfg_b.ai.openai.model == "global-editor"
 
 
 def test_unified_file_unknown_slug_raises(tmp_path):
@@ -265,15 +272,15 @@ def test_unified_file_unknown_slug_raises(tmp_path):
         load_config(path, "nonexistent")
 
 
-def test_default_translate_type_is_hachimimt(tmp_path):
-    """Không khai báo translate.type → mặc định type=hachimimt."""
+def test_default_translate_type_is_openai(tmp_path):
+    """Không khai báo translate.type → mặc định type=openai."""
     path = write_db_config(
         tmp_path / "novel2epub.db",
         defaults={"translate": {}},
         ebooks={"test": {"novel": {"slug": "test"}, "crawl": {"toc_url": "https://example.com"}}},
     )
     cfg = load_config(path)
-    assert cfg.translate.type == "hachimimt"
+    assert cfg.translate.type == "openai"
 
 
 def test_hachimimt_auto_preset(tmp_path):

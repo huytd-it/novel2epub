@@ -868,7 +868,7 @@ def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
             skipped.append(idx)
             continue
         if source == "raw":
-            items.append((idx, ch.title, storage.read_raw(ch)))
+            items.append((idx, ch.title_zh or ch.title, storage.read_raw(ch)))
         else:
             items.append((idx, ch.title, storage.read_translated(ch)))
 
@@ -880,10 +880,14 @@ def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
     glossary = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
     if cfg.translate.glossary_filter:
         glossary = _filter_glossary_for_batch(glossary, items)
+    if source == "raw":
+        prompt = bulk_transfer.build_translate_prompt_from_cfg(cfg)
+    else:
+        prompt = _EXPORT_PROMPTS[source]
     text = bulk_transfer.build_export(
         items,
         glossary=glossary,
-        prompt=_EXPORT_PROMPTS[source],
+        prompt=prompt,
     )
     return JSONResponse({"text": text, "skipped": skipped, "total": len(items), "source": source})
 
@@ -1071,7 +1075,7 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
         if cfg.translate.glossary_filter:
             bg = _filter_glossary_for_batch(ref_glossary, batch)
         return len(bulk_transfer.build_export(
-            batch, glossary=bg, prompt=bulk_transfer.TRANSLATE_PROMPT,
+            batch, glossary=bg, prompt=bulk_transfer.build_translate_prompt_from_cfg(cfg),
         ))
 
     batch_size = max(1, cfg.translate.batch_size)
@@ -1116,7 +1120,7 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
         export_text = bulk_transfer.build_export(
             batch_items,
             glossary=batch_glossary,
-            prompt=bulk_transfer.TRANSLATE_PROMPT,
+            prompt=bulk_transfer.build_translate_prompt_from_cfg(cfg),
         )
 
         # 2. Gọi AI (retry 1 lần — fail cả 2 lần → skip batch này, tiếp tục batch kế tiếp)

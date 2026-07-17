@@ -241,6 +241,42 @@ def _format_glossary_block(glossary: dict[str, str]) -> str:
     return f"## Glossary tham khảo (dùng đúng các tên này)\n{lines}"
 
 
+def build_translate_prompt_from_cfg(cfg) -> str:
+    """Render prompt dịch từ cfg.translate để nhúng vào file export.
+
+    Render các style placeholder, bỏ phần nội dung ({text}, {glossary},
+    --- Nội dung cần dịch ---, v.v.) vì build_export gắn glossary + chương
+    riêng bên dưới theo format ## idx:N.
+    """
+    tpl = cfg.translate.openai.prompt_template
+    style = cfg.translate.style
+    prompt = (
+        tpl
+        .replace("{tone}", style.tone)
+        .replace("{pronoun_policy}", style.pronoun_policy)
+        .replace("{keep_paragraphs}", str(style.keep_paragraphs))
+        .replace("{title_mode}", style.title_mode)
+        .replace("{han_viet_level}", style.han_viet_level)
+        .replace("{auto_glossary_block}", "")
+        .replace("{fixup_warning}", "")
+        .replace("{glossary}", "")
+    )
+    # Cắt phần "--- Nội dung cần dịch ---\n{text}" và các biến thể tương tự
+    import re as _re
+    prompt = _re.split(r"\n---[^\n]+---\s*\{text\}", prompt)[0]
+    # Nếu template không có separator đó, bỏ {text} trực tiếp
+    prompt = prompt.replace("{text}", "")
+    prompt = prompt.rstrip()
+    prompt += """
+
+## Quy tắc định dạng đầu ra (bắt buộc để nạp ngược vào hệ thống)
+
+- GIỮ NGUYÊN số `idx:N` ở đầu mỗi dòng tiêu đề — đây CHỈ LÀ SỐ THỨ TỰ để đối chiếu, KHÔNG PHẢI số chương thật. Dịch phần tiêu đề tiếng Trung đứng sau `idx:N:` sang tiếng Việt. Ví dụ: `## idx:5: 第5章 拜师` phải trả về `## idx:5: Chương 5: Bái Sư`.
+- Điền bản dịch tiếng Việt BÊN DƯỚI mỗi dòng tiêu đề. KHÔNG gộp/xóa/thêm dòng tiêu đề."""
+    prompt += "\n" + _GLOSSARY_OUTPUT_RULE
+    return prompt
+
+
 def build_export(
     items: list[tuple[int, str, str]],
     *,

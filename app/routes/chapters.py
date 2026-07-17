@@ -831,12 +831,7 @@ def _filter_glossary_for_batch(
     )
 
 
-@router.post("/api/ebooks/{slug}/batch/export")
-async def api_batch_export(slug: str, indexes: str = Form(""), source: str = Form("translated")):
-    """Xuất chương đã chọn thành một khối text (prompt + glossary + chương có
-    marker) để dán lên web chat AI. `source=translated` (mặc định) xuất bản
-    dịch hiện hành để AI BIÊN TẬP; `source=raw` xuất bản gốc tiếng Trung
-    (chương chưa dịch hoặc muốn dịch lại) để AI DỊCH."""
+def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
     if source not in _EXPORT_PROMPTS:
         raise HTTPException(status_code=400, detail=f"source không hợp lệ: {source!r}")
     cfg = deps.resolved_cfg(slug)
@@ -882,6 +877,14 @@ async def api_batch_export(slug: str, indexes: str = Form(""), source: str = For
         prompt=_EXPORT_PROMPTS[source],
     )
     return JSONResponse({"text": text, "skipped": skipped, "total": len(items), "source": source})
+
+@router.get("/api/ebooks/{slug}/export")
+async def api_export(slug: str, indexes: str = "", source: str = "translated"):
+    return _do_export(slug, indexes, source)
+
+@router.post("/api/ebooks/{slug}/batch/export")
+async def api_batch_export(slug: str, indexes: str = Form(""), source: str = Form("translated")):
+    return _do_export(slug, indexes, source)
 
 
 @router.post("/api/ebooks/{slug}/batch/import")

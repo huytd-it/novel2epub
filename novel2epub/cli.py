@@ -101,8 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     crawl_parser.add_argument("--filter", dest="filters", action="append", default=[], help="Lọc chương: raw:yes/no, translated:yes/no, missing:yes/no")
     crawl_parser.add_argument("--range", dest="visible_range", default="", help="Chọn range theo danh sách đang sort/filter, ví dụ 1:3")
     sub.add_parser("translate", help="Dịch các chương đã crawl sang tiếng Việt")
-    toc_parser = sub.add_parser("toc", help="Lấy mục lục + metadata, không crawl nội dung chương")
-    toc_parser.add_argument("--force", action="store_true", help="Làm mới metadata nguồn dù manifest đã có giá trị")
+    sub.add_parser("toc", help="Lấy mục lục, không crawl nội dung chương")
     chapters_parser = sub.add_parser("chapters", help="Liệt kê chương với sort/search/filter")
     chapters_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Khóa sắp xếp")
     chapters_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort")
@@ -142,6 +141,13 @@ def main(argv: list[str] | None = None) -> int:
     restore_parser = sub.add_parser("restore", help="Phục hồi DB từ 1 file backup .db (ghi đè DB hiện tại)")
     restore_parser.add_argument("--from", dest="from_path", required=True, help="File backup .db nguồn")
     restore_parser.add_argument("--yes", action="store_true", help="Không hỏi xác nhận trước khi ghi đè")
+    service_parser = sub.add_parser(
+        "service",
+        help="Đăng ký web server chạy nền khi khởi động máy (Windows Task Scheduler / Linux systemd)",
+    )
+    service_parser.add_argument("action", choices=["install", "uninstall", "status"])
+    service_parser.add_argument("--host", default="127.0.0.1", help="Host uvicorn (mặc định 127.0.0.1)")
+    service_parser.add_argument("--port", type=int, default=8010, help="Port uvicorn (mặc định 8010)")
 
     translate_parser = sub.choices["translate"]
     translate_parser.add_argument("--force", action="store_true", help="Dịch lại dù đã có bản dịch")
@@ -165,6 +171,11 @@ def main(argv: list[str] | None = None) -> int:
         for slug, entry in library.ebooks.items():
             print(f"{slug}\t{entry.name or slug}")
         return 0
+
+    if args.command == "service":
+        from .service import service_main
+
+        return service_main(args.action, args.host, args.port)
 
     if args.command == "backup":
         from .backup import backup_db, timestamped_backup
@@ -362,7 +373,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 step_translate(cfg)
         elif args.command == "toc":
-            step_fetch_toc(cfg, force=args.force)
+            step_fetch_toc(cfg)
         elif args.command == "chapters":
             _print_chapters(cfg, args)
         elif args.command == "evaluate":

@@ -1,15 +1,13 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}novel2epub{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500;7..72,600;7..72,700&display=swap&subset=vietnamese" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,500;7..72,600;7..72,700&display=swap&subset=vietnamese,latin" rel="stylesheet">
     <script>
-        // Pre-paint: set theme trước khi render để tránh nháy sáng/tối (FOUC).
-        // Tailwind dark mode dùng class="dark"; đồng thời giữ data-theme để tương thích selector cũ.
         (function () {
             var saved = localStorage.getItem("n2e-theme");
             var theme = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -24,28 +22,66 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Literata', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
                         serif: ['Literata', 'ui-serif', 'Georgia', 'serif'],
+                        mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
                     },
                     colors: {
-                        app: { light: '#fafafa', dark: '#14161a' },
-                        surface: { light: '#ffffff', dark: '#1c1f24' },
-                        'surface-alt': { light: '#f7f7f7', dark: '#20242a' },
-                        border: { light: '#e5e5e5', dark: '#2e3338' },
-                        fg: { light: '#202020', dark: '#e7e9ec' },
-                        muted: { light: '#777777', dark: '#9aa2ad' },
-                        link: { light: '#2563eb', dark: '#6ea8fe' },
-                        'link-hover': { light: '#1d4ed8', dark: '#8fbcff' },
-                        ok: { light: '#d3f3d3', dark: '#1f3a24' },
-                        no: { light: '#f3d3d3', dark: '#3a2020' },
-                        run: { light: '#fff2b3', dark: '#4a3c10' },
+                        brand: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            200: '#a7f3d0',
+                            300: '#6ee7b7',
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                            950: '#022c22',
+                        },
+                        surface: {
+                            light: '#ffffff',
+                            dark: '#18181b',
+                            muted: '#f4f4f5',
+                            'muted-dark': '#27272a',
+                            border: '#e4e4e7',
+                            'border-dark': '#3f3f46',
+                        },
+                        fg: {
+                            light: '#18181b',
+                            dark: '#fafafa',
+                            muted: '#71717a',
+                            'muted-dark': '#a1a1aa',
+                        },
+                        status: {
+                            ok: { light: '#dcfce7', dark: '#14532d', fg: '#166534', 'fg-dark': '#86efac' },
+                            warn: { light: '#fef9c3', dark: '#713f12', fg: '#854d0e', 'fg-dark': '#fde047' },
+                            err: { light: '#fee2e2', dark: '#7f1d1d', fg: '#991b1b', 'fg-dark': '#fca5a5' },
+                            info: { light: '#dbeafe', dark: '#1e3a5f', fg: '#1e40af', 'fg-dark': '#93c5fd' },
+                            run: { light: '#fff7ed', dark: '#7c2d12', fg: '#c2410c', 'fg-dark': '#fdba74' },
+                        },
                     },
                     borderRadius: {
                         card: '10px',
+                        'card-lg': '14px',
                     },
                     boxShadow: {
-                        card: '0 6px 24px rgba(0,0,0,0.04)',
-                        'card-dark': '0 6px 24px rgba(0,0,0,0.3)',
+                        card: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+                        'card-hover': '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
+                        'card-dark': '0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)',
+                        'card-hover-dark': '0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3)',
+                        modal: '0 20px 40px rgba(0,0,0,0.15), 0 8px 16px rgba(0,0,0,0.1)',
+                        'modal-dark': '0 20px 40px rgba(0,0,0,0.5), 0 8px 16px rgba(0,0,0,0.3)',
+                    },
+                    transitionDuration: {
+                        'fast': '120ms',
+                        'normal': '180ms',
+                        'slow': '280ms',
+                    },
+                    spacing: {
+                        '18': '4.5rem',
+                        '22': '5.5rem',
                     },
                 },
             },
@@ -53,50 +89,216 @@
     </script>
     <style type="text/tailwindcss">
         @layer base {
-            body { @apply bg-app-light text-fg-light font-sans antialiased; }
-            .dark body { @apply bg-app-dark text-fg-dark; }
+            *, *::before, *::after { box-sizing: border-box; }
+            html { scroll-behavior: smooth; }
+            @media (prefers-reduced-motion: reduce) {
+                html { scroll-behavior: auto; }
+                *, *::before, *::after {
+                    animation-duration: 0.01ms !important;
+                    animation-iteration-count: 1 !important;
+                    transition-duration: 0.01ms !important;
+                }
+            }
+            body {
+                @apply bg-surface-light text-fg-light font-sans antialiased min-h-screen;
+                font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+            }
+            .dark body { @apply bg-surface-dark text-fg-dark; }
+            :focus-visible {
+                @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-surface-light dark:ring-offset-surface-dark;
+            }
+            ::selection { @apply bg-brand-500/30; }
+            .dark ::selection { @apply bg-brand-500/40; }
+        }
+        @layer components {
+            .btn {
+                @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-fast focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed;
+            }
+            .btn-primary {
+                @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 shadow-sm dark:bg-brand-500 dark:hover:bg-brand-600 dark:active:bg-brand-700;
+            }
+            .btn-secondary {
+                @apply btn bg-surface-muted dark:bg-surface-muted-dark text-fg-light dark:text-fg-dark border border-surface-border dark:border-surface-border-dark hover:bg-surface-border dark:hover:bg-surface-border-dark active:bg-surface-border dark:active:bg-surface-border-dark;
+            }
+            .btn-ghost {
+                @apply btn bg-transparent text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark active:bg-surface-border dark:active:bg-surface-border-dark;
+            }
+            .btn-danger {
+                @apply btn bg-status-err-light text-status-err-fg border border-status-err-light hover:bg-status-err-fg hover:text-white active:bg-status-err-fg/90 dark:bg-status-err-dark dark:text-status-err-fg-dark dark:border-status-err-dark dark:hover:bg-status-err-fg-dark dark:active:bg-status-err-fg-dark/90;
+            }
+            .btn-sm { @apply px-2.5 py-1 text-xs gap-1; }
+            .btn-lg { @apply px-4 py-2 text-base gap-2; }
+
+            .input {
+                @apply w-full px-3 py-2 text-sm bg-surface-light dark:bg-surface-dark border border-surface-border dark:border-surface-border-dark rounded-lg text-fg-light dark:text-fg-dark placeholder:text-fg-muted dark:placeholder:text-fg-muted-dark transition-colors duration-fast focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent;
+            }
+            .input-sm { @apply px-2.5 py-1.5 text-xs; }
+            .input-lg { @apply px-4 py-2.5 text-base; }
+
+            .select {
+                @apply input appearance-none bg-no-repeat pr-10;
+                background-position: right 0.75rem center;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+            }
+            .dark .select {
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+            }
+
+            .label { @apply block text-xs font-medium text-fg-muted dark:text-fg-muted-dark mb-1.5; }
+
+            .card {
+                @apply bg-surface-light dark:bg-surface-dark border border-surface-border dark:border-surface-border-dark rounded-xl shadow-card dark:shadow-card-dark transition-shadow duration-fast;
+            }
+            .card-hover:hover { @apply shadow-card-hover dark:shadow-card-hover-dark; }
+
+            .badge {
+                @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full;
+            }
+            .badge-ok { @apply bg-status-ok-light text-status-ok-fg dark:bg-status-ok-dark dark:text-status-ok-fg-dark; }
+            .badge-warn { @apply bg-status-warn-light text-status-warn-fg dark:bg-status-warn-dark dark:text-status-warn-fg-dark; }
+            .badge-err { @apply bg-status-err-light text-status-err-fg dark:bg-status-err-dark dark:text-status-err-fg-dark; }
+            .badge-info { @apply bg-status-info-light text-status-info-fg dark:bg-status-info-dark dark:text-status-info-fg-dark; }
+            .badge-run { @apply bg-status-run-light text-status-run-fg dark:bg-status-run-dark dark:text-status-run-fg-dark; }
+            .badge-neutral { @apply bg-surface-muted dark:bg-surface-muted-dark text-fg-muted dark:text-fg-muted-dark border border-surface-border dark:border-surface-border-dark; }
+
+            .table-container { @apply overflow-x-auto border border-surface-border dark:border-surface-border-dark rounded-xl; }
+            .table { @apply w-full text-sm border-collapse; table-layout: fixed; }
+            .table th { @apply px-3 py-2.5 text-left font-semibold text-fg-muted dark:text-fg-muted-dark uppercase tracking-wider text-xs bg-surface-muted dark:bg-surface-muted-dark border-b border-surface-border dark:border-surface-border-dark sticky top-0 z-10; }
+            .table td { @apply px-3 py-2.5 border-b border-surface-border dark:border-surface-border-dark text-fg-light dark:text-fg-dark; }
+            .table tbody tr { @apply hover:bg-surface-muted/50 dark:hover:bg-surface-muted-dark/50 transition-colors duration-fast; }
+            .table tbody tr:last-child td { @apply border-b-0; }
+
+            .skeleton { @apply bg-surface-muted dark:bg-surface-muted-dark animate-pulse rounded; }
+            .skeleton-text { @apply h-4 w-full skeleton; }
+            .skeleton-title { @apply h-6 w-3/4 skeleton; }
+            .skeleton-card { @apply h-32 skeleton; }
+
+            .scrollbar-thin { scrollbar-width: thin; scrollbar-color: theme('colors.surface.border') transparent; }
+            .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+            .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+            .scrollbar-thin::-webkit-scrollbar-thumb { background-color: theme('colors.surface.border'); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+            .scrollbar-thin::-webkit-scrollbar-thumb:hover { background-color: theme('colors.fg.muted'); }
+            .dark .scrollbar-thin { scrollbar-color: theme('colors.surface.border-dark') transparent; }
+            .dark .scrollbar-thin::-webkit-scrollbar-thumb { background-color: theme('colors.surface.border-dark'); }
+            .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover { background-color: theme('colors.fg.muted-dark'); }
+
+            .toast { @apply flex items-center gap-2 px-3 py-2 rounded-lg border bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark text-sm shadow-card dark:shadow-card-dark transition-all duration-normal; }
+            .toast-success { @apply border-green-500; }
+            .toast-error { @apply border-red-500; }
+            .toast-info { @apply border-blue-500; }
+
+            .modal-backdrop { @apply fixed inset-0 bg-black/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 hidden; }
+            .modal-backdrop.open { @apply flex; }
+            .modal { @apply bg-surface-light dark:bg-surface-dark border border-surface-border dark:border-surface-border-dark rounded-2xl shadow-modal dark:shadow-modal-dark max-h-[90vh] overflow-y-auto w-full max-w-lg; }
+            .modal-sm { @apply max-w-md; }
+            .modal-lg { @apply max-w-3xl; }
+            .modal-xl { @apply max-w-5xl; }
+
+            .canvas-backdrop { @apply fixed inset-0 bg-black/35 z-40 flex justify-end hidden; }
+            .canvas-backdrop.open { @apply flex; }
+            .canvas { @apply bg-surface-light dark:bg-surface-dark border-l border-surface-border dark:border-surface-border-dark w-full max-w-xl md:max-w-2xl lg:max-w-3xl h-full overflow-y-auto transform transition-transform duration-normal shadow-modal dark:shadow-modal-dark translate-x-full; }
+            .canvas-backdrop.open .canvas { @apply translate-x-0; }
+            .canvas-header { @apply flex items-center justify-between p-4 border-b border-surface-border dark:border-surface-border-dark sticky top-0 bg-surface-light/95 dark:bg-surface-dark/95 backdrop-blur supports-[backdrop-filter]:bg-surface-light/80 supports-[backdrop-filter]:dark:bg-surface-dark/80 z-10; }
+            .canvas-body { @apply p-4 flex-1 overflow-y-auto; }
+            .canvas-footer { @apply p-4 border-t border-surface-border dark:border-surface-border-dark sticky bottom-0 bg-surface-light/95 dark:bg-surface-dark/95 backdrop-blur supports-[backdrop-filter]:bg-surface-light/80 supports-[backdrop-filter]:dark:bg-surface-dark/80; }
+
+            .form-group { @apply space-y-1.5; }
+            .form-row { @apply grid gap-4 md:grid-cols-2; }
+
+            .divider { @apply h-px bg-surface-border dark:bg-surface-border-dark my-4; }
+            .divider-text { @apply flex items-center gap-3 text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide; }
+            .divider-text::before, .divider-text::after { @apply flex-1 divider; content: ''; }
+
+            .empty-state { @apply flex flex-col items-center justify-center py-12 px-4 text-center; }
+            .empty-state-icon { @apply text-5xl text-fg-muted/30 dark:text-fg-muted-dark/30 mb-3; }
+            .empty-state-title { @apply text-lg font-medium text-fg-light dark:text-fg-dark mb-1; }
+            .empty-state-desc { @apply text-sm text-fg-muted dark:text-fg-muted-dark max-w-xs; }
+
+            .page-header { @apply mb-6; }
+            .page-title { @apply text-2xl font-semibold text-fg-light dark:text-fg-dark m-0; }
+            .page-subtitle { @apply text-sm text-fg-muted dark:text-fg-muted-dark mt-1; }
+        }
+        @layer utilities {
+            .text-balance { text-wrap: balance; }
+            .animate-in { animation: fadeIn 0.18s ease-out forwards; }
+            .slide-in-right { animation: slideInRight 0.25s ease-out forwards; }
+            .slide-out-right { animation: slideOutRight 0.2s ease-in forwards; }
+            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes slideInRight { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+            @keyframes slideOutRight { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(16px); } }
         }
     </style>
-    <!-- Lucide icons: lightweight SVG icon library (~5KB gzipped for individual icons via data-lucide attr) -->
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script>
-        // Tailwind cần truy cập các class động (dùng trong tabBar, queue indicator...) — khai báo safelist.
-        // Không bắt buộc với CDN play nhưng giúp tránh purge khi dùng class nội suy.
-    </script>
     {% block head %}{% endblock %}
 </head>
-<body class="min-h-screen">
-    <header class="flex flex-wrap items-baseline gap-5 border-b border-border-light dark:border-border-dark py-3 mb-4 px-2">
-        <h1 class="text-lg font-semibold m-0"><a href="/" class="text-fg-light dark:text-fg-dark no-underline hover:underline">novel2epub</a></h1>
-        <nav class="flex gap-4 mt-1 text-[0.95rem]">
-            <a href="/" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path == '/' %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Thư viện</a>
-            <a href="/sources" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path.startswith('/sources') %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Nguồn</a>
-            <a href="/storage" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path.startswith('/storage') %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Lưu trữ</a>
-            <a href="/automation" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path.startswith('/automation') %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Tự động hóa</a>
-            <a href="/dashboard" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path.startswith('/dashboard') %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Bảng điều khiển</a>
-            <a href="/logs" class="text-muted-light dark:text-muted-dark no-underline hover:text-fg-light dark:hover:text-fg-dark hover:underline {% if request.url.path.startswith('/logs') %}!text-link-light dark:!text-link-dark font-semibold{% endif %}">Nhật ký</a>
-        </nav>
-        <div class="flex items-center gap-2 ml-auto">
-            <a href="/queue" id="queue-indicator" class="inline-flex items-center gap-1 no-underline rounded-full border border-border-light dark:border-border-dark bg-surface-alt-light dark:bg-surface-alt-dark px-2 py-0.5 text-sm text-muted-light dark:text-muted-dark" title="Hàng đợi job">
-                <i data-lucide="loader-circle" class="w-3.5 h-3.5"></i><span id="queue-count">0</span>
-            </a>
-            <button type="button" id="theme-toggle" class="rounded-md border border-border-light dark:border-border-dark p-1.5 hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" title="Đổi giao diện sáng/tối">
-                <i data-lucide="moon" class="w-4 h-4"></i>
-            </button>
+<body class="flex flex-col min-h-screen">
+    <header class="border-b border-surface-border dark:border-surface-border-dark bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur supports-[backdrop-filter]:bg-surface-light/60 supports-[backdrop-filter]:dark:bg-surface-dark/60 sticky top-0 z-30">
+        <div class="mx-auto max-w-[1400px] px-4 md:px-6">
+            <div class="flex items-center justify-between h-14 md:h-16 gap-4">
+                <div class="flex items-center gap-3 shrink-0">
+                    <a href="/" class="flex items-center gap-2 text-fg-light dark:text-fg-dark hover:opacity-80 transition-opacity" aria-label="novel2epub home">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-brand-600 dark:text-brand-400" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 8h10"/><path d="M8 12h6"/><path d="M8 16h8"/></svg>
+                        <span class="font-semibold text-lg hidden sm:inline">novel2epub</span>
+                    </a>
+                </div>
+                <nav class="flex items-center gap-1 md:gap-2 shrink-0" aria-label="Main navigation">
+                    <a href="/" class="nav-link px-3 py-1.5 text-sm rounded-lg {% if request.url.path == '/' %}bg-brand-500/10 text-brand-600 dark:text-brand-400{% else %}text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark{% endif %} transition-colors whitespace-nowrap">Thư viện</a>
+                    <a href="/sources" class="nav-link px-3 py-1.5 text-sm rounded-lg {% if request.url.path.startswith('/sources') %}bg-brand-500/10 text-brand-600 dark:text-brand-400{% else %}text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark{% endif %} transition-colors whitespace-nowrap">Nguồn</a>
+                    <a href="/storage" class="nav-link px-3 py-1.5 text-sm rounded-lg {% if request.url.path.startswith('/storage') %}bg-brand-500/10 text-brand-600 dark:text-brand-400{% else %}text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark{% endif %} transition-colors whitespace-nowrap">Lưu trữ</a>
+                    <a href="/automation" class="nav-link px-3 py-1.5 text-sm rounded-lg {% if request.url.path.startswith('/automation') %}bg-brand-500/10 text-brand-600 dark:text-brand-400{% else %}text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark{% endif %} transition-colors whitespace-nowrap">Tự động hóa</a>
+                    <a href="/dashboard" class="nav-link px-3 py-1.5 text-sm rounded-lg {% if request.url.path.startswith('/dashboard') %}bg-brand-500/10 text-brand-600 dark:text-brand-400{% else %}text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark{% endif %} transition-colors whitespace-nowrap">Bảng điều khiển</a>
+                    <a href="/queue" class="nav-link relative px-3 py-1.5 text-sm rounded-lg {% if request.url.path.startswith('/queue') %}bg-brand-500/10 text-brand-600 dark:text-brand-400{% else %}text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark{% endif %} transition-colors whitespace-nowrap" title="Hàng đợi job">
+                        <span class="flex items-center gap-1.5">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6"/><path d="M9 15h4"/></svg>
+                            <span id="queue-count" class="hidden sm:inline">0</span>
+                        </span>
+                        {% if request.url.path.startswith('/queue') %}<span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-brand-500 rounded-full" aria-hidden="true"></span>{% endif %}
+                    </a>
+                    <a href="/logs" class="nav-link px-3 py-1.5 text-sm rounded-lg {% if request.url.path.startswith('/logs') %}bg-brand-500/10 text-brand-600 dark:text-brand-400{% else %}text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark{% endif %} transition-colors whitespace-nowrap">Nhật ký</a>
+                </nav>
+                <div class="flex items-center gap-2 shrink-0">
+                    <a href="/queue" id="queue-indicator" class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border border-surface-border dark:border-surface-border-dark bg-surface-muted dark:bg-surface-muted-dark text-fg-muted dark:text-fg-muted-dark hover:bg-surface-border dark:hover:bg-surface-border-dark transition-colors" title="Hàng đợi job">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        <span id="queue-count-header">0</span>
+                    </a>
+                    <button type="button" id="theme-toggle" class="p-1.5 rounded-lg border border-surface-border dark:border-surface-border-dark bg-surface-muted dark:bg-surface-muted-dark text-fg-muted dark:text-fg-muted-dark hover:bg-surface-border dark:hover:bg-surface-border-dark transition-colors" title="Đổi giao diện sáng/tối" aria-label="Toggle theme">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-sun" aria-hidden="true" style="display:none"><circle cx="12" cy="12" r="5"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-moon" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    </button>
+                </div>
+            </div>
         </div>
     </header>
-    <main class="{% block mainclass %}mx-auto max-w-[1320px] px-6 py-5 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-card dark:shadow-card-dark p-5{% endblock %}">
+    <main class="flex-1 mx-auto max-w-[1400px] w-full px-4 md:px-6 py-5 md:py-6 {% block mainclass %}{% endblock %}">
         {% block content %}{% endblock %}
     </main>
-    <div id="toast-region" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50" aria-live="polite"></div>
-    <footer class="text-center text-xs text-muted-light dark:text-muted-dark py-8 mt-4">
-        novel2epub &middot; <a href="https://github.com/novel2epub/novel2epub" class="hover:underline" target="_blank">GitHub</a>
+    <footer class="border-t border-surface-border dark:border-surface-border-dark bg-surface-light/50 dark:bg-surface-dark/50 py-6 px-4 md:px-6">
+        <div class="mx-auto max-w-[1400px] flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-fg-muted dark:text-fg-muted-dark">
+            <p class="m-0">novel2epub</p>
+            <a href="https://github.com/novel2epub/novel2epub" target="_blank" rel="noopener" class="hover:text-fg-light dark:hover:text-fg-dark transition-colors">GitHub</a>
+        </div>
     </footer>
+    <div id="toast-region" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50 pointer-events-none" aria-live="polite" aria-label="Notifications"></div>
     <script src="/static/app.js"></script>
     <script src="/static/datatable.js"></script>
     <script>
-        // Khởi tạo Lucide icons cho mọi phần tử có [data-lucide] trong DOM.
         if (window.lucide) lucide.createIcons();
+
+        function openModal(id) {
+            const el = document.getElementById(id);
+            if (el) { el.hidden = false; el.classList.add("open"); }
+        }
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            if (el) { el.hidden = true; el.classList.remove("open"); }
+        }
+        function openCanvas(id) {
+            const el = document.getElementById(id);
+            if (el) { el.hidden = false; setTimeout(() => el.classList.add("open"), 10); }
+        }
+        function closeCanvas(id) {
+            const el = document.getElementById(id);
+            if (el) { el.classList.remove("open"); setTimeout(() => el.hidden = true, 200); }
+        }
     </script>
     {% block scripts %}{% endblock %}
 </body>

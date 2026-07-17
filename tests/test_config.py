@@ -33,24 +33,42 @@ def test_glossary_files_default_to_data_dir_glossary_folder(tmp_path):
 
 
 def test_glossary_files_explicit_path_is_respected(tmp_path):
+    custom = tmp_path / "custom" / "names.txt"
+    custom.parent.mkdir(parents=True)
+    custom.write_text("元宵 = Nguyên Tiêu\n", encoding="utf-8")
     config_path = _write_config(
         tmp_path,
         extra={"translate": {"type": "none", "glossary_files": {"names": "custom/names.txt"}}},
     )
     cfg = load_config(config_path)
 
-    assert Path(cfg.translate.glossary_files.names) == (tmp_path / "custom" / "names.txt").resolve()
+    assert Path(cfg.translate.glossary_files.names) == custom.resolve()
     # vietphrase không khai báo riêng -> vẫn rơi về default trong data_dir.
     expected_default = (tmp_path / "data" / "my-novel" / "glossary" / "vietphrase.txt").resolve()
     assert Path(cfg.translate.glossary_files.vietphrase) == expected_default
+
+
+def test_glossary_files_stale_path_falls_back_to_default_with_warning(tmp_path):
+    """Path glossary_files stale (file không tồn tại — field deprecated còn sót
+    trong DB cũ) từng làm glossary âm thầm rỗng → bản dịch mất nhất quán tên
+    riêng. Nay phải rơi về path mặc định (trỏ DB) + có cảnh báo."""
+    config_path = _write_config(
+        tmp_path,
+        extra={"translate": {"type": "none", "glossary_files": {"names": "khong/ton/tai.txt"}}},
+    )
+    cfg = load_config(config_path)
+
+    expected_default = (tmp_path / "data" / "my-novel" / "glossary" / "names.txt").resolve()
+    assert Path(cfg.translate.glossary_files.names) == expected_default
+    assert any("glossary_files.names" in w for w in cfg.warnings)
 
 
 def test_no_preset_backward_compat(tmp_path):
     config_path = _write_config(tmp_path, extra={"translate": {"type": "none"}})
     cfg = load_config(config_path)
     assert cfg.translate.preset == ""
-    assert cfg.translate.openai.base_url == "https://opencode.ai/zen/go/v1"
-    assert cfg.translate.openai.model == "opencode-go/kimi-k2.6"
+    assert cfg.translate.openai.base_url == "http://localhost:20128/v1"
+    assert cfg.translate.openai.model == "free-stack"
 
 
 def test_go_preset_resolution(tmp_path):
@@ -119,6 +137,44 @@ def test_crawl_config_pagination_fields_round_trip(tmp_path):
     assert cfg.crawl.max_pages_per_chapter == 4
 
 
+def test_solve_cloudflare_warns_when_mode_not_stealthy(tmp_path):
+    """solve_cloudflare chỉ có tác dụng ở mode stealthy — mode khác phải cảnh báo.
+
+    Không cảnh báo = user set cờ, hệ thống im lặng vứt đi, rồi crawl fail với
+    lý do hoàn toàn khác (mục lục 0 chương).
+    """
+    config_path = _write_config(
+        tmp_path,
+        extra={
+            "crawl": {
+                "toc_url": "https://example.com/book/",
+                "scrapling": {"mode": "dynamic", "solve_cloudflare": True},
+            }
+        },
+    )
+    cfg = load_config(config_path)
+
+    assert any(
+        "solve_cloudflare" in w and "dynamic" in w for w in cfg.warnings
+    ), f"thiếu cảnh báo solve_cloudflare bị bỏ qua; warnings={cfg.warnings}"
+
+
+def test_solve_cloudflare_no_warning_when_stealthy(tmp_path):
+    """Mode stealthy dùng được solve_cloudflare — không được cảnh báo thừa."""
+    config_path = _write_config(
+        tmp_path,
+        extra={
+            "crawl": {
+                "toc_url": "https://example.com/book/",
+                "scrapling": {"mode": "stealthy", "solve_cloudflare": True},
+            }
+        },
+    )
+    cfg = load_config(config_path)
+
+    assert not any("solve_cloudflare" in w for w in cfg.warnings)
+
+
 def test_crawl_config_rejects_pattern_with_zero_capturing_groups():
     with pytest.raises(ValueError, match="capturing group"):
         CrawlConfig(toc_url="https://example.com", next_page_url_pattern=r"\.html$")
@@ -176,9 +232,10 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
     assert cfg_b.crawl.content_selector == "#default"
 
 
-def test_translate_and_ai_are_global_ignore_ebook_override(tmp_path):
-    """`translate` (AI dịch) và `ai` (AI biên tập) dùng chung cho mọi ebook:
-    chỉ đọc từ defaults, override per-ebook (nếu còn sót) bị bỏ qua."""
+def test_translate_and_ai_per_ebook_override_wins(tmp_path):
+    """`translate` (AI dịch) và `ai` (AI biên tập) là cấu hình RIÊNG từng ebook:
+    override per-ebook đè lên defaults; ebook không có override thì rơi về
+    defaults (config chung — cũng là giá trị khi Reset)."""
     path = write_db_config(
         tmp_path / "novel2epub.db",
         defaults={
@@ -191,13 +248,19 @@ def test_translate_and_ai_are_global_ignore_ebook_override(tmp_path):
                 "translate": {"type": "none", "openai": {"model": "per-ebook-model"}},
                 "ai": {"openai": {"model": "per-ebook-editor"}},
             },
+            "b": {"novel": {"slug": "b"}},  # không override — dùng config chung
         },
     )
 
     cfg = load_config(path, "a")
-    assert cfg.translate.type == "openai"
-    assert cfg.translate.openai.model == "global-model"
-    assert cfg.ai.openai.model == "global-editor"
+    assert cfg.translate.type == "none"
+    assert cfg.translate.openai.model == "per-ebook-model"
+    assert cfg.ai.openai.model == "per-ebook-editor"
+
+    cfg_b = load_config(path, "b")
+    assert cfg_b.translate.type == "openai"
+    assert cfg_b.translate.openai.model == "global-model"
+    assert cfg_b.ai.openai.model == "global-editor"
 
 
 def test_unified_file_unknown_slug_raises(tmp_path):
@@ -209,15 +272,15 @@ def test_unified_file_unknown_slug_raises(tmp_path):
         load_config(path, "nonexistent")
 
 
-def test_default_translate_type_is_hachimimt(tmp_path):
-    """Không khai báo translate.type → mặc định type=hachimimt."""
+def test_default_translate_type_is_openai(tmp_path):
+    """Không khai báo translate.type → mặc định type=openai."""
     path = write_db_config(
         tmp_path / "novel2epub.db",
         defaults={"translate": {}},
         ebooks={"test": {"novel": {"slug": "test"}, "crawl": {"toc_url": "https://example.com"}}},
     )
     cfg = load_config(path)
-    assert cfg.translate.type == "hachimimt"
+    assert cfg.translate.type == "openai"
 
 
 def test_hachimimt_auto_preset(tmp_path):

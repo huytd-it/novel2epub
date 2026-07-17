@@ -40,7 +40,6 @@ def _client(monkeypatch):
     monkeypatch.setattr(deps, "presets", lambda: {})
     monkeypatch.setattr(deps, "library", lambda: type("L", (), {"ebooks": {}})())
     monkeypatch.setattr(sources_route, "save_presets", _fake_save)
-    monkeypatch.setattr(sources_route, "propagate_preset_update", lambda *a, **k: [])
     from app.main import app
 
     return TestClient(app, follow_redirects=False), saved

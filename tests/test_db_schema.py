@@ -109,3 +109,63 @@ def test_chapters_without_rowid_composite_key():
     with pytest.raises(sqlite3.IntegrityError):
         with conn:
             conn.execute("INSERT INTO chapters (ebook_slug, idx) VALUES ('demo', 1)")
+
+
+def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def test_cot_reader_co_mat_tren_db_tao_moi():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    assert "reader_json" in _column_names(conn, "settings")
+    assert "reader_overrides_json" in _column_names(conn, "ebooks")
+
+
+def test_db_cu_thieu_cot_reader_duoc_va_bang_alter_table():
+    """`init_schema` chỉ chạy CREATE TABLE IF NOT EXISTS nên cột thêm ở schema
+    v2 không tự xuất hiện trên DB cũ — `_ensure_columns` phải ALTER TABLE vá."""
+    conn = get_connection(":memory:")
+    # Dựng lại bảng kiểu schema v1 (chưa có cột reader).
+    with conn:
+        conn.execute("""
+            CREATE TABLE settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                novel_json TEXT NOT NULL DEFAULT '{}',
+                crawl_json TEXT NOT NULL DEFAULT '{}',
+                translate_json TEXT NOT NULL DEFAULT '{}',
+                ai_json TEXT NOT NULL DEFAULT '{}',
+                output_json TEXT NOT NULL DEFAULT '{}',
+                queue_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE ebooks (
+                slug TEXT PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
+                archived INTEGER NOT NULL DEFAULT 0,
+                crawl_overrides_json TEXT NOT NULL DEFAULT '{}',
+                output_overrides_json TEXT NOT NULL DEFAULT '{}'
+            )
+        """)
+        conn.execute("INSERT INTO settings (id, novel_json) VALUES (1, '{\"title\": \"cũ\"}')")
+        conn.execute("INSERT INTO ebooks (slug) VALUES ('demo')")
+
+    init_schema(conn)
+
+    assert "reader_json" in _column_names(conn, "settings")
+    assert "reader_overrides_json" in _column_names(conn, "ebooks")
+    # Dữ liệu cũ còn nguyên, cột mới có default dùng được ngay.
+    row = conn.execute("SELECT novel_json, reader_json FROM settings WHERE id = 1").fetchone()
+    assert row["novel_json"] == '{"title": "cũ"}'
+    assert row["reader_json"] == "{}"
+    assert conn.execute("SELECT reader_overrides_json FROM ebooks").fetchone()[0] == "{}"
+
+
+def test_ensure_columns_idempotent_khong_alter_hai_lan():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    init_schema(conn)
+    init_schema(conn)
+    assert "reader_json" in _column_names(conn, "settings")

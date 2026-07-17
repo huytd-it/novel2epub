@@ -71,10 +71,10 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "ai_fallback_max_html": 32000,
     },
     "ai": {
-        "openai": {"base_url": "https://opencode.ai/zen/go/v1", "api_key": "", "model": "opencode-go/kimi-k2.6", "timeout_seconds": 300, "temperature": 0.7},
+        "openai": {"base_url": "http://localhost:20128/v1", "api_key": "", "model": "free-stack", "timeout_seconds": 120000, "temperature": 0.7},
     },
     "translate": {
-        "type": "hachimimt",
+        "type": "openai",
         "model": "",
         "preset": "",
         "source_language": "",
@@ -83,14 +83,14 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "style": {"tone": "mượt, tự nhiên, có chất cổ trang", "pronoun_policy": "contextual", "title_mode": "creative", "han_viet_level": "balanced", "keep_paragraphs": True},
         "retry": {"attempts": 1, "delay_seconds": 0.0},
         "chunk": {"max_chars": 0, "overlap_paragraphs": 0},
-        "openai": {"base_url": "https://opencode.ai/zen/go/v1", "api_key": "", "model": "opencode-go/kimi-k2.6", "timeout_seconds": 300, "temperature": 0.7},
+        "openai": {"base_url": "http://localhost:20128/v1", "api_key": "", "model": "free-stack", "timeout_seconds": 120000, "temperature": 0.7},
         "hachimimt": {"model_key": "HachimiMT-60", "backend": "ctranslate2", "beam_size": 2, "chunk_mode": "sentence"},
         "delay_seconds": 0.5,
         "max_workers": 1,
         "auto_glossary": False,
         "glossary_filter": True,
         "batch_size": 1,
-        "prompt_max_chars": 7000,
+        "prompt_max_chars": 20000,
         "auto_cleanup_han": False,
         "cleanup_han": {"max_chars": 8000, "retries": 1},
     },
@@ -101,6 +101,15 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
     "queue": {
         "translate_workers": 5,
         "crawl_workers": 2,
+    },
+    "reader": {
+        "url": "",
+        "service_key": "",
+        "timeout_seconds": 60,
+        "batch_size": 50,
+        "slug": "",
+        "free_chapters": 5,
+        "published": False,
     },
 }
 

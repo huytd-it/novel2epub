@@ -1,65 +1,112 @@
 {% extends "base.html" %}
 {% block title %}Bảng điều khiển — novel2epub{% endblock %}
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% endblock %}
 {% block content %}
-<div class="flex items-baseline justify-between gap-4 mb-1">
-    <h2 class="m-0 text-xl font-semibold">Bảng điều khiển</h2>
-</div>
-<p class="text-muted-light dark:text-muted-dark text-sm mb-3">Tổng hợp tiến độ, lỗi automation, chi phí dịch và dung lượng của mọi ebook. Tự làm mới mỗi 4 giây.</p>
-
-<div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 mb-5 border border-border-light dark:border-border-dark rounded-lg p-4 items-center">
-    <div class="flex items-center justify-center">
-        <canvas id="dashboard-donut" width="160" height="160"></canvas>
-    </div>
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-        <div><div class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide">Ebook</div><div class="text-xl font-semibold" id="stat-ebook-count">0</div></div>
-        <div><div class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide">Chương</div><div class="text-xl font-semibold" id="stat-total-chapters">0</div></div>
-        <div><div class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide">Đang lỗi</div><div class="text-xl font-semibold" id="stat-error-count">0</div></div>
-        <div><div class="text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide">Job đang chạy</div><div class="text-xl font-semibold" id="stat-running-jobs">0</div></div>
-    </div>
-</div>
-
-<div id="dashboard-rows" class="flex flex-col gap-3"></div>
-
-<template id="dashboard-row-tpl">
-    <div class="dashboard-row border border-border-light dark:border-border-dark rounded-lg p-4">
-        <div class="flex items-baseline justify-between gap-3 flex-wrap">
-            <a class="row-name text-link-light dark:text-link-dark hover:underline font-semibold" href="#"></a>
-            <span class="row-error-badge inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300" style="display:none">có lỗi</span>
+<div class="space-y-5 animate-in">
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+            <h2 class="page-title">Bảng điều khiển</h2>
+            <p class="page-subtitle">Tổng hợp tiến độ, lỗi automation, chi phí dịch và dung lượng của mọi ebook. Tự làm mới mỗi 4 giây.</p>
         </div>
-        <div class="mt-2 flex flex-col gap-1.5">
-            <div class="flex items-center gap-2 text-xs">
-                <span class="w-16 text-muted-light dark:text-muted-dark">Cào</span>
-                <div class="flex-1 h-2 rounded-full bg-surface-alt-light dark:bg-surface-alt-dark overflow-hidden"><div class="row-raw-bar h-full bg-link-light dark:bg-link-dark" style="width:0%"></div></div>
-                <span class="row-raw-label w-28 text-right text-muted-light dark:text-muted-dark"></span>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div class="card p-4">
+            <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark mb-1">Ebook</div>
+            <div class="text-3xl font-bold text-fg-light dark:text-fg-dark" id="stat-ebook-count">0</div>
+        </div>
+        <div class="card p-4">
+            <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark mb-1">Tổng chương</div>
+            <div class="text-3xl font-bold text-fg-light dark:text-fg-dark" id="stat-total-chapters">0</div>
+        </div>
+        <div class="card p-4">
+            <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark mb-1">Đang lỗi</div>
+            <div class="text-3xl font-bold text-status-err-fg dark:text-status-err-fg-dark" id="stat-error-count">0</div>
+        </div>
+        <div class="card p-4">
+            <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark mb-1">Job đang chạy</div>
+            <div class="text-3xl font-bold text-status-info-fg dark:text-status-info-fg-dark" id="stat-running-jobs">0</div>
+        </div>
+    </div>
+
+    <!-- Progress Overview + Donut Chart -->
+    <div class="card p-4 md:p-5">
+        <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 md:gap-6 items-center">
+            <div class="flex justify-center md:justify-start">
+                <canvas id="dashboard-donut" width="160" height="160" class="w-40 h-40 md:w-44 md:h-44"></canvas>
             </div>
-            <div class="flex items-center gap-2 text-xs">
-                <span class="w-16 text-muted-light dark:text-muted-dark">Dịch</span>
-                <div class="flex-1 h-2 rounded-full bg-surface-alt-light dark:bg-surface-alt-dark overflow-hidden"><div class="row-translated-bar h-full bg-ok-light dark:bg-ok-dark" style="width:0%"></div></div>
-                <span class="row-translated-label w-28 text-right text-muted-light dark:text-muted-dark"></span>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                <div>
+                    <div class="text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide mb-0.5">Đã dịch</div>
+                    <div class="text-xl font-semibold text-brand-600 dark:text-brand-400" id="stat-translated-count">0</div>
+                    <div class="text-xs text-fg-muted dark:text-fg-muted-dark" id="stat-translated-pct">0%</div>
+                </div>
+                <div>
+                    <div class="text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide mb-0.5">Đã cào (chưa dịch)</div>
+                    <div class="text-xl font-semibold text-status-info-fg dark:text-status-info-fg-dark" id="stat-raw-only-count">0</div>
+                    <div class="text-xs text-fg-muted dark:text-fg-muted-dark" id="stat-raw-only-pct">0%</div>
+                </div>
+                <div>
+                    <div class="text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide mb-0.5">Chưa cào</div>
+                    <div class="text-xl font-semibold text-fg-muted dark:text-fg-muted-dark" id="stat-remaining-count">0</div>
+                    <div class="text-xs text-fg-muted dark:text-fg-muted-dark" id="stat-remaining-pct">0%</div>
+                </div>
+                <div>
+                    <div class="text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide mb-0.5">Tiến độ tổng</div>
+                    <div class="text-xl font-semibold text-fg-light dark:text-fg-dark" id="stat-overall-pct">0%</div>
+                </div>
             </div>
         </div>
-        <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-light dark:text-muted-dark">
-            <span class="row-crawl-problems"></span>
-            <span class="row-han-fixed"></span>
-            <span class="row-disk"></span>
-            <span class="row-cost"></span>
-        </div>
-        <div class="row-automations mt-2 flex flex-col gap-1"></div>
     </div>
-</template>
 
-<template id="dashboard-automation-tpl">
-    <div class="automation-item flex items-center gap-2 text-xs flex-wrap">
-        <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded"></code>
-        <span class="automation-outcome-badge inline-flex items-center px-2 py-0.5 rounded-full"></span>
-        <span class="automation-stats text-muted-light dark:text-muted-dark"></span>
-    </div>
-</template>
+    <!-- Ebook Rows -->
+    <div id="dashboard-rows" class="flex flex-col gap-3"></div>
+
+    <!-- Templates -->
+    <template id="dashboard-row-tpl">
+        <div class="dashboard-row card p-4" data-slug="">
+            <div class="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+                <a class="row-name font-semibold text-brand-600 dark:text-brand-400 hover:underline" href="#"></a>
+                <span class="row-error-badge badge badge-err hidden">có lỗi</span>
+            </div>
+            <div class="space-y-2.5 mb-3">
+                <div class="grid grid-cols-[auto_1fr_auto] gap-2 items-center text-xs">
+                    <span class="text-fg-muted dark:text-fg-muted-dark w-14">Cào</span>
+                    <div class="h-2 rounded-full bg-surface-muted dark:bg-surface-muted-dark overflow-hidden">
+                        <div class="row-raw-bar h-full bg-brand-500 rounded-full transition-all duration-normal" style="width:0%"></div>
+                    </div>
+                    <span class="row-raw-label w-24 text-right text-fg-muted dark:text-fg-muted-dark"></span>
+                </div>
+                <div class="grid grid-cols-[auto_1fr_auto] gap-2 items-center text-xs">
+                    <span class="text-fg-muted dark:text-fg-muted-dark w-14">Dịch</span>
+                    <div class="h-2 rounded-full bg-surface-muted dark:bg-surface-muted-dark overflow-hidden">
+                        <div class="row-translated-bar h-full bg-status-ok-fg rounded-full transition-all duration-normal" style="width:0%"></div>
+                    </div>
+                    <span class="row-translated-label w-24 text-right text-fg-muted dark:text-fg-muted-dark"></span>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted dark:text-fg-muted-dark mb-3">
+                <span class="row-crawl-problems flex items-center gap-1"></span>
+                <span class="row-han-fixed flex items-center gap-1"></span>
+                <span class="row-disk flex items-center gap-1"></span>
+                <span class="row-cost flex items-center gap-1"></span>
+            </div>
+            <div class="row-automations space-y-1.5"></div>
+        </div>
+    </template>
+
+    <template id="dashboard-automation-tpl">
+        <div class="automation-item flex items-center gap-2 text-xs flex-wrap">
+            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1.5 py-0.5 rounded text-fg-light dark:text-fg-dark"></code>
+            <span class="automation-outcome-badge badge badge-neutral"></span>
+            <span class="automation-stats text-fg-muted dark:text-fg-muted-dark"></span>
+        </div>
+    </template>
+</div>
 {% endblock %}
-
 {% block scripts %}
 <script>
 let donutChart = null;
@@ -70,10 +117,10 @@ function fmtBytes(n) {
 }
 
 function outcomeBadgeClass(outcome) {
-    if (outcome === "success") return "bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300";
-    if (outcome === "failure") return "bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300";
-    if (outcome === "partial") return "bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300";
-    return "bg-surface-alt-light dark:bg-surface-alt-dark text-muted-light dark:text-muted-dark";
+    if (outcome === "success") return "badge-ok";
+    if (outcome === "failure") return "badge-err";
+    if (outcome === "partial") return "badge-warn";
+    return "badge-neutral";
 }
 
 function outcomeBadgeLabel(outcome) {
@@ -98,9 +145,17 @@ function renderDonut(summary) {
         type: "doughnut",
         data: {
             labels: ["Đã dịch", "Đã cào (chưa dịch)", "Chưa cào"],
-            datasets: [{ data: data, backgroundColor: ["#22c55e", "#6ea8fe", "#9aa2ad"] }],
+            datasets: [{ data: data, backgroundColor: ["#10b981", "#3b82f6", "#e4e4e7"], borderWidth: 0, spacing: 2 }],
         },
-        options: { plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } } } },
+        options: {
+            cutout: "68%",
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 }, padding: 16, usePointStyle: true } },
+                tooltip: { enabled: false },
+            },
+        },
     });
 }
 
@@ -114,7 +169,7 @@ function renderRow(row) {
     nameEl.href = "/ebooks/" + row.slug;
 
     const hasError = row.automations.some(a => a.last_run_error);
-    el.querySelector(".row-error-badge").style.display = hasError ? "" : "none";
+    el.querySelector(".row-error-badge").classList.toggle("hidden", !hasError);
 
     const p = row.progress;
     el.querySelector(".row-raw-bar").style.width = p.raw_pct + "%";
@@ -122,7 +177,7 @@ function renderRow(row) {
     el.querySelector(".row-translated-bar").style.width = p.translated_pct + "%";
     el.querySelector(".row-translated-label").textContent = p.translated_count + "/" + p.total + " (" + p.translated_pct + "%)";
 
-    el.querySelector(".row-crawl-problems").textContent = row.crawl_problems ? "⚠️ " + row.crawl_problems + " chương lỗi cào" : "";
+    el.querySelector(".row-crawl-problems").textContent = row.crawl_problems ? "⚠ " + row.crawl_problems + " chương lỗi cào" : "";
     el.querySelector(".row-han-fixed").textContent = row.han_fixed ? "🈶 " + row.han_fixed + " chỗ Hán đã sửa" : "";
     el.querySelector(".row-disk").textContent = "💾 " + fmtBytes(row.disk_total);
     if (row.cost_summary) {
@@ -134,7 +189,7 @@ function renderRow(row) {
         const aEl = autoTpl.content.cloneNode(true);
         aEl.querySelector("code").textContent = a.steps.join(" → ") + " (" + a.schedule + (a.enabled ? "" : ", tắt") + ")";
         const badge = aEl.querySelector(".automation-outcome-badge");
-        badge.className = "automation-outcome-badge inline-flex items-center px-2 py-0.5 rounded-full " + outcomeBadgeClass(a.last_run_outcome);
+        badge.className = "automation-outcome-badge badge " + outcomeBadgeClass(a.last_run_outcome);
         badge.textContent = outcomeBadgeLabel(a.last_run_outcome);
         if (a.last_run_error) badge.title = a.last_run_error;
         const stats = a.last_run_stats || {};
@@ -157,7 +212,7 @@ function rebuild(data) {
     const rowsEl = document.getElementById("dashboard-rows");
     rowsEl.innerHTML = "";
     if (data.rows.length === 0) {
-        rowsEl.innerHTML = '<p class="text-muted-light dark:text-muted-dark text-sm">Chưa có ebook nào.</p>';
+        rowsEl.innerHTML = '<p class="text-fg-muted dark:text-fg-muted-dark text-sm py-4 text-center">Chưa có ebook nào.</p>';
         return;
     }
     data.rows.forEach(row => rowsEl.appendChild(renderRow(row)));

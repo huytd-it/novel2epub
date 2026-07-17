@@ -3,8 +3,12 @@
 {% if source_preset %}
 <div class="my-3 px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-slate-800 text-sm">
     <span class="font-semibold text-blue-700 dark:text-blue-300">Nguồn:</span>
-    <a href="/sources?edit={{ cfg.source }}" class="text-link-light dark:text-link-dark underline">{{ cfg.source }}</a>
+    <a href="/sources?edit={{ source_preset.name }}" class="text-link-light dark:text-link-dark underline">{{ source_preset.name }}</a>
+    {% if source_detected %}
+    <span class="text-muted-light dark:text-muted-dark ml-1">— tự nhận diện từ URL, ebook <strong>chưa gắn</strong> nguồn này; bấm "Lưu vào nguồn" hoặc "Reset" để gắn</span>
+    {% else %}
     <span class="text-muted-light dark:text-muted-dark ml-1">— field từ nguồn có nền xanh nhạt, field ghi đè có viền xanh đậm</span>
+    {% endif %}
     <button type="button" onclick="syncToSource('{{ slug }}')" class="ml-2 px-2 py-0.5 text-xs rounded border border-blue-300 dark:border-blue-600 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800">Lưu vào nguồn</button>
 </div>
 {% endif %}
@@ -191,6 +195,14 @@
 
 <div class="flex gap-2 items-center mt-3 pt-3 border-t border-border-light dark:border-border-dark">
     <button type="button" onclick="toggleRawYaml('raw-crawl')" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">YAML</button>
+    <span class="flex-1"></span>
+    {% if source_preset %}
+    <button type="button" onclick="resetConfigSection('/ebooks/{{ slug }}/settings/source/reset', 'Xoá toàn bộ override crawl của ebook này và quay về cấu hình nguồn {{ cfg.source }}? URL mục lục được giữ nguyên.')"
+        class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950" title="Xoá mọi field ebook đã ghi đè — ebook ăn theo nguồn {{ cfg.source }} trở lại">↺ Reset về nguồn</button>
+    {% else %}
+    <button type="button" onclick="resetConfigSection('/ebooks/{{ slug }}/settings/source/reset', 'Xoá toàn bộ cấu hình crawl riêng của ebook này? URL mục lục được giữ nguyên. Nếu URL khớp một nguồn đã cấu hình, ebook sẽ được gắn lại nguồn đó; không thì quay về mặc định.')"
+        class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950" title="Xoá mọi cấu hình crawl riêng — tự gắn lại nguồn khớp URL, không thì về mặc định">↺ Reset mặc định</button>
+    {% endif %}
 </div>
 
 <div id="raw-crawl" class="my-2 bg-surface-alt-light dark:bg-zinc-900 border border-border-light dark:border-border-dark rounded-md px-3 py-2 overflow-x-auto" hidden>
@@ -204,8 +216,15 @@
 
 {% if source_preset %}
 <script>
-function syncToSource(slug) {
-    if (!confirm('Đồng bộ crawl settings từ ebook này sang nguồn "{{ cfg.source }}"?\n\nCác field bạn đã thay đổi sẽ ghi đè lên preset. Các ebook khác dùng cùng nguồn sẽ nhận giá trị mới.')) return;
+async function syncToSource(slug) {
+    if (!confirm('Đồng bộ crawl settings từ ebook này sang nguồn "{{ source_preset.name }}"?\n\nCác field bạn đã thay đổi sẽ ghi đè lên preset. Các ebook khác dùng cùng nguồn sẽ nhận giá trị mới.{% if source_detected %}\n\nEbook sẽ được GẮN vào nguồn này (hiện mới chỉ nhận diện từ URL).{% endif %}')) return;
+    // Flush autosave đang chờ (debounce 800ms): lưu form Nguồn NGAY trước khi
+    // sync — không thì sửa đổi cuối chưa kịp autosave sẽ bị mất khi trang chuyển.
+    if (typeof saveTimer !== "undefined" && saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    const crawlForm = document.querySelector('#tab-crawl form.settings-form');
+    if (crawlForm) {
+        try { await fetch(crawlForm.action, { method: 'POST', body: new FormData(crawlForm) }); } catch (e) {}
+    }
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = '/ebooks/' + slug + '/settings/sync-to-source';

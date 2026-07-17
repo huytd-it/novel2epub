@@ -49,24 +49,21 @@ def _chapter_glossary(storage: Storage, raw: str, translated: str) -> list[dict[
     haystack = f"{raw}\n{translated}".lower()
     notes = storage.read_glossary_notes()
     rows: list[dict[str, str | bool | int]] = []
-    for filename, label in (("names.txt", "Tên riêng"), ("vietphrase.txt", "Thuật ngữ")):
-        for source, suggested in storage.read_glossary_file(filename).items():
-            source_hit = source.lower() in haystack if source else False
-            suggested_hit = suggested.lower() in haystack if suggested else False
-            raw_count = raw.count(source) if source else 0
-            translated_count = translated.count(suggested) if suggested else 0
-            rows.append({
-                "source": source,
-                "suggested": suggested,
-                "note": notes.get(suggested, ""),
-                "file": filename,
-                "type": label,
-                "relevant": source_hit or suggested_hit,
-                "raw_count": raw_count,
-                "translated_count": translated_count,
-                "mismatch": raw_count > 0 and translated_count == 0,
-            })
-    return sorted(rows, key=lambda row: (not row["relevant"], str(row["type"]), str(row["source"])))
+    for source, suggested, _note in storage.read_glossary_entries_merged():
+        source_hit = source.lower() in haystack if source else False
+        suggested_hit = suggested.lower() in haystack if suggested else False
+        raw_count = raw.count(source) if source else 0
+        translated_count = translated.count(suggested) if suggested else 0
+        rows.append({
+            "source": source,
+            "suggested": suggested,
+            "note": notes.get(suggested, ""),
+            "relevant": source_hit or suggested_hit,
+            "raw_count": raw_count,
+            "translated_count": translated_count,
+            "mismatch": raw_count > 0 and translated_count == 0,
+        })
+    return sorted(rows, key=lambda row: (not row["relevant"], str(row["source"])))
 
 
 # Nhãn tiếng Việt cho category của AI review, gắn với mục III docs/rule.md.
@@ -264,6 +261,20 @@ def ebook_chapter_delete_translation(request: Request, slug: str, index: int):
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
 
 
+@router.post("/ebooks/{slug}/chapters/{index}/delete-raw")
+def ebook_chapter_delete_raw(slug: str, index: int):
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
+    storage.write_raw(ch, "")
+    return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
+
+
 @router.post("/api/ebooks/{slug}/chapters/{index}/retranslate-title")
 def api_ebook_chapter_retranslate_title(
     request: Request,
@@ -358,7 +369,6 @@ async def ebook_chapter_ai_suggest_apply(slug: str, index: int, request: Request
         if f"selected_{i}" in form:
             _append_glossary_entry(
                 storage,
-                form.get(f"target_file_{i}", ""),
                 form.get(f"source_{i}", ""),
                 form.get(f"suggested_{i}", ""),
             )
@@ -816,19 +826,15 @@ _EXPORT_PROMPTS = {"translated": bulk_transfer.EDIT_PROMPT, "raw": bulk_transfer
 
 
 def _filter_glossary_for_batch(
-    names: dict[str, str],
-    vietphrase: dict[str, str],
+    glossary: dict[str, str],
     items: list[tuple[int, str, str]],
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> dict[str, str]:
     """Rút gọn glossary về đúng các mục xuất hiện trong batch (translate.glossary_filter).
 
     Khối glossary nhét vào export dùng chung cho cả nguồn raw (ZH) lẫn translated
     (VI), nên so khớp key Hán VÀ value Việt với toàn bộ text (title + content)."""
     combined = "\n".join(f"{title}\n{content}" for _, title, content in items)
-    return (
-        _filter_glossary(names, zh_text=combined, vi_text=combined),
-        _filter_glossary(vietphrase, zh_text=combined, vi_text=combined),
-    )
+    return _filter_glossary(glossary, zh_text=combined, vi_text=combined)
 
 
 def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
@@ -866,14 +872,12 @@ def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
             else "Không có chương đã dịch nào trong số đã chọn."
         raise HTTPException(status_code=400, detail=detail)
 
-    names = storage.read_glossary_file("names.txt")
-    vietphrase = storage.read_glossary_file("vietphrase.txt")
+    glossary = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
     if cfg.translate.glossary_filter:
-        names, vietphrase = _filter_glossary_for_batch(names, vietphrase, items)
+        glossary = _filter_glossary_for_batch(glossary, items)
     text = bulk_transfer.build_export(
         items,
-        names=names,
-        vietphrase=vietphrase,
+        glossary=glossary,
         prompt=_EXPORT_PROMPTS[source],
     )
     return JSONResponse({"text": text, "skipped": skipped, "total": len(items), "source": source})
@@ -918,10 +922,8 @@ async def api_batch_import(
     glossary = bulk_transfer.parse_glossary(text)
 
     # Mục glossary thực sự mới (chưa có hoặc khác giá trị) — để preview/báo cáo.
-    existing_names = storage.read_glossary_file("names.txt")
-    existing_vp = storage.read_glossary_file("vietphrase.txt")
-    new_names = {s: t for s, t in glossary["names"].items() if existing_names.get(s) != t}
-    new_vp = {s: t for s, t in glossary["vietphrase"].items() if existing_vp.get(s) != t}
+    existing = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
+    glossary_new = {s: t for s, t in glossary.items() if existing.get(s) != t}
 
     chapters_info = []
     for idx in report["matched"]:
@@ -942,8 +944,7 @@ async def api_batch_import(
             "missing": report["missing"],
             "unknown": report["unknown"],
             "extra": report["extra"],
-            "glossary_names": new_names,
-            "glossary_vietphrase": new_vp,
+            "glossary_new": glossary_new,
         })
 
     # confirm: ghi đè translated/ + merge glossary. translated_mt/ (snapshot
@@ -959,11 +960,8 @@ async def api_batch_import(
         written.append(idx)
 
     glossary_added = 0
-    for source, target in glossary["names"].items():
-        if _append_glossary_entry(storage, "names.txt", source, target):
-            glossary_added += 1
-    for source, target in glossary["vietphrase"].items():
-        if _append_glossary_entry(storage, "vietphrase.txt", source, target):
+    for source, target in glossary.items():
+        if _append_glossary_entry(storage, source, target):
             glossary_added += 1
 
     return JSONResponse({
@@ -1042,20 +1040,19 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
         log("[batch-dịch] Không có chương nào cần dịch.")
         return
 
-    # Glossary chung — đọc 1 lần, merge dần qua các batch
-    names_glossary = dict(storage.read_glossary_file("names.txt"))
-    vietphrase_glossary = dict(storage.read_glossary_file("vietphrase.txt"))
+    # Glossary chung — đọc 1 lần (2 list gộp 1), merge dần qua các batch
+    ref_glossary = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
 
     # Chia items thành các batch: tối đa translate.batch_size chương/batch,
     # VÀ khối export (prompt + glossary + chương) không vượt
     # translate.prompt_max_chars — batch bị cắt sớm khi chạm giới hạn.
     # Chương đơn lẻ đã vượt giới hạn vẫn đi 1 mình (không chia nhỏ được).
     def _export_len(batch: list[tuple[int, str, str]]) -> int:
-        bn, bv = names_glossary, vietphrase_glossary
+        bg = ref_glossary
         if cfg.translate.glossary_filter:
-            bn, bv = _filter_glossary_for_batch(names_glossary, vietphrase_glossary, batch)
+            bg = _filter_glossary_for_batch(ref_glossary, batch)
         return len(bulk_transfer.build_export(
-            batch, names=bn, vietphrase=bv, prompt=bulk_transfer.TRANSLATE_PROMPT,
+            batch, glossary=bg, prompt=bulk_transfer.TRANSLATE_PROMPT,
         ))
 
     batch_size = max(1, cfg.translate.batch_size)
@@ -1093,16 +1090,13 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
 
         # 1. Build export cho batch này (dùng glossary đã merge từ các batch trước).
         # glossary_filter: chỉ nhét mục glossary xuất hiện trong batch (giữ nguyên
-        # names_glossary/vietphrase_glossary đầy đủ cho các batch sau).
-        batch_names, batch_vietphrase = names_glossary, vietphrase_glossary
+        # ref_glossary đầy đủ cho các batch sau).
+        batch_glossary = ref_glossary
         if cfg.translate.glossary_filter:
-            batch_names, batch_vietphrase = _filter_glossary_for_batch(
-                names_glossary, vietphrase_glossary, batch_items
-            )
+            batch_glossary = _filter_glossary_for_batch(ref_glossary, batch_items)
         export_text = bulk_transfer.build_export(
             batch_items,
-            names=batch_names,
-            vietphrase=batch_vietphrase,
+            glossary=batch_glossary,
             prompt=bulk_transfer.TRANSLATE_PROMPT,
         )
 
@@ -1163,15 +1157,10 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
             storage.save_chapter(ch)
 
         # 5. Merge glossary mới vào dict chung (cho batch kế tiếp dùng tham khảo)
-        for source, target in glossary["names"].items():
-            if source not in names_glossary:
-                names_glossary[source] = target
-                if _append_glossary_entry(storage, "names.txt", source, target):
-                    glossary_added += 1
-        for source, target in glossary["vietphrase"].items():
-            if source not in vietphrase_glossary:
-                vietphrase_glossary[source] = target
-                if _append_glossary_entry(storage, "vietphrase.txt", source, target):
+        for source, target in glossary.items():
+            if source not in ref_glossary:
+                ref_glossary[source] = target
+                if _append_glossary_entry(storage, source, target):
                     glossary_added += 1
 
         all_missing.extend(report["missing"])

@@ -121,6 +121,7 @@ def test_prompt_max_chars_shrinks_chunk_budget(monkeypatch):
     cfg = TranslateConfig(
         type="openai",
         prompt_max_chars=350,
+        auto_glossary=False,
         openai=OpenAIConfig(
             base_url="https://api.test/v1",
             prompt_template=template,

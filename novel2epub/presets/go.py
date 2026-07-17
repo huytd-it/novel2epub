@@ -17,22 +17,24 @@ LUẬT CỐT LÕI:
 Luật dịch:
 1. Dịch tự nhiên, đúng ngữ pháp Việt Nam.
 2. Tên riêng, công pháp, địa danh giữ Hán Việt.
-3. Ngôi xưng theo quan hệ nhân vật (cha/mẹ/sư phụ/chàng/nàng/ngài…).
-4. Thành ngữ, khẩu ngữ, thơ từ dịch thoát ý, không máy móc.
-5. Từ đời thường (động tác, nấu nướng, ăn uống, cảm giác...) dịch tự nhiên như văn nói tiếng Việt, không phiên âm Hán Việt cứng nhắc.
-6. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
+3. NGOẠI LỆ luật 2 — tên người nước ngoài phiên âm sang chữ Hán: trả về dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto), KHÔNG dùng Hán Việt. Không chắc tên gốc thì theo luật 2.
+4. Ngôi xưng theo quan hệ nhân vật (cha/mẹ/sư phụ/chàng/nàng/ngài…).
+5. Thành ngữ, khẩu ngữ, thơ từ dịch thoát ý, không máy móc.
+6. Từ đời thường (động tác, nấu nướng, ăn uống, cảm giác...) dịch tự nhiên như văn nói tiếng Việt, không phiên âm Hán Việt cứng nhắc.
+7. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
 
 Chỉ trả về bản dịch, không thêm lời dẫn hay chú thích.
 KIỂM TRA CUỐI: rà lại toàn bộ đầu ra; nếu còn ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
 --- Văn bản gốc ---
-{text}"""
+{text}{auto_glossary_block}{fixup_warning}"""
 
 GO_TITLE_PROMPT = """Dịch {kind} sau sang tiếng Việt thật hay, tự nhiên.
 
 Luật:
 - Không dịch sát nghĩa từng chữ.
 - Giữ tên riêng dạng Hán Việt.
+- Riêng tên người nước ngoài giữ dạng chữ Latin gốc (夏洛克 → Sherlock), không chuyển Hán Việt.
 - Nếu tiêu đề gốc rõ nghĩa, dịch thoát.
 - Nếu khó chuyển ngữ, dịch nghĩa và thêm GIẢI THÍCH.
 

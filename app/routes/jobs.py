@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Form, HTTPException, Request
+from fastapi import APIRouter, Body, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
 from novel2epub.pipeline import step_cleanup_han_selected
@@ -327,17 +327,9 @@ def cancel_ebook_job(request: Request, slug: str, category: str):
 
 
 @router.post("/ebooks/{slug}/jobs/{step}")
-def start_ebook_job(request: Request, slug: str, step: str, force: bool = Form(False)):
+def start_ebook_job(request: Request, slug: str, step: str):
     cfg = deps.resolved_cfg(slug)
-    if step == "fetch-toc" and force:
-        def _target(log):
-            from novel2epub.pipeline import step_fetch_toc
-
-            step_fetch_toc(cfg, log, force=True)
-
-        request.app.state.job.start_custom(step, _target, category="crawl")
-    else:
-        request.app.state.job.start(step, cfg)
+    request.app.state.job.start(step, cfg)
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -468,9 +460,29 @@ def api_queue_log(request: Request, job_id: str):
     return {"log": log_lines}
 
 
+@router.get("/api/logs/{source}")
+def api_logs(source: str, from_: int = Query(0, alias="from"), limit: int = Query(200)):
+    from ..logging_config import LOG_DIR
+    log_path = LOG_DIR / f"{source}.log"
+    if not log_path.exists():
+        return {"lines": [], "total": 0, "source": source}
+    with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+        all_lines = f.read().splitlines()
+    lines = all_lines[from_:from_ + limit] if from_ > 0 else all_lines[:limit]
+    return {"lines": lines, "total": len(all_lines), "source": source}
+
 @router.get("/api/logs")
-def api_logs(request: Request):
-    return request.app.state.job.queue.logs_snapshot(limit=30)
+def api_logs_default(source: str = Query("app"), from_: int = Query(0, alias="from"), limit: int = Query(200)):
+    return api_logs(source, from_=from_, limit=limit)
+
+
+@router.delete("/api/logs/{source}")
+def api_logs_delete(source: str):
+    from ..logging_config import LOG_DIR
+    log_path = LOG_DIR / f"{source}.log"
+    if log_path.exists():
+        log_path.write_text("")
+    return {"ok": True, "source": source}
 
 
 @router.get("/logs")

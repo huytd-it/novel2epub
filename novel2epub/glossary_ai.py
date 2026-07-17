@@ -21,9 +21,7 @@ SUGGEST_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt,
 
 Nhiệm vụ: đọc bản gốc tiếng Trung và bản dịch tiếng Việt hiện tại dưới đây, đề xuất các mục glossary mới. Glossary là bảng để ĐỒNG BỘ cách dịch xuyên suốt truyện, KHÔNG phải từ điển — thà bỏ sót còn hơn đề xuất nhầm từ thông thường.
 
-CHỈ đề xuất khi thỏa mãn (đưa vào target_file tương ứng):
-1. names.txt — tên riêng: nhân vật, địa danh, môn phái/tổ chức, chức danh/tước vị.
-2. vietphrase.txt — thuật ngữ ĐẶC THÙ của thế giới truyện, lặp lại nhiều lần: công pháp, chiêu thức, cảnh giới tu luyện, linh thú, pháp bảo, đan dược, chủng tộc, hệ thống sức mạnh, biệt danh/xưng hiệu cố định.
+CHỈ đề xuất khi thỏa mãn: tên riêng (nhân vật, địa danh, môn phái/tổ chức, chức danh/tước vị) hoặc thuật ngữ ĐẶC THÙ của thế giới truyện, lặp lại nhiều lần (công pháp, chiêu thức, cảnh giới tu luyện, linh thú, pháp bảo, đan dược, chủng tộc, hệ thống sức mạnh, biệt danh/xưng hiệu cố định).
 
 TUYỆT ĐỐI KHÔNG đề xuất (đây là lỗi làm bẩn glossary):
 - Từ ngữ đời thường: đồ ăn thức uống, mua sắm, động tác, cảm xúc, nghề nghiệp thông thường, vật dụng phổ thông (vd: kệ hàng, cơm thừa canh cặn, chạy việc vặt, gà thả vườn, thu dọn...).
@@ -46,7 +44,7 @@ Glossary hiện tại (không đề xuất lại các mục này):
 {translated}
 
 Chỉ trả về JSON array, không kèm giải thích, không dùng code fence. Mỗi phần tử có dạng:
-{{"source": "<Hán>", "suggested": "<Việt>", "type": "name|place|skill|item|term|phrase", "reason": "<lý do ngắn>", "target_file": "names.txt|vietphrase.txt"}}
+{{"source": "<Hán>", "suggested": "<Việt>", "type": "name|place|skill|item|term|phrase", "reason": "<lý do ngắn>"}}
 Nếu không có gì để đề xuất, trả về [].
 """
 
@@ -122,7 +120,6 @@ def _parse_suggestions(text: str) -> list[dict]:
         return []
 
     valid_types = {"name", "place", "skill", "item", "term", "phrase"}
-    valid_files = {"names.txt", "vietphrase.txt"}
     suggestions = []
     for item in data:
         if not isinstance(item, dict):
@@ -137,7 +134,6 @@ def _parse_suggestions(text: str) -> list[dict]:
                 "suggested": suggested,
                 "type": item.get("type") if item.get("type") in valid_types else "term",
                 "reason": str(item.get("reason", "")).strip(),
-                "target_file": item.get("target_file") if item.get("target_file") in valid_files else "vietphrase.txt",
             }
         )
     return suggestions

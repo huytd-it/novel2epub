@@ -1,48 +1,77 @@
 {% extends "base.html" %}
 {% block title %}Lưu trữ — novel2epub{% endblock %}
 {% block content %}
+<style>
+/* Local styles for storage page */
+.modal-backdrop[hidden] { display: none !important; }
+</style>
+
 <div class="flex items-baseline justify-between gap-4 mb-1">
-    <h2 class="m-0 text-xl font-semibold">Lưu trữ</h2>
+    <h2 class="m-0 text-xl font-semibold">Lưu trữ & Dung lượng</h2>
 </div>
-<p class="text-muted-light dark:text-muted-dark text-sm mb-3">Tổng dung lượng tất cả ebook: <strong>{{ "%.1f"|format(grand_total / 1024 / 1024) }} MB</strong></p>
+<p class="text-fg-muted dark:text-fg-muted-dark text-sm mb-4">Tổng dung lượng dữ liệu raw, translated, glossary, EPUB per ebook. Dọn dẹp khi cần.</p>
 
 <div id="storage-region">
-<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
-    <table class="w-full text-sm" data-dt data-dt-placeholder="Tìm ebook…">
-        <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs">
-            <tr>
-                <th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Ebook</th>
-                <th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Raw</th>
-                <th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">MT</th>
-                <th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Biên tập</th>
-                <th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Glossary</th>
-                <th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">EPUB</th>
-                <th data-dt-sort class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Tổng</th>
-                <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for row in rows %}
-        <tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">
-            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><a href="/ebooks/{{ row.slug }}" class="text-link-light dark:text-link-dark hover:underline">{{ row.name }}</a></td>
-            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ "%.1f"|format(row.report.raw / 1024 / 1024) }} MB</td>
-            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ "%.1f"|format(row.report.translated_mt / 1024 / 1024) }} MB</td>
-            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ "%.1f"|format(row.report.translated / 1024 / 1024) }} MB</td>
-            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ "%.1f"|format(row.report.glossary / 1024 / 1024) }} MB</td>
-            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">{{ "%.1f"|format(row.report.epub / 1024 / 1024) }} MB</td>
-            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><strong>{{ "%.1f"|format(row.report.total / 1024 / 1024) }} MB</strong></td>
-            <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
-                <div class="inline-flex gap-1.5 items-center flex-wrap">
-                    <form method="post" action="/storage/{{ row.slug }}/purge-raw" data-ajax data-ajax-reload="#storage-region" data-toast="Đã xóa raw/ của {{ row.slug }}." data-confirm="Xóa toàn bộ raw/ của {{ row.slug }}? (giữ nguyên bản đã biên tập)"><button type="submit" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xóa raw</button></form>
-                    <form method="post" action="/storage/{{ row.slug }}/purge-mt" data-ajax data-ajax-reload="#storage-region" data-toast="Đã xóa snapshot MT của {{ row.slug }}." data-confirm="Xóa snapshot máy dịch (VI) của {{ row.slug }}? (giữ nguyên bản đã biên tập)"><button type="submit" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xóa MT</button></form>
-                    <form method="post" action="/storage/{{ row.slug }}/remove-epub" data-ajax data-ajax-reload="#storage-region" data-toast="Đã xóa EPUB của {{ row.slug }}." data-confirm="Xóa file EPUB đã build của {{ row.slug }}?"><button type="submit" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xóa EPUB</button></form>
-                    <a class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-underline" href="/storage/{{ row.slug }}/archive">Đóng gói .zip</a>
-                </div>
-            </td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+{% if rows %}
+<div class="space-y-3">
+    {% for row in rows %}
+    <div class="card p-4">
+        <div class="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+            <a href="/ebooks/{{ row.slug }}" class="font-semibold text-brand-600 dark:text-brand-400 hover:underline">{{ row.name }}</a>
+            <span class="badge badge-neutral">{{ "%.1f"|format(row.report.total / 1024 / 1024) }} MB</span>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="p-3 rounded-lg bg-surface-muted dark:bg-surface-muted-dark">
+                <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark">Raw</div>
+                <div class="text-xl font-mono tabular-nums text-fg-light dark:text-fg-dark">{{ "%.1f"|format(row.report.raw / 1024 / 1024) }} MB</div>
+                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ row.report.raw_chapters }} chương</div>
+            </div>
+            <div class="p-3 rounded-lg bg-surface-muted dark:bg-surface-muted-dark">
+                <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark">Translated</div>
+                <div class="text-xl font-mono tabular-nums text-fg-light dark:text-fg-dark">{{ "%.1f"|format(row.report.translated / 1024 / 1024) }} MB</div>
+                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ row.report.translated_chapters }} chương</div>
+            </div>
+            <div class="p-3 rounded-lg bg-surface-muted dark:bg-surface-muted-dark">
+                <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark">Glossary</div>
+                <div class="text-xl font-mono tabular-nums text-fg-light dark:text-fg-dark">{{ "%.1f"|format(row.report.glossary / 1024) }} KB</div>
+                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ row.report.glossary_entries }} mục</div>
+            </div>
+            <div class="p-3 rounded-lg bg-surface-muted dark:bg-surface-muted-dark">
+                <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark">EPUB</div>
+                <div class="text-xl font-mono tabular-nums text-fg-light dark:text-fg-dark">{{ ("%.1f"|format(row.report.epub / 1024 / 1024) + " MB") if row.report.epub_exists else "—" }}</div>
+                <div class="text-xs text-fg-muted dark:text-fg-muted-dark">{{ "Có" if row.report.epub_exists else "Chưa có" }}</div>
+            </div>
+        </div>
+        
+        <div class="flex flex-wrap gap-2">
+            <form method="post" action="/storage/{{ row.slug }}/purge-raw" data-ajax data-ajax-reload="#storage-region" data-toast="Đã xóa raw." data-confirm="Xóa toàn bộ file raw của {{ row.name }}? Dịch không bị ảnh hưởng.">
+                <button type="submit" class="btn btn-sm btn-secondary">🗑 Xóa raw</button>
+            </form>
+            <form method="post" action="/storage/{{ row.slug }}/purge-mt" data-ajax data-ajax-reload="#storage-region" data-toast="Đã xóa MT snapshot." data-confirm="Xóa snapshot bản dịch máy (MT) của {{ row.name }}? Chỉ xóa translated_mt/, không đụng translated/.">
+                <button type="submit" class="btn btn-sm btn-secondary">🗑 Xóa MT</button>
+            </form>
+            <form method="post" action="/storage/{{ row.slug }}/remove-epub" data-ajax data-ajax-reload="#storage-region" data-toast="Đã xóa EPUB." data-confirm="Xóa file EPUB của {{ row.name }}? Cần build lại để có lại.">
+                <button type="submit" class="btn btn-sm btn-secondary">🗑 Xóa EPUB</button>
+            </form>
+            <a href="/storage/{{ row.slug }}/archive" class="btn btn-sm btn-primary">📦 Archive (.zip)</a>
+        </div>
+    </div>
+    {% endfor %}
 </div>
+
+<div class="mt-4 p-4 rounded-lg bg-brand-50 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800">
+    <div class="flex items-center justify-between">
+        <span class="font-medium">Tổng dung lượng</span>
+        <span class="text-xl font-mono tabular-nums text-brand-600 dark:text-brand-400">{{ "%.1f"|format(grand_total / 1024 / 1024) }} MB</span>
+    </div>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">💾</div>
+    <p class="empty-state-title">Chưa có dữ liệu</p>
+    <p class="empty-state-desc">Thêm ebook và chạy crawl/dịch để thấy báo cáo lưu trữ.</p>
+</div>
+{% endif %}
 </div>
 {% endblock %}

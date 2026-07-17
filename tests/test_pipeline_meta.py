@@ -58,6 +58,76 @@ def test_step_fetch_toc_saves_metadata_no_content(tmp_path, monkeypatch):
     assert not storage.has_raw(manifest.chapters[0])
 
 
+def test_fetch_toc_khong_de_len_metadata_user_da_sua(tmp_path, monkeypatch):
+    """fetch-toc chỉ đồng bộ danh sách chương; metadata user sửa tay phải nguyên vẹn."""
+    toc = TocResult(
+        title="Tên do TOC",
+        author="Tác giả do TOC",
+        description="Mô tả do TOC",
+        cover_url="",  # để trống tránh tải ảnh thật
+        chapters=[Chapter(index=1, url="http://x/1"), Chapter(index=2, url="http://x/2")],
+    )
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(toc))
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+
+    # Lần đầu: có manifest + metadata từ TOC.
+    pipeline.step_fetch_toc(cfg, lambda m: None)
+    manifest = storage.load_manifest()
+
+    # User sửa tay metadata.
+    manifest.title = "Tên do user đặt"
+    manifest.author = "Tác giả do user đặt"
+    manifest.description = "Mô tả do user viết"
+    storage.save_manifest(manifest)
+
+    # Lấy TOC lần nữa.
+    pipeline.step_fetch_toc(cfg, lambda m: None)
+
+    after = storage.load_manifest()
+    assert after.title == "Tên do user đặt"
+    assert after.author == "Tác giả do user đặt"
+    assert after.description == "Mô tả do user viết"
+
+
+def test_fetch_toc_khong_dien_lai_metadata_user_da_xoa(tmp_path, monkeypatch):
+    """Manifest đã tồn tại => fetch-toc không đụng metadata, kể cả khi trống.
+
+    User xoá trắng mô tả là một lựa chọn có chủ đích; TOC không được điền lại.
+    Chỉ form Settings mới được ghi metadata.
+    """
+    toc = TocResult(
+        title="Tên do TOC",
+        author="Tác giả do TOC",
+        description="Mô tả do TOC",
+        cover_url="",
+        chapters=[Chapter(index=1, url="http://x/1")],
+    )
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(toc))
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+
+    pipeline.step_fetch_toc(cfg, lambda m: None)
+    manifest = storage.load_manifest()
+
+    # User xoá trắng mô tả.
+    manifest.description = ""
+    storage.save_manifest(manifest)
+
+    pipeline.step_fetch_toc(cfg, lambda m: None)
+
+    assert storage.load_manifest().description == ""
+
+
+def test_fetch_toc_khong_con_tham_so_force():
+    """`force` đã bị bỏ — gọi kèm nó phải là TypeError, không im lặng bỏ qua."""
+    import inspect
+
+    assert "force" not in inspect.signature(pipeline.step_fetch_toc).parameters
+
+
 def test_refresh_manifest_empty_toc_keeps_cached_chapters(tmp_path, monkeypatch):
     """TOC trả về 0 chương (anti-bot trả 200, site đổi cấu trúc...) không được
     xóa chapters đã có trong manifest — dùng lại cache."""
@@ -154,7 +224,7 @@ def test_translate_selected_reports_per_chapter_error_and_continues(tmp_path, mo
 
     # Chương 1 dịch được (nên không fail-fast), chương 2 lỗi, chương 3 dịch được.
     tr = _FlakyTranslator(fail_on={"raw2"})
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: tr)
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
 
     logs = []
     cfg = _cfg(tmp_path)
@@ -176,7 +246,7 @@ def test_translate_selected_fails_fast_on_first_chapter(tmp_path, monkeypatch):
         storage.write_raw(ch, f"raw{ch.index}")
 
     tr = _FlakyTranslator(fail_on={"raw1", "raw2"})
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: tr)
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
 
     cfg = _cfg(tmp_path)
     import pytest

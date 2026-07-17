@@ -81,20 +81,36 @@ def count_words(text: str) -> int:
     return len(text.split())
 
 
-def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterRow]:
+def chapter_rows(
+    chapters: Iterable[Chapter],
+    storage: Storage,
+    stats_map: dict[int, dict] | None = None,
+) -> list[ChapterRow]:
+    import json as _json
     rows = []
     for ch in chapters:
-        has_translated = storage.has_translated(ch)
-        word_count = count_words(storage.read_translated(ch)) if has_translated else 0
-        has_raw = storage.has_raw(ch)
-        zh_char_count = count_han_chars(storage.read_raw(ch)) if has_raw else 0
+        if stats_map is not None:
+            s = stats_map.get(ch.index, {})
+            has_raw = s.get("has_raw", False)
+            has_translated = s.get("has_translated", False)
+            # ponytail: byte-length estimates for display only, not business logic
+            word_count = (s.get("translated_len") or 0) // 5 if has_translated else 0
+            zh_char_count = (s.get("raw_len") or 0) // 3 if has_raw else 0
+            try:
+                meta = _json.loads(s.get("meta_json") or "{}")
+            except Exception:
+                meta = {}
+        else:
+            has_translated = storage.has_translated(ch)
+            word_count = count_words(storage.read_translated(ch)) if has_translated else 0
+            has_raw = storage.has_raw(ch)
+            zh_char_count = count_han_chars(storage.read_raw(ch)) if has_raw else 0
+            meta = storage.read_meta(ch) if (has_translated and storage.has_meta(ch)) else {}
 
         bientap = ""
         bientap_tooltip = ""
-        if has_translated and storage.has_meta(ch):
+        if has_translated and meta:
             try:
-                meta = storage.read_meta(ch)
-                # Ưu tiên: có bản nháp AI (cần user review) > đã apply rewrite
                 if meta.get("ai_rewrite"):
                     ar = meta["ai_rewrite"]
                     when = ar.get("generated_at", "") if isinstance(ar, dict) else ""
@@ -107,7 +123,7 @@ def chapter_rows(chapters: Iterable[Chapter], storage: Storage) -> list[ChapterR
                     bientap = "✏️ Đã biên tập"
                     bientap_tooltip = "AI rewrite đã được áp dụng (giữ bản gốc trong before_rewrite để khôi phục)"
             except Exception:
-                pass  # meta hỏng → bỏ qua, hiển thị "-"
+                pass
 
         rows.append(ChapterRow(
             index=ch.index,
@@ -143,9 +159,25 @@ def chapter_crawl_status(ch: Chapter, storage: Storage, min_chars: int = 30) -> 
     return "ok"
 
 
-def crawl_problem_indexes(chapters: Iterable[Chapter], storage: Storage, min_chars: int = 30) -> list[int]:
-    """Index các chương 'missing' hoặc 'empty' — dùng cho hành động "Retry lỗi"."""
-    return [ch.index for ch in chapters if chapter_crawl_status(ch, storage, min_chars) != "ok"]
+def crawl_problem_indexes(
+    chapters: Iterable[Chapter],
+    storage: Storage,
+    min_chars: int = 30,
+    stats_map: dict[int, dict] | None = None,
+) -> list[int]:
+    """Index các chương 'missing' hoặc 'empty' — dùng cho hành động "Retry lỗi".
+
+    `stats_map` (từ `Storage.bulk_chapter_stats()`) gộp N query thành 1. Ở nhánh
+    này 'missing' và 'empty' không phân biệt được (bulk stats quy cả NULL lẫn ''
+    về 0) nhưng cũng không cần: cả hai đều != 'ok' nên đều là chương cần retry.
+    """
+    if stats_map is None:
+        return [ch.index for ch in chapters if chapter_crawl_status(ch, storage, min_chars) != "ok"]
+    return [
+        ch.index
+        for ch in chapters
+        if stats_map.get(ch.index, {}).get("raw_len", 0) < min_chars
+    ]
 
 
 def _matches_filter(value: bool, flt: str) -> bool:

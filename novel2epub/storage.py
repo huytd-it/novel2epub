@@ -129,6 +129,37 @@ class Storage:
             (self.slug, ch.index),
         ).fetchone()
 
+    def bulk_chapter_stats(self) -> dict[int, dict]:
+        rows = self.conn.execute(
+            "SELECT idx,"
+            " CASE WHEN raw_text IS NOT NULL AND raw_text != '' THEN 1 ELSE 0 END AS has_raw_int,"
+            " CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END AS has_tr_int,"
+            " LENGTH(translated_text) AS translated_len,"
+            " LENGTH(raw_text) AS raw_len,"
+            " meta_json"
+            " FROM chapters WHERE ebook_slug = ?",
+            (self.slug,),
+        ).fetchall()
+        result: dict[int, dict] = {}
+        for row in rows:
+            has_tr_raw = bool(row["has_tr_int"])
+            if has_tr_raw:
+                try:
+                    meta = json.loads(row["meta_json"] or "{}")
+                except Exception:
+                    meta = {}
+                has_translated = bool(meta.get("complete", True))
+            else:
+                has_translated = False
+            result[row["idx"]] = {
+                "has_raw": bool(row["has_raw_int"]),
+                "has_translated": has_translated,
+                "translated_len": row["translated_len"] or 0,
+                "raw_len": row["raw_len"] or 0,
+                "meta_json": row["meta_json"],
+            }
+        return result
+
     # ----- manifest -----
     def load_manifest(self) -> Manifest | None:
         row = self.conn.execute(
@@ -468,6 +499,20 @@ class Storage:
         ).fetchall()
         return [(r["source"], r["target"], r["note"]) for r in rows]
 
+    def read_glossary_entries_merged(self) -> list[tuple[str, str, str]]:
+        """Gộp 2 list thành MỘT danh sách (source, target, note).
+
+        `names.txt` là list chuẩn duy nhất (đã bỏ phân loại names/vietphrase);
+        entry `vietphrase.txt` cũ chưa consolidate vẫn được đọc kèm, nhưng khi
+        trùng source thì names.txt thắng.
+        """
+        merged = list(self.read_glossary_entries("names.txt"))
+        seen = {source for source, _t, _n in merged}
+        for entry in self.read_glossary_entries("vietphrase.txt"):
+            if entry[0] not in seen:
+                merged.append(entry)
+        return merged
+
     def write_glossary_entries(self, name: str, entries: list[tuple[str, str, str]]) -> None:
         """Ghi list `(source, target, note)` — trim từng field, bỏ mục thiếu
         source/target, dedup theo source (mục SAU thắng)."""
@@ -621,6 +666,32 @@ class Storage:
             "meta": row["meta"],
             "glossary": glossary_row["n"],
             "cover": cover_row["n"],
+        }
+
+    def content_counts(self) -> dict[str, int]:
+        """Số chương CÓ nội dung theo từng loại + số mục glossary — trang
+        /storage hiển thị kèm dung lượng. Tách khỏi `content_bytes` để
+        `ebook_storage_report` (dashboard cũng gọi, mỗi lần là 1 lượt quét bảng)
+        không phải gánh thêm query mà nó không dùng."""
+        row = self.conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(CASE WHEN raw_text IS NOT NULL AND raw_text != '' THEN 1 ELSE 0 END), 0) AS raw,
+                COALESCE(SUM(CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END), 0) AS translated,
+                COALESCE(SUM(CASE WHEN translated_mt_text IS NOT NULL AND translated_mt_text != '' THEN 1 ELSE 0 END), 0) AS translated_mt
+            FROM chapters WHERE ebook_slug = ?
+            """,
+            (self.slug,),
+        ).fetchone()
+        glossary_row = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM glossary_entries WHERE ebook_slug = ?",
+            (self.slug,),
+        ).fetchone()
+        return {
+            "raw": row["raw"],
+            "translated": row["translated"],
+            "translated_mt": row["translated_mt"],
+            "glossary": glossary_row["n"],
         }
 
     def purge_raw(self) -> int:

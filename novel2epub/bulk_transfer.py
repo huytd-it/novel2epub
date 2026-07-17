@@ -11,9 +11,7 @@ Cấu trúc một khối xuất:
     <PROMPT biên tập, dạng markdown>
 
     ## Glossary tham khảo (dùng đúng các tên này)
-    ### Tên riêng
     - 萧炎 = Tiêu Viêm
-    ### Thuật ngữ
     - 斗气 = Đấu khí
 
     ## idx:1: <tiêu đề>
@@ -55,11 +53,6 @@ CHAPTER_MARKER_RE = re.compile(
 )
 GLOSSARY_MARKER_RE = re.compile(r"^(?:#{1,6}\s*|={3,}\s*)GLOSSARY\b", re.IGNORECASE)
 
-_NAMES_HEADERS = {"[NAMES]", "[NAME]", "[TÊN]", "[TEN]", "NAMES", "NAME", "TÊN", "TEN"}
-_VIETPHRASE_HEADERS = {
-    "[VIETPHRASE]", "[VP]", "[THUẬT NGỮ]", "[THUAT NGU]",
-    "VIETPHRASE", "VP", "THUẬT NGỮ", "THUAT NGU",
-}
 _BULLET_RE = re.compile(r"^[-*+]\s+")
 
 
@@ -120,18 +113,20 @@ def chapter_marker(index: int, title: str = "") -> str:
 
 # Quy tắc trích glossary ở cuối output — DÙNG CHUNG cho EDIT_PROMPT và
 # TRANSLATE_PROMPT. Siết chặt tiêu chí để AI KHÔNG nhét từ đời thường vào
-# vietphrase.txt (lỗi hay gặp: "kệ hàng", "cơm thừa canh cặn", "chạy việc
-# vặt"...). Ghép vào cuối mỗi prompt bằng nối chuỗi.
+# glossary (lỗi hay gặp: "kệ hàng", "cơm thừa canh cặn", "chạy việc vặt"...).
+# Ghép vào cuối mỗi prompt bằng nối chuỗi.
 _GLOSSARY_OUTPUT_RULE = """- Ở CUỐI kết quả, thêm một mục `## GLOSSARY`. \
 CHỈ liệt kê tên riêng/thuật ngữ MỚI (chưa có trong glossary tham khảo) mà \
 BẮT BUỘC phải nhất quán xuyên suốt truyện. Đây là bảng để đồng bộ cách dịch, \
 KHÔNG phải từ điển — thà bỏ sót còn hơn đưa nhầm từ thông thường vào.
 
-TIÊU CHÍ đưa vào (chỉ khi thỏa mãn):
-- `### NAMES`: tên riêng — nhân vật, địa danh, môn phái/tổ chức, chức danh/tước vị.
-- `### VIETPHRASE`: thuật ngữ ĐẶC THÙ của thế giới truyện, lặp lại nhiều lần — \
-công pháp, chiêu thức, cảnh giới tu luyện, pháp bảo, đan dược, chủng tộc, hệ \
-thống sức mạnh, biệt danh/xưng hiệu cố định của nhân vật.
+TIÊU CHÍ đưa vào (chỉ khi thỏa mãn): tên riêng — nhân vật, địa danh, môn \
+phái/tổ chức, chức danh/tước vị; hoặc thuật ngữ ĐẶC THÙ của thế giới truyện, \
+lặp lại nhiều lần — công pháp, chiêu thức, cảnh giới tu luyện, pháp bảo, đan \
+dược, chủng tộc, hệ thống sức mạnh, biệt danh/xưng hiệu cố định của nhân vật.
+
+Tên người nước ngoài ghi ở dạng chữ Latin gốc đúng như trong bản dịch \
+(vd 夏洛克 → Sherlock), KHÔNG ghi Hán Việt.
 
 TUYỆT ĐỐI KHÔNG đưa vào (đây là lỗi làm bẩn glossary):
 - Từ ngữ đời thường: đồ ăn thức uống, mua sắm, động tác, cảm xúc, nghề nghiệp \
@@ -148,12 +143,7 @@ Nếu không có mục nào đạt tiêu chí, để mục `## GLOSSARY` trống
 không kèm mục con). Định dạng:
 
 ## GLOSSARY
-
-### NAMES
-- <chữ Hán> = <Hán Việt>
-
-### VIETPHRASE
-- <chữ Hán> = <nghĩa tiếng Việt>
+- <chữ Hán> = <tiếng Việt>
 """
 
 
@@ -174,6 +164,10 @@ câu đủ chủ – vị, ngắt câu/dấu câu hợp lý).
 đừng để câu khó hiểu; thành ngữ/tục ngữ phải đúng nghĩa gốc.
 5. TÊN RIÊNG (nhân vật, địa danh, môn phái, chức danh) giữ ở dạng Hán Việt viết \
 hoa, NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary tham khảo.
+6. TÊN NGƯỜI NƯỚC NGOÀI (Âu-Mỹ, Nhật, Hàn...) phải ở dạng chữ Latin gốc, KHÔNG \
+phải Hán Việt: gặp "Hạ Lạc Khắc" → sửa thành "Sherlock", "Minh Nhân" → \
+"Naruto", "Tiểu Anh" → "Sakura". CHỈ sửa khi nhận ra CHẮC CHẮN tên gốc; không \
+chắc thì giữ nguyên như bản dịch. Ưu tiên tên trong Glossary tham khảo.
 
 ## Quy tắc định dạng đầu ra (bắt buộc để nạp ngược vào hệ thống)
 
@@ -183,7 +177,7 @@ dung phía sau. KHÔNG gộp/đổi/xóa dòng tiêu đề, không tự thêm ti
 """ + _GLOSSARY_OUTPUT_RULE
 
 
-# Prompt dịch (Trung → Việt) cho luồng "xuất raw để dịch" — nguyên tắc 1-8 lấy
+# Prompt dịch (Trung → Việt) cho luồng "xuất raw để dịch" — nguyên tắc 1-9 lấy
 # nguyên từ `DEFAULT_PROMPT` trong `config.py` (prompt dịch chính thức của hệ
 # thống, dùng cho backend AI `openai`), giữ nguyên tinh thần, chỉ đổi phần
 # đầu/cuối cho phù hợp batch nhiều chương theo Markdown, để dịch thủ công qua
@@ -200,16 +194,21 @@ câu phải đủ chủ — vị.
 giữa cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu...
 3. Tên riêng, công pháp, địa danh, chiêu thức: giữ Hán Việt quen thuộc, viết \
 hoa và NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary tham khảo.
-4. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, \
+4. NGOẠI LỆ của luật 3 — tên người nước ngoài (Âu-Mỹ, Nhật, Hàn...) được bản \
+gốc phiên âm sang chữ Hán: trả về ĐÚNG dạng chữ Latin gốc (夏洛克 → Sherlock, \
+鸣人 → Naruto, 小樱 → Sakura), KHÔNG chuyển thành Hán Việt (KHÔNG "Hạ Lạc Khắc", \
+"Minh Nhân"). Viết hoa và NHẤT QUÁN xuyên suốt. CHỈ áp dụng khi nhận ra CHẮC \
+CHẮN tên gốc; không chắc thì giữ Hán Việt theo luật 3.
+5. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, \
 nhưng giữ chất cổ trang khi cần.
-5. Giữ nguyên cách chia đoạn của bản gốc.
-6. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người \
+6. Giữ nguyên cách chia đoạn của bản gốc.
+7. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người \
 Việt, không máy móc (khẩu ngữ chỉ sự e dè thì dịch "ngại", "ngại ngùng"; chê \
 tác phong ăn uống thì "ăn uống khó coi"...).
-7. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): \
+8. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): \
 dịch tự nhiên như văn nói tiếng Việt thông thường, không cần giữ sắc thái Hán, \
 không phiên âm Hán Việt cứng nhắc.
-8. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng và ghi \
+9. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng và ghi \
 tên dịch giả trong ngoặc (vd: "— (bản dịch Tản Đà)"); nếu không, tự chuyển ngữ \
 cho người đọc hiểu, không dịch nguyên xi từng chữ kiểu Vietphrase.
 
@@ -234,35 +233,28 @@ không tự thêm tiêu đề chương mới.
 """ + _GLOSSARY_OUTPUT_RULE
 
 
-def _format_glossary_block(names: dict[str, str], vietphrase: dict[str, str]) -> str:
-    """Render glossary thành mục Markdown `### Tên riêng`/`### Thuật ngữ` (rỗng → "")."""
-    if not names and not vietphrase:
+def _format_glossary_block(glossary: dict[str, str]) -> str:
+    """Render glossary thành mục Markdown 1 danh sách phẳng (rỗng → "")."""
+    if not glossary:
         return ""
-    sections = ["## Glossary tham khảo (dùng đúng các tên này)"]
-    if names:
-        lines = "\n".join(f"- {s} = {t}" for s, t in names.items() if s and t)
-        sections.append(f"### Tên riêng\n{lines}")
-    if vietphrase:
-        lines = "\n".join(f"- {s} = {t}" for s, t in vietphrase.items() if s and t)
-        sections.append(f"### Thuật ngữ\n{lines}")
-    return "\n\n".join(sections)
+    lines = "\n".join(f"- {s} = {t}" for s, t in glossary.items() if s and t)
+    return f"## Glossary tham khảo (dùng đúng các tên này)\n{lines}"
 
 
 def build_export(
     items: list[tuple[int, str, str]],
     *,
-    names: dict[str, str] | None = None,
-    vietphrase: dict[str, str] | None = None,
+    glossary: dict[str, str] | None = None,
     prompt: str = EDIT_PROMPT,
 ) -> str:
     """Gom các chương thành một khối xuất.
 
     items: list `(index, title, content)`; sẽ được sắp theo `index` tăng dần.
-    names/vietphrase: glossary hiện có để đính kèm (tham khảo, có thể rỗng).
+    glossary: bảng glossary hiện có để đính kèm (tham khảo, có thể rỗng).
     """
     parts: list[str] = [prompt.rstrip()]
 
-    glossary_block = _format_glossary_block(names or {}, vietphrase or {})
+    glossary_block = _format_glossary_block(glossary or {})
     if glossary_block:
         parts.append(glossary_block)
 
@@ -273,7 +265,7 @@ def build_export(
 
 
 # Prompt nhờ web chat AI DỌN LẠI glossary (dedup, sửa Hán-Việt, gộp mâu thuẫn).
-# Trả về đúng format `### NAMES`/`### VIETPHRASE` để `parse_glossary` nạp ngược.
+# Trả về đúng format dòng `- Hán = Việt` để `parse_glossary` nạp ngược.
 GLOSSARY_CLEAN_PROMPT = """# Yêu cầu dọn & chuẩn hoá bảng glossary truyện dịch Trung → Việt
 
 Bạn là biên tập viên xây dựng glossary nhất quán cho truyện dịch. Dưới đây là \
@@ -287,39 +279,29 @@ nhiều cách dịch khác nhau, chọn cách phù hợp nhất và bỏ các c�
 3. SỬA HÁN-VIỆT SAI hoặc khó hiểu: chỉnh lại phiên âm Hán Việt cho đúng và tự nhiên.
 4. LOẠI mục rác: từ đời thường, thành ngữ/khẩu ngữ dịch thoát ý, từ độc giả Việt \
 đọc hiểu ngay — những mục KHÔNG cần đồng bộ xuyên suốt truyện.
-5. Phân loại đúng: tên riêng (nhân vật, địa danh, môn phái, chức danh) vào NAMES; \
-thuật ngữ đặc thù của thế giới truyện (công pháp, chiêu thức, cảnh giới, pháp \
-bảo, đan dược...) vào VIETPHRASE.
-6. KHÔNG bịa thêm mục mới không có trong bảng gốc. KHÔNG thêm bình luận, giải thích.
+5. KHÔNG bịa thêm mục mới không có trong bảng gốc. KHÔNG thêm bình luận, giải thích.
 
 ## Quy tắc định dạng đầu ra (bắt buộc để nạp ngược vào hệ thống)
 
 Chỉ trả về đúng cấu trúc sau, mỗi mục một dòng dạng `- <chữ Hán> = <tiếng Việt>`:
 
 ## GLOSSARY
-
-### NAMES
 - 萧炎 = Tiêu Viêm
-
-### VIETPHRASE
 - 斗气 = Đấu khí
 """
 
 
 def build_glossary_export(
-    names: dict[str, str], vietphrase: dict[str, str], *, prompt: str = GLOSSARY_CLEAN_PROMPT
+    glossary: dict[str, str], *, prompt: str = GLOSSARY_CLEAN_PROMPT
 ) -> str:
     """Gom glossary hiện tại thành khối xuất cho web chat AI dọn lại.
 
-    Dùng heading `## GLOSSARY`/`### NAMES`/`### VIETPHRASE` để `parse_glossary`
-    nạp ngược được kết quả AI trả về (round-trip). Bảng rỗng vẫn xuất khung để
+    Dùng heading `## GLOSSARY` + dòng `- Hán = Việt` để `parse_glossary` nạp
+    ngược được kết quả AI trả về (round-trip). Bảng rỗng vẫn xuất khung để
     AI biết định dạng mong muốn.
     """
-    parts: list[str] = [prompt.rstrip(), "## GLOSSARY"]
-    names_lines = "\n".join(f"- {s} = {t}" for s, t in names.items() if s and t)
-    vp_lines = "\n".join(f"- {s} = {t}" for s, t in vietphrase.items() if s and t)
-    parts.append("### NAMES\n" + (names_lines or "- "))
-    parts.append("### VIETPHRASE\n" + (vp_lines or "- "))
+    lines = "\n".join(f"- {s} = {t}" for s, t in glossary.items() if s and t)
+    parts: list[str] = [prompt.rstrip(), "## GLOSSARY\n" + (lines or "- ")]
     return "\n\n".join(parts) + "\n"
 
 
@@ -364,47 +346,35 @@ def parse_import(text: str) -> list[tuple[int, str, str]]:
     return results
 
 
-def parse_glossary(text: str) -> dict[str, dict[str, str]]:
-    """Gom các mục glossary từ MỌI khối `GLOSSARY` trong text.
+def parse_glossary(text: str) -> dict[str, str]:
+    """Gom các mục glossary từ MỌI khối `GLOSSARY` trong text thành 1 dict phẳng.
 
-    Trả `{"names": {source: target}, "vietphrase": {source: target}}`; bỏ dòng
-    thiếu source/target hoặc nằm ngoài nhóm `[NAMES]`/`[VIETPHRASE]`.
+    Không còn phân loại names/vietphrase — mọi dòng `Hán = Việt` trong khối
+    glossary đều được gom. Subheading cũ (`### NAMES`, `[VIETPHRASE]`...) không
+    chứa `=` nên tự bị bỏ qua → file .md xuất theo định dạng cũ vẫn parse được,
+    toàn bộ entry đổ vào một dict.
     """
-    names: dict[str, str] = {}
-    vietphrase: dict[str, str] = {}
+    glossary: dict[str, str] = {}
     in_glossary = False
-    current: dict[str, str] | None = None
 
     for line in text.splitlines():
         if GLOSSARY_MARKER_RE.match(line):
             in_glossary = True
-            current = None
             continue
         if CHAPTER_MARKER_RE.match(line):
             in_glossary = False
-            current = None
             continue
         if not in_glossary:
             continue
-        stripped = line.strip()
-        header = re.sub(r"^#{1,6}\s*", "", stripped).strip().upper()
-        if header in _NAMES_HEADERS:
-            current = names
-            continue
-        if header in _VIETPHRASE_HEADERS:
-            current = vietphrase
-            continue
-        if current is None:
-            continue
-        parsed = parse_glossary_line(_BULLET_RE.sub("", stripped))
+        parsed = parse_glossary_line(_BULLET_RE.sub("", line.strip()))
         if parsed:
             source, target, _note = parsed
-            # Bỏ qua dòng mẫu placeholder trong prompt (vd "<chữ Hán> = <Hán Việt>").
+            # Bỏ qua dòng mẫu placeholder trong prompt (vd "<chữ Hán> = <tiếng Việt>").
             if "<" in source or ">" in source or "<" in target or ">" in target:
                 continue
-            current[source] = target
+            glossary[source] = target
 
-    return {"names": names, "vietphrase": vietphrase}
+    return glossary
 
 
 def validate_import(

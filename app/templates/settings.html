@@ -9,7 +9,7 @@
     </div>
 </div>
 
-<div id="settings-layout" data-slug="{{ slug }}" class="max-w-3xl mx-auto">
+<div id="settings-layout" data-slug="{{ slug }}" class="max-w-8xl mx-auto">
     <nav class="flex border-b-2 border-border-light dark:border-border-dark mb-3">
         <button class="settings-tab active px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-novel" onclick="switchSettingsTab('tab-novel')">
             <span class="mr-1">📖</span> Truyện
@@ -25,6 +25,9 @@
         </button>
         <button class="settings-tab px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-output" onclick="switchSettingsTab('tab-output')">
             <span class="mr-1">📦</span> Đầu ra
+        </button>
+        <button class="settings-tab px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-reader" onclick="switchSettingsTab('tab-reader')">
+            <span class="mr-1">🚀</span> Reader
         </button>
     </nav>
 
@@ -43,6 +46,9 @@
         </div>
         <div id="tab-output" class="settings-panel hidden">
             {% include "settings_output.html" %}
+        </div>
+        <div id="tab-reader" class="settings-panel hidden">
+            {% include "settings_reader.html" %}
         </div>
     </div>
 </div>
@@ -192,6 +198,25 @@ function uploadCover(slug) {
 function toggleRawYaml(id) {
     const el = document.getElementById(id);
     if (el) el.hidden = !el.hidden;
+}
+
+// Reset 1 khối cấu hình về mặc định (POST rồi reload). Dùng fetch thay vì
+// <form> lồng vì các nút này nằm TRONG form settings lớn (form lồng nhau là HTML sai).
+function resetConfigSection(url, msg) {
+    if (!confirm(msg)) return;
+    // Hủy autosave đang chờ (debounce) — không thì nó ghi lại giá trị form CŨ
+    // ngay sau khi reset xoá override.
+    if (typeof saveTimer !== "undefined" && saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    const status = document.getElementById("save-status");
+    if (status) { status.textContent = "Đang reset..."; status.className = "text-sm text-amber-600 dark:text-amber-400"; }
+    fetch(url, { method: "POST" })
+        .then(r => {
+            if (r.ok || r.redirected) { window.location.reload(); }
+            else if (status) { status.textContent = "Lỗi reset"; status.className = "text-sm text-red-600 dark:text-red-400"; }
+        })
+        .catch(() => {
+            if (status) { status.textContent = "Lỗi mạng"; status.className = "text-sm text-red-600 dark:text-red-400"; }
+        });
 }
 </script>
 {% endblock %}

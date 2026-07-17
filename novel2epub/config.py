@@ -182,11 +182,12 @@ Nguyên tắc dịch:
 1. Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp Việt: đảo trật tự từ cho thuận, câu đủ chủ-vị.
 2. Ngôi xưng theo quan hệ và ngữ cảnh: cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu... KHÔNG bê nguyên ta/ngươi.
 3. Tên riêng, công pháp, địa danh, chiêu thức: giữ Hán Việt quen thuộc, viết hoa, nhất quán.
-4. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, nhưng giữ chất cổ trang khi cần.
-5. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
-6. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người Việt, không máy móc (khẩu ngữ chỉ sự e dè thì dịch "ngại", "ngại ngùng"; chê tác phong ăn uống thì "ăn uống khó coi"...).
-7. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): dịch tự nhiên như văn nói tiếng Việt thông thường, không cần giữ sắc thái Hán, không phiên âm Hán Việt cứng nhắc.
-8. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng bản dịch đó kèm tên dịch giả (vd: "— (bản dịch Tản Đà)"). Nếu không, tự chuyển ngữ cho người đọc hiểu, không dịch nguyên xi từng chữ kiểu Vietphrase.
+4. NGOẠI LỆ của luật 3 — tên người nước ngoài (Âu-Mỹ, Nhật, Hàn...) được bản gốc phiên âm sang chữ Hán: trả về ĐÚNG dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura), KHÔNG chuyển thành Hán Việt (KHÔNG "Hạ Lạc Khắc", "Minh Nhân"). Viết hoa và NHẤT QUÁN xuyên suốt. CHỈ áp dụng khi nhận ra CHẮC CHẮN tên gốc; không chắc thì giữ Hán Việt theo luật 3.
+5. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, nhưng giữ chất cổ trang khi cần.
+6. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
+7. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người Việt, không máy móc (khẩu ngữ chỉ sự e dè thì dịch "ngại", "ngại ngùng"; chê tác phong ăn uống thì "ăn uống khó coi"...).
+8. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): dịch tự nhiên như văn nói tiếng Việt thông thường, không cần giữ sắc thái Hán, không phiên âm Hán Việt cứng nhắc.
+9. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng bản dịch đó kèm tên dịch giả (vd: "— (bản dịch Tản Đà)"). Nếu không, tự chuyển ngữ cho người đọc hiểu, không dịch nguyên xi từng chữ kiểu Vietphrase.
 
 Phong cách:
 - Tông giọng: {tone}
@@ -199,7 +200,7 @@ CHỈ trả về bản dịch tiếng Việt thuần túy. KHÔNG thêm lời m�
 KIỂM TRA CUỐI (bắt buộc): trước khi trả lời, rà lại toàn bộ bản dịch từ đầu đến cuối; nếu còn BẤT KỲ ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
 --- Nội dung cần dịch ---
-{text}"""
+{text}{auto_glossary_block}{fixup_warning}"""
 
 
 TITLE_PROMPT = """Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt. Nhiệm vụ: chuyển ngữ {kind} sau sang tiếng Việt thật HAY, có hồn, KHÔNG dịch sát nghĩa kiểu máy/Quick Translate.
@@ -208,7 +209,8 @@ Nguyên tắc bắt buộc:
 1. Không bê nguyên âm Hán Việt nếu người đọc Việt không hiểu nghĩa.
 2. Có thể đảo cấu trúc, dùng hình ảnh/ẩn dụ tương đương trong tiếng Việt, miễn giữ đúng tinh thần và nội dung cốt lõi.
 3. Ví dụ: "Nắm tay người, kéo người đi" nên dịch thành "Tay nắm tay, cùng nhau cất bước" — hay và tự nhiên hơn nhiều so với dịch sát chữ.
-4. Nếu thực sự không tìm được cách chuyển ngữ hay mà vẫn giữ đúng nghĩa, hãy dịch nghĩa rõ ràng dù kém mượt hơn là giữ Hán Việt khó hiểu, và điền dòng GIẢI THÍCH để người đọc hiểu nghĩa gốc/lý do chọn từ.
+4. Tên người nước ngoài giữ dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto), không chuyển Hán Việt.
+5. Nếu thực sự không tìm được cách chuyển ngữ hay mà vẫn giữ đúng nghĩa, hãy dịch nghĩa rõ ràng dù kém mượt hơn là giữ Hán Việt khó hiểu, và điền dòng GIẢI THÍCH để người đọc hiểu nghĩa gốc/lý do chọn từ.
 
 {glossary}
 Trả lời ĐÚNG 2 dòng theo định dạng sau, không thêm gì khác:
@@ -216,6 +218,50 @@ TIÊU ĐỀ: <bản dịch tiếng Việt>
 GIẢI THÍCH: <để trống nếu tên đã rõ nghĩa, tự nhiên; chỉ điền nếu cần giải thích thêm cho người đọc>
 
 --- {kind} cần dịch ---
+{text}"""
+
+
+EN_DEFAULT_PROMPT = """You are a professional translator converting English web novel text into Vietnamese, following a polished editing style familiar to Vietnamese readers.
+
+Translation rules:
+1. Translate into natural, grammatically correct Vietnamese — restructure word order as needed.
+2. Pronouns based on relationship and context: cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu... Do NOT blindly copy English pronouns.
+3. Keep well-known Hán Việt names for characters, techniques, and places. Write in uppercase, be consistent.
+4. EXCEPTION to rule 3 — foreign character names (Western, Japanese, Korean...) that appear as pinyin or English glosses in the source: try to resolve them to the familiar Hán Việt form when confident (e.g. "Xie Lian" → "Tạ Liên", "Wei Wuxian" → "Ngụy Vô Tiện"). If not confident, keep the English/pinyin form as-is. Capitalize and be consistent throughout.
+5. Avoid obscure Hán Việt when a pure Vietnamese word is clearer, but keep the ancient/fantasy tone where appropriate.
+6. Preserve paragraph breaks. If the first line is a chapter title, translate it well and concisely.
+7. Idioms, colloquialisms, slang: translate by natural Vietnamese equivalents, not word-for-word.
+8. Everyday vocabulary (cooking, eating, emotions, body language...): translate naturally as everyday Vietnamese speech.
+9. Poetry, songs, classical quotations: if a well-known Vietnamese translation exists, use it with credit (e.g. "— (bản dịch Tản Đà)"). Otherwise, translate freely for reader comprehension.
+
+Style:
+- Tone: {tone}
+- Hán Việt level: {han_viet_level}
+- Title handling: {title_mode}
+- Pronoun policy: {pronoun_policy}
+- Preserve line breaks: {keep_paragraphs}
+
+ONLY return the pure Vietnamese translation. NO preamble, notes, explanations, or bilingual annotations.
+FINAL CHECK (mandatory): before answering, scan the entire translation end to end; if ANY Chinese characters remain, translate them to Vietnamese before answering.
+{glossary}
+--- Content to translate ---
+{text}{auto_glossary_block}{fixup_warning}"""
+
+
+EN_TITLE_PROMPT = """You are a title editor for English-to-Vietnamese translated novels. Task: translate the following {kind} into Vietnamese that is BEAUTIFUL and NATURAL, NOT a stiff machine translation.
+
+Mandatory rules:
+1. Do not keep English words when a Vietnamese equivalent sounds better.
+2. You may restructure, use metaphors or imagery natural to Vietnamese, as long as the core meaning is preserved.
+3. Character names: resolve pinyin/English-gloss names to familiar Hán Việt when confident (e.g. "Xie Lian" → "Tạ Liên"), otherwise keep as-is.
+4. If you truly cannot find a good translation that preserves meaning, translate for clarity even if less poetic, and fill in the GIẢI THÍCH line to explain.
+
+{glossary}
+Reply EXACTLY 2 lines in this format, nothing else:
+TIÊU ĐỀ: <Vietnamese translation>
+GIẢI THÍCH: <leave blank if name is already clear/natural; only fill if extra explanation helps readers>
+
+--- {kind} to translate ---
 {text}"""
 
 
@@ -227,12 +273,12 @@ class OpenAIConfig:
     `GET {base_url}/models`): OpenAI, OpenRouter, Ollama (`/v1`), LM Studio,
     vLLM, llama.cpp server, OpenCode Go, v.v.
     """
-    base_url: str = "https://opencode.ai/zen/go/v1"
+    base_url: str = "http://localhost:20128/v1"
     api_key: str = ""
-    model: str = "opencode-go/kimi-k2.6"
+    model: str = "free-stack"
     prompt_template: str = DEFAULT_PROMPT
     title_prompt_template: str = TITLE_PROMPT
-    timeout_seconds: int = 600
+    timeout_seconds: int = 120000
     temperature: float = 0.7
 
 
@@ -268,7 +314,7 @@ class LibreTranslateConfig:
 
 @dataclass
 class TranslateConfig:
-    type: str = "hachimimt"  # hachimimt | openai | google | libretranslate | none
+    type: str = "openai"  # openai | hachimimt | google | libretranslate | none
     preset: str = ""
     # Local NMT model: "hachimimt-60" | "hachimimt-30" | "moxhimt-60" | ...
     # Khi set, tự động gán model_key cho HachimiMTConfig.
@@ -294,7 +340,7 @@ class TranslateConfig:
     # rút glossary mới từ chính chương đó và merge vào names.txt/vietphrase.txt
     # (in-memory cho chương kế tiếp + ghi file thread-safe). Xung đột (cùng Hán,
     # khác Việt) → giữ giá trị cũ + ghi warning vào log và file tổng kết.
-    auto_glossary: bool = False
+    auto_glossary: bool = True
     # Khi True (mặc định): mỗi lần gọi AI chỉ nhét vào prompt những mục glossary
     # THỰC SỰ xuất hiện trong đoạn đang xử lý (lọc chuỗi con thuần Python, không
     # gọi AI) — tiết kiệm token khi glossary phình to. Bước hậu xử lý
@@ -308,7 +354,7 @@ class TranslateConfig:
     # glossary và nội dung). Dịch chương: chunk bị thu nhỏ để prompt hoàn chỉnh
     # không vượt giới hạn. Batch dịch: batch bị cắt sớm (ít chương hơn
     # batch_size) khi khối export chạm giới hạn. 0 = không giới hạn.
-    prompt_max_chars: int = 7000
+    prompt_max_chars: int = 0
     # Tự động chạy cleanup Hán sau mỗi chương được dịch (gọi AI qua config
     # AI biên tập ai.openai — hoạt động với mọi backend dịch).
     auto_cleanup_han: bool = False
@@ -360,6 +406,34 @@ class QueueConfig:
     crawl_workers: int = 2      # job crawl chạy song song
 
 
+# Các field của `reader` CHỈ đọc từ `defaults:` — override per-ebook bị bỏ đi
+# lúc load (xem `load_config`). Chủ yếu để `service_key` chỉ nằm ĐÚNG MỘT chỗ.
+READER_GLOBAL_FIELDS = ("url", "service_key", "timeout_seconds", "batch_size")
+
+
+@dataclass
+class ReaderConfig:
+    """Đẩy chương lên app đọc novel-reader (Supabase PostgREST).
+
+    `url`/`service_key`/`timeout_seconds`/`batch_size` dùng chung mọi ebook
+    (chỉ đọc từ `defaults:`); `slug`/`free_chapters`/`published` đặt riêng
+    từng ebook.
+    """
+    # ── dùng chung ──
+    url: str = ""            # https://<ref>.supabase.co
+    service_key: str = ""    # service_role key — bypass RLS, TUYỆT ĐỐI không log
+    timeout_seconds: int = 60
+    batch_size: int = 50
+    # ── theo ebook ──
+    slug: str = ""           # books.slug bên Reader; rỗng = dùng novel.slug
+    free_chapters: int = 5   # số chương đầu đọc miễn phí (như cờ --free của ingest-epub.ts)
+    published: bool = False  # books.is_published, chỉ set khi tạo sách lần đầu
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.url and self.service_key)
+
+
 @dataclass
 class Config:
     novel: NovelConfig
@@ -368,6 +442,7 @@ class Config:
     output: OutputConfig
     ai: AIConfig = field(default_factory=AIConfig)
     queue: QueueConfig = field(default_factory=QueueConfig)
+    reader: ReaderConfig = field(default_factory=ReaderConfig)
     # Tên source preset mà ebook này tham chiếu. Rỗng = không dùng preset.
     source: str = ""
     # Cảnh báo xung đột tính năng phát hiện lúc load config (vd preset ép đổi
@@ -458,7 +533,7 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
     settings_row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
     defaults: dict[str, Any] = {}
     if settings_row:
-        for section in ("novel", "crawl", "translate", "ai", "output", "queue"):
+        for section in ("novel", "crawl", "translate", "ai", "output", "queue", "reader"):
             data = json.loads(settings_row[f"{section}_json"] or "{}")
             if data:
                 defaults[section] = data
@@ -493,6 +568,15 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
             output_over["epub_path"] = r["epub_path"]
         if output_over:
             block["output"] = output_over
+        reader_over = json.loads(r["reader_overrides_json"] or "{}")
+        if reader_over:
+            block["reader"] = reader_over
+        translate_over = json.loads(r["translate_overrides_json"] or "{}")
+        if translate_over:
+            block["translate"] = translate_over
+        ai_over = json.loads(r["ai_overrides_json"] or "{}")
+        if ai_over:
+            block["ai"] = ai_over
         ebooks[r["slug"]] = block
 
     return {"defaults": defaults, "sources": sources, "ebooks": ebooks}
@@ -533,11 +617,17 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         override = {}
     override = dict(override)
     override.pop("name", None)  # tên hiển thị cấp ebook, không thuộc Config
-    # `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình DÙNG CHUNG cho
-    # mọi ebook — chỉ đọc từ `defaults:`. Override per-ebook (còn sót lại) bị
-    # bỏ qua để tránh mỗi ebook một bản cấu hình AI khác nhau.
-    override.pop("translate", None)
-    override.pop("ai", None)
+    # `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình RIÊNG từng ebook
+    # (translate_overrides_json/ai_overrides_json) merge đè lên `defaults:` —
+    # defaults chỉ còn là fallback cho ebook chưa cấu hình riêng và là giá trị
+    # quay về khi bấm Reset.
+    # `reader` merge được per-ebook (slug/free_chapters/published), NHƯNG phần
+    # kết nối Supabase thì không — giữ `service_key` ở đúng một chỗ (defaults).
+    ebook_reader = _as_dict(override.get("reader"))
+    if ebook_reader:
+        override["reader"] = {
+            k: v for k, v in ebook_reader.items() if k not in READER_GLOBAL_FIELDS
+        }
 
     # Source preset resolution: nếu ebook có field `source`, lookup preset
     # từ bảng `sources` → merge crawl fields từ preset vào TRƯỚC khi ebook
@@ -615,6 +705,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     chunk_raw = _as_dict(translate_raw.pop("chunk", None))
     names_path = glossary_files_raw.get("names", "")
     vietphrase_path = glossary_files_raw.get("vietphrase", "")
+    glossary_warnings: list[str] = []
     if names_path:
         names_path = str((base_dir / names_path).resolve()) if not Path(names_path).is_absolute() else names_path
     if vietphrase_path:
@@ -623,6 +714,21 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             if not Path(vietphrase_path).is_absolute()
             else vietphrase_path
         )
+    # `glossary_files` là field deprecated (config_writer không ghi nữa nhưng
+    # DB cũ có thể còn giữ). Path khai báo tường minh mà file KHÔNG tồn tại
+    # trên đĩa = cấu hình stale — bỏ qua (dùng path mặc định suy ra bên dưới,
+    # trỏ đúng vào DB glossary) + cảnh báo, tránh glossary âm thầm rỗng làm
+    # bản dịch mất nhất quán tên riêng.
+    for label in ("names", "vietphrase"):
+        current = names_path if label == "names" else vietphrase_path
+        if current and not Path(current).exists():
+            glossary_warnings.append(
+                f"translate.glossary_files.{label} trỏ tới file không tồn tại ({current}) — bỏ qua, dùng glossary trong DB."
+            )
+            if label == "names":
+                names_path = ""
+            else:
+                vietphrase_path = ""
     # Nếu không khai báo riêng, mặc định dùng đúng thư mục glossary mà
     # Storage/trang web Glossary đang đọc-ghi (data_dir/<slug>/glossary/).
     if not names_path or not vietphrase_path:
@@ -636,7 +742,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             names_path = str(glossary_dir / "names.txt")
         if not vietphrase_path:
             vietphrase_path = str(glossary_dir / "vietphrase.txt")
-    warnings: list[str] = list(source_warnings)
+    warnings: list[str] = list(source_warnings) + glossary_warnings
     if preset_name:
         from . import presets as _presets
 
@@ -644,6 +750,15 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         merged = dict(preset_overrides)
         merged.update({k: v for k, v in openai_raw.items() if v != "" and v is not None})
         openai_raw = merged
+
+    # EN source: auto-select EN prompts (same mechanism as preset resolution).
+    # Explicit non-empty user values still win.
+    _src_lang = translate_raw.get("source_language", "")
+    if _src_lang == "en":
+        _en_overrides = {"prompt_template": EN_DEFAULT_PROMPT, "title_prompt_template": EN_TITLE_PROMPT}
+        for _k, _v in _en_overrides.items():
+            if not openai_raw.get(_k):
+                openai_raw[_k] = _v
 
     # Resolve local NMT model preset: translate.model tên preset → model_key.
     translate_model = translate_raw.get("model", "") or ""
@@ -662,7 +777,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
 
     cleanup_han_raw = _as_dict(translate_raw.pop("cleanup_han", None))
     translate = TranslateConfig(
-        type=translate_raw.get("type", "hachimimt"),
+        type=translate_raw.get("type", TranslateConfig.type),
         model=translate_model,
         preset=preset_name,
         profile=translate_raw.get("profile", "traditional_cn_novel"),
@@ -688,10 +803,10 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         libretranslate=LibreTranslateConfig(**libretranslate_raw) if libretranslate_raw else LibreTranslateConfig(),
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
-        auto_glossary=bool(translate_raw.get("auto_glossary", False)),
+        auto_glossary=bool(translate_raw.get("auto_glossary", True)),
         glossary_filter=bool(translate_raw.get("glossary_filter", True)),
         batch_size=int(translate_raw.get("batch_size", 1)),
-        prompt_max_chars=int(translate_raw.get("prompt_max_chars", 7000)),
+        prompt_max_chars=int(translate_raw.get("prompt_max_chars", 20000)),
         auto_cleanup_han=bool(translate_raw.get("auto_cleanup_han", False)),
         cleanup_han=CleanupHanConfig(
             max_chars=int(cleanup_han_raw.get("max_chars", CleanupHanConfig.max_chars)),
@@ -722,6 +837,14 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             "trích xuất HTML của preset 'go', kiểm tra translate.openai có phù hợp không."
         )
 
+    if crawl.scrapling.solve_cloudflare and crawl.scrapling.mode != "stealthy":
+        warnings.append(
+            f"crawl.scrapling.solve_cloudflare=true nhưng mode={crawl.scrapling.mode!r} "
+            "— cờ này BỊ BỎ QUA, chỉ mode 'stealthy' mới dùng được. Trang bị "
+            "Cloudflare chặn sẽ trả về HTML thử thách ('Just a moment...') và mục "
+            "lục ra 0 chương."
+        )
+
     queue_raw = _as_dict(raw.get("queue"))
     defaults_q = QueueConfig()
     queue = QueueConfig(
@@ -729,4 +852,25 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         crawl_workers=max(1, int(queue_raw.get("crawl_workers", defaults_q.crawl_workers))),
     )
 
-    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, source=source_name, warnings=warnings)
+    reader_raw = _as_dict(raw.get("reader"))
+    defaults_r = ReaderConfig()
+    reader = ReaderConfig(
+        url=str(reader_raw.get("url", defaults_r.url)).strip().rstrip("/"),
+        service_key=str(reader_raw.get("service_key", defaults_r.service_key)).strip(),
+        timeout_seconds=max(1, int(reader_raw.get("timeout_seconds", defaults_r.timeout_seconds))),
+        batch_size=max(1, int(reader_raw.get("batch_size", defaults_r.batch_size))),
+        # Rỗng = dùng slug của ebook, để không phải khai lại cho mọi truyện.
+        slug=str(reader_raw.get("slug", defaults_r.slug)).strip() or novel.slug,
+        free_chapters=max(0, int(reader_raw.get("free_chapters", defaults_r.free_chapters))),
+        published=bool(reader_raw.get("published", defaults_r.published)),
+    )
+    if reader.url and not reader.url.startswith(("http://", "https://")):
+        warnings.append(
+            f"reader.url={reader.url!r} thiếu scheme http(s):// — đẩy lên Reader sẽ lỗi."
+        )
+    if reader.service_key and not reader.url:
+        warnings.append(
+            "reader.service_key đã điền nhưng reader.url trống — đẩy lên Reader sẽ bị bỏ qua."
+        )
+
+    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, reader=reader, source=source_name, warnings=warnings)

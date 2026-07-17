@@ -1,57 +1,55 @@
 {% extends "base.html" %}
 {% block title %}{{ cfg.novel.title or cfg.novel.slug }} — novel2epub{% endblock %}
 {% block content %}
-
 <style>
-/* Local styles cho ebook: compact-toolbar, status-bar, action-group, pager, table-wrap, selected-actions, TOC table patterns */
-.chapter-check, #check-all, #selected-override { transform: scale(1.3); margin: 0 2px; }
+/* Local styles for ebook: compact-toolbar, status-bar, action-group, pager, table-wrap, selected-actions, TOC table patterns */
+.chapter-check, #check-all, #selected-override { transform: scale(1.2); margin: 0 2px; }
 
-
-.compact-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.65rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; }
-.dark .compact-toolbar { background: #20242a; border-color: #2e3338; }
+.compact-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.75rem; background: var(--tw-surface-muted, #f4f4f5); border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; }
+.dark .compact-toolbar { background: var(--tw-surface-muted-dark, #27272a); border-color: var(--tw-border-dark, #3f3f46); }
 .compact-toolbar input[type="search"] { min-width: min(22rem, 100%); }
-.compact-toolbar select, .compact-toolbar input { font-size: 0.85rem; width: auto; padding: 0.35rem 0.5rem; border: 1px solid #e5e5e5; border-radius: 6px; background: #fff; color: #202020; }
-.dark .compact-toolbar select, .dark .compact-toolbar input { background: #1c1f24; color: #e7e9ec; border-color: #2e3338; }
+.compact-toolbar select, .compact-toolbar input { font-size: 0.8125rem; width: auto; padding: 0.35rem 0.5rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 6px; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); }
+.dark .compact-toolbar select, .dark .compact-toolbar input { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
 
-.status-bar { display: flex; align-items: center; gap: 0.5rem 0.9rem; flex-wrap: wrap; margin: 0.75rem 0; padding: 0.5rem 0.7rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; }
-.dark .status-bar { background: #20242a; border-color: #2e3338; }
+.status-bar { display: flex; align-items: center; gap: 0.5rem 0.9rem; flex-wrap: wrap; margin: 0.75rem 0; padding: 0.5rem 0.75rem; background: var(--tw-surface-muted, #f4f4f5); border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; }
+.dark .status-bar { background: var(--tw-surface-muted-dark, #27272a); border-color: var(--tw-border-dark, #3f3f46); }
 .status-hint { margin-left: auto; }
 
-.selected-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.65rem; background: #f0f7ff; border: 1px solid #b8d4f0; border-radius: 8px; }
-.dark .selected-actions { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); }
+.selected-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.75rem; background: var(--tw-brand-50, #ecfdf5); border: 1px solid var(--tw-brand-200, #a7f3d0); border-radius: 8px; }
+.dark .selected-actions { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }
 .selected-actions .check { margin-left: 0.25rem; }
 
-.action-group { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.action-group { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
 .action-group + .action-group { margin-top: 0.1rem; }
-.action-group-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #888; min-width: 4.5rem; }
-.dark .action-group-label { color: #9aa2ad; }
+.action-group-label { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--tw-fg-muted, #71717a); min-width: 4.5rem; }
+.dark .action-group-label { color: var(--tw-fg-muted-dark, #a1a1aa); }
 .action-group form { margin: 0; }
 
 .pager { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin: 0.6rem 0 0.2rem; padding: 0.45rem 0.2rem; }
-.pager-size { display: flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; color: #555; }
-.dark .pager-size { color: #9aa2ad; }
+.pager-size { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8125rem; color: var(--tw-fg-muted, #71717a); }
+.dark .pager-size { color: var(--tw-fg-muted-dark, #a1a1aa); }
 .pager-size select { padding: 0.25rem 0.4rem; }
-.pager-info { margin-left: auto; font-size: 0.86rem; }
+.pager-info { margin-left: auto; font-size: 0.8125rem; }
 .pager-nav { display: flex; align-items: center; gap: 0.25rem; }
-.pager-nav button { min-width: 2rem; padding: 0.3rem 0.55rem; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; cursor: pointer; font-size: 0.95rem; line-height: 1; margin: 0; }
-.dark .pager-nav button { background: #1c1f24; border-color: #2e3338; color: #e7e9ec; }
-.pager-nav button:hover:not(:disabled) { background: #eef2f7; }
-.dark .pager-nav button:hover:not(:disabled) { background: #2e3338; }
+.pager-nav button { min-width: 2rem; padding: 0.3rem 0.55rem; border: 1px solid var(--tw-border, #e4e4e7); background: var(--tw-surface-light, #ffffff); border-radius: 6px; cursor: pointer; font-size: 0.875rem; line-height: 1; margin: 0; }
+.dark .pager-nav button { background: var(--tw-surface-dark, #18181b); border-color: var(--tw-border-dark, #3f3f46); color: var(--tw-fg-dark, #fafafa); }
+.pager-nav button:hover:not(:disabled) { background: var(--tw-surface-muted, #f4f4f5); }
+.dark .pager-nav button:hover:not(:disabled) { background: var(--tw-surface-muted-dark, #27272a); }
 .pager-nav button:disabled { opacity: 0.4; cursor: not-allowed; }
-.pager-nav input[type="number"] { width: 3.4rem; text-align: center; padding: 0.28rem 0.3rem; margin: 0; border: 1px solid #cbd5e1; border-radius: 6px; }
+.pager-nav input[type="number"] { width: 3.4rem; text-align: center; padding: 0.28rem 0.3rem; margin: 0; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 6px; }
 
-.count-pill { display: inline-block; font-size: 0.8rem; font-weight: 600; color: #1d4ed8; background: #e7efff; border-radius: 999px; padding: 0.05rem 0.55rem; vertical-align: middle; }
-.dark .count-pill { color: #8fbcff; background: rgba(59,130,246,0.15); }
+.count-pill { display: inline-block; font-size: 0.75rem; font-weight: 600; color: var(--tw-brand-600, #059669); background: var(--tw-brand-100, #d1fae5); border-radius: 999px; padding: 0.05rem 0.55rem; vertical-align: middle; }
+.dark .count-pill { color: var(--tw-brand-400, #34d399); background: rgba(16, 185, 129, 0.15); }
 
-.reindex-old { text-decoration: line-through; color: #9ca3af; margin-right: 0.25rem; }
-.dark .reindex-old { color: #6b7280; }
-.reindex-arrow { color: #d97706; margin: 0 0.2rem; font-weight: 600; }
-.reindex-new { color: #d97706; font-weight: 700; }
+.reindex-old { text-decoration: line-through; color: var(--tw-fg-muted, #9ca3af); margin-right: 0.25rem; }
+.dark .reindex-old { color: var(--tw-fg-muted-dark, #6b7280); }
+.reindex-arrow { color: var(--tw-status-run-fg, #d97706); margin: 0 0.2rem; font-weight: 600; }
+.reindex-new { color: var(--tw-status-run-fg, #d97706); font-weight: 700; }
 
 .toc-actions { display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0 0.5rem; }
 
-.btn-stop { background: #dc2626 !important; color: #fff !important; border-color: #dc2626 !important; }
-.btn-stop:hover { background: #b91c1c !important; }
+.btn-stop { background: var(--tw-status-err-fg, #dc2626) !important; color: #fff !important; border-color: var(--tw-status-err-fg, #dc2626) !important; }
+.btn-stop:hover { background: var(--tw-status-err-fg-dark, #b91c1c) !important; }
 
 #toc-region.toc-loading { visibility: hidden; }
 
@@ -61,26 +59,26 @@
 }
 </style>
 
-<p class="pb-8"><a href="/" class="text-link-light dark:text-link-dark hover:underline">&larr; Quay lại thư viện</a></p>
+<p class="pb-8"><a href="/" class="text-brand-600 dark:text-brand-400 hover:underline">&larr; Quay lại thư viện</a></p>
 
 <div class="flex gap-4 items-start">
     <div class="flex-shrink-0 w-28">
         <img src="/ebooks/{{ slug }}/cover" alt="Ảnh bìa"
-            class="w-full rounded shadow-md object-contain"
+            class="w-full rounded-lg shadow-md object-contain"
             onerror="this.style.display='none'">
     </div>
     <div class="min-w-0 flex-1">
         <h2 class="m-0 text-xl font-semibold mb-1">{{ cfg.novel.title or cfg.novel.slug }}</h2>
-        <p class="text-sm text-muted-light dark:text-muted-dark m-0">
-            Tác giả: {{ cfg.novel.author or "-" }} · Slug: <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ slug }}</code>
+        <p class="text-sm text-fg-muted dark:text-fg-muted-dark m-0">
+            Tác giả: {{ cfg.novel.author or "-" }} · Slug: <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ slug }}</code>
             {% if manifest and manifest.chapters %} · {{ manifest.chapters|length }} chương{% endif %}
         </p>
 
         {% if cfg.novel.description %}
-        <div class="mt-2 text-sm text-muted-light dark:text-muted-dark">
+        <div class="mt-2 text-sm text-fg-muted dark:text-fg-muted-dark">
             <p class="m-0 leading-relaxed">{{ cfg.novel.description }}</p>
             <p class="m-0 mt-1">
-                <a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank" class="text-link-light dark:text-link-dark hover:underline text-xs">{{ manifest.source_url or cfg.crawl.toc_url }}</a>
+                <a href="{{ manifest.source_url or cfg.crawl.toc_url }}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline text-xs">{{ manifest.source_url or cfg.crawl.toc_url }}</a>
             </p>
         </div>
         {% endif %}
@@ -89,69 +87,74 @@
 
 <div class="status-bar mt-3">
     <span id="status-badge-crawl">
-        {% if job.crawl.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Crawl: đang chạy ({{ job.crawl.step }})</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Crawl: rảnh</span>{% endif %}
-        {% if job.crawl.error %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: {{ job.crawl.error }}</span>{% endif %}
+        {% if job.crawl.running %}<span class="badge badge-run">Crawl: đang chạy ({{ job.crawl.step }})</span>{% else %}<span class="badge badge-ok">Crawl: rảnh</span>{% endif %}
+        {% if job.crawl.error %}<span class="badge badge-err">lỗi: {{ job.crawl.error }}</span>{% endif %}
     </span>
     <span id="status-badge-translate">
-        {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Dịch: đang chạy ({{ job.translate.step }})</span>{% elif job.translate.running %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">Dịch: đang chạy (ebook khác)</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">Dịch: rảnh</span>{% endif %}
-        {% if job.translate.error %}<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: {{ job.translate.error }}</span>{% endif %}
+        {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="badge badge-run">Dịch: đang chạy ({{ job.translate.step }})</span>{% elif job.translate.running %}<span class="badge badge-run">Dịch: đang chạy (ebook khác)</span>{% else %}<span class="badge badge-ok">Dịch: rảnh</span>{% endif %}
+        {% if job.translate.error %}<span class="badge badge-err">lỗi: {{ job.translate.error }}</span>{% endif %}
     </span>
-    <span class="text-muted-light dark:text-muted-dark text-xs">
+    <span class="text-fg-muted dark:text-fg-muted-dark text-xs">
         <span class="mr-1">🤖</span>Dịch:
         {% if cfg.translate.type == "openai" %}
-            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded" title="base_url: {{ cfg.translate.openai.base_url }}&#10;model: {{ cfg.translate.openai.model }}">{{ cfg.translate.openai.model or "(chưa chọn)" }}</code>
-            {% if cfg.translate.openai.base_url %}<span class="text-muted-light dark:text-muted-dark"> @ {{ cfg.translate.openai.base_url | short_host }}</span>{% endif %}
+            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded" title="base_url: {{ cfg.translate.openai.base_url }}&#10;model: {{ cfg.translate.openai.model }}">{{ cfg.translate.openai.model or "(chưa chọn)" }}</code>
+            {% if cfg.translate.openai.base_url %}<span class="text-fg-muted dark:text-fg-muted-dark"> @ {{ cfg.translate.openai.base_url | short_host }}</span>{% endif %}
         {% elif cfg.translate.type in ("hachimimt", "moxhimt") %}
-            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded" title="Local NMT model_key: {{ cfg.translate.hachimimt.model_key }}&#10;backend: {{ cfg.translate.hachimimt.backend }}">{{ cfg.translate.model or cfg.translate.hachimimt.model_key }}</code>
-            <span class="text-muted-light dark:text-muted-dark">(local NMT)</span>
+            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded" title="Local NMT model_key: {{ cfg.translate.hachimimt.model_key }}&#10;backend: {{ cfg.translate.hachimimt.backend }}">{{ cfg.translate.model or cfg.translate.hachimimt.model_key }}</code>
+            <span class="text-fg-muted dark:text-fg-muted-dark">(local NMT)</span>
         {% elif cfg.translate.type == "google" %}
-            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">Google Translate</code>
+            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">Google Translate</code>
         {% elif cfg.translate.type == "libretranslate" %}
-            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">LibreTranslate</code>
-            {% if cfg.translate.libretranslate.base_url %}<span class="text-muted-light dark:text-muted-dark"> @ {{ cfg.translate.libretranslate.base_url | short_host }}</span>{% endif %}
+            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">LibreTranslate</code>
+            {% if cfg.translate.libretranslate.base_url %}<span class="text-fg-muted dark:text-fg-muted-dark"> @ {{ cfg.translate.libretranslate.base_url | short_host }}</span>{% endif %}
         {% elif cfg.translate.type == "none" %}
-            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">noop</code>
+            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">noop</code>
         {% else %}
-            <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded">{{ cfg.translate.type }}</code>
+            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ cfg.translate.type }}</code>
         {% endif %}
     </span>
-    <span class="text-muted-light dark:text-muted-dark text-xs">
+    <span class="text-fg-muted dark:text-fg-muted-dark text-xs">
         <span class="mr-1">✨</span>Biên tập:
-        <code class="bg-surface-alt-light dark:bg-surface-alt-dark px-1 py-0.5 rounded" title="base_url: {{ cfg.ai.openai.base_url }}&#10;model: {{ cfg.ai.openai.model }}">{{ cfg.ai.openai.model or "(chưa chọn)" }}</code>
-        {% if cfg.ai.openai.base_url %}<span class="text-muted-light dark:text-muted-dark"> @ {{ cfg.ai.openai.base_url | short_host }}</span>{% endif %}
+        <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded" title="base_url: {{ cfg.ai.openai.base_url }}&#10;model: {{ cfg.ai.openai.model }}">{{ cfg.ai.openai.model or "(chưa chọn)" }}</code>
+        {% if cfg.ai.openai.base_url %}<span class="text-fg-muted dark:text-fg-muted-dark"> @ {{ cfg.ai.openai.base_url | short_host }}</span>{% endif %}
     </span>
 </div>
 
 <div class="flex flex-wrap gap-1.5 mt-3">
     <div class="action-group" role="group" aria-label="Xuất bản">
         <span class="action-group-label">Xuất bản</span>
-        <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="build"><button class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Build EPUB</button></form>
-        {% if epub_exists %}<a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/download">Tải EPUB</a> <span class="text-muted-light dark:text-muted-dark text-xs">({{ "%.1f"|format(epub_size / 1024 / 1024) }} MB)</span>{% endif %}
+        <form method="post" action="/ebooks/{{ slug }}/jobs/build" data-job-category="build"><button class="btn btn-sm btn-primary" >Build EPUB</button></form>
+        {% if epub_exists %}<a class="btn btn-sm btn-secondary" href="/ebooks/{{ slug }}/download">Tải EPUB</a> <span class="text-fg-muted dark:text-fg-muted-dark text-xs">({{ "%.1f"|format(epub_size / 1024 / 1024) }} MB)</span>{% endif %}
+        {% if reader_configured %}
+        <button type="button" id="publish-reader-btn" class="btn btn-sm btn-secondary">🚀 Đẩy lên Reader</button>
+        {% else %}
+        <a class="btn btn-sm btn-secondary opacity-60" href="/ebooks/{{ slug }}/settings" title="Chưa cấu hình Reader — bấm để tới Cài đặt > Reader">🚀 Đẩy lên Reader</a>
+        {% endif %}
     </div>
     <div class="action-group" role="group" aria-label="Đọc">
         <span class="action-group-label">Đọc</span>
-        <a class="px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white no-underline hover:bg-link-hover-light dark:hover:bg-link-hover-dark" href="/ebooks/{{ slug }}/read">&#128214; Đọc truyện</a>
+        <a class="btn btn-sm btn-primary" href="/ebooks/{{ slug }}/read">📖 Đọc truyện</a>
     </div>
     <div class="action-group" role="group" aria-label="Khác">
-        <a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/glossary">Glossary</a>
-        <a class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark no-underline text-fg-light dark:text-fg-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
+        <a class="btn btn-sm btn-secondary" href="/ebooks/{{ slug }}/glossary">Glossary</a>
+        <a class="btn btn-sm btn-secondary" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
         <form method="post" action="/ebooks/{{ slug }}/jobs/delete-chapters" data-job-category="both" data-confirm="Xóa toàn bộ danh mục ({{ chapters|length or '?' }} chương)? Raw, translated, và dữ liệu sẽ được giữ nguyên — cần Crawl lại để có danh sách mới.">
-            <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed" >Xóa danh mục</button>
+            <button type="submit" class="btn btn-sm btn-danger" >Xóa danh mục</button>
         </form>
     </div>
 </div>
 
 {% if cost_summary and cost_summary.chapter_count %}
-<div class="mt-2 mb-3 px-3 py-2 rounded-md bg-surface-alt-light dark:bg-surface-alt-dark border border-border-light dark:border-border-dark text-sm">
+<div class="mt-2 mb-3 px-3 py-2 rounded-lg bg-surface-muted dark:bg-surface-muted-dark border border-surface-border dark:border-surface-border-dark text-sm">
     <strong>OmniRoute cost:</strong>
-    <strong class="text-amber-700 dark:text-amber-300">${{ "%.4f"|format(cost_summary.total_cost_usd or 0) }}</strong>
+    <strong class="text-status-warn-fg dark:text-status-warn-fg-dark">${{ "%.4f"|format(cost_summary.total_cost_usd or 0) }}</strong>
     {%- if cost_summary.total_cost_saved_usd %} (tiết kiệm ${{ "%.4f"|format(cost_summary.total_cost_saved_usd) }} từ cache){% endif %}
     · {{ cost_summary.chapter_count }} chương
     · {{ cost_summary.total_tokens_in or 0 }}+{{ cost_summary.total_tokens_out or 0 }} tokens
-    {%- if cost_summary.total_cache_hits %} · <span class="inline-flex items-center px-1.5 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">{{ cost_summary.total_cache_hits }} cache hits</span>{% endif %}
+    {%- if cost_summary.total_cache_hits %} · <span class="badge badge-ok">{{ cost_summary.total_cache_hits }} cache hits</span>{% endif %}
     {%- if cost_summary.version %} · v{{ cost_summary.version }}{% endif %}
     {%- if cost_summary.by_model %}
-    <details class="mt-1"><summary class="cursor-pointer text-xs text-muted-light dark:text-muted-dark">Theo model</summary>
+    <details class="mt-1"><summary class="cursor-pointer text-xs text-fg-muted dark:text-fg-muted-dark">Theo model</summary>
         <ul class="m-0 pl-4 text-xs">
         {%- for model, stats in cost_summary.by_model.items() %}
             <li><code class="text-xs">{{ model }}</code>: ${{ "%.4f"|format(stats.cost_usd or 0) }} · {{ stats.chapters or 0 }} chương{% if stats.cache_hits %} · {{ stats.cache_hits }} cache hits{% endif %}</li>
@@ -164,48 +167,47 @@
 
 <div class="toc-actions">
     <form method="post" action="/ebooks/{{ slug }}/jobs/fetch-toc" class="inline-form" data-job-category="crawl">
-        <input type="hidden" name="force" value="true">
-        <button type="submit" class="px-3 py-1.5 text-sm rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Lấy toàn bộ danh mục</button>
+        <button type="submit" class="btn btn-sm btn-secondary">Lấy toàn bộ danh mục</button>
     </form>
 </div>
 
 <div id="toc-region" class="toc-loading">
 <div class="flex items-baseline justify-between gap-4 mb-1 mt-3">
     <h3 class="text-base font-semibold m-0">Chương <span class="count-pill">{{ chapters|length }}</span></h3>
-    <p class="text-sm text-muted-light dark:text-muted-dark m-0">Search / sort / lọc chạy ngầm (không reload), được nhớ trong trình duyệt. Tick dòng rồi chọn hành động.</p>
+    <p class="text-sm text-fg-muted dark:text-fg-muted-dark m-0">Search / sort / lọc chạy ngầm (không reload), được nhớ trong trình duyệt. Tick dòng rồi chọn hành động.</p>
 </div>
 <form method="get" action="/ebooks/{{ slug }}" class="compact-toolbar">
-    <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
-    <select name="sort" aria-label="Sắp xếp" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
+    <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL" class="input input-sm">
+    <select name="sort" aria-label="Sắp xếp" class="select select-sm">
         {% for key, label in [("source", "Thứ tự"), ("title", "Tiêu đề"), ("raw", "Raw"), ("translated", "Dịch")] %}
         <option value="{{ key }}" {% if controls.sort == key %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <select name="direction" aria-label="Chiều sắp xếp" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
+    <select name="direction" aria-label="Chiều sắp xếp" class="select select-sm">
         <option value="asc" {% if controls.direction != "desc" %}selected{% endif %}>Tăng</option>
         <option value="desc" {% if controls.direction == "desc" %}selected{% endif %}>Giảm</option>
     </select>
-    <select name="filter_raw" aria-label="Lọc raw" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
+    <select name="filter_raw" aria-label="Lọc raw" class="select select-sm">
         {% for value, label in [("any", "Raw: tất cả"), ("yes", "Raw: có"), ("no", "Raw: chưa")] %}
         <option value="{{ value }}" {% if controls.filter_raw == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <select name="filter_translated" aria-label="Lọc dịch" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
+    <select name="filter_translated" aria-label="Lọc dịch" class="select select-sm">
         {% for value, label in [("any", "Dịch: tất cả"), ("yes", "Dịch: có"), ("no", "Dịch: chưa")] %}
         <option value="{{ value }}" {% if controls.filter_translated == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <select name="filter_missing" aria-label="Lọc thiếu dữ liệu" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
+    <select name="filter_missing" aria-label="Lọc thiếu dữ liệu" class="select select-sm">
         {% for value, label in [("any", "Thiếu: tất cả"), ("yes", "Thiếu: có"), ("no", "Thiếu: không")] %}
         <option value="{{ value }}" {% if controls.filter_missing == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <select name="filter_skipped" aria-label="Lọc bỏ qua" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
+    <select name="filter_skipped" aria-label="Lọc bỏ qua" class="select select-sm">
         <option value="no" {% if controls.filter_skipped != "yes" and controls.filter_skipped != "any" %}selected{% endif %}>Bỏ qua: ẩn</option>
         <option value="yes" {% if controls.filter_skipped == "yes" %}selected{% endif %}>Bỏ qua: chỉ hiện bỏ qua</option>
         <option value="any" {% if controls.filter_skipped == "any" %}selected{% endif %}>Bỏ qua: tất cả</option>
     </select>
-    <button type="submit" class="px-2.5 py-1 text-xs rounded-md bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Lọc</button>
+    <button type="submit" class="btn btn-sm btn-primary">Lọc</button>
 </form>
 {% if chapters %}
 <div class="selected-actions">
@@ -219,44 +221,44 @@
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="crawl">
         <input type="hidden" name="action" value="crawl">
         <input type="hidden" name="targeting_mode" value="checked">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Crawl selected</button>
+        <button type="submit" class="btn btn-sm btn-secondary" >Crawl selected</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate" data-confirm="Dịch {n} chương đã chọn? Mỗi chương = 1 job riêng trong hàng đợi. Chương đã dịch rồi hoặc chưa có raw tự động bị bỏ qua.">
         <input type="hidden" name="action" value="translate">
         <input type="hidden" name="targeting_mode" value="checked">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed"  title="Dịch: mỗi chương = 1 job riêng trong hàng đợi. Tăng worker để chạy song song.">Dịch selected</button>
+        <button type="submit" class="btn btn-sm btn-secondary"  title="Dịch: mỗi chương = 1 job riêng trong hàng đợi. Tăng worker để chạy song song.">Dịch selected</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/delete-translation" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Xóa bản dịch (và biên tập) của {n} chương đã chọn? Hành động không thể hoàn tác. Raw sẽ được giữ lại để dịch lại.">
         <input type="hidden" name="indexes" id="batch-indexes-delete" value="">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"  title="Xóa toàn bộ bản dịch của các chương đã chọn (translated + snapshot MT + meta). Không xóa raw.">Xóa bản dịch selected</button>
+        <button type="submit" class="btn btn-sm btn-danger"  title="Xóa toàn bộ bản dịch của các chương đã chọn (translated + snapshot MT + meta). Không xóa raw.">Xóa bản dịch selected</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/clean-raw" class="selected-action-form batch-form" data-selected-action="crawl" data-confirm="Xóa raw của {n} chương đã chọn? Hành động không thể hoàn tác. Translated/biên tập không bị ảnh hưởng, có thể Crawl lại.">
         <input type="hidden" name="indexes" id="batch-indexes-raw" value="">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-red-300 dark:border-red-700 bg-surface-light dark:bg-surface-dark text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"  title="Xóa file raw của các chương đã chọn. Dịch không bị ảnh hưởng.">Làm sạch raw</button>
+        <button type="submit" class="btn btn-sm btn-danger"  title="Xóa file raw của các chương đã chọn. Dịch không bị ảnh hưởng.">Làm sạch raw</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Bỏ qua (ẩn) {n} chương trong danh mục? Dữ liệu raw/dịch/biên tập được giữ nguyên, dùng filter 'Bỏ qua: tất cả' để xem lại.">
         <input type="hidden" name="indexes" id="batch-indexes-skip" value="">
         <input type="hidden" name="skip" value="true">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-amber-300 dark:border-amber-700 bg-surface-light dark:bg-surface-dark text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed"  title="Đánh dấu bỏ qua: ẩn khỏi table mặc định.">Bỏ qua TOC selected</button>
+        <button type="submit" class="btn btn-sm btn-secondary" style="background: var(--tw-status-warn-light, #fef9c3); color: var(--tw-status-warn-fg, #854d0e); border-color: var(--tw-status-warn-light, #fef9c3);"  title="Đánh dấu bỏ qua: ẩn khỏi table mặc định.">Bỏ qua TOC selected</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate">
         <input type="hidden" name="indexes" id="batch-indexes-unskip" value="">
         <input type="hidden" name="skip" value="false">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" title="Hiện lại trong table (bỏ skipped).">Hiện lại TOC selected</button>
+        <button type="submit" class="btn btn-sm btn-secondary" title="Hiện lại trong table (bỏ skipped).">Hiện lại TOC selected</button>
     </form>
 
     <form method="post" action="/api/ebooks/{{ slug }}/batch/suggest-glossary" class="selected-action-form batch-form" data-selected-action="translate">
         <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Glossary suggest selected</button>
+        <button type="submit" class="btn btn-sm btn-secondary" >Glossary suggest selected</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
         <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed"  title="Dịch tiêu đề TOC cho các chương đã tick. Không đụng nội dung. Tick 'Ghi đè' để dịch lại cả title đã có. Backend chọn ở dropdown bên dưới.">Dịch TOC</button>
+        <button type="submit" class="btn btn-sm btn-secondary"  title="Dịch tiêu đề TOC cho các chương đã tick. Không đụng nội dung. Tick 'Ghi đè' để dịch lại cả title đã có. Backend chọn ở dropdown bên dưới.">Dịch TOC</button>
     </form>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/ai-rewrite" class="selected-action-form batch-form" data-selected-action="translate">
         <input type="hidden" name="indexes" id="batch-indexes-rewrite" value="">
         <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed"  title="OpenAI: tạo bản nháp AI rewrite, vào từng chương để áp dụng/bỏ. Local NMT: dịch lại bằng NMT cục bộ (ghi đè). Backend chọn ở dropdown bên dưới.">Biên tập đã chọn</button>
+        <button type="submit" class="btn btn-sm btn-secondary"  title="OpenAI: tạo bản nháp AI rewrite, vào từng chương để áp dụng/bỏ. Local NMT: dịch lại bằng NMT cục bộ (ghi đè). Backend chọn ở dropdown bên dưới.">Biên tập đã chọn</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate">
         <input type="hidden" name="action" value="cleanup-han">
@@ -265,36 +267,36 @@
            các job translate — cleanup-han ghi đè file translated/ nên không được
            chạy cùng lúc với translate. CATEGORIES của job queue chỉ chấp nhận
            "crawl"/"translate", category khác sẽ raise ValueError. #}
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch đã chọn (dùng config AI biên tập).">Làm sạch Hán</button>
+        <button type="submit" class="btn btn-sm btn-secondary" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch đã chọn (dùng config AI biên tập).">Làm sạch Hán</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="build">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed" >Build EPUB selected</button>
+        <button type="submit" class="btn btn-sm btn-secondary" >Build EPUB selected</button>
     </form>
-    <button type="button" id="btn-export-chapters" data-export-source="translated" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xuất để biên tập</button>
-    <button type="button" id="btn-export-raw" data-export-source="raw" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Xuất RAW để dịch</button>
-    <button type="button" id="btn-import-chapters" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Nhập bản biên tập/dịch</button>
-    <button type="button" id="btn-preview-reindex" class="px-2.5 py-1 text-xs rounded-md border border-amber-400 dark:border-amber-600 bg-surface-light dark:bg-surface-dark hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed">Xem trước đánh index</button>
+    <button type="button" id="btn-export-chapters" data-export-source="translated" class="btn btn-sm btn-secondary">Xuất để biên tập</button>
+    <button type="button" id="btn-export-raw" data-export-source="raw" class="btn btn-sm btn-secondary">Xuất RAW để dịch</button>
+    <button type="button" id="btn-import-chapters" class="btn btn-sm btn-secondary">Nhập bản biên tập/dịch</button>
+    <button type="button" id="btn-preview-reindex" class="btn btn-sm btn-secondary" style="background: var(--tw-status-warn-light, #fef9c3); color: var(--tw-status-warn-fg, #854d0e); border-color: var(--tw-status-warn-light, #fef9c3);">Xem trước đánh index</button>
     <form method="post" action="/ebooks/{{ slug }}/jobs/reorder" class="inline-form" data-job-category="both" style="margin:0">
-        <button type="submit" class="px-2.5 py-1 text-xs rounded-md border border-amber-500 dark:border-amber-700 bg-surface-light dark:bg-surface-dark hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed"  title="Đánh lại index theo thứ tự hiển thị hiện tại (đã sort/filter).">Đánh index lại</button>
+        <button type="submit" class="btn btn-sm btn-secondary" style="background: var(--tw-status-warn-light, #fef9c3); color: var(--tw-status-warn-fg, #854d0e); border-color: var(--tw-status-warn-light, #fef9c3);"  title="Đánh lại index theo thứ tự hiển thị hiện tại (đã sort/filter).">Đánh index lại</button>
     </form>
-    <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" id="selected-override" value="true" class="rounded border-border-light dark:border-border-dark"> Ghi đè</label>
+    <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" id="selected-override" value="true" class="rounded border-surface-border dark:border-surface-border-dark"> Ghi đè</label>
     <label class="inline-flex items-center gap-1 text-sm check">
         Backend:
-        <select id="bulk-backend-select" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-1.5 py-0.5 text-xs no-autosave">
+        <select id="bulk-backend-select" class="select select-sm no-autosave">
             <option value="openai" selected>OpenAI</option>
             <option value="hachimimt">Local NMT</option>
         </select>
     </label>
-    <span id="checked-info" class="text-muted-light dark:text-muted-dark text-sm">Đã tick 0 chương.</span>
+    <span id="checked-info" class="text-fg-muted dark:text-fg-muted-dark text-sm">Đã tick 0 chương.</span>
 </div>
-<div id="reindex-preview-banner" class="hidden mt-1 mb-1 px-3 py-2 text-xs rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200">
+<div id="reindex-preview-banner" class="hidden mt-1 mb-1 px-3 py-2 text-xs rounded-lg bg-status-warn-light dark:bg-status-warn-dark border border-status-warn-light dark:border-status-warn-dark text-status-warn-fg dark:text-status-warn-fg-dark">
     Đang xem trước: cột <strong>#</strong> hiển thị <code>index hiện tại → index mới</code>.
     Nếu ưng, bấm nút <strong>"Đánh index lại"</strong> ở toolbar phía trên (sẽ áp dụng đúng thứ tự bạn đang xem).
 </div>
 <nav class="pager" id="pager" aria-label="Phân trang">
     <label class="pager-size">Mỗi trang
         <select id="page-size" aria-label="Số chương mỗi trang"
-            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-1 text-sm">
+            class="select select-sm">
             <option value="5">5</option>
             <option value="10">10</option>
             <option value="20">20</option>
@@ -306,32 +308,32 @@
             <option value="0">Tất cả</option>
         </select>
     </label>
-    <span id="pager-info" class="pager-info text-muted-light dark:text-muted-dark text-sm"></span>
+    <span id="pager-info" class="pager-info text-fg-muted dark:text-fg-muted-dark text-sm"></span>
     <div class="pager-nav">
         <button type="button" data-page="first" aria-label="Trang đầu"
-            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&laquo;</button>
+            class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">&laquo;</button>
         <button type="button" data-page="prev" aria-label="Trang trước"
-            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&lsaquo;</button>
+            class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">&lsaquo;</button>
         <input type="number" id="pager-current" min="1" value="1" aria-label="Trang hiện tại"
-            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-center px-2 py-1 text-sm">
+            class="input input-sm" style="width: 3.4rem; text-align: center;">
         <button type="button" data-page="next" aria-label="Trang sau"
-            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&rsaquo;</button>
+            class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">&rsaquo;</button>
         <button type="button" data-page="last" aria-label="Trang cuối"
-            class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40 disabled:cursor-not-allowed">&raquo;</button>
+            class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">&raquo;</button>
     </div>
 </nav>
-<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
-<table id="chapter-table" class="w-full text-sm">
-    <thead class="text-muted-light dark:text-muted-dark uppercase tracking-wide text-xs">
+<div class="table-container">
+<table id="chapter-table" class="table scrollbar-thin" style="table-layout:fixed">
+    <thead>
     <tr>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị"></th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark cursor-pointer select-none toc-sort-th" data-sort-key="source">#<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark cursor-pointer select-none toc-sort-th" data-sort-key="title">Tiêu đề<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark cursor-pointer select-none toc-sort-th" data-sort-key="raw">Ký tự ZH<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark cursor-pointer select-none toc-sort-th" data-sort-key="translated">Số từ<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Thiếu</th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Action</th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark"></th>
+        <th class="w-10"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị" class="rounded border-surface-border dark:border-surface-border-dark"></th>
+        <th class="w-16 cursor-pointer select-none toc-sort-th" data-sort-key="source">#<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="cursor-pointer select-none toc-sort-th" data-sort-key="title">Tiêu đề<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="w-24 cursor-pointer select-none toc-sort-th" data-sort-key="raw">Ký tự ZH<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="w-20 cursor-pointer select-none toc-sort-th" data-sort-key="translated">Số từ<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="w-28">Thiếu</th>
+        <th class="w-40">Action</th>
+        <th class="w-44"></th>
     </tr>
     </thead>
     <tbody>
@@ -340,7 +342,11 @@
 </div>
 
 {% else %}
-<p class="text-sm text-muted-light dark:text-muted-dark">Chưa có chương phù hợp — bấm "Crawl" để lấy chương hoặc đổi lại bộ lọc.</p>
+<div class="empty-state">
+    <div class="empty-state-icon">📖</div>
+    <p class="empty-state-title">Chưa có chương</p>
+    <p class="empty-state-desc">Bấm "Lấy toàn bộ danh mục" để crawl chương hoặc điều chỉnh bộ lọc.</p>
+</div>
 {% endif %}
 </div>
 
@@ -487,33 +493,33 @@ function refreshCheckedInfo() {
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return str.replace(/&/g, '\x26amp;').replace(/</g, '\x26lt;').replace(/>/g, '\x26gt;').replace(/"/g, '\x26quot;');
 }
 
 function buildChapterRow(ch, newIndex) {
     const hasMissing = ch.missing_fields && ch.missing_fields.length > 0;
-    const statusHtml = ch.last_action_status ? `<span class="text-muted-light dark:text-muted-dark text-sm">${escapeHtml(ch.last_action_status)}</span>` : '';
+    const statusHtml = ch.last_action_status ? `<span class="text-fg-muted dark:text-fg-muted-dark text-sm">${escapeHtml(ch.last_action_status)}</span>` : '';
     const indexCell = reindexPreviewMode && newIndex != null && newIndex !== ch.index
         ? `<span class="reindex-old">${ch.index}</span><span class="reindex-arrow">→</span><span class="reindex-new">${newIndex}</span>`
         : ch.index;
     const skipToggle = ch.skipped
-        ? `<button type="button" class="skip-toggle-btn link-btn text-xs" data-index="${ch.index}" data-skip="false" title="Hiện lại chương này trong danh mục.">hiện</button>`
-        : `<button type="button" class="skip-toggle-btn link-btn text-xs text-amber-600 dark:text-amber-400" data-index="${ch.index}" data-skip="true" title="Bỏ qua (ẩn) chương này khỏi danh mục.">bỏ qua</button>`;
-    return `<tr data-index="${ch.index}" ${ch.skipped ? 'class="opacity-60"' : ''}>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><input type="checkbox" class="chapter-check rounded border-border-light dark:border-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${indexCell}</td>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-link-light dark:text-link-dark hover:underline">${escapeHtml(ch.visible_title)}</a></td>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_raw ? (ch.zh_char_count ?? 0) : '-'}</td>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${ch.has_translated ? ch.word_count : '-'}</td>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">${hasMissing ? ch.missing_fields.join(', ') : '-'}</td>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark">
+        ? `<button type="button" class="skip-toggle-btn text-xs text-brand-600 dark:text-brand-400 hover:underline" data-index="${ch.index}" data-skip="false" title="Hiện lại chương này trong danh mục.">hiện</button>`
+        : `<button type="button" class="skip-toggle-btn text-xs text-status-warn-fg dark:text-status-warn-fg-dark hover:underline" data-index="${ch.index}" data-skip="true" title="Bỏ qua (ẩn) chương này khỏi danh mục.">bỏ qua</button>`;
+    return `<tr data-index="${ch.index}" ${ch.skipped ? 'class="opacity-50"' : ''}>
+        <td class="px-3 py-2"><input type="checkbox" class="chapter-check rounded border-surface-border dark:border-surface-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
+        <td class="px-3 py-2 font-mono text-fg-muted dark:text-fg-muted-dark">${indexCell}</td>
+        <td class="px-3 py-2 overflow-hidden"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline truncate block" title="${escapeHtml(ch.visible_title)}">${escapeHtml(ch.visible_title)}</a></td>
+        <td class="px-3 py-2 font-mono tabular-nums">${ch.has_raw ? (ch.zh_char_count ?? 0) : '-'}</td>
+        <td class="px-3 py-2 font-mono tabular-nums">${ch.has_translated ? ch.word_count : '-'}</td>
+        <td class="px-3 py-2 text-fg-muted dark:text-fg-muted-dark text-xs">${hasMissing ? ch.missing_fields.join(', ') : '-'}</td>
+        <td class="px-3 py-2">
             <form method="post" action="/ebooks/${SLUG}/chapters/${ch.index}/action" class="inline-flex gap-1.5 items-center">
-                <button type="submit" name="action" value="crawl" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Crawl</button>
-                <button type="submit" name="action" value="translate" class="px-2 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Dịch</button>
+                <button type="submit" name="action" value="crawl" class="btn btn-sm btn-secondary">Crawl</button>
+                <button type="submit" name="action" value="translate" class="btn btn-sm btn-secondary">Dịch</button>
             </form>
             ${statusHtml}
         </td>
-        <td class="px-3 py-2 border-b border-border-light dark:border-border-dark"><a href="/ebooks/${SLUG}/chapters/${ch.index}" class="text-link-light dark:text-link-dark hover:underline">xem / sửa</a>${ch.has_translated ? ` · <a href="/ebooks/${SLUG}/read/${ch.index}" class="text-link-light dark:text-link-dark hover:underline">đọc</a>` : ''} · ${skipToggle}</td>
+        <td class="px-3 py-2"><a href="/ebooks/${SLUG}/chapters/${ch.index}" class="text-brand-600 dark:text-brand-400 hover:underline">xem / sửa</a>${ch.has_translated ? ` · <a href="/ebooks/${SLUG}/read/${ch.index}" class="text-brand-600 dark:text-brand-400 hover:underline">đọc</a>` : ''} · ${skipToggle}</td>
     </tr>`;
 }
 
@@ -573,6 +579,7 @@ function renderToc() {
     paginate({ reset: true });
     refreshCheckedInfo();
     syncTocSortIndicators();
+    document.getElementById("toc-region")?.classList.remove("toc-loading");
 }
 
 document.addEventListener("change", (event) => {
@@ -711,37 +718,19 @@ document.addEventListener("submit", async function(event) {
         if (action.endsWith("reorder")) {
             // Gửi thứ tự hiển thị hiện tại (đã sort/filter) để server reorder + reindex
             const data = getFilteredData();
-            const order = data.map(ch => ch.index).join(",");
             const h = document.createElement("input");
             h.type = "hidden";
-            h.name = "order";
-            h.value = order;
+            h.name = "ordered_indexes";
+            h.value = data.map(ch => ch.index).join(",");
             form.appendChild(h);
-            pendingReindex = true;
-        }
-        if (action.endsWith("fetch-toc")) {
-            pendingFetchToc = true;
-        }
-        if (action.endsWith("reindex")) {
-            pendingReindex = true;
         }
 
-        const submitter = event.submitter;
-        const category = jobCategoryFor(form, submitter);
+        const category = jobCategoryFor(form);
         const affected = category === "both" ? ["crawl", "translate"] : [category];
-        for (const cat of affected) {
-            const container = document.getElementById(`status-badge-${cat}`);
-            if (container) {
-                container.innerHTML = '<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">đang kết nối...</span>';
-            }
-        }
+        for (const cat of affected) wasRunning[cat] = true;
 
         try {
             const formData = new FormData(form);
-            if (submitter && submitter.name && submitter.value) {
-                formData.set(submitter.name, submitter.value);
-            }
-
             const response = await fetch(action, {
                 method: form.method || "POST",
                 body: formData
@@ -758,7 +747,6 @@ document.addEventListener("submit", async function(event) {
                 alert(errMsg);
                 poll();
             } else {
-                for (const cat of affected) wasRunning[cat] = true;
                 setTimeout(poll, 200);
             }
         } catch (error) {
@@ -769,320 +757,16 @@ document.addEventListener("submit", async function(event) {
     }
 });
 
-const STATUS_LABELS = { crawl: "Crawl", translate: "Dịch" };
-
-function isTranslateBusyForCurrent(data) {
-    if (!data.translate.running) return false;
-    return (data.translate.running_ebooks || []).includes(SLUG);
-}
-
-function updateCategoryUI(cat, data) {
-    const container = document.getElementById(`status-badge-${cat}`);
-    if (container) {
-        let html = "";
-        if (cat === "translate") {
-            if (isTranslateBusyForCurrent(data)) {
-                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">${STATUS_LABELS[cat]}: đang chạy (${data[cat].step})</span> `;
-            } else if (data[cat].running) {
-                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">${STATUS_LABELS[cat]}: đang chạy (ebook khác)</span> `;
-            } else {
-                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">${STATUS_LABELS[cat]}: rảnh</span> `;
-            }
-        } else {
-            if (data[cat].running) {
-                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-run-light dark:bg-run-dark text-amber-800 dark:text-amber-300">${STATUS_LABELS[cat]}: đang chạy (${data[cat].step})</span> `;
-            } else {
-                html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-ok-light dark:bg-ok-dark text-green-800 dark:text-green-300">${STATUS_LABELS[cat]}: rảnh</span> `;
-            }
-        }
-        if (data[cat].error) {
-            html += `<span class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-no-light dark:bg-no-dark text-red-800 dark:text-red-300">lỗi: ${data[cat].error}</span>`;
-        }
-        container.innerHTML = html;
-    }
-
-    const justFinished = wasRunning[cat] && !data[cat].running;
-    wasRunning[cat] = data[cat].running;
-    return justFinished;
-}
-
-let pollTimer = null;
-
-function scheduleNextPoll(ms) {
-    if (pollTimer) clearTimeout(pollTimer);
-    pollTimer = setTimeout(poll, ms);
-}
-
-async function poll() {
-    try {
-        const res = await fetch("/api/status");
-        if (!res.ok) return;
-        const data = await res.json();
-
-        lastStatusData = data;
-        let anyJustFinished = false;
-        for (const cat of ["crawl", "translate"]) {
-            if (updateCategoryUI(cat, data)) anyJustFinished = true;
-        }
-
-        if (anyJustFinished) {
-            if (pendingFetchToc || pendingReindex) {
-                pendingFetchToc = false;
-                pendingReindex = false;
-                location.reload();
-            } else {
-                renderToc();
-            }
-        }
-
-        if (data.crawl.running || data.translate.running) {
-            scheduleNextPoll(1500);
-        }
-    } catch (e) {
-        console.error("Lỗi khi poll status:", e);
-        if (wasRunning.crawl || wasRunning.translate) {
-            scheduleNextPoll(1500);
-        }
-    }
-}
-
-function checkedIndexes() {
-    return Array.from(document.querySelectorAll(".chapter-check:checked")).map((cb) => cb.value);
-}
-
-const BULK_WINDOW_STYLE = `
-    body { margin:0; font-family: ui-monospace, Consolas, monospace; background:#0f172a; color:#e2e8f0;
-        display:flex; flex-direction:column; height:100vh; box-sizing:border-box; }
-    header { padding:0.75rem 1rem; border-bottom:1px solid #334155; background:#111827; flex-shrink:0; }
-    header h2 { margin:0 0 0.3rem; font-family: ui-sans-serif, system-ui, sans-serif; font-size:1.05rem; }
-    header p { margin:0.2rem 0 0; font-size:0.85rem; color:#94a3b8; }
-    main { flex:1; display:flex; flex-direction:column; padding:0.75rem 1rem; gap:0.5rem; min-height:0; }
-    textarea { flex:1; width:100%; box-sizing:border-box; resize:none; font:inherit; font-size:0.85rem;
-        background:#0b1220; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:0.6rem; }
-    .bulk-actions { display:flex; gap:0.5rem; flex-wrap:wrap; flex-shrink:0; }
-    button { font-family: ui-sans-serif, system-ui, sans-serif; font-size:0.9rem; padding:0.4rem 0.8rem;
-        border-radius:6px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; cursor:pointer; }
-    button:hover { background:#334155; }
-    button:disabled { opacity:0.5; cursor:not-allowed; }
-    .bulk-report { flex-shrink:0; max-height:30vh; overflow-y:auto; }
-    .bulk-report p { margin:0.3rem 0; font-size:0.85rem; }
-    .bulk-bad { color:#fca5a5; }
-`;
-
-function openBulkWindow(title) {
-    const win = window.open("", "_blank");
-    if (!win) { alert("Trình duyệt chặn pop-up — hãy cho phép pop-up cho trang này."); return null; }
-    win.document.title = title;
-    const style = win.document.createElement("style");
-    style.textContent = BULK_WINDOW_STYLE;
-    win.document.head.appendChild(style);
-    return win;
-}
-
-const EXPORT_COPY = {
-    translated: {
-        title: "Xuất chương để biên tập bằng web chat AI (Markdown)",
-        intro: 'Copy hoặc tải file .md rồi đưa vào ChatGPT/Claude/Gemini (markdown giúp AI hiểu cấu trúc chương tốt hơn). AI biên tập xong, dán/upload kết quả vào "Nhập bản biên tập/dịch".',
-        skipNote: (n, list) => ` · Bỏ qua ${n} chương chưa dịch (${list})`,
-        filenameSuffix: "bien-tap",
-    },
-    raw: {
-        title: "Xuất bản gốc (raw) để dịch bằng web chat AI (Markdown)",
-        intro: 'Copy hoặc tải file .md rồi đưa vào ChatGPT/Claude/Gemini để DỊCH. AI dịch xong, dán/upload kết quả vào "Nhập bản biên tập/dịch".',
-        skipNote: (n, list) => ` · Bỏ qua ${n} chương chưa có raw (${list})`,
-        filenameSuffix: "dich",
-    },
-};
-
-async function doExport(source) {
-    const indexes = checkedIndexes();
-    if (indexes.length === 0) { alert("Chưa chọn chương nào. Hãy tick checkbox trước."); return; }
-    const fd = new FormData();
-    fd.set("indexes", indexes.join(","));
-    fd.set("source", source);
-    let data;
-    try {
-        const res = await fetch(`/api/ebooks/${SLUG}/batch/export`, { method: "POST", body: fd });
-        data = await res.json();
-        if (!res.ok) { alert(data.detail || "Lỗi khi xuất."); return; }
-    } catch (err) { alert("Lỗi kết nối mạng."); return; }
-
-    const copy = EXPORT_COPY[source];
-    const win = openBulkWindow(`Xuất chương — ${SLUG}`);
-    if (!win) return;
-    const skipped = data.skipped && data.skipped.length
-        ? copy.skipNote(data.skipped.length, data.skipped.join(", ")) : "";
-    const header = win.document.createElement("header");
-    header.innerHTML = `<h2>${copy.title}</h2>
-        <p>${data.total} chương · ${data.text.length.toLocaleString()} ký tự${skipped}</p>
-        <p>${copy.intro}</p>`;
-    win.document.body.appendChild(header);
-
-    const main = win.document.createElement("main");
-    const actions = win.document.createElement("div");
-    actions.className = "bulk-actions";
-    const copyBtn = win.document.createElement("button");
-    copyBtn.textContent = "Copy toàn bộ";
-    const downloadBtn = win.document.createElement("button");
-    downloadBtn.textContent = "Tải file .md";
-    const ta = win.document.createElement("textarea");
-    ta.readOnly = true;
-    ta.spellcheck = false;
-    ta.value = data.text;
-    copyBtn.addEventListener("click", async () => {
-        try { await win.navigator.clipboard.writeText(ta.value); }
-        catch (e) { ta.focus(); ta.select(); win.document.execCommand("copy"); }
-        const old = copyBtn.textContent; copyBtn.textContent = "Đã copy ✓";
-        setTimeout(() => { copyBtn.textContent = old; }, 1500);
-    });
-    downloadBtn.addEventListener("click", () => {
-        const range = indexes.length ? `-${Math.min(...indexes.map(Number))}-${Math.max(...indexes.map(Number))}` : "";
-        const blob = new win.Blob([ta.value], { type: "text/markdown;charset=utf-8" });
-        const url = win.URL.createObjectURL(blob);
-        const a = win.document.createElement("a");
-        a.href = url;
-        a.download = `${SLUG}${range}-${copy.filenameSuffix}.md`;
-        win.document.body.appendChild(a);
-        a.click();
-        a.remove();
-        win.URL.revokeObjectURL(url);
-    });
-    actions.appendChild(copyBtn);
-    actions.appendChild(downloadBtn);
-    main.appendChild(actions);
-    main.appendChild(ta);
-    win.document.body.appendChild(main);
-    ta.focus();
-    ta.select();
-}
-
-document.getElementById("btn-export-chapters")?.addEventListener("click", () => doExport("translated"));
-document.getElementById("btn-export-raw")?.addEventListener("click", () => doExport("raw"));
-
-document.getElementById("btn-preview-reindex")?.addEventListener("click", () => {
-    reindexPreviewMode = !reindexPreviewMode;
-    const btn = document.getElementById("btn-preview-reindex");
-    const banner = document.getElementById("reindex-preview-banner");
-    if (reindexPreviewMode) {
-        btn.textContent = "Tắt xem trước";
-        btn.classList.add("bg-amber-100", "dark:bg-amber-900/30", "border-amber-500");
-        banner.classList.remove("hidden");
-    } else {
-        btn.textContent = "Xem trước đánh index";
-        btn.classList.remove("bg-amber-100", "dark:bg-amber-900/30", "border-amber-500");
-        banner.classList.add("hidden");
-    }
-    renderToc();
-});
-
-document.getElementById("btn-import-chapters")?.addEventListener("click", () => {
-    const win = openBulkWindow(`Nhập bản biên tập/dịch — ${SLUG}`);
-    if (!win) return;
-
-    const header = win.document.createElement("header");
-    header.innerHTML = `<h2>Nhập bản biên tập/dịch từ AI</h2>
-        <p>Dán hoặc chọn file .md kết quả web chat trả về (giữ tiêu đề <code>## idx:N</code>), dù là bản AI biên tập hay AI dịch từ raw. Xem trước rồi mới ghi đè.</p>`;
-    win.document.body.appendChild(header);
-
-    const main = win.document.createElement("main");
-    const actions = win.document.createElement("div");
-    actions.className = "bulk-actions";
-    const fileBtn = win.document.createElement("button");
-    fileBtn.textContent = "Chọn file .md...";
-    const fileInput = win.document.createElement("input");
-    fileInput.type = "file";
-    fileInput.accept = ".md,.markdown,.txt,text/markdown,text/plain";
-    fileInput.style.display = "none";
-    const previewBtn = win.document.createElement("button");
-    previewBtn.textContent = "Xem trước";
-    const confirmBtn = win.document.createElement("button");
-    confirmBtn.textContent = "Xác nhận ghi đè";
-    confirmBtn.disabled = true;
-    actions.appendChild(fileBtn);
-    actions.appendChild(fileInput);
-    actions.appendChild(previewBtn);
-    actions.appendChild(confirmBtn);
-
-    const ta = win.document.createElement("textarea");
-    ta.spellcheck = false;
-    ta.placeholder = "Dán nội dung đã biên tập vào đây, hoặc bấm \"Chọn file .md...\"";
-
-    fileBtn.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", () => {
-        const file = fileInput.files && fileInput.files[0];
-        if (!file) return;
-        const reader = new win.FileReader();
-        reader.addEventListener("load", () => { ta.value = reader.result; });
-        reader.readAsText(file, "utf-8");
-    });
-
-    const report = win.document.createElement("div");
-    report.className = "bulk-report";
-
-    function renderReport(data) {
-        const changed = data.chapters.filter((c) => c.changed);
-        const unchanged = data.chapters.filter((c) => !c.changed);
-        const gNames = Object.entries(data.glossary_names || {});
-        const gVp = Object.entries(data.glossary_vietphrase || {});
-        let html = `<p><strong>${data.chapters.length}</strong> chương khớp — ${changed.length} thay đổi, ${unchanged.length} không đổi.</p>`;
-        if (data.missing && data.missing.length) html += `<p class="bulk-bad">Thiếu (AI bỏ sót): ${data.missing.join(", ")}</p>`;
-        if (data.unknown && data.unknown.length) html += `<p class="bulk-bad">Index lạ (không thuộc truyện, sẽ bỏ): ${data.unknown.join(", ")}</p>`;
-        if (data.extra && data.extra.length) html += `<p>Ngoài tập đã chọn: ${data.extra.join(", ")}</p>`;
-        if (gNames.length || gVp.length) {
-            html += `<p>Glossary mới sẽ thêm: <strong>${gNames.length}</strong> tên riêng, <strong>${gVp.length}</strong> thuật ngữ.</p>`;
-        }
-        report.innerHTML = html;
-    }
-
-    previewBtn.addEventListener("click", async () => {
-        const text = ta.value;
-        if (!text.trim()) { alert("Chưa dán nội dung."); return; }
-        const fd = new FormData();
-        fd.set("text", text);
-        fd.set("indexes", checkedIndexes().join(","));
-        fd.set("mode", "preview");
-        try {
-            const res = await fetch(`/api/ebooks/${SLUG}/batch/import`, { method: "POST", body: fd });
-            const data = await res.json();
-            if (!res.ok) { report.innerHTML = `<p class="bulk-bad">${data.detail || "Lỗi"}</p>`; return; }
-            renderReport(data);
-            confirmBtn.disabled = data.chapters.length === 0;
-        } catch (err) { alert("Lỗi kết nối mạng."); }
-    });
-
-    confirmBtn.addEventListener("click", async () => {
-        const text = ta.value;
-        const fd = new FormData();
-        fd.set("text", text);
-        fd.set("indexes", checkedIndexes().join(","));
-        fd.set("mode", "confirm");
-        try {
-            const res = await fetch(`/api/ebooks/${SLUG}/batch/import`, { method: "POST", body: fd });
-            const data = await res.json();
-            if (!res.ok) { alert(data.detail || "Lỗi khi ghi."); return; }
-            alert(`Đã ghi đè ${data.written.length} chương · thêm ${data.glossary_added} mục glossary.`);
-            win.close();
-            location.reload();
-        } catch (err) { alert("Lỗi kết nối mạng."); }
-    });
-
-    main.appendChild(actions);
-    main.appendChild(ta);
-    main.appendChild(report);
-    win.document.body.appendChild(main);
-    ta.focus();
-});
-
 function syncTocSortIndicators() {
     const form = document.querySelector(".compact-toolbar");
     if (!form) return;
-    const currentSort = form.elements["sort"]?.value || "source";
-    const currentDir = form.elements["direction"]?.value || "asc";
-    document.querySelectorAll("#chapter-table .toc-sort-th").forEach((th) => {
+    const sort = form.elements["sort"]?.value || "source";
+    const direction = form.elements["direction"]?.value || "asc";
+    document.querySelectorAll(".toc-sort-th").forEach(th => {
         const ind = th.querySelector(".toc-sort-ind");
         if (!ind) return;
-        if (th.dataset.sortKey === currentSort) {
-            ind.textContent = currentDir === "desc" ? "▼" : "▲";
+        if (th.dataset.sortKey === sort) {
+            ind.textContent = direction === "desc" ? "▼" : "▲";
             ind.classList.remove("opacity-40");
             ind.classList.add("opacity-100");
         } else {
@@ -1093,35 +777,143 @@ function syncTocSortIndicators() {
     });
 }
 
-document.querySelector("#chapter-table thead")?.addEventListener("click", (e) => {
+// Click sort header
+document.addEventListener("click", (e) => {
     const th = e.target.closest(".toc-sort-th");
     if (!th) return;
-    const key = th.dataset.sortKey;
     const form = document.querySelector(".compact-toolbar");
     if (!form) return;
-    const sortSel = form.elements["sort"];
-    const dirSel = form.elements["direction"];
-    if (sortSel.value === key) {
-        dirSel.value = dirSel.value === "asc" ? "desc" : "asc";
+    const sortInput = form.elements["sort"];
+    const dirInput = form.elements["direction"];
+    const key = th.dataset.sortKey;
+    if (sortInput.value === key) {
+        dirInput.value = dirInput.value === "desc" ? "asc" : "desc";
     } else {
-        sortSel.value = key;
-        dirSel.value = "asc";
+        sortInput.value = key;
+        dirInput.value = "asc";
     }
     renderToc();
 });
 
-(function initToc() {
+// Poll status
+async function poll() {
     try {
-        applySavedControls();
-        renderToc();
-    } catch (e) {
-        console.error("initToc error:", e);
-    }
-    const region = document.getElementById("toc-region");
-    if (region) region.classList.remove("toc-loading");
-})();
+        const res = await fetch("/api/status");
+        if (!res.ok) return;
+        const data = await res.json();
 
+        const labels = { crawl: "Crawl", translate: "Dịch" };
+        let anyJustFinished = false;
+        for (const cat of ["crawl", "translate"]) {
+            const container = document.getElementById(`status-badge-${cat}`);
+            if (container) {
+                let html = "";
+                if (cat === "translate") {
+                    const busyHere = data.translate.running && (data.translate.running_ebooks || []).includes(SLUG);
+                    if (busyHere) {
+                        html += `<span class="badge badge-run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
+                    } else if (data[cat].running) {
+                        html += `<span class="badge badge-run">${labels[cat]}: đang chạy (ebook khác)</span> `;
+                    } else {
+                        html += `<span class="badge badge-ok">${labels[cat]}: rảnh</span> `;
+                    }
+                } else {
+                    if (data[cat].running) {
+                        html += `<span class="badge badge-run">${labels[cat]}: đang chạy (${data[cat].step})</span> `;
+                    } else {
+                        html += `<span class="badge badge-ok">${labels[cat]}: rảnh</span> `;
+                    }
+                }
+                if (data[cat].error) {
+                    html += `<span class="badge badge-err">lỗi: ${data[cat].error}</span>`;
+                }
+                container.innerHTML = html;
+            }
+            if (wasRunning[cat] && !data[cat].running) anyJustFinished = true;
+            wasRunning[cat] = data[cat].running;
+        }
+
+        if (anyJustFinished) {
+            location.reload();
+            return;
+        }
+    } catch (e) {
+        console.error("Lỗi khi poll status:", e);
+    }
+}
+
+// Initialize
+applySavedControls();
+document.getElementById("page-size").value = String(pageSize);
+renderToc();
 poll();
-refreshCheckedInfo();
+setInterval(poll, 1500);
+
+// Export buttons
+document.getElementById("btn-export-chapters")?.addEventListener("click", () => {
+    const checked = [...document.querySelectorAll(".chapter-check:checked")].map(cb => cb.value);
+    if (!checked.length) return alert("Chưa chọn chương nào.");
+    const params = new URLSearchParams({ indexes: checked.join(","), source: "translated" });
+    window.open(`/api/ebooks/${encodeURIComponent(SLUG)}/export?${params}`, "_blank");
+});
+document.getElementById("btn-export-raw")?.addEventListener("click", () => {
+    const checked = [...document.querySelectorAll(".chapter-check:checked")].map(cb => cb.value);
+    if (!checked.length) return alert("Chưa chọn chương nào.");
+    const params = new URLSearchParams({ indexes: checked.join(","), source: "raw" });
+    window.open(`/api/ebooks/${encodeURIComponent(SLUG)}/export?${params}`, "_blank");
+});
+document.getElementById("btn-import-chapters")?.addEventListener("click", () => {
+    alert("Tính năng nhập đang phát triển.");
+});
+
+// Reindex preview
+document.getElementById("btn-preview-reindex")?.addEventListener("click", function() {
+    reindexPreviewMode = !reindexPreviewMode;
+    this.classList.toggle("active", reindexPreviewMode);
+    const banner = document.getElementById("reindex-preview-banner");
+    if (banner) banner.classList.toggle("hidden", !reindexPreviewMode);
+    renderToc();
+});
+
+// --- Đẩy lên Reader: xem trước rồi mới đẩy thật ---
+document.getElementById("publish-reader-btn")?.addEventListener("click", async function () {
+    const btn = this;
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Đang kiểm tra...";
+    try {
+        const resp = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/publish/preview`);
+        const data = await resp.json();
+        if (!resp.ok) {
+            alert("Lỗi: " + (data.detail || resp.status));
+            return;
+        }
+        if (!data.new && !data.edited) {
+            alert(`Không có gì để đẩy.\n\n${data.unchanged} chương đã đồng bộ, ${data.skipped} chương bỏ qua (chưa dịch xong hoặc bị skip).`);
+            return;
+        }
+        const ok = confirm(
+            `Đẩy lên Reader?\n\n` +
+            `• Thêm mới: ${data.new} chương\n` +
+            `• Cập nhật: ${data.edited} chương\n` +
+            `• Không đổi: ${data.unchanged} chương (bỏ qua)\n` +
+            `• Bỏ qua: ${data.skipped} chương (chưa dịch xong / skip)\n\n` +
+            `Không có chương nào bị xoá trên Reader.`
+        );
+        if (!ok) return;
+        const push = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/publish/push`, { method: "POST" });
+        const pushData = await push.json();
+        if (!push.ok) {
+            alert("Lỗi: " + (pushData.detail || push.status));
+            return;
+        }
+        location.href = "/queue";
+    } catch (e) {
+        alert("Lỗi: " + e);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+    }
+});
 </script>
 {% endblock %}

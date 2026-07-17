@@ -77,7 +77,7 @@ def test_step_crawl_selected_stops_when_cancelled(tmp_path, monkeypatch):
 
 def test_step_translate_selected_stops_when_cancelled(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(_toc(5)))
-    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None: _UpperTranslator())
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: _UpperTranslator())
 
     cfg = _cfg(tmp_path)
     pipeline.step_fetch_toc(cfg, lambda m: None)

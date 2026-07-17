@@ -5,15 +5,15 @@ function toast(message, kind) {
     const region = document.getElementById("toast-region");
     if (!region) return;
     const el = document.createElement("div");
-    const base = "flex items-center gap-2 rounded-lg border bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark px-3 py-2 text-sm shadow-card dark:shadow-card-dark transition-all duration-300 ease-out";
+    const base = "flex items-center gap-2 rounded-lg border bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark text-sm shadow-card dark:shadow-card-dark transition-all duration-normal pointer-events-auto";
     const variant = kind === "error"
-        ? " border-red-500"
+        ? " border-status-err-fg"
         : kind === "success"
-        ? " border-green-500"
-        : " border-border-light dark:border-border-dark";
+        ? " border-status-ok-fg"
+        : " border-surface-border dark:border-surface-border-dark";
     el.className = base + variant + " opacity-0 translate-y-2";
     const iconName = kind === "error" ? "circle-x" : kind === "success" ? "circle-check" : "info";
-    el.innerHTML = `<i data-lucide="${iconName}" class="w-4 h-4 flex-shrink-0"></i><span>${message}</span>`;
+    el.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0" aria-hidden="true"><use href="#lucide-${iconName}"></use></svg><span>${message}</span>`;
     region.appendChild(el);
     if (window.lucide) lucide.createIcons();
     requestAnimationFrame(() => {
@@ -36,11 +36,24 @@ function toast(message, kind) {
         const next = isDark ? "dark" : "light";
         root.setAttribute("data-theme", next);
         localStorage.setItem("n2e-theme", next);
+        updateThemeIcons(isDark);
     });
+    // Initial icon state
+    const isDark = document.documentElement.classList.contains("dark");
+    updateThemeIcons(isDark);
 })();
 
+function updateThemeIcons(isDark) {
+    const sunIcon = document.querySelector(".icon-sun");
+    const moonIcon = document.querySelector(".icon-moon");
+    if (sunIcon && moonIcon) {
+        sunIcon.style.display = isDark ? "block" : "none";
+        moonIcon.style.display = isDark ? "none" : "block";
+    }
+}
+
 (function initQueueIndicator() {
-    const countEl = document.getElementById("queue-count");
+    const countEl = document.getElementById("queue-count-header") || document.getElementById("queue-count");
     if (!countEl) return;
 
     async function poll() {
@@ -54,16 +67,14 @@ function toast(message, kind) {
             const indicator = document.getElementById("queue-indicator");
             if (indicator) {
                 const active = total > 0;
-                indicator.classList.toggle("active", active);
-                // Tailwind: amber pill khi active
-                indicator.classList.toggle("border-amber-500", active);
-                indicator.classList.toggle("bg-amber-100", active);
-                indicator.classList.toggle("text-amber-800", active);
-                indicator.classList.toggle("dark:bg-amber-900/30", active);
-                indicator.classList.toggle("dark:text-amber-200", active);
+                indicator.classList.toggle("border-brand-500", active);
+                indicator.classList.toggle("bg-brand-50", active);
+                indicator.classList.toggle("text-brand-700", active);
+                indicator.classList.toggle("dark:bg-brand-950/30", active);
+                indicator.classList.toggle("dark:text-brand-300", active);
             }
         } catch (e) {
-            // Im lặng: trang chưa có /api/queue không nên báo lỗi ồn ào.
+            // Silent: trang chưa có /api/queue không nên báo lỗi ồn ào.
         }
     }
 
@@ -187,4 +198,17 @@ function switchTab(containerId, tabName) {
     const buttons = container.querySelectorAll('.tab-bar button');
     panels.forEach(p => p.classList.toggle('active', p.id === tabName));
     buttons.forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+}
+
+// Lucide icons sprite for toast (injected once)
+if (!document.getElementById('lucide-sprite')) {
+    const sprite = document.createElement('svg');
+    sprite.id = 'lucide-sprite';
+    sprite.style.display = 'none';
+    sprite.innerHTML = `
+        <symbol id="lucide-circle-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></symbol>
+        <symbol id="lucide-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="9 12 12 15 15 9"/></symbol>
+        <symbol id="lucide-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></symbol>
+    `;
+    document.body.appendChild(sprite);
 }

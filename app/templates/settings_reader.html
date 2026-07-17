@@ -1,0 +1,76 @@
+<form method="post" action="/ebooks/{{ slug }}/settings/reader" class="settings-form">
+
+<p class="text-sm text-muted-light dark:text-muted-dark px-3 pt-1">Đẩy chương đã dịch lên app đọc <strong>novel-reader</strong> (Supabase). Chỉ đẩy phần thay đổi: chương <strong>mới</strong> được thêm, chương <strong>đã sửa</strong> được cập nhật mà giữ nguyên <code>chapters.id</code> (nên bookmark và tiến độ đọc bên Reader không hỏng), chương không đổi thì bỏ qua. <strong>Không bao giờ xoá</strong> gì trên Reader.</p>
+
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Kết nối Supabase</summary>
+
+    <p class="text-sm text-muted-light dark:text-muted-dark px-3 pt-1">⚠ Dùng <strong>chung cho tất cả ebooks</strong> — thay đổi ở đây áp dụng cho mọi truyện.</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> url
+            <input type="text" name="url" value="{{ cfg.reader.url }}" placeholder="https://xxxxx.supabase.co"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.reader.url, 'reader', 'url') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">URL project Supabase, không kèm <code>/rest/v1</code>.</span>
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> service_key
+            <input type="password" name="service_key" value="{{ cfg.reader.service_key }}" autocomplete="off"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">⚠ <code>service_role</code> key — bỏ qua toàn bộ RLS. Không chia sẻ, không đưa lên frontend.</span>
+        </label>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> timeout_seconds
+            <input type="number" name="timeout_seconds" value="{{ cfg.reader.timeout_seconds }}" min="1"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.reader.timeout_seconds, 'reader', 'timeout_seconds') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            {% if is_default(cfg.reader.timeout_seconds, 'reader', 'timeout_seconds') %}
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 60</span>
+            {% endif %}
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> batch_size
+            <input type="number" name="batch_size" value="{{ cfg.reader.batch_size }}" min="1"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.reader.batch_size, 'reader', 'batch_size') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Số chương mỗi request. Mặc định: 50</span>
+        </label>
+    </div>
+</details>
+
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Riêng truyện này</summary>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> slug
+            <input type="text" name="reader_slug" value="{{ cfg.reader.slug }}" placeholder="{{ cfg.novel.slug }}"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+            <span class="text-xs italic text-muted-light dark:text-muted-dark"><code>books.slug</code> bên Reader. Để trống = dùng <code>{{ cfg.novel.slug }}</code>.</span>
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> free_chapters
+            <input type="number" name="free_chapters" value="{{ cfg.reader.free_chapters }}" min="0"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Số chương đầu đọc miễn phí. Chỉ áp cho chương <strong>mới</strong> — chỉnh tay <code>is_free</code> bên Reader không bị đạp lên.</span>
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> published
+            <span class="flex items-center gap-2 py-2">
+                <input type="checkbox" name="published" value="true" {% if cfg.reader.published %}checked{% endif %}
+                    class="rounded border-border-light dark:border-border-dark">
+                <span class="text-sm">Xuất bản ngay</span>
+            </span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark"><code>books.is_published</code>, chỉ set khi <strong>tạo sách lần đầu</strong>.</span>
+        </label>
+    </div>
+</details>
+
+<div class="flex gap-2 items-center mt-3 pt-3 border-t border-border-light dark:border-border-dark">
+    <button type="button" onclick="toggleRawYaml('raw-reader')" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">YAML</button>
+</div>
+
+<div id="raw-reader" class="my-2 bg-surface-alt-light dark:bg-zinc-900 border border-border-light dark:border-border-dark rounded-md px-3 py-2 overflow-x-auto" hidden>
+<pre class="m-0"><code class="text-xs">reader:
+  url: {{ cfg.reader.url }}
+  timeout_seconds: {{ cfg.reader.timeout_seconds }}
+  batch_size: {{ cfg.reader.batch_size }}
+  slug: {{ cfg.reader.slug }}
+  free_chapters: {{ cfg.reader.free_chapters }}
+  published: {{ cfg.reader.published }}</code></pre>
+</div>
+
+</form>

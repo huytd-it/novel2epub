@@ -40,6 +40,13 @@ def markers_to_html(escaped: str) -> str:
     )
 
 
+def strip_markers(text: str) -> str:
+    """Bỏ hẳn placeholder PUA khỏi text — dùng cho đích KHÔNG có UI footnote
+    (vd đẩy chương lên app đọc, xem `reader_sync.md_to_plaintext`). Khác
+    `markers_to_html` ở chỗ đây xoá luôn chứ không đổi thành <sup>."""
+    return _MARK_RE.sub("", text)
+
+
 def render_footnotes_html(items: list[dict]) -> str:
     """Sinh khối <div class="footnotes"> với danh sách định nghĩa + back-link."""
     if not items:

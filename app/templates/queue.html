@@ -2,22 +2,21 @@
 {% block title %}Hàng đợi — novel2epub{% endblock %}
 {% block content %}
 <style>
-.modal-backdrop[hidden]{display:none!important}
 .job-row-running{background:rgba(251,191,36,.07)}
 .job-row-failed{background:rgba(239,68,68,.07)}
 .dark .job-row-running{background:rgba(251,191,36,.12)}
 .dark .job-row-failed{background:rgba(239,68,68,.12)}
 .bulk-bar[hidden]{display:none!important}
 .status-badge{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:9999px;font-size:.7rem;font-weight:600;white-space:nowrap}
-.status-pending{background:#e2e8f0;color:#475569}.dark .status-pending{background:#334155;color:#94a3b8}
-.status-running{background:#fef3c7;color:#92400e}.dark .status-running{background:#451a03;color:#fbbf24}
-.status-done{background:#dcfce7;color:#166534}.dark .status-done{background:#052e16;color:#4ade80}
-.status-failed{background:#fee2e2;color:#991b1b}.dark .status-failed{background:#450a0a;color:#f87171}
-.status-cancelled{background:#f1f5f9;color:#64748b}.dark .status-cancelled{background:#1e293b;color:#64748b}
+.status-pending{background:var(--tw-surface-muted,#f4f4f5);color:var(--tw-fg-muted,#71717a)}.dark .status-pending{background:var(--tw-surface-muted-dark,#27272a);color:var(--tw-fg-muted-dark,#a1a1aa)}
+.status-running{background:var(--tw-status-warn-light,#fef9c3);color:var(--tw-status-warn-fg,#92400e)}.dark .status-running{background:var(--tw-status-warn-dark,#4a3c10);color:var(--tw-status-warn-fg-dark,#fde047)}
+.status-done{background:var(--tw-status-ok-light,#dcfce7);color:var(--tw-status-ok-fg,#166534)}.dark .status-done{background:var(--tw-status-ok-dark,#14532d);color:var(--tw-status-ok-fg-dark,#4ade80)}
+.status-failed{background:var(--tw-status-err-light,#fee2e2);color:var(--tw-status-err-fg,#991b1b)}.dark .status-failed{background:var(--tw-status-err-dark,#7f1d1d);color:var(--tw-status-err-fg-dark,#f87171)}
+.status-cancelled{background:var(--tw-surface-muted,#f1f5f9);color:var(--tw-fg-muted,#64748b)}.dark .status-cancelled{background:var(--tw-surface-muted-dark,#1e293b);color:var(--tw-fg-muted-dark,#64748b)}
 .cat-badge{display:inline-flex;align-items:center;padding:1px 6px;border-radius:4px;font-size:.65rem;font-weight:700;letter-spacing:.04em}
-.cat-crawl{background:#dbeafe;color:#1e40af}.dark .cat-crawl{background:#1e3a5f;color:#60a5fa}
+.cat-crawl{background:var(--tw-status-info-light,#dbeafe);color:var(--tw-status-info-fg,#1e40af)}.dark .cat-crawl{background:var(--tw-status-info-dark,#1e3a5f);color:var(--tw-status-info-fg-dark,#93c5fd)}
 .cat-translate{background:#ede9fe;color:#5b21b6}.dark .cat-translate{background:#2e1065;color:#a78bfa}
-.cat-build{background:#fef9c3;color:#854d0e}.dark .cat-build{background:#422006;color:#fde68a}
+.cat-build{background:var(--tw-status-warn-light,#fef9c3);color:var(--tw-status-warn-fg,#854d0e)}.dark .cat-build{background:var(--tw-status-warn-dark,#422006);color:var(--tw-status-warn-fg-dark,#fde68a)}
 .cat-both{background:#fce7f3;color:#9d174d}.dark .cat-both{background:#4a044e;color:#f0abfc}
 #queue-table th{position:sticky;top:0;z-index:1;background:inherit}
 </style>
@@ -26,104 +25,83 @@
 <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
   <div>
     <h2 class="m-0 text-xl font-semibold">Hàng đợi job</h2>
-    <p class="text-muted-light dark:text-muted-dark text-xs mt-0.5">Tự động làm mới mỗi 2s.</p>
+    <p class="text-fg-muted dark:text-fg-muted-dark text-xs mt-0.5">Tự động làm mới mỗi 2s.</p>
   </div>
   <!-- Worker controls -->
-  <div class="flex flex-wrap items-center gap-2 p-2.5 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm">
-    <span class="text-muted-light dark:text-muted-dark text-xs font-semibold uppercase tracking-wide">Workers</span>
+  <div class="flex flex-wrap items-center gap-2 p-2.5 rounded-lg border border-surface-border dark:border-surface-border-dark bg-surface-muted dark:bg-surface-muted-dark text-sm">
+    <span class="text-fg-muted dark:text-fg-muted-dark text-xs font-semibold uppercase tracking-wide">Workers</span>
     <label class="flex items-center gap-1">
       <span class="text-xs">Crawl</span>
       <input id="wk-crawl" type="number" min="0" max="32" value="1"
-        class="w-14 px-2 py-1 text-xs rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-center">
-      <span id="wk-crawl-paused" class="text-xs text-amber-600 dark:text-amber-400 font-semibold hidden">⏸</span>
+        class="w-14 px-2 py-1 text-xs rounded border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-center">
+      <span id="wk-crawl-paused" class="text-xs text-status-warn-fg dark:text-status-warn-fg-dark font-semibold hidden">⏸</span>
     </label>
     <label class="flex items-center gap-1">
       <span class="text-xs">Dịch</span>
       <input id="wk-translate" type="number" min="0" max="32" value="2"
-        class="w-14 px-2 py-1 text-xs rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-center">
-      <span id="wk-translate-paused" class="text-xs text-amber-600 dark:text-amber-400 font-semibold hidden">⏸</span>
+        class="w-14 px-2 py-1 text-xs rounded border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-center">
+      <span id="wk-translate-paused" class="text-xs text-status-warn-fg dark:text-status-warn-fg-dark font-semibold hidden">⏸</span>
     </label>
-    <button onclick="applyWorkers()" class="px-2.5 py-1 text-xs rounded bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Áp dụng</button>
+    <button onclick="applyWorkers()" class="btn btn-sm btn-primary">Áp dụng</button>
     <button id="start-all-btn" onclick="startAllWorkers()" hidden
-      class="px-2.5 py-1 text-xs rounded bg-ok-light dark:bg-ok-dark text-white hover:opacity-80">▶ Chạy tất cả</button>
+      class="btn btn-sm btn-success">▶ Chạy tất cả</button>
   </div>
-</div>
-
-<!-- Add job form -->
-<div class="border border-border-light dark:border-border-dark rounded-lg p-3 mb-3 bg-surface-light dark:bg-surface-dark">
-  <details>
-    <summary class="cursor-pointer font-semibold text-sm">➕ Thêm job vào hàng đợi</summary>
-    <form id="enqueue-form" class="flex flex-wrap gap-3 items-end mt-2">
-      <label class="flex flex-col gap-1 text-sm">Step
-        <select name="step" required class="rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-1.5 text-sm">
-          {% for s in steps %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
-        </select>
-      </label>
-      <label class="flex flex-col gap-1 text-sm">Ebook
-        <select name="ebook" class="rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-1.5 text-sm">
-          <option value="">(mặc định)</option>
-          {% for e in ebooks %}<option value="{{ e }}">{{ e }}</option>{% endfor %}
-        </select>
-      </label>
-      <button type="submit" class="px-3 py-1.5 text-sm rounded bg-link-light dark:bg-link-dark text-white hover:bg-link-hover-light dark:hover:bg-link-hover-dark">Thêm</button>
-    </form>
-  </details>
 </div>
 
 <!-- Bulk action bar -->
-<div id="bulk-bar" class="bulk-bar flex flex-wrap items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800" hidden>
-  <span id="bulk-count" class="text-xs font-semibold text-amber-800 dark:text-amber-300">0 đã chọn</span>
+<div id="bulk-bar" class="bulk-bar flex flex-wrap items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-status-warn-light dark:bg-status-warn-dark border border-status-warn-light dark:border-status-warn-dark" hidden>
+  <span id="bulk-count" class="text-xs font-semibold text-status-warn-fg dark:text-status-warn-fg-dark">0 đã chọn</span>
   <div class="flex gap-1.5 ml-2">
-    <button onclick="bulkCancel()" class="px-2.5 py-1 text-xs rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Hủy</button>
-    <button onclick="bulkStartNow()" class="px-2.5 py-1 text-xs rounded bg-link-light dark:bg-link-dark text-white hover:opacity-80">▶ Chạy ngay</button>
-    <button onclick="bulkDelete()" class="px-2.5 py-1 text-xs rounded bg-no-light dark:bg-no-dark text-white hover:opacity-80">Xóa</button>
+    <button onclick="bulkCancel()" class="btn btn-sm btn-secondary">Hủy</button>
+    <button onclick="bulkStartNow()" class="btn btn-sm btn-primary">▶ Chạy ngay</button>
+    <button onclick="bulkDelete()" class="btn btn-sm btn-danger">Xóa</button>
   </div>
-  <button onclick="clearSelection()" class="ml-auto text-xs text-muted-light dark:text-muted-dark hover:underline">Bỏ chọn</button>
+  <button onclick="clearSelection()" class="ml-auto text-xs text-fg-muted dark:text-fg-muted-dark hover:underline">Bỏ chọn</button>
 </div>
 
 <!-- Category-level failed actions -->
-<div id="failed-actions" class="bulk-bar flex flex-wrap items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800" hidden>
-  <span class="text-xs font-semibold text-red-800 dark:text-red-300">Thao tác hàng loạt cho job lỗi</span>
-  <button onclick="bulkClearFailed()" class="px-2.5 py-1 text-xs rounded bg-no-light dark:bg-no-dark text-white hover:opacity-80">🗑 Xóa tất cả lỗi</button>
-  <button onclick="bulkRetryFailed()" class="px-2.5 py-1 text-xs rounded bg-link-light dark:bg-link-dark text-white hover:opacity-80">🔄 Retry tất cả lỗi</button>
+<div id="failed-actions" class="bulk-bar flex flex-wrap items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-status-err-light dark:bg-status-err-dark border border-status-err-light dark:border-status-err-dark" hidden>
+  <span class="text-xs font-semibold text-status-err-fg dark:text-status-err-fg-dark">Thao tác hàng loạt cho job lỗi</span>
+  <button onclick="bulkClearFailed()" class="btn btn-sm btn-danger">🗑 Xóa tất cả lỗi</button>
+  <button onclick="bulkRetryFailed()" class="btn btn-sm btn-primary">🔄 Retry tất cả lỗi</button>
 </div>
 
 <!-- Filter toolbar -->
 <div class="flex flex-wrap items-center gap-2 mb-2">
   <!-- Status tabs -->
-  <div class="flex gap-0.5 rounded-lg border border-border-light dark:border-border-dark overflow-hidden text-xs">
-    <button class="tab-btn px-3 py-1.5 font-medium bg-link-light dark:bg-link-dark text-white" data-filter="all" onclick="setFilter('all',this)">Tất cả <span id="cnt-all" class="opacity-70"></span></button>
-    <button class="tab-btn px-3 py-1.5 font-medium hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" data-filter="running" onclick="setFilter('running',this)">Đang chạy <span id="cnt-running" class="opacity-70"></span></button>
-    <button class="tab-btn px-3 py-1.5 font-medium hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" data-filter="pending" onclick="setFilter('pending',this)">Đang đợi <span id="cnt-pending" class="opacity-70"></span></button>
-    <button class="tab-btn px-3 py-1.5 font-medium hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" data-filter="done" onclick="setFilter('done',this)">Hoàn thành <span id="cnt-done" class="opacity-70"></span></button>
-    <button class="tab-btn px-3 py-1.5 font-medium hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" data-filter="failed" onclick="setFilter('failed',this)">Lỗi <span id="cnt-failed" class="opacity-70"></span></button>
+  <div class="flex gap-0.5 rounded-lg border border-surface-border dark:border-surface-border-dark overflow-hidden text-xs">
+    <button class="tab-btn px-3 py-1.5 font-medium bg-brand-600 text-white" data-filter="all" onclick="setFilter('all',this)">Tất cả <span id="cnt-all" class="opacity-70"></span></button>
+    <button class="tab-btn px-3 py-1.5 font-medium hover:bg-surface-muted dark:hover:bg-surface-muted-dark" data-filter="running" onclick="setFilter('running',this)">Đang chạy <span id="cnt-running" class="opacity-70"></span></button>
+    <button class="tab-btn px-3 py-1.5 font-medium hover:bg-surface-muted dark:hover:bg-surface-muted-dark" data-filter="pending" onclick="setFilter('pending',this)">Đang đợi <span id="cnt-pending" class="opacity-70"></span></button>
+    <button class="tab-btn px-3 py-1.5 font-medium hover:bg-surface-muted dark:hover:bg-surface-muted-dark" data-filter="done" onclick="setFilter('done',this)">Hoàn thành <span id="cnt-done" class="opacity-70"></span></button>
+    <button class="tab-btn px-3 py-1.5 font-medium hover:bg-surface-muted dark:hover:bg-surface-muted-dark" data-filter="failed" onclick="setFilter('failed',this)">Lỗi <span id="cnt-failed" class="opacity-70"></span></button>
   </div>
   <!-- Ebook filter -->
-  <select id="filter-ebook" onchange="applyFilters()" class="px-2 py-1.5 text-xs rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark">
+  <select id="filter-ebook" onchange="applyFilters()" class="select select-sm">
     <option value="">Tất cả ebook</option>
     {% for e in ebooks %}<option value="{{ e }}">{{ e }}</option>{% endfor %}
   </select>
   <!-- Search -->
   <input id="filter-search" type="text" placeholder="Tìm kiếm label..." oninput="applyFilters()"
-    class="px-2 py-1.5 text-xs rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark flex-1 min-w-36">
+    class="input input-sm flex-1 min-w-36">
   <!-- Queue summary -->
-  <span id="queue-summary" class="text-xs text-muted-light dark:text-muted-dark ml-auto"></span>
+  <span id="queue-summary" class="text-xs text-fg-muted dark:text-fg-muted-dark ml-auto"></span>
 </div>
 
 <!-- Main table -->
-<div class="overflow-x-auto border border-border-light dark:border-border-dark rounded-lg">
-  <table class="w-full text-sm" id="queue-table">
-    <thead class="bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark text-xs uppercase tracking-wide">
+<div class="table-container">
+  <table class="table" id="queue-table">
+    <thead class="bg-surface-muted dark:bg-surface-muted-dark text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide">
       <tr>
-        <th class="px-3 py-2 border-b border-border-light dark:border-border-dark w-8">
-          <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)" class="rounded">
+        <th class="px-3 py-2 w-8">
+          <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)" class="rounded border-surface-border dark:border-surface-border-dark">
         </th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Label</th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark hidden sm:table-cell">Cat.</th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark">Trạng thái</th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark hidden md:table-cell">Bắt đầu</th>
-        <th class="text-left px-3 py-2 border-b border-border-light dark:border-border-dark hidden md:table-cell">Kết thúc / Thời lượng</th>
-        <th class="text-right px-3 py-2 border-b border-border-light dark:border-border-dark"></th>
+        <th class="text-left px-3 py-2">Label</th>
+        <th class="text-left px-3 py-2 hidden sm:table-cell">Cat.</th>
+        <th class="text-left px-3 py-2">Trạng thái</th>
+        <th class="text-left px-3 py-2 hidden md:table-cell">Bắt đầu</th>
+        <th class="text-left px-3 py-2 hidden md:table-cell">Kết thúc / Thời lượng</th>
+        <th class="text-right px-3 py-2"></th>
       </tr>
     </thead>
     <tbody id="queue-tbody"></tbody>
@@ -131,19 +109,19 @@
 </div>
 
 <!-- Pagination bar -->
-<div id="pagination-bar" class="flex items-center gap-2 mt-2 text-xs text-muted-light dark:text-muted-dark hidden">
-  <button id="pg-prev" onclick="changePage(-1)" class="px-2 py-1 rounded border border-border-light dark:border-border-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40">‹ Trước</button>
+<div id="pagination-bar" class="flex items-center gap-2 mt-2 text-xs text-fg-muted dark:text-fg-muted-dark hidden">
+  <button id="pg-prev" onclick="changePage(-1)" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">‹ Trước</button>
   <span id="pg-info"></span>
-  <button id="pg-next" onclick="changePage(1)" class="px-2 py-1 rounded border border-border-light dark:border-border-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark disabled:opacity-40">Sau ›</button>
+  <button id="pg-next" onclick="changePage(1)" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">Sau ›</button>
 </div>
 
 <!-- Log viewer modal -->
-<div id="log-viewer" class="modal-backdrop fixed inset-0 z-40 flex items-center justify-center bg-black/45" hidden onclick="if(event.target===this)closeLog()">
-  <div class="bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark border border-border-light dark:border-border-dark rounded-card p-5 max-w-2xl w-[92vw] shadow-card dark:shadow-card-dark">
-    <h3 class="mt-0 mb-2 text-base font-semibold">Nhật ký <span id="log-viewer-title" class="font-normal text-muted-light dark:text-muted-dark"></span></h3>
-    <pre id="log-viewer-content" class="bg-zinc-950 text-zinc-100 font-mono text-xs rounded p-3 overflow-auto max-h-[60vh] whitespace-pre-wrap m-0"></pre>
-    <div class="flex gap-2 justify-end mt-3">
-      <button type="button" onclick="closeLog()" class="px-3 py-1.5 text-sm rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Đóng</button>
+<div id="log-viewer" class="modal-backdrop" hidden onclick="if(event.target===this)closeLog()">
+  <div class="modal modal-lg">
+    <h3 class="mt-0 mb-2 text-base font-semibold p-5 border-b border-surface-border dark:border-surface-border-dark">Nhật ký <span id="log-viewer-title" class="font-normal text-fg-muted dark:text-fg-muted-dark"></span></h3>
+    <pre id="log-viewer-content" class="bg-zinc-950 text-zinc-100 font-mono text-xs rounded p-3 overflow-auto max-h-[60vh] whitespace-pre-wrap m-0 mx-5 mb-5"></pre>
+    <div class="flex gap-2 justify-end p-5 border-t border-surface-border dark:border-surface-border-dark">
+      <button type="button" onclick="closeLog()" class="btn btn-sm btn-secondary">Đóng</button>
     </div>
   </div>
 </div>
@@ -205,23 +183,23 @@ function renderRow(j, pos) {
   const canStart  = j.state === "pending";
   const canDelete = j.state !== "running";
 
-  let actionBtns = `<button class="q-log px-1.5 py-1 text-xs rounded border border-border-light dark:border-border-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" data-id="${j.id}" data-label="${escHtml(j.label)}">📋</button>`;
-  if (canStart)  actionBtns += `<button class="q-startnow px-1.5 py-1 text-xs rounded bg-link-light dark:bg-link-dark text-white hover:opacity-80" data-id="${j.id}" title="Chạy ngay">▶</button>`;
-  if (canCancel) actionBtns += `<button class="q-cancel px-1.5 py-1 text-xs rounded border border-border-light dark:border-border-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" data-id="${j.id}" title="Hủy">✕</button>`;
-  if (canRetry)  actionBtns += `<button class="q-retry px-1.5 py-1 text-xs rounded bg-ok-light dark:bg-ok-dark text-white hover:opacity-80" data-id="${j.id}" title="Thử lại">↺</button>`;
-  if (canDelete) actionBtns += `<button class="q-delete px-1.5 py-1 text-xs rounded text-no-light dark:text-no-dark border border-no-light dark:border-no-dark hover:bg-no-light dark:hover:bg-no-dark hover:text-white" data-id="${j.id}" title="Xóa">🗑</button>`;
+  let actionBtns = `<button class="q-log btn btn-sm btn-secondary" data-id="${j.id}" data-label="${escHtml(j.label)}">📋</button>`;
+  if (canStart)  actionBtns += `<button class="q-startnow btn btn-sm btn-primary" data-id="${j.id}" title="Chạy ngay">▶</button>`;
+  if (canCancel) actionBtns += `<button class="q-cancel btn btn-sm btn-secondary" data-id="${j.id}" title="Hủy">✕</button>`;
+  if (canRetry)  actionBtns += `<button class="q-retry btn btn-sm btn-success" data-id="${j.id}" title="Thử lại">↺</button>`;
+  if (canDelete) actionBtns += `<button class="q-delete btn btn-sm btn-danger" data-id="${j.id}" title="Xóa">🗑</button>`;
 
-  const posCell = j.state === "pending" ? `<span class="text-xs text-muted-light dark:text-muted-dark">#${pos}</span> ` : "";
+  const posCell = j.state === "pending" ? `<span class="text-xs text-fg-muted dark:text-fg-muted-dark">#${pos}</span> ` : "";
   const labelTitle = j.ebook ? `${j.label} [${j.ebook}]` : j.label;
   const endCell = j.state === "running"
-    ? `<span class="text-xs text-amber-600 dark:text-amber-400">${fmtDur(j.started_at, null)} …</span>`
-    : (j.ended_at ? `${fmtTime(j.ended_at)}<br><span class="text-muted-light dark:text-muted-dark text-xs">${fmtDur(j.started_at, j.ended_at)}</span>` : "—");
+    ? `<span class="text-xs text-status-warn-fg dark:text-status-warn-fg-dark">${fmtDur(j.started_at, null)} …</span>`
+    : (j.ended_at ? `${fmtTime(j.ended_at)}<br><span class="text-fg-muted dark:text-fg-muted-dark text-xs">${fmtDur(j.started_at, j.ended_at)}</span>` : "—");
 
-  return `<tr class="hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark border-b border-border-light dark:border-border-dark ${rowClass}" data-id="${j.id}">
-    <td class="px-3 py-2"><input type="checkbox" class="row-check rounded" data-id="${j.id}" ${checked}></td>
+  return `<tr class="hover:bg-surface-muted/50 dark:hover:bg-surface-muted-dark/50 border-b border-surface-border dark:border-surface-border-dark ${rowClass}" data-id="${j.id}">
+    <td class="px-3 py-2"><input type="checkbox" class="row-check rounded border-surface-border dark:border-surface-border-dark" data-id="${j.id}" ${checked}></td>
     <td class="px-3 py-2 max-w-xs">
       <div class="font-medium text-xs truncate" title="${escHtml(labelTitle)}">${posCell}${escHtml(j.label)}</div>
-      ${j.error ? `<div class="text-no-light dark:text-no-dark text-xs truncate mt-0.5" title="${escHtml(j.error)}">${escHtml(j.error.slice(0,80))}</div>` : ""}
+      ${j.error ? `<div class="text-status-err-fg dark:text-status-err-fg-dark text-xs truncate mt-0.5" title="${escHtml(j.error)}">${escHtml(j.error.slice(0,80))}</div>` : ""}
     </td>
     <td class="px-3 py-2 hidden sm:table-cell">${catBadge(j.category)}</td>
     <td class="px-3 py-2">${stateBadge(j.state, j.cancelling)}</td>
@@ -232,7 +210,7 @@ function renderRow(j, pos) {
 }
 
 function escHtml(s) {
-  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  return String(s||"").replace(/&/g,"\x26amp;").replace(/</g,"\x26lt;").replace(/>/g,"\x26gt;").replace(/"/g,"\x26quot;");
 }
 
 // ── Filters ────────────────────────────────────────────────────────────────
@@ -241,9 +219,10 @@ function setFilter(f, btn) {
   currentPage = 1;
   document.querySelectorAll(".tab-btn").forEach(b => {
     const active = b.dataset.filter === f;
-    b.classList.toggle("bg-link-light", active);
-    b.classList.toggle("dark:bg-link-dark", active);
+    b.classList.toggle("bg-brand-600", active);
     b.classList.toggle("text-white", active);
+    b.classList.toggle("hover:bg-surface-muted", !active);
+    b.classList.toggle("dark:hover:bg-surface-muted-dark", !active);
   });
   const bar = document.getElementById("failed-actions");
   if (bar) bar.hidden = f !== "failed";
@@ -289,7 +268,7 @@ function renderTable() {
   }).join("");
 
   const tbody = document.getElementById("queue-tbody");
-  tbody.innerHTML = html || `<tr><td colspan="7" class="text-center text-muted-light dark:text-muted-dark py-6 text-sm">Không có job nào.</td></tr>`;
+  tbody.innerHTML = html || `<tr><td colspan="7" class="text-center text-fg-muted dark:text-fg-muted-dark py-6 text-sm">Không có job nào.</td></tr>`;
 
   // Pagination
   const pgBar = document.getElementById("pagination-bar");
@@ -332,6 +311,7 @@ function renderTable() {
   tbody.querySelectorAll(".q-retry").forEach(btn => btn.addEventListener("click", async () => {
     const res = await fetch(`/api/queue/${btn.dataset.id}/retry`, {method:"POST"});
     if (res.ok) toast("Đã retry job.");
+    else { const e = await res.json().catch(()=>{}); toast(e?.detail || "Lỗi.", "error"); }
     renderQueue();
   }));
   tbody.querySelectorAll(".q-delete").forEach(btn => btn.addEventListener("click", async () => {
@@ -362,11 +342,13 @@ async function renderQueue() {
   const history = (data.history || []).map(j => ({...j, _section:"history"}));
   allJobs = [...running, ...pending, ...history];
 
-  // Worker controls (sync from server)
+  // Worker controls (sync from server — skip if user is editing)
   const wkCrawl = data.workers?.crawl ?? 1;
   const wkTranslate = data.workers?.translate ?? 1;
-  document.getElementById("wk-crawl").value = wkCrawl;
-  document.getElementById("wk-translate").value = wkTranslate;
+  const crawlInput = document.getElementById("wk-crawl");
+  const translateInput = document.getElementById("wk-translate");
+  if (document.activeElement !== crawlInput) crawlInput.value = wkCrawl;
+  if (document.activeElement !== translateInput) translateInput.value = wkTranslate;
   document.getElementById("wk-crawl-paused").classList.toggle("hidden", wkCrawl > 0);
   document.getElementById("wk-translate-paused").classList.toggle("hidden", wkTranslate > 0);
   const anyPaused = wkCrawl === 0 || wkTranslate === 0;
@@ -473,10 +455,12 @@ async function bulkRetryFailed() {
 
 // ── Log viewer ─────────────────────────────────────────────────────────────
 async function openLog(jobId, label) {
+  const el = document.getElementById("log-viewer");
+  el.hidden = false;
+  el.classList.add("open");
   document.getElementById("log-viewer-title").textContent = label || jobId;
   const pre = document.getElementById("log-viewer-content");
   pre.textContent = "Đang tải...";
-  document.getElementById("log-viewer").hidden = false;
   try {
     const res = await fetch(`/api/queue/${jobId}/log`);
     if (!res.ok) { pre.textContent = "Không thể tải nhật ký."; return; }
@@ -487,7 +471,11 @@ async function openLog(jobId, label) {
   }
 }
 
-function closeLog() { document.getElementById("log-viewer").hidden = true; }
+function closeLog() {
+  const el = document.getElementById("log-viewer");
+  el.classList.remove("open");
+  el.hidden = true;
+}
 
 // ── Enqueue form ──────────────────────────────────────────────────────────
 document.getElementById("enqueue-form")?.addEventListener("submit", async e => {

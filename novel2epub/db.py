@@ -11,7 +11,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 
 _SCHEMA_STATEMENTS = [
     """
@@ -30,6 +30,7 @@ _SCHEMA_STATEMENTS = [
         ai_json TEXT NOT NULL DEFAULT '{}',
         output_json TEXT NOT NULL DEFAULT '{}',
         queue_json TEXT NOT NULL DEFAULT '{}',
+        reader_json TEXT NOT NULL DEFAULT '{}',
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
@@ -70,6 +71,9 @@ _SCHEMA_STATEMENTS = [
         curated_fields_json TEXT NOT NULL DEFAULT '[]',
         crawl_overrides_json TEXT NOT NULL DEFAULT '{}',
         output_overrides_json TEXT NOT NULL DEFAULT '{}',
+        reader_overrides_json TEXT NOT NULL DEFAULT '{}',
+        translate_overrides_json TEXT NOT NULL DEFAULT '{}',
+        ai_overrides_json TEXT NOT NULL DEFAULT '{}',
         epub_path TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -170,10 +174,27 @@ _SCHEMA_STATEMENTS = [
         last_run_at TEXT NOT NULL DEFAULT '',
         last_run_outcome TEXT NOT NULL DEFAULT '',
         last_run_error TEXT NOT NULL DEFAULT '',
-        last_run_stats_json TEXT NOT NULL DEFAULT '{}'
+        last_run_stats_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT ''
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_automations_ebook ON automations(ebook)",
+]
+
+# Cột thêm vào bảng ĐÃ TỒN TẠI ở các phiên bản schema sau. `_SCHEMA_STATEMENTS`
+# chỉ chạy `CREATE TABLE IF NOT EXISTS` nên DB cũ sẽ không có các cột này —
+# `_ensure_columns` vá bằng ALTER TABLE. DB tạo mới đã có sẵn (khai báo trong
+# CREATE TABLE ở trên), nên danh sách này là no-op với chúng.
+_ADDED_COLUMNS = [
+    # v2: đẩy chương lên app đọc (novel-reader / Supabase)
+    ("settings", "reader_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ("ebooks", "reader_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
+    # v3: lịch cron — base tính "đến hạn" cho automation chưa từng chạy
+    ("automations", "created_at", "TEXT NOT NULL DEFAULT ''"),
+    # v3: translate/ai per-ebook — mỗi ebook một config AI riêng, defaults
+    # (bảng settings) chỉ còn là fallback + nguồn khi Reset.
+    ("ebooks", "translate_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ("ebooks", "ai_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
 ]
 
 
@@ -223,12 +244,28 @@ def get_thread_connection(db_path: str | Path) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_columns(conn: sqlite3.Connection) -> None:
+    """Thêm các cột của `_ADDED_COLUMNS` còn thiếu vào DB cũ (ALTER TABLE).
+
+    SQLite không có `ADD COLUMN IF NOT EXISTS` nên phải tự dò bằng
+    `PRAGMA table_info`. Idempotent; bảng chưa tồn tại thì bỏ qua (vòng
+    `_SCHEMA_STATEMENTS` ở trên đã tạo rồi nên trường hợp này không xảy ra).
+    """
+    for table, column, decl in _ADDED_COLUMNS:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        if not rows:
+            continue
+        if column not in {r["name"] for r in rows}:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
     """Tạo toàn bộ bảng nếu chưa có — idempotent, an toàn gọi mỗi lần khởi
     động app/CLI (không xóa/động tới dữ liệu đã có)."""
     with conn:
         for stmt in _SCHEMA_STATEMENTS:
             conn.execute(stmt)
+        _ensure_columns(conn)
         conn.execute(
             """
             INSERT INTO _meta (key, value) VALUES ('schema_version', ?)

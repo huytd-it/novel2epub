@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import re
 import threading
 from typing import Callable
 
@@ -98,9 +99,13 @@ def _chapter_context(storage: Storage, ch, raw: str, translated: str, slug: str,
     # cũ chưa có snapshot thì degrade an toàn về bản dịch hiện hành (read-only).
     translated_mt = storage.read_translated_mt(ch) if storage.has_translated_mt(ch) else translated
     # Chuẩn bị dữ liệu paragraph để render table so sánh (raw || MT || biên tập)
-    raw_paras = raw.split("\n") if raw else [""]
-    mt_paras = translated_mt.split("\n") if translated_mt else [""]
-    edit_paras = translated.split("\n") if translated else [""]
+    # Gom dòng theo paragraph (cách bởi dòng trống) để raw và MT cùng align.
+    def _paras(t: str) -> list[str]:
+        blocks = re.split(r'\n\s*\n', t.strip())
+        return [' '.join(b.splitlines()) for b in blocks if b.strip()]
+    raw_paras = _paras(raw) if raw else [""]
+    mt_paras = _paras(translated_mt) if translated_mt else [""]
+    edit_paras = _paras(translated) if translated else [""]
     num_paras = max(len(raw_paras), len(mt_paras), len(edit_paras))
     raw_paras += [""] * (num_paras - len(raw_paras))
     mt_paras += [""] * (num_paras - len(mt_paras))
@@ -916,6 +921,7 @@ async def api_batch_import(
     expected = [int(i.strip()) for i in indexes.split(",") if i.strip()]
     by_index = {c.index: c for c in manifest.chapters}
     content_by_index = {idx: content for idx, _title, content in parsed}
+    title_by_index = {idx: title for idx, title, _content in parsed if title}
     report = bulk_transfer.validate_import(
         list(content_by_index.keys()), expected, list(by_index.keys())
     )
@@ -926,13 +932,18 @@ async def api_batch_import(
     glossary_new = {s: t for s, t in glossary.items() if existing.get(s) != t}
 
     chapters_info = []
+    titles_changed: list[int] = []
     for idx in report["matched"]:
         ch = by_index[idx]
         old = storage.read_translated(ch) if storage.has_translated(ch) else ""
         new = content_by_index[idx]
+        title_changed = idx in title_by_index and title_by_index[idx] != ch.title
+        if title_changed:
+            titles_changed.append(idx)
         chapters_info.append({
             "index": idx,
             "changed": new.strip() != old.strip(),
+            "title_changed": title_changed,
             "old_len": len(old),
             "new_len": len(new),
         })
@@ -941,23 +952,30 @@ async def api_batch_import(
         return JSONResponse({
             "mode": "preview",
             "chapters": chapters_info,
+            "titles_changed": titles_changed,
             "missing": report["missing"],
             "unknown": report["unknown"],
             "extra": report["extra"],
             "glossary_new": glossary_new,
         })
 
-    # confirm: ghi đè translated/ + merge glossary. translated_mt/ (snapshot
-    # bản máy) chỉ được ghi nếu chương CHƯA có — coi đây là lần dịch đầu (vd
-    # luồng "xuất raw để dịch") thì backfill snapshot; nếu đã có (đang biên
-    # tập/dịch lại) thì giữ nguyên để còn so sánh trong editor 3 cột.
+    # confirm: ghi đè translated/ + cập nhật title TOC + merge glossary.
     written: list[int] = []
+    titles_updated: list[int] = []
     for idx in report["matched"]:
         ch = by_index[idx]
         if not storage.has_translated_mt(ch):
             storage.write_translated_mt(ch, content_by_index[idx])
         storage.write_translated(ch, content_by_index[idx])
         written.append(idx)
+        if idx in title_by_index and title_by_index[idx] != ch.title:
+            if not ch.title_zh:
+                ch.title_zh = ch.title
+            ch.title = title_by_index[idx]
+            titles_updated.append(idx)
+
+    if titles_updated:
+        storage.save_manifest(manifest)
 
     glossary_added = 0
     for source, target in glossary.items():
@@ -967,6 +985,7 @@ async def api_batch_import(
     return JSONResponse({
         "mode": "confirm",
         "written": written,
+        "titles_updated": titles_updated,
         "glossary_added": glossary_added,
         "missing": report["missing"],
         "unknown": report["unknown"],

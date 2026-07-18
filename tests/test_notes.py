@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from novel2epub.glossary_ai import _parse_fixes
-from novel2epub.notes import apply_note_fix, locate_note_para, split_paras
+from novel2epub.notes import apply_note_fix, locate_note_para, replace_para, split_paras
 
 
 def _note(**overrides) -> dict:
@@ -113,3 +113,52 @@ def test_parse_fixes_drops_unknown_id_empty_text_and_dupes():
 def test_parse_fixes_garbage_returns_empty():
     assert _parse_fixes("không phải json", {"n1"}) == []
     assert _parse_fixes('{"id": "n1"}', {"n1"}) == []  # object, không phải array
+
+
+# --- replace_para ---
+
+
+def test_replace_para_middle_keeps_blank_lines():
+    translated = "Mở đầu.\n\nRồi hắn nói một câu.\n\nKết thúc."
+    new_text, err = replace_para(translated, 1, "Rồi hắn nói một câu.", "Rồi anh ta đáp.")
+    assert err == ""
+    assert new_text == "Mở đầu.\n\nRồi anh ta đáp.\n\nKết thúc."
+
+
+def test_replace_para_first_and_last():
+    translated = "A.\n\nB.\n\nC."
+    first, err = replace_para(translated, 0, "A.", "A2.")
+    assert err == "" and first == "A2.\n\nB.\n\nC."
+    last, err = replace_para(translated, 2, "C.", "C2.")
+    assert err == "" and last == "A.\n\nB.\n\nC2."
+
+
+def test_replace_para_mismatch_expected_returns_error():
+    translated = "A.\n\nB.\n\nC."
+    new_text, err = replace_para(translated, 1, "Khác hẳn.", "B2.")
+    assert new_text is None
+    assert "đã thay đổi" in err
+
+
+def test_replace_para_index_out_of_range_returns_error():
+    translated = "A.\n\nB."
+    new_text, err = replace_para(translated, 9, "A.", "x")
+    assert new_text is None
+    assert "Không tìm thấy" in err
+
+
+def test_replace_para_multiline_new_text_collapsed_to_one_line():
+    # Người dùng dán nhiều dòng → gộp về 1 dòng, không làm lệch đoạn sau.
+    translated = "A.\n\nB.\n\nC."
+    new_text, err = replace_para(translated, 1, "B.", "B dòng 1.\n\nB dòng 2.")
+    assert err == ""
+    assert new_text == "A.\n\nB dòng 1. B dòng 2.\n\nC."
+    # Đoạn sau (C.) vẫn ở para_index 2
+    assert split_paras(new_text)[2] == "C."
+
+
+def test_replace_para_empty_new_text_rejected():
+    translated = "A.\n\nB.\n\nC."
+    new_text, err = replace_para(translated, 1, "B.", "   \n  ")
+    assert new_text is None
+    assert "trống" in err

@@ -71,3 +71,39 @@ def apply_note_fix(translated: str, note: dict, fixed_text: str) -> tuple[str | 
     line_idx = para_line_indexes[para_idx]
     lines[line_idx] = lines[line_idx].replace(selected, fixed_text, 1)
     return "\n".join(lines), ""
+
+
+def replace_para(
+    translated: str,
+    para_index: int,
+    para_text_expected: str,
+    new_text: str,
+) -> tuple[str | None, str]:
+    """Thay TOÀN BỘ một đoạn (đoạn-không-rỗng thứ `para_index`) bằng `new_text`.
+
+    Thao tác theo DÒNG trên văn bản gốc (giữ nguyên dòng trống): map index
+    đoạn-không-rỗng → index dòng gốc, đúng cách reader tách đoạn. Kiểm tra
+    `para_text_expected` khớp dòng hiện tại trước khi ghi để chống ghi đè khi
+    bản dịch đã đổi sau lúc mở editor.
+
+    `new_text` nhiều dòng bị gộp về MỘT dòng (nối bằng khoảng trắng) để giữ bất
+    biến "một đoạn = một dòng" mà reader dựa vào — tránh làm lệch `para_index`
+    của các đoạn sau. Đoạn rỗng bị từ chối (sẽ biến mất và lệch index).
+
+    Trả (văn_bản_mới, "") khi thành công, (None, lý_do) khi thất bại.
+    """
+    lines = translated.split("\n")
+    para_line_indexes = [i for i, line in enumerate(lines) if line.strip()]
+    if not isinstance(para_index, int) or not (0 <= para_index < len(para_line_indexes)):
+        return None, "Không tìm thấy đoạn — bản dịch đã thay đổi."
+
+    line_idx = para_line_indexes[para_index]
+    if lines[line_idx] != para_text_expected:
+        return None, "Bản dịch đã thay đổi — tải lại trang."
+
+    cleaned = " ".join(seg.strip() for seg in new_text.splitlines() if seg.strip())
+    if not cleaned:
+        return None, "Đoạn không được để trống."
+
+    lines[line_idx] = cleaned
+    return "\n".join(lines), ""

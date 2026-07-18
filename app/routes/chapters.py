@@ -605,6 +605,24 @@ Nguyên tắc:
 --- Bản dịch cần biên tập ---
 {text}"""
 
+_PARA_EDIT_PROMPT = """Bạn là biên tập viên truyện dịch Trung → Việt.
+Hãy BIÊN TẬP LẠI đoạn văn Việt sau cho mượt, tự nhiên, dễ hiểu hơn.
+Tham khảo bản gốc Trung (nếu có) để giữ đúng nghĩa.
+
+Yêu cầu thêm từ người biên tập: {instruction}
+
+Nguyên tắc:
+- Giữ nguyên nội dung, KHÔNG thêm bớt hay giải thích
+- Chỉ trả về đoạn văn đã biên tập, KHÔNG kèm lời dẫn hay code fence
+
+--- Bản gốc (Trung) ---
+{text_zh}
+
+--- Đoạn cần biên tập ---
+{text}"""
+
+_DEFAULT_PARA_INSTRUCTION = "Biên tập cho tự nhiên, giữ nguyên nội dung."
+
 _EXPLAIN_PROMPT = """Bạn là trợ lý dịch thuật Trung → Việt.
 Hãy GIẢI THÍCH đoạn văn dịch sau: các từ Hán Việt khó, thành ngữ, điển tích,
 hoặc cách hiểu câu văn. Trả lời ngắn gọn bằng tiếng Việt, phù hợp với người
@@ -629,8 +647,8 @@ KHÔNG tóm tắt nội dung đoạn văn. Chỉ liệt kê và giải thích t�
 {text}"""
 
 
-def _call_openai(cfg, prompt: str) -> str:
-    result = openai_run_chat(cfg.translate.openai, prompt).strip()
+def _call_openai(openai_cfg, prompt: str) -> str:
+    result = openai_run_chat(openai_cfg, prompt).strip()
     lines = result.splitlines()
     if lines and lines[0].startswith("```"):
         lines = lines[1:]
@@ -650,8 +668,48 @@ def api_ebook_chapter_parapolish(slug: str, index: int, text: str = Form(...), t
     if not cfg.translate.openai.api_key and not cfg.translate.openai.base_url:
         raise HTTPException(status_code=400, detail="Chưa cấu hình OpenAI.")
     try:
-        polished = _call_openai(cfg, _POLISH_PROMPT.format(text=text, text_zh=text_zh or "(không có)"))
+        polished = _call_openai(cfg.translate.openai, _POLISH_PROMPT.format(text=text, text_zh=text_zh or "(không có)"))
         return JSONResponse({"polished": polished})
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/para/ai-edit")
+def api_ebook_chapter_para_ai_edit(
+    slug: str,
+    index: int,
+    para_index: int = Form(...),
+    text: str = Form(...),
+    instruction: str = Form(""),
+):
+    """Biên tập 1 đoạn bằng AI (backend `cfg.ai.openai`) — KHÔNG ghi file.
+
+    Tự đính kèm bản gốc ZH của đoạn khi số đoạn của raw KHỚP translated
+    (alignment best-effort; lệch số đoạn thì biên tập VI-only).
+    """
+    cfg = deps.resolved_cfg(slug)
+    if not cfg.ai.openai.api_key and not cfg.ai.openai.base_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Chưa cấu hình AI biên tập (mục AI trong Settings).",
+        )
+    storage, _manifest, ch = _load_chapter_json_or_404(slug, index)
+
+    text_zh = ""
+    if storage.has_raw(ch):
+        raw_paras = split_paras(storage.read_raw(ch))
+        translated_paras = split_paras(storage.read_translated(ch)) if storage.has_translated(ch) else []
+        if len(raw_paras) == len(translated_paras) and 0 <= para_index < len(raw_paras):
+            text_zh = raw_paras[para_index]
+
+    prompt = _PARA_EDIT_PROMPT.format(
+        instruction=(instruction.strip() or _DEFAULT_PARA_INSTRUCTION),
+        text_zh=text_zh or "(không có)",
+        text=text,
+    )
+    try:
+        edited = _call_openai(cfg.ai.openai, prompt)
+        return JSONResponse({"edited": edited})
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -672,7 +730,7 @@ def api_ebook_chapter_paraexplain(
         raise HTTPException(status_code=400, detail="Chưa cấu hình OpenAI.")
     try:
         prompt = _EXPLAIN_TERMS_PROMPT if type == "terms" else _EXPLAIN_PROMPT
-        explanation = _call_openai(cfg, prompt.format(text=text))
+        explanation = _call_openai(cfg.translate.openai, prompt.format(text=text))
         return JSONResponse({"explanation": explanation, "type": type})
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))

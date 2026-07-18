@@ -96,3 +96,77 @@ def test_para_save_unknown_chapter_404(tmp_path, monkeypatch):
         data={"para_index": 0, "para_text": "A.", "new_text": "x"},
     )
     assert res.status_code == 404
+
+
+from app.routes import chapters as chapters_route
+
+
+def _cfg_ai(tmp_path):
+    cfg = _cfg(tmp_path)
+    cfg.ai.openai.base_url = "http://ai.local/v1"  # bật guard "đã cấu hình AI"
+    return cfg
+
+
+def test_para_ai_edit_uses_ai_backend_and_zh_context(tmp_path, monkeypatch):
+    cfg = _cfg_ai(tmp_path)
+    # raw có CÙNG số đoạn với translated (3) → ZH đoạn 1 được đính kèm
+    _seed(tmp_path, translated="A.\n\nB.\n\nC.", raw="甲。\n\n乙。\n\n丙。")
+    client = _client(tmp_path, monkeypatch, cfg)
+
+    captured = {}
+
+    def fake_run_chat(openai_cfg, prompt):
+        captured["cfg"] = openai_cfg
+        captured["prompt"] = prompt
+        return "B đã biên tập."
+
+    monkeypatch.setattr(chapters_route, "openai_run_chat", fake_run_chat)
+
+    res = client.post(
+        "/api/ebooks/t/chapters/7/para/ai-edit",
+        data={"para_index": 1, "text": "B.", "instruction": "xưng anh/em"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["edited"] == "B đã biên tập."
+    # Dùng ĐÚNG backend AI biên tập, không phải translate
+    assert captured["cfg"] is cfg.ai.openai
+    # ZH đoạn tương ứng + chỉ dẫn có trong prompt
+    assert "乙。" in captured["prompt"]
+    assert "xưng anh/em" in captured["prompt"]
+
+
+def test_para_ai_edit_no_zh_when_para_count_differs(tmp_path, monkeypatch):
+    cfg = _cfg_ai(tmp_path)
+    # raw 2 đoạn ≠ translated 3 đoạn → bỏ ZH
+    _seed(tmp_path, translated="A.\n\nB.\n\nC.", raw="甲。\n\n乙。")
+    client = _client(tmp_path, monkeypatch, cfg)
+
+    captured = {}
+
+    def fake_run_chat(openai_cfg, prompt):
+        captured["prompt"] = prompt
+        return "sửa"
+
+    monkeypatch.setattr(chapters_route, "openai_run_chat", fake_run_chat)
+    res = client.post(
+        "/api/ebooks/t/chapters/7/para/ai-edit",
+        data={"para_index": 1, "text": "B."},
+    )
+    assert res.status_code == 200
+    assert "乙。" not in captured["prompt"]
+    assert "(không có)" in captured["prompt"]
+
+
+def test_para_ai_edit_requires_ai_config(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    # OpenAIConfig.base_url mặc định trỏ localhost — xoá để AI thực sự chưa cấu hình.
+    cfg.ai.openai.base_url = ""
+    cfg.ai.openai.api_key = ""
+    _seed(tmp_path)
+    client = _client(tmp_path, monkeypatch, cfg)
+    res = client.post(
+        "/api/ebooks/t/chapters/7/para/ai-edit",
+        data={"para_index": 1, "text": "B."},
+    )
+    assert res.status_code == 400
+    assert "AI" in res.json()["detail"]

@@ -22,6 +22,7 @@ from novel2epub.pipeline import (
     step_suggest_chapter,
     step_translate_selected,
 )
+from novel2epub.notes import replace_para, split_paras
 from novel2epub.storage import Storage
 from novel2epub.toc import count_words
 from novel2epub.translator import _filter_glossary
@@ -490,6 +491,31 @@ def api_ebook_chapter_revert_edits(slug: str, index: int):
         )
     storage.write_translated(ch, storage.read_translated_mt(ch))
     return JSONResponse({"reverted": True})
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/para/save")
+def api_ebook_chapter_para_save(
+    slug: str,
+    index: int,
+    para_index: int = Form(...),
+    para_text: str = Form(...),
+    new_text: str = Form(...),
+):
+    """Ghi một đoạn đã sửa tay vào `translated/` — sửa tại chỗ trên trang đọc.
+
+    `para_text` là đoạn gốc lúc mở editor: khớp thì mới ghi (chống ghi đè khi
+    bản dịch đã đổi). KHÔNG đụng snapshot `translated_mt/`.
+    """
+    storage, _manifest, ch = _load_chapter_json_or_404(slug, index)
+    if not storage.has_translated(ch):
+        raise HTTPException(status_code=409, detail="Chương không còn bản dịch.")
+    translated = storage.read_translated(ch)
+    new_translated, err = replace_para(translated, para_index, para_text, new_text)
+    if new_translated is None:
+        raise HTTPException(status_code=409, detail=err)
+    storage.write_translated(ch, new_translated)
+    # Đoạn đã chuẩn hoá (gộp dòng) để client render lại đúng.
+    return JSONResponse({"saved": True, "para": split_paras(new_translated)[para_index]})
 
 
 @router.post("/api/ebooks/{slug}/chapters/{index}/delete-translation")

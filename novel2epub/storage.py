@@ -587,6 +587,124 @@ class Storage:
                 (self.slug, name, source, target, note, row["next_pos"]),
             )
 
+    # ----- glossary: phân trang + thao tác từng mục (trang Glossary web) -----
+    _GLOSS_SORT_COLS = {"source": "source", "target": "target", "note": "note"}
+
+    def count_glossary_entries(self, name: str, query: str = "") -> int:
+        """Đếm số mục trong 1 list, có thể lọc theo `query` (substring trên
+        source/target/note). Dùng cho phân trang server-side."""
+        query = (query or "").strip()
+        if query:
+            like = f"%{query}%"
+            row = self.conn.execute(
+                "SELECT COUNT(*) AS c FROM glossary_entries "
+                "WHERE ebook_slug=? AND list_name=? "
+                "AND (source LIKE ? OR target LIKE ? OR note LIKE ?)",
+                (self.slug, name, like, like, like),
+            ).fetchone()
+        else:
+            row = self.conn.execute(
+                "SELECT COUNT(*) AS c FROM glossary_entries WHERE ebook_slug=? AND list_name=?",
+                (self.slug, name),
+            ).fetchone()
+        return int(row["c"])
+
+    def read_glossary_page(
+        self,
+        name: str,
+        offset: int,
+        limit: int,
+        query: str = "",
+        sort_field: str | None = None,
+        sort_dir: str = "asc",
+    ) -> list[tuple[str, str, str]]:
+        """Một trang glossary `(source, target, note)` qua SQL LIMIT/OFFSET.
+
+        `sort_field` ∈ {source, target, note}; mặc định giữ thứ tự `position`.
+        Sắp xếp COLLATE NOCASE (đủ dùng cho Latin; Hán/Việt so sánh binary)."""
+        col = self._GLOSS_SORT_COLS.get(sort_field or "", "")
+        direction = "DESC" if str(sort_dir).lower() == "desc" else "ASC"
+        order = f"{col} COLLATE NOCASE {direction}, position ASC" if col else f"position {direction}"
+
+        where = "ebook_slug=? AND list_name=?"
+        params: list = [self.slug, name]
+        query = (query or "").strip()
+        if query:
+            like = f"%{query}%"
+            where += " AND (source LIKE ? OR target LIKE ? OR note LIKE ?)"
+            params += [like, like, like]
+        params += [int(limit), int(offset)]
+
+        rows = self.conn.execute(
+            f"SELECT source, target, note FROM glossary_entries WHERE {where} "
+            f"ORDER BY {order} LIMIT ? OFFSET ?",
+            params,
+        ).fetchall()
+        return [(r["source"], r["target"], r["note"]) for r in rows]
+
+    def upsert_glossary_entry(
+        self, source: str, target: str, note: str = "", name: str = "names.txt"
+    ) -> bool:
+        """Thêm/cập nhật MỘT mục (autosave từng dòng). Trim; bỏ qua nếu thiếu
+        source/target. Mục mới nhận position = max+1; trùng source → cập nhật
+        target/note. Trả True nếu có ghi."""
+        source = (source or "").strip()
+        target = (target or "").strip()
+        note = (note or "").strip()
+        if not source or not target:
+            return False
+        self.ensure_dirs()
+        with self.conn:
+            row = self.conn.execute(
+                "SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM glossary_entries "
+                "WHERE ebook_slug=? AND list_name=?",
+                (self.slug, name),
+            ).fetchone()
+            self.conn.execute(
+                """
+                INSERT INTO glossary_entries (ebook_slug, list_name, source, target, note, position)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(ebook_slug, list_name, source) DO UPDATE SET
+                    target = excluded.target, note = excluded.note
+                """,
+                (self.slug, name, source, target, note, row["next_pos"]),
+            )
+        return True
+
+    def delete_glossary_entry(self, source: str) -> bool:
+        """Xoá MỘT mục theo source khỏi CẢ 2 list (names + vietphrase legacy).
+        Trả True nếu có dòng bị xoá."""
+        source = (source or "").strip()
+        if not source:
+            return False
+        with self.conn:
+            cur = self.conn.execute(
+                "DELETE FROM glossary_entries WHERE ebook_slug=? AND source=? "
+                "AND list_name IN ('names.txt', 'vietphrase.txt')",
+                (self.slug, source),
+            )
+        return cur.rowcount > 0
+
+    def consolidate_glossary(self) -> bool:
+        """Gộp vietphrase.txt (legacy) vào names.txt (names thắng khi trùng) rồi
+        xoá sạch vietphrase.txt — để phân trang chỉ cần quét names.txt. Idempotent;
+        chỉ ghi khi vietphrase còn dữ liệu. Trả True nếu có consolidate."""
+        if not self.read_glossary_entries("vietphrase.txt"):
+            return False
+        self.write_glossary_entries("names.txt", self.read_glossary_entries_merged())
+        self.write_glossary_entries("vietphrase.txt", [])
+        return True
+
+    def clean_glossary(self) -> tuple[int, int]:
+        """Dọn toàn bộ glossary: trim, bỏ mục thiếu Hán/Việt, dedup theo source
+        (mục sau thắng), gộp về names.txt và xoá vietphrase.txt. Trả (trước, sau)."""
+        before = self.count_glossary_entries("names.txt") + self.count_glossary_entries(
+            "vietphrase.txt"
+        )
+        self.write_glossary_entries("names.txt", self.read_glossary_entries_merged())
+        self.write_glossary_entries("vietphrase.txt", [])
+        return before, self.count_glossary_entries("names.txt")
+
     # ----- ghi chú lỗi dịch (trang đọc) -----
     def read_notes(self) -> list[dict]:
         rows = self.conn.execute(

@@ -3,7 +3,7 @@
 {% block content %}
 <p><a href="/ebooks/{{ slug }}" class="text-brand-600 dark:text-brand-400 hover:underline">&larr; Quay lại ebook</a></p>
 <h2 class="text-xl font-semibold mt-3 mb-1">Glossary</h2>
-<p class="text-sm text-fg-muted dark:text-fg-muted-dark mb-3">Bảng đồng bộ cách dịch tên riêng / thuật ngữ xuyên suốt truyện. Mỗi mục có <strong>Hán</strong>, <strong>Việt</strong> và <strong>ghi chú</strong> tuỳ chọn (mục có ghi chú sẽ tự sinh footnote ở lần xuất hiện đầu tiên mỗi chương khi build EPUB). Sửa trực tiếp trong bảng rồi bấm <strong>Lưu tất cả</strong>.</p>
+<p class="text-sm text-fg-muted dark:text-fg-muted-dark mb-3">Bảng đồng bộ cách dịch tên riêng / thuật ngữ xuyên suốt truyện. Mỗi mục có <strong>Hán</strong>, <strong>Việt</strong> và <strong>ghi chú</strong> tuỳ chọn (mục có ghi chú sẽ tự sinh footnote ở lần xuất hiện đầu tiên mỗi chương khi build EPUB). Sửa trực tiếp trong bảng — mỗi mục <strong>tự lưu</strong> khi bạn rời ô.</p>
 
 {% if conflicts_count and conflicts_count > 0 %}
 <div class="mb-3 px-3 py-2 rounded-lg bg-status-warn-light dark:bg-status-warn-dark border border-status-warn-light dark:border-status-warn-dark text-status-warn-fg dark:text-status-warn-fg-dark text-sm">
@@ -17,12 +17,12 @@
     <input id="gloss-search" type="search" placeholder="Tìm Hán / Việt / ghi chú…" autocomplete="off"
         class="input input-sm w-64">
     <span id="gloss-count" class="text-sm text-fg-muted dark:text-fg-muted-dark"></span>
+    <span class="text-xs text-fg-muted dark:text-fg-muted-dark">Sửa trực tiếp — tự lưu khi rời ô.</span>
     <div class="ml-auto flex flex-wrap gap-2">
         <button type="button" id="btn-add" class="btn btn-sm btn-secondary">+ Thêm mục</button>
         <button type="button" id="btn-clean" class="btn btn-sm btn-secondary" title="Trim khoảng trắng, bỏ dòng thiếu Hán/Việt, gộp trùng.">Dọn dữ liệu</button>
         <button type="button" id="btn-export" class="btn btn-sm btn-secondary">Xuất cho AI xử lý</button>
         <button type="button" id="btn-import" class="btn btn-sm btn-secondary">Nhập từ AI</button>
-        <button type="button" id="btn-save" class="btn btn-sm btn-primary">Lưu tất cả</button>
     </div>
 </div>
 
@@ -41,6 +41,22 @@
     </table>
 </div>
 <p id="gloss-empty" class="hidden text-sm text-fg-muted dark:text-fg-muted-dark py-6 text-center">Không có mục nào khớp.</p>
+
+<!-- Phân trang -->
+<div id="gloss-pager" class="flex flex-wrap items-center gap-2 mt-3 text-sm">
+    <button type="button" id="pg-prev" class="btn btn-sm btn-secondary">← Trước</button>
+    <span id="pg-info" class="text-fg-muted dark:text-fg-muted-dark"></span>
+    <button type="button" id="pg-next" class="btn btn-sm btn-secondary">Sau →</button>
+    <label class="ml-auto flex items-center gap-1 text-fg-muted dark:text-fg-muted-dark">
+        Mỗi trang
+        <select id="pg-size" class="select select-sm">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+        </select>
+    </label>
+</div>
 
 <!-- Modal: sửa tên & áp dụng lại bản dịch cũ -->
 <div id="reapply-modal" class="modal-backdrop" hidden>
@@ -77,47 +93,30 @@
 
 <script>
 const GLOSSARY_SLUG = {{ slug | tojson }};
-const INITIAL_ENTRIES = (function () {
-    const entries = {{ entries | tojson }};
-    return entries.map((e, id) => ({ id, source: e.source, target: e.target, note: e.note || "" }));
-})();
 
-let ENTRIES = INITIAL_ENTRIES.slice();
-let nextId = ENTRIES.length;
-let sortField = null;
-let sortDir = 1;
+// Trạng thái phân trang server-side. `q`/`sort`/`dir` gửi cho /glossary/list.
+const state = { page: 1, perPage: 50, q: "", sort: "", dir: 1 };
+let ROWS = [];          // các mục của TRANG hiện tại (server trả về)
+let total = 0, pages = 1;
 
 const body = document.getElementById("gloss-body");
 const searchInput = document.getElementById("gloss-search");
 const countLabel = document.getElementById("gloss-count");
 const emptyMsg = document.getElementById("gloss-empty");
+const pgPrev = document.getElementById("pg-prev");
+const pgNext = document.getElementById("pg-next");
+const pgInfo = document.getElementById("pg-info");
+const pgSize = document.getElementById("pg-size");
 
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ "&": "\x26amp;", "<": "\x26lt;", ">": "\x26gt;", '"': "\x26quot;", "'": "\x26#039;" }[c]));
 }
 
-function visibleEntries() {
-    const q = searchInput.value.trim().toLowerCase();
-    let rows = ENTRIES.filter(e => {
-        if (!q) return true;
-        return (e.source + " " + e.target + " " + e.note).toLowerCase().includes(q);
-    });
-    if (sortField) {
-        rows = rows.slice().sort((a, b) => {
-            const av = (a[sortField] || "").toString();
-            const bv = (b[sortField] || "").toString();
-            return av.localeCompare(bv, "vi") * sortDir;
-        });
-    }
-    return rows;
-}
-
 const inputCls = "w-full bg-transparent border border-transparent hover:border-surface-border dark:hover:border-surface-border-dark focus:border-brand-500 dark:focus:border-brand-500 rounded px-1.5 py-1 text-sm focus:outline-none";
 
 function render() {
-    const rows = visibleEntries();
-    body.innerHTML = rows.map(e => `
-        <tr class="border-t border-surface-border dark:border-surface-border-dark" data-id="${e.id}">
+    body.innerHTML = ROWS.map((e, idx) => `
+        <tr class="border-t border-surface-border dark:border-surface-border-dark transition-colors" data-idx="${idx}">
             <td class="px-2 py-1 align-top"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
             <td class="px-2 py-1 align-top"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
             <td class="px-2 py-1 align-top"><input data-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-fg-muted dark:text-fg-muted-dark"></td>
@@ -126,87 +125,160 @@ function render() {
                 <button type="button" data-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá mục">Xoá</button>
             </td>
         </tr>`).join("");
-    countLabel.textContent = `${rows.length} / ${ENTRIES.length} mục`;
-    emptyMsg.classList.toggle("hidden", rows.length > 0);
+    emptyMsg.classList.toggle("hidden", ROWS.length > 0);
+    renderPager();
 }
 
-function entryById(id) { return ENTRIES.find(e => e.id === Number(id)); }
+function renderPager() {
+    countLabel.textContent = state.q ? `${total} mục khớp "${state.q}"` : `${total} mục`;
+    pgInfo.textContent = `Trang ${state.page}/${pages}`;
+    pgPrev.disabled = state.page <= 1;
+    pgNext.disabled = state.page >= pages;
+}
 
-// Sửa inline: cập nhật object khi input đổi.
+function rowByEl(el) {
+    const tr = el.closest("tr");
+    if (!tr) return null;
+    return ROWS[Number(tr.dataset.idx)] || null;
+}
+
+function flashRow(el, ok) {
+    const tr = el.closest("tr");
+    if (!tr) return;
+    const cls = ok
+        ? ["bg-status-ok-light", "dark:bg-status-ok-dark"]
+        : ["bg-status-err-light", "dark:bg-status-err-dark"];
+    tr.classList.add(...cls);
+    setTimeout(() => tr.classList.remove(...cls), ok ? 500 : 1200);
+}
+
+// Tải TRANG hiện tại từ server (search + sort + pagination đều server-side).
+async function loadPage() {
+    const params = new URLSearchParams({
+        page: state.page, per_page: state.perPage, q: state.q,
+        sort: state.sort || "", dir: state.dir > 0 ? "asc" : "desc",
+    });
+    try {
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/list?${params}`);
+        if (!res.ok) { toast("Không tải được glossary.", "error"); return; }
+        const data = await res.json();
+        ROWS = data.entries.map(e => ({ ...e, _saved: e.source })); // _saved = source đã lưu (để đổi tên)
+        total = data.total; pages = data.pages; state.page = data.page; state.perPage = data.per_page;
+        render();
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+}
+
+// Autosave MỘT mục qua ajax. `row._saved` là source đã lưu (rỗng nếu mục mới).
+async function saveRow(row, el) {
+    const source = (row.source || "").trim();
+    const target = (row.target || "").trim();
+    if (!source || !target) return; // chưa đủ Hán+Việt thì chưa lưu
+    const fd = new FormData();
+    fd.set("source", source);
+    fd.set("target", target);
+    fd.set("note", row.note || "");
+    fd.set("original_source", row._saved || "");
+    try {
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/entry`, { method: "POST", body: fd });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            toast(data.detail || "Lưu mục thất bại.", "error");
+            if (el) flashRow(el, false);
+            return;
+        }
+        const isNew = !row._saved;
+        row._saved = source;
+        if (isNew) { total += 1; renderPager(); }
+        if (el) flashRow(el, true);
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); if (el) flashRow(el, false); }
+}
+
+// Sửa inline: cập nhật object khi gõ; lưu khi rời ô (change).
 body.addEventListener("input", e => {
     const field = e.target.dataset.field;
     if (!field) return;
-    const tr = e.target.closest("tr");
-    const entry = entryById(tr.dataset.id);
-    if (entry) entry[field] = e.target.value;
+    const row = rowByEl(e.target);
+    if (row) row[field] = e.target.value;
+});
+body.addEventListener("change", e => {
+    if (!e.target.dataset.field) return;
+    const row = rowByEl(e.target);
+    if (row) saveRow(row, e.target);
 });
 
 // Nút thao tác trên từng dòng.
-body.addEventListener("click", e => {
+body.addEventListener("click", async e => {
     const btn = e.target.closest("button[data-act]");
     if (!btn) return;
-    const entry = entryById(btn.closest("tr").dataset.id);
-    if (!entry) return;
+    const tr = btn.closest("tr");
+    const row = ROWS[Number(tr.dataset.idx)];
+    if (!row) return;
     if (btn.dataset.act === "delete") {
-        ENTRIES = ENTRIES.filter(x => x.id !== entry.id);
-        render();
+        if (!row._saved) { // mục mới chưa lưu — chỉ bỏ khỏi UI
+            ROWS.splice(Number(tr.dataset.idx), 1);
+            render();
+            return;
+        }
+        if (!window.confirm(`Xoá mục "${row.source}"?`)) return;
+        const fd = new FormData();
+        fd.set("source", row._saved);
+        try {
+            const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/entry/delete`, { method: "POST", body: fd });
+            if (!res.ok) { toast("Xoá thất bại.", "error"); return; }
+            toast("Đã xoá mục.", "success");
+            await loadPage(); // reload trang hiện tại từ DB
+        } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
     } else if (btn.dataset.act === "reapply") {
-        openReapply(entry);
+        openReapply(row);
     }
 });
 
-searchInput.addEventListener("input", render);
+// Tìm kiếm server-side (debounce), reset về trang 1.
+let searchTimer = null;
+searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+        state.q = searchInput.value.trim();
+        state.page = 1;
+        loadPage();
+    }, 250);
+});
 
-// Sort khi click header.
+// Sort server-side khi click header.
 document.querySelectorAll(".gloss-th").forEach(th => {
     th.addEventListener("click", () => {
         const field = th.dataset.sort;
-        if (sortField === field) sortDir = -sortDir; else { sortField = field; sortDir = 1; }
+        if (state.sort === field) state.dir = -state.dir; else { state.sort = field; state.dir = 1; }
         document.querySelectorAll(".sort-ind").forEach(s => s.textContent = "");
-        th.querySelector(".sort-ind").textContent = sortDir > 0 ? "▲" : "▼";
-        render();
+        th.querySelector(".sort-ind").textContent = state.dir > 0 ? "▲" : "▼";
+        state.page = 1;
+        loadPage();
     });
 });
 
+// Phân trang.
+pgPrev.addEventListener("click", () => { if (state.page > 1) { state.page--; loadPage(); } });
+pgNext.addEventListener("click", () => { if (state.page < pages) { state.page++; loadPage(); } });
+pgSize.addEventListener("change", () => { state.perPage = Number(pgSize.value) || 50; state.page = 1; loadPage(); });
+
+// Thêm mục: chèn dòng trống ở đầu trang; tự lưu khi nhập đủ Hán+Việt rồi rời ô.
 document.getElementById("btn-add").addEventListener("click", () => {
-    ENTRIES.unshift({ id: nextId++, source: "", target: "", note: "" });
-    sortField = null;
-    document.querySelectorAll(".sort-ind").forEach(s => s.textContent = "");
+    ROWS.unshift({ source: "", target: "", note: "", _saved: "" });
     render();
     const first = body.querySelector('input[data-field="source"]');
     if (first) first.focus();
 });
 
-document.getElementById("btn-clean").addEventListener("click", () => {
-    const seen = new Map();
-    for (const e of ENTRIES) {
-        e.source = e.source.trim();
-        e.target = e.target.trim();
-        e.note = e.note.trim();
-        if (!e.source || !e.target) continue;
-        seen.set(e.source, e); // dedup theo Hán, mục sau thắng
-    }
-    const before = ENTRIES.length;
-    ENTRIES = Array.from(seen.values());
-    nextId = Math.max(nextId, ...ENTRIES.map(e => e.id)) + 1;
-    render();
-    toast(`Đã dọn: còn ${ENTRIES.length} mục (bỏ ${before - ENTRIES.length}). Nhớ bấm Lưu tất cả.`, "success");
-});
-
-document.getElementById("btn-save").addEventListener("click", async () => {
-    const payload = { entries: [] };
-    for (const e of ENTRIES) {
-        if (!e.source.trim() || !e.target.trim()) continue;
-        payload.entries.push({ source: e.source, target: e.target, note: e.note });
-    }
+// Dọn dữ liệu: chạy trên server (trim, bỏ mục thiếu, dedup) rồi tải lại.
+document.getElementById("btn-clean").addEventListener("click", async () => {
+    if (!window.confirm("Dọn glossary: trim khoảng trắng, bỏ mục thiếu Hán/Việt, gộp trùng. Tiếp tục?")) return;
     try {
-        const res = await fetch(`/ebooks/${GLOSSARY_SLUG}/glossary`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
-        if (!res.ok) { toast("Lưu thất bại.", "error"); return; }
-        toast("Đã lưu glossary.", "success");
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/clean`, { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(data.detail || "Dọn thất bại.", "error"); return; }
+        state.page = 1;
+        await loadPage();
+        toast(`Đã dọn: còn ${data.after} mục (bỏ ${data.removed}).`, "success");
     } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
 });
 
@@ -431,6 +503,6 @@ async function pollStatus() {
 pollStatus();
 setInterval(pollStatus, 2000);
 
-render();
+loadPage();
 </script>
 {% endblock %}

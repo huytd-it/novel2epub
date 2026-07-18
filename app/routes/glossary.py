@@ -36,28 +36,97 @@ def _append_glossary_entry(
     return True
 
 
-def _entries_payload(storage: Storage) -> list[dict]:
-    """Đọc glossary (2 list gộp 1) thành list dict cho data table (giữ ghi chú)."""
-    return [
-        {"source": s, "target": t, "note": n}
-        for s, t, n in storage.read_glossary_entries_merged()
-    ]
-
-
 @router.get("/ebooks/{slug}/glossary")
 def ebook_glossary(request: Request, slug: str):
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    # Trang tải dữ liệu theo trang qua ajax (/glossary/list) — không nhúng toàn
+    # bộ mục vào HTML nữa.
     return deps.templates.TemplateResponse(
         request,
         "glossary.html",
         {
             "slug": slug,
-            "entries": _entries_payload(storage),
             "job": request.app.state.job.status(),
             "conflicts_count": _conflicts_count(storage),
         },
     )
+
+
+@router.get("/api/ebooks/{slug}/glossary/list")
+def ebook_glossary_list(
+    slug: str,
+    page: int = 1,
+    per_page: int = 50,
+    q: str = "",
+    sort: str = "",
+    dir: str = "asc",
+):
+    """Một trang glossary (server-side pagination + search + sort). Consolidate
+    vietphrase legacy vào names.txt trước để chỉ cần quét 1 list."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    storage.consolidate_glossary()
+
+    per_page = max(1, min(int(per_page), 500))
+    total = storage.count_glossary_entries("names.txt", q)
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = max(1, min(int(page), pages))
+    offset = (page - 1) * per_page
+    rows = storage.read_glossary_page("names.txt", offset, per_page, q, sort, dir)
+    return JSONResponse(
+        {
+            "entries": [{"source": s, "target": t, "note": n} for s, t, n in rows],
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": pages,
+        }
+    )
+
+
+@router.post("/api/ebooks/{slug}/glossary/entry")
+def ebook_glossary_upsert_entry(
+    slug: str,
+    source: str = Form(...),
+    target: str = Form(...),
+    note: str = Form(""),
+    original_source: str = Form(""),
+):
+    """Autosave MỘT mục (thêm hoặc sửa). Nếu `original_source` khác `source`
+    (đổi tên Hán) thì xoá mục cũ trước rồi upsert mục mới."""
+    source, target = source.strip(), target.strip()
+    if not source or not target:
+        raise HTTPException(status_code=400, detail="Cần cả Hán và Việt.")
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    orig = original_source.strip()
+    if orig and orig != source:
+        storage.delete_glossary_entry(orig)
+    storage.upsert_glossary_entry(source, target, note)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/ebooks/{slug}/glossary/entry/delete")
+def ebook_glossary_delete_entry(slug: str, source: str = Form(...)):
+    """Xoá MỘT mục glossary khỏi DB ngay (persist), dùng bởi nút Xoá trên bảng."""
+    source = source.strip()
+    if not source:
+        raise HTTPException(status_code=400, detail="Thiếu mục cần xoá.")
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    storage.delete_glossary_entry(source)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/ebooks/{slug}/glossary/clean")
+def ebook_glossary_clean(slug: str):
+    """Dọn dữ liệu toàn glossary (trim, bỏ mục thiếu, dedup theo source) trên
+    server. Trả `{before, after, removed}`."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    before, after = storage.clean_glossary()
+    return JSONResponse({"before": before, "after": after, "removed": before - after})
 
 
 @router.post("/ebooks/{slug}/glossary")

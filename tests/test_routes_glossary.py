@@ -148,6 +148,104 @@ def test_save_glossary_json_writes_single_list_and_consolidates(tmp_path, monkey
     assert storage.read_glossary_entries("vietphrase.txt") == []
 
 
+# ----- route: phân trang + autosave từng mục (data table server-side) -----
+
+def test_list_paginates_and_reports_total(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_entries(
+        "names.txt", [(f"S{i:03d}", f"T{i}", "") for i in range(25)]
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.get("/api/ebooks/t/glossary/list", params={"page": 2, "per_page": 10})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total"] == 25
+    assert data["pages"] == 3
+    assert data["page"] == 2
+    assert len(data["entries"]) == 10
+    assert data["entries"][0]["source"] == "S010"
+
+
+def test_list_search_and_consolidates_legacy(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n")
+    storage.write_glossary_file("vietphrase.txt", "斗气 = Đấu khí\n")
+    client = _client(cfg, monkeypatch)
+
+    res = client.get("/api/ebooks/t/glossary/list", params={"q": "Đấu"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total"] == 1
+    assert data["entries"][0]["source"] == "斗气"
+    # Legacy list được consolidate vào names.txt sau khi list.
+    assert storage.read_glossary_entries("vietphrase.txt") == []
+
+
+def test_upsert_entry_inserts_then_renames(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    client = _client(cfg, monkeypatch)
+
+    # Insert mới (original_source rỗng).
+    res = client.post(
+        "/api/ebooks/t/glossary/entry",
+        data={"source": "张三", "target": "Trương Tam", "note": "nv"},
+    )
+    assert res.status_code == 200
+    assert storage.read_glossary_entries("names.txt") == [("张三", "Trương Tam", "nv")]
+
+    # Đổi tên source: original_source cũ bị xoá, chỉ còn source mới.
+    res = client.post(
+        "/api/ebooks/t/glossary/entry",
+        data={"source": "李四", "target": "Lý Tứ", "original_source": "张三"},
+    )
+    assert res.status_code == 200
+    assert storage.read_glossary_entries("names.txt") == [("李四", "Lý Tứ", "")]
+
+
+def test_upsert_entry_rejects_blank(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    client = _client(cfg, monkeypatch)
+    res = client.post("/api/ebooks/t/glossary/entry", data={"source": "张三", "target": "   "})
+    assert res.status_code == 400
+
+
+def test_delete_entry_removes_from_db(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n斗气 = Đấu khí\n")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/entry/delete", data={"source": "萧炎"})
+    assert res.status_code == 200
+    assert storage.read_glossary_entries("names.txt") == [("斗气", "Đấu khí", "")]
+
+
+def test_clean_reports_removed_count(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    # 1 mục hợp lệ trong names + 1 dòng thiếu Việt sẽ bị dọn + 1 legacy trùng.
+    storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n斗气 = Đấu khí\n")
+    storage.write_glossary_file("vietphrase.txt", "萧炎 = trùng\n")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/clean")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["before"] == 3
+    assert data["after"] == 2
+    assert data["removed"] == 1
+    assert storage.read_glossary_entries("vietphrase.txt") == []
+
+
 # ----- route: nhập glossary từ AI (merge) -----
 
 def test_import_glossary_merges(tmp_path, monkeypatch):

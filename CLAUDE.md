@@ -29,7 +29,7 @@ pytest tests/ -v                             # run tests
 ## Architecture
 
 - `crawler.py` — 3 engines: `http` (requests+BS4), `crawl4ai` (Playwright), `firecrawl` (API)
-- `translator.py` — 4 backends: `openai` (OpenAI-Compatible HTTP API via `openai_client.py` — OpenAI, OpenRouter, Ollama, LM Studio, vLLM, llama.cpp server...), `google`, `moxhimt` (local NMT, CTranslate2 — runs offline, no API), `none`
+- `translator.py` — 4 backends: `openai` (OpenAI-Compatible HTTP API via `openai_client.py` — OpenAI, OpenRouter, Ollama, LM Studio, vLLM, llama.cpp server...), `google`, `moxhimt` (local NMT, CTranslate2 — runs offline, no API), `none`. Vietnamese-source novels (no translation needed): `translate.source_language: vi` forces `NoopTranslator` regardless of `type` — translate step copies raw verbatim into `translated/`+`translated_mt/` (so build/editor still work), title paths (Dịch TOC / dịch lại tiêu đề) are skipped via `pipeline._translate_is_noop`; UI option "Việt (không cần dịch)" in Settings→Dịch.
 - `config.py` — YAML config with dataclass models, preset merging, validation
 - `pipeline.py` — Orchestrates crawl → translate → build + AI actions (review/suggest/rewrite/evaluate)
 - `epub_builder.py` — EPUB via ebooklib with glossary footnotes

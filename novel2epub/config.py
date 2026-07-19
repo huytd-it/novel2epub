@@ -358,6 +358,11 @@ class TranslateConfig:
     # Tự động chạy cleanup Hán sau mỗi chương được dịch (gọi AI qua config
     # AI biên tập ai.openai — hoạt động với mọi backend dịch).
     auto_cleanup_han: bool = False
+    # AI glossary analysis per-ebook (opt-in, makes translation slower).
+    # When True: run AI glossary extraction/merge/cleanup/eval per chapter.
+    # When False: use glossary as-is (fast path). Typically enabled only for
+    # new domains not yet in source presets.
+    ai_glossary_analysis: bool = False
     # Cấu hình cleanup Hán.
     cleanup_han: CleanupHanConfig = field(default_factory=CleanupHanConfig)
 
@@ -808,6 +813,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         batch_size=int(translate_raw.get("batch_size", 1)),
         prompt_max_chars=int(translate_raw.get("prompt_max_chars", 20000)),
         auto_cleanup_han=bool(translate_raw.get("auto_cleanup_han", False)),
+        ai_glossary_analysis=bool(translate_raw.get("ai_glossary_analysis", False)),
         cleanup_han=CleanupHanConfig(
             max_chars=int(cleanup_han_raw.get("max_chars", CleanupHanConfig.max_chars)),
             retries=int(cleanup_han_raw.get("retries", CleanupHanConfig.retries)),

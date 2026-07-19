@@ -35,8 +35,9 @@
                 class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if cfg.translate.source_language %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
                 <option value="" {% if not cfg.translate.source_language %}selected{% endif %}>Trung (mặc định)</option>
                 <option value="en" {% if cfg.translate.source_language == 'en' %}selected{% endif %}>Anh</option>
+                <option value="vi" {% if cfg.translate.source_language == 'vi' %}selected{% endif %}>Việt (không cần dịch)</option>
             </select>
-            <span class="text-xs italic text-muted-light dark:text-muted-dark">EN = nguồn là bản dịch Anh, chỉ dùng backend openai</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">EN = nguồn là bản dịch Anh, chỉ dùng backend openai · VI = truyện tiếng Việt, bước dịch chỉ copy nguyên văn (không gọi AI)</span>
         </label>
     </div>
 </details>

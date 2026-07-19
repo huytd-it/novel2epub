@@ -122,6 +122,7 @@ def start_ebook_chapter_action(
 
     queue = request.app.state.job.queue
     ebook_title = cfg.novel.title or slug
+    enqueued = 0
 
     if action == "crawl":
         # 1 chapter = 1 job
@@ -149,6 +150,7 @@ def start_ebook_chapter_action(
                 ebook=slug, lock_ebook=False, chapter_indexes=[idx],
                 cancel_event=cancel_event,
             )
+            enqueued += 1
 
     elif action == "translate":
         index_to_chapter = {ch.index: ch for ch in manifest.chapters}
@@ -177,6 +179,7 @@ def start_ebook_chapter_action(
                 ebook=slug, lock_ebook=False, chapter_indexes=[idx],
                 cancel_event=cancel_event,
             )
+            enqueued += 1
 
     elif action == "cleanup-han":
         batch_cleanup = override and (request.form.get("batch_cleanup") == "1")
@@ -197,6 +200,7 @@ def start_ebook_chapter_action(
                 ebook=slug, lock_ebook=False, chapter_indexes=selected,
                 cancel_event=cancel_event,
             )
+            enqueued += 1
         else:
             index_to_chapter = {ch.index: ch for ch in manifest.chapters}
             for idx in selected:
@@ -218,9 +222,17 @@ def start_ebook_chapter_action(
                     ebook=slug, lock_ebook=False, chapter_indexes=[idx],
                     cancel_event=cancel_event,
                 )
+                enqueued += 1
 
     else:
         raise HTTPException(status_code=400, detail=f"action không hợp lệ: {action!r}")
+
+    if enqueued == 0:
+        noun = {"crawl": "chương cần crawl", "translate": "chương cần dịch"}.get(action, "chương")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tất cả {len(selected)} {noun} đã có dữ liệu. Tick 'Ghi đè' để chạy lại.",
+        )
 
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 

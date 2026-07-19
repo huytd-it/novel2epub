@@ -212,3 +212,22 @@ if (!document.getElementById('lucide-sprite')) {
     `;
     document.body.appendChild(sprite);
 }
+
+// --- Soft reload helpers ----------------------------------------------------
+// Fetch current page and swap <main> content without full navigation.
+// Preserves scroll, JS state (scripts outside <main> don't re-execute).
+async function softReload() {
+    const res = await fetch(window.location.href);
+    const text = await res.text();
+    swapContent(text);
+}
+function swapContent(text) {
+    const doc = new DOMParser().parseFromString(text, "text/html");
+    const main = document.querySelector("main");
+    const freshMain = doc.querySelector("main");
+    if (main && freshMain) {
+        main.innerHTML = freshMain.innerHTML;
+    }
+    if (window.initDataTablesIn) window.initDataTablesIn(document.querySelector("main"));
+    if (window.lucide) lucide.createIcons();
+}

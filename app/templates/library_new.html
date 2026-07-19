@@ -116,6 +116,7 @@
         <input type="hidden" name="description" id="description">
         <input type="hidden" name="cover_url" id="cover_url">
         <input type="hidden" name="toc_url" id="toc_url">
+        <input type="hidden" name="ai_glossary_analysis" id="ai_glossary_analysis" value="">
 
         <div class="step-panel" data-step="1">
             <fieldset class="bg-surface-muted/50 dark:bg-surface-muted-dark/50 rounded-xl">
@@ -219,6 +220,15 @@
                             <td class="pv-cell-label">AI biên tập</td>
                             <td class="pv-cell-value">{{ cfg.ai.openai.model }} @ {{ cfg.ai.openai.base_url|short_host }} · tự xoá Hán sót: {{ "bật" if cfg.translate.auto_cleanup_han else "tắt" }}</td>
                         </tr>
+                        <tr id="ai-glossary-row" style="display:none">
+                            <td class="pv-cell-label">AI phân tích glossary</td>
+                            <td class="pv-cell-value">
+                                <label class="inline-flex items-center gap-2">
+                                    <input type="checkbox" id="ai-glossary-checkbox">
+                                    <span id="ai-glossary-label">Bật AI phân tích glossary (chậm, chỉ dùng cho domain mới)</span>
+                                </label>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
                 <p class="text-xs text-fg-muted dark:text-fg-muted-dark mb-0">Ebook mới chưa có cấu hình dịch/AI riêng nên dùng config chung ở trên. Sau khi tạo, chỉnh riêng cho truyện này trong tab Dịch / AI biên tập của Cài đặt — không ảnh hưởng truyện khác.</p>
@@ -284,6 +294,10 @@ document.addEventListener("DOMContentLoaded", function () {
     var pvTitleInput = document.getElementById("pv-title-input");
     var pvAuthorInput = document.getElementById("pv-author-input");
     var pvDescInput = document.getElementById("pv-desc-input");
+    var aiGlossaryRow = document.getElementById("ai-glossary-row");
+    var aiGlossaryCheckbox = document.getElementById("ai-glossary-checkbox");
+    var aiGlossaryLabel = document.getElementById("ai-glossary-label");
+    var aiGlossaryInput = document.getElementById("ai_glossary_analysis");
 
     slugEl.value = "truyen-" + (EBOOK_COUNT + 1);
 
@@ -440,6 +454,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (data.crawl_preview) renderCrawlPreview(data.crawl_preview, data.source || "");
 
+            // AI glossary analysis: show checkbox, default OFF for known sources
+            aiGlossaryRow.style.display = "";
+            if (data.source) {
+                // Known source preset — default OFF, show message
+                aiGlossaryCheckbox.checked = false;
+                if (data.ai_glossary_enabled) {
+                    aiGlossaryLabel.textContent = "Nguồn '" + data.source + "' có cấu hình AI glossary — không cần bật riêng (mặc định tắt)";
+                } else {
+                    aiGlossaryLabel.textContent = "Nguồn '" + data.source + "' đã có preset — bỏ qua AI glossary (mặc định tắt)";
+                }
+            } else {
+                // New domain — offer AI analysis
+                aiGlossaryCheckbox.checked = false;
+                aiGlossaryLabel.textContent = "Domain mới — bật AI phân tích glossary để tự động trích xuất thuật ngữ (chậm hơn khi dịch)";
+            }
+            aiGlossaryInput.value = aiGlossaryCheckbox.checked ? "on" : "";
+
             previewBox.style.display = "";
             previewPlaceholder.style.display = 'none';
             fetchStatus.textContent = "✅ Đã lấy thông tin";
@@ -450,6 +481,10 @@ document.addEventListener("DOMContentLoaded", function () {
         } finally {
             previewBtn.disabled = false;
         }
+    });
+
+    aiGlossaryCheckbox.addEventListener("change", function () {
+        aiGlossaryInput.value = aiGlossaryCheckbox.checked ? "on" : "";
     });
 
     form.addEventListener("submit", function (e) {

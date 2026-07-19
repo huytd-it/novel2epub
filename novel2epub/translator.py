@@ -841,6 +841,10 @@ def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = No
     glossary được đọc thẳng từ DB (nguồn auto-glossary/trang Glossary ghi)
     thay vì suy path, xem load_glossary_dict."""
     kind = (cfg.type or "none").lower()
+    # Nguồn đã là tiếng Việt (truyện VN crawl về) — không cần dịch, giữ nguyên
+    # bản gốc bất kể type là gì (không load model/gọi API).
+    if (cfg.source_language or "").strip().lower() == "vi":
+        return NoopTranslator()
     if kind == "openai":
         return OpenAITranslator(cfg, log=log, storage=storage)
     if kind == "google":

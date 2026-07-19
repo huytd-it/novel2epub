@@ -784,8 +784,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         try {
             await api(`/api/ebooks/${encodeURIComponent(SLUG)}/notes/${note.id}/apply`, new FormData());
             toast('Đã áp dụng bản sửa', 'success');
-            // Reload để đoạn văn server-side render lại; vị trí cuộn đã có scroll-restore.
-            location.reload();
+            softReload();
         } catch (e) {
             btn.disabled = false;
             toast(e.message, 'error');

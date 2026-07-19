@@ -61,6 +61,9 @@ defaults:
 
   translate:
     type: hachimimt            # hachimimt | openai | google | none
+    # Nguồn tiếng Việt (truyện VN, không cần dịch): source_language: vi
+    # → bước dịch chỉ copy nguyên văn raw → translated, không gọi AI/model.
+    # source_language: ""       # "" = Trung (mặc định) | en | vi
     style:
       tone: "mượt, tự nhiên, có chất cổ trang"
       pronoun_policy: contextual

@@ -62,6 +62,14 @@ class SourcePreset:
     search_link_selector: str = ""
     search_cover_selector: str = ""
     max_search_results: int = 5
+    # ----- AI glossary/analysis configuration -----
+    ai_glossary_enabled: bool = False
+    ai_glossary_extract_prompt: str = ""
+    ai_glossary_merge_prompt: str = ""
+    ai_cleanup_enabled: bool = False
+    ai_cleanup_prompt: str = ""
+    ai_eval_enabled: bool = False
+    ai_eval_prompt: str = ""
 
     def crawl_overrides(self) -> dict[str, Any]:
         """Dict áp lên nhánh `crawl` của config (bỏ name, url, domains,
@@ -75,6 +83,9 @@ class SourcePreset:
             "author_selector", "desc_selector", "cover_selector",
             "encoding", "user_agent", "magic", "js_code",
             "max_search_results",
+            "ai_glossary_enabled", "ai_glossary_extract_prompt", "ai_glossary_merge_prompt",
+            "ai_cleanup_enabled", "ai_cleanup_prompt",
+            "ai_eval_enabled", "ai_eval_prompt",
         }
         for key in _source_only:
             data.pop(key, None)
@@ -125,7 +136,7 @@ _FIELD_NAMES = {f.name for f in fields(SourcePreset)}
 
 
 def _coerce(name: str, value: Any) -> Any:
-    if name in {"headless", "magic", "solve_cloudflare", "network_idle", "dns_over_https"}:
+    if name in {"headless", "magic", "solve_cloudflare", "network_idle", "dns_over_https", "ai_glossary_enabled", "ai_cleanup_enabled", "ai_eval_enabled"}:
         return bool(value)
     if name == "delay_seconds":
         try:

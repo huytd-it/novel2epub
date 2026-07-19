@@ -355,7 +355,7 @@
 {% block scripts %}
 <script>
 const SLUG = {{ slug | tojson }};
-const CHAPTERS_DATA = {{ chapters_json | tojson }};
+let CHAPTERS_DATA = {{ chapters_json | tojson }};
 let wasRunning = {
     crawl: {{ "true" if job.crawl.running else "false" }},
     translate: {{ "true" if job.translate.running else "false" }},
@@ -364,6 +364,13 @@ let lastStatusData = {
     crawl: { running: wasRunning.crawl, running_ebooks: {{ job.crawl.running_ebooks | tojson }} },
     translate: { running: wasRunning.translate, running_ebooks: {{ job.translate.running_ebooks | tojson }} },
 };
+async function ebookSoftReload() {
+    const res = await fetch(window.location.href);
+    const text = await res.text();
+    const m = text.match(/let CHAPTERS_DATA = (\[[\s\S]*?\]);/);
+    if (m) { CHAPTERS_DATA = JSON.parse(m[1]); }
+    renderToc();
+}
 let searchTimer = null;
 let pendingFetchToc = false;
 let pendingReindex = false;
@@ -663,6 +670,8 @@ document.addEventListener("submit", async function(event) {
         }
 
         if (form.classList && form.classList.contains("selected-action-form")) {
+            // Xóa hidden inputs động từ lần submit trước (tránh duplicate)
+            form.querySelectorAll('input.js-dyn').forEach(el => el.remove());
             if (form.classList.contains("batch-form")) {
                 const indexes = [];
                 for (const cb of document.querySelectorAll(".chapter-check:checked")) {
@@ -682,6 +691,7 @@ document.addEventListener("submit", async function(event) {
                     h.type = "hidden";
                     h.name = "checked_indexes";
                     h.value = cb.value;
+                    h.className = "js-dyn";
                     form.appendChild(h);
                 }
             }
@@ -691,6 +701,7 @@ document.addEventListener("submit", async function(event) {
                 h.type = "hidden";
                 h.name = "override";
                 h.value = "true";
+                h.className = "js-dyn";
                 form.appendChild(h);
             }
             // Đồng bộ giá trị backend dropdown vào hidden input của form (nếu có).
@@ -710,18 +721,19 @@ document.addEventListener("submit", async function(event) {
                     h.type = "hidden";
                     h.name = f;
                     h.value = src.value;
+                    h.className = "js-dyn";
                     form.appendChild(h);
                 }
             }
         }
 
         if (action.endsWith("reorder")) {
-            // Gửi thứ tự hiển thị hiện tại (đã sort/filter) để server reorder + reindex
             const data = getFilteredData();
             const h = document.createElement("input");
             h.type = "hidden";
             h.name = "ordered_indexes";
             h.value = data.map(ch => ch.index).join(",");
+            h.className = "js-dyn";
             form.appendChild(h);
         }
 
@@ -834,7 +846,7 @@ async function poll() {
         }
 
         if (anyJustFinished) {
-            location.reload();
+            ebookSoftReload();
             return;
         }
     } catch (e) {
@@ -962,7 +974,7 @@ document.getElementById("btn-import-chapters")?.addEventListener("click", () => 
             if (data.glossary_added) parts.push(`thêm ${data.glossary_added} mục glossary`);
             win.alert(parts.join(", ") + ".");
             win.close();
-            window.location.reload();
+            if (window.opener) window.opener.ebookSoftReload();
         } catch (err) { win.alert("Lỗi kết nối mạng."); importBtn.disabled = false; }
     });
     actions.appendChild(fileInput);

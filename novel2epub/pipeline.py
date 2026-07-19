@@ -105,6 +105,9 @@ def _emit_translate_config(cfg: Config, log: LogFn, *, feature: str = "DỊCH") 
             f"| timeout={t.openai.timeout_seconds}s")
     elif t.type.lower() == "none":
         log(f"[config] {feature}: type=none — KHÔNG gọi AI, giữ nguyên bản gốc.")
+    if (t.source_language or "").strip().lower() == "vi":
+        log(f"[config] {feature}: source_language=vi — truyện tiếng Việt, "
+            f"KHÔNG cần dịch, giữ nguyên bản gốc.")
     s = t.style
     log(f"[config] {feature} style: tone={s.tone!r} | pronoun_policy={s.pronoun_policy} "
         f"| han_viet_level={s.han_viet_level} | title_mode={s.title_mode} "
@@ -254,6 +257,13 @@ def _apply_default_crawl_limit(cfg: Config, selected: list[Chapter], start: int 
     if limit and limit > 0:
         return selected[:limit]
     return selected
+
+
+def _translate_is_noop(t) -> bool:
+    """True khi bước dịch chỉ copy nguyên văn (không gọi AI/model nào):
+    translate.type=none, hoặc nguồn đã là tiếng Việt (source_language=vi —
+    truyện VN crawl về, không cần dịch)."""
+    return t.type.lower() == "none" or (t.source_language or "").strip().lower() == "vi"
 
 
 def _resolve_translator_model(cfg: Config) -> str:
@@ -992,7 +1002,7 @@ def step_translate_selected(
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
 
     translator = RateLimited(make_translator(cfg.translate, log, storage=storage), cfg.translate.delay_seconds)
-    is_noop = cfg.translate.type.lower() == "none"
+    is_noop = _translate_is_noop(cfg.translate)
     inner_glossary = getattr(getattr(translator, "inner", translator), "glossary", None)
     if inner_glossary is not None and not is_noop:
         if inner_glossary:
@@ -1267,6 +1277,10 @@ def step_translate_toc_selected(
     manifest = storage.load_manifest()
     if manifest is None:
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    if _translate_is_noop(cfg.translate):
+        log("[toc] Dịch là noop (type=none hoặc nguồn tiếng Việt) — giữ nguyên tiêu đề, bỏ qua.")
+        return manifest
 
     translator = RateLimited(make_translator(cfg.translate, log, storage=storage), cfg.translate.delay_seconds)
     selected = _chapter_selection(manifest.chapters, None, None, None, selected_indexes)
@@ -1697,6 +1711,11 @@ def step_retranslate_title(
         load_glossary_dict,
         make_translator,
     )
+
+    if _translate_is_noop(cfg.translate):
+        raise RuntimeError(
+            "Dịch là noop (type=none hoặc nguồn tiếng Việt) — không cần dịch lại tiêu đề."
+        )
 
     # Resolve engine (default: cfg.translate.type)
     selected_engine = (engine or cfg.translate.type).lower()

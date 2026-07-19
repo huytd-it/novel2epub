@@ -133,7 +133,7 @@ textarea.jump-flash { outline: 2px solid var(--tw-status-run-fg, #d97706); }
 </style>
 
 <p class="text-sm"><a href="{% if slug %}/ebooks/{{ slug }}{% else %}/{% endif %}" class="text-brand-600 dark:text-brand-400 hover:underline">&larr; Quay lại</a></p>
-<h2 class="text-xl font-semibold mt-2 mb-1">Chương {{ ch.index }}: {{ ch.title }}</h2>
+<h2 id="chapter-title" class="text-xl font-semibold mt-2 mb-1">Chương {{ ch.index }}: {{ ch.title }}</h2>
 {% if ch.title_note %}<p class="text-sm text-fg-muted dark:text-fg-muted-dark">{{ ch.title_note }}</p>{% endif %}
 <p class="text-sm text-fg-muted dark:text-fg-muted-dark"><a href="{{ ch.url }}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline">{{ ch.url }}</a></p>
 {% if ch.missing_fields %}<p class="text-sm text-fg-muted dark:text-fg-muted-dark">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}
@@ -692,7 +692,7 @@ async function poll() {
         }
 
         if (anyJustFinished) {
-            location.reload();
+            softReload();
             return;
         }
     } catch (e) {
@@ -727,7 +727,21 @@ document.getElementById("retranslate-title-btn")?.addEventListener("click", asyn
             return;
         }
         const data = await res.json();
-        location.reload();
+        const titleEl = document.getElementById("chapter-title");
+        if (data.title && titleEl) {
+            titleEl.textContent = "Chương " + CHAPTER_INDEX + ": " + data.title;
+        }
+        if (data.title_note) {
+            let noteEl = document.getElementById("chapter-title-note");
+            if (!noteEl) {
+                noteEl = document.createElement("p");
+                noteEl.id = "chapter-title-note";
+                noteEl.className = "text-sm text-fg-muted dark:text-fg-muted-dark";
+                titleEl?.after(noteEl);
+            }
+            noteEl.textContent = data.title_note;
+        }
+        toast("Đã dịch lại tiêu đề", "success");
     } catch (e) {
         alert("Lỗi kết nối mạng.");
         btn.disabled = false;

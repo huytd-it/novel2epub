@@ -161,8 +161,10 @@ def preview_ebook_api(
             data["source_engine"] = preset.engine
             data["source_content_selector"] = preset.content_selector
             data["source_delay"] = preset.delay_seconds
+            data["ai_glossary_enabled"] = preset.ai_glossary_enabled
         else:
             data["source"] = ""
+            data["ai_glossary_enabled"] = False
         crawl_cfg, _ = _build_meta_crawl_cfg(toc_url, scrapling_mode.strip())
         data["crawl_preview"] = _crawl_preview(crawl_cfg)
         return JSONResponse(data)
@@ -213,7 +215,8 @@ def search_ebooks(
 
 
 def _write_new_ebook(
-    toc_url: str, slug: str, name: str, author: str, scrapling_mode: str = ""
+    toc_url: str, slug: str, name: str, author: str, scrapling_mode: str = "",
+    ai_glossary_analysis: bool = False,
 ) -> dict:
     """Ghi ebook mới (đã có đủ metadata) vào config gộp. Raise HTTPException khi trùng slug.
 
@@ -250,6 +253,12 @@ def _write_new_ebook(
             slug,
             {"crawl": {"scrapling": {"mode": scrapling_mode}}},
         )
+    if ai_glossary_analysis:
+        update_ebook(
+            deps.WORKSPACE_PATH,
+            slug,
+            {"translate": {"ai_glossary_analysis": True}},
+        )
     return {"slug": slug, "name": name}
 
 
@@ -262,6 +271,7 @@ def create_ebook(
     description: str = Form(""),
     cover_url: str = Form(""),
     scrapling_mode: str = Form(""),
+    ai_glossary_analysis: str = Form(""),
 ):
     toc_url = toc_url.strip()
     if not toc_url:
@@ -278,7 +288,9 @@ def create_ebook(
             pass  # fallback: dùng slug từ name trống
 
     result = _write_new_ebook(
-        toc_url, slug, name, author, scrapling_mode=scrapling_mode.strip()
+        toc_url, slug, name, author,
+        scrapling_mode=scrapling_mode.strip(),
+        ai_glossary_analysis=(ai_glossary_analysis == "on"),
     )
     # Metadata phụ đã duyệt ở bước preview (trang Thêm ebook) — lưu luôn để
     # không phải nhập lại trong Settings.

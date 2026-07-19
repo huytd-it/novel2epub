@@ -110,6 +110,14 @@ def save_source_preset(
     dns_over_https: bool = Form(False),
     concurrency_cap: int = Form(0),
     strip_patterns: str = Form(""),
+    # AI glossary/analysis
+    ai_glossary_enabled: bool = Form(False),
+    ai_glossary_extract_prompt: str = Form(""),
+    ai_glossary_merge_prompt: str = Form(""),
+    ai_cleanup_enabled: bool = Form(False),
+    ai_cleanup_prompt: str = Form(""),
+    ai_eval_enabled: bool = Form(False),
+    ai_eval_prompt: str = Form(""),
 ):
     name = name.strip()
     strip_list = [line.strip() for line in strip_patterns.splitlines() if line.strip()]
@@ -143,6 +151,13 @@ def save_source_preset(
             dns_over_https=dns_over_https,
             concurrency_cap=max(0, concurrency_cap),
             strip_patterns=strip_list,
+            ai_glossary_enabled=ai_glossary_enabled,
+            ai_glossary_extract_prompt=ai_glossary_extract_prompt,
+            ai_glossary_merge_prompt=ai_glossary_merge_prompt,
+            ai_cleanup_enabled=ai_cleanup_enabled,
+            ai_cleanup_prompt=ai_cleanup_prompt,
+            ai_eval_enabled=ai_eval_enabled,
+            ai_eval_prompt=ai_eval_prompt,
         )
         if user_agent.strip():
             kwargs["user_agent"] = user_agent

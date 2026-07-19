@@ -181,7 +181,9 @@ function uploadCover(slug) {
     fetch("/ebooks/" + slug + "/settings/cover-upload", { method: "POST", body: fd })
         .then(r => {
             if (r.ok || r.redirected) {
-                window.location.reload();
+                const img = document.querySelector(".cover-preview img") || document.querySelector('img[alt="Ảnh bìa"]');
+                if (img) img.src = "/ebooks/" + slug + "/cover?" + Date.now();
+                if (status) { status.textContent = "Đã tải lên"; status.className = "text-sm text-green-600 dark:text-green-400"; }
             } else {
                 if (status) { status.textContent = "Lỗi tải lên"; status.className = "text-sm text-red-600 dark:text-red-400"; }
             }
@@ -211,7 +213,7 @@ function resetConfigSection(url, msg) {
     if (status) { status.textContent = "Đang reset..."; status.className = "text-sm text-amber-600 dark:text-amber-400"; }
     fetch(url, { method: "POST" })
         .then(r => {
-            if (r.ok || r.redirected) { window.location.reload(); }
+            if (r.ok || r.redirected) { softReload(); }
             else if (status) { status.textContent = "Lỗi reset"; status.className = "text-sm text-red-600 dark:text-red-400"; }
         })
         .catch(() => {

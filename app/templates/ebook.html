@@ -526,7 +526,7 @@ function buildChapterRow(ch, newIndex) {
     return `<tr data-index="${ch.index}" ${ch.skipped ? 'class="opacity-50"' : ''}>
         <td class="px-3 py-2"><input type="checkbox" class="chapter-check rounded border-surface-border dark:border-surface-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
         <td class="px-3 py-2 font-mono text-fg-muted dark:text-fg-muted-dark">${indexCell}</td>
-        <td class="px-3 py-2 overflow-hidden"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline truncate block" title="${escapeHtml(ch.visible_title)}">${escapeHtml(ch.visible_title)}</a></td>
+        <td class="px-3 py-2 overflow-hidden" data-editable-title data-index="${ch.index}"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline truncate block" title="${escapeHtml(ch.visible_title)}">${escapeHtml(ch.visible_title)}</a></td>
         <td class="px-3 py-2 font-mono tabular-nums">${ch.has_raw ? (ch.zh_char_count ?? 0) : '-'}</td>
         <td class="px-3 py-2 font-mono tabular-nums">${ch.has_translated ? ch.word_count : '-'}</td>
         <td class="px-3 py-2 text-fg-muted dark:text-fg-muted-dark text-xs">${hasMissing ? ch.missing_fields.join(', ') : '-'}</td>
@@ -993,6 +993,46 @@ document.getElementById("btn-import-chapters")?.addEventListener("click", () => 
     main.appendChild(actions); main.appendChild(ta);
     win.document.body.appendChild(main);
     ta.focus();
+});
+
+// Inline title edit on double-click
+document.addEventListener("dblclick", (e) => {
+    const td = e.target.closest("td[data-editable-title]");
+    if (!td || td.querySelector("input")) return;
+    const index = parseInt(td.dataset.index);
+    const ch = CHAPTERS_DATA.find(c => c.index === index);
+    if (!ch) return;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = ch.visible_title;
+    input.className = "input input-sm w-full";
+    input.style.cssText = "font-size:inherit;padding:0.2rem 0.4rem;";
+    td.innerHTML = "";
+    td.appendChild(input);
+    input.focus();
+    input.select();
+    async function commit() {
+        const newTitle = input.value.trim();
+        if (!newTitle || newTitle === ch.visible_title) { renderToc(); return; }
+        try {
+            const fd = new FormData();
+            fd.set("title", newTitle);
+            const res = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/chapters/${index}/title`, { method: "POST", body: fd });
+            if (res.ok) {
+                ch.visible_title = newTitle;
+                toast("Đã lưu tiêu đề.", "success");
+            } else {
+                const d = await res.json().catch(() => ({}));
+                toast(d.detail || "Lỗi khi lưu.", "error");
+            }
+        } catch { toast("Lỗi kết nối.", "error"); }
+        renderToc();
+    }
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") { ev.preventDefault(); input.blur(); }
+        if (ev.key === "Escape") { input.removeEventListener("blur", commit); renderToc(); }
+    });
 });
 
 // Reindex preview

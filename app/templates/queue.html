@@ -88,6 +88,19 @@
   <span id="queue-summary" class="text-xs text-fg-muted dark:text-fg-muted-dark ml-auto"></span>
 </div>
 
+<!-- Pagination bar -->
+<div id="pagination-bar" class="flex flex-wrap items-center gap-2 mb-2 text-xs text-fg-muted dark:text-fg-muted-dark hidden">
+  <button id="pg-prev" onclick="changePage(-1)" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">‹ Trước</button>
+  <span id="pg-info"></span>
+  <button id="pg-next" onclick="changePage(1)" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">Sau ›</button>
+  <select id="page-size" onchange="changePageSize(this.value)" class="select select-sm w-auto ml-2" style="min-width: 80px;">
+    <option value="100">100 / trang</option>
+    <option value="200">200 / trang</option>
+    <option value="300">300 / trang</option>
+    <option value="all">Tất cả</option>
+  </select>
+</div>
+
 <!-- Main table -->
 <div class="table-container">
   <table class="table" id="queue-table">
@@ -109,10 +122,16 @@
 </div>
 
 <!-- Pagination bar -->
-<div id="pagination-bar" class="flex items-center gap-2 mt-2 text-xs text-fg-muted dark:text-fg-muted-dark hidden">
+<div id="pagination-bar" class="flex flex-wrap items-center gap-2 mt-2 text-xs text-fg-muted dark:text-fg-muted-dark hidden">
   <button id="pg-prev" onclick="changePage(-1)" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">‹ Trước</button>
   <span id="pg-info"></span>
   <button id="pg-next" onclick="changePage(1)" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">Sau ›</button>
+  <select id="page-size" onchange="changePageSize(this.value)" class="select select-sm w-auto ml-2" style="min-width: 80px;">
+    <option value="100">100 / trang</option>
+    <option value="200">200 / trang</option>
+    <option value="300">300 / trang</option>
+    <option value="all">Tất cả</option>
+  </select>
 </div>
 
 <!-- Log viewer modal -->
@@ -134,7 +153,8 @@ let allJobs = [];
 let checkedIds = new Set();
 let activeFilter = "all";
 let currentPage = 1;
-const PAGE_SIZE = 100;
+let pageSize = 100;
+const PAGE_SIZE_OPTIONS = [100, 200, 300, "all"];
 
 // ── Time helpers ──────────────────────────────────────────────────────────
 function fmtTime(ts) {
@@ -247,8 +267,15 @@ function filteredJobs() {
 
 // ── Pagination ─────────────────────────────────────────────────────────────
 function changePage(delta) {
-  const total = Math.ceil(filteredJobs().length / PAGE_SIZE);
-  currentPage = Math.max(1, Math.min(total, currentPage + delta));
+  const jobs = filteredJobs();
+  const totalPages = pageSize === "all" ? 1 : Math.ceil(jobs.length / pageSize) || 1;
+  currentPage = Math.max(1, Math.min(totalPages, currentPage + delta));
+  renderTable();
+}
+
+function changePageSize(value) {
+  pageSize = value === "all" ? "all" : parseInt(value, 10);
+  currentPage = 1;
   renderTable();
 }
 
@@ -256,10 +283,18 @@ function changePage(delta) {
 function renderTable() {
   const jobs = filteredJobs();
   const total = jobs.length;
-  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
-  currentPage = Math.max(1, Math.min(totalPages, currentPage));
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const page  = jobs.slice(start, start + PAGE_SIZE);
+
+  let page, totalPages, start;
+  if (pageSize === "all") {
+    page = jobs;
+    totalPages = 1;
+    start = 0;
+  } else {
+    totalPages = Math.ceil(total / pageSize) || 1;
+    currentPage = Math.max(1, Math.min(totalPages, currentPage));
+    start = (currentPage - 1) * pageSize;
+    page = jobs.slice(start, start + pageSize);
+  }
 
   let pendingPos = 0;
   const html = page.map(j => {
@@ -270,9 +305,13 @@ function renderTable() {
   const tbody = document.getElementById("queue-tbody");
   tbody.innerHTML = html || `<tr><td colspan="7" class="text-center text-fg-muted dark:text-fg-muted-dark py-6 text-sm">Không có job nào.</td></tr>`;
 
+  // Page size selector
+  const pageSizeSel = document.getElementById("page-size");
+  if (pageSizeSel) pageSizeSel.value = pageSize;
+
   // Pagination
   const pgBar = document.getElementById("pagination-bar");
-  if (totalPages > 1) {
+  if (pageSize !== "all" && totalPages > 1) {
     pgBar.classList.remove("hidden");
     document.getElementById("pg-info").textContent = `Trang ${currentPage}/${totalPages} (${total} job)`;
     document.getElementById("pg-prev").disabled = currentPage <= 1;
@@ -386,7 +425,9 @@ async function startAllWorkers() {
 
 // ── Bulk actions ───────────────────────────────────────────────────────────
 function toggleSelectAll(checked) {
-  const jobs = filteredJobs().slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
+  const jobs = pageSize === "all"
+    ? filteredJobs()
+    : filteredJobs().slice((currentPage-1)*pageSize, currentPage*pageSize);
   if (checked) jobs.forEach(j => checkedIds.add(j.id));
   else jobs.forEach(j => checkedIds.delete(j.id));
   updateBulkBar();

@@ -14,8 +14,14 @@
 
 <!-- Thanh công cụ -->
 <div class="flex flex-wrap gap-2 items-center mb-3">
-    <input id="gloss-search" type="search" placeholder="Tìm Hán / Việt / ghi chú…" autocomplete="off"
-        class="input input-sm w-64">
+    <div class="flex items-center gap-1">
+        <input id="gloss-search" type="search" placeholder="Tìm Hán / Việt / ghi chú…" autocomplete="off"
+            class="input input-sm w-64">
+        <label class="flex items-center gap-1 text-xs text-fg-muted dark:text-fg-muted-dark select-none cursor-pointer" title="Tìm kiếm bằng biểu thức chính quy">
+            <input type="checkbox" id="gloss-regex" class="rounded border-surface-border dark:border-surface-border-dark">
+            regex
+        </label>
+    </div>
     <span id="gloss-count" class="text-sm text-fg-muted dark:text-fg-muted-dark"></span>
     <div class="flex rounded-lg border border-surface-border dark:border-surface-border-dark overflow-hidden">
         <button type="button" id="view-all" class="btn btn-sm btn-primary rounded-none">Tất cả</button>
@@ -29,6 +35,22 @@
         <button type="button" id="btn-export" class="btn btn-sm btn-secondary">Xuất cho AI xử lý</button>
         <button type="button" id="btn-import" class="btn btn-sm btn-secondary">Nhập từ AI</button>
     </div>
+</div>
+
+<!-- Phân trang -->
+<div id="gloss-pager" class="flex flex-wrap items-center gap-2 mb-2 text-sm">
+    <button type="button" id="pg-prev" class="btn btn-sm btn-secondary">← Trước</button>
+    <span id="pg-info" class="text-fg-muted dark:text-fg-muted-dark"></span>
+    <button type="button" id="pg-next" class="btn btn-sm btn-secondary">Sau →</button>
+    <label class="ml-auto flex items-center gap-1 text-fg-muted dark:text-fg-muted-dark">
+        Mỗi trang
+        <select id="pg-size" class="select select-sm">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+        </select>
+    </label>
 </div>
 
 <!-- Data table -->
@@ -47,22 +69,6 @@
     </table>
 </div>
 <p id="gloss-empty" class="hidden text-sm text-fg-muted dark:text-fg-muted-dark py-6 text-center">Không có mục nào khớp.</p>
-
-<!-- Phân trang -->
-<div id="gloss-pager" class="flex flex-wrap items-center gap-2 mt-3 text-sm">
-    <button type="button" id="pg-prev" class="btn btn-sm btn-secondary">← Trước</button>
-    <span id="pg-info" class="text-fg-muted dark:text-fg-muted-dark"></span>
-    <button type="button" id="pg-next" class="btn btn-sm btn-secondary">Sau →</button>
-    <label class="ml-auto flex items-center gap-1 text-fg-muted dark:text-fg-muted-dark">
-        Mỗi trang
-        <select id="pg-size" class="select select-sm">
-            <option value="25">25</option>
-            <option value="50" selected>50</option>
-            <option value="100">100</option>
-            <option value="200">200</option>
-        </select>
-    </label>
-</div>
 
 <!-- View Nghi vấn: nhóm trùng target / Hán lồng nhau / conflicts -->
 <div id="suspects-view" class="hidden space-y-4"></div>

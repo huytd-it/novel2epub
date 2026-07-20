@@ -546,6 +546,18 @@ def api_ebook_chapter_delete_translation(slug: str, index: int):
     return JSONResponse({"deleted": True})
 
 
+@router.post("/api/ebooks/{slug}/chapters/{index}/title")
+def api_ebook_chapter_update_title(slug: str, index: int, title: str = Form(...)):
+    storage, manifest, ch = _load_chapter_json_or_404(slug, index)
+    if not title.strip():
+        raise HTTPException(status_code=400, detail="Tiêu đề không được rỗng.")
+    if not ch.title_zh:
+        ch.title_zh = ch.title
+    ch.title = title.strip()
+    storage.save_chapter(ch)
+    return JSONResponse({"title": ch.title})
+
+
 @router.post("/api/ebooks/{slug}/chapters/{index}/toggle-skip")
 def api_ebook_chapter_toggle_skip(slug: str, index: int):
     """Bật/tắt trạng thái skipped của 1 chương. Skipped chapters bị ẩn khỏi

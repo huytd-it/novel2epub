@@ -172,8 +172,10 @@ def _clean_title(vi: str) -> str:
 
     Dịch số chương bằng regex cho chắc chắn, không phụ thuộc LLM. Hỗ trợ chữ số
     Ả Rập (第2章) — đủ cho phần lớn site. Các nhãn đặc biệt cũng được Việt hóa.
+    Bỏ Markdown heading prefix (`##`, `#`) nếu AI thêm vào dòng tiêu đề.
     """
     vi = vi.strip()
+    vi = re.sub(r"^#{1,6}\s+", "", vi)
     vi = re.sub(r"第\s*(\d+)\s*章", r"Chương \1", vi)
     vi = re.sub(r"第\s*(\d+)\s*卷", r"Quyển \1", vi)
     vi = re.sub(r"第\s*(\d+)\s*回", r"Hồi \1", vi)
@@ -183,6 +185,10 @@ def _clean_title(vi: str) -> str:
 
 # Dòng đầu output dài hơn ngưỡng này thì coi là văn xuôi, không phải tiêu đề.
 _MAX_TITLE_LINE = 120
+
+
+def _is_markdown_heading(line: str) -> bool:
+    return bool(re.match(r"^#{1,6}\s+", line.strip()))
 
 
 def _split_translated_title(translated: str) -> tuple[str, str]:
@@ -773,20 +779,22 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
 
     elapsed = time.monotonic() - started
     translated = "\n".join(pieces)
-    if send_title:
-        vi_line, body = _split_translated_title(translated)
-        if vi_line:
-            if not ch.title_zh:
-                ch.title_zh = ch.title
-            ch.title = ensure_title_number(zh_title, _clean_title(vi_line))
-            ch.title_note = ""
-            title_changed = True
-            translated = body
-            # Chunk đầu đã stream dòng tiêu đề vào file — ghi đè lại body-only
-            # để tiêu đề không bị lặp với H1 do epub_builder sinh từ ch.title.
-            storage.write_translated(ch, translated)
-        else:
-            log(f"[dịch]   ({i}/{total}) ⚠ không tách được tiêu đề từ dòng đầu — giữ tiêu đề hiện tại")
+    vi_line, body = _split_translated_title(translated)
+    if vi_line and (
+        send_title
+        or (not ch.title and _is_markdown_heading(vi_line))
+    ):
+        if send_title and not ch.title_zh:
+            ch.title_zh = ch.title
+        ch.title = ensure_title_number(zh_title or "", _clean_title(vi_line))
+        ch.title_note = ""
+        title_changed = True
+        translated = body
+        # Chunk đầu đã stream dòng tiêu đề vào file — ghi đè lại body-only
+        # để tiêu đề không bị lặp với H1 do epub_builder sinh từ ch.title.
+        storage.write_translated(ch, translated)
+    elif send_title:
+        log(f"[dịch]   ({i}/{total}) ⚠ không tách được tiêu đề từ dòng đầu — giữ tiêu đề hiện tại")
     # Snapshot bản dịch máy (cột "VI" editor 3 cột): ghi bản máy gốc tách khỏi
     # `translated` (cột "Biên tập" — sẽ bị sửa tay/AI rewrite về sau). Cho phép
     # luôn đối chiếu "máy dịch ra gì" kể cả sau khi đã biên tập nhiều.

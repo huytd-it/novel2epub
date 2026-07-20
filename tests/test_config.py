@@ -318,13 +318,14 @@ def test_glossary_filter_defaults_true(tmp_path):
     assert cfg.translate.glossary_filter is True
 
 
-def test_glossary_filter_false_parsed(tmp_path):
+def test_glossary_filter_always_true(tmp_path):
+    """glossary_filter luôn True, bypass config (hardcode trong load_config)."""
     config_path = _write_config(
         tmp_path,
         extra={"translate": {"type": "none", "glossary_filter": False}},
     )
     cfg = load_config(config_path)
-    assert cfg.translate.glossary_filter is False
+    assert cfg.translate.glossary_filter is True
 
 
 def test_auto_glossary_and_batch_size_parsed_from_yaml(tmp_path):

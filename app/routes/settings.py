@@ -642,12 +642,12 @@ def save_translate(
         "[config][AI/DỊCH] slug=%s lưu riêng cho ebook (DB %s): type=%s source_lang=%s local_model=%s base_url=%r model=%r "
         "hachimimt=%s timeout=%ss temperature=%s tone=%r pronoun=%s title_mode=%s han_viet=%s "
         "keep_paragraphs=%s retry=%s chunk_max_chars=%s delay=%ss "
-        "auto_glossary=%s glossary_filter=%s batch_size=%s prompt_max_chars=%s auto_cleanup_han=%s cleanup_han=%s/%s",
+        "batch_size=%s prompt_max_chars=%s auto_cleanup_han=%s cleanup_han=%s/%s",
         slug, path, type, source_language, local_model, base_url, model,
         hachimimt_model_key, timeout_seconds, temperature, tone,
         pronoun_policy, title_mode, han_viet_level, keep_paragraphs, retry_attempts,
         chunk_max_chars, delay_seconds,
-        auto_glossary, glossary_filter, batch_size, prompt_max_chars, auto_cleanup_han,
+        batch_size, prompt_max_chars, auto_cleanup_han,
         cleanup_han_max_chars, cleanup_han_retries,
     )
     # Cấu hình AI dịch RIÊNG của ebook này — defaults (config chung) không đổi.

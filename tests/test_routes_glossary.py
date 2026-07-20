@@ -301,6 +301,92 @@ def test_import_glossary_rejects_empty(tmp_path, monkeypatch):
     assert res.status_code == 400
 
 
+# ----- route: hàng chờ duyệt đề xuất auto-glossary (tab Đề xuất AI) -----
+
+def test_pending_lists_normalized_entries(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_extra_json(
+        "glossary_pending",
+        [
+            {"source": "叶凡", "target": "Diệp Phàm", "chapter_index": 3},
+            {"source": "  ", "target": "rác"},  # row hỏng → bỏ
+            "not-a-dict",
+        ],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.get("/api/ebooks/t/glossary/pending")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["count"] == 1
+    assert data["entries"] == [
+        {"source": "叶凡", "target": "Diệp Phàm", "chapter_index": 3}
+    ]
+
+
+def test_pending_approve_upserts_and_removes_from_queue(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "斗气 = Đấu khí\n")
+    storage.write_extra_json(
+        "glossary_pending",
+        [
+            {"source": "叶凡", "target": "Diệp Phàm", "chapter_index": 3},
+            {"source": "林动", "target": "Lâm Động", "chapter_index": 4},
+        ],
+    )
+    client = _client(cfg, monkeypatch)
+
+    # Duyệt 1 mục, target đã sửa tay trên UI trước khi duyệt.
+    res = client.post(
+        "/api/ebooks/t/glossary/pending/approve",
+        json={"entries": [{"source": "叶凡", "target": "Diệp Phàm Sửa", "note": "nv chính", "original_source": "叶凡"}]},
+    )
+    assert res.status_code == 200
+    assert res.json() == {"approved": 1, "remaining": 1}
+    names = storage.read_glossary_entries("names.txt")
+    assert ("叶凡", "Diệp Phàm Sửa", "nv chính") in names
+    remaining = storage.read_extra_json("glossary_pending")
+    assert [p["source"] for p in remaining] == ["林动"]
+
+
+def test_pending_approve_rejects_empty(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    client = _client(cfg, monkeypatch)
+    res = client.post("/api/ebooks/t/glossary/pending/approve", json={"entries": []})
+    assert res.status_code == 400
+
+
+def test_pending_clear_selected_and_all(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_extra_json(
+        "glossary_pending",
+        [
+            {"source": "叶凡", "target": "Diệp Phàm", "chapter_index": 1},
+            {"source": "林动", "target": "Lâm Động", "chapter_index": 2},
+            {"source": "萧炎", "target": "Tiêu Viêm", "chapter_index": 3},
+        ],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/pending/clear", json={"sources": ["叶凡"]})
+    assert res.status_code == 200
+    assert res.json()["cleared"] == 1
+    assert [p["source"] for p in storage.read_extra_json("glossary_pending")] == ["林动", "萧炎"]
+    # Bỏ qua KHÔNG đưa gì vào glossary.
+    assert storage.read_glossary_entries("names.txt") == []
+
+    res = client.post("/api/ebooks/t/glossary/pending/clear", json={"all": True})
+    assert res.status_code == 200
+    assert res.json()["cleared"] == 2
+    assert storage.read_extra_json("glossary_pending") == []
+
+
 # ----- route: nghi vấn (suspects) + resolve conflicts -----
 
 def test_suspects_returns_groups_and_count(tmp_path, monkeypatch):

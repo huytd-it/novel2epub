@@ -18,6 +18,26 @@ def _conflicts_count(storage) -> int:
     return len(data) if isinstance(data, list) else 0
 
 
+def _read_pending(storage) -> list[dict]:
+    """Hàng chờ duyệt đề xuất auto-glossary (extra json `glossary_pending`),
+    đã normalize — bỏ row hỏng, ép kiểu chapter_index."""
+    raw = storage.read_extra_json("glossary_pending")
+    out: list[dict] = []
+    for p in raw if isinstance(raw, list) else []:
+        if not isinstance(p, dict):
+            continue
+        source = str(p.get("source", "")).strip()
+        target = str(p.get("target", "")).strip()
+        if not source or not target:
+            continue
+        try:
+            chapter_index = int(p.get("chapter_index", 0))
+        except (TypeError, ValueError):
+            chapter_index = 0
+        out.append({"source": source, "target": target, "chapter_index": chapter_index})
+    return out
+
+
 def _append_glossary_entry(
     storage: Storage, source: str, suggested: str, note: str = ""
 ) -> bool:
@@ -49,6 +69,7 @@ def ebook_glossary(request: Request, slug: str):
             "slug": slug,
             "job": request.app.state.job.status(),
             "conflicts_count": _conflicts_count(storage),
+            "pending_count": len(_read_pending(storage)),
         },
     )
 
@@ -140,6 +161,67 @@ def ebook_glossary_clean(slug: str):
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     before, after = storage.clean_glossary()
     return JSONResponse({"before": before, "after": after, "removed": before - after})
+
+
+@router.get("/api/ebooks/{slug}/glossary/pending")
+def ebook_glossary_pending(slug: str):
+    """Danh sách đề xuất auto-glossary đang chờ duyệt (tab "Đề xuất AI")."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    entries = _read_pending(storage)
+    return JSONResponse({"entries": entries, "count": len(entries)})
+
+
+@router.post("/api/ebooks/{slug}/glossary/pending/approve")
+def ebook_glossary_pending_approve(slug: str, payload: dict = Body(...)):
+    """Duyệt (hàng loạt) đề xuất chờ: upsert vào names.txt rồi gỡ khỏi hàng chờ.
+    Body JSON `{"entries": [{source, target, note, original_source}, ...]}` —
+    giá trị lấy từ input trên UI nên có thể đã được sửa tay trước khi duyệt;
+    `original_source` là source lúc AI đề xuất, dùng làm khóa gỡ khỏi hàng chờ."""
+    entries = []
+    for row in payload.get("entries", []) if isinstance(payload.get("entries"), list) else []:
+        if not isinstance(row, dict):
+            continue
+        source = str(row.get("source", "")).strip()
+        target = str(row.get("target", "")).strip()
+        if not source or not target:
+            continue
+        entries.append(
+            {
+                "source": source,
+                "target": target,
+                "note": str(row.get("note", "")).strip(),
+                "original_source": str(row.get("original_source", "")).strip() or source,
+            }
+        )
+    if not entries:
+        raise HTTPException(status_code=400, detail="Chưa chọn đề xuất nào để duyệt.")
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    for e in entries:
+        storage.upsert_glossary_entry(e["source"], e["target"], e["note"])
+    approved_keys = {e["original_source"] for e in entries}
+    remaining = [p for p in _read_pending(storage) if p["source"] not in approved_keys]
+    storage.write_extra_json("glossary_pending", remaining)
+    return JSONResponse({"approved": len(entries), "remaining": len(remaining)})
+
+
+@router.post("/api/ebooks/{slug}/glossary/pending/clear")
+def ebook_glossary_pending_clear(slug: str, payload: dict = Body(...)):
+    """Bỏ đề xuất khỏi hàng chờ KHÔNG đưa vào glossary. Body JSON
+    `{"sources": [...]}` hoặc `{"all": true}` (bỏ toàn bộ)."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    pending = _read_pending(storage)
+    if payload.get("all"):
+        storage.write_extra_json("glossary_pending", [])
+        return JSONResponse({"cleared": len(pending)})
+    sources = {str(s).strip() for s in payload.get("sources", []) if str(s).strip()}
+    if not sources:
+        raise HTTPException(status_code=400, detail="Chưa chọn đề xuất nào để bỏ.")
+    remaining = [p for p in pending if p["source"] not in sources]
+    storage.write_extra_json("glossary_pending", remaining)
+    return JSONResponse({"cleared": len(pending) - len(remaining)})
 
 
 @router.get("/api/ebooks/{slug}/glossary/suspects")

@@ -151,12 +151,36 @@ def _filter_glossary(
     Dùng để rút gọn khối glossary nhét vào prompt AI theo đúng đoạn đang xử lý
     (tiết kiệm token); KHÔNG dùng cho _apply_glossary hậu xử lý — bước đó luôn
     chạy trên toàn bộ glossary.
+
+    Nguyên tắc so khớp:
+    - zh (chữ Hán) trong zh_text (văn bản Hán): substring — không có ranh giới từ
+      trong text Hán ngữ, multi-char term đã đủ chính xác.
+    - vi (tiếng Việt) trong vi_text (văn bản dịch): dùng regex \\b word boundary
+      để tránh false positive kiểu "đi" khớp trong "điện thoại".
     """
-    return {
-        zh: vi
-        for zh, vi in glossary.items()
-        if (zh_text and zh and zh in zh_text) or (vi_text and vi and vi in vi_text)
-    }
+    import re
+    result: dict[str, str] = {}
+    for zh, vi in glossary.items():
+        if zh_text and zh:
+            if zh in zh_text:
+                result[zh] = vi
+        elif vi_text and vi:
+            if _is_vi_word_in_text(vi, vi_text):
+                result[zh] = vi
+    return result
+
+
+def _is_vi_word_in_text(word: str, text: str) -> bool:
+    """Kiểm tra `word` xuất hiện như một từ độc lập trong `text` (\\b boundary).
+
+    Lưu ý: `word` có thể chứa ký tự có dấu tiếng Việt (ổ, ế, ợ...) —
+    `\\w` trong Python regex bao gồm cả ký tự Unicode có dấu nên \\b hoạt động
+    chính xác cho tiếng Việt.
+    """
+    try:
+        return bool(re.search(rf'\b{re.escape(word)}\b', text, re.IGNORECASE))
+    except re.error:
+        return word in text
 
 
 def _apply_glossary(text: str, glossary: dict[str, str]) -> str:

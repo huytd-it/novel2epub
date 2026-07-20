@@ -584,8 +584,6 @@ def save_translate(
     hachimimt_beam_size: int = Form(2),
     hachimimt_chunk_mode: str = Form("sentence"),
     # Glossary / batch / cleanup Hán
-    auto_glossary: bool = Form(False),
-    glossary_filter: bool = Form(False),
     batch_size: int = Form(1),
     prompt_max_chars: int = Form(0),
     auto_cleanup_han: bool = Form(False),
@@ -631,8 +629,6 @@ def save_translate(
         },
         "delay_seconds": delay_seconds,
         "max_workers": max(1, max_workers),
-        "auto_glossary": auto_glossary,
-        "glossary_filter": glossary_filter,
         "batch_size": max(1, batch_size),
         "prompt_max_chars": max(0, prompt_max_chars),
         "auto_cleanup_han": auto_cleanup_han,

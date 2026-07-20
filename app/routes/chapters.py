@@ -932,10 +932,13 @@ def _filter_glossary_for_batch(
 ) -> dict[str, str]:
     """Rút gọn glossary về đúng các mục xuất hiện trong batch (translate.glossary_filter).
 
-    Khối glossary nhét vào export dùng chung cho cả nguồn raw (ZH) lẫn translated
-    (VI), nên so khớp key Hán VÀ value Việt với toàn bộ text (title + content)."""
+    Tự động phát hiện loại nội dung items: nếu có chứa chữ Hán (CJK Unified)
+    thì items là raw (ZH) → so zh_text; nếu không thì là translated (VI) →
+    so vi_text. Tránh false positive khi một bên glossary key/value vô tình
+    là substring của content bên kia (VD: zh ngắn khớp tiếng Việt)."""
     combined = "\n".join(f"{title}\n{content}" for _, title, content in items)
-    return _filter_glossary(glossary, zh_text=combined, vi_text=combined)
+    is_zh = any('\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf' for c in combined)
+    return _filter_glossary(glossary, zh_text=combined if is_zh else "", vi_text=combined if not is_zh else "")
 
 
 def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:

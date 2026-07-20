@@ -19,6 +19,9 @@
 .dark .selected-actions { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }
 .selected-actions .check { margin-left: 0.25rem; }
 
+.sa-divider { width:1px; height:1.4rem; background:var(--tw-border,#e4e4e7); flex-shrink:0; }
+.dark .sa-divider { background:var(--tw-border-dark,#3f3f46); }
+
 .action-group { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
 .action-group + .action-group { margin-top: 0.1rem; }
 .action-group-label { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--tw-fg-muted, #71717a); min-width: 4.5rem; }
@@ -55,6 +58,8 @@
 
 @media (max-width: 900px) {
     .selected-actions { position: static; }
+    .selected-actions .action-group-label { display: none; }
+    .sa-divider { display: none; }
     .compact-toolbar select, .compact-toolbar input { width: 100%; }
 }
 </style>
@@ -218,67 +223,73 @@
     <input type="hidden" name="filter_translated" id="act-filter_translated" value="{{ controls.filter_translated }}">
     <input type="hidden" name="filter_missing" id="act-filter_missing" value="{{ controls.filter_missing }}">
     <input type="hidden" name="filter_skipped" id="act-filter_skipped" value="{{ controls.filter_skipped }}">
+    <span class="action-group-label">Thao tác</span>
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="crawl">
         <input type="hidden" name="action" value="crawl">
         <input type="hidden" name="targeting_mode" value="checked">
-        <button type="submit" class="btn btn-sm btn-secondary" >Crawl selected</button>
+        <button type="submit" class="btn btn-sm btn-secondary" >Crawl</button>
     </form>
-    <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate" data-confirm="Dịch {n} chương đã chọn? Mỗi chương = 1 job riêng trong hàng đợi. Chương đã dịch rồi hoặc chưa có raw tự động bị bỏ qua.">
+    <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate" data-confirm="Dịch {n} chương đã chọn? Mỗi chương = 1 job riêng. Chương đã dịch hoặc chưa có raw tự động bỏ qua.">
         <input type="hidden" name="action" value="translate">
         <input type="hidden" name="targeting_mode" value="checked">
-        <button type="submit" class="btn btn-sm btn-secondary"  title="Dịch: mỗi chương = 1 job riêng trong hàng đợi. Tăng worker để chạy song song.">Dịch selected</button>
+        <button type="submit" class="btn btn-sm btn-secondary" title="Mỗi chương = 1 job riêng trong hàng đợi. Tăng worker để chạy song song.">Dịch</button>
     </form>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/delete-translation" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Xóa bản dịch (và biên tập) của {n} chương đã chọn? Hành động không thể hoàn tác. Raw sẽ được giữ lại để dịch lại.">
+    <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="build">
+        <button type="submit" class="btn btn-sm btn-secondary" >Build EPUB</button>
+    </form>
+    <span class="sa-divider"></span>
+    <span class="action-group-label ml-1">Dọn dẹp</span>
+    <form method="post" action="/api/ebooks/{{ slug }}/batch/delete-translation" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Xóa bản dịch (và biên tập) của {n} chương đã chọn? Không thể hoàn tác. Raw được giữ lại.">
         <input type="hidden" name="indexes" id="batch-indexes-delete" value="">
-        <button type="submit" class="btn btn-sm btn-danger"  title="Xóa toàn bộ bản dịch của các chương đã chọn (translated + snapshot MT + meta). Không xóa raw.">Xóa bản dịch selected</button>
+        <button type="submit" class="btn btn-sm btn-danger" title="Xóa translated + snapshot MT + meta. Không xóa raw.">Xóa dịch</button>
     </form>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/clean-raw" class="selected-action-form batch-form" data-selected-action="crawl" data-confirm="Xóa raw của {n} chương đã chọn? Hành động không thể hoàn tác. Translated/biên tập không bị ảnh hưởng, có thể Crawl lại.">
+    <form method="post" action="/api/ebooks/{{ slug }}/batch/clean-raw" class="selected-action-form batch-form" data-selected-action="crawl" data-confirm="Xóa raw của {n} chương đã chọn? Không thể hoàn tác. Dịch không bị ảnh hưởng.">
         <input type="hidden" name="indexes" id="batch-indexes-raw" value="">
-        <button type="submit" class="btn btn-sm btn-danger"  title="Xóa file raw của các chương đã chọn. Dịch không bị ảnh hưởng.">Làm sạch raw</button>
-    </form>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Bỏ qua (ẩn) {n} chương trong danh mục? Dữ liệu raw/dịch/biên tập được giữ nguyên, dùng filter 'Bỏ qua: tất cả' để xem lại.">
-        <input type="hidden" name="indexes" id="batch-indexes-skip" value="">
-        <input type="hidden" name="skip" value="true">
-        <button type="submit" class="btn btn-sm btn-secondary" style="background: var(--tw-status-warn-light, #fef9c3); color: var(--tw-status-warn-fg, #854d0e); border-color: var(--tw-status-warn-light, #fef9c3);"  title="Đánh dấu bỏ qua: ẩn khỏi table mặc định.">Bỏ qua TOC selected</button>
-    </form>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate">
-        <input type="hidden" name="indexes" id="batch-indexes-unskip" value="">
-        <input type="hidden" name="skip" value="false">
-        <button type="submit" class="btn btn-sm btn-secondary" title="Hiện lại trong table (bỏ skipped).">Hiện lại TOC selected</button>
-    </form>
-
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/suggest-glossary" class="selected-action-form batch-form" data-selected-action="translate">
-        <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
-        <button type="submit" class="btn btn-sm btn-secondary" >Glossary suggest selected</button>
-    </form>
-    <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
-        <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
-        <button type="submit" class="btn btn-sm btn-secondary"  title="Dịch tiêu đề TOC cho các chương đã tick. Không đụng nội dung. Tick 'Ghi đè' để dịch lại cả title đã có. Backend chọn ở dropdown bên dưới.">Dịch TOC</button>
-    </form>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/ai-rewrite" class="selected-action-form batch-form" data-selected-action="translate">
-        <input type="hidden" name="indexes" id="batch-indexes-rewrite" value="">
-        <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
-        <button type="submit" class="btn btn-sm btn-secondary"  title="OpenAI: tạo bản nháp AI rewrite, vào từng chương để áp dụng/bỏ. Local NMT: dịch lại bằng NMT cục bộ (ghi đè). Backend chọn ở dropdown bên dưới.">Biên tập đã chọn</button>
+        <button type="submit" class="btn btn-sm btn-danger" title="Xóa file raw. Dịch không bị ảnh hưởng, có thể Crawl lại.">Xóa raw</button>
     </form>
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate">
         <input type="hidden" name="action" value="cleanup-han">
         <input type="hidden" name="targeting_mode" value="checked">
-        {# Dùng category="translate" (không phải "cleanup-han") để chia sẻ mutex với
-           các job translate — cleanup-han ghi đè file translated/ nên không được
-           chạy cùng lúc với translate. CATEGORIES của job queue chỉ chấp nhận
-           "crawl"/"translate", category khác sẽ raise ValueError. #}
-        <button type="submit" class="btn btn-sm btn-secondary" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch đã chọn (dùng config AI biên tập).">Làm sạch Hán</button>
+        <button type="submit" class="btn btn-sm btn-secondary" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch (dùng config AI biên tập).">Sạch Hán</button>
     </form>
-    <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="build">
-        <button type="submit" class="btn btn-sm btn-secondary" >Build EPUB selected</button>
+    <span class="sa-divider"></span>
+    <span class="action-group-label ml-1">TOC</span>
+    <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Bỏ qua {n} chương? Dữ liệu raw/dịch/biên tập giữ nguyên, lọc 'Bỏ qua: tất cả' để xem lại.">
+        <input type="hidden" name="indexes" id="batch-indexes-skip" value="">
+        <input type="hidden" name="skip" value="true">
+        <button type="submit" class="btn btn-sm btn-secondary" style="background:var(--tw-status-warn-light,#fef9c3);color:var(--tw-status-warn-fg,#854d0e);border-color:var(--tw-status-warn-light,#fef9c3)" title="Ẩn khỏi table mặc định.">Bỏ qua</button>
     </form>
-    <button type="button" id="btn-export-chapters" data-export-source="translated" class="btn btn-sm btn-secondary">Xuất để biên tập</button>
-    <button type="button" id="btn-export-raw" data-export-source="raw" class="btn btn-sm btn-secondary">Xuất RAW để dịch</button>
-    <button type="button" id="btn-import-chapters" class="btn btn-sm btn-secondary">Nhập bản biên tập/dịch</button>
-    <button type="button" id="btn-preview-reindex" class="btn btn-sm btn-secondary" style="background: var(--tw-status-warn-light, #fef9c3); color: var(--tw-status-warn-fg, #854d0e); border-color: var(--tw-status-warn-light, #fef9c3);">Xem trước đánh index</button>
+    <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate">
+        <input type="hidden" name="indexes" id="batch-indexes-unskip" value="">
+        <input type="hidden" name="skip" value="false">
+        <button type="submit" class="btn btn-sm btn-secondary" title="Hiện lại trong table.">Hiện lại</button>
+    </form>
+    <button type="button" id="btn-preview-reindex" class="btn btn-sm btn-secondary" style="background:var(--tw-status-warn-light,#fef9c3);color:var(--tw-status-warn-fg,#854d0e);border-color:var(--tw-status-warn-light,#fef9c3)">Xem trước index</button>
     <form method="post" action="/ebooks/{{ slug }}/jobs/reorder" class="inline-form" data-job-category="both" style="margin:0">
-        <button type="submit" class="btn btn-sm btn-secondary" style="background: var(--tw-status-warn-light, #fef9c3); color: var(--tw-status-warn-fg, #854d0e); border-color: var(--tw-status-warn-light, #fef9c3);"  title="Đánh lại index theo thứ tự hiển thị hiện tại (đã sort/filter).">Đánh index lại</button>
+        <button type="submit" class="btn btn-sm btn-secondary" style="background:var(--tw-status-warn-light,#fef9c3);color:var(--tw-status-warn-fg,#854d0e);border-color:var(--tw-status-warn-light,#fef9c3)" title="Đánh lại index theo thứ tự hiển thị.">Đánh index lại</button>
     </form>
+    <span class="sa-divider"></span>
+    <span class="action-group-label ml-1">AI</span>
+    <form method="post" action="/api/ebooks/{{ slug }}/batch/suggest-glossary" class="selected-action-form batch-form" data-selected-action="translate">
+        <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
+        <button type="submit" class="btn btn-sm btn-secondary" >Glossary</button>
+    </form>
+    <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
+        <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
+        <button type="submit" class="btn btn-sm btn-secondary" title="Dịch tiêu đề TOC. Tick 'Ghi đè' để dịch lại cả title cũ. Backend chọn bên dưới.">Dịch TOC</button>
+    </form>
+    <form method="post" action="/api/ebooks/{{ slug }}/batch/ai-rewrite" class="selected-action-form batch-form" data-selected-action="translate">
+        <input type="hidden" name="indexes" id="batch-indexes-rewrite" value="">
+        <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
+        <button type="submit" class="btn btn-sm btn-secondary" title="OpenAI: tạo bản nháp AI rewrite. Local NMT: dịch lại (ghi đè). Backend chọn bên dưới.">Biên tập</button>
+    </form>
+    <span class="sa-divider"></span>
+    <span class="action-group-label ml-1">Xuất/Nhập</span>
+    <button type="button" id="btn-export-chapters" data-export-source="translated" class="btn btn-sm btn-secondary">Xuất biên tập</button>
+    <button type="button" id="btn-export-raw" data-export-source="raw" class="btn btn-sm btn-secondary">Xuất raw</button>
+    <button type="button" id="btn-import-chapters" class="btn btn-sm btn-secondary">Nhập</button>
+    <span class="sa-divider"></span>
+    <span class="action-group-label ml-1">Tùy chọn</span>
     <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" id="selected-override" value="true" class="rounded border-surface-border dark:border-surface-border-dark"> Ghi đè</label>
     <label class="inline-flex items-center gap-1 text-sm check">
         Backend:

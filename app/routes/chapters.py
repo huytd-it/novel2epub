@@ -141,6 +141,18 @@ def _chapter_context(storage: Storage, ch, raw: str, translated: str, slug: str,
     }
 
 
+def _nav_context(manifest, index: int) -> dict:
+    """Chương trước/sau theo VỊ TRÍ trong manifest (index có thể không liên tục)."""
+    idxs = [c.index for c in manifest.chapters]
+    pos = idxs.index(index)
+    return {
+        "prev_index": idxs[pos - 1] if pos > 0 else None,
+        "next_index": idxs[pos + 1] if pos + 1 < len(idxs) else None,
+        "chapter_pos": pos + 1,
+        "chapter_total": len(idxs),
+    }
+
+
 @router.get("/chapters/{index}")
 def chapter_detail(request: Request, index: int):
     cfg = deps.cfg()
@@ -158,7 +170,7 @@ def chapter_detail(request: Request, index: int):
     return deps.templates.TemplateResponse(
         request,
         "chapter.html",
-        _chapter_context(storage, ch, raw, translated, cfg.novel.slug, meta),
+        _chapter_context(storage, ch, raw, translated, cfg.novel.slug, meta) | _nav_context(manifest, index),
     )
 
 
@@ -179,7 +191,7 @@ def ebook_chapter_detail(request: Request, slug: str, index: int):
     return deps.templates.TemplateResponse(
         request,
         "chapter.html",
-        _chapter_context(storage, ch, raw, translated, slug, meta),
+        _chapter_context(storage, ch, raw, translated, slug, meta) | _nav_context(manifest, index),
     )
 
 

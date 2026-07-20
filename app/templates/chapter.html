@@ -1,408 +1,429 @@
 {% extends "base.html" %}
 {% block title %}Chương {{ ch.index }} — novel2epub{% endblock %}
-{% block content %}
-<style>
-/* Local styles for chapter editor: compare-table 3 cols, AI panel, popover, diff view, raw-view, font-controls */
-.chapter-workspace { min-width: 0; }
 
-.chapter-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
-.chapter-actions form, .chapter-actions .retranslate-title-section { margin: 0; }
-.chapter-actions button, .chapter-actions select {
-    font-size: 0.8125rem; line-height: 1.4;
-    padding: 0.3rem 0.6rem;
-    border: 1px solid var(--tw-border, #e4e4e7);
-    border-radius: 6px;
-    background: var(--tw-surface-light, #ffffff);
-    color: var(--tw-fg-light, #18181b);
-    cursor: pointer;
-    box-sizing: border-box;
-    height: 2em;
+{% block head %}
+<style type="text/tailwindcss">
+/* ==== Trang chương (editor so sánh ZH·VI) ==== */
+.chapter-workspace { --reading-font: 'Literata', Georgia, serif; --reading-size: 16px; }
+
+/* Bảng so sánh */
+.compare-table { @apply w-full border-collapse; table-layout: fixed; }
+.compare-table thead th { @apply sticky z-10 bg-surface-muted dark:bg-surface-muted-dark text-fg-muted dark:text-fg-muted-dark text-xs font-semibold uppercase tracking-wider text-left px-4 py-2 border-b border-surface-border dark:border-surface-border-dark; top: 4rem; }
+.compare-table td { @apply align-top px-4 py-3 border-b border-surface-border dark:border-surface-border-dark text-fg-light dark:text-fg-dark; font-family: var(--reading-font); font-size: var(--reading-size); line-height: 1.75; white-space: pre-wrap; word-break: break-word; }
+.compare-table tbody tr:last-child td { @apply border-b-0; }
+.compare-table .mt-cell { @apply bg-surface-muted/40 dark:bg-surface-muted-dark/40; }
+@media (max-width: 767px) {
+    /* Mobile: xếp dọc từng đoạn — ZH mờ nhỏ phía trên, VI ngay dưới */
+    .compare-table thead { @apply hidden; }
+    .compare-table tr { @apply block; }
+    .compare-table td { @apply block w-full border-b-0 px-4; }
+    .compare-table .raw-cell { @apply pb-1 pt-3 text-fg-muted dark:text-fg-muted-dark; font-size: calc(var(--reading-size) * 0.85); }
+    .compare-table .mt-cell { @apply pt-0 pb-3 bg-transparent dark:bg-transparent border-b border-surface-border dark:border-surface-border-dark; }
+    .compare-table tr:last-child .mt-cell { @apply border-b-0; }
 }
-.dark .chapter-actions button, .dark .chapter-actions select { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
-.chapter-actions button { background: var(--tw-brand-600, #059669); color: #fff; border-color: var(--tw-brand-600, #059669); font-weight: 500; }
-.chapter-actions button:hover { opacity: 0.9; }
-.btn-group { display: inline-flex; align-items: stretch; }
-.btn-group select { border-right: none; border-radius: 6px 0 0 6px; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); }
-.dark .btn-group select { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); }
-.btn-group button { border-radius: 0 6px 6px 0; margin: 0; }
 
-.retranslate-title-panel { margin: 1rem 0; padding: 0.75rem 1rem; background: var(--tw-surface-muted, #f4f4f5); border: 1px solid var(--tw-border, #e4e4e7); border-radius: 10px; }
-.dark .retranslate-title-panel { background: var(--tw-surface-muted-dark, #27272a); border-color: var(--tw-border-dark, #3f3f46); }
-.retranslate-controls { display: flex; flex-direction: column; gap: 0.5rem; }
-.retranslate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.retranslate-row select { margin: 0; padding: 0.4rem 0.6rem; font-size: 0.8125rem; min-width: 120px; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 6px; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); }
-.dark .retranslate-row select { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
-.retranslate-row .check { display: flex; align-items: center; gap: 0.25rem; font-size: 0.8125rem; }
-.btn-primary { background: var(--tw-brand-600, #059669) !important; color: #fff !important; border-color: var(--tw-brand-600, #059669) !important; font-weight: 500 !important; }
-.dark .btn-primary { background: var(--tw-brand-500, #10b981) !important; border-color: var(--tw-brand-500, #10b981) !important; color: var(--tw-surface-dark, #18181b) !important; }
-.btn-primary:hover { background: var(--tw-brand-700, #047857) !important; border-color: var(--tw-brand-700, #047857) !important; }
-.dark .btn-primary:hover { background: var(--tw-brand-600, #059669) !important; border-color: var(--tw-brand-600, #059669) !important; }
+.compare-table mark, .raw-view mark { @apply bg-status-warn-light dark:bg-status-warn-dark text-inherit rounded-sm; padding: 0 1px; }
+mark.jump-flash { @apply bg-status-run-light dark:bg-status-run-dark outline outline-2 outline-status-run-fg; }
 
-.prompt-preview-section { width: 100%; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 6px; background: var(--tw-surface-light, #ffffff); }
-.dark .prompt-preview-section { background: var(--tw-surface-dark, #18181b); border-color: var(--tw-border-dark, #3f3f46); }
-.prompt-preview-section summary { padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.8125rem; color: var(--tw-fg-muted, #71717a); user-select: none; }
-.dark .prompt-preview-section summary { color: var(--tw-fg-muted-dark, #a1a1aa); }
-.prompt-preview-section summary:hover { color: var(--tw-fg-light, #18181b); }
-.dark .prompt-preview-section summary:hover { color: var(--tw-fg-dark, #fafafa); }
-.prompt-preview-section textarea { width: 100%; margin: 0; padding: 0.75rem; border: none; border-top: 1px solid var(--tw-border, #e4e4e7); border-radius: 0; font-family: monospace; font-size: 0.75rem; resize: vertical; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); box-sizing: border-box; }
-.dark .prompt-preview-section textarea { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-top-color: var(--tw-border-dark, #3f3f46); }
-.link-btn { background: none; border: none; color: var(--tw-brand-600, #059669); cursor: pointer; text-decoration: underline; padding: 0; font-size: 0.875rem; }
-.dark .link-btn { color: var(--tw-brand-400, #34d399); }
+/* Diff từ (MT ↔ biên tập) trong ô VI */
+.mt-diff { white-space: pre-wrap; word-break: break-word; }
+.mt-diff:empty::before { content: "\00a0"; }
+.mt-diff del { @apply bg-status-err-light text-status-err-fg dark:bg-status-err-dark dark:text-status-err-fg-dark line-through rounded-sm; padding: 0 1px; }
+.mt-diff ins { @apply bg-status-ok-light text-status-ok-fg dark:bg-status-ok-dark dark:text-status-ok-fg-dark no-underline rounded-sm; padding: 0 1px; }
 
-#job-status-section { margin: 1rem 0; padding: 0.5rem 1rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 10px; background: var(--tw-surface-muted, #f4f4f5); }
-.dark #job-status-section { background: var(--tw-surface-muted-dark, #27272a); border-color: var(--tw-border-dark, #3f3f46); }
-#job-status-section p { margin: 0; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+/* Panel AI */
+.ai-panel { @apply rounded-xl border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark shadow-card dark:shadow-card-dark border-l-4 p-4 my-4; }
+.ai-panel.review { @apply border-l-status-warn-fg dark:border-l-status-warn-fg-dark bg-status-warn-light/25 dark:bg-status-warn-dark/20; }
+.ai-panel.suggest { @apply border-l-status-ok-fg dark:border-l-status-ok-fg-dark bg-status-ok-light/25 dark:bg-status-ok-dark/20; }
+.ai-panel.rewrite { @apply border-l-status-info-fg dark:border-l-status-info-fg-dark bg-status-info-light/25 dark:bg-status-info-dark/20; }
+.issue-list { @apply pl-5 my-2 space-y-2 list-decimal text-sm; }
+.issue { @apply pl-2 border-l-2 border-surface-border dark:border-surface-border-dark; }
+.issue.sev-high { @apply border-l-status-err-fg dark:border-l-status-err-fg-dark; }
+.issue.sev-medium { @apply border-l-status-warn-fg dark:border-l-status-warn-fg-dark; }
+.issue.sev-low { @apply border-l-status-info-fg dark:border-l-status-info-fg-dark; }
+.issue-tag { @apply inline-block text-[11px] px-1.5 rounded-full bg-surface-muted dark:bg-surface-muted-dark text-fg-muted dark:text-fg-muted-dark mr-1; }
+.issue .del { @apply bg-status-err-light dark:bg-status-err-dark line-through rounded-sm px-0.5; }
+.issue .ins { @apply bg-status-ok-light dark:bg-status-ok-dark rounded-sm px-0.5; }
 
-.ai-panel { border: 1px solid var(--tw-border, #e4e4e7); border-radius: 10px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--tw-surface-light, #fcfcfc); }
-.dark .ai-panel { background: var(--tw-surface-muted-dark, #27272a); border-color: var(--tw-border-dark, #3f3f46); }
-.ai-panel.review { border-color: var(--tw-status-warn-fg-light, #e0c36b); background: var(--tw-status-warn-light, #fffdf3); }
-.dark .ai-panel.review { background: var(--tw-status-warn-dark, #2d2615); border-color: var(--tw-status-warn-fg-dark, #b8941f); }
-.ai-panel.suggest { border-color: var(--tw-status-ok-fg-light, #9ed1a8); background: var(--tw-status-ok-light, #f5fbf6); }
-.dark .ai-panel.suggest { background: var(--tw-status-ok-dark, #1a2a1f); border-color: var(--tw-status-ok-fg-dark, #4a8a5c); }
-.ai-panel.rewrite { border-color: var(--tw-status-info-fg-light, #9bbbe0); background: var(--tw-status-info-light, #f6f9fd); }
-.dark .ai-panel.rewrite { background: var(--tw-status-info-dark, #1a2330); border-color: var(--tw-status-info-fg-dark, #4a6a8a); }
-.issue-list { padding-left: 1.2rem; margin: 0.5rem 0; }
-.issue { margin: 0.5rem 0; padding-left: 0.4rem; border-left: 3px solid #ccc; }
-.issue.sev-high { border-left-color: #d33; }
-.issue.sev-medium { border-left-color: #e0a000; }
-.issue.sev-low { border-left-color: #8aa; }
-.issue-tag { display: inline-block; font-size: 0.6875rem; padding: 0.05rem 0.4rem; border-radius: 10px; background: #eef; margin-right: 0.3rem; }
-.issue-tag.sev { background: #f3e6c0; }
-.dark .issue-tag { background: #2a2a3a; color: #c0c0d0; }
-.dark .issue-tag.sev { background: #3a3520; color: #e0c080; }
-.issue .del { background: var(--tw-status-err-light, #ffe1e1); text-decoration: line-through; }
-.dark .issue .del { background: var(--tw-status-err-dark, #3a1a1a); }
-.issue .ins { background: var(--tw-status-ok-light, #def7df); text-decoration: none; }
-.dark .issue .ins { background: var(--tw-status-ok-dark, #1a3a1a); }
+/* Diff dòng (bản nháp AI biên tập) */
+.diff-view { @apply h-[45vh] overflow-y-auto rounded-lg border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark font-mono text-[0.8125rem] scrollbar-thin; }
+.diff-line { @apply px-2; white-space: pre-wrap; word-break: break-word; }
+.diff-line.eq { @apply text-fg-muted dark:text-fg-muted-dark; }
+.diff-line.del { @apply bg-status-err-light dark:bg-status-err-dark line-through; }
+.diff-line.ins { @apply bg-status-ok-light dark:bg-status-ok-dark; }
 
-.cols { display: flex; gap: 1rem; }
-.cols > div { flex: 1; min-width: 0; }
-@media (max-width: 900px) { .cols { flex-direction: column; } }
+/* Vùng đọc thử bản dịch */
+.raw-view { @apply rounded-xl border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark px-5 py-4 max-h-[70vh] overflow-y-auto scrollbar-thin; font-family: var(--reading-font); font-size: var(--reading-size); line-height: 1.8; }
+.raw-view p { @apply my-3; }
+.raw-view sup.fn a { @apply text-brand-600 dark:text-brand-400 no-underline; }
+.footnotes { @apply mt-3 rounded-xl border border-surface-border dark:border-surface-border-dark bg-surface-muted/50 dark:bg-surface-muted-dark/40 px-5 py-3 text-sm text-fg-muted dark:text-fg-muted-dark; }
+.footnotes hr { @apply hidden; }
+.footnotes ol { @apply pl-5 my-1 space-y-1; }
 
-.raw-view { width: 100%; height: 60vh; overflow-y: auto; white-space: pre-wrap; word-break: break-word; box-sizing: border-box; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 4px; padding: 0.5rem; background: var(--tw-surface-light, #ffffff); font-family: monospace; font-size: 0.875rem; line-height: 1.6; }
-.dark .raw-view { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
-.raw-view mark { background: var(--tw-status-warn-light, #fff1a8); border-radius: 2px; padding: 0 1px; }
+/* Panel glossary bên phải */
+.glossary-chip { @apply flex items-start gap-2 px-3 py-2 border-b border-surface-border dark:border-surface-border-dark text-sm; }
+.glossary-chip:last-child { @apply border-b-0; }
+.glossary-chip[hidden] { display: none !important; }
+.chip-dim { @apply opacity-70; }
+.gloss-list:not(.show-all):not(.searching) .chip-dim { display: none; }
+.jump-btn { @apply shrink-0 inline-flex items-center justify-center w-6 h-6 mt-0.5 rounded-md border border-surface-border dark:border-surface-border-dark bg-transparent text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark hover:text-fg-light dark:hover:text-fg-dark cursor-pointer transition-colors duration-fast; }
 
-.compare-toolbar { display: flex; gap: 0.5rem; align-items: center; padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--tw-border, #e4e4e7); background: var(--tw-surface-muted, #f4f4f5); font-size: 0.8125rem; }
-.dark .compare-toolbar { background: var(--tw-surface-muted-dark, #27272a); border-bottom-color: var(--tw-border-dark, #3f3f46); }
-.compare-wrap { position: relative; max-height: 70vh; overflow-y: auto; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; }
-.dark .compare-wrap { border-color: var(--tw-border-dark, #3f3f46); }
-.compare-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.compare-table thead { position: sticky; top: 0; z-index: 2; }
-.compare-table thead th { background: var(--tw-surface-muted, #f4f4f5); border-bottom: 1px solid var(--tw-border, #e4e4e7); padding: 0.35rem 0.5rem; font-weight: 600; font-size: 0.8125rem; color: var(--tw-fg-muted, #71717a); text-align: left; }
-.dark .compare-table thead th { background: var(--tw-surface-muted-dark, #27272a); border-bottom-color: var(--tw-border-dark, #3f3f46); color: var(--tw-fg-muted-dark, #a1a1aa); }
-.compare-table td { padding: 0.35rem 0.5rem; vertical-align: top; border-bottom: 1px solid var(--tw-border, #e4e4e7); font-family: monospace; font-size: 0.8125rem; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
-.dark .compare-table td { border-bottom-color: var(--tw-border-dark, #3f3f46); }
-.compare-table .raw-cell { background: var(--tw-surface-light, #ffffff); }
-.dark .compare-table .raw-cell { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); }
-.compare-table .mt-cell { background: var(--tw-surface-muted, #f4f4f5); color: #333; }
-.dark .compare-table .mt-cell { background: var(--tw-surface-muted-dark, #27272a); color: #c0c0c0; }
-.compare-table mark { background: var(--tw-status-warn-light, #fff1a8); border-radius: 2px; padding: 0 1px; }
-.compare-table mark.jump-flash { background: #ffb84d; outline: 2px solid var(--tw-status-run-fg, #d97706); }
-textarea.jump-flash { outline: 2px solid var(--tw-status-run-fg, #d97706); }
-.readonly-col { background: var(--tw-surface-muted, #f4f4f5); color: #333; }
-.dark .readonly-col { background: var(--tw-surface-muted-dark, #27272a); color: #c0c0c0; }
-
-.compare-table .mt-cell .mt-diff { white-space: pre-wrap; word-break: break-word; }
-.compare-table .mt-cell .mt-diff:empty::before { content: "\00a0"; }
-.compare-table .mt-cell .mt-diff del { background: var(--tw-status-err-light, #ffe1e1); text-decoration: line-through; color: var(--tw-status-err-fg, #b91c1c); padding: 0 1px; border-radius: 2px; }
-.compare-table .mt-cell .mt-diff ins { background: var(--tw-status-ok-light, #def7df); text-decoration: none; color: var(--tw-status-ok-fg, #15803d); padding: 0 1px; border-radius: 2px; }
-.dark .compare-table .mt-cell .mt-diff del { background: var(--tw-status-err-dark, #3a1a1a); color: var(--tw-status-err-fg-dark, #fca5a5); }
-.dark .compare-table .mt-cell .mt-diff ins { background: var(--tw-status-ok-dark, #1a3a1a); color: var(--tw-status-ok-fg-dark, #86efac); }
-.compare-table .mt-cell .mt-diff.mt-diff-hidden { font-style: italic; opacity: 0.55; }
-
-.font-controls label { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--tw-fg-muted, #71717a); white-space: nowrap; }
-.dark .font-controls label { color: var(--tw-fg-muted-dark, #a1a1aa); }
-.font-controls select { font-size: 0.75rem; padding: 0.1rem 0.2rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 4px; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); }
-.dark .font-controls select { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
-
-.diff-view { height: 45vh; overflow-y: auto; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 4px; background: var(--tw-surface-light, #ffffff); font-family: monospace; font-size: 0.8125rem; }
-.dark .diff-view { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
-.diff-line { padding: 0 0.4rem; white-space: pre-wrap; word-break: break-word; }
-.diff-line.eq { color: var(--tw-fg-muted, #555); }
-.dark .diff-line.eq { color: var(--tw-fg-muted-dark, #a1a1aa); }
-.diff-line.del { background: var(--tw-status-err-light, #ffe1e1); text-decoration: line-through; }
-.dark .diff-line.del { background: var(--tw-status-err-dark, #3a1a1a); }
-.diff-line.ins { background: var(--tw-status-ok-light, #def7df); }
-.dark .diff-line.ins { background: var(--tw-status-ok-dark, #1a3a1a); }
-
-.jump-btn { border: 1px solid var(--tw-border, #e4e4e7); background: var(--tw-surface-light, #ffffff); border-radius: 4px; padding: 0 0.3rem; cursor: pointer; font-size: 0.8125rem; line-height: 1.4; }
-.dark .jump-btn { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
-
-@media (max-width: 900px) { .compare-wrap { overflow-x: auto; } .compare-wrap .compare-table { min-width: 700px; } .retranslate-title-section { flex-direction: column; align-items: flex-start; } .retranslate-options { flex-wrap: wrap; } }
+/* Dropdown <details> */
+summary.no-marker { list-style: none; }
+summary.no-marker::-webkit-details-marker { display: none; }
+details[open] > summary.no-marker .dd-caret { transform: rotate(180deg); }
+.dd-caret { @apply inline-block transition-transform duration-fast; }
 </style>
+{% endblock %}
 
-<p class="text-sm"><a href="{% if slug %}/ebooks/{{ slug }}{% else %}/{% endif %}" class="text-brand-600 dark:text-brand-400 hover:underline">&larr; Quay lại</a></p>
-<h2 id="chapter-title" class="text-xl font-semibold mt-2 mb-1">Chương {{ ch.index }}: {{ ch.title }}</h2>
-{% if ch.title_note %}<p class="text-sm text-fg-muted dark:text-fg-muted-dark">{{ ch.title_note }}</p>{% endif %}
-<p class="text-sm text-fg-muted dark:text-fg-muted-dark"><a href="{{ ch.url }}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline">{{ ch.url }}</a></p>
-{% if ch.missing_fields %}<p class="text-sm text-fg-muted dark:text-fg-muted-dark">Thiếu: {{ ch.missing_fields|join(', ') }}</p>{% endif %}
-<p class="text-sm text-fg-muted dark:text-fg-muted-dark">Số từ bản dịch: {{ translated_word_count }} từ{% if raw %} · raw: {{ raw_char_count }} ký tự{% endif %}</p>
-{% if ch.last_action_status %}<p class="text-sm text-fg-muted dark:text-fg-muted-dark">Action gần nhất: {{ ch.last_action_status }}</p>{% endif %}
+{% block content %}
+{% set base = "/ebooks/" ~ slug ~ "/chapters/" ~ ch.index %}
+<div class="chapter-workspace">
 
-<div class="chapter-actions">
-    {% if not raw %}
-    <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action">
-        <input type="hidden" name="action" value="crawl">
-        <input type="hidden" name="override" value="true">
-        <button type="submit" class="btn btn-sm btn-secondary">Crawl</button>
-    </form>
-    {% else %}
-    <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/delete-raw">
-        <button type="submit" class="btn btn-sm btn-secondary" title="Xóa nội dung đã crawl để crawl lại">Xóa crawl</button>
-    </form>
-    {% endif %}
-    <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action">
-        <input type="hidden" name="action" value="translate">
-        <input type="hidden" name="override" value="true">
-        <span class="btn-group">
-            <select name="translate_backend" class="select select-sm">
-                <option value="hachimimt">HachimiMT</option>
-                <option value="openai">OpenAI</option>
-                <option value="google">Google</option>
-            </select>
-            <button type="submit" class="btn btn-sm btn-primary">Dịch</button>
-        </span>
-    </form>
-    <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/delete-translation">
-        <button type="submit" class="btn btn-sm btn-secondary">Xóa bản dịch</button>
-    </form>
-    <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action">
-        <input type="hidden" name="action" value="cleanup-han">
-        <input type="hidden" name="override" value="true">
-        <button type="submit" class="btn btn-sm btn-secondary" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch (dùng config AI biên tập).">Làm sạch Hán</button>
-    </form>
-</div>
-
-<div class="retranslate-title-panel">
-    <div class="flex items-baseline justify-between gap-4 mb-1">
-        <h4 class="m-0 text-sm font-semibold text-fg-muted dark:text-fg-muted-dark">Dịch lại tiêu đề</h4>
-    </div>
-    <div class="retranslate-controls">
-        <div class="retranslate-row">
-            <button type="button" id="retranslate-title-btn" class="btn btn-sm btn-primary" title="Dịch lại tiêu đề dựa trên nội dung đã dịch.">Dịch lại tiêu đề</button>
-            <select id="retranslate-engine" title="Chọn engine dịch tiêu đề" class="select select-sm">
-                <option value="openai">OpenAI</option>
-                <option value="google">Google</option>
-                <option value="hachimimt">HachimiMT</option>
-            </select>
-            <select id="retranslate-model" title="Chọn model" style="display:none" class="select select-sm"></select>
-            <label class="check inline-flex items-center gap-1 text-sm text-fg-muted dark:text-fg-muted-dark" title="Tạo description giải thích tên chương">
-                <input type="checkbox" id="retranslate-gen-desc" checked class="rounded border-surface-border dark:border-surface-border-dark"> Tạo mô tả
-            </label>
+    <!-- ===== Header: breadcrumb + điều hướng chương ===== -->
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div class="min-w-0 flex-1">
+            <p class="text-xs text-fg-muted dark:text-fg-muted-dark mb-1">
+                <a href="/ebooks/{{ slug }}" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">&larr; {{ slug }}</a>
+                <span class="mx-1">/</span>
+                <span>Chương {{ ch.index }}{% if chapter_total %} · {{ chapter_pos }}/{{ chapter_total }}{% endif %}</span>
+            </p>
+            <h2 id="chapter-title" class="font-serif text-xl md:text-2xl font-semibold leading-tight text-balance m-0">Chương {{ ch.index }}: {{ ch.title }}</h2>
+            {% if ch.title_note %}<p id="chapter-title-note" class="text-sm text-fg-muted dark:text-fg-muted-dark mt-1 mb-0">{{ ch.title_note }}</p>{% endif %}
         </div>
-        <details class="prompt-preview-section">
-            <summary>Xem / chỉnh sửa prompt</summary>
-            <textarea id="retranslate-prompt" rows="8" placeholder="Custom prompt (để trống dùng mặc định)" class="block w-full border-0 border-t border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark font-mono text-xs p-3 resize-y box-border">{{ default_title_prompt or '' }}</textarea>
-            <button type="button" id="retranslate-reset-prompt" class="link-btn mx-3 my-2 text-xs">Reset prompt mặc định</button>
+        <nav class="flex items-center gap-1.5 shrink-0 pt-0.5" aria-label="Điều hướng chương">
+            {% if prev_index is not none and prev_index is defined %}
+            <a href="/ebooks/{{ slug }}/chapters/{{ prev_index }}" class="btn btn-sm btn-secondary" title="Chương trước">&larr; Trước</a>
+            {% else %}
+            <span class="btn btn-sm btn-secondary opacity-40 pointer-events-none" aria-disabled="true">&larr; Trước</span>
+            {% endif %}
+            {% if next_index is not none and next_index is defined %}
+            <a href="/ebooks/{{ slug }}/chapters/{{ next_index }}" class="btn btn-sm btn-secondary" title="Chương sau">Sau &rarr;</a>
+            {% else %}
+            <span class="btn btn-sm btn-secondary opacity-40 pointer-events-none" aria-disabled="true">Sau &rarr;</span>
+            {% endif %}
+        </nav>
+    </div>
+
+    <!-- ===== Dải meta ===== -->
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-fg-muted dark:text-fg-muted-dark mt-2">
+        <span>{{ translated_word_count }} từ VI{% if raw %} · {{ raw_char_count }} ký tự ZH{% endif %}</span>
+        <a href="{{ ch.url }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 max-w-[36ch] hover:text-brand-600 dark:hover:text-brand-400 transition-colors" title="{{ ch.url }}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+            <span class="truncate">{{ ch.url }}</span>
+        </a>
+        {% if ch.missing_fields %}<span class="badge badge-warn">Thiếu: {{ ch.missing_fields|join(', ') }}</span>{% endif %}
+        {% if ch.last_action_status %}<span title="Action gần nhất">{{ ch.last_action_status }}</span>{% endif %}
+        {% if meta and meta.get('profile') %}
+        <span>profile <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ meta.profile }}</code> · model <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ meta.get('model') or "-" }}</code></span>
+        {% endif %}
+        {% if meta and meta.get('omniroute') %}{% set o = meta.omniroute %}
+        <span>
+            💰 <strong>${{ "%.4f"|format(o.cost_usd or 0) }}</strong>
+            · {{ (o.tokens_in or 0) + (o.tokens_out or 0) }} tokens
+            {%- if o.actual_model %} · <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ o.actual_model }}</code>{% endif %}
+            {%- if o.latency_ms %} · {{ o.latency_ms }}ms{% endif %}
+            {%- if o.cache_hit %} · <span class="badge badge-ok">cache HIT</span>{% endif %}
+        </span>
+        {% endif %}
+    </div>
+
+    <!-- ===== Toolbar hành động ===== -->
+    <div class="card flex flex-wrap items-center gap-2 p-2.5 mt-4 relative z-20">
+        {% if not raw %}
+        <form method="post" action="{{ base }}/action" class="m-0">
+            <input type="hidden" name="action" value="crawl">
+            <input type="hidden" name="override" value="true">
+            <button type="submit" class="btn btn-sm btn-secondary">Crawl</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ base }}/delete-raw" class="m-0" onsubmit="return confirm('Xóa nội dung đã crawl của chương này?')">
+            <button type="submit" class="btn btn-sm btn-danger" title="Xóa nội dung đã crawl để crawl lại">Xóa crawl</button>
+        </form>
+        {% endif %}
+        <span class="w-px h-5 bg-surface-border dark:bg-surface-border-dark hidden sm:block" aria-hidden="true"></span>
+        <form method="post" action="{{ base }}/action" class="m-0">
+            <input type="hidden" name="action" value="translate">
+            <input type="hidden" name="override" value="true">
+            <span class="inline-flex items-stretch">
+                <select name="translate_backend" class="select select-sm !w-auto !rounded-r-none !border-r-0" title="Backend dịch">
+                    <option value="hachimimt">HachimiMT</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="google">Google</option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary !rounded-l-none">Dịch</button>
+            </span>
+        </form>
+        <form method="post" action="{{ base }}/action" class="m-0">
+            <input type="hidden" name="action" value="cleanup-han">
+            <input type="hidden" name="override" value="true">
+            <button type="submit" class="btn btn-sm btn-secondary" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch (dùng config AI biên tập).">Làm sạch Hán</button>
+        </form>
+        <form method="post" action="{{ base }}/delete-translation" class="m-0" onsubmit="return confirm('Xóa bản dịch của chương này?')">
+            <button type="submit" class="btn btn-sm btn-danger">Xóa bản dịch</button>
+        </form>
+        <span class="flex-1"></span>
+        <!-- Dropdown: dịch lại tiêu đề -->
+        <details id="retranslate-dd" class="relative">
+            <summary class="no-marker btn btn-sm btn-secondary cursor-pointer select-none">Dịch lại tiêu đề <span class="dd-caret text-[10px]">▼</span></summary>
+            <div class="absolute right-0 top-full mt-2 w-[26rem] max-w-[calc(100vw-2rem)] card p-3 shadow-modal dark:shadow-modal-dark z-30 space-y-2.5">
+                <div class="flex flex-wrap items-center gap-2">
+                    <select id="retranslate-engine" title="Chọn engine dịch tiêu đề" class="select select-sm !w-auto">
+                        <option value="openai">OpenAI</option>
+                        <option value="google">Google</option>
+                        <option value="hachimimt">HachimiMT</option>
+                    </select>
+                    <select id="retranslate-model" title="Chọn model" style="display:none" class="select select-sm !w-auto"></select>
+                    <label class="inline-flex items-center gap-1.5 text-sm text-fg-muted dark:text-fg-muted-dark cursor-pointer" title="Tạo description giải thích tên chương">
+                        <input type="checkbox" id="retranslate-gen-desc" checked class="rounded border-surface-border dark:border-surface-border-dark"> Tạo mô tả
+                    </label>
+                </div>
+                <details class="rounded-lg border border-surface-border dark:border-surface-border-dark">
+                    <summary class="px-3 py-2 cursor-pointer text-xs text-fg-muted dark:text-fg-muted-dark select-none hover:text-fg-light dark:hover:text-fg-dark transition-colors">Xem / chỉnh sửa prompt</summary>
+                    <textarea id="retranslate-prompt" rows="8" placeholder="Custom prompt (để trống dùng mặc định)" class="block w-full border-0 border-t border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-fg-light dark:text-fg-dark font-mono text-xs p-3 resize-y rounded-b-lg focus:outline-none focus:ring-1 focus:ring-brand-500">{{ default_title_prompt or '' }}</textarea>
+                    <button type="button" id="retranslate-reset-prompt" class="mx-3 my-2 text-xs text-brand-600 dark:text-brand-400 hover:underline bg-transparent border-0 cursor-pointer p-0">Reset prompt mặc định</button>
+                </details>
+                <button type="button" id="retranslate-title-btn" class="btn btn-sm btn-primary w-full" title="Dịch lại tiêu đề dựa trên nội dung đã dịch.">Dịch lại tiêu đề</button>
+            </div>
         </details>
     </div>
-</div>
 
-<div id="job-status-section" class="my-3" style="display: none;">
-    <p class="flex items-center gap-2 flex-wrap m-0"><strong>Trạng thái job:</strong>
-        <span id="status-badge-crawl"><span class="badge badge-ok">Crawl: rảnh</span></span>
-        <span id="status-badge-translate"><span class="badge badge-ok">Dịch: rảnh</span></span>
-    </p>
-</div>
-{% if meta %}
-<p class="text-sm text-fg-muted dark:text-fg-muted-dark">Prompt/profile: <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ meta.profile }}</code> · Model: <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ meta.model or "-" }}</code></p>
-{% if meta.omniroute %}
-<p class="text-sm text-fg-muted dark:text-fg-muted-dark m-0">
-    💰 <strong>${{ "%.4f"|format(meta.omniroute.cost_usd or 0) }}</strong>
-    · {{ (meta.omniroute.tokens_in or 0) + (meta.omniroute.tokens_out or 0) }} tokens
-    {%- if meta.omniroute.actual_model %} · <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded text-xs">{{ meta.omniroute.actual_model }}</code>{% endif %}
-    {%- if meta.omniroute.latency_ms %} · {{ meta.omniroute.latency_ms }}ms{% endif %}
-    {%- if meta.omniroute.cache_hit %} · <span class="badge badge-ok">cache HIT</span>{% endif %}
-    {%- if meta.omniroute.version %} · OmniRoute {{ meta.omniroute.version }}{% endif %}
-</p>
-{% endif %}
-{% endif %}
-
-<section class="chapter-workspace" style="grid-column: 1 / -1;">
-
-{% set base = "/ebooks/" ~ slug ~ "/chapters/" ~ ch.index %}
-
-{% if meta and meta.ai_review and meta.ai_review.report %}
-{% set report = meta.ai_review.report %}
-<div class="ai-panel review">
-    <div class="flex items-baseline justify-between gap-4 mb-1">
-        <h3 class="m-0 text-base font-semibold">AI review{% if report.score is not none %} · {{ report.score }}/10{% endif %}</h3>
-        <form method="post" action="{{ base }}/ai/review/dismiss"><button type="submit" class="link-btn text-sm">Ẩn</button></form>
+    <!-- ===== Trạng thái job (hiện khi có job chạy) ===== -->
+    <div id="job-status-section" class="card p-3 mt-3" style="display: none;">
+        <p class="flex items-center gap-2 flex-wrap m-0 text-sm"><strong>Trạng thái job:</strong>
+            <span id="status-badge-crawl"><span class="badge badge-ok">Crawl: rảnh</span></span>
+            <span id="status-badge-translate"><span class="badge badge-ok">Dịch: rảnh</span></span>
+        </p>
     </div>
-    {% if report.summary %}<p class="text-sm">{{ report.summary }}</p>{% endif %}
-    {% if report.issues %}
-    <ol class="issue-list">
-        {% for it in report.issues %}
-        <li class="issue sev-{{ it.severity }}">
-            <span class="issue-tag">{{ CATEGORY_LABELS.get(it.category, it.category) }}</span>
-            <span class="issue-tag sev">{{ it.severity }}</span>
-            {% if it.source %}<code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ it.source }}</code>{% endif %}
-            {% if it.current or it.suggestion %}<div><span class="del">{{ it.current }}</span> → <span class="ins">{{ it.suggestion }}</span></div>{% endif %}
-            {% if it.reason %}<div class="text-fg-muted dark:text-fg-muted-dark text-sm">{{ it.reason }}</div>{% endif %}
-        </li>
-        {% endfor %}
-    </ol>
-    {% else %}
-    <p class="text-sm text-fg-muted dark:text-fg-muted-dark">Không phát hiện vấn đề nào.</p>
+
+    {% if meta and meta.ai_review and meta.ai_review.report %}
+    {% set report = meta.ai_review.report %}
+    <div class="ai-panel review">
+        <div class="flex items-baseline justify-between gap-4 mb-1">
+            <h3 class="m-0 text-base font-semibold">AI review{% if report.score is not none %} · {{ report.score }}/10{% endif %}</h3>
+            <form method="post" action="{{ base }}/ai/review/dismiss" class="m-0"><button type="submit" class="text-sm text-fg-muted dark:text-fg-muted-dark hover:text-fg-light dark:hover:text-fg-dark bg-transparent border-0 cursor-pointer underline p-0">Ẩn</button></form>
+        </div>
+        {% if report.summary %}<p class="text-sm my-1">{{ report.summary }}</p>{% endif %}
+        {% if report.issues %}
+        <ol class="issue-list">
+            {% for it in report.issues %}
+            <li class="issue sev-{{ it.severity }}">
+                <span class="issue-tag">{{ CATEGORY_LABELS.get(it.category, it.category) }}</span>
+                <span class="issue-tag">{{ it.severity }}</span>
+                {% if it.source %}<code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ it.source }}</code>{% endif %}
+                {% if it.current or it.suggestion %}<div class="mt-0.5"><span class="del">{{ it.current }}</span> → <span class="ins">{{ it.suggestion }}</span></div>{% endif %}
+                {% if it.reason %}<div class="text-fg-muted dark:text-fg-muted-dark text-sm">{{ it.reason }}</div>{% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+        {% else %}
+        <p class="text-sm text-fg-muted dark:text-fg-muted-dark m-0">Không phát hiện vấn đề nào.</p>
+        {% endif %}
+    </div>
     {% endif %}
-</div>
-{% endif %}
 
-{% if meta and meta.ai_suggestions %}
-<div class="ai-panel suggest">
-    <div class="flex items-baseline justify-between gap-4 mb-1">
-        <h3 class="m-0 text-base font-semibold">AI gợi ý glossary ({{ meta.ai_suggestions|length }})</h3>
+    {% if meta and meta.ai_suggestions %}
+    <div class="ai-panel suggest">
+        <div class="flex items-baseline justify-between gap-4 mb-2">
+            <h3 class="m-0 text-base font-semibold">AI gợi ý glossary ({{ meta.ai_suggestions|length }})</h3>
+        </div>
+        <form method="post" action="{{ base }}/ai/suggest/apply" class="m-0">
+            <div class="table-container bg-surface-light dark:bg-surface-dark">
+                <table class="table">
+                    <thead><tr><th class="w-10"></th><th>Hán</th><th>Việt</th><th class="w-24">Loại</th><th>Lý do</th></tr></thead>
+                    <tbody>
+                    {% for s in meta.ai_suggestions %}
+                    <tr>
+                        <td><input type="checkbox" name="selected_{{ loop.index0 }}" checked class="rounded border-surface-border dark:border-surface-border-dark"></td>
+                        <td><code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ s.source }}</code><input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
+                        <td>{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
+                        <td>{{ s.type }}</td>
+                        <td class="text-fg-muted dark:text-fg-muted-dark">{{ s.reason }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="mt-3 mb-0"><button type="submit" class="btn btn-sm btn-primary">Thêm mục đã tick vào glossary</button></p>
+        </form>
     </div>
-    <form method="post" action="{{ base }}/ai/suggest/apply">
-        <div class="overflow-x-auto border border-surface-border dark:border-surface-border-dark rounded-lg">
-        <table class="w-full text-sm">
-            <thead class="text-fg-muted dark:text-fg-muted-dark uppercase tracking-wide text-xs"><tr><th class="text-left px-3 py-2 border-b border-surface-border dark:border-surface-border-dark"></th><th class="text-left px-3 py-2 border-b border-surface-border dark:border-surface-border-dark">Hán</th><th class="text-left px-3 py-2 border-b border-surface-border dark:border-surface-border-dark">Việt</th><th class="text-left px-3 py-2 border-b border-surface-border dark:border-surface-border-dark">Loại</th><th class="text-left px-3 py-2 border-b border-surface-border dark:border-surface-border-dark">Lý do</th></tr></thead>
-            <tbody>
-            {% for s in meta.ai_suggestions %}
-            <tr class="hover:bg-surface-muted/50 dark:hover:bg-surface-muted-dark/50">
-                <td class="px-3 py-2 border-b border-surface-border dark:border-surface-border-dark"><input type="checkbox" name="selected_{{ loop.index0 }}" checked class="rounded border-surface-border dark:border-surface-border-dark"></td>
-                <td class="px-3 py-2 border-b border-surface-border dark:border-surface-border-dark"><code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ s.source }}</code><input type="hidden" name="source_{{ loop.index0 }}" value="{{ s.source }}"></td>
-                <td class="px-3 py-2 border-b border-surface-border dark:border-surface-border-dark">{{ s.suggested }}<input type="hidden" name="suggested_{{ loop.index0 }}" value="{{ s.suggested }}"></td>
-                <td class="px-3 py-2 border-b border-surface-border dark:border-surface-border-dark">{{ s.type }}</td>
-                <td class="px-3 py-2 border-b border-surface-border dark:border-surface-border-dark text-fg-muted dark:text-fg-muted-dark text-sm">{{ s.reason }}</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        </div>
-        <p class="mt-2"><button type="submit" class="btn btn-sm btn-primary">Thêm mục đã tick vào glossary</button></p>
-    </form>
-</div>
-{% endif %}
+    {% endif %}
 
-{% if meta and meta.before_rewrite %}
-<details class="mt-2">
-    <summary class="cursor-pointer text-sm">Chương này đã được AI rewrite — xem/khôi phục bản trước khi rewrite</summary>
-    <div class="cols mt-2">
-        <div>
-            <h4 class="text-sm font-semibold">Bản trước khi rewrite</h4>
-            <textarea readonly class="w-full rounded-md border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-sm font-mono p-2" rows="10">{{ meta.before_rewrite }}</textarea>
+    {% if meta and meta.ai_rewrite and meta.ai_rewrite.text %}
+    <div class="ai-panel rewrite">
+        <div class="flex items-baseline justify-between gap-4 mb-1 flex-wrap">
+            <h3 class="m-0 text-base font-semibold">Bản nháp AI biên tập — xem diff trước khi áp dụng</h3>
+            <div class="flex gap-3 items-center m-0">
+                <form method="post" action="{{ base }}/ai/rewrite/apply" class="m-0"><button type="submit" class="btn btn-sm btn-primary">Áp dụng (ghi đè bản dịch)</button></form>
+                <form method="post" action="{{ base }}/ai/rewrite/discard" class="m-0"><button type="submit" class="text-sm text-fg-muted dark:text-fg-muted-dark hover:text-fg-light dark:hover:text-fg-dark bg-transparent border-0 cursor-pointer underline p-0">Bỏ bản nháp</button></form>
+            </div>
         </div>
-        <div>
-            <form method="post" action="{{ base }}">
+        <p class="text-sm text-fg-muted dark:text-fg-muted-dark mt-1">Đỏ = bị bỏ/đổi so với bản hiện tại · Xanh = AI thêm/sửa. Áp dụng sẽ lưu bản hiện tại vào "trước khi rewrite" để khôi phục được.</p>
+        <div class="grid md:grid-cols-2 gap-4">
+            <div>
+                <h4 class="text-sm font-semibold mb-1">Bản dịch hiện tại</h4>
+                <div class="diff-view" id="diff-current"></div>
+            </div>
+            <div>
+                <h4 class="text-sm font-semibold mb-1">Bản nháp AI</h4>
+                <div class="diff-view" id="diff-preview"></div>
+            </div>
+        </div>
+        <textarea id="ai-rewrite-text" hidden>{{ meta.ai_rewrite.text }}</textarea>
+    </div>
+    {% endif %}
+
+    {% if meta and meta.before_rewrite %}
+    <details class="mt-3 text-sm">
+        <summary class="cursor-pointer text-fg-muted dark:text-fg-muted-dark hover:text-fg-light dark:hover:text-fg-dark transition-colors">Chương này đã được AI rewrite — xem/khôi phục bản trước khi rewrite</summary>
+        <div class="card p-3 mt-2 space-y-2">
+            <textarea readonly class="w-full rounded-lg border border-surface-border dark:border-surface-border-dark bg-surface-muted/50 dark:bg-surface-muted-dark/50 text-sm font-mono p-2.5" rows="10">{{ meta.before_rewrite }}</textarea>
+            <form method="post" action="{{ base }}" class="m-0" onsubmit="return confirm('Ghi đè bản dịch hiện tại bằng bản trước khi rewrite?')">
                 <input type="hidden" name="translated" value="{{ meta.before_rewrite }}">
-                <p class="mt-2"><button type="submit" class="btn btn-sm btn-primary">Khôi phục bản này (ghi đè bản dịch hiện tại)</button></p>
+                <button type="submit" class="btn btn-sm btn-secondary">Khôi phục bản này (ghi đè bản dịch hiện tại)</button>
             </form>
         </div>
-    </div>
-</details>
-{% endif %}
+    </details>
+    {% endif %}
 
-{% if meta and meta.before_find_replace %}
-<details class="mt-2">
-    <summary class="cursor-pointer text-sm">Chương này đã bị tìm & thay thế — xem/khôi phục bản trước khi thay</summary>
-    <div class="cols mt-2">
-        <div>
-            <h4 class="text-sm font-semibold">Bản trước khi tìm & thay thế</h4>
-            <textarea readonly class="w-full rounded-md border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-sm font-mono p-2" rows="10">{{ meta.before_find_replace }}</textarea>
-        </div>
-        <div>
-            <form method="post" action="{{ base }}">
+    {% if meta and meta.before_find_replace %}
+    <details class="mt-3 text-sm">
+        <summary class="cursor-pointer text-fg-muted dark:text-fg-muted-dark hover:text-fg-light dark:hover:text-fg-dark transition-colors">Chương này đã bị tìm &amp; thay thế — xem/khôi phục bản trước khi thay</summary>
+        <div class="card p-3 mt-2 space-y-2">
+            <textarea readonly class="w-full rounded-lg border border-surface-border dark:border-surface-border-dark bg-surface-muted/50 dark:bg-surface-muted-dark/50 text-sm font-mono p-2.5" rows="10">{{ meta.before_find_replace }}</textarea>
+            <form method="post" action="{{ base }}" class="m-0" onsubmit="return confirm('Ghi đè bản dịch hiện tại bằng bản trước khi tìm & thay thế?')">
                 <input type="hidden" name="translated" value="{{ meta.before_find_replace }}">
-                <p class="mt-2"><button type="submit" class="btn btn-sm btn-primary">Khôi phục bản này (ghi đè bản dịch hiện tại)</button></p>
+                <button type="submit" class="btn btn-sm btn-secondary">Khôi phục bản này (ghi đè bản dịch hiện tại)</button>
             </form>
         </div>
-    </div>
-</details>
-{% endif %}
+    </details>
+    {% endif %}
 
-    <div class="compare-wrap">
-        <div class="compare-toolbar">
-            <label class="check muted inline-flex items-center gap-1 text-sm"><input type="checkbox" id="inline-diff-toggle" checked class="rounded border-surface-border dark:border-surface-border-dark"> So sánh với MT</label>
-            <label class="check muted inline-flex items-center gap-1 text-sm"><input type="checkbox" id="highlight-toggle" checked class="rounded border-surface-border dark:border-surface-border-dark"> Tô sáng glossary</label>
-            <span class="font-controls">
-                <label>Font:
-                    <select id="font-family-select" class="select select-sm">
-                        <option value="'Literata', 'Georgia', serif">Literata (Google Books)</option>
-                        <option value="'Bookerly', 'Georgia', serif">Bookerly (Kindle)</option>
-                        <option value="'FernText', 'Georgia', serif">FernText (E-reader)</option>
-                        <option value="Georgia, serif">Georgia</option>
-                        <option value="'Times New Roman', serif">Times New Roman</option>
-                        <option value="'Noto Serif', serif">Noto Serif</option>
-                        <option value="monospace">Monospace</option>
-                    </select>
-                </label>
-                <label>Cỡ:
-                    <select id="font-size-select" class="select select-sm">
-                        <option value="14px">14</option>
-                        <option value="15px">15</option>
-                        <option value="16px">16</option>
-                        <option value="18px">18</option>
-                        <option value="20px">20</option>
-                        <option value="24px">24</option>
-                    </select>
-                </label>
-            </span>
+    <!-- ===== Bảng so sánh + panel glossary ===== -->
+    <div class="xl:flex xl:items-start xl:gap-5 mt-5">
+        <div class="flex-1 min-w-0">
+            <div class="rounded-xl border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark shadow-card dark:shadow-card-dark">
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 border-b border-surface-border dark:border-surface-border-dark rounded-t-xl bg-surface-muted/60 dark:bg-surface-muted-dark/60 text-xs text-fg-muted dark:text-fg-muted-dark">
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer select-none" title="Tô đỏ phần bản máy bị sửa, xanh phần biên tập thêm vào">
+                        <input type="checkbox" id="inline-diff-toggle" checked class="rounded border-surface-border dark:border-surface-border-dark"> So sánh với bản biên tập
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer select-none" title="Tô sáng các thuật ngữ glossary trong cột ZH">
+                        <input type="checkbox" id="highlight-toggle" checked class="rounded border-surface-border dark:border-surface-border-dark"> Tô sáng glossary
+                    </label>
+                    <span class="flex-1"></span>
+                    <label class="inline-flex items-center gap-1.5">Font
+                        <select id="font-family-select" class="select select-sm !w-auto !py-1">
+                            <option value="'Literata', 'Georgia', serif">Literata (Google Books)</option>
+                            <option value="'Bookerly', 'Georgia', serif">Bookerly (Kindle)</option>
+                            <option value="'FernText', 'Georgia', serif">FernText (E-reader)</option>
+                            <option value="Georgia, serif">Georgia</option>
+                            <option value="'Times New Roman', serif">Times New Roman</option>
+                            <option value="'Noto Serif', serif">Noto Serif</option>
+                            <option value="monospace">Monospace</option>
+                        </select>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5">Cỡ
+                        <select id="font-size-select" class="select select-sm !w-auto !py-1">
+                            <option value="14px">14</option>
+                            <option value="15px">15</option>
+                            <option value="16px" selected>16</option>
+                            <option value="18px">18</option>
+                            <option value="20px">20</option>
+                            <option value="24px">24</option>
+                        </select>
+                    </label>
+                </div>
+                <table class="compare-table" id="compare-table">
+                    <thead>
+                        <tr>
+                            <th class="w-1/2">ZH — Gốc</th>
+                            <th>VI — <span id="mt-col-label">Bản dịch máy</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for i in range(num_paras) %}
+                        <tr data-para="{{ i }}">
+                            <td class="raw-cell" data-para="{{ i }}">{{ raw_paras[i] }}</td>
+                            <td class="mt-cell" data-para="{{ i }}"><div class="mt-diff" data-para="{{ i }}">{{ mt_paras[i] }}</div></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <table class="compare-table" id="compare-table">
-            <thead>
-                <tr>
-                    <th class="col-raw">ZH — Gốc</th>
-                    <th class="col-mt">VI — Bản dịch máy</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for i in range(num_paras) %}
-                <tr data-para="{{ i }}">
-                    <td class="raw-cell" data-para="{{ i }}">{{ raw_paras[i] }}</td>
-                    <td class="mt-cell" data-para="{{ i }}"><div class="mt-diff" data-para="{{ i }}">{{ mt_paras[i] }}</div></td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
+
+        <aside class="mt-4 xl:mt-0 xl:w-80 xl:shrink-0 xl:sticky xl:top-20">
+            <div class="card overflow-hidden flex flex-col xl:max-h-[calc(100vh-6rem)]">
+                <div class="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-surface-border dark:border-surface-border-dark">
+                    <h3 class="m-0 text-sm font-semibold">Glossary <span class="text-fg-muted dark:text-fg-muted-dark font-normal">({{ glossary_relevant_count }} trong chương)</span></h3>
+                    <a href="/ebooks/{{ slug }}/glossary" class="text-xs text-brand-600 dark:text-brand-400 hover:underline whitespace-nowrap">Mở trang ↗</a>
+                </div>
+                {% if glossary_rows %}
+                <div class="p-2 border-b border-surface-border dark:border-surface-border-dark">
+                    <input type="search" id="glossary-search" class="input input-sm" placeholder="Tìm Hán / Việt / ghi chú…">
+                </div>
+                <div id="gloss-list" class="gloss-list flex-1 overflow-y-auto scrollbar-thin max-h-72 xl:max-h-none">
+                    {% for row in glossary_rows %}
+                    <div class="glossary-chip {% if not row.relevant %}chip-dim{% endif %}" data-source="{{ row.source }}" data-suggested="{{ row.suggested }}" data-search="{{ row.source }} {{ row.suggested }} {{ row.note }}">
+                        <button type="button" class="jump-btn" title="Soi vị trí trong chương">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        </button>
+                        <div class="min-w-0 flex-1">
+                            <div class="leading-snug"><strong class="font-medium">{{ row.source }}</strong> <span class="text-fg-muted dark:text-fg-muted-dark">→</span> {{ row.suggested }}</div>
+                            {% if row.note %}<div class="text-xs text-fg-muted dark:text-fg-muted-dark truncate" title="{{ row.note }}">{{ row.note }}</div>{% endif %}
+                            {% if row.relevant %}
+                            <div class="text-[11px] text-fg-muted dark:text-fg-muted-dark mt-0.5">ZH {{ row.raw_count }} · VI {{ row.translated_count }}{% if row.mismatch %} <span class="badge badge-warn !text-[10px] !px-1.5">thiếu trong VI</span>{% endif %}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="px-3 py-2 border-t border-surface-border dark:border-surface-border-dark">
+                    <label class="inline-flex items-center gap-1.5 text-xs text-fg-muted dark:text-fg-muted-dark cursor-pointer select-none">
+                        <input type="checkbox" id="gloss-show-all" class="rounded border-surface-border dark:border-surface-border-dark"> Hiện cả mục không dùng trong chương ({{ glossary_rows|length }})
+                    </label>
+                </div>
+                {% else %}
+                <div class="empty-state !py-8">
+                    <p class="empty-state-desc m-0">Chưa có mục glossary nào. Bôi đen từ trong bảng để thêm nhanh.</p>
+                </div>
+                {% endif %}
+            </div>
+        </aside>
     </div>
+
+    <!-- ===== Đọc thử bản dịch + chú thích ===== -->
+    {% if translated %}
+    <section class="mt-6">
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+            <h3 class="text-base font-semibold m-0">Đọc thử bản dịch</h3>
+            {% if footnote_list %}
+            <label class="inline-flex items-center gap-1.5 text-sm text-fg-muted dark:text-fg-muted-dark cursor-pointer select-none">
+                <input type="checkbox" id="footnotes-toggle" checked class="rounded border-surface-border dark:border-surface-border-dark"> Hiện chú thích ({{ footnote_list|length }})
+            </label>
+            {% endif %}
+        </div>
+        {% if footnote_list %}
+        <details id="footnotes-control" class="mb-2 text-sm">
+            <summary class="cursor-pointer text-fg-muted dark:text-fg-muted-dark hover:text-fg-light dark:hover:text-fg-dark transition-colors">Ẩn từng chú thích ({{ footnote_list|length }})</summary>
+            <ul class="mt-1.5 space-y-1 pl-1 list-none">
+                {% for fn in footnote_list %}
+                <li><label class="inline-flex items-baseline gap-1.5 text-sm cursor-pointer"><input type="checkbox" class="footnote-item-toggle rounded border-surface-border dark:border-surface-border-dark translate-y-0.5" data-num="{{ fn.num }}" checked> <span>({{ fn.num }}) <strong>{{ fn.term }}</strong>: {{ fn.note }}</span></label></li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+        <div class="raw-view" id="translated-preview">{{ translated_preview_html|safe }}</div>
+        {% if footnote_list %}{{ footnotes_html|safe }}{% endif %}
+    </section>
+    {% endif %}
+
     <input type="hidden" id="hidden-translated" value="{{ translated }}">
-
-{% if footnote_list %}
-<div class="flex items-baseline justify-between gap-4 mb-1 mt-4">
-    <h3 class="text-base font-semibold m-0">Xem trước chú thích</h3>
-    <label class="check inline-flex items-center gap-1 text-sm text-fg-muted dark:text-fg-muted-dark"><input type="checkbox" id="footnotes-toggle" checked class="rounded border-surface-border dark:border-surface-border-dark"> Hiện chú thích</label>
 </div>
-<details id="footnotes-control" class="edit-rules">
-    <summary class="cursor-pointer text-sm">Ẩn từng chú thích ({{ footnote_list|length }})</summary>
-    <ul class="list-disc pl-5">
-        {% for fn in footnote_list %}
-        <li><label class="check inline-flex items-center gap-1 text-sm"><input type="checkbox" class="footnote-item-toggle rounded border-surface-border dark:border-surface-border-dark" data-num="{{ fn.num }}" checked> ({{ fn.num }}) <strong>{{ fn.term }}</strong>: {{ fn.note }}</label></li>
-        {% endfor %}
-    </ul>
-</details>
-<div class="raw-view" id="translated-preview">{{ translated_preview_html|safe }}</div>
-{{ footnotes_html|safe }}
-{% endif %}
-
-{% if meta and meta.ai_rewrite and meta.ai_rewrite.text %}
-<div class="ai-panel rewrite">
-    <div class="flex items-baseline justify-between gap-4 mb-1">
-        <h3 class="m-0 text-base font-semibold">Bản nháp AI biên tập — xem diff trước khi áp dụng</h3>
-        <div class="flex gap-3 items-center" style="margin:0">
-            <form method="post" action="{{ base }}/ai/rewrite/apply"><button type="submit" class="btn btn-sm btn-primary">Áp dụng (ghi đè bản dịch)</button></form>
-            <form method="post" action="{{ base }}/ai/rewrite/discard"><button type="submit" class="link-btn text-sm">Bỏ bản nháp</button></form>
-        </div>
-    </div>
-    <p class="text-sm text-fg-muted dark:text-fg-muted-dark">Đỏ = bị bỏ/đổi so với bản hiện tại · Xanh = AI thêm/sửa. Áp dụng sẽ lưu bản hiện tại vào "trước khi rewrite" để khôi phục được.</p>
-    <div class="cols diff-cols">
-        <div>
-            <h4 class="text-sm font-semibold">Bản dịch hiện tại</h4>
-            <div class="diff-view" id="diff-current"></div>
-        </div>
-        <div>
-            <h4 class="text-sm font-semibold">Bản nháp AI</h4>
-            <div class="diff-view" id="diff-preview"></div>
-        </div>
-    </div>
-    <textarea id="ai-rewrite-text" hidden>{{ meta.ai_rewrite.text }}</textarea>
-</div>
-{% endif %}
 
 <!-- Popover glossary từ bôi đen (ZH/VI trong bảng so sánh + preview) -->
 <button type="button" id="gloss-pop-trigger" class="hidden fixed z-50 btn btn-sm btn-primary shadow-card">+ Glossary</button>
-<div id="gloss-pop" class="hidden fixed z-50 w-80 rounded-lg border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark shadow-card dark:shadow-card-dark p-3 space-y-2 text-sm">
+<div id="gloss-pop" class="hidden fixed z-50 w-80 rounded-lg border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark shadow-modal dark:shadow-modal-dark p-3 space-y-2 text-sm">
     <div class="flex items-center justify-between">
         <strong>Mục glossary</strong>
         <button type="button" id="gloss-pop-close" class="btn btn-sm btn-ghost leading-none">✕</button>
@@ -414,8 +435,6 @@ textarea.jump-flash { outline: 2px solid var(--tw-status-run-fg, #d97706); }
         <button type="button" id="gloss-pop-save" class="btn btn-sm btn-primary">Lưu</button>
     </div>
 </div>
-
-</section>
 {% endblock %}
 
 {% block scripts %}
@@ -424,17 +443,25 @@ textarea.jump-flash { outline: 2px solid var(--tw-status-run-fg, #d97706); }
 const CHAPTER_SLUG = {{ slug | tojson }};
 const CHAPTER_INDEX = {{ ch.index | tojson }};
 const TRANSLATED_API_URL = `/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/chapters/${CHAPTER_INDEX}/translated`;
+const MT_PARAS = {{ mt_paras | tojson }};
+const EDIT_PARAS = {{ edit_paras | tojson }};
 
+/* ---------- Panel glossary: tìm kiếm + hiện tất cả ---------- */
+const glossList = document.getElementById("gloss-list");
 const glossarySearch = document.getElementById("glossary-search");
 const glossaryRows = Array.from(document.querySelectorAll(".glossary-chip"));
 if (glossarySearch) {
     glossarySearch.addEventListener("input", () => {
         const query = glossarySearch.value.trim().toLowerCase();
+        if (glossList) glossList.classList.toggle("searching", !!query);
         for (const row of glossaryRows) {
-            row.hidden = query && !row.dataset.search.toLowerCase().includes(query);
+            row.hidden = !!query && !row.dataset.search.toLowerCase().includes(query);
         }
     });
 }
+document.getElementById("gloss-show-all")?.addEventListener("change", function () {
+    if (glossList) glossList.classList.toggle("show-all", this.checked);
+});
 
 function escapeHtml(s) {
     return String(s).replace(/&/g, "\x26amp;").replace(/</g, "\x26lt;").replace(/>/g, "\x26gt;").replace(/"/g, "\x26quot;").replace(/'/g, "\x26#039;");
@@ -442,6 +469,8 @@ function escapeHtml(s) {
 function escapeRegex(s) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+/* ---------- Tô sáng glossary trong cột ZH ---------- */
 const highlightToggle = document.getElementById("highlight-toggle");
 const glossaryTerms = Array.from(new Set(
     glossaryRows
@@ -470,6 +499,79 @@ if (document.querySelector("#compare-table")) {
     if (highlightToggle) highlightToggle.addEventListener("change", renderRawView);
 }
 
+/* ---------- Diff MT ↔ bản biên tập trong cột VI ---------- */
+const inlineDiffToggle = document.getElementById("inline-diff-toggle");
+const mtColLabel = document.getElementById("mt-col-label");
+
+function renderCombinedDiff(el, left, right) {
+    el.textContent = "";
+    let i = 0, j = 0;
+    while (i < left.length || j < right.length) {
+        if (i < left.length && left[i][0] === "del") {
+            const d = document.createElement("del");
+            d.textContent = left[i][1];
+            el.appendChild(d);
+            i++;
+        } else if (j < right.length && right[j][0] === "ins") {
+            const n = document.createElement("ins");
+            n.textContent = right[j][1];
+            el.appendChild(n);
+            j++;
+        } else if (i < left.length && j < right.length) {
+            el.appendChild(document.createTextNode(left[i][1]));
+            i++; j++;
+        } else {
+            break;
+        }
+    }
+}
+
+function renderMtCells() {
+    const on = inlineDiffToggle && inlineDiffToggle.checked;
+    document.querySelectorAll("#compare-table .mt-diff").forEach(div => {
+        const idx = parseInt(div.dataset.para, 10);
+        const mt = MT_PARAS[idx] || "";
+        const ed = EDIT_PARAS[idx] || "";
+        if (on && ed && ed !== mt && window.n2eDiff) {
+            const [l, r] = n2eDiff.wordDiff(mt, ed);
+            renderCombinedDiff(div, l, r);
+        } else {
+            div.textContent = mt;
+        }
+    });
+    if (mtColLabel) mtColLabel.textContent = on ? "Bản dịch máy · diff với biên tập" : "Bản dịch máy";
+}
+if (document.querySelector("#compare-table")) {
+    renderMtCells();
+    if (inlineDiffToggle) inlineDiffToggle.addEventListener("change", renderMtCells);
+}
+
+/* ---------- Font đọc (lưu localStorage) ---------- */
+const workspaceEl = document.querySelector(".chapter-workspace");
+const fontFamilySelect = document.getElementById("font-family-select");
+const fontSizeSelect = document.getElementById("font-size-select");
+function applyReadingPrefs() {
+    if (!workspaceEl) return;
+    if (fontFamilySelect) {
+        workspaceEl.style.setProperty("--reading-font", fontFamilySelect.value);
+        localStorage.setItem("n2e-reading-font", fontFamilySelect.value);
+    }
+    if (fontSizeSelect) {
+        workspaceEl.style.setProperty("--reading-size", fontSizeSelect.value);
+        localStorage.setItem("n2e-reading-size", fontSizeSelect.value);
+    }
+}
+(function initReadingPrefs() {
+    const f = localStorage.getItem("n2e-reading-font");
+    const s = localStorage.getItem("n2e-reading-size");
+    if (f && fontFamilySelect && [...fontFamilySelect.options].some(o => o.value === f)) fontFamilySelect.value = f;
+    if (s && fontSizeSelect && [...fontSizeSelect.options].some(o => o.value === s)) fontSizeSelect.value = s;
+    fontFamilySelect?.addEventListener("change", applyReadingPrefs);
+    fontSizeSelect?.addEventListener("change", applyReadingPrefs);
+    applyReadingPrefs();
+})();
+
+/* ---------- Soi vị trí thuật ngữ (jump) ---------- */
 function flashElement(el) {
     el.classList.add("jump-flash");
     setTimeout(() => el.classList.remove("jump-flash"), 1200);
@@ -498,15 +600,11 @@ function jumpRawTo(term, occurrence) {
     return marks.length;
 }
 
-function jumpTranslatedTo(term, occurrence) {
+function jumpTranslatedTo(term) {
     if (!term) return 0;
     const input = document.getElementById("hidden-translated");
     if (!input) return 0;
-    const fullText = input.value || "";
-    const idxs = termOccurrenceIndexes(fullText, term);
-    if (idxs.length === 0) return 0;
-    // No edit textareas anymore - just return count for button title
-    return idxs.length;
+    return termOccurrenceIndexes(input.value || "", term).length;
 }
 
 for (const chip of glossaryRows) {
@@ -517,13 +615,14 @@ for (const chip of glossaryRows) {
         const source = chip.dataset.source || "";
         const suggested = chip.dataset.suggested || "";
         const rawCount = jumpRawTo(source, cursor);
-        const transCount = jumpTranslatedTo(suggested, cursor);
+        const transCount = jumpTranslatedTo(suggested);
         cursor += 1;
         const total = Math.max(rawCount, transCount, 1);
         btn.title = `Soi vị trí ${(cursor % total) || total}/${total}`;
     });
 }
 
+/* ---------- Chú thích: ẩn/hiện ---------- */
 const footnotesToggle = document.getElementById("footnotes-toggle");
 const footnotesControl = document.getElementById("footnotes-control");
 const itemToggles = Array.from(document.querySelectorAll(".footnote-item-toggle"));
@@ -545,7 +644,7 @@ if (footnotesToggle) footnotesToggle.addEventListener("change", applyFootnoteVis
 for (const cb of itemToggles) cb.addEventListener("change", applyFootnoteVisibility);
 applyFootnoteVisibility();
 
-// lineDiff/renderDiffCol dùng chung từ /static/diff.js (window.n2eDiff)
+/* ---------- Diff bản nháp AI biên tập (dùng chung /static/diff.js) ---------- */
 const diffCurrent = document.getElementById("diff-current");
 const diffPreview = document.getElementById("diff-preview");
 const rewriteText = document.getElementById("ai-rewrite-text");
@@ -556,6 +655,7 @@ if (diffCurrent && diffPreview && rewriteText && hiddenTranslated) {
     n2eDiff.renderDiffCol(diffPreview, right);
 }
 
+/* ---------- Job submit + poll trạng thái ---------- */
 const statusSection = document.getElementById("job-status-section");
 
 function jobCategoryFor(form) {
@@ -631,9 +731,9 @@ function renderTranslatedPreview(text) {
     if (!previewEl) return;
     const escaped = (text || "").split("\n").map(line => {
         const safe = line
-            .replace(/&/g, "&")
-            .replace(/</g, "<")
-            .replace(/>/g, ">");
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
         return safe.trim() ? `<p>${safe}</p>` : "";
     }).join("");
     previewEl.innerHTML = escaped;
@@ -713,6 +813,7 @@ async function poll() {
     }
 }
 
+/* ---------- Dịch lại tiêu đề ---------- */
 document.getElementById("retranslate-title-btn")?.addEventListener("click", async function() {
     const btn = this;
     btn.disabled = true;
@@ -735,7 +836,7 @@ document.getElementById("retranslate-title-btn")?.addEventListener("click", asyn
             body: formData
         });
         if (!res.ok) {
-            const err = await res.json();
+            const err = await res.json().catch(() => ({}));
             alert(err.detail || "Có lỗi xảy ra.");
             return;
         }
@@ -749,14 +850,16 @@ document.getElementById("retranslate-title-btn")?.addEventListener("click", asyn
             if (!noteEl) {
                 noteEl = document.createElement("p");
                 noteEl.id = "chapter-title-note";
-                noteEl.className = "text-sm text-fg-muted dark:text-fg-muted-dark";
+                noteEl.className = "text-sm text-fg-muted dark:text-fg-muted-dark mt-1 mb-0";
                 titleEl?.after(noteEl);
             }
             noteEl.textContent = data.title_note;
         }
+        document.getElementById("retranslate-dd")?.removeAttribute("open");
         toast("Đã dịch lại tiêu đề", "success");
     } catch (e) {
         alert("Lỗi kết nối mạng.");
+    } finally {
         btn.disabled = false;
         btn.textContent = "Dịch lại tiêu đề";
     }

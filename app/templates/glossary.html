@@ -17,6 +17,10 @@
     <input id="gloss-search" type="search" placeholder="Tìm Hán / Việt / ghi chú…" autocomplete="off"
         class="input input-sm w-64">
     <span id="gloss-count" class="text-sm text-fg-muted dark:text-fg-muted-dark"></span>
+    <div class="flex rounded-lg border border-surface-border dark:border-surface-border-dark overflow-hidden">
+        <button type="button" id="view-all" class="btn btn-sm btn-primary rounded-none">Tất cả</button>
+        <button type="button" id="view-suspects" class="btn btn-sm btn-ghost rounded-none">Nghi vấn</button>
+    </div>
     <span class="text-xs text-fg-muted dark:text-fg-muted-dark">Sửa trực tiếp — tự lưu khi rời ô.</span>
     <div class="ml-auto flex flex-wrap gap-2">
         <button type="button" id="btn-bulk-delete" class="btn btn-sm btn-danger hidden">Xóa đã chọn (<span id="bulk-count">0</span>)</button>
@@ -59,6 +63,9 @@
         </select>
     </label>
 </div>
+
+<!-- View Nghi vấn: nhóm trùng target / Hán lồng nhau / conflicts -->
+<div id="suspects-view" class="hidden space-y-4"></div>
 
 <p class="mt-4">
     Trạng thái job dịch:
@@ -181,6 +188,142 @@ bulkBtn.addEventListener("click", async () => {
         checkAll.checked = false;
         await loadPage();
         refreshBulkBtn();
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+});
+
+/* ---------- Tab Nghi vấn ---------- */
+const viewAllBtn = document.getElementById("view-all");
+const viewSuspectsBtn = document.getElementById("view-suspects");
+const suspectsView = document.getElementById("suspects-view");
+const tableWrap = document.querySelector(".table-container");
+const pagerEl = document.getElementById("gloss-pager");
+
+function setView(suspects) {
+    tableWrap.classList.toggle("hidden", suspects);
+    pagerEl.classList.toggle("hidden", suspects);
+    emptyMsg.classList.add("hidden");
+    searchInput.disabled = suspects;
+    suspectsView.classList.toggle("hidden", !suspects);
+    viewAllBtn.className = suspects ? "btn btn-sm btn-ghost rounded-none" : "btn btn-sm btn-primary rounded-none";
+    viewSuspectsBtn.className = suspects ? "btn btn-sm btn-primary rounded-none" : "btn btn-sm btn-ghost rounded-none";
+}
+viewAllBtn.addEventListener("click", async () => { setView(false); await loadPage(); refreshBulkBtn(); });
+viewSuspectsBtn.addEventListener("click", async () => { setView(true); await loadSuspects(); refreshBulkBtn(); });
+
+// Dòng mục trong view Nghi vấn: cùng input inline như bảng chính, nhưng lưu
+// trực tiếp qua /entry khi blur (data-orig-* giữ giá trị đã lưu).
+function suspectRow(e) {
+    return `
+        <tr class="border-t border-surface-border dark:border-surface-border-dark" data-orig-source="${escapeHtml(e.source)}" data-orig-target="${escapeHtml(e.target)}">
+            <td class="px-2 py-1 align-top w-8"><input type="checkbox" class="bulk-check rounded border-surface-border dark:border-surface-border-dark" data-source="${escapeHtml(e.source)}"></td>
+            <td class="px-2 py-1 align-top"><input data-sfield="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
+            <td class="px-2 py-1 align-top"><input data-sfield="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top"><input data-sfield="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-fg-muted dark:text-fg-muted-dark"></td>
+        </tr>`;
+}
+
+function suspectTable(rowsHtml) {
+    return `<div class="table-container"><table class="table"><tbody>${rowsHtml}</tbody></table></div>`;
+}
+
+async function loadSuspects() {
+    suspectsView.innerHTML = '<p class="text-sm text-fg-muted dark:text-fg-muted-dark">Đang quét…</p>';
+    let data;
+    try {
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/suspects`);
+        if (!res.ok) { toast("Không tải được danh sách nghi vấn.", "error"); return; }
+        data = await res.json();
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); return; }
+
+    const parts = [];
+    if (data.conflicts.length) {
+        parts.push(`<h3 class="text-base font-semibold m-0">Conflicts từ lần dịch (${data.conflicts.length})</h3>`);
+        parts.push(data.conflicts.map(c => `
+            <div class="conflict-row flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg border border-status-warn-light dark:border-status-warn-dark text-sm"
+                 data-source="${escapeHtml(c.source)}" data-kept="${escapeHtml(c.kept)}" data-new="${escapeHtml(c.new)}">
+                <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">${escapeHtml(c.source)}</code>
+                giữ "<strong>${escapeHtml(c.kept)}</strong>" · AI đề xuất "<strong>${escapeHtml(c.new)}</strong>"
+                <span class="ml-auto flex gap-2">
+                    <button type="button" class="btn btn-sm btn-ghost conflict-keep">Giữ cũ</button>
+                    <button type="button" class="btn btn-sm btn-secondary conflict-take">Lấy mới</button>
+                </span>
+            </div>`).join(""));
+    }
+    if (data.same_target.length) {
+        parts.push(`<h3 class="text-base font-semibold m-0 mt-2">Trùng Việt — nhiều Hán cùng 1 cách dịch (${data.same_target.length} nhóm)</h3>`);
+        parts.push(data.same_target.map(g => `
+            <div class="rounded-lg border border-surface-border dark:border-surface-border-dark p-2">
+                <p class="m-0 mb-1 text-sm text-fg-muted dark:text-fg-muted-dark">→ "<strong>${escapeHtml(g.target)}</strong>"</p>
+                ${suspectTable(g.entries.map(suspectRow).join(""))}
+            </div>`).join(""));
+    }
+    if (data.nested_source.length) {
+        parts.push(`<h3 class="text-base font-semibold m-0 mt-2">Hán lồng nhau (${data.nested_source.length} cặp)</h3>`);
+        parts.push(data.nested_source.map(p => `
+            <div class="rounded-lg border border-surface-border dark:border-surface-border-dark p-2">
+                ${suspectTable(suspectRow(p.outer) + suspectRow(p.inner))}
+            </div>`).join(""));
+    }
+    suspectsView.innerHTML = parts.length
+        ? parts.join("")
+        : '<p class="text-sm text-fg-muted dark:text-fg-muted-dark py-6 text-center">Không có mục nghi vấn nào 🎉</p>';
+}
+
+// Sửa inline trong view Nghi vấn: lưu khi blur, dùng data-orig-* làm khóa cũ.
+suspectsView.addEventListener("change", async e => {
+    const field = e.target.dataset.sfield;
+    if (!field) return;
+    const tr = e.target.closest("tr");
+    const source = tr.querySelector('[data-sfield="source"]').value.trim();
+    const target = tr.querySelector('[data-sfield="target"]').value.trim();
+    const note = tr.querySelector('[data-sfield="note"]').value;
+    if (!source || !target) return;
+    const fd = new FormData();
+    fd.set("source", source); fd.set("target", target); fd.set("note", note);
+    fd.set("original_source", tr.dataset.origSource || "");
+    try {
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/entry`, { method: "POST", body: fd });
+        if (!res.ok) { flashRow(e.target, false); return; }
+        flashRow(e.target, true);
+        const oldTarget = tr.dataset.origTarget || "";
+        tr.dataset.origSource = source;
+        tr.dataset.origTarget = target;
+        if (oldTarget && oldTarget !== target) showPropagateBanner(tr, oldTarget, target);
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+});
+
+// Conflicts: Giữ cũ = chỉ gỡ; Lấy mới = upsert target mới + gỡ + mời lan truyền.
+suspectsView.addEventListener("click", async e => {
+    const row = e.target.closest(".conflict-row");
+    if (!row) return;
+    const keep = e.target.closest(".conflict-keep");
+    const take = e.target.closest(".conflict-take");
+    if (!keep && !take) return;
+    const { source, kept, new: newTarget } = row.dataset;
+    try {
+        if (take) {
+            const fd = new FormData();
+            fd.set("source", source); fd.set("target", newTarget); fd.set("note", "");
+            const r = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/entry`, { method: "POST", body: fd });
+            if (!r.ok) { toast("Không cập nhật được mục.", "error"); return; }
+        }
+        const fd2 = new FormData();
+        fd2.set("source", source); fd2.set("new", newTarget);
+        await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/conflicts/resolve`, { method: "POST", body: fd2 });
+        if (take && kept && kept !== newTarget) {
+            // Banner cần 1 <tr> để chèn sau — bọc conflict row bằng bảng nhỏ tạm.
+            const holder = document.createElement("table");
+            holder.className = "w-full";
+            const tbody = document.createElement("tbody");
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            tr.appendChild(td); tbody.appendChild(tr); holder.appendChild(tbody);
+            row.after(holder);
+            showPropagateBanner(tr, kept, newTarget);
+        }
+        row.classList.add("opacity-40");
+        row.querySelectorAll("button").forEach(b => { b.disabled = true; });
+        toast(take ? `Đã lấy "${newTarget}".` : "Đã giữ giá trị cũ.", "success");
     } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
 });
 

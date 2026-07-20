@@ -119,6 +119,19 @@ def ebook_glossary_delete_entry(slug: str, source: str = Form(...)):
     return JSONResponse({"ok": True})
 
 
+@router.post("/api/ebooks/{slug}/glossary/entries/delete")
+def ebook_glossary_delete_entries(slug: str, payload: dict = Body(...)):
+    """Xoá NHIỀU mục một lần (multi-select trên bảng). Body JSON
+    `{"sources": [...]}`. Source không tồn tại được bỏ qua, không lỗi."""
+    sources = [str(s).strip() for s in payload.get("sources", []) if str(s).strip()]
+    if not sources:
+        raise HTTPException(status_code=400, detail="Chưa chọn mục nào để xoá.")
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    deleted = sum(1 for s in sources if storage.delete_glossary_entry(s))
+    return JSONResponse({"deleted": deleted})
+
+
 @router.post("/api/ebooks/{slug}/glossary/clean")
 def ebook_glossary_clean(slug: str):
     """Dọn dữ liệu toàn glossary (trim, bỏ mục thiếu, dedup theo source) trên

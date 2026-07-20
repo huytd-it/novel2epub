@@ -246,6 +246,31 @@ def test_clean_reports_removed_count(tmp_path, monkeypatch):
     assert storage.read_glossary_entries("vietphrase.txt") == []
 
 
+# ----- route: xóa hàng loạt -----
+
+def test_bulk_delete_removes_selected_sources(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n斗气 = Đấu khí\n林动 = Lâm Động\n")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/entries/delete",
+        json={"sources": ["萧炎", "林动", "不存在"]},
+    )
+    assert res.status_code == 200
+    assert res.json()["deleted"] == 2  # "不存在" không có → không tính
+    assert storage.read_glossary_entries("names.txt") == [("斗气", "Đấu khí", "")]
+
+
+def test_bulk_delete_rejects_empty_list(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    client = _client(cfg, monkeypatch)
+    res = client.post("/api/ebooks/t/glossary/entries/delete", json={"sources": ["  "]})
+    assert res.status_code == 400
+
+
 # ----- route: nhập glossary từ AI (merge) -----
 
 def test_import_glossary_merges(tmp_path, monkeypatch):

@@ -60,32 +60,6 @@
     </label>
 </div>
 
-<!-- Modal: sửa tên & áp dụng lại bản dịch cũ -->
-<div id="reapply-modal" class="modal-backdrop" hidden>
-    <div class="modal">
-        <div class="p-5 border-b border-surface-border dark:border-surface-border-dark flex items-center justify-between">
-            <h3 class="m-0 text-lg font-semibold">Sửa tên & áp dụng lại bản dịch cũ</h3>
-            <button type="button" id="reapply-close" class="btn btn-sm btn-ghost text-lg leading-none">✕</button>
-        </div>
-        <div class="p-5 space-y-4">
-            <p class="text-sm text-fg-muted dark:text-fg-muted-dark">Thay literal chuỗi cũ → chuỗi mới trên các chương <strong>đã dịch</strong> (chỉ ghi <code>translated/</code>). Bản trước khi thay được lưu vào meta từng chương để khôi phục. <strong>Bắt buộc xem trước</strong> trước khi áp dụng.</p>
-            <div class="form-row">
-                <label class="form-group"><span class="label">Chuỗi cũ (tìm)</span><input type="text" id="reapply-find" class="input"></label>
-                <label class="form-group"><span class="label">Chuỗi mới (thay)</span><input type="text" id="reapply-replace" class="input"></label>
-            </div>
-            <div class="form-row">
-                <label class="form-group"><span class="label">Từ chương</span><input type="number" id="reapply-from" value="0" min="0" class="input input-sm"></label>
-                <label class="form-group"><span class="label">đến chương</span><input type="number" id="reapply-to" value="0" min="0" class="input input-sm"></label>
-            </div>
-            <div class="flex gap-2">
-                <button type="button" id="reapply-preview-btn" class="btn btn-sm btn-secondary">Xem trước</button>
-                <button type="button" id="reapply-apply-btn" disabled class="btn btn-sm btn-primary">Áp dụng</button>
-            </div>
-            <div id="reapply-preview-result" class="text-sm max-h-72 overflow-y-auto"></div>
-        </div>
-    </div>
-</div>
-
 <p class="mt-4">
     Trạng thái job dịch:
     <span id="status-badge-container">
@@ -165,7 +139,7 @@ async function loadPage() {
         const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/list?${params}`);
         if (!res.ok) { toast("Không tải được glossary.", "error"); return; }
         const data = await res.json();
-        ROWS = data.entries.map(e => ({ ...e, _saved: e.source })); // _saved = source đã lưu (để đổi tên)
+        ROWS = data.entries.map(e => ({ ...e, _saved: e.source, _savedTarget: e.target }));
         total = data.total; pages = data.pages; state.page = data.page; state.perPage = data.per_page;
         render();
     } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
@@ -229,9 +203,16 @@ async function saveRow(row, el) {
             return;
         }
         const isNew = !row._saved;
+        const oldTarget = row._savedTarget || "";
         row._saved = source;
+        row._savedTarget = target;
         if (isNew) { total += 1; renderPager(); }
         if (el) flashRow(el, true);
+        // Target đổi trên mục đã có → mời lan truyền vào bản dịch cũ.
+        if (!isNew && oldTarget && oldTarget !== target) {
+            const tr = el && el.closest("tr");
+            if (tr) showPropagateBanner(tr, oldTarget, target);
+        }
     } catch (err) { toast("Lỗi kết nối mạng.", "error"); if (el) flashRow(el, false); }
 }
 
@@ -270,8 +251,6 @@ body.addEventListener("click", async e => {
             toast("Đã xoá mục.", "success");
             await loadPage(); // reload trang hiện tại từ DB
         } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
-    } else if (btn.dataset.act === "reapply") {
-        openReapply(row);
     }
 });
 
@@ -434,94 +413,45 @@ document.getElementById("btn-import").addEventListener("click", () => {
     ta.focus();
 });
 
-/* ---------- Sửa tên & áp dụng lại (modal + preview) ---------- */
-const reapplyModal = document.getElementById("reapply-modal");
-const reapplyFind = document.getElementById("reapply-find");
-const reapplyReplace = document.getElementById("reapply-replace");
-const reapplyFrom = document.getElementById("reapply-from");
-const reapplyTo = document.getElementById("reapply-to");
-const reapplyApplyBtn = document.getElementById("reapply-apply-btn");
-const reapplyResult = document.getElementById("reapply-preview-result");
-let reapplyEntry = null;
-
-function openReapply(entry) {
-    reapplyEntry = entry;
-    reapplyFind.value = entry.target;
-    reapplyReplace.value = entry.target;
-    reapplyFrom.value = 0; reapplyTo.value = 0;
-    reapplyResult.innerHTML = "";
-    reapplyApplyBtn.disabled = true;
-    // Modal ẩn qua thuộc tính HTML `hidden` (xem base.html) — dùng đúng
-    // openModal/closeModal chung của app, không tự toggle class "hidden"
-    // (class đó không nằm trong class="" của phần tử nên không có tác dụng).
-    openModal("reapply-modal");
-    reapplyReplace.focus();
+/* ---------- Banner lan truyền: thay target cũ → mới trong bản dịch ---------- */
+function removePropagateBanner() {
+    const el = document.getElementById("propagate-banner");
+    if (el) el.remove();
 }
-function closeReapply() { closeModal("reapply-modal"); reapplyEntry = null; }
-document.getElementById("reapply-close").addEventListener("click", closeReapply);
-reapplyModal.addEventListener("click", e => { if (e.target === reapplyModal) closeReapply(); });
 
-// Đổi ô tìm/thay/phạm vi ⇒ phải xem trước lại trước khi áp dụng.
-[reapplyFind, reapplyReplace, reapplyFrom, reapplyTo].forEach(el =>
-    el.addEventListener("input", () => { reapplyApplyBtn.disabled = true; }));
-
-document.getElementById("reapply-preview-btn").addEventListener("click", async () => {
-    const find = reapplyFind.value.trim();
-    if (!find) { toast("Chuỗi cần tìm đang rỗng.", "error"); return; }
-    reapplyResult.innerHTML = '<p class="text-fg-muted dark:text-fg-muted-dark">Đang quét…</p>';
+// Chèn banner ngay dưới `afterTr` (1 banner duy nhất tại 1 thời điểm).
+async function showPropagateBanner(afterTr, oldStr, newStr) {
+    removePropagateBanner();
+    const banner = document.createElement("tr");
+    banner.id = "propagate-banner";
+    banner.innerHTML = `<td colspan="5" class="px-3 py-2 text-sm bg-brand-50 dark:bg-brand-950/30 border-t border-surface-border dark:border-surface-border-dark">
+        Thay "<strong>${escapeHtml(oldStr)}</strong>" → "<strong>${escapeHtml(newStr)}</strong>" trong bản dịch cũ?
+        <span class="prop-actions text-fg-muted dark:text-fg-muted-dark">đang đếm…</span></td>`;
+    afterTr.after(banner);
+    const actions = banner.querySelector(".prop-actions");
     try {
-        const fd = new FormData();
-        fd.set("find", find);
-        fd.set("replace", reapplyReplace.value);
-        fd.set("chapter_from", reapplyFrom.value || 0);
-        fd.set("chapter_to", reapplyTo.value || 0);
-        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/reapply-preview`, { method: "POST", body: fd });
-        const data = await res.json();
-        if (!res.ok) { reapplyResult.innerHTML = `<p class="text-status-err-fg dark:text-status-err-fg-dark">${escapeHtml(data.detail || "Lỗi.")}</p>`; return; }
-        if (!data.chapters.length) {
-            reapplyResult.innerHTML = '<p class="text-fg-muted dark:text-fg-muted-dark">Không có chương nào chứa chuỗi này.</p>';
-            reapplyApplyBtn.disabled = true;
-            return;
-        }
-        const rows = data.chapters.map(c => `
-            <tr class="border-t border-surface-border dark:border-surface-border-dark">
-                <td class="px-2 py-1 whitespace-nowrap">Ch.${c.index}</td>
-                <td class="px-2 py-1 text-center">${c.count}</td>
-                <td class="px-2 py-1 text-fg-muted dark:text-fg-muted-dark">${escapeHtml(c.snippet)}</td>
-            </tr>`).join("");
-        reapplyResult.innerHTML = `
-            <p class="mb-1"><strong>${data.chapters.length}</strong> chương bị ảnh hưởng · tổng <strong>${data.total}</strong> chỗ thay
-            "<span class="font-mono">${escapeHtml(data.find)}</span>" → "<span class="font-mono">${escapeHtml(reapplyReplace.value)}</span>".</p>
-            <table class="w-full text-xs border border-surface-border dark:border-surface-border-dark rounded">
-                <thead class="bg-surface-muted dark:bg-surface-muted-dark"><tr><th class="px-2 py-1 text-left">Chương</th><th class="px-2 py-1">Số chỗ</th><th class="px-2 py-1 text-left">Ví dụ</th></tr></thead>
-                <tbody>${rows}</tbody>
-            </table>`;
-        reapplyApplyBtn.disabled = reapplyReplace.value.trim() === "";
-    } catch (err) { reapplyResult.innerHTML = '<p class="text-status-err-fg dark:text-status-err-fg-dark">Lỗi kết nối mạng.</p>'; }
-});
-
-reapplyApplyBtn.addEventListener("click", async () => {
-    const find = reapplyFind.value.trim();
-    const replace = reapplyReplace.value.trim();
-    if (!find || !replace) { toast("Cần cả chuỗi tìm và chuỗi thay.", "error"); return; }
-    reapplyApplyBtn.disabled = true;
-    try {
-        const fd = new FormData();
-        fd.set("find", find);
-        fd.set("replace", replace);
-        fd.set("chapter_from", reapplyFrom.value || 0);
-        fd.set("chapter_to", reapplyTo.value || 0);
-        if (reapplyEntry) { fd.set("source", reapplyEntry.source); }
-        const res = await fetch(`/ebooks/${GLOSSARY_SLUG}/glossary/reapply`, { method: "POST", body: fd });
+        const params = new URLSearchParams({ find: oldStr });
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/match-count?${params}`);
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(data.detail || "Không bắt đầu được job.", "error"); reapplyApplyBtn.disabled = false; return; }
-        // Cập nhật mục trong bảng cho khớp (server đã đổi trong file).
-        if (reapplyEntry) reapplyEntry.target = replace;
-        render();
-        toast("Đã bắt đầu áp dụng (job nền). Theo dõi ở Queue/Logs.", "success");
-        closeReapply();
-    } catch (err) { toast("Lỗi kết nối mạng.", "error"); reapplyApplyBtn.disabled = false; }
-});
+        if (!res.ok) { banner.remove(); toast(data.detail || "Không đếm được số chỗ khớp.", "error"); return; }
+        if (!data.total_count) { banner.remove(); return; } // không có gì để thay
+        actions.innerHTML = `
+            <button type="button" class="btn btn-sm btn-primary prop-all">Tất cả (${data.total_count} chỗ · ${data.chapter_total} chương)</button>
+            <button type="button" class="btn btn-sm btn-ghost prop-skip">Bỏ qua</button>`;
+        actions.querySelector(".prop-skip").addEventListener("click", removePropagateBanner);
+        actions.querySelector(".prop-all").addEventListener("click", async () => {
+            const fd = new FormData();
+            fd.set("find", oldStr); fd.set("replace", newStr); fd.set("scope", "all");
+            try {
+                const r = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/propagate`, { method: "POST", body: fd });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) { toast(d.detail || "Không bắt đầu được job.", "error"); return; }
+                toast("Đã bắt đầu thay toàn bộ (job nền). Theo dõi ở Queue/Logs.", "success");
+                removePropagateBanner();
+            } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+        });
+    } catch (err) { banner.remove(); toast("Lỗi kết nối mạng.", "error"); }
+}
 
 /* ---------- Poll trạng thái job ---------- */
 async function pollStatus() {

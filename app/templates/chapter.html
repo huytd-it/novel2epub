@@ -400,6 +400,21 @@ textarea.jump-flash { outline: 2px solid var(--tw-status-run-fg, #d97706); }
 </div>
 {% endif %}
 
+<!-- Popover glossary từ bôi đen (ZH/VI trong bảng so sánh + preview) -->
+<button type="button" id="gloss-pop-trigger" class="hidden fixed z-50 btn btn-sm btn-primary shadow-card">+ Glossary</button>
+<div id="gloss-pop" class="hidden fixed z-50 w-80 rounded-lg border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark shadow-card dark:shadow-card-dark p-3 space-y-2 text-sm">
+    <div class="flex items-center justify-between">
+        <strong>Mục glossary</strong>
+        <button type="button" id="gloss-pop-close" class="btn btn-sm btn-ghost leading-none">✕</button>
+    </div>
+    <label class="block"><span class="label">Hán</span><input type="text" id="gloss-pop-source" class="input input-sm w-full font-mono"></label>
+    <label class="block"><span class="label">Việt</span><input type="text" id="gloss-pop-target" class="input input-sm w-full"></label>
+    <label class="block"><span class="label">Ghi chú</span><input type="text" id="gloss-pop-note" class="input input-sm w-full"></label>
+    <div id="gloss-pop-actions" class="flex flex-wrap gap-2">
+        <button type="button" id="gloss-pop-save" class="btn btn-sm btn-primary">Lưu</button>
+    </div>
+</div>
+
 </section>
 {% endblock %}
 
@@ -771,5 +786,127 @@ document.getElementById("retranslate-reset-prompt")?.addEventListener("click", f
 
 poll();
 setInterval(poll, 1500);
+
+/* ---------- Popover glossary từ bôi đen ---------- */
+const popTrigger = document.getElementById("gloss-pop-trigger");
+const pop = document.getElementById("gloss-pop");
+const popSource = document.getElementById("gloss-pop-source");
+const popTarget = document.getElementById("gloss-pop-target");
+const popNote = document.getElementById("gloss-pop-note");
+const popActions = document.getElementById("gloss-pop-actions");
+let popSel = null;      // {text, fromZh} — selection lúc bấm nút
+let popExisting = null; // {source, target} mục đã có (để biết target cũ khi lan truyền)
+
+function hidePopover() { pop.classList.add("hidden"); popTrigger.classList.add("hidden"); }
+
+// Bôi đen trong vùng so sánh/preview → hiện nút nổi cạnh selection.
+document.addEventListener("mouseup", e => {
+    if (e.target.closest("#gloss-pop") || e.target.closest("#gloss-pop-trigger")) return;
+    setTimeout(() => {
+        const sel = window.getSelection();
+        const text = sel ? sel.toString().trim() : "";
+        const anchor = sel && sel.anchorNode &&
+            (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement);
+        const cell = anchor && anchor.closest && anchor.closest(".raw-cell, .mt-cell, #translated-preview");
+        if (!text || text.length > 100 || !cell) { popTrigger.classList.add("hidden"); return; }
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        popSel = { text, fromZh: !!anchor.closest(".raw-cell") };
+        popTrigger.style.left = Math.max(8, rect.left) + "px";
+        popTrigger.style.top = (rect.bottom + 6) + "px";
+        popTrigger.classList.remove("hidden");
+        pop.classList.add("hidden");
+    }, 0);
+});
+
+popTrigger.addEventListener("click", async () => {
+    if (!popSel) return;
+    popExisting = null;
+    popNote.value = "";
+    if (popSel.fromZh) { popSource.value = popSel.text; popTarget.value = ""; }
+    else { popTarget.value = popSel.text; popSource.value = ""; }
+    // Tra glossary: điền sẵn nửa còn lại nếu mục đã có (khớp chính xác).
+    try {
+        const params = new URLSearchParams({ q: popSel.text, per_page: "50" });
+        const res = await fetch(`/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/glossary/list?${params}`);
+        if (res.ok) {
+            const data = await res.json();
+            const hit = (data.entries || []).find(en =>
+                popSel.fromZh ? en.source === popSel.text : en.target === popSel.text);
+            if (hit) {
+                popSource.value = hit.source; popTarget.value = hit.target; popNote.value = hit.note || "";
+                popExisting = { source: hit.source, target: hit.target };
+            }
+        }
+    } catch (err) { /* tra không được thì để user tự điền */ }
+    popActions.innerHTML = '<button type="button" id="gloss-pop-save" class="btn btn-sm btn-primary">Lưu</button>';
+    document.getElementById("gloss-pop-save").addEventListener("click", savePopEntry);
+    pop.style.left = popTrigger.style.left;
+    pop.style.top = popTrigger.style.top;
+    pop.classList.remove("hidden");
+    popTrigger.classList.add("hidden");
+    (popSel.fromZh ? popTarget : popSource).focus();
+});
+
+document.getElementById("gloss-pop-close").addEventListener("click", hidePopover);
+document.addEventListener("keydown", e => { if (e.key === "Escape") hidePopover(); });
+
+async function savePopEntry() {
+    const source = popSource.value.trim();
+    const target = popTarget.value.trim();
+    if (!source || !target) { alert("Cần cả Hán và Việt."); return; }
+    const fd = new FormData();
+    fd.set("source", source); fd.set("target", target); fd.set("note", popNote.value);
+    fd.set("original_source", popExisting ? popExisting.source : "");
+    try {
+        const res = await fetch(`/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/glossary/entry`, { method: "POST", body: fd });
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            alert(d.detail || "Lưu thất bại.");
+            return;
+        }
+    } catch (err) { alert("Lỗi kết nối mạng."); return; }
+
+    // Chuỗi cũ cần thay: target cũ của mục có sẵn, hoặc chính đoạn VI vừa bôi
+    // (mục mới thêm từ cột VI mà target gõ lại khác đi).
+    let oldStr = "";
+    if (popExisting && popExisting.target !== target) oldStr = popExisting.target;
+    else if (!popExisting && !popSel.fromZh && popSel.text !== target) oldStr = popSel.text;
+    if (!oldStr) { hidePopover(); return; }
+    await showPopPropagate(oldStr, target);
+}
+
+async function showPopPropagate(oldStr, newStr) {
+    popActions.innerHTML = '<span class="text-fg-muted dark:text-fg-muted-dark">đang đếm…</span>';
+    let data;
+    try {
+        const params = new URLSearchParams({ find: oldStr, chapter_index: String(CHAPTER_INDEX) });
+        const res = await fetch(`/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/glossary/match-count?${params}`);
+        data = await res.json().catch(() => ({}));
+        if (!res.ok) { hidePopover(); return; }
+    } catch (err) { hidePopover(); return; }
+    if (!data.total_count) { hidePopover(); return; }
+    popActions.innerHTML = `
+        <button type="button" class="btn btn-sm btn-primary pop-prop-chapter" ${data.chapter_count ? "" : "disabled"}>Thay chương này (${data.chapter_count})</button>
+        <button type="button" class="btn btn-sm btn-secondary pop-prop-all">Thay tất cả (${data.total_count} chỗ · ${data.chapter_total} chương)</button>
+        <button type="button" class="btn btn-sm btn-ghost pop-prop-skip">Chỉ lưu</button>`;
+    popActions.querySelector(".pop-prop-skip").addEventListener("click", hidePopover);
+    popActions.querySelector(".pop-prop-chapter").addEventListener("click", () => popPropagate(oldStr, newStr, "chapter"));
+    popActions.querySelector(".pop-prop-all").addEventListener("click", () => popPropagate(oldStr, newStr, "all"));
+}
+
+async function popPropagate(oldStr, newStr, scope) {
+    const fd = new FormData();
+    fd.set("find", oldStr); fd.set("replace", newStr); fd.set("scope", scope);
+    fd.set("chapter_index", String(CHAPTER_INDEX));
+    try {
+        const res = await fetch(`/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/glossary/propagate`, { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { alert(data.detail || "Không thay được."); return; }
+        if (scope === "chapter") {
+            await pollTranslated(); // cập nhật bản dịch tại chỗ, giữ vị trí đọc
+        }
+    } catch (err) { alert("Lỗi kết nối mạng."); return; }
+    hidePopover();
+}
 </script>
 {% endblock %}

@@ -223,6 +223,17 @@ def load_glossary_dict(cfg: TranslateConfig, storage: "Storage | None" = None) -
                 zh, vi, _note = parsed
                 glossary[zh] = vi
     if storage is not None:
+        # Đề xuất auto-glossary CHỜ DUYỆT vẫn được dùng khi dịch (nhất quán
+        # giữa các run + AI không đề xuất lại), nhưng merge TRƯỚC 2 list DB
+        # để mục đã duyệt/sửa tay trong names.txt thắng khi trùng source.
+        try:
+            pending = storage.read_extra_json("glossary_pending")
+        except Exception:
+            pending = None
+        if isinstance(pending, list):
+            for p in pending:
+                if isinstance(p, dict) and p.get("source") and p.get("target"):
+                    glossary[str(p["source"])] = str(p["target"])
         for list_name in ("vietphrase.txt", "names.txt"):
             try:
                 entries = storage.read_glossary_entries(list_name)
@@ -324,11 +335,15 @@ class OpenAITranslator:
         self,
         new_entries: dict[str, str],
         storage: "Storage",
+        chapter_index: int = 0,
     ) -> dict:
-        """Merge new_entries vào in-memory glossary + ghi DB. Thread-safe.
+        """Merge new_entries vào in-memory glossary + ghi HÀNG CHỜ DUYỆT.
+        Thread-safe.
 
-        Không còn phân loại names/vietphrase — mọi entry mới ghi vào list
-        chuẩn duy nhất `names.txt`. Trả {'added': [(source, target), ...],
+        Entry mới KHÔNG vào thẳng `names.txt` nữa — persist vào extra json
+        `glossary_pending` để người dùng preview/duyệt (hàng loạt) hoặc bỏ trên
+        trang Glossary. In-memory vẫn nhận ngay để các chương sau trong run
+        dịch nhất quán. Trả {'added': [(source, target), ...],
         'conflicts': [{source, existing, new}, ...]}. Existing wins khi conflict.
         """
         added, conflicts = [], []
@@ -339,7 +354,6 @@ class OpenAITranslator:
                 existing = self.glossary.get(source)
                 if existing is None:
                     self.glossary[source] = new_target
-                    storage.append_glossary_line("names.txt", f"{source} = {new_target}")
                     added.append((source, new_target))
                 elif existing == new_target:
                     continue
@@ -351,6 +365,20 @@ class OpenAITranslator:
                     }
                     conflicts.append(c)
                     self._auto_glossary_conflicts.append(c)
+            if added:
+                # Persist ngay từng chương (không drain cuối run) để không mất
+                # đề xuất nếu job dừng giữa chừng; dedup theo source.
+                pending = storage.read_extra_json("glossary_pending")
+                if not isinstance(pending, list):
+                    pending = []
+                seen = {p.get("source") for p in pending if isinstance(p, dict)}
+                for source, target in added:
+                    if source not in seen:
+                        pending.append(
+                            {"source": source, "target": target, "chapter_index": chapter_index}
+                        )
+                        seen.add(source)
+                storage.write_extra_json("glossary_pending", pending)
         return {"added": added, "conflicts": conflicts}
 
     def drain_conflicts(self) -> list[dict]:
@@ -889,8 +917,8 @@ class RateLimited:
             time.sleep(self.delay)
         return out
 
-    def extend_glossary(self, new_entries: dict[str, str], storage) -> dict:
-        return self.inner.extend_glossary(new_entries, storage)
+    def extend_glossary(self, new_entries: dict[str, str], storage, chapter_index: int = 0) -> dict:
+        return self.inner.extend_glossary(new_entries, storage, chapter_index)
 
     def drain_conflicts(self) -> list[dict]:
         return self.inner.drain_conflicts() if hasattr(self.inner, "drain_conflicts") else []

@@ -883,9 +883,9 @@ def _maybe_extract_chapter_glossary(
         return
 
     chapter_conflicts: list[dict] = []
-    result = translator.extend_glossary(entries, storage)
+    result = translator.extend_glossary(entries, storage, chapter_index=ch.index)
     for source, target in result["added"]:
-        log(f"[dịch]   ({i}/{total}) + glossary: {source} = {target}")
+        log(f"[dịch]   ({i}/{total}) + đề xuất glossary (chờ duyệt): {source} = {target}")
     for c in result["conflicts"]:
         c["chapter_index"] = ch.index
         chapter_conflicts.append(c)
@@ -1065,6 +1065,12 @@ def step_translate_selected(
                         seen.add(key)
                 storage.write_extra_json("glossary_conflicts", existing)
                 log(f"[dịch] Auto-glossary: {len(conflicts)} xung đột — xem trang Glossary")
+        pending = storage.read_extra_json("glossary_pending")
+        if isinstance(pending, list) and pending:
+            log(
+                f"[dịch] Auto-glossary: {len(pending)} đề xuất đang chờ duyệt — "
+                "duyệt/bỏ ở trang Glossary (tab Đề xuất AI)"
+            )
 
     # OmniRoute cost summary: aggregate từ meta.omniroute của các chương vừa dịch.
     _write_omniroute_cost_summary(storage, to_translate, log)

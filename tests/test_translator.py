@@ -145,6 +145,24 @@ def test_load_glossary_dict_db_wins_over_legacy_file(tmp_path):
     assert result["元气"] == "nguyên khí"  # list DB còn lại vẫn được đọc
 
 
+def test_load_glossary_dict_merges_pending_but_db_wins(tmp_path):
+    """Đề xuất chờ duyệt (glossary_pending) được dùng khi dịch — AI không đề
+    xuất lại giữa các run — nhưng mục đã có trong names.txt thắng khi trùng."""
+    storage = _storage_with_glossary(tmp_path)
+    storage.write_extra_json(
+        "glossary_pending",
+        [
+            {"source": "林凡", "target": "Lâm Phàm", "chapter_index": 3},
+            {"source": "庄国", "target": "Trang Quốc Pending", "chapter_index": 4},
+            "not-a-dict",
+        ],
+    )
+    cfg = TranslateConfig(glossary_files=GlossaryFilesConfig(names="", vietphrase=""))
+    result = load_glossary_dict(cfg, storage)
+    assert result["林凡"] == "Lâm Phàm"        # pending được merge
+    assert result["庄国"] == "Trang Quốc"      # names.txt (DB) thắng pending
+
+
 def test_load_glossary_dict_stale_path_with_storage_still_reads_db(tmp_path):
     """Path stale trỏ lung tung + có storage → vẫn ra glossary đúng từ DB."""
     storage = _storage_with_glossary(tmp_path)
@@ -329,12 +347,19 @@ def test_translate_raises_when_ai_call_fails(monkeypatch):
 
 
 class _MockStorage:
-    """Ghi lại các lần gọi append_glossary_line."""
+    """Ghi lại các lần gọi append_glossary_line + extra json (hàng chờ duyệt)."""
     def __init__(self):
         self.written: list[tuple[str, str]] = []
+        self.extra: dict = {}
 
     def append_glossary_line(self, name: str, line: str) -> None:
         self.written.append((name, line))
+
+    def read_extra_json(self, key: str):
+        return self.extra.get(key)
+
+    def write_extra_json(self, key: str, data) -> None:
+        self.extra[key] = data
 
     def glossary_path(self, name: str):
         from pathlib import Path
@@ -357,16 +382,34 @@ def _make_openai_translator(**kwargs) -> "OpenAITranslator":
     return OpenAITranslator(cfg)
 
 
-def test_extend_glossary_added():
-    """Entry mới → add vào in-memory + ghi file."""
+def test_extend_glossary_added_goes_to_pending():
+    """Entry mới → add vào in-memory + hàng chờ duyệt, KHÔNG ghi thẳng names.txt."""
     t = _make_openai_translator()
     storage = _MockStorage()
-    result = t.extend_glossary({"叶凡": "Diệp Phàm"}, storage)
+    result = t.extend_glossary({"叶凡": "Diệp Phàm"}, storage, chapter_index=7)
 
     assert len(result["added"]) == 1
     assert len(result["conflicts"]) == 0
     assert t.glossary["叶凡"] == "Diệp Phàm"
-    assert storage.written == [("names.txt", "叶凡 = Diệp Phàm")]
+    assert storage.written == []  # không đụng names.txt
+    assert storage.extra["glossary_pending"] == [
+        {"source": "叶凡", "target": "Diệp Phàm", "chapter_index": 7}
+    ]
+
+
+def test_extend_glossary_pending_dedups_by_source():
+    """Source đã nằm trong hàng chờ (run trước) → không thêm bản ghi trùng."""
+    t = _make_openai_translator()
+    storage = _MockStorage()
+    storage.extra["glossary_pending"] = [
+        {"source": "叶凡", "target": "Diệp Phàm", "chapter_index": 1}
+    ]
+    t.extend_glossary({"叶凡": "Diệp Phàm Khác"}, storage, chapter_index=9)
+
+    # In-memory nhận giá trị mới (source chưa có trong glossary của translator
+    # này) nhưng hàng chờ giữ bản ghi cũ — 1 source chỉ 1 dòng chờ duyệt.
+    assert len(storage.extra["glossary_pending"]) == 1
+    assert storage.extra["glossary_pending"][0]["chapter_index"] == 1
 
 
 def test_extend_glossary_unchanged():

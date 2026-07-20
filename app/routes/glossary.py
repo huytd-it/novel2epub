@@ -1,5 +1,5 @@
 """Trang quản lý glossary: data table (CRUD inline), xuất/nhập cho AI dọn lại,
-và sửa tên riêng rồi áp dụng lại vào các bản dịch cũ (có preview)."""
+và match-count + propagate (lan truyền) thay đổi vào các bản dịch cũ."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, Form, HTTPException, Request
@@ -220,8 +220,9 @@ def ebook_glossary_import(slug: str, text: str = Form(...)):
     return JSONResponse({"added": added, "updated": updated, "total": added + updated})
 
 
-def _reapply_chapters(storage: Storage, manifest, find: str, start, end):
-    """Chương đã dịch trong phạm vi có chứa `find` (dùng cho preview + apply)."""
+def _matching_chapters(storage: Storage, manifest, find: str, start, end):
+    """Chương đã dịch trong phạm vi có chứa `find` (dùng cho match-count +
+    propagate)."""
     for ch in _chapter_range(manifest.chapters, None, start, end):
         if storage.has_translated(ch):
             content = storage.read_translated(ch)
@@ -230,27 +231,11 @@ def _reapply_chapters(storage: Storage, manifest, find: str, start, end):
                 yield ch, content, count
 
 
-def _snippet(content: str, find: str, width: int = 60) -> str:
-    """Trích một đoạn quanh lần khớp đầu tiên để hiển thị trong preview."""
-    pos = content.find(find)
-    if pos < 0:
-        return ""
-    start = max(0, pos - width)
-    end = min(len(content), pos + len(find) + width)
-    text = content[start:end].replace("\n", " ").strip()
-    return ("…" if start > 0 else "") + text + ("…" if end < len(content) else "")
-
-
-@router.post("/api/ebooks/{slug}/glossary/reapply-preview")
-def ebook_glossary_reapply_preview(
-    slug: str,
-    find: str = Form(...),
-    replace: str = Form(""),
-    chapter_from: int = Form(0),
-    chapter_to: int = Form(0),
-):
-    """Xem trước 'sửa tên & áp dụng lại': quét `translated/` trong phạm vi, trả
-    danh sách chương bị ảnh hưởng + số chỗ khớp + snippet. KHÔNG ghi gì."""
+@router.get("/api/ebooks/{slug}/glossary/match-count")
+def ebook_glossary_match_count(slug: str, find: str, chapter_index: int = 0):
+    """Đếm số chỗ khớp `find` trong bản dịch: theo 1 chương (nếu truyền
+    chapter_index) + toàn bộ. Số đếm này chính là preview của propagate —
+    không có bước xem trước riêng."""
     find = find.strip()
     if not find:
         raise HTTPException(status_code=400, detail="Chuỗi cần tìm đang rỗng.")
@@ -260,65 +245,68 @@ def ebook_glossary_reapply_preview(
     if manifest is None:
         raise HTTPException(status_code=404, detail="Chưa có manifest.")
 
-    start = chapter_from or None
-    end = chapter_to or None
-    chapters = []
-    total = 0
-    for ch, content, count in _reapply_chapters(storage, manifest, find, start, end):
+    chapter_count = total = chapter_total = 0
+    for ch, _content, count in _matching_chapters(storage, manifest, find, None, None):
         total += count
-        chapters.append(
-            {
-                "index": ch.index,
-                "title": ch.title,
-                "count": count,
-                "snippet": _snippet(content, find),
-            }
-        )
+        chapter_total += 1
+        if chapter_index and ch.index == chapter_index:
+            chapter_count = count
     return JSONResponse(
-        {"find": find, "replace": replace, "total": total, "chapters": chapters}
+        {
+            "find": find,
+            "chapter_count": chapter_count,
+            "total_count": total,
+            "chapter_total": chapter_total,
+        }
     )
 
 
-@router.post("/ebooks/{slug}/glossary/reapply")
-def ebook_glossary_reapply(
+@router.post("/api/ebooks/{slug}/glossary/propagate")
+def ebook_glossary_propagate(
     request: Request,
     slug: str,
     find: str = Form(...),
     replace: str = Form(...),
-    chapter_from: int = Form(0),
-    chapter_to: int = Form(0),
-    source: str = Form(""),
+    scope: str = Form(...),
+    chapter_index: int = Form(0),
 ):
-    """Áp dụng lại: thay `find`→`replace` literal trên các chương ĐÃ DỊCH (chạy
-    nền qua job). Nếu có `source`, cập nhật luôn mục glossary tương ứng (đổi
-    target sang `replace`) trước khi chạy — quét CẢ 2 list vì DB cũ có thể
-    chưa consolidate."""
+    """Lan truyền thay đổi glossary vào bản dịch: `scope=chapter` thay đồng bộ
+    NGAY trong 1 chương (backup vào meta như step_find_replace), `scope=all`
+    enqueue job step_find_replace toàn bộ. Không tự sửa mục glossary — client
+    đã upsert qua /glossary/entry trước."""
     find, replace = find.strip(), replace.strip()
     if not find or not replace:
         raise HTTPException(status_code=400, detail="Cần cả chuỗi tìm và chuỗi thay.")
+    if scope not in ("chapter", "all"):
+        raise HTTPException(status_code=400, detail="scope phải là 'chapter' hoặc 'all'.")
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
 
-    if source.strip():
-        for list_name in ("names.txt", "vietphrase.txt"):
-            entries = storage.read_glossary_entries(list_name)
-            if not any(s == source.strip() for s, _t, _n in entries):
-                continue
-            updated = [
-                (s, replace if s == source.strip() else t, n) for s, t, n in entries
-            ]
-            storage.write_glossary_entries(list_name, updated)
-
-    start = chapter_from or None
-    end = chapter_to or None
+    if scope == "chapter":
+        if not chapter_index:
+            raise HTTPException(status_code=400, detail="Thiếu chapter_index.")
+        manifest = storage.load_manifest()
+        if manifest is None:
+            raise HTTPException(status_code=404, detail="Chưa có manifest.")
+        ch = next((c for c in manifest.chapters if c.index == chapter_index), None)
+        if ch is None or not storage.has_translated(ch):
+            raise HTTPException(status_code=404, detail="Chương chưa có bản dịch.")
+        content = storage.read_translated(ch)
+        count = content.count(find)
+        if count:
+            meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+            meta["before_find_replace"] = content
+            storage.write_meta(ch, meta)
+            storage.write_translated(ch, content.replace(find, replace))
+        return JSONResponse({"replaced": count})
 
     def _target(log):
         step_find_replace(
-            cfg, log, find=find, replace=replace, start=start, end=end, also_raw=False
+            cfg, log, find=find, replace=replace, start=None, end=None, also_raw=False
         )
 
     started = request.app.state.job.start_custom(
-        "reapply", _target, category="translate", ebook=cfg.novel.slug
+        "propagate", _target, category="translate", ebook=cfg.novel.slug
     )
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")

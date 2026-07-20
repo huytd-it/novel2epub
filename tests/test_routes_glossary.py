@@ -276,51 +276,100 @@ def test_import_glossary_rejects_empty(tmp_path, monkeypatch):
     assert res.status_code == 400
 
 
-# ----- route: xem trước áp dụng lại (read-only) -----
+# ----- route: match-count + propagate (pattern "sửa → lan truyền") -----
 
-def test_reapply_preview_lists_affected_chapters(tmp_path, monkeypatch):
+def test_match_count_counts_all_and_chapter(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")
     chapters = [Chapter(index=1, url="http://x/1"), Chapter(index=2, url="http://x/2")]
     storage.save_manifest(Manifest(slug="t", chapters=chapters))
     storage.write_translated(chapters[0], "Trương Tam đi chợ. Trương Tam về nhà.")
-    storage.write_translated(chapters[1], "Không có tên ở đây.")
+    storage.write_translated(chapters[1], "Trương Tam ngủ.")
     client = _client(cfg, monkeypatch)
 
-    res = client.post(
-        "/api/ebooks/t/glossary/reapply-preview",
-        data={"find": "Trương Tam", "replace": "Trần Tam"},
+    res = client.get(
+        "/api/ebooks/t/glossary/match-count",
+        params={"find": "Trương Tam", "chapter_index": 1},
     )
     assert res.status_code == 200
     data = res.json()
-    assert data["total"] == 2
-    assert len(data["chapters"]) == 1
-    assert data["chapters"][0]["index"] == 1
-    assert data["chapters"][0]["count"] == 2
-    # Không ghi gì (read-only).
-    assert storage.read_translated(chapters[0]).count("Trương Tam") == 2
+    assert data["chapter_count"] == 2      # trong chương 1
+    assert data["total_count"] == 3        # toàn bộ đã dịch
+    assert data["chapter_total"] == 2      # số chương chứa chuỗi
 
 
-def test_reapply_applies_and_updates_glossary(tmp_path, monkeypatch):
+def test_match_count_rejects_blank_find(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.save_manifest(Manifest(slug="t", chapters=[Chapter(index=1, url="http://x/1")]))
+    client = _client(cfg, monkeypatch)
+    res = client.get("/api/ebooks/t/glossary/match-count", params={"find": "  "})
+    assert res.status_code == 400
+
+
+def test_propagate_chapter_writes_and_backs_up(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=1, url="http://x/1"), Chapter(index=2, url="http://x/2")]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    storage.write_translated(chapters[0], "Trương Tam đi chợ.")
+    storage.write_translated(chapters[1], "Trương Tam ngủ.")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/propagate",
+        data={"find": "Trương Tam", "replace": "Trần Tam", "scope": "chapter", "chapter_index": 1},
+    )
+    assert res.status_code == 200
+    assert res.json()["replaced"] == 1
+    # Chỉ chương 1 bị thay; backup đúng format before_find_replace.
+    assert storage.read_translated(chapters[0]) == "Trần Tam đi chợ."
+    assert storage.read_meta(chapters[0])["before_find_replace"] == "Trương Tam đi chợ."
+    assert storage.read_translated(chapters[1]) == "Trương Tam ngủ."
+
+
+def test_propagate_all_runs_find_replace_job(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")
     chapters = [Chapter(index=1, url="http://x/1")]
     storage.save_manifest(Manifest(slug="t", chapters=chapters))
     storage.write_translated(chapters[0], "Trương Tam đi chợ.")
-    storage.write_glossary_file("names.txt", "张三 = Trương Tam\n")
     client = _client(cfg, monkeypatch)
 
     res = client.post(
-        "/ebooks/t/glossary/reapply",
-        data={
-            "find": "Trương Tam",
-            "replace": "Trần Tam",
-            "source": "张三",
-        },
+        "/api/ebooks/t/glossary/propagate",
+        data={"find": "Trương Tam", "replace": "Trần Tam", "scope": "all"},
     )
     assert res.status_code == 200
-    # Bản dịch đã thay + backup vào meta.
+    # _FakeJob chạy target sync → file đã đổi ngay trong test.
     assert storage.read_translated(chapters[0]) == "Trần Tam đi chợ."
-    assert storage.read_meta(chapters[0])["before_find_replace"] == "Trương Tam đi chợ."
-    # Mục glossary được cập nhật target.
-    assert storage.read_glossary_file("names.txt") == {"张三": "Trần Tam"}
+
+
+def test_propagate_rejects_bad_scope_and_missing_chapter(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.save_manifest(Manifest(slug="t", chapters=[Chapter(index=1, url="http://x/1")]))
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/propagate",
+        data={"find": "a", "replace": "b", "scope": "everything"},
+    )
+    assert res.status_code == 400
+    # scope=chapter nhưng chương chưa dịch → 404.
+    res = client.post(
+        "/api/ebooks/t/glossary/propagate",
+        data={"find": "a", "replace": "b", "scope": "chapter", "chapter_index": 1},
+    )
+    assert res.status_code == 404
+
+
+def test_old_reapply_routes_removed(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    client = _client(cfg, monkeypatch)
+    assert client.post(
+        "/api/ebooks/t/glossary/reapply-preview", data={"find": "x"}
+    ).status_code == 404
+    assert client.post(
+        "/ebooks/t/glossary/reapply", data={"find": "x", "replace": "y"}
+    ).status_code == 404

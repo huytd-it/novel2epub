@@ -553,8 +553,6 @@ function jobCategoryFor(form) {
     return (el && el.dataset.jobCategory) || "translate";
 }
 
-const statusSection = document.getElementById("job-status-section");
-
 document.addEventListener("submit", async function(event) {
     const form = event.target;
     const action = form.getAttribute("action") || "";

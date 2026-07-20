@@ -606,9 +606,9 @@ def test_split_response_legacy_json_still_parses():
 def test_build_prompt_glossary_suffix_is_line_format_not_json():
     t = _openai_t()
     prompt = t._build_prompt("原文")
-    assert "===GLOSSARY===" in prompt
+    assert "GLOSSARY" in prompt
     assert "<Hán> = <Việt>" in prompt
-    suffix = prompt[prompt.index("SAU KHI DỊCH XONG"):]
+    suffix = prompt[prompt.index("Ở CUỐI bản dịch"):]
     assert "target_file" not in suffix
     assert "names.txt" not in suffix
     assert "vietphrase.txt" not in suffix

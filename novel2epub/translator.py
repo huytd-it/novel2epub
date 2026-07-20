@@ -30,17 +30,20 @@ _HAN_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
 _RESIDUAL_HAN_RETRIES = 2
 
 # Marker để AI đánh dấu phần glossary trong response dịch.
-_GLOSSARY_MARKER = re.compile(r"^===GLOSSARY===\s*$", re.MULTILINE)
+# Hỗ trợ cả `## GLOSSARY` (format mới, đồng bộ với bulk_transfer) và
+# `===GLOSSARY===` (cũ, tương thích ngược).
+_GLOSSARY_MARKER = re.compile(r"^(?:#{1,6}\s+)?GLOSSARY\s*$|^===GLOSSARY===\s*$", re.MULTILINE | re.IGNORECASE)
 # Bullet `- `/`* `/`+ ` AI hay tự thêm trước mỗi dòng glossary.
 _GLOSSARY_BULLET_RE = re.compile(r"^[-*+]\s+")
 
 # Block hướng dẫn auto-glossary — được nhét vào prompt_template qua placeholder
 # {auto_glossary_block} khi cfg.auto_glossary bật. Nếu template cũ (pin từ autosave)
 # không chứa placeholder, fallback: append sau format (xem _build_prompt).
+# Dùng `## GLOSSARY` để đồng bộ với format trong bulk_transfer._GLOSSARY_OUTPUT_RULE.
 _AUTO_GLOSSARY_BLOCK = (
-    "\n\nSAU KHI DỊCH XONG, thêm một dòng ===GLOSSARY=== rồi liệt kê "
+    "\n\nỞ CUỐI bản dịch, thêm một mục `## GLOSSARY` để liệt kê "
     "các mục glossary MỚI, mỗi mục MỘT DÒNG theo đúng dạng:\n"
-    "<Hán> = <Việt>\n"
+    "- <Hán> = <Việt>\n"
     "Glossary là bảng ĐỒNG BỘ cách dịch xuyên suốt truyện, KHÔNG phải "
     "từ điển — thà bỏ sót còn hơn đưa nhầm từ thông thường.\n"
     "CHỈ đưa vào: tên riêng (nhân vật, địa danh, môn phái/tổ chức, "
@@ -54,7 +57,7 @@ _AUTO_GLOSSARY_BLOCK = (
     "lóng dịch thoát ý; từ hiện đại phổ thông; từ độc giả Việt hiểu ngay "
     "hoặc chỉ xuất hiện một lần.\n"
     "Không giải thích, không đánh số, không JSON. Nếu không có mục nào "
-    "đạt tiêu chí: chỉ in đúng dòng ===GLOSSARY=== và không thêm gì sau đó."
+    "đạt tiêu chí, để mục `## GLOSSARY` trống (chỉ ghi tiêu đề, không kèm mục con)."
 )
 
 # Cảnh báo fixup cho retry Hán — nhét qua placeholder {fixup_warning}.
@@ -161,12 +164,10 @@ def _filter_glossary(
     import re
     result: dict[str, str] = {}
     for zh, vi in glossary.items():
-        if zh_text and zh:
-            if zh in zh_text:
-                result[zh] = vi
-        elif vi_text and vi:
-            if _is_vi_word_in_text(vi, vi_text):
-                result[zh] = vi
+        if zh_text and zh and zh in zh_text:
+            result[zh] = vi
+        elif vi_text and vi and _is_vi_word_in_text(vi, vi_text):
+            result[zh] = vi
     return result
 
 

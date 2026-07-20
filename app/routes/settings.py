@@ -587,7 +587,7 @@ def save_translate(
     batch_size: int = Form(1),
     prompt_max_chars: int = Form(0),
     auto_cleanup_han: bool = Form(False),
-    cleanup_han_max_chars: int = Form(8000),
+    cleanup_han_max_chars: int = Form(15000),
     cleanup_han_retries: int = Form(1),
 ):
     openai_cfg: dict = {

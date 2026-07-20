@@ -240,7 +240,7 @@
                 <option value="0">
                 <option value="2000">
                 <option value="4000">
-                <option value="8000">
+                <option value="18000">
             </datalist>
         </label>
         <label class="flex flex-col gap-1 text-sm min-w-0"> chunk overlap_paragraphs
@@ -285,7 +285,7 @@
         <label class="flex flex-col gap-1 text-sm min-w-0"> cleanup_han max_chars (0 = không giới hạn)
             <input type="number" name="cleanup_han_max_chars" value="{{ cfg.translate.cleanup_han.max_chars }}" min="0"
                 class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
-            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 8000</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 15000</span>
         </label>
         <label class="flex flex-col gap-1 text-sm min-w-0"> cleanup_han retries
             <input type="number" name="cleanup_han_retries" value="{{ cfg.translate.cleanup_han.retries }}" min="0" max="5"

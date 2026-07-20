@@ -171,7 +171,7 @@ class CleanupHanConfig:
     Kích hoạt: translate.auto_cleanup_han: true
     """
     # Số ký tự tối đa gửi AI mỗi lần (0 = không giới hạn).
-    max_chars: int = 8000
+    max_chars: int = 18000
     # Số lần thử lại nếu vẫn còn Hán sau cleanup.
     retries: int = 1
 

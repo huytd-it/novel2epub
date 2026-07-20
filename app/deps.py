@@ -92,7 +92,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "batch_size": 1,
         "prompt_max_chars": 20000,
         "auto_cleanup_han": False,
-        "cleanup_han": {"max_chars": 8000, "retries": 1},
+        "cleanup_han": {"max_chars": 18000, "retries": 1},
     },
     "output": {
         "data_dir": "data",

@@ -19,6 +19,7 @@
     <span id="gloss-count" class="text-sm text-fg-muted dark:text-fg-muted-dark"></span>
     <span class="text-xs text-fg-muted dark:text-fg-muted-dark">Sửa trực tiếp — tự lưu khi rời ô.</span>
     <div class="ml-auto flex flex-wrap gap-2">
+        <button type="button" id="btn-bulk-delete" class="btn btn-sm btn-danger hidden">Xóa đã chọn (<span id="bulk-count">0</span>)</button>
         <button type="button" id="btn-add" class="btn btn-sm btn-secondary">+ Thêm mục</button>
         <button type="button" id="btn-clean" class="btn btn-sm btn-secondary" title="Trim khoảng trắng, bỏ dòng thiếu Hán/Việt, gộp trùng.">Dọn dữ liệu</button>
         <button type="button" id="btn-export" class="btn btn-sm btn-secondary">Xuất cho AI xử lý</button>
@@ -31,6 +32,7 @@
     <table class="table">
         <thead>
             <tr>
+                <th class="w-8"><input type="checkbox" id="check-all" class="rounded border-surface-border dark:border-surface-border-dark" title="Chọn cả trang"></th>
                 <th data-dt-sort class="gloss-th">Hán <span class="sort-ind"></span></th>
                 <th data-dt-sort data-dt-filter class="gloss-th">Việt <span class="sort-ind"></span></th>
                 <th>Ghi chú</th>
@@ -117,16 +119,17 @@ const inputCls = "w-full bg-transparent border border-transparent hover:border-s
 function render() {
     body.innerHTML = ROWS.map((e, idx) => `
         <tr class="border-t border-surface-border dark:border-surface-border-dark transition-colors" data-idx="${idx}">
+            <td class="px-2 py-1 align-top">${e._saved ? `<input type="checkbox" class="bulk-check rounded border-surface-border dark:border-surface-border-dark" data-source="${escapeHtml(e._saved)}">` : ""}</td>
             <td class="px-2 py-1 align-top"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
             <td class="px-2 py-1 align-top"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
             <td class="px-2 py-1 align-top"><input data-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-fg-muted dark:text-fg-muted-dark"></td>
             <td class="px-2 py-1 align-top whitespace-nowrap">
-                <button type="button" data-act="reapply" class="btn btn-sm btn-ghost text-xs" title="Sửa & áp dụng lại bản dịch cũ">Áp dụng lại</button>
                 <button type="button" data-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá mục">Xoá</button>
             </td>
         </tr>`).join("");
     emptyMsg.classList.toggle("hidden", ROWS.length > 0);
     renderPager();
+    refreshBulkBtn();
 }
 
 function renderPager() {
@@ -167,6 +170,45 @@ async function loadPage() {
         render();
     } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
 }
+
+// --- Xóa hàng loạt: checkbox class .bulk-check dùng chung cả view Nghi vấn ---
+const bulkBtn = document.getElementById("btn-bulk-delete");
+const bulkCount = document.getElementById("bulk-count");
+const checkAll = document.getElementById("check-all");
+
+function checkedSources() {
+    return Array.from(document.querySelectorAll(".bulk-check:checked")).map(cb => cb.dataset.source);
+}
+function refreshBulkBtn() {
+    const n = checkedSources().length;
+    bulkCount.textContent = n;
+    bulkBtn.classList.toggle("hidden", n === 0);
+}
+document.addEventListener("change", e => {
+    if (e.target.classList && e.target.classList.contains("bulk-check")) refreshBulkBtn();
+});
+checkAll.addEventListener("change", () => {
+    document.querySelectorAll("#gloss-body .bulk-check").forEach(cb => { cb.checked = checkAll.checked; });
+    refreshBulkBtn();
+});
+bulkBtn.addEventListener("click", async () => {
+    const sources = checkedSources();
+    if (!sources.length) return;
+    if (!window.confirm(`Xóa ${sources.length} mục đã chọn?`)) return;
+    try {
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/entries/delete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sources }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(data.detail || "Xóa thất bại.", "error"); return; }
+        toast(`Đã xóa ${data.deleted} mục.`, "success");
+        checkAll.checked = false;
+        await loadPage();
+        refreshBulkBtn();
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+});
 
 // Autosave MỘT mục qua ajax. `row._saved` là source đã lưu (rỗng nếu mục mới).
 async function saveRow(row, el) {

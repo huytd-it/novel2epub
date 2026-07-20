@@ -301,6 +301,58 @@ def test_import_glossary_rejects_empty(tmp_path, monkeypatch):
     assert res.status_code == 400
 
 
+# ----- route: nghi vấn (suspects) + resolve conflicts -----
+
+def test_suspects_returns_groups_and_count(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file(
+        "names.txt", "张三 = Trương Tam\n张叁 = Trương Tam\n张三爷 = Trương Tam gia\n"
+    )
+    storage.write_extra_json(
+        "glossary_conflicts",
+        [{"source": "斗气", "existing": "Đấu khí", "new": "Đẩu khí"}],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.get("/api/ebooks/t/glossary/suspects")
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data["same_target"]) == 1          # 张三 + 张叁 → cùng "Trương Tam"
+    assert len(data["nested_source"]) == 1        # chỉ 张三 ⊂ 张三爷 (张叁 là chữ khác)
+    assert data["conflicts"] == [
+        {"source": "斗气", "kept": "Đấu khí", "new": "Đẩu khí"}
+    ]
+    assert data["count"] == (
+        len(data["same_target"]) + len(data["nested_source"]) + len(data["conflicts"])
+    )
+
+
+def test_conflict_resolve_removes_matching_entry(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_extra_json(
+        "glossary_conflicts",
+        [
+            {"source": "斗气", "existing": "Đấu khí", "new": "Đẩu khí"},
+            {"source": "张三", "existing": "Trương Tam", "new": "Trương Tân"},
+        ],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/conflicts/resolve",
+        data={"source": "斗气", "new": "Đẩu khí"},
+    )
+    assert res.status_code == 200
+    assert res.json()["removed"] == 1
+    remaining = storage.read_extra_json("glossary_conflicts")
+    assert len(remaining) == 1
+    assert remaining[0]["source"] == "张三"
+
+
 # ----- route: match-count + propagate (pattern "sửa → lan truyền") -----
 
 def test_match_count_counts_all_and_chapter(tmp_path, monkeypatch):

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from novel2epub import bulk_transfer
+from novel2epub import bulk_transfer, glossary_review
 from novel2epub.pipeline import _chapter_range, step_find_replace
 from novel2epub.storage import Storage
 
@@ -140,6 +140,43 @@ def ebook_glossary_clean(slug: str):
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     before, after = storage.clean_glossary()
     return JSONResponse({"before": before, "after": after, "removed": before - after})
+
+
+@router.get("/api/ebooks/{slug}/glossary/suspects")
+def ebook_glossary_suspects(slug: str):
+    """Tab "Nghi vấn": nhóm mục trùng target / source lồng nhau / conflicts
+    từ lần dịch. Consolidate legacy trước để chỉ quét names.txt."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    storage.consolidate_glossary()
+    data = glossary_review.find_suspects(
+        storage.read_glossary_entries("names.txt"),
+        storage.read_extra_json("glossary_conflicts"),
+    )
+    data["count"] = (
+        len(data["same_target"]) + len(data["nested_source"]) + len(data["conflicts"])
+    )
+    return JSONResponse(data)
+
+
+@router.post("/api/ebooks/{slug}/glossary/conflicts/resolve")
+def ebook_glossary_conflict_resolve(
+    slug: str, source: str = Form(...), new: str = Form(...)
+):
+    """Gỡ 1 conflict đã xử lý (Giữ cũ / Lấy mới đều gọi) theo khóa dedup
+    `(source, new)` — trùng key pipeline dùng khi ghi — để không hiện lại."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    raw = storage.read_extra_json("glossary_conflicts")
+    if not isinstance(raw, list):
+        raw = []
+    remaining = [
+        c
+        for c in raw
+        if not (isinstance(c, dict) and c.get("source") == source and c.get("new") == new)
+    ]
+    storage.write_extra_json("glossary_conflicts", remaining)
+    return JSONResponse({"removed": len(raw) - len(remaining)})
 
 
 @router.post("/ebooks/{slug}/glossary")

@@ -128,9 +128,11 @@ def test_load_glossary_dict_storage_first_reads_db(tmp_path):
     }
 
 
-def test_load_glossary_dict_db_wins_over_legacy_file(tmp_path):
-    """File legacy (trước migration SQLite) còn trên đĩa KHÔNG được che entry
-    mới trong DB — lỗi từng khiến auto-glossary không vào prompt các chương sau."""
+def test_load_glossary_dict_ignores_legacy_file_in_db_dir(tmp_path):
+    """File .txt legacy (trước migration SQLite) NẰM TRONG thư mục glossary mặc
+    định của DB bị BỎ QUA hoàn toàn khi có storage — DB là nguồn chuẩn cho thư
+    mục đó. Đọc file sẽ bơm ngược các entry user đã xoá khỏi DB vào prompt
+    (bug: DB 27 mục nhưng prompt phình lên 567)."""
     storage = _storage_with_glossary(tmp_path)
     legacy = tmp_path / "data" / "t" / "glossary"
     legacy.mkdir(parents=True)
@@ -140,9 +142,26 @@ def test_load_glossary_dict_db_wins_over_legacy_file(tmp_path):
         glossary_files=GlossaryFilesConfig(names=str(legacy / "names.txt"), vietphrase=""),
     )
     result = load_glossary_dict(cfg, storage)
-    assert result["庄国"] == "Trang Quốc"  # DB thắng
-    assert result["林凡"] == "Lâm Phàm"    # entry chỉ có trong file vẫn giữ
-    assert result["元气"] == "nguyên khí"  # list DB còn lại vẫn được đọc
+    assert result["庄国"] == "Trang Quốc"   # DB, KHÔNG phải "Bản Cũ Sai" từ file
+    assert "林凡" not in result             # entry chỉ có trong file legacy → bỏ
+    assert result["元气"] == "nguyên khí"   # list DB vẫn được đọc
+
+
+def test_load_glossary_dict_reads_external_file_with_storage(tmp_path):
+    """File user tự trỏ tới vị trí NGOÀI thư mục glossary DB vẫn được đọc dù có
+    storage — chỉ file trong thư mục DB mặc định mới bị bỏ qua."""
+    storage = _storage_with_glossary(tmp_path)
+    external = tmp_path / "external"
+    external.mkdir()
+    (external / "extra.txt").write_text("林凡 = Lâm Phàm\n", encoding="utf-8")
+
+    cfg = TranslateConfig(
+        glossary_files=GlossaryFilesConfig(names=str(external / "extra.txt"), vietphrase=""),
+    )
+    result = load_glossary_dict(cfg, storage)
+    assert result["林凡"] == "Lâm Phàm"    # file ngoài vẫn đọc
+    assert result["庄国"] == "Trang Quốc"  # + DB
+    assert result["元气"] == "nguyên khí"
 
 
 def test_load_glossary_dict_merges_pending_but_db_wins(tmp_path):

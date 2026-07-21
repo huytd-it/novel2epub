@@ -207,23 +207,42 @@ def load_glossary_dict(cfg: TranslateConfig, storage: "Storage | None" = None) -
     Dùng chung cho OpenAITranslator (dịch chương) và glossary_ai (gợi ý/rewrite).
 
     Khi caller có sẵn `storage` (pipeline/web routes) thì ĐỌC TRỰC TIẾP 2 list
-    chuẩn từ DB — nguồn mà auto-glossary + trang Glossary đang ghi. Path trong
-    `cfg.glossary_files` chỉ còn dùng cho file NGOÀI user tự trỏ (tồn tại thật
-    trên đĩa). Thứ tự merge: inline cfg.glossary < file ngoài < DB (DB thắng —
-    tránh file legacy thời trước migration SQLite che mất entry mới trong DB).
-    Khi trùng source giữa 2 list, `names.txt` (list chuẩn duy nhất sau khi bỏ
-    phân loại) thắng `vietphrase.txt` (dữ liệu cũ chưa consolidate).
+    chuẩn từ DB — nguồn mà auto-glossary + trang Glossary đang ghi. Lúc này file
+    `.txt` NẰM TRONG thư mục glossary mặc định của DB (`data_dir/<slug>/glossary/`)
+    bị BỎ QUA hoàn toàn: đó là tàn dư trước migration SQLite, đọc nó sẽ bơm ngược
+    những entry user đã xoá khỏi DB vào prompt (bug DB 27 mục → prompt phình 567).
+    `cfg.glossary_files` khi có storage chỉ còn đọc file NGOÀI thư mục đó (user tự
+    trỏ tới vị trí khác). Thứ tự merge: inline cfg.glossary < file ngoài < DB
+    (DB thắng khi trùng source). Khi trùng source giữa 2 list, `names.txt` (list
+    chuẩn duy nhất sau khi bỏ phân loại) thắng `vietphrase.txt` (dữ liệu cũ).
 
     Khi không có `storage` (backward-compat): giữ hành vi cũ — đọc file nếu
     tồn tại, ngược lại suy ngược data_dir/slug từ quy ước path
     `data_dir/<slug>/glossary/<name>.txt` để đọc DB.
     """
     glossary: dict[str, str] = dict(cfg.glossary)
+    # Khi có storage, DB là nguồn chuẩn cho thư mục glossary mặc định
+    # (data_dir/<slug>/glossary/). File .txt legacy còn sót TRONG đúng thư mục
+    # đó là tàn dư trước migration SQLite — KHÔNG đọc: đọc sẽ bơm ngược những
+    # entry user đã xoá khỏi DB vào prompt (bug DB 27 mục → prompt phình 567).
+    # File user tự trỏ tới vị trí NGOÀI thư mục này vẫn được đọc bình thường.
+    db_glossary_dir: Path | None = None
+    if storage is not None:
+        try:
+            db_glossary_dir = (Path(storage.data_dir) / storage.slug / "glossary").resolve()
+        except Exception:
+            db_glossary_dir = None
     # vietphrase đọc TRƯỚC, names đọc SAU → names.txt thắng khi trùng source.
     for path in (cfg.glossary_files.vietphrase, cfg.glossary_files.names):
         if not path:
             continue
         p = Path(path)
+        if db_glossary_dir is not None:
+            try:
+                if p.resolve().parent == db_glossary_dir:
+                    continue  # file trong thư mục DB → DB đọc tập trung bên dưới
+            except Exception:
+                pass
         if p.exists():
             # File thật trên đĩa: file ngoài user tự trỏ, hoặc file legacy
             # thời trước migration SQLite. Đọc trực tiếp; entry DB (đọc bên

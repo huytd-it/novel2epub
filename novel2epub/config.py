@@ -200,7 +200,7 @@ CHỈ trả về bản dịch tiếng Việt thuần túy. KHÔNG thêm lời m�
 KIỂM TRA CUỐI (bắt buộc): trước khi trả lời, rà lại toàn bộ bản dịch từ đầu đến cuối; nếu còn BẤT KỲ ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
 --- Nội dung cần dịch ---
-{text}{auto_glossary_block}{fixup_warning}"""
+{text}{auto_glossary_block}"""
 
 
 TITLE_PROMPT = """Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt. Nhiệm vụ: chuyển ngữ {kind} sau sang tiếng Việt thật HAY, có hồn, KHÔNG dịch sát nghĩa kiểu máy/Quick Translate.
@@ -245,7 +245,7 @@ ONLY return the pure Vietnamese translation. NO preamble, notes, explanations, o
 FINAL CHECK (mandatory): before answering, scan the entire translation end to end; if ANY Chinese characters remain, translate them to Vietnamese before answering.
 {glossary}
 --- Content to translate ---
-{text}{auto_glossary_block}{fixup_warning}"""
+{text}{auto_glossary_block}"""
 
 
 EN_TITLE_PROMPT = """You are a title editor for English-to-Vietnamese translated novels. Task: translate the following {kind} into Vietnamese that is BEAUTIFUL and NATURAL, NOT a stiff machine translation.

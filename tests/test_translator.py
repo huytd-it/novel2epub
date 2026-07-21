@@ -262,57 +262,6 @@ def test_go_preset_chapter_translation_uses_openai(monkeypatch):
     assert captured["model"] == "test-model"
 
 
-def test_translate_retries_when_output_has_residual_chinese(monkeypatch):
-    from novel2epub.translator import make_translator
-
-    cfg = TranslateConfig(
-        type="openai",
-        openai=OpenAIConfig(
-            base_url="https://api.test/v1",
-            prompt_template="{text}",
-            title_prompt_template="{text}",
-        ),
-    )
-    calls = []
-
-    def _mock_run_chat(cfg_, prompt):
-        calls.append(prompt)
-        if len(calls) == 1:
-            return "Xin chào 世界"
-        return "Xin chào thế giới"
-
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
-    translator = make_translator(cfg)
-    result = translator.translate("你好世界")
-    assert result == "Xin chào thế giới"
-    assert len(calls) == 2
-    assert "CẢNH BÁO NGHIÊM TRỌNG" in calls[1]
-
-
-def test_translate_stops_retrying_when_chinese_does_not_improve(monkeypatch):
-    from novel2epub.translator import make_translator
-
-    cfg = TranslateConfig(
-        type="openai",
-        openai=OpenAIConfig(
-            base_url="https://api.test/v1",
-            prompt_template="{text}",
-            title_prompt_template="{text}",
-        ),
-    )
-    calls = []
-
-    def _mock_run_chat(cfg_, prompt):
-        calls.append(prompt)
-        return "Xin chào 世界"
-
-    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
-    translator = make_translator(cfg)
-    result = translator.translate("你好世界")
-    assert result == "Xin chào 世界"
-    assert len(calls) == 2
-
-
 def test_go_preset_title_translation_uses_openai(monkeypatch):
     from novel2epub.translator import make_translator
 

@@ -27,7 +27,7 @@ Chỉ trả về bản dịch, không thêm lời dẫn hay chú thích.
 KIỂM TRA CUỐI: rà lại toàn bộ đầu ra; nếu còn ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
 --- Văn bản gốc ---
-{text}{auto_glossary_block}{fixup_warning}"""
+{text}{auto_glossary_block}"""
 
 GO_TITLE_PROMPT = """Dịch {kind} sau sang tiếng Việt thật hay, tự nhiên.
 

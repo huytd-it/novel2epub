@@ -24,11 +24,6 @@ _PREAMBLE = re.compile(
     re.IGNORECASE,
 )
 
-_HAN_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
-
-# Số lần thử lại tối đa khi bản dịch còn sót chữ Hán chưa dịch.
-_RESIDUAL_HAN_RETRIES = 2
-
 # Marker để AI đánh dấu phần glossary trong response dịch.
 # Hỗ trợ cả `## GLOSSARY` (format mới, đồng bộ với bulk_transfer) và
 # `===GLOSSARY===` (cũ, tương thích ngược).
@@ -58,16 +53,6 @@ _AUTO_GLOSSARY_BLOCK = (
     "hoặc chỉ xuất hiện một lần.\n"
     "Không giải thích, không đánh số, không JSON. Nếu không có mục nào "
     "đạt tiêu chí, để mục `## GLOSSARY` trống (chỉ ghi tiêu đề, không kèm mục con)."
-)
-
-# Cảnh báo fixup cho retry Hán — nhét qua placeholder {fixup_warning}.
-_FIXUP_WARNING = (
-    "\n\nCẢNH BÁO NGHIÊM TRỌNG: Bản dịch trước đó còn chứa chữ Hán chưa được dịch. "
-    "Đây là lỗi KHÔNG THỂ CHẤP NHẬN. "
-    "Hãy dịch TOÀN BỘ văn bản gốc sang tiếng Việt thuần túy. "
-    "KHÔNG được giữ lại bất kỳ ký tự Trung Quốc nào. "
-    "KHÔNG được dùng định dạng 'từ gốc (dịch nghĩa)' — "
-    "chỉ trả về tiếng Việt 100%."
 )
 
 
@@ -441,12 +426,12 @@ class OpenAITranslator:
             return snapshot
         return _filter_glossary(snapshot, zh_text=zh_text, vi_text=vi_text)
 
-    def _build_prompt(self, text: str, fixup_warning: str = "") -> str:
+    def _build_prompt(self, text: str) -> str:
         tpl = self.openai.prompt_template
         auto_block = _AUTO_GLOSSARY_BLOCK if self.cfg.auto_glossary else ""
         # Use .replace() instead of .format() so that {auto_glossary_block}
-        # and {fixup_warning} stay as literal text in the template visible in
-        # the settings textarea (autosave pins whatever the textarea contains).
+        # stays as literal text in the template visible in the settings textarea
+        # (autosave pins whatever the textarea contains).
         prompt = (
             tpl
             .replace("{text}", text)
@@ -462,14 +447,10 @@ class OpenAITranslator:
             prompt = prompt.replace("{auto_glossary_block}", auto_block)
         elif auto_block:
             prompt += auto_block
-        if "{fixup_warning}" in tpl:
-            prompt = prompt.replace("{fixup_warning}", fixup_warning)
-        elif fixup_warning:
-            prompt += fixup_warning
+        # Back-compat: strip the removed {fixup_warning} placeholder from old
+        # pinned templates so it doesn't leak into the prompt literally.
+        prompt = prompt.replace("{fixup_warning}", "")
         return prompt
-
-    def _build_fixup_prompt(self, text: str) -> str:
-        return self._build_prompt(text, fixup_warning=_FIXUP_WARNING)
 
     def _split_response(self, raw: str) -> tuple[str, list[dict] | None]:
         """Tách phần dịch và glossary sau ===GLOSSARY===.
@@ -588,7 +569,7 @@ class OpenAITranslator:
         glossary_accumulator: list[dict] | None = None,
         meta_accumulator: dict[str, Any] | None = None,
     ) -> str:
-        """Dịch một đoạn và thử lại nếu kết quả còn sót chữ Hán chưa dịch.
+        """Dịch một đoạn.
         Nếu glossary_accumulator được truyền, các entry glossary trích từ response
         AI được append vào đó. Nếu meta_accumulator được truyền, cost/tokens/latency
         từ response (OmniRoute) được cộng dồn vào đó."""
@@ -597,24 +578,6 @@ class OpenAITranslator:
             self._merge_meta(meta_accumulator, meta)
         translation_text, glossary_entries = self._split_response(out)
         cleaned = _clean_output(translation_text)
-        # EN source: Han-leftover retry is meaningless (source has no Chinese).
-        if self.cfg.source_language != "en":
-            for _ in range(_RESIDUAL_HAN_RETRIES):
-                residual = len(_HAN_RE.findall(cleaned))
-                if residual == 0:
-                    break
-                out, fixup_meta = self._run_chat_with_retry_meta(
-                    self._build_fixup_prompt(chunk_text)
-                )
-                if meta_accumulator is not None:
-                    self._merge_meta(meta_accumulator, fixup_meta)
-                fixup_text, fixup_glossary = self._split_response(out)
-                retried = _clean_output(fixup_text)
-                if len(_HAN_RE.findall(retried)) < residual:
-                    cleaned = retried
-                    glossary_entries = fixup_glossary or glossary_entries
-                else:
-                    break
         if glossary_entries and glossary_accumulator is not None:
             glossary_accumulator.extend(glossary_entries)
         return cleaned

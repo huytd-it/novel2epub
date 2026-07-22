@@ -551,9 +551,9 @@ document.getElementById("btn-import").addEventListener("click", () => {
             const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/import`, { method: "POST", body: fd });
             const data = await res.json();
             if (!res.ok) { showPopupMessage(win.document, data.detail || "Lỗi khi nhập.", "error"); importBtn.disabled = false; return; }
-            showPopupMessage(win.document, `Đã nhập: thêm ${data.added} mục, cập nhật ${data.updated} mục.`, "success");
+            toast(`Đã nhập: thêm ${data.added} mục, cập nhật ${data.updated} mục.`, "success");
             win.close();
-            if (window.opener) window.opener.softReload();
+            softReload();
         } catch (err) { showPopupMessage(win.document, "Lỗi kết nối mạng.", "error"); importBtn.disabled = false; }
     });
     actions.appendChild(fileInput); actions.appendChild(importBtn);

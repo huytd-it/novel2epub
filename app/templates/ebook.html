@@ -712,12 +712,12 @@ document.addEventListener("submit", async function(event) {
         // chứa message với placeholder {n} = số chương đã tick.
         const confirmMsg = form.dataset && form.dataset.confirm;
         if (confirmMsg) {
-            const checked = selectedIndexes.size;
-            if (checked === 0) {
+            const isSelectedAction = form.classList.contains("selected-action-form");
+            if (isSelectedAction && selectedIndexes.size === 0) {
                 toast("Chưa chọn chương nào. Hãy tick checkbox trước.", "warning");
                 return;
             }
-            const msg = confirmMsg.replace("{n}", String(checked));
+            const msg = confirmMsg.replace("{n}", String(selectedIndexes.size));
             if (!await confirmDialog(msg, { destructive: form.classList.contains("batch-form") })) return;
         }
 

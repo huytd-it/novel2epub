@@ -478,7 +478,7 @@ async function bulkDelete() {
 }
 
 async function bulkClearFailed() {
-  if (!confirm(`Xóa TẤT CẢ job lỗi? Hành động không thể hoàn tác.`)) return;
+  if (!await confirmDialog(`Xóa TẤT CẢ job lỗi? Hành động không thể hoàn tác.`, { destructive: true })) return;
   const res = await fetch("/api/queue/bulk-clear-failed", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify("all")});
   if (res.ok) { const d = await res.json(); toast(`Đã xóa ${d.count} job lỗi.`); }
   else toast("Lỗi khi xóa.", "error");
@@ -486,7 +486,7 @@ async function bulkClearFailed() {
 }
 
 async function bulkRetryFailed() {
-  if (!confirm(`Retry TẤT CẢ job lỗi?`)) return;
+  if (!await confirmDialog(`Retry TẤT CẢ job lỗi?`, { destructive: false })) return;
   const category = "all";
   const res = await fetch("/api/queue/bulk-retry-failed", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(category)});
   if (res.ok) { const d = await res.json(); toast(`Đã retry ${d.count} job.`); }

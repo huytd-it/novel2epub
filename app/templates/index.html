@@ -342,7 +342,7 @@ function bulkSubmit(action) {
 async function bulkFetchToc() {
   if (!checkedSlugs.size) return;
   const slugs = [...checkedSlugs];
-  if (!confirm("Fetch TOC cho " + slugs.length + " ebook đã chọn?")) return;
+  if (!await confirmDialog("Fetch TOC cho " + slugs.length + " ebook đã chọn?", { destructive: false })) return;
   let ok = 0, fail = 0;
   await Promise.all(slugs.map(async slug => {
     try {
@@ -368,7 +368,7 @@ async function bulkArchive() {
 async function bulkDelete() {
   if (!checkedSlugs.size) return;
   const slugs = [...checkedSlugs];
-  if (!confirm("Gỡ " + slugs.length + " ebook khỏi thư viện? (Không xóa file)")) return;
+  if (!await confirmDialog("Gỡ " + slugs.length + " ebook khỏi thư viện? (Không xóa file)", { destructive: true })) return;
   await Promise.all(slugs.map(slug =>
     fetch(`/library/ebooks/${slug}/delete`, { method: "POST" }).catch(() => {})
   ));

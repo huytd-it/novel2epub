@@ -458,8 +458,9 @@ document.getElementById("load-default-prompt")?.addEventListener("click", async 
         if (data.prompt_template) promptTa.value = data.prompt_template;
         if (data.title_prompt_template) titleTa.value = data.title_prompt_template;
         promptTa.dispatchEvent(new Event("input", {bubbles: true}));
+        toast("Đã tải prompt mặc định.", "success");
     } catch (e) {
-        alert("Lỗi: " + e);
+        toast("Lỗi: " + e, "error");
     }
 });
 </script>

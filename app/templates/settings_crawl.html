@@ -217,7 +217,7 @@
 {% if source_preset %}
 <script>
 async function syncToSource(slug) {
-    if (!confirm('Đồng bộ crawl settings từ ebook này sang nguồn "{{ source_preset.name }}"?\n\nCác field bạn đã thay đổi sẽ ghi đè lên preset. Các ebook khác dùng cùng nguồn sẽ nhận giá trị mới.{% if source_detected %}\n\nEbook sẽ được GẮN vào nguồn này (hiện mới chỉ nhận diện từ URL).{% endif %}')) return;
+    if (!await confirmDialog('Đồng bộ crawl settings từ ebook này sang nguồn "{{ source_preset.name }}"?\n\nCác field bạn đã thay đổi sẽ ghi đè lên preset. Các ebook khác dùng cùng nguồn sẽ nhận giá trị mới.{% if source_detected %}\n\nEbook sẽ được GẮN vào nguồn này (hiện mới chỉ nhận diện từ URL).{% endif %}', { destructive: false })) return;
     // Flush autosave đang chờ (debounce 800ms): lưu form Nguồn NGAY trước khi
     // sync — không thì sửa đổi cuối chưa kịp autosave sẽ bị mất khi trang chuyển.
     if (typeof saveTimer !== "undefined" && saveTimer) { clearTimeout(saveTimer); saveTimer = null; }

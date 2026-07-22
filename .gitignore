@@ -31,3 +31,4 @@ Thumbs.db
 .idea/
 logs
 .n2e
+.worktrees/

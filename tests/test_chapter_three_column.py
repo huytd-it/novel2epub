@@ -42,7 +42,7 @@ def test_context_vi_column_falls_back_when_no_snapshot(tmp_path):
     assert ctx["translated_mt"] == "chỉ có bản dịch"  # degrade an toàn
 
 
-# --- route: trang chương render 3 cột; lưu cột Biên tập không đụng snapshot ---
+# --- route: trang chương redirect reader; lưu cột Biên tập không đụng snapshot ---
 
 
 def _patch_deps(monkeypatch, cfg):
@@ -51,7 +51,7 @@ def _patch_deps(monkeypatch, cfg):
     monkeypatch.setattr(deps, "resolved_cfg", lambda slug: cfg)
 
 
-def test_chapter_page_renders_three_columns(tmp_path, monkeypatch):
+def test_slug_chapter_page_redirects_to_reader_edit_mode(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")
     ch = Chapter(index=7, url="http://x/7")
@@ -63,12 +63,10 @@ def test_chapter_page_renders_three_columns(tmp_path, monkeypatch):
     from app.main import app
     client = TestClient(app)
 
-    res = client.get("/ebooks/t/chapters/7")
-    assert res.status_code == 200
-    body = res.text
-    assert "VI MÁY" in body          # cột VI (snapshot máy)
-    assert "VI ĐÃ SỬA" in body       # cột Biên tập
-    assert "Crawl" in body                # nút crawl
+    res = client.get("/ebooks/t/chapters/7", follow_redirects=False)
+
+    assert res.status_code == 302
+    assert res.headers["location"] == "/ebooks/t/read/7?edit=1"
 
 
 def test_save_edit_column_keeps_mt_snapshot(tmp_path, monkeypatch):

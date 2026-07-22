@@ -25,12 +25,14 @@ from dataclasses import dataclass
 # (`zh = natural | @protect`). Tách riêng khỏi literal variants.
 PROTECT_TOKEN = "@protect"
 
-# Placeholder bao quanh số thứ tự khi protect. Dùng ngoặc CJK 〖〗 (hiếm xuất
-# hiện trong văn bản, số ở giữa thường được model sao chép nguyên). Khôi phục
-# khoan dung: chấp nhận model chèn khoảng trắng quanh số. Nếu model nghiền hỏng
-# hoàn toàn placeholder, lớp literal→natural hậu xử lý là fallback cuối.
-_PROTECT_OPEN = "〖"
-_PROTECT_CLOSE = "〗"
+# Placeholder cho idiom protect: token CHỮ HOA ASCII + số thứ tự (IDIOM0,
+# IDIOM1...). Đã smoke-test trên MoxhiMT-60 THẬT: token dạng này sống sót
+# nguyên vẹn qua model (3/3), trong khi ngoặc CJK 〖〗 và mọi marker dùng dấu
+# (`[[0]]`, `{0}`, `@@0@@`, `XX0XX`) bị SentencePiece nuốt/dịch mất (0/3) — model
+# thậm chí BỊA chữ thay vào. Chữ HOA ASCII được model copy như tên riêng.
+# Khôi phục khoan dung: chấp nhận model chèn khoảng trắng / đổi hoa-thường. Nếu
+# placeholder vẫn hỏng, lớp literal→natural hậu xử lý là fallback cuối.
+_PROTECT_PREFIX = "IDIOM"
 
 
 # Bộ idiom mẫu seed khi kho còn trống (từ bảng đối chiếu trong test.md).
@@ -127,7 +129,7 @@ def format_llm_block(idioms: list[Idiom]) -> str:
 
 
 def _placeholder(n: int) -> str:
-    return f"{_PROTECT_OPEN}{n}{_PROTECT_CLOSE}"
+    return f"{_PROTECT_PREFIX}{n}"
 
 
 def protect_source(text: str, idioms: list[Idiom]) -> tuple[str, dict[str, str]]:
@@ -156,16 +158,21 @@ def protect_source(text: str, idioms: list[Idiom]) -> tuple[str, dict[str, str]]
 
 def restore_placeholders(text: str, restore_map: dict[str, str]) -> str:
     """Khôi phục placeholder → natural. Khoan dung với khoảng trắng model chèn
-    quanh số. Placeholder không tìm thấy (bị model nghiền) → bỏ qua, để lớp
-    literal hậu xử lý làm fallback."""
-    for ph, natural in restore_map.items():
+    giữa prefix và số, và với hoa/thường. Placeholder không tìm thấy (bị model
+    nghiền) → bỏ qua, để lớp literal hậu xử lý làm fallback.
+
+    Áp longest-first theo độ dài placeholder để IDIOM1 không nuốt IDIOM10.
+    """
+    for ph in sorted(restore_map, key=len, reverse=True):
+        natural = restore_map[ph]
         if ph in text:
             text = text.replace(ph, natural)
             continue
-        # Fallback khoan dung: 〖 <spaces> N <spaces> 〗
-        inner = ph[len(_PROTECT_OPEN):-len(_PROTECT_CLOSE)]
-        pattern = re.escape(_PROTECT_OPEN) + r"\s*" + re.escape(inner) + r"\s*" + re.escape(_PROTECT_CLOSE)
-        text = re.sub(pattern, natural.replace("\\", "\\\\"), text)
+        # Fallback khoan dung: PREFIX <spaces> N (N không dính số phía sau để
+        # IDIOM1 không khớp trong IDIOM10), không phân biệt hoa/thường.
+        num = ph[len(_PROTECT_PREFIX):]
+        pattern = re.escape(_PROTECT_PREFIX) + r"\s*" + re.escape(num) + r"(?!\d)"
+        text = re.sub(pattern, natural.replace("\\", "\\\\"), text, flags=re.IGNORECASE)
     return text
 
 

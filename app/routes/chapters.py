@@ -176,23 +176,7 @@ def chapter_detail(request: Request, index: int):
 
 @router.get("/ebooks/{slug}/chapters/{index}")
 def ebook_chapter_detail(request: Request, slug: str, index: int):
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    if manifest is None:
-        raise HTTPException(status_code=404, detail="Chưa có manifest.")
-    ch = next((c for c in manifest.chapters if c.index == index), None)
-    if ch is None:
-        raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
-
-    raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
-    translated = storage.read_translated(ch) if storage.has_translated(ch) else ""
-    meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-    return deps.templates.TemplateResponse(
-        request,
-        "chapter.html",
-        _chapter_context(storage, ch, raw, translated, slug, meta) | _nav_context(manifest, index),
-    )
+    return RedirectResponse(url=f"/ebooks/{slug}/read/{index}?edit=1", status_code=302)
 
 
 @router.post("/chapters/{index}")

@@ -1,6 +1,8 @@
 """Trang đọc chương — giao diện sách, tách biệt khỏi editor."""
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
@@ -23,6 +25,19 @@ def _load_chapter_or_404(slug: str, index: int):
     if ch is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
     return cfg, storage, manifest, ch
+
+
+def _reader_paras(text: str) -> list[str]:
+    """Split chapter text into display paragraphs for reader compare mode."""
+    if not text:
+        return []
+    blocks = re.split(r"\n\s*\n", text.strip())
+    return [" ".join(block.splitlines()) for block in blocks if block.strip()]
+
+
+def _pad_paras(left: list[str], right: list[str]) -> tuple[list[str], list[str]]:
+    total = max(len(left), len(right))
+    return left + [""] * (total - len(left)), right + [""] * (total - len(right))
 
 
 @router.get("/ebooks/{slug}/read")
@@ -49,6 +64,11 @@ def reader_chapter(request: Request, slug: str, index: int):
     has_translated = storage.has_translated(ch)
     translated = storage.read_translated(ch) if has_translated else ""
     translated_paras = split_paras(translated) if translated else []
+    has_raw = storage.has_raw(ch)
+    raw = storage.read_raw(ch) if has_raw else ""
+    raw_paras = _reader_paras(raw)
+    edit_paras = _reader_paras(translated) if translated else []
+    raw_paras, edit_paras = _pad_paras(raw_paras, edit_paras)
 
     # Danh sách chương cho navigation
     chapters_info = []
@@ -76,6 +96,11 @@ def reader_chapter(request: Request, slug: str, index: int):
             "slug": slug,
             "ch": ch,
             "has_translated": has_translated,
+            "has_raw": has_raw,
+            "raw": raw,
+            "raw_paras": raw_paras,
+            "edit_paras": edit_paras,
+            "raw_char_count": len(raw),
             "translated_paras": translated_paras,
             "translated_word_count": count_words(translated) if translated else 0,
             "chapters_info": chapters_info,

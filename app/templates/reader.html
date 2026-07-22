@@ -68,6 +68,12 @@
 .reader-empty { text-align: center; padding: 3rem 1rem; color: var(--tw-fg-muted, #71717a); }
 .dark .reader-empty { color: var(--tw-fg-muted-dark, #a1a1aa); }
 .reader-empty a { display: inline-block; margin-top: 0.75rem; }
+.reader-empty-action { min-height: 45vh; display: flex; align-items: center; justify-content: center; padding: 3rem 1rem; }
+.reader-empty-action-card { max-width: 28rem; padding: 2rem; text-align: center; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 16px; background: var(--tw-surface-light, #ffffff); box-shadow: var(--tw-shadow-card, 0 1px 3px rgba(0, 0, 0, 0.06)); }
+.dark .reader-empty-action-card { border-color: var(--tw-border-dark, #3f3f46); background: var(--tw-surface-dark, #18181b); box-shadow: var(--tw-shadow-card-dark, 0 1px 3px rgba(0, 0, 0, 0.3)); }
+.reader-empty-action-card p { margin: 0.4rem 0 1.2rem; color: var(--tw-fg-muted, #71717a); }
+.dark .reader-empty-action-card p { color: var(--tw-fg-muted-dark, #a1a1aa); }
+.reader-empty-action-card button { padding: 0.75rem 1.6rem; font-size: 1.05rem; color: #fff; cursor: pointer; border: 1px solid var(--tw-brand-600, #059669); border-radius: 999px; background: var(--tw-brand-600, #059669); }
 
 /* --- Ghi chú lỗi dịch: highlight trong văn bản --- */
 .note-mark { background: var(--tw-status-warn-light, #fef9c3); border-bottom: 2px solid var(--tw-status-warn-fg, #e0b040); border-radius: 2px; cursor: pointer; padding: 0 1px; }
@@ -158,12 +164,24 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 .diff-line.ins { background: var(--tw-status-ok-light, #def7df); }
 .dark .diff-line.ins { background: var(--tw-status-ok-dark, #1a3a1a); }
 .reader-toolbar-btn.active { background: var(--tw-brand-600, #059669); color: #fff; border-color: var(--tw-brand-600, #059669); }
+.raw-compare-view { max-width: 1100px; margin: 1.5rem auto; line-height: 1.75; font-size: 0.95rem; }
+.raw-compare-head, .raw-compare-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.raw-compare-head { font-weight: 600; font-size: 0.8125rem; color: var(--tw-fg-muted, #71717a); text-transform: uppercase; letter-spacing: 0.03em; padding-bottom: 0.4rem; border-bottom: 1px solid var(--tw-border, #e4e4e7); }
+.dark .raw-compare-head { color: var(--tw-fg-muted-dark, #a1a1aa); border-bottom-color: var(--tw-border-dark, #3f3f46); }
+.raw-compare-row { padding: 0.55rem 0; border-bottom: 1px dashed var(--tw-surface-muted, #eee); }
+.dark .raw-compare-row { border-bottom-color: var(--tw-surface-muted-dark, #2e2e38); }
+.raw-compare-raw { color: var(--tw-fg-muted, #71717a); }
+.dark .raw-compare-raw { color: var(--tw-fg-muted-dark, #a1a1aa); }
+.raw-compare-vi { font-family: 'Literata', 'Georgia', serif; }
 
 @media (max-width: 640px) {
     .notes-panel { top: auto; left: 0; right: 0; width: 100%; max-width: 100%; height: 60vh; border-left: none; border-top: 1px solid var(--tw-border, #e4e4e7); transform: translateY(100%); }
     .dark .notes-panel { border-top-color: var(--tw-border-dark, #3f3f46); }
     .notes-panel.open { transform: translateY(0); }
     .compare-row, .compare-head, .compare-cols { grid-template-columns: 1fr; gap: 0.3rem; }
+    .raw-compare-head { display: none; }
+    .raw-compare-row { grid-template-columns: 1fr; gap: 0.2rem; }
+    .raw-compare-raw { font-size: 0.85em; }
 }
 
 @media (max-width: 640px) {
@@ -203,6 +221,10 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             {% endif %}
         </div>
         <div class="reader-nav-right">
+            <button type="button" id="edit-mode-toggle-btn" class="reader-toolbar-btn" title="Chế độ biên tập" aria-label="Edit mode">Edit</button>
+            {% if has_raw %}
+            <button type="button" id="raw-compare-toggle-btn" class="reader-toolbar-btn" title="So sánh raw / bản dịch" aria-label="Raw compare">Raw</button>
+            {% endif %}
             <span id="bookmark-indicator" class="bookmark-indicator" hidden title="Có bookmark">&#128278;</span>
             <button type="button" id="bookmark-toggle-btn" class="reader-toolbar-btn" title="Bookmark (B)" aria-label="Bookmark">&#128278;</button>
             <button type="button" id="copy-all-btn" class="reader-toolbar-btn" title="Copy tất cả (C)" aria-label="Copy all">&#128203;</button>
@@ -210,10 +232,42 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             <button type="button" id="notes-toggle-btn" class="reader-toolbar-btn" title="Ghi chú lỗi dịch (N)" aria-label="Notes" style="position: relative;">&#128221;<span id="notes-badge" class="notes-badge" hidden>0</span></button>
             <button type="button" id="compare-toggle-btn" class="reader-toolbar-btn" title="So sánh bản dịch máy / bản biên tập (S)" aria-label="Compare">&#8646;</button>
             {% endif %}
-            <a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}" class="reader-toolbar-btn" title="Sửa bản dịch" aria-label="Edit chapter">&#9998;</a>
+            <a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}" class="reader-toolbar-btn edit-mode-control" title="Sửa bản dịch" aria-label="Edit chapter" hidden>&#9998;</a>
             <button type="button" id="settings-toggle-btn" class="reader-toolbar-btn" title="Tuỳ chỉnh hiển thị" aria-label="Settings">&#9881;</button>
         </div>
     </nav>
+
+    <div id="reader-edit-toolbar" class="reader-settings-panel" hidden>
+        <div class="settings-row">
+            {% if not has_raw %}
+            <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="m-0">
+                <input type="hidden" name="action" value="crawl">
+                <input type="hidden" name="override" value="true">
+                <button type="submit" class="reader-nav-btn">Crawl</button>
+            </form>
+            {% else %}
+            <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/delete-raw" class="m-0" data-confirm="Xóa nội dung đã crawl của chương này?" data-confirm-danger="true">
+                <button type="submit" class="reader-nav-btn">Xóa raw</button>
+            </form>
+            {% endif %}
+            <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="m-0">
+                <input type="hidden" name="action" value="translate">
+                <input type="hidden" name="override" value="true">
+                <button type="submit" class="reader-nav-btn">Dịch</button>
+            </form>
+            <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="m-0">
+                <input type="hidden" name="action" value="cleanup-han">
+                <input type="hidden" name="override" value="true">
+                <button type="submit" class="reader-nav-btn">Làm sạch Hán</button>
+            </form>
+            {% if has_translated %}
+            <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/delete-translation" class="m-0" data-confirm="Xóa bản dịch của chương này?" data-confirm-danger="true">
+                <button type="submit" class="reader-nav-btn">Xóa bản dịch</button>
+            </form>
+            {% endif %}
+            <a href="/ebooks/{{ slug }}/glossary" class="reader-nav-btn">Glossary</a>
+        </div>
+    </div>
 
     <div id="reader-settings-panel" class="reader-settings-panel" hidden>
         <div class="settings-row">
@@ -255,15 +309,45 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     <article class="reader-content" id="reader-content">
         {% if has_translated %}
             {% for para in translated_paras %}
-            <p class="reader-para" data-para="{{ loop.index0 }}">{{ para }}<button type="button" class="para-copy-btn" title="Copy đoạn" data-para="{{ loop.index0 }}">&#128203;</button><button type="button" class="para-edit-btn" title="Sửa đoạn" data-para="{{ loop.index0 }}">&#9998;</button></p>
+            <p class="reader-para" data-para="{{ loop.index0 }}">{{ para }}<button type="button" class="para-copy-btn" title="Copy đoạn" data-para="{{ loop.index0 }}">&#128203;</button><button type="button" class="para-edit-btn edit-mode-control" title="Sửa đoạn" data-para="{{ loop.index0 }}" hidden>&#9998;</button></p>
             {% endfor %}
+        {% elif not has_raw %}
+            <div class="reader-empty-action">
+                <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="reader-empty-action-card">
+                    <input type="hidden" name="action" value="crawl">
+                    <input type="hidden" name="override" value="true">
+                    <h2>Chưa có raw</h2>
+                    <p>Crawl chương này trước khi dịch hoặc so sánh.</p>
+                    <button type="submit">Crawl</button>
+                </form>
+            </div>
         {% else %}
-            <div class="reader-empty">
-                <p>Chương chưa có bản dịch.</p>
-                <a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}" class="text-brand-600 dark:text-brand-400 hover:underline">Đi tới editor để dịch</a>
+            <div class="reader-empty-action">
+                <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="reader-empty-action-card">
+                    <input type="hidden" name="action" value="translate">
+                    <input type="hidden" name="override" value="true">
+                    <h2>Chưa có bản dịch</h2>
+                    <p>Raw đã sẵn sàng. Dịch chương này để đọc và biên tập.</p>
+                    <button type="submit">Dịch</button>
+                </form>
             </div>
         {% endif %}
     </article>
+
+    {% if has_raw %}
+    <div id="raw-compare-view" class="raw-compare-view" hidden>
+        <div class="raw-compare-head">
+            <div>ZH raw</div>
+            <div>VI biên tập</div>
+        </div>
+        {% for i in range(raw_paras|length) %}
+        <div class="raw-compare-row" data-para="{{ i }}">
+            <div class="raw-compare-raw">{{ raw_paras[i] }}</div>
+            <div class="raw-compare-vi">{{ edit_paras[i] }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <div id="compare-view" class="compare-view" hidden></div>
 
@@ -305,6 +389,20 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         settingsPanel.hidden = !settingsPanel.hidden;
     });
 
+    const editToolbar = document.getElementById('reader-edit-toolbar');
+    const editModeBtn = document.getElementById('edit-mode-toggle-btn');
+    const initialEditMode = new URLSearchParams(window.location.search).get('edit') === '1';
+    function setEditMode(on) {
+        if (!editToolbar || !editModeBtn) return;
+        editToolbar.hidden = !on;
+        editModeBtn.classList.toggle('active', on);
+        document.querySelectorAll('.edit-mode-control').forEach(control => {
+            control.hidden = !on;
+        });
+    }
+    editModeBtn?.addEventListener('click', () => setEditMode(editToolbar.hidden));
+    setEditMode(initialEditMode);
+
     const themeSel = document.getElementById('reader-theme-select');
     const savedTheme = localStorage.getItem('n2e-theme') || 'light';
     themeSel.value = savedTheme;
@@ -320,6 +418,15 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     const sizeSel = document.getElementById('reader-size-select');
     const widthSel = document.getElementById('reader-width-select');
     const content = document.getElementById('reader-content');
+    const rawCompareBtn = document.getElementById('raw-compare-toggle-btn');
+    const rawCompareView = document.getElementById('raw-compare-view');
+    function setRawCompareMode(on) {
+        if (!rawCompareBtn || !rawCompareView || !content) return;
+        content.hidden = on;
+        rawCompareView.hidden = !on;
+        rawCompareBtn.classList.toggle('active', on);
+    }
+    rawCompareBtn?.addEventListener('click', () => setRawCompareMode(rawCompareView.hidden));
 
     function applyTypography() {
         if (!content) return;
@@ -1117,6 +1224,17 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         if (!btn) return;
         e.stopPropagation();
         await openParaEditor(btn.closest('.reader-para'));
+    });
+
+    content.addEventListener('dblclick', async (e) => {
+        if (editToolbar?.hidden !== false) return;
+        const btn = e.target.closest('.para-copy-btn, .para-edit-btn');
+        if (btn) return;
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed) return;
+        const para = e.target.closest('.reader-para');
+        if (!para) return;
+        await openParaEditor(para);
     });
 })();
 </script>

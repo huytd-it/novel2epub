@@ -62,16 +62,33 @@ def test_protect_and_restore_roundtrip():
     idioms = [Idiom("千方百计", "Trăm phương nghìn kế", protect=True)]
     protected, restore = I.protect_source("他千方百计", idioms)
     assert "千方百计" not in protected
-    assert protected == "他〖0〗"
+    assert protected == "他IDIOM0"
     # MT "dịch" giữ nguyên placeholder
-    out = I.restore_placeholders("hắn 〖0〗", restore)
+    out = I.restore_placeholders("hắn IDIOM0", restore)
     assert out == "hắn Trăm phương nghìn kế"
 
 
-def test_restore_tolerant_to_spaces():
+def test_restore_tolerant_to_spaces_and_case():
     idioms = [Idiom("千方百计", "Trăm phương nghìn kế", protect=True)]
     _protected, restore = I.protect_source("千方百计", idioms)
-    assert I.restore_placeholders("〖 0 〗", restore) == "Trăm phương nghìn kế"
+    # model chèn khoảng trắng / đổi hoa-thường vẫn khôi phục được
+    assert I.restore_placeholders("IDIOM 0", restore) == "Trăm phương nghìn kế"
+    assert I.restore_placeholders("idiom0", restore) == "Trăm phương nghìn kế"
+
+
+def test_restore_two_digit_not_clobbered_by_shorter():
+    # IDIOM1 không được nuốt phần "IDIOM10"
+    idioms = [
+        Idiom("甲", "MỘT", protect=True),   # -> IDIOM0
+    ] + [Idiom(chr(0x4e00 + i), f"W{i}", protect=True) for i in range(1, 11)]
+    text = "".join(idi.zh for idi in idioms)
+    protected, restore = I.protect_source(text, idioms)
+    # có cả IDIOM1 và IDIOM10 trong chuỗi
+    assert "IDIOM10" in protected and "IDIOM1" in protected
+    out = I.restore_placeholders(protected, restore)
+    # W10 (natural của IDIOM10) còn nguyên, không bị vỡ thành "W1" + "0"
+    assert "W10" in out
+    assert "IDIOM" not in out
 
 
 def test_normalize_literals_longest_first():
@@ -90,7 +107,7 @@ def test_apply_mt_post_combines_restore_and_literal():
         Idiom("千方百计", "Trăm phương nghìn kế", protect=True),
     ]
     _p, restore = I.protect_source("千方百计", idioms)
-    out = I.apply_mt_post("〖0〗, Một lần được hai lợi", idioms, restore)
+    out = I.apply_mt_post("IDIOM0, Một lần được hai lợi", idioms, restore)
     assert out == "Trăm phương nghìn kế, Một mũi tên trúng hai đích"
 
 

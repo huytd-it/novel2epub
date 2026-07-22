@@ -14,8 +14,10 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
+from . import idioms as idioms_mod
 from . import openai_client
 from .config import LibreTranslateConfig, TranslateConfig
+from .idioms import Idiom
 from .storage import Storage, parse_glossary_line
 
 # Một số mẫu "lời mở đầu" mà LLM hay tự thêm dù đã bảo đừng.
@@ -170,8 +172,13 @@ def _is_vi_word_in_text(word: str, text: str) -> bool:
 
 
 def _apply_glossary(text: str, glossary: dict[str, str]) -> str:
-    """Thay thế literal sau khi dịch để đảm bảo nhất quán tên riêng."""
-    for zh, vi in glossary.items():
+    """Thay thế literal sau khi dịch để đảm bảo nhất quán tên riêng.
+
+    Áp source dài trước source ngắn (longest-match): tránh trường hợp glossary
+    có cả `韩=Hàn` và `韩溯=Hàn Tố` mà `韩` được áp trước biến `韩溯` thành
+    `Hàn溯`, hỏng tên dài. Mọi source là Hán, target là Việt nên không có
+    nhiễm chéo Việt→Trung — chỉ cần đúng thứ tự độ dài."""
+    for zh, vi in sorted(glossary.items(), key=lambda kv: len(kv[0]), reverse=True):
         if zh and vi:
             text = text.replace(zh, vi)
     return text
@@ -274,6 +281,21 @@ def load_glossary_dict(cfg: TranslateConfig, storage: "Storage | None" = None) -
     return glossary
 
 
+def load_idioms_list(cfg: TranslateConfig, storage: "Storage | None") -> list[Idiom]:
+    """Đọc kho idiom global từ DB nếu `translate.use_idioms` bật và có storage.
+
+    Idiom là kho DÙNG CHUNG mọi ebook (bảng `idioms`, không gắn slug) — bất kỳ
+    Storage nào cũng đọc được cùng một kho. Không có storage (đường backward-
+    compat/test) → trả rỗng, tính năng idiom tắt an toàn."""
+    if not getattr(cfg, "use_idioms", False) or storage is None:
+        return []
+    try:
+        rows = storage.read_idiom_entries()
+    except Exception:
+        return []
+    return idioms_mod.idioms_from_rows(rows)
+
+
 class Translator(Protocol):
     # Mỗi translate() chia văn bản thành nhiều chunk; triển khai có thể nhận
     # kwarg tùy chọn `on_chunk(index, total, chunk_text, is_final)` để stream
@@ -355,6 +377,7 @@ class OpenAITranslator:
         self.cfg = cfg
         self.openai = cfg.openai
         self.glossary = load_glossary_dict(cfg, storage)
+        self.idioms = load_idioms_list(cfg, storage)
         self.log = log or (lambda _: None)
         self._glossary_lock = threading.Lock()
         self._auto_glossary_conflicts: list[dict] = []
@@ -432,10 +455,14 @@ class OpenAITranslator:
         # Use .replace() instead of .format() so that {auto_glossary_block}
         # stays as literal text in the template visible in the settings textarea
         # (autosave pins whatever the textarea contains).
+        idiom_block = idioms_mod.format_llm_block(
+            idioms_mod.filter_for_text(self.idioms, text)
+        )
         prompt = (
             tpl
             .replace("{text}", text)
             .replace("{glossary}", _format_glossary(self._glossary_for_prompt(text)))
+            .replace("{idioms}", idiom_block)
             .replace("{tone}", self.cfg.style.tone)
             .replace("{pronoun_policy}", self.cfg.style.pronoun_policy)
             .replace("{keep_paragraphs}", str(self.cfg.style.keep_paragraphs))
@@ -765,6 +792,7 @@ class HachimiMTTranslator:
         self.cfg = cfg
         self.hmt = cfg.hachimimt
         self.glossary = load_glossary_dict(cfg, storage)
+        self.idioms = load_idioms_list(cfg, storage)
         self.log = log or (lambda _: None)
         self._inner: HachimiTranslator | None = None
 
@@ -789,8 +817,13 @@ class HachimiMTTranslator:
             return text
         self._ensure_loaded()
         assert self._inner is not None
-        translated = self._inner.translate_text(text, beam_size=self.hmt.beam_size, chunk_mode=self.hmt.chunk_mode)
+        # Idiom protect: thay idiom `@protect` bằng placeholder TRƯỚC khi MT dịch
+        # (idiom thường để MT dịch bình thường rồi chuẩn hoá literal ở hậu xử lý).
+        protected_text, restore_map = idioms_mod.protect_source(text, self.idioms)
+        translated = self._inner.translate_text(protected_text, beam_size=self.hmt.beam_size, chunk_mode=self.hmt.chunk_mode)
         out = _apply_glossary(translated, self.glossary)
+        # Khôi phục placeholder → natural, rồi chuẩn hoá literal → natural.
+        out = idioms_mod.apply_mt_post(out, self.idioms, restore_map)
         if on_chunk is not None:
             on_chunk(1, 1, out, True)
         return out

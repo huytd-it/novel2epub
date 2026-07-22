@@ -705,6 +705,122 @@ class Storage:
         self.write_glossary_entries("vietphrase.txt", [])
         return before, self.count_glossary_entries("names.txt")
 
+    # ----- idioms: từ điển thành ngữ DÙNG CHUNG (global, không gắn slug) -----
+    def read_idiom_entries(self) -> list[tuple[str, str, str, int]]:
+        """Đọc toàn bộ idiom global → list `(source, target, literals, protect)`
+        theo thứ tự position. `literals` là chuỗi ngăn bằng `|`; `protect` 0/1."""
+        rows = self.conn.execute(
+            "SELECT source, target, literals, protect FROM idioms ORDER BY position"
+        ).fetchall()
+        return [(r["source"], r["target"], r["literals"], int(r["protect"])) for r in rows]
+
+    def count_idioms(self, query: str = "") -> int:
+        query = (query or "").strip()
+        if query:
+            like = f"%{query}%"
+            row = self.conn.execute(
+                "SELECT COUNT(*) AS c FROM idioms "
+                "WHERE source LIKE ? OR target LIKE ? OR literals LIKE ?",
+                (like, like, like),
+            ).fetchone()
+        else:
+            row = self.conn.execute("SELECT COUNT(*) AS c FROM idioms").fetchone()
+        return int(row["c"])
+
+    _IDIOM_SORT_COLS = {"source": "source", "target": "target", "literals": "literals"}
+
+    def read_idioms_page(
+        self,
+        offset: int,
+        limit: int,
+        query: str = "",
+        sort_field: str | None = None,
+        sort_dir: str = "asc",
+    ) -> list[tuple[str, str, str, int]]:
+        col = self._IDIOM_SORT_COLS.get(sort_field or "", "")
+        direction = "DESC" if str(sort_dir).lower() == "desc" else "ASC"
+        order = f"{col} COLLATE NOCASE {direction}, position ASC" if col else f"position {direction}"
+        where = "1=1"
+        params: list = []
+        query = (query or "").strip()
+        if query:
+            like = f"%{query}%"
+            where += " AND (source LIKE ? OR target LIKE ? OR literals LIKE ?)"
+            params += [like, like, like]
+        params += [int(limit), int(offset)]
+        rows = self.conn.execute(
+            f"SELECT source, target, literals, protect FROM idioms WHERE {where} "
+            f"ORDER BY {order} LIMIT ? OFFSET ?",
+            params,
+        ).fetchall()
+        return [(r["source"], r["target"], r["literals"], int(r["protect"])) for r in rows]
+
+    def upsert_idiom(self, source: str, target: str, literals: str = "", protect: int = 0) -> bool:
+        """Thêm/cập nhật MỘT idiom. Trim; bỏ qua nếu thiếu source/target. Mục
+        mới nhận position = max+1; trùng source → cập nhật. Trả True nếu ghi."""
+        source = (source or "").strip()
+        target = (target or "").strip()
+        literals = (literals or "").strip()
+        protect = 1 if protect else 0
+        if not source or not target:
+            return False
+        with self.conn:
+            row = self.conn.execute(
+                "SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM idioms"
+            ).fetchone()
+            self.conn.execute(
+                """
+                INSERT INTO idioms (source, target, literals, protect, position)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(source) DO UPDATE SET
+                    target = excluded.target, literals = excluded.literals,
+                    protect = excluded.protect
+                """,
+                (source, target, literals, protect, row["next_pos"]),
+            )
+        return True
+
+    def delete_idiom(self, source: str) -> bool:
+        source = (source or "").strip()
+        if not source:
+            return False
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM idioms WHERE source=?", (source,))
+        return cur.rowcount > 0
+
+    def write_idiom_entries(self, entries: list[tuple[str, str, str, int]]) -> None:
+        """Ghi đè toàn bộ idiom global. Trim, bỏ mục thiếu source/target, dedup
+        theo source (mục SAU thắng), giữ thứ tự xuất hiện đầu."""
+        seen: dict[str, tuple[str, str, int]] = {}
+        order: list[str] = []
+        for entry in entries:
+            source = (entry[0] or "").strip()
+            target = (entry[1] or "").strip()
+            literals = (entry[2] or "").strip() if len(entry) > 2 else ""
+            protect = 1 if (len(entry) > 3 and entry[3]) else 0
+            if not source or not target:
+                continue
+            if source not in seen:
+                order.append(source)
+            seen[source] = (target, literals, protect)
+        with self.conn:
+            self.conn.execute("DELETE FROM idioms")
+            for position, source in enumerate(order):
+                target, literals, protect = seen[source]
+                self.conn.execute(
+                    "INSERT INTO idioms (source, target, literals, protect, position) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (source, target, literals, protect, position),
+                )
+
+    def seed_idioms_if_empty(self, entries: list[tuple[str, str, str, int]]) -> int:
+        """Seed idiom mẫu CHỈ khi kho còn trống (idempotent). Trả số mục đã seed
+        (0 nếu đã có dữ liệu)."""
+        if self.count_idioms() > 0:
+            return 0
+        self.write_idiom_entries(entries)
+        return self.count_idioms()
+
     # ----- ghi chú lỗi dịch (trang đọc) -----
     def read_notes(self) -> list[dict]:
         rows = self.conn.execute(

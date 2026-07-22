@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 import pytest
 import time
@@ -6,6 +8,17 @@ from app.queue import JobQueue
 from novel2epub import pipeline
 from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig, TranslateConfig
 from novel2epub.storage import Chapter, Manifest, Storage
+
+
+def test_ebook_page_contains_queue_outcome_aggregation():
+    template = (Path(__file__).parents[1] / "app" / "templates" / "ebook.html").read_text(encoding="utf-8")
+
+    assert "const pendingOutcomeGroups" in template
+    assert "function summarizeOutcomes(action, jobs)" in template
+    assert "function finishOutcomeGroups(queueSnapshot)" in template
+    assert 'fetch("/api/queue")' in template
+    assert "pendingOutcomeGroups.push" in template
+    assert "finishOutcomeGroups(queueSnapshot)" in template
 
 
 def _cfg(tmp_path, translate_type="none"):

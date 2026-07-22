@@ -812,6 +812,12 @@ document.addEventListener("submit", async function(event) {
             } else {
                 if (isQueuedJob) {
                     toast("Đã gửi thao tác vào hàng đợi.", "success");
+                    if (form.dataset.selectedAction) {
+                        const data = await response.json();
+                        if (Array.isArray(data.job_ids) && data.job_ids.length) {
+                            pendingOutcomeGroups.push({ action: data.action, jobIds: data.job_ids });
+                        }
+                    }
                     setTimeout(poll, 200);
                 } else {
                     toast("Đã áp dụng thao tác.", "success");
@@ -864,6 +870,63 @@ document.addEventListener("click", (e) => {
     renderToc();
 });
 
+const pendingOutcomeGroups = [];
+
+function summarizeOutcomes(action, jobs) {
+    const totals = { processed: 0, skipped: 0, failed: 0, skipReasons: {} };
+    for (const job of jobs) {
+        if (!job.outcome) {
+            if (job.state === "failed") totals.failed += 1;
+            continue;
+        }
+        totals.processed += job.outcome.processed || 0;
+        totals.skipped += job.outcome.skipped || 0;
+        totals.failed += job.outcome.failed || 0;
+        for (const [reason, count] of Object.entries(job.outcome.skip_reasons || {})) {
+            totals.skipReasons[reason] = (totals.skipReasons[reason] || 0) + count;
+        }
+    }
+
+    const label = action === "translate" ? "Dịch" : "Crawl";
+    const parts = [];
+    if (totals.processed) parts.push(`${totals.processed} mới`);
+    for (const [reason, count] of Object.entries(totals.skipReasons)) {
+        if (count) parts.push(`${count} bỏ qua (${reason})`);
+    }
+    if (totals.failed) parts.push(`${totals.failed} lỗi`);
+    const kind = totals.failed
+        ? (totals.processed || totals.skipped ? "warning" : "error")
+        : (totals.processed ? "success" : "info");
+    const prefix = totals.failed && !totals.processed && !totals.skipped ? `${label} thất bại` : `${label} xong`;
+    return { message: `${prefix}: ${parts.join(", ")}.`, kind, processed: totals.processed };
+}
+
+function finishOutcomeGroups(queueSnapshot) {
+    const jobsById = new Map();
+    const addJobs = jobs => (jobs || []).forEach(job => jobsById.set(job.id, job));
+    addJobs(queueSnapshot.running ? [queueSnapshot.running] : []);
+    Object.values(queueSnapshot.pending || {}).forEach(addJobs);
+    addJobs(queueSnapshot.history);
+
+    let refreshToc = false;
+    for (let i = pendingOutcomeGroups.length - 1; i >= 0; i -= 1) {
+        const group = pendingOutcomeGroups[i];
+        const jobs = group.jobIds.map(id => jobsById.get(id));
+        if (jobs.some(job => !job || !["done", "failed", "cancelled"].includes(job.state))) continue;
+
+        if (jobs.every(job => job.state === "cancelled")) {
+            toast(`Đã hủy ${group.action === "translate" ? "Dịch" : "Crawl"}.`, "info");
+        } else {
+            const summary = summarizeOutcomes(group.action, jobs);
+            toast(summary.message, summary.kind);
+            refreshToc ||= summary.processed > 0;
+        }
+        pendingOutcomeGroups.splice(i, 1);
+    }
+    if (refreshToc) ebookSoftReload();
+    return refreshToc;
+}
+
 // Poll status
 async function poll() {
     try {
@@ -902,10 +965,12 @@ async function poll() {
             wasRunning[cat] = data[cat].running;
         }
 
-        if (anyJustFinished) {
-            ebookSoftReload();
-            return;
+        let refreshedOutcomes = false;
+        if (pendingOutcomeGroups.length) {
+            const queueResponse = await fetch("/api/queue");
+            if (queueResponse.ok) refreshedOutcomes = finishOutcomeGroups(await queueResponse.json());
         }
+        if (anyJustFinished && !pendingOutcomeGroups.length && !refreshedOutcomes) ebookSoftReload();
     } catch (e) {
         console.error("Lỗi khi poll status:", e);
     }

@@ -11,7 +11,9 @@ from fastapi.responses import FileResponse, RedirectResponse
 
 from novel2epub.pipeline import step_cleanup_han_selected
 from novel2epub.pipeline import step_crawl_selected
+from novel2epub.pipeline import step_crawl_chapter_outcome
 from novel2epub.pipeline import step_translate_selected
+from novel2epub.pipeline import step_translate_chapter_outcome
 from novel2epub.pipeline import step_translate_toc_selected
 from novel2epub.storage import Storage
 from novel2epub.toc import apply_chapter_query, chapter_rows, select_visible_range
@@ -123,6 +125,7 @@ def start_ebook_chapter_action(
     queue = request.app.state.job.queue
     ebook_title = cfg.novel.title or slug
     enqueued = 0
+    job_ids = []
 
     if action == "crawl":
         # 1 chapter = 1 job
@@ -131,25 +134,24 @@ def start_ebook_chapter_action(
             ch = index_to_chapter.get(idx)
             if ch is None:
                 continue
-            if not override and storage.has_raw(ch):
-                continue
             ch_label = ch.title if ch and ch.title else f"Ch.{idx}"
             cancel_event = threading.Event()
 
             def _target(log, _cfg=cfg, _idx=idx, _ev=cancel_event):
                 log(f"[config] action=crawl force={override!r} chapter={_idx}")
                 try:
-                    step_crawl_selected(_cfg, log, force=override, selected_indexes=[_idx], should_cancel=_ev.is_set)
+                    return step_crawl_chapter_outcome(_cfg, log, _idx, force=override, should_cancel=_ev.is_set)
                 except Exception as e:
                     log(f"[config] Lỗi khi crawl: {e}")
                     raise
 
-            queue.enqueue(
+            job = queue.enqueue(
                 "crawl", "chapter-crawl", _target,
                 label=f"Crawl · {ebook_title} · {ch_label}",
                 ebook=slug, lock_ebook=False, chapter_indexes=[idx],
                 cancel_event=cancel_event,
             )
+            job_ids.append(job.id)
             enqueued += 1
 
     elif action == "translate":
@@ -157,8 +159,6 @@ def start_ebook_chapter_action(
         for idx in selected:
             ch = index_to_chapter.get(idx)
             if ch is None:
-                continue
-            if not override and storage.has_translated(ch):
                 continue
             ch_label = ch.title if ch and ch.title else f"Ch.{idx}"
             cancel_event = threading.Event()
@@ -168,17 +168,18 @@ def start_ebook_chapter_action(
                     f"preset={_cfg.translate.preset!r} force={override!r} "
                     f"chapter={_idx}")
                 try:
-                    step_translate_selected(_cfg, log, force=override, selected_indexes=[_idx], should_cancel=_ev.is_set)
+                    return step_translate_chapter_outcome(_cfg, log, _idx, force=override, should_cancel=_ev.is_set)
                 except Exception as e:
                     log(f"[config] Lỗi khi dịch với type={_cfg.translate.type!r}: {e}")
                     raise
 
-            queue.enqueue(
+            job = queue.enqueue(
                 "translate", "chapter-translate", _target,
                 label=f"Dịch · {ebook_title} · {ch_label}",
                 ebook=slug, lock_ebook=False, chapter_indexes=[idx],
                 cancel_event=cancel_event,
             )
+            job_ids.append(job.id)
             enqueued += 1
 
     elif action == "cleanup-han":
@@ -234,6 +235,8 @@ def start_ebook_chapter_action(
             detail=f"Tất cả {len(selected)} {noun} đã có dữ liệu. Tick 'Ghi đè' để chạy lại.",
         )
 
+    if action in ("crawl", "translate"):
+        return {"job_ids": job_ids, "action": action}
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 

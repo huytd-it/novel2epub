@@ -484,6 +484,43 @@ def step_crawl(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | No
     return step_crawl_selected(cfg, log, should_cancel=should_cancel)
 
 
+def _chapter_outcome(*, processed: int = 0, skipped: int = 0, failed: int = 0, reason: str = "") -> dict:
+    return {
+        "processed": processed,
+        "skipped": skipped,
+        "failed": failed,
+        "skip_reasons": {reason: 1} if reason else {},
+    }
+
+
+def step_crawl_chapter_outcome(
+    cfg: Config,
+    log: LogFn,
+    index: int,
+    *,
+    force: bool = False,
+    should_cancel: CancelFn | None = None,
+) -> dict:
+    """Crawl one queued chapter and return its UI outcome without changing CLI results."""
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'fetch-toc' trước.")
+    ch = next((item for item in manifest.chapters if item.index == index), None)
+    if ch is None:
+        raise RuntimeError(f"Không tìm thấy chương {index}.")
+    if ch.skipped:
+        return _chapter_outcome(skipped=1, reason="chương đã bỏ qua")
+    if not ch.url:
+        return _chapter_outcome(skipped=1, reason="thiếu URL")
+    if storage.has_raw(ch) and not force:
+        return _chapter_outcome(skipped=1, reason="đã có raw")
+
+    step_crawl_selected(cfg, log, force=force, selected_indexes=[index], should_cancel=should_cancel)
+    ch = next(item for item in storage.load_manifest().chapters if item.index == index)
+    return _chapter_outcome(processed=0 if ch.last_action_status == "failed" else 1, failed=int(ch.last_action_status == "failed"))
+
+
 def _crawl_one(crawler, storage: Storage, ch: Chapter, force: bool, retry: CrawlRetryConfig, log: LogFn, i: int, total: int) -> str:
     """Tải 1 chương, ghi raw, trả về last_action_status ('completed'/'replaced'/'failed').
 
@@ -685,6 +722,34 @@ def step_fetch_toc(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn 
 
 def step_translate(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> Manifest:
     return step_translate_selected(cfg, log, should_cancel=should_cancel)
+
+
+def step_translate_chapter_outcome(
+    cfg: Config,
+    log: LogFn,
+    index: int,
+    *,
+    force: bool = False,
+    should_cancel: CancelFn | None = None,
+) -> dict:
+    """Translate one queued chapter and return its UI outcome without changing CLI results."""
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+    ch = next((item for item in manifest.chapters if item.index == index), None)
+    if ch is None:
+        raise RuntimeError(f"Không tìm thấy chương {index}.")
+    if ch.skipped:
+        return _chapter_outcome(skipped=1, reason="chương đã bỏ qua")
+    if not storage.has_raw(ch):
+        return _chapter_outcome(skipped=1, reason="chưa có raw")
+    if storage.has_translated(ch) and not force:
+        return _chapter_outcome(skipped=1, reason="đã có bản dịch")
+
+    step_translate_selected(cfg, log, force=force, selected_indexes=[index], should_cancel=should_cancel)
+    ch = next(item for item in storage.load_manifest().chapters if item.index == index)
+    return _chapter_outcome(processed=0 if ch.last_action_status == "failed" else 1, failed=int(ch.last_action_status == "failed"))
 
 
 def _batch_translate_titles(

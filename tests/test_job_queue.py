@@ -180,6 +180,66 @@ def test_history_cap_bounded():
     assert len(q.snapshot()["history"]) <= 2
 
 
+def test_target_outcome_appears_in_history_snapshot():
+    q = JobQueue(workers={"crawl": 1})
+    outcome = {
+        "processed": 0,
+        "skipped": 1,
+        "failed": 0,
+        "skip_reasons": {"đã có raw": 1},
+    }
+
+    job = q.enqueue("crawl", "crawl", lambda log: outcome)
+
+    assert _wait_until(lambda: job.state == "done")
+    history = q.snapshot()["history"]
+    assert next(item for item in history if item["id"] == job.id)["outcome"] == outcome
+
+
+def test_target_outcome_survives_history_persistence(tmp_path):
+    db_path = tmp_path / "novel2epub.db"
+    outcome = {
+        "processed": 0,
+        "skipped": 1,
+        "failed": 0,
+        "skip_reasons": {"đã có raw": 1},
+    }
+    q = JobQueue(workers={"crawl": 1}, db_path=db_path)
+    job = q.enqueue("crawl", "crawl", lambda log: outcome)
+
+    assert _wait_until(lambda: job.state == "done")
+    q._save_history()
+
+    restored = JobQueue(workers={"crawl": 0}, db_path=db_path)
+    history = restored.snapshot()["history"]
+    assert next(item for item in history if item["id"] == job.id)["outcome"] == outcome
+
+
+def test_load_history_without_outcome_defaults_to_none(tmp_path):
+    db_path = tmp_path / "novel2epub.db"
+    from novel2epub.db import get_thread_connection
+
+    old_record = {
+        "id": "legacy-job",
+        "category": "crawl",
+        "step": "crawl",
+        "state": "done",
+        "enqueued_at": 1.0,
+        "ended_at": 2.0,
+        "error": "",
+    }
+    conn = get_thread_connection(db_path)
+    with conn:
+        conn.execute(
+            "INSERT INTO job_queue_history (id, data_json, ended_at) VALUES (?, ?, ?)",
+            ("legacy-job", json.dumps(old_record), 2.0),
+        )
+
+    q = JobQueue(workers={"crawl": 0}, db_path=db_path)
+    assert q._jobs["legacy-job"].outcome is None
+    assert "outcome" not in q.snapshot()["history"][0]
+
+
 def test_multi_worker_different_ebooks_run_in_parallel():
     q = JobQueue(workers={"translate": 2, "crawl": 1})
     started = {"a": threading.Event(), "b": threading.Event()}

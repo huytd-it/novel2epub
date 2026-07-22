@@ -46,6 +46,7 @@ class Job:
     # spec: {"kind": ..., "params": {...JSON-serializable...}} — cho phép tái
     # tạo lại `target` sau khi restart (xem JobQueue.register_kind/load_pending).
     spec: dict | None = None
+    outcome: dict | None = None
 
     def to_dict(self, with_log: bool = False) -> dict:
         d = {
@@ -63,6 +64,8 @@ class Job:
             "error": self.error,
             "cancelling": self.cancel_event.is_set(),
         }
+        if self.outcome is not None:
+            d["outcome"] = self.outcome
         if with_log:
             d["log"] = list(self.log)
         return d
@@ -501,7 +504,9 @@ class JobQueue:
             # Log nội bộ của novel2epub.* (crawler, search...) chảy vào job.log
             # để hiện trên UI, thay vì biến mất.
             with job_log_capture(job.log):
-                job.target(log_fn)
+                result = job.target(log_fn)
+            if isinstance(result, dict):
+                job.outcome = result
             job.state = "cancelled" if job.cancel_event.is_set() else "done"
             logger.info("Job %r hoàn tất", job.step)
         except Exception as e:  # noqa: BLE001 - hiển thị lỗi bất kỳ lên UI
@@ -627,6 +632,7 @@ class JobQueue:
                 ebook=item.get("ebook", ""),
                 lock_ebook=item.get("lock_ebook", True),
                 chapter_indexes=item.get("chapter_indexes", []),
+                outcome=item.get("outcome"),
             )
             job.state = item.get("state", "done")
             job.enqueued_at = item.get("enqueued_at") or time.time()

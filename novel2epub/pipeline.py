@@ -502,6 +502,8 @@ def step_crawl_chapter_outcome(
     should_cancel: CancelFn | None = None,
 ) -> dict:
     """Crawl one queued chapter and return its UI outcome without changing CLI results."""
+    if should_cancel and should_cancel():
+        return _chapter_outcome()
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -517,6 +519,8 @@ def step_crawl_chapter_outcome(
         return _chapter_outcome(skipped=1, reason="đã có raw")
 
     step_crawl_selected(cfg, log, force=force, selected_indexes=[index], should_cancel=should_cancel)
+    if should_cancel and should_cancel():
+        return _chapter_outcome()
     ch = next(item for item in storage.load_manifest().chapters if item.index == index)
     return _chapter_outcome(processed=0 if ch.last_action_status == "failed" else 1, failed=int(ch.last_action_status == "failed"))
 
@@ -738,6 +742,8 @@ def step_translate_chapter_outcome(
     should_cancel: CancelFn | None = None,
 ) -> dict:
     """Translate one queued chapter and return its UI outcome without changing CLI results."""
+    if should_cancel and should_cancel():
+        return _chapter_outcome()
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -753,6 +759,8 @@ def step_translate_chapter_outcome(
         return _chapter_outcome(skipped=1, reason="đã có bản dịch")
 
     step_translate_selected(cfg, log, force=force, selected_indexes=[index], should_cancel=should_cancel)
+    if should_cancel and should_cancel():
+        return _chapter_outcome()
     ch = next(item for item in storage.load_manifest().chapters if item.index == index)
     return _chapter_outcome(processed=0 if ch.last_action_status == "failed" else 1, failed=int(ch.last_action_status == "failed"))
 

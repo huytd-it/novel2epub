@@ -875,6 +875,7 @@ const pendingOutcomeGroups = [];
 function summarizeOutcomes(action, jobs) {
     const totals = { processed: 0, skipped: 0, failed: 0, skipReasons: {} };
     for (const job of jobs) {
+        if (job.state === "cancelled") continue;
         if (!job.outcome) {
             if (job.state === "failed") totals.failed += 1;
             continue;
@@ -890,9 +891,14 @@ function summarizeOutcomes(action, jobs) {
     const label = action === "translate" ? "Dịch" : "Crawl";
     const parts = [];
     if (totals.processed) parts.push(`${totals.processed} mới`);
+    let skippedWithReasons = 0;
     for (const [reason, count] of Object.entries(totals.skipReasons)) {
-        if (count) parts.push(`${count} bỏ qua (${reason})`);
+        if (count) {
+            parts.push(`${count} bỏ qua (${reason})`);
+            skippedWithReasons += count;
+        }
     }
+    if (totals.skipped > skippedWithReasons) parts.push(`${totals.skipped - skippedWithReasons} bỏ qua`);
     if (totals.failed) parts.push(`${totals.failed} lỗi`);
     const kind = totals.failed
         ? (totals.processed || totals.skipped ? "warning" : "error")

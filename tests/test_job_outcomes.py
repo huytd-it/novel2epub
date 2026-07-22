@@ -32,6 +32,7 @@ def _evaluate_outcome_helpers(script):
         ["node", "-e", f"let toasts = []; let reloads = 0; const toast = (...args) => toasts.push(args); const ebookSoftReload = () => reloads += 1; {helpers}\n{script}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=True,
     )
     return json.loads(result.stdout)
@@ -56,7 +57,54 @@ console.log(JSON.stringify({ ids, outcomeResult, remaining: pendingOutcomeGroups
     assert result["outcomeResult"] == {"completed": True, "refreshToc": False}
     assert result["remaining"] == 0
     assert result["reloads"] == 0
-    assert result["toasts"] == [["Crawl xong: .", "info"]]
+    assert result["toasts"] == [["Crawl xong: 1 bỏ qua.", "info"]]
+
+
+def test_queue_outcome_helpers_summarize_terminal_groups_once_and_exclude_cancellations():
+    result = _evaluate_outcome_helpers(
+        """
+const cases = {
+    success: [{ id: "success", state: "done", outcome: { processed: 2, skipped: 0, failed: 0 } }],
+    skipOnly: [{ id: "skip", state: "done", outcome: { processed: 0, skipped: 2, failed: 0, skip_reasons: { "đã có raw": 2 } } }],
+    genericSkip: [{ id: "generic-skip", state: "done", outcome: { processed: 0, skipped: 1, failed: 0 } }],
+    mixedFailure: [{ id: "mixed", state: "done", outcome: { processed: 1, skipped: 0, failed: 1 } }],
+    failureOnly: [{ id: "failed", state: "failed" }],
+    allCancelled: [{ id: "cancelled", state: "cancelled" }],
+    partialCancellation: [
+        { id: "cancelled-partial", state: "cancelled", outcome: { processed: 9, skipped: 9, failed: 9 } },
+        { id: "processed-partial", state: "done", outcome: { processed: 1, skipped: 0, failed: 0 } },
+    ],
+    absentOutcome: [
+        { id: "cancelled-absent", state: "cancelled" },
+        { id: "skipped-present", state: "done", outcome: { processed: 0, skipped: 1, failed: 0 } },
+    ],
+};
+const summaries = Object.fromEntries(Object.entries(cases).filter(([name]) => name !== "allCancelled").map(([name, jobs]) => {
+    const summary = summarizeOutcomes("crawl", jobs);
+    return [name, { message: summary.message, kind: summary.kind, processed: summary.processed }];
+}));
+const snapshot = { history: [...cases.allCancelled, ...cases.partialCancellation] };
+pendingOutcomeGroups.push({ action: "crawl", jobIds: ["cancelled"] });
+pendingOutcomeGroups.push({ action: "crawl", jobIds: ["cancelled-partial", "processed-partial"] });
+const first = finishOutcomeGroups(snapshot);
+const second = finishOutcomeGroups(snapshot);
+console.log(JSON.stringify({ summaries, first, second, remaining: pendingOutcomeGroups.length, toasts }));
+"""
+    )
+
+    assert result["summaries"] == {
+        "success": {"message": "Crawl xong: 2 mới.", "kind": "success", "processed": 2},
+        "skipOnly": {"message": "Crawl xong: 2 bỏ qua (đã có raw).", "kind": "info", "processed": 0},
+        "genericSkip": {"message": "Crawl xong: 1 bỏ qua.", "kind": "info", "processed": 0},
+        "mixedFailure": {"message": "Crawl xong: 1 mới, 1 lỗi.", "kind": "warning", "processed": 1},
+        "failureOnly": {"message": "Crawl thất bại: 1 lỗi.", "kind": "error", "processed": 0},
+        "partialCancellation": {"message": "Crawl xong: 1 mới.", "kind": "success", "processed": 1},
+        "absentOutcome": {"message": "Crawl xong: 1 bỏ qua.", "kind": "info", "processed": 0},
+    }
+    assert result["first"] == {"completed": True, "refreshToc": True}
+    assert result["second"] == {"completed": False, "refreshToc": False}
+    assert result["remaining"] == 0
+    assert result["toasts"] == [["Crawl xong: 1 mới.", "success"], ["Đã hủy Crawl.", "info"]]
 
 
 def test_queue_outcome_reload_policy_waits_for_outcome_completion():
@@ -168,6 +216,28 @@ def test_crawl_chapter_outcome_reports_processed(tmp_path, monkeypatch):
 
     assert pipeline.step_crawl_chapter_outcome(cfg, lambda _: None, 1) == {
         "processed": 1,
+        "skipped": 0,
+        "failed": 0,
+        "skip_reasons": {},
+    }
+
+
+def test_crawl_chapter_outcome_does_not_report_processed_after_cancellation(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    _manifest(cfg, Chapter(index=1, url="http://x/1"))
+
+    def finish_chapter(*args, **kwargs):
+        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+        chapter = storage.load_manifest().chapters[0]
+        chapter.last_action_status = "completed"
+        storage.save_chapter(chapter)
+
+    monkeypatch.setattr(pipeline, "step_crawl_selected", finish_chapter)
+
+    assert pipeline.step_crawl_chapter_outcome(
+        cfg, lambda _: None, 1, should_cancel=lambda: True
+    ) == {
+        "processed": 0,
         "skipped": 0,
         "failed": 0,
         "skip_reasons": {},

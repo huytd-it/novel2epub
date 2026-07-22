@@ -1,5 +1,8 @@
 from fastapi.testclient import TestClient
+import pytest
+import time
 
+from app.queue import JobQueue
 from novel2epub import pipeline
 from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig, TranslateConfig
 from novel2epub.storage import Chapter, Manifest, Storage
@@ -12,6 +15,15 @@ def _cfg(tmp_path, translate_type="none"):
         translate=TranslateConfig(type=translate_type, delay_seconds=0),
         output=OutputConfig(data_dir=str(tmp_path)),
     )
+
+
+def _wait_until(predicate, timeout=5.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.02)
+    return False
 
 
 class _FakeCrawler:
@@ -170,19 +182,49 @@ def test_crawl_chapter_outcome_reports_failure(tmp_path, monkeypatch):
     }
 
 
-def test_translate_chapter_outcome_reports_failure(tmp_path, monkeypatch):
+def test_translate_chapter_outcome_raises_backend_failure_and_retains_status(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     chapter = Chapter(index=1, url="http://x/1")
     storage = _manifest(cfg, chapter)
     storage.write_raw(chapter, "raw")
     monkeypatch.setattr(pipeline, "make_translator", lambda *_args, **_kwargs: _FailingTranslator())
 
-    assert pipeline.step_translate_chapter_outcome(cfg, lambda _: None, 1) == {
-        "processed": 0,
-        "skipped": 0,
-        "failed": 1,
-        "skip_reasons": {},
-    }
+    with pytest.raises(RuntimeError, match="translation failed"):
+        pipeline.step_translate_chapter_outcome(cfg, lambda _: None, 1)
+
+    assert storage.load_manifest().chapters[0].last_action_status == "failed"
+
+
+def test_translation_backend_failure_fails_queue_job_without_outcome(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    chapter = Chapter(index=1, url="http://x/1")
+    storage = _manifest(cfg, chapter)
+    storage.write_raw(chapter, "raw")
+    monkeypatch.setattr(pipeline, "make_translator", lambda *_args, **_kwargs: _FailingTranslator())
+
+    db_path = tmp_path / "novel2epub.db"
+    queue = JobQueue(workers={"translate": 1}, db_path=db_path)
+    job = queue.enqueue(
+        "translate",
+        "chapter-translate",
+        lambda log: pipeline.step_translate_chapter_outcome(cfg, log, 1),
+    )
+
+    assert _wait_until(lambda: job.state == "failed")
+    assert job.error
+    assert "translation failed" in job.error
+    assert job.outcome is None
+
+    history_item = next(item for item in queue.snapshot()["history"] if item["id"] == job.id)
+    assert history_item["state"] == "failed"
+    assert history_item["error"] == job.error
+    assert "outcome" not in history_item
+
+    restored = JobQueue(workers={"translate": 0}, db_path=db_path)
+    restored_item = next(item for item in restored.snapshot()["history"] if item["id"] == job.id)
+    assert restored_item["state"] == "failed"
+    assert restored_item["error"] == job.error
+    assert "outcome" not in restored_item
 
 
 def test_translate_chapter_outcome_reports_processed(tmp_path, monkeypatch):

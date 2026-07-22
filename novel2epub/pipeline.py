@@ -747,14 +747,7 @@ def step_translate_chapter_outcome(
     if storage.has_translated(ch) and not force:
         return _chapter_outcome(skipped=1, reason="đã có bản dịch")
 
-    try:
-        step_translate_selected(cfg, log, force=force, selected_indexes=[index], should_cancel=should_cancel)
-    except Exception:
-        # The batch path raises for a first-chapter failure, but this queued
-        # single-chapter wrapper reports the status already persisted by _translate_one.
-        ch = next(item for item in storage.load_manifest().chapters if item.index == index)
-        if ch.last_action_status != "failed":
-            raise
+    step_translate_selected(cfg, log, force=force, selected_indexes=[index], should_cancel=should_cancel)
     ch = next(item for item in storage.load_manifest().chapters if item.index == index)
     return _chapter_outcome(processed=0 if ch.last_action_status == "failed" else 1, failed=int(ch.last_action_status == "failed"))
 

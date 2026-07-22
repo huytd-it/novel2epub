@@ -11,7 +11,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _SCHEMA_STATEMENTS = [
     """
@@ -113,6 +113,19 @@ _SCHEMA_STATEMENTS = [
         note TEXT NOT NULL DEFAULT '',
         position INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (ebook_slug, list_name, source)
+    ) WITHOUT ROWID
+    """,
+    # ── từ điển idiom/thành ngữ DÙNG CHUNG mọi ebook (global, không gắn ──
+    # ebook_slug). Khác glossary per-ebook: kho thành ngữ/khẩu ngữ chung cho
+    # cả LLM (tham chiếu prompt) lẫn MT 57M (hậu-chuẩn-hoá literal→natural +
+    # protect zh→placeholder). `literals` = các bản máy hay ra, ngăn bằng `|`.
+    """
+    CREATE TABLE IF NOT EXISTS idioms (
+        source TEXT PRIMARY KEY,
+        target TEXT NOT NULL DEFAULT '',
+        literals TEXT NOT NULL DEFAULT '',
+        protect INTEGER NOT NULL DEFAULT 0,
+        position INTEGER NOT NULL DEFAULT 0
     ) WITHOUT ROWID
     """,
     # ── ghi chú lỗi dịch (trang đọc) ──────────────────────────────────────

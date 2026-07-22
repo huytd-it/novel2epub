@@ -199,6 +199,7 @@ Phong cách:
 CHỈ trả về bản dịch tiếng Việt thuần túy. KHÔNG thêm lời mở đầu, ghi chú, giải thích, hay đánh dấu song ngữ.
 KIỂM TRA CUỐI (bắt buộc): trước khi trả lời, rà lại toàn bộ bản dịch từ đầu đến cuối; nếu còn BẤT KỲ ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
+{idioms}
 --- Nội dung cần dịch ---
 {text}{auto_glossary_block}"""
 
@@ -244,6 +245,7 @@ Style:
 ONLY return the pure Vietnamese translation. NO preamble, notes, explanations, or bilingual annotations.
 FINAL CHECK (mandatory): before answering, scan the entire translation end to end; if ANY Chinese characters remain, translate them to Vietnamese before answering.
 {glossary}
+{idioms}
 --- Content to translate ---
 {text}{auto_glossary_block}"""
 
@@ -346,6 +348,10 @@ class TranslateConfig:
     # gọi AI) — tiết kiệm token khi glossary phình to. Bước hậu xử lý
     # _apply_glossary vẫn luôn dùng toàn bộ glossary.
     glossary_filter: bool = True
+    # Bật từ điển idiom/thành ngữ DÙNG CHUNG (bảng `idioms`, global mọi ebook):
+    # LLM nhận idiom làm tham chiếu trong prompt; MT 57M hậu-chuẩn-hoá
+    # literal→natural + protect zh→placeholder. Tắt = bỏ qua toàn bộ idiom.
+    use_idioms: bool = True
     # Số chương gửi 1 lần cho AI khi dùng "Dịch selected" (batch translate).
     # Chia nhỏ index thành các batch có kích thước tối đa bằng giá trị này.
     # Đặt 1 = dịch tuần tự từng chương (mỗi chương 1 lần gọi AI).
@@ -810,6 +816,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         max_workers=int(translate_raw.get("max_workers", 1)),
         auto_glossary=bool(translate_raw.get("auto_glossary", True)),
         glossary_filter=True,  # ponytail: luôn bật, bypass config
+        use_idioms=bool(translate_raw.get("use_idioms", True)),
         batch_size=int(translate_raw.get("batch_size", 1)),
         prompt_max_chars=int(translate_raw.get("prompt_max_chars", 20000)),
         auto_cleanup_han=bool(translate_raw.get("auto_cleanup_han", False)),

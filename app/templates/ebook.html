@@ -11,7 +11,7 @@
 .ebook-overview { margin-bottom: 0.75rem; }
 .toc-workspace { position: relative; padding-bottom: 1rem; }
 .compact-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0; padding: 0.75rem; background: var(--tw-surface-muted, #f4f4f5); border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; }
-.toc-filter-bar { position: sticky; top: 0.5rem; z-index: 20; box-shadow: 0 6px 16px rgba(24, 24, 27, 0.08); }
+.toc-filter-bar { position: sticky; top: calc(3.5rem + 0.5rem); z-index: 20; box-shadow: 0 6px 16px rgba(24, 24, 27, 0.08); }
 .dark .compact-toolbar { background: var(--tw-surface-muted-dark, #27272a); border-color: var(--tw-border-dark, #3f3f46); }
 .compact-toolbar input[type="search"] { min-width: min(22rem, 100%); }
 .compact-toolbar select, .compact-toolbar input { font-size: 0.8125rem; width: auto; padding: 0.35rem 0.5rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 6px; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); }
@@ -82,6 +82,10 @@
     .dark .selected-actions .selected-primary { background: #102b24; }
     .selected-actions .selected-scroll { flex: 1 1 auto; }
     .toc-workspace:has(.selected-actions.has-selection) { padding-bottom: 6.25rem; }
+}
+
+@media (min-width: 768px) {
+    .toc-filter-bar { top: calc(4rem + 0.5rem); }
 }
 </style>
 
@@ -708,15 +712,16 @@ document.addEventListener("submit", async function(event) {
     if (action.includes("/jobs/") || action.includes("/action") || action.includes("/batch/")) {
         event.preventDefault();
 
+        const isSelectedAction = form.classList.contains("selected-action-form");
+        if (isSelectedAction && selectedIndexes.size === 0) {
+            toast("Chưa chọn chương nào. Hãy tick checkbox trước.", "warning");
+            return;
+        }
+
         // Xác nhận cho thao tác phá huỷ (vd. xoá bản dịch hàng loạt) — `data-confirm`
         // chứa message với placeholder {n} = số chương đã tick.
         const confirmMsg = form.dataset && form.dataset.confirm;
         if (confirmMsg) {
-            const isSelectedAction = form.classList.contains("selected-action-form");
-            if (isSelectedAction && selectedIndexes.size === 0) {
-                toast("Chưa chọn chương nào. Hãy tick checkbox trước.", "warning");
-                return;
-            }
             const msg = confirmMsg.replace("{n}", String(selectedIndexes.size));
             if (!await confirmDialog(msg, { destructive: form.classList.contains("batch-form") })) return;
         }
@@ -764,17 +769,6 @@ document.addEventListener("submit", async function(event) {
                     backendInput.value = backendSelect.value;
                 }
             }
-            for (const f of ["sort", "direction", "search", "filter_raw", "filter_translated", "filter_missing", "filter_skipped"]) {
-                const src = document.getElementById("act-" + f);
-                if (src) {
-                    const h = document.createElement("input");
-                    h.type = "hidden";
-                    h.name = f;
-                    h.value = src.value;
-                    h.className = "js-dyn";
-                    form.appendChild(h);
-                }
-            }
         }
 
         if (action.endsWith("reorder")) {
@@ -787,9 +781,12 @@ document.addEventListener("submit", async function(event) {
             form.appendChild(h);
         }
 
-        const category = jobCategoryFor(form);
-        const affected = category === "both" ? ["crawl", "translate"] : [category];
-        for (const cat of affected) wasRunning[cat] = true;
+        const isQueuedJob = action.includes("/jobs/") || action.includes("/action");
+        if (isQueuedJob) {
+            const category = jobCategoryFor(form);
+            const affected = category === "both" ? ["crawl", "translate"] : [category];
+            for (const cat of affected) wasRunning[cat] = true;
+        }
 
         try {
             const formData = new FormData(form);
@@ -813,8 +810,13 @@ document.addEventListener("submit", async function(event) {
                 toast(errMsg, "error");
                 poll();
             } else {
-                toast("Đã gửi thao tác vào hàng đợi.", "success");
-                setTimeout(poll, 200);
+                if (isQueuedJob) {
+                    toast("Đã gửi thao tác vào hàng đợi.", "success");
+                    setTimeout(poll, 200);
+                } else {
+                    toast("Đã áp dụng thao tác.", "success");
+                    ebookSoftReload();
+                }
             }
         } catch (error) {
             console.error(error);

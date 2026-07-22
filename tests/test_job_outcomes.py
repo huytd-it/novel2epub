@@ -1,4 +1,6 @@
 from pathlib import Path
+import json
+import subprocess
 
 from fastapi.testclient import TestClient
 import pytest
@@ -19,6 +21,60 @@ def test_ebook_page_contains_queue_outcome_aggregation():
     assert 'fetch("/api/queue")' in template
     assert "pendingOutcomeGroups.push" in template
     assert "finishOutcomeGroups(queueSnapshot)" in template
+
+
+def _evaluate_outcome_helpers(script):
+    template = (Path(__file__).parents[1] / "app" / "templates" / "ebook.html").read_text(encoding="utf-8")
+    start = template.index("const pendingOutcomeGroups = [];")
+    end = template.index("// Poll status", start)
+    helpers = template[start:end]
+    result = subprocess.run(
+        ["node", "-e", f"let toasts = []; let reloads = 0; const toast = (...args) => toasts.push(args); const ebookSoftReload = () => reloads += 1; {helpers}\n{script}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
+def test_queue_outcome_helpers_merge_running_array_and_complete_without_reload():
+    result = _evaluate_outcome_helpers(
+        """
+const snapshot = {
+    running: [{ id: "running-1", state: "running" }, { id: "running-2", state: "running" }],
+    pending: { crawl: [{ id: "pending-1", state: "pending" }] },
+    history: [{ id: "done-1", state: "done", outcome: { processed: 0, skipped: 1, failed: 0 } }],
+};
+const ids = [...collectJobsById(snapshot).keys()];
+pendingOutcomeGroups.push({ action: "crawl", jobIds: ["done-1"] });
+const outcomeResult = finishOutcomeGroups(snapshot);
+console.log(JSON.stringify({ ids, outcomeResult, remaining: pendingOutcomeGroups.length, reloads, toasts }));
+"""
+    )
+
+    assert result["ids"] == ["running-1", "running-2", "pending-1", "done-1"]
+    assert result["outcomeResult"] == {"completed": True, "refreshToc": False}
+    assert result["remaining"] == 0
+    assert result["reloads"] == 0
+    assert result["toasts"] == [["Crawl xong: .", "info"]]
+
+
+def test_queue_outcome_reload_policy_waits_for_outcome_completion():
+    result = _evaluate_outcome_helpers(
+        """
+console.log(JSON.stringify({
+    unrelatedFinish: shouldSoftReload(true, false, false),
+    completedNoChange: shouldSoftReload(true, true, false),
+    completedWithChanges: shouldSoftReload(true, true, true),
+}));
+"""
+    )
+
+    assert result == {
+        "unrelatedFinish": True,
+        "completedNoChange": False,
+        "completedWithChanges": True,
+    }
 
 
 def _cfg(tmp_path, translate_type="none"):

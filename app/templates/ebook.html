@@ -901,14 +901,24 @@ function summarizeOutcomes(action, jobs) {
     return { message: `${prefix}: ${parts.join(", ")}.`, kind, processed: totals.processed };
 }
 
-function finishOutcomeGroups(queueSnapshot) {
+function collectJobsById(queueSnapshot) {
     const jobsById = new Map();
     const addJobs = jobs => (jobs || []).forEach(job => jobsById.set(job.id, job));
-    addJobs(queueSnapshot.running ? [queueSnapshot.running] : []);
+    addJobs(queueSnapshot.running);
     Object.values(queueSnapshot.pending || {}).forEach(addJobs);
     addJobs(queueSnapshot.history);
+    return jobsById;
+}
+
+function shouldSoftReload(anyJustFinished, completedOutcomeGroup, outcomeChanged) {
+    return outcomeChanged || (anyJustFinished && !completedOutcomeGroup);
+}
+
+function finishOutcomeGroups(queueSnapshot) {
+    const jobsById = collectJobsById(queueSnapshot);
 
     let refreshToc = false;
+    let completed = false;
     for (let i = pendingOutcomeGroups.length - 1; i >= 0; i -= 1) {
         const group = pendingOutcomeGroups[i];
         const jobs = group.jobIds.map(id => jobsById.get(id));
@@ -922,9 +932,9 @@ function finishOutcomeGroups(queueSnapshot) {
             refreshToc ||= summary.processed > 0;
         }
         pendingOutcomeGroups.splice(i, 1);
+        completed = true;
     }
-    if (refreshToc) ebookSoftReload();
-    return refreshToc;
+    return { completed, refreshToc };
 }
 
 // Poll status
@@ -965,12 +975,12 @@ async function poll() {
             wasRunning[cat] = data[cat].running;
         }
 
-        let refreshedOutcomes = false;
+        let outcomeResult = { completed: false, refreshToc: false };
         if (pendingOutcomeGroups.length) {
             const queueResponse = await fetch("/api/queue");
-            if (queueResponse.ok) refreshedOutcomes = finishOutcomeGroups(await queueResponse.json());
+            if (queueResponse.ok) outcomeResult = finishOutcomeGroups(await queueResponse.json());
         }
-        if (anyJustFinished && !pendingOutcomeGroups.length && !refreshedOutcomes) ebookSoftReload();
+        if (shouldSoftReload(anyJustFinished, outcomeResult.completed, outcomeResult.refreshToc)) ebookSoftReload();
     } catch (e) {
         console.error("Lỗi khi poll status:", e);
     }

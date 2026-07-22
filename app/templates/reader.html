@@ -1021,16 +1021,16 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         openEditor = null;
     }
 
-    function tryCloseEditor() {
+    async function tryCloseEditor() {
         if (!openEditor) return true;
-        if (openEditor.dirty && !confirm('Bỏ thay đổi chưa lưu ở đoạn đang mở?')) return false;
+        if (openEditor.dirty && !await confirmDialog('Bỏ thay đổi chưa lưu ở đoạn đang mở?')) return false;
         closeEditor();
         return true;
     }
 
-    function openParaEditor(para) {
+    async function openParaEditor(para) {
         if (openEditor && openEditor.para === para) return;
-        if (!tryCloseEditor()) return;
+        if (!await tryCloseEditor()) return;
         const paraIndex = +para.dataset.para;
         const original = paraText(para);
 
@@ -1105,11 +1105,11 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         ta.focus();
     }
 
-    content.addEventListener('click', (e) => {
+    content.addEventListener('click', async (e) => {
         const btn = e.target.closest('.para-edit-btn');
         if (!btn) return;
         e.stopPropagation();
-        openParaEditor(btn.closest('.reader-para'));
+        await openParaEditor(btn.closest('.reader-para'));
     });
 })();
 </script>

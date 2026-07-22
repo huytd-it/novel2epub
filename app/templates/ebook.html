@@ -1029,7 +1029,6 @@ document.getElementById("btn-import-chapters")?.addEventListener("click", () => 
             const parts = [`Đã nhập: ghi ${data.written.length} chương`];
             if (data.titles_updated?.length) parts.push(`${data.titles_updated.length} tiêu đề cập nhật`);
             if (data.glossary_added) parts.push(`thêm ${data.glossary_added} mục glossary`);
-            showPopupMessage(win.document, parts.join(", ") + ".", "success");
             toast(parts.join(", ") + ".", "success");
             win.close();
             ebookSoftReload();

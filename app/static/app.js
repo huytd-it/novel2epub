@@ -296,11 +296,28 @@ function showPopupMessage(popupDocument, message, kind = "info") {
     if (!region) {
         region = popupDocument.createElement("div");
         region.id = "popup-toast-region";
-        region.className = "fixed bottom-4 right-4 flex flex-col gap-2 z-50";
+        region.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;max-width:min(28rem,calc(100vw - 32px));flex-direction:column;gap:8px;pointer-events:none";
         popupDocument.body.appendChild(region);
     }
     const el = popupDocument.createElement("div");
-    el.className = `toast toast-${kind}`;
+    const colors = kind === "error"
+        ? ["#fef2f2", "#991b1b", "#fecaca"]
+        : kind === "success"
+        ? ["#f0fdf4", "#166534", "#bbf7d0"]
+        : kind === "warning"
+        ? ["#fffbeb", "#92400e", "#fde68a"]
+        : ["#eff6ff", "#1e40af", "#bfdbfe"];
+    el.style.cssText = `box-sizing:border-box;padding:12px 16px;border:1px solid ${colors[2]};border-radius:8px;background:${colors[0]};color:${colors[1]};font:14px/1.4 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease`;
+    el.setAttribute("role", kind === "error" ? "alert" : "status");
     el.textContent = String(message);
     region.appendChild(el);
+    requestAnimationFrame(() => {
+        el.style.opacity = "1";
+        el.style.transform = "translateY(0)";
+    });
+    setTimeout(() => {
+        el.style.opacity = "0";
+        el.style.transform = "translateY(8px)";
+        setTimeout(() => el.remove(), 200);
+    }, 4000);
 }

@@ -546,7 +546,12 @@ def _crawl_chapters_sequential(crawler, storage: Storage, chapters: list[Chapter
         if should_cancel and should_cancel():
             log(f"[crawl] Đã dừng theo yêu cầu — còn {total - i + 1} chương chưa xử lý.")
             break
-        status = _crawl_one(crawler, storage, ch, force, retry, log, i, total)
+        try:
+            status = _crawl_one(crawler, storage, ch, force, retry, log, i, total)
+        except Exception as e:  # noqa: BLE001 - 1 chương lỗi không được giết cả batch tuần tự
+            ch.last_action_status = "failed"
+            log(f"[crawl]   ! Lỗi không lường được ở chương {ch.stem}: {e}")
+            status = "failed"
         if status == "failed":
             failed += 1
         else:

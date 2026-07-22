@@ -182,6 +182,34 @@ def test_crawl_chapter_outcome_reports_failure(tmp_path, monkeypatch):
     }
 
 
+def test_crawl_write_failure_returns_failed_outcome_on_sequential_queue_job(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    chapter = Chapter(index=1, url="http://x/1")
+    storage = _manifest(cfg, chapter)
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda _: _FakeCrawler())
+
+    def fail_write_raw(self, ch, content):
+        raise OSError("write failed")
+
+    monkeypatch.setattr(Storage, "write_raw", fail_write_raw)
+    queue = JobQueue(workers={"crawl": 1}, db_path=tmp_path / "novel2epub.db")
+    job = queue.enqueue(
+        "crawl",
+        "chapter-crawl",
+        lambda log: pipeline.step_crawl_chapter_outcome(cfg, log, 1),
+    )
+
+    assert _wait_until(lambda: job.state in {"done", "failed"})
+    assert job.state == "done"
+    assert job.outcome == {
+        "processed": 0,
+        "skipped": 0,
+        "failed": 1,
+        "skip_reasons": {},
+    }
+    assert storage.load_manifest().chapters[0].last_action_status == "failed"
+
+
 def test_translate_chapter_outcome_raises_backend_failure_and_retains_status(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     chapter = Chapter(index=1, url="http://x/1")
@@ -215,6 +243,7 @@ def test_translation_backend_failure_fails_queue_job_without_outcome(tmp_path, m
     assert "translation failed" in job.error
     assert job.outcome is None
 
+    assert _wait_until(lambda: any(item["id"] == job.id for item in queue.snapshot()["history"]))
     history_item = next(item for item in queue.snapshot()["history"] if item["id"] == job.id)
     assert history_item["state"] == "failed"
     assert history_item["error"] == job.error

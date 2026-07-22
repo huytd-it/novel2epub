@@ -167,3 +167,13 @@ Expected: no whitespace errors.
 - [ ] **Step 3: Manual verification**
 
 On an ebook with existing raw, select chapters and press Crawl. Confirm an immediate queued toast appears, then one completion info toast such as `Crawl xong: 2 bỏ qua (đã có raw).` Repeat with existing translations and Dịch, then with mixed missing raw and new chapters.
+
+---
+
+## Task 2 Review Follow-up (2026-07-22)
+
+- Sequential crawl now catches every per-chapter operational exception from `_crawl_one`, including `Storage.write_raw` failures, marks the chapter `failed`, and returns the structured crawl outcome rather than failing the queue job.
+- Translation backend failure behavior remains unchanged: it propagates as a failed queue job with no outcome.
+- Added a queue-backed, default sequential-worker regression test for a forced raw-storage write failure and chapter failed status.
+- Stabilized the translation queue assertion by waiting for the worker to persist terminal history after it sets the failed state.
+- Verification: `python -m pytest tests/test_job_outcomes.py tests/test_job_cancel.py tests/test_job_queue.py -v`; `git diff --check`.

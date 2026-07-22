@@ -21,14 +21,24 @@
 .dark .status-bar { background: var(--tw-surface-muted-dark, #27272a); border-color: var(--tw-border-dark, #3f3f46); }
 .status-hint { margin-left: auto; }
 
-.selected-actions { display: none; align-items: center; gap: 0.5rem; flex-wrap: nowrap; margin: 0; padding: 0.65rem max(0.75rem, env(safe-area-inset-right)) max(0.65rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left)); background: var(--tw-brand-50, #ecfdf5); border-top: 1px solid var(--tw-brand-200, #a7f3d0); box-shadow: 0 -8px 24px rgba(24, 24, 27, 0.12); }
+.selected-actions { display: none; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0; padding: 0.65rem max(0.75rem, env(safe-area-inset-right)) max(0.65rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left)); background: var(--tw-brand-50, #ecfdf5); border-top: 1px solid var(--tw-brand-200, #a7f3d0); box-shadow: 0 -8px 24px rgba(24, 24, 27, 0.12); }
 .dark .selected-actions { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }
 .selected-actions.has-selection { display: flex; position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; }
 .toc-workspace:has(.selected-actions.has-selection) { padding-bottom: 5.5rem; }
 .selected-actions > * { flex: 0 0 auto; }
-.selected-actions .selected-primary { display: flex; gap: 0.5rem; align-items: center; }
+.selected-actions .selected-primary { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .selected-actions .selected-count { font-weight: 600; white-space: nowrap; }
-.selected-actions .selected-scroll { display: flex; align-items: center; gap: 0.5rem; min-width: 0; overflow-x: auto; scrollbar-width: thin; padding-bottom: 0.15rem; }
+.selected-actions .selected-more { position: relative; }
+.selected-actions .selected-more > summary { list-style: none; }
+.selected-actions .selected-more > summary::-webkit-details-marker { display: none; }
+.selected-actions .selected-menu { position: absolute; right: 0; bottom: calc(100% + 0.65rem); z-index: 40; width: min(22rem, calc(100vw - 1.5rem)); max-height: min(65vh, 34rem); overflow-y: auto; padding: 0.5rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 10px; background: var(--tw-surface-light, #fff); box-shadow: 0 14px 30px rgba(24, 24, 27, 0.2); }
+.dark .selected-actions .selected-menu { background: var(--tw-surface-dark, #18181b); border-color: var(--tw-border-dark, #3f3f46); }
+.selected-menu-section { display: grid; gap: 0.3rem; padding: 0.45rem; }
+.selected-menu-section + .selected-menu-section { border-top: 1px solid var(--tw-border, #e4e4e7); }
+.dark .selected-menu-section + .selected-menu-section { border-color: var(--tw-border-dark, #3f3f46); }
+.selected-menu-title { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--tw-fg-muted, #71717a); }
+.selected-menu .btn, .selected-menu form { justify-content: flex-start; width: 100%; margin: 0; }
+.selected-menu .btn { justify-content: flex-start; }
 .selected-actions .check { margin-left: 0.25rem; }
 
 .sa-divider { width:1px; height:1.4rem; background:var(--tw-border,#e4e4e7); flex-shrink:0; }
@@ -71,6 +81,11 @@
 .btn-stop { background: var(--tw-status-err-fg, #dc2626) !important; color: #fff !important; border-color: var(--tw-status-err-fg, #dc2626) !important; }
 .btn-stop:hover { background: var(--tw-status-err-fg-dark, #b91c1c) !important; }
 
+.action-icon-btn { display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; line-height: 1; padding: 0.3rem; min-width: 1.75rem; cursor: pointer; }
+.action-icon-btn[title]:hover::after { content: attr(title); position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); background: #18181b; color: #fafafa; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap; z-index: 50; pointer-events: none; }
+.dark .action-icon-btn[title]:hover::after { background: #fafafa; color: #18181b; }
+.action-icon-btn { position: relative; }
+
 #toc-region.toc-loading { visibility: hidden; }
 
 @media (max-width: 900px) {
@@ -78,9 +93,7 @@
     .sa-divider { display: none; }
     .compact-toolbar select, .compact-toolbar input { width: 100%; }
     .selected-actions { gap: 0.35rem; }
-    .selected-actions .selected-primary { position: sticky; left: 0; z-index: 1; padding-right: 0.35rem; background: var(--tw-brand-50, #ecfdf5); }
-    .dark .selected-actions .selected-primary { background: #102b24; }
-    .selected-actions .selected-scroll { flex: 1 1 auto; }
+    .selected-actions .selected-primary { flex: 1 1 100%; }
     .toc-workspace:has(.selected-actions.has-selection) { padding-bottom: 6.25rem; }
 }
 
@@ -262,13 +275,58 @@
         <input type="hidden" name="targeting_mode" value="checked">
         <button type="submit" class="btn btn-sm btn-secondary" title="Mỗi chương = 1 job riêng trong hàng đợi. Tăng worker để chạy song song.">Dịch</button>
     </form>
-    </div>
-    <div class="selected-scroll">
     <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="build">
         <button type="submit" class="btn btn-sm btn-secondary" >Build EPUB</button>
     </form>
-    <span class="sa-divider"></span>
-    <span class="action-group-label ml-1">Dọn dẹp</span>
+    <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" id="selected-override" value="true" class="rounded border-surface-border dark:border-surface-border-dark"> Ghi đè</label>
+    <details class="selected-more">
+        <summary id="selected-more-trigger" class="btn btn-sm btn-secondary" aria-label="Thêm thao tác chương" aria-expanded="false">Thêm</summary>
+        <div id="selected-more-menu" class="selected-menu" role="menu" aria-label="Thao tác chương bổ sung">
+        <div class="selected-menu-section">
+        <span class="selected-menu-title">AI &amp; Nội dung</span>
+        <button type="button" id="btn-open-ai-action" class="btn btn-sm btn-secondary">Thiết lập AI...</button>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate">
+            <input type="hidden" name="action" value="cleanup-han">
+            <input type="hidden" name="targeting_mode" value="checked">
+            <button type="submit" class="btn btn-sm btn-secondary" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch (dùng config AI biên tập).">Sạch Hán</button>
+        </form>
+        <form method="post" action="/api/ebooks/{{ slug }}/batch/suggest-glossary" class="selected-action-form batch-form" data-selected-action="translate">
+            <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
+            <button type="submit" class="btn btn-sm btn-secondary">Glossary</button>
+        </form>
+        <form id="selected-translate-toc-form" method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form hidden" data-selected-action="translate">
+            <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
+        </form>
+        <form id="selected-rewrite-form" method="post" action="/api/ebooks/{{ slug }}/batch/ai-rewrite" class="selected-action-form batch-form hidden" data-selected-action="translate">
+            <input type="hidden" name="indexes" id="batch-indexes-rewrite" value="">
+            <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
+        </form>
+        </div>
+        <div class="selected-menu-section">
+        <span class="selected-menu-title">TOC</span>
+        <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Bỏ qua {n} chương? Dữ liệu raw/dịch/biên tập giữ nguyên, lọc 'Bỏ qua: tất cả' để xem lại.">
+            <input type="hidden" name="indexes" id="batch-indexes-skip" value="">
+            <input type="hidden" name="skip" value="true">
+            <button type="submit" class="btn btn-sm btn-secondary" title="Ẩn khỏi table mặc định.">Bỏ qua</button>
+        </form>
+        <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate">
+            <input type="hidden" name="indexes" id="batch-indexes-unskip" value="">
+            <input type="hidden" name="skip" value="false">
+            <button type="submit" class="btn btn-sm btn-secondary">Hiện lại</button>
+        </form>
+        <button type="button" id="btn-preview-reindex" class="btn btn-sm btn-secondary">Xem trước index</button>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/reorder" class="inline-form" data-job-category="both" style="margin:0">
+            <button type="submit" class="btn btn-sm btn-secondary" title="Đánh lại index theo thứ tự hiển thị.">Đánh index lại</button>
+        </form>
+        </div>
+        <div class="selected-menu-section">
+        <span class="selected-menu-title">Xuất / Nhập</span>
+        <button type="button" id="btn-export-chapters" data-export-source="translated" class="btn btn-sm btn-secondary">Xuất biên tập</button>
+        <button type="button" id="btn-export-raw" data-export-source="raw" class="btn btn-sm btn-secondary">Xuất raw</button>
+        <button type="button" id="btn-import-chapters" class="btn btn-sm btn-secondary">Nhập</button>
+        </div>
+        <div class="selected-menu-section">
+        <span class="selected-menu-title">Nguy hiểm</span>
     <form method="post" action="/api/ebooks/{{ slug }}/batch/delete-translation" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Xóa bản dịch (và biên tập) của {n} chương đã chọn? Không thể hoàn tác. Raw được giữ lại.">
         <input type="hidden" name="indexes" id="batch-indexes-delete" value="">
         <button type="submit" class="btn btn-sm btn-danger" title="Xóa translated + snapshot MT + meta. Không xóa raw.">Xóa dịch</button>
@@ -277,57 +335,9 @@
         <input type="hidden" name="indexes" id="batch-indexes-raw" value="">
         <button type="submit" class="btn btn-sm btn-danger" title="Xóa file raw. Dịch không bị ảnh hưởng, có thể Crawl lại.">Xóa raw</button>
     </form>
-    <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="translate">
-        <input type="hidden" name="action" value="cleanup-han">
-        <input type="hidden" name="targeting_mode" value="checked">
-        <button type="submit" class="btn btn-sm btn-secondary" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch (dùng config AI biên tập).">Sạch Hán</button>
-    </form>
-    <span class="sa-divider"></span>
-    <span class="action-group-label ml-1">TOC</span>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate" data-confirm="Bỏ qua {n} chương? Dữ liệu raw/dịch/biên tập giữ nguyên, lọc 'Bỏ qua: tất cả' để xem lại.">
-        <input type="hidden" name="indexes" id="batch-indexes-skip" value="">
-        <input type="hidden" name="skip" value="true">
-        <button type="submit" class="btn btn-sm btn-secondary" style="background:var(--tw-status-warn-light,#fef9c3);color:var(--tw-status-warn-fg,#854d0e);border-color:var(--tw-status-warn-light,#fef9c3)" title="Ẩn khỏi table mặc định.">Bỏ qua</button>
-    </form>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/update-skip" class="selected-action-form batch-form" data-selected-action="translate">
-        <input type="hidden" name="indexes" id="batch-indexes-unskip" value="">
-        <input type="hidden" name="skip" value="false">
-        <button type="submit" class="btn btn-sm btn-secondary" title="Hiện lại trong table.">Hiện lại</button>
-    </form>
-    <button type="button" id="btn-preview-reindex" class="btn btn-sm btn-secondary" style="background:var(--tw-status-warn-light,#fef9c3);color:var(--tw-status-warn-fg,#854d0e);border-color:var(--tw-status-warn-light,#fef9c3)">Xem trước index</button>
-    <form method="post" action="/ebooks/{{ slug }}/jobs/reorder" class="inline-form" data-job-category="both" style="margin:0">
-        <button type="submit" class="btn btn-sm btn-secondary" style="background:var(--tw-status-warn-light,#fef9c3);color:var(--tw-status-warn-fg,#854d0e);border-color:var(--tw-status-warn-light,#fef9c3)" title="Đánh lại index theo thứ tự hiển thị.">Đánh index lại</button>
-    </form>
-    <span class="sa-divider"></span>
-    <span class="action-group-label ml-1">AI</span>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/suggest-glossary" class="selected-action-form batch-form" data-selected-action="translate">
-        <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
-        <button type="submit" class="btn btn-sm btn-secondary" >Glossary</button>
-    </form>
-    <form method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form" data-selected-action="translate">
-        <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
-        <button type="submit" class="btn btn-sm btn-secondary" title="Dịch tiêu đề TOC. Tick 'Ghi đè' để dịch lại cả title cũ. Backend chọn bên dưới.">Dịch TOC</button>
-    </form>
-    <form method="post" action="/api/ebooks/{{ slug }}/batch/ai-rewrite" class="selected-action-form batch-form" data-selected-action="translate">
-        <input type="hidden" name="indexes" id="batch-indexes-rewrite" value="">
-        <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
-        <button type="submit" class="btn btn-sm btn-secondary" title="OpenAI: tạo bản nháp AI rewrite. Local NMT: dịch lại (ghi đè). Backend chọn bên dưới.">Biên tập</button>
-    </form>
-    <span class="sa-divider"></span>
-    <span class="action-group-label ml-1">Xuất/Nhập</span>
-    <button type="button" id="btn-export-chapters" data-export-source="translated" class="btn btn-sm btn-secondary">Xuất biên tập</button>
-    <button type="button" id="btn-export-raw" data-export-source="raw" class="btn btn-sm btn-secondary">Xuất raw</button>
-    <button type="button" id="btn-import-chapters" class="btn btn-sm btn-secondary">Nhập</button>
-    <span class="sa-divider"></span>
-    <span class="action-group-label ml-1">Tùy chọn</span>
-    <label class="inline-flex items-center gap-1 text-sm check"><input type="checkbox" id="selected-override" value="true" class="rounded border-surface-border dark:border-surface-border-dark"> Ghi đè</label>
-    <label class="inline-flex items-center gap-1 text-sm check">
-        Backend:
-        <select id="bulk-backend-select" class="select select-sm no-autosave">
-            <option value="openai" selected>OpenAI</option>
-            <option value="hachimimt">Local NMT</option>
-        </select>
-    </label>
+        </div>
+        </div>
+    </details>
     </div>
 </div>
 <div id="reindex-preview-banner" class="hidden mt-1 mb-1 px-3 py-2 text-xs rounded-lg bg-status-warn-light dark:bg-status-warn-dark border border-status-warn-light dark:border-status-warn-dark text-status-warn-fg dark:text-status-warn-fg-dark">
@@ -335,7 +345,7 @@
     Nếu ưng, bấm nút <strong>"Đánh index lại"</strong> ở toolbar phía trên (sẽ áp dụng đúng thứ tự bạn đang xem).
 </div>
 <nav class="pager" id="pager" aria-label="Phân trang">
-    <label class="pager-size">Mỗi trang
+    <label class="pager-size">
         <select id="page-size" aria-label="Số chương mỗi trang"
             class="select select-sm">
             <option value="5">5</option>
@@ -370,11 +380,11 @@
         <th class="w-10 chapter-check-cell"><label class="chapter-check-label"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị" class="rounded border-surface-border dark:border-surface-border-dark"></label></th>
         <th class="w-16 cursor-pointer select-none toc-sort-th" data-sort-key="source">#<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
         <th class="cursor-pointer select-none toc-sort-th" data-sort-key="title">Tiêu đề<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
-        <th class="w-24 cursor-pointer select-none toc-sort-th" data-sort-key="raw">Ký tự ZH<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="w-20 cursor-pointer select-none toc-sort-th" data-sort-key="raw">Ký tự ZH<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
         <th class="w-20 cursor-pointer select-none toc-sort-th" data-sort-key="translated">Số từ<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
-        <th class="w-28">Thiếu</th>
-        <th class="w-40">Action</th>
-        <th class="w-44"></th>
+        <th class="w-20 cursor-pointer select-none toc-sort-th" data-sort-key="glossary">Glossary<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="w-24 cursor-pointer select-none toc-sort-th" data-sort-key="total_chars">Tổng chars<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
+        <th class="w-80">Action</th>
     </tr>
     </thead>
     <tbody>
@@ -389,6 +399,36 @@
     <p class="empty-state-desc">Bấm "Lấy toàn bộ danh mục" để crawl chương hoặc điều chỉnh bộ lọc.</p>
 </div>
 {% endif %}
+</div>
+
+<div id="selected-ai-modal" class="modal-backdrop" hidden>
+    <section class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="selected-ai-modal-title">
+        <form id="selected-ai-modal-form" class="p-5 space-y-4">
+            <div>
+                <h3 id="selected-ai-modal-title" class="m-0 text-base font-semibold">Thiết lập AI</h3>
+                <p id="selected-ai-description" class="mt-1 mb-0 text-sm text-fg-muted dark:text-fg-muted-dark"></p>
+            </div>
+            <label class="form-group">
+                <span class="label">Thao tác</span>
+                <select id="selected-ai-action" class="select">
+                    <option value="translate-toc">Dịch TOC</option>
+                    <option value="rewrite">Biên tập</option>
+                </select>
+            </label>
+            <label class="form-group">
+                <span class="label">Backend</span>
+                <select id="selected-ai-backend" class="select">
+                    <option value="openai">OpenAI</option>
+                    <option value="hachimimt">Local NMT</option>
+                </select>
+            </label>
+            <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" id="selected-ai-override" class="rounded border-surface-border dark:border-surface-border-dark"> Ghi đè dữ liệu hiện có</label>
+            <div class="flex justify-end gap-2 pt-1">
+                <button type="button" class="btn btn-secondary" data-close-modal="selected-ai-modal">Hủy</button>
+                <button type="submit" id="selected-ai-submit" class="btn btn-primary">Dịch TOC</button>
+            </div>
+        </form>
+    </section>
 </div>
 
 {% endblock %}
@@ -416,6 +456,38 @@ let searchTimer = null;
 let pendingFetchToc = false;
 let pendingReindex = false;
 let reindexPreviewMode = false;
+
+function closeSelectedMoreMenu() {
+    const menu = document.querySelector(".selected-more");
+    const trigger = document.getElementById("selected-more-trigger");
+    if (menu) menu.open = false;
+    if (trigger) trigger.setAttribute("aria-expanded", "false");
+}
+
+function syncAiActionModal() {
+    const action = document.getElementById("selected-ai-action");
+    const description = document.getElementById("selected-ai-description");
+    const submit = document.getElementById("selected-ai-submit");
+    if (!action || !description || !submit) return;
+    const translateToc = action.value === "translate-toc";
+    description.textContent = translateToc
+        ? "Dịch tiêu đề các chương đã chọn."
+        : "OpenAI tạo bản biên tập; Local NMT dịch lại nội dung đã chọn.";
+    submit.textContent = translateToc ? "Dịch TOC" : "Biên tập";
+}
+
+function openAiActionModal() {
+    if (selectedIndexes.size === 0) {
+        toast("Chưa chọn chương nào. Hãy tick checkbox trước.", "warning");
+        return;
+    }
+    const override = document.getElementById("selected-override");
+    const modalOverride = document.getElementById("selected-ai-override");
+    if (override && modalOverride) modalOverride.checked = override.checked;
+    syncAiActionModal();
+    closeSelectedMoreMenu();
+    openModal("selected-ai-modal");
+}
 const selectedIndexes = new Set();
 
 const LS_KEY = "n2e:toc:" + SLUG;
@@ -553,9 +625,6 @@ function buildChapterRow(ch, newIndex) {
     const indexCell = reindexPreviewMode && newIndex != null && newIndex !== ch.index
         ? `<span class="reindex-old">${ch.index}</span><span class="reindex-arrow">→</span><span class="reindex-new">${newIndex}</span>`
         : ch.index;
-    const skipToggle = ch.skipped
-        ? `<button type="button" class="skip-toggle-btn text-xs text-brand-600 dark:text-brand-400 hover:underline" data-index="${ch.index}" data-skip="false" title="Hiện lại chương này trong danh mục.">hiện</button>`
-        : `<button type="button" class="skip-toggle-btn text-xs text-status-warn-fg dark:text-status-warn-fg-dark hover:underline" data-index="${ch.index}" data-skip="true" title="Bỏ qua (ẩn) chương này khỏi danh mục.">bỏ qua</button>`;
     const selected = selectedIndexes.has(ch.index);
     const rowClass = [ch.skipped ? "opacity-50" : "", selected ? "is-selected" : ""].filter(Boolean).join(" ");
     return `<tr data-index="${ch.index}" class="${rowClass}">
@@ -564,15 +633,26 @@ function buildChapterRow(ch, newIndex) {
         <td class="px-3 py-2 overflow-hidden" data-editable-title data-index="${ch.index}"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline truncate block" title="${escapeHtml(ch.visible_title)}">${escapeHtml(ch.visible_title)}</a></td>
         <td class="px-3 py-2 font-mono tabular-nums">${ch.has_raw ? (ch.zh_char_count ?? 0) : '-'}</td>
         <td class="px-3 py-2 font-mono tabular-nums">${ch.has_translated ? ch.word_count : '-'}</td>
-        <td class="px-3 py-2 text-fg-muted dark:text-fg-muted-dark text-xs">${hasMissing ? ch.missing_fields.join(', ') : '-'}</td>
+        <td class="px-3 py-2 font-mono tabular-nums text-fg-muted dark:text-fg-muted-dark">${ch.glossary_count ?? '-'}</td>
+        <td class="px-3 py-2 font-mono tabular-nums">${ch.total_chars ?? '-'}</td>
         <td class="px-3 py-2">
-            <form method="post" action="/ebooks/${SLUG}/chapters/${ch.index}/action" class="inline-flex gap-1.5 items-center">
-                <button type="submit" name="action" value="crawl" class="btn btn-sm btn-secondary">Crawl</button>
-                <button type="submit" name="action" value="translate" class="btn btn-sm btn-secondary">Dịch</button>
-            </form>
+            <div class="inline-flex gap-0.5 items-center">
+                <button type="button" class="btn btn-sm btn-secondary action-icon-btn" data-tooltip="Xem / sửa" onclick="location.href='/ebooks/${SLUG}/chapters/${ch.index}'" title="Xem / sửa">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                </button>
+                ${ch.has_translated ? `<button type="button" class="btn btn-sm btn-secondary action-icon-btn" data-tooltip="Đọc" onclick="location.href='/ebooks/${SLUG}/read/${ch.index}'" title="Đọc">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                </button>` : ''}
+                ${ch.skipped
+                    ? `<button type="button" class="skip-toggle-btn action-icon-btn btn btn-sm btn-secondary" data-index="${ch.index}" data-skip="false" title="Hiện lại">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>`
+                    : `<button type="button" class="skip-toggle-btn action-icon-btn btn btn-sm btn-secondary" data-index="${ch.index}" data-skip="true" title="Bỏ qua">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    </button>`}
+            </div>
             ${statusHtml}
         </td>
-        <td class="px-3 py-2"><a href="/ebooks/${SLUG}/chapters/${ch.index}" class="text-brand-600 dark:text-brand-400 hover:underline">xem / sửa</a>${ch.has_translated ? ` · <a href="/ebooks/${SLUG}/read/${ch.index}" class="text-brand-600 dark:text-brand-400 hover:underline">đọc</a>` : ''} · ${skipToggle}</td>
     </tr>`;
 }
 
@@ -612,6 +692,8 @@ function getFilteredData() {
             if (sort === "title") cmp = a.visible_title.toLowerCase().localeCompare(b.visible_title.toLowerCase()) || (a.index - b.index);
             else if (sort === "raw") cmp = (a.has_raw === b.has_raw) ? (a.index - b.index) : (a.has_raw ? 1 : -1);
             else if (sort === "translated") cmp = (a.has_translated === b.has_translated) ? (a.index - b.index) : (a.has_translated ? 1 : -1);
+            else if (sort === "glossary") cmp = (a.glossary_count ?? 0) - (b.glossary_count ?? 0) || (a.index - b.index);
+            else if (sort === "total_chars") cmp = (a.total_chars ?? 0) - (b.total_chars ?? 0) || (a.index - b.index);
             return desc ? -cmp : cmp;
         });
     } else if (desc) {
@@ -669,6 +751,20 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+    const more = document.querySelector(".selected-more");
+    const trigger = document.getElementById("selected-more-trigger");
+    if (trigger && event.target === trigger) {
+        requestAnimationFrame(() => trigger.setAttribute("aria-expanded", String(more?.open || false)));
+    } else if (more?.open && !more.contains(event.target)) {
+        closeSelectedMoreMenu();
+    }
+    if (event.target.closest?.("#selected-more-menu button, #selected-more-menu form")) closeSelectedMoreMenu();
+    if (event.target.closest?.("#btn-open-ai-action")) {
+        event.preventDefault();
+        openAiActionModal();
+    }
+    const closeModalBtn = event.target.closest?.('[data-close-modal="selected-ai-modal"]');
+    if (closeModalBtn) closeModal("selected-ai-modal");
     const btn = event.target.closest && event.target.closest(".pager-nav button[data-page]");
     if (btn) { event.preventDefault(); gotoPage(btn.dataset.page); }
     const skipBtn = event.target.closest && event.target.closest(".skip-toggle-btn");
@@ -690,6 +786,36 @@ document.addEventListener("click", (event) => {
             })
             .catch(() => toast("Lỗi mạng.", "error"));
     }
+});
+
+document.getElementById("selected-ai-action")?.addEventListener("change", syncAiActionModal);
+document.getElementById("selected-ai-override")?.addEventListener("change", (event) => {
+    const override = document.getElementById("selected-override");
+    if (override) override.checked = event.target.checked;
+});
+document.getElementById("selected-override")?.addEventListener("change", (event) => {
+    const modalOverride = document.getElementById("selected-ai-override");
+    if (modalOverride) modalOverride.checked = event.target.checked;
+});
+document.getElementById("selected-ai-modal-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const action = document.getElementById("selected-ai-action")?.value;
+    const backend = document.getElementById("selected-ai-backend")?.value || "openai";
+    const target = document.getElementById(action === "translate-toc" ? "selected-translate-toc-form" : "selected-rewrite-form");
+    if (!target) return;
+    const backendInput = target.querySelector('input[name="backend"].js-bulk-backend');
+    if (backendInput) backendInput.value = backend;
+    closeModal("selected-ai-modal");
+    target.requestSubmit();
+});
+document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const aiModal = document.getElementById("selected-ai-modal");
+    if (aiModal && !aiModal.hidden) {
+        closeModal("selected-ai-modal");
+        return;
+    }
+    closeSelectedMoreMenu();
 });
 
 document.addEventListener("input", (event) => {
@@ -762,7 +888,7 @@ document.addEventListener("submit", async function(event) {
             // Đồng bộ giá trị backend dropdown vào hidden input của form (nếu có).
             // Hai nút "Biên tập đã chọn" và "Dịch TOC" có hidden input
             // name="backend" class="js-bulk-backend" — JS set value trước khi submit.
-            const backendSelect = document.getElementById("bulk-backend-select");
+            const backendSelect = document.getElementById("selected-ai-backend");
             if (backendSelect) {
                 const backendInput = form.querySelector('input[name="backend"].js-bulk-backend');
                 if (backendInput) {

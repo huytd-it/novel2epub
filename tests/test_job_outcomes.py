@@ -23,6 +23,20 @@ def test_ebook_page_contains_queue_outcome_aggregation():
     assert "finishOutcomeGroups(queueSnapshot)" in template
 
 
+def test_ebook_page_has_compact_selected_command_bar():
+    template = (Path(__file__).parents[1] / "app" / "templates" / "ebook.html").read_text(encoding="utf-8")
+
+    assert 'id="selected-more-trigger"' in template
+    assert 'id="selected-more-menu"' in template
+    assert 'AI &amp; Nội dung' in template
+    assert '>TOC<' in template
+    assert 'Xuất / Nhập' in template
+    assert 'Nguy hiểm' in template
+    assert 'id="selected-ai-modal"' in template
+    assert 'id="selected-ai-action"' in template
+    assert 'id="selected-ai-backend"' in template
+
+
 def _evaluate_outcome_helpers(script):
     template = (Path(__file__).parents[1] / "app" / "templates" / "ebook.html").read_text(encoding="utf-8")
     start = template.index("const pendingOutcomeGroups = [];")

@@ -339,10 +339,10 @@ def test_auto_glossary_and_batch_size_parsed_from_yaml(tmp_path):
     assert cfg.translate.batch_size == 5
 
 
-def test_prompt_max_chars_defaults_7000(tmp_path):
+def test_prompt_max_chars_defaults_20000(tmp_path):
     config_path = _write_config(tmp_path)
     cfg = load_config(config_path)
-    assert cfg.translate.prompt_max_chars == 7000
+    assert cfg.translate.prompt_max_chars == 20000
 
 
 def test_prompt_max_chars_parsed_from_yaml(tmp_path):

@@ -181,7 +181,7 @@ checkAll.addEventListener("change", () => {
 bulkBtn.addEventListener("click", async () => {
     const sources = checkedSources();
     if (!sources.length) return;
-    if (!window.confirm(`Xóa ${sources.length} mục đã chọn?`)) return;
+    if (!await confirmDialog(`Xóa ${sources.length} mục đã chọn?`, { destructive: true })) return;
     try {
         const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/entries/delete`, {
             method: "POST",
@@ -391,7 +391,7 @@ body.addEventListener("click", async e => {
             render();
             return;
         }
-        if (!window.confirm(`Xoá mục "${row.source}"?`)) return;
+        if (!await confirmDialog(`Xoá mục "${row.source}"?`, { destructive: true })) return;
         const fd = new FormData();
         fd.set("source", row._saved);
         try {
@@ -441,7 +441,7 @@ document.getElementById("btn-add").addEventListener("click", () => {
 
 // Dọn dữ liệu: chạy trên server (trim, bỏ mục thiếu, dedup) rồi tải lại.
 document.getElementById("btn-clean").addEventListener("click", async () => {
-    if (!window.confirm("Dọn glossary: trim khoảng trắng, bỏ mục thiếu Hán/Việt, gộp trùng. Tiếp tục?")) return;
+    if (!await confirmDialog("Dọn glossary: trim khoảng trắng, bỏ mục thiếu Hán/Việt, gộp trùng. Tiếp tục?")) return;
     try {
         const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/clean`, { method: "POST" });
         const data = await res.json().catch(() => ({}));
@@ -470,7 +470,7 @@ const BULK_WINDOW_STYLE = `
 
 function openBulkWindow(title) {
     const win = window.open("", "_blank");
-    if (!win) { alert("Trình duyệt chặn pop-up — hãy cho phép pop-up cho trang này."); return null; }
+    if (!win) { toast("Trình duyệt chặn pop-up — hãy cho phép pop-up cho trang này.", "error"); return null; }
     win.document.title = title;
     const style = win.document.createElement("style");
     style.textContent = BULK_WINDOW_STYLE;
@@ -543,18 +543,18 @@ document.getElementById("btn-import").addEventListener("click", () => {
         if (f) ta.value = await f.text();
     });
     importBtn.addEventListener("click", async () => {
-        if (!ta.value.trim()) { win.alert("Chưa có nội dung để nhập."); return; }
+        if (!ta.value.trim()) { showPopupMessage(win.document, "Chưa có nội dung để nhập.", "warning"); return; }
         importBtn.disabled = true;
         try {
             const fd = new FormData();
             fd.set("text", ta.value);
             const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/import`, { method: "POST", body: fd });
             const data = await res.json();
-            if (!res.ok) { win.alert(data.detail || "Lỗi khi nhập."); importBtn.disabled = false; return; }
-            win.alert(`Đã nhập: thêm ${data.added} mục, cập nhật ${data.updated} mục.`);
+            if (!res.ok) { showPopupMessage(win.document, data.detail || "Lỗi khi nhập.", "error"); importBtn.disabled = false; return; }
+            toast(`Đã nhập: thêm ${data.added} mục, cập nhật ${data.updated} mục.`, "success");
             win.close();
-            if (window.opener) window.opener.softReload();
-        } catch (err) { win.alert("Lỗi kết nối mạng."); importBtn.disabled = false; }
+            softReload();
+        } catch (err) { showPopupMessage(win.document, "Lỗi kết nối mạng.", "error"); importBtn.disabled = false; }
     });
     actions.appendChild(fileInput); actions.appendChild(importBtn);
     main.appendChild(actions); main.appendChild(ta);

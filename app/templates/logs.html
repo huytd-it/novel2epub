@@ -138,7 +138,7 @@ document.getElementById("log-refresh").addEventListener("click", () => {
 });
 
 document.getElementById("log-clear").addEventListener("click", async () => {
-    if (!confirm(`Xóa toàn bộ file ${currentSource}.log?`)) return;
+    if (!await confirmDialog(`Xóa toàn bộ file ${currentSource}.log?`, { destructive: true })) return;
     const res = await fetch(`/api/logs/${currentSource}`, {method:"DELETE"});
     if (res.ok) {
         toast("Đã xóa file log.", "info");

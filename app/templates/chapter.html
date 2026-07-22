@@ -137,7 +137,7 @@ details[open] > summary.no-marker .dd-caret { transform: rotate(180deg); }
             <button type="submit" class="btn btn-sm btn-secondary">Crawl</button>
         </form>
         {% else %}
-        <form method="post" action="{{ base }}/delete-raw" class="m-0" onsubmit="return confirm('Xóa nội dung đã crawl của chương này?')">
+        <form method="post" action="{{ base }}/delete-raw" class="m-0" data-confirm="Xóa nội dung đã crawl của chương này?" data-confirm-danger="true">
             <button type="submit" class="btn btn-sm btn-danger" title="Xóa nội dung đã crawl để crawl lại">Xóa crawl</button>
         </form>
         {% endif %}
@@ -159,7 +159,7 @@ details[open] > summary.no-marker .dd-caret { transform: rotate(180deg); }
             <input type="hidden" name="override" value="true">
             <button type="submit" class="btn btn-sm btn-secondary" title="Phát hiện và sửa chữ Hán còn sót trong bản dịch (dùng config AI biên tập).">Làm sạch Hán</button>
         </form>
-        <form method="post" action="{{ base }}/delete-translation" class="m-0" onsubmit="return confirm('Xóa bản dịch của chương này?')">
+        <form method="post" action="{{ base }}/delete-translation" class="m-0" data-confirm="Xóa bản dịch của chương này?" data-confirm-danger="true">
             <button type="submit" class="btn btn-sm btn-danger">Xóa bản dịch</button>
         </form>
         <span class="flex-1"></span>
@@ -278,7 +278,7 @@ details[open] > summary.no-marker .dd-caret { transform: rotate(180deg); }
         <summary class="cursor-pointer text-fg-muted dark:text-fg-muted-dark hover:text-fg-light dark:hover:text-fg-dark transition-colors">Chương này đã được AI rewrite — xem/khôi phục bản trước khi rewrite</summary>
         <div class="card p-3 mt-2 space-y-2">
             <textarea readonly class="w-full rounded-lg border border-surface-border dark:border-surface-border-dark bg-surface-muted/50 dark:bg-surface-muted-dark/50 text-sm font-mono p-2.5" rows="10">{{ meta.before_rewrite }}</textarea>
-            <form method="post" action="{{ base }}" class="m-0" onsubmit="return confirm('Ghi đè bản dịch hiện tại bằng bản trước khi rewrite?')">
+            <form method="post" action="{{ base }}" class="m-0" data-confirm="Ghi đè bản dịch hiện tại bằng bản trước khi rewrite?" data-confirm-danger="true">
                 <input type="hidden" name="translated" value="{{ meta.before_rewrite }}">
                 <button type="submit" class="btn btn-sm btn-secondary">Khôi phục bản này (ghi đè bản dịch hiện tại)</button>
             </form>
@@ -291,7 +291,7 @@ details[open] > summary.no-marker .dd-caret { transform: rotate(180deg); }
         <summary class="cursor-pointer text-fg-muted dark:text-fg-muted-dark hover:text-fg-light dark:hover:text-fg-dark transition-colors">Chương này đã bị tìm &amp; thay thế — xem/khôi phục bản trước khi thay</summary>
         <div class="card p-3 mt-2 space-y-2">
             <textarea readonly class="w-full rounded-lg border border-surface-border dark:border-surface-border-dark bg-surface-muted/50 dark:bg-surface-muted-dark/50 text-sm font-mono p-2.5" rows="10">{{ meta.before_find_replace }}</textarea>
-            <form method="post" action="{{ base }}" class="m-0" onsubmit="return confirm('Ghi đè bản dịch hiện tại bằng bản trước khi tìm & thay thế?')">
+            <form method="post" action="{{ base }}" class="m-0" data-confirm="Ghi đè bản dịch hiện tại bằng bản trước khi tìm & thay thế?" data-confirm-danger="true">
                 <input type="hidden" name="translated" value="{{ meta.before_find_replace }}">
                 <button type="submit" class="btn btn-sm btn-secondary">Khôi phục bản này (ghi đè bản dịch hiện tại)</button>
             </form>
@@ -672,6 +672,13 @@ document.addEventListener("submit", async function(event) {
     const form = event.target;
     const action = form.getAttribute("action") || "";
 
+    if (form.dataset.confirm) {
+        event.preventDefault();
+        if (!await confirmDialog(form.dataset.confirm, { destructive: form.dataset.confirmDanger === "true" })) return;
+        HTMLFormElement.prototype.submit.call(form);
+        return;
+    }
+
     if (action.includes("/action") || action.includes("/jobs/") || form.classList.contains("ai-job-form")) {
         event.preventDefault();
 
@@ -707,15 +714,16 @@ document.addEventListener("submit", async function(event) {
                         errMsg = errData.detail;
                     }
                 } catch (e) {}
-                alert(errMsg);
+                toast(errMsg, "error");
                 poll();
             } else {
                 for (const cat of affected) wasRunning[cat] = true;
+                toast("Đã gửi thao tác vào hàng đợi.", "success");
                 setTimeout(poll, 200);
             }
         } catch (error) {
             console.error(error);
-            alert("Lỗi kết nối mạng.");
+            toast("Lỗi kết nối mạng.", "error");
             poll();
         }
     }
@@ -837,7 +845,7 @@ document.getElementById("retranslate-title-btn")?.addEventListener("click", asyn
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            alert(err.detail || "Có lỗi xảy ra.");
+            toast(err.detail || "Có lỗi xảy ra.", "error");
             return;
         }
         const data = await res.json();
@@ -858,7 +866,7 @@ document.getElementById("retranslate-title-btn")?.addEventListener("click", asyn
         document.getElementById("retranslate-dd")?.removeAttribute("open");
         toast("Đã dịch lại tiêu đề", "success");
     } catch (e) {
-        alert("Lỗi kết nối mạng.");
+        toast("Lỗi kết nối mạng.", "error");
     } finally {
         btn.disabled = false;
         btn.textContent = "Dịch lại tiêu đề";
@@ -956,7 +964,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") hidePopover(
 async function savePopEntry() {
     const source = popSource.value.trim();
     const target = popTarget.value.trim();
-    if (!source || !target) { alert("Cần cả Hán và Việt."); return; }
+    if (!source || !target) { toast("Cần cả Hán và Việt.", "warning"); return; }
     const fd = new FormData();
     fd.set("source", source); fd.set("target", target); fd.set("note", popNote.value);
     fd.set("original_source", popExisting ? popExisting.source : "");
@@ -964,16 +972,17 @@ async function savePopEntry() {
         const res = await fetch(`/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/glossary/entry`, { method: "POST", body: fd });
         if (!res.ok) {
             const d = await res.json().catch(() => ({}));
-            alert(d.detail || "Lưu thất bại.");
+            toast(d.detail || "Lưu thất bại.", "error");
             return;
         }
-    } catch (err) { alert("Lỗi kết nối mạng."); return; }
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); return; }
 
     // Chuỗi cũ cần thay: target cũ của mục có sẵn, hoặc chính đoạn VI vừa bôi
     // (mục mới thêm từ cột VI mà target gõ lại khác đi).
     let oldStr = "";
     if (popExisting && popExisting.target !== target) oldStr = popExisting.target;
     else if (!popExisting && !popSel.fromZh && popSel.text !== target) oldStr = popSel.text;
+    toast("Đã lưu mục glossary.", "success");
     if (!oldStr) { hidePopover(); return; }
     await showPopPropagate(oldStr, target);
 }
@@ -1004,12 +1013,13 @@ async function popPropagate(oldStr, newStr, scope) {
     try {
         const res = await fetch(`/api/ebooks/${encodeURIComponent(CHAPTER_SLUG)}/glossary/propagate`, { method: "POST", body: fd });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) { alert(data.detail || "Không thay được."); return; }
+        if (!res.ok) { toast(data.detail || "Không thay được.", "error"); return; }
         if (scope === "chapter") {
             await pollTranslated(); // cập nhật bản dịch tại chỗ, giữ vị trí đọc
         }
-    } catch (err) { alert("Lỗi kết nối mạng."); return; }
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); return; }
     hidePopover();
+    toast("Đã thay nội dung theo glossary.", "success");
 }
 </script>
 {% endblock %}

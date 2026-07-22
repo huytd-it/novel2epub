@@ -168,29 +168,31 @@ document.addEventListener("change", function (e) {
 document.addEventListener("DOMContentLoaded", updateTranslateTypeUI);
 
 // --- Cover image upload ---
-function uploadCover(slug) {
+async function uploadCover(slug) {
     const input = document.getElementById("cover-file-input");
     if (!input || !input.files || !input.files[0]) {
-        alert("Vui lòng chọn file ảnh.");
+        toast("Vui lòng chọn file ảnh.", "error");
         return;
     }
     const fd = new FormData();
     fd.append("cover_file", input.files[0]);
     const status = document.getElementById("save-status");
     if (status) { status.textContent = "Đang tải lên..."; status.className = "text-sm text-amber-600 dark:text-amber-400"; }
-    fetch("/ebooks/" + slug + "/settings/cover-upload", { method: "POST", body: fd })
-        .then(r => {
-            if (r.ok || r.redirected) {
-                const img = document.querySelector(".cover-preview img") || document.querySelector('img[alt="Ảnh bìa"]');
-                if (img) img.src = "/ebooks/" + slug + "/cover?" + Date.now();
-                if (status) { status.textContent = "Đã tải lên"; status.className = "text-sm text-green-600 dark:text-green-400"; }
-            } else {
-                if (status) { status.textContent = "Lỗi tải lên"; status.className = "text-sm text-red-600 dark:text-red-400"; }
-            }
-        })
-        .catch(() => {
-            if (status) { status.textContent = "Lỗi mạng"; status.className = "text-sm text-red-600 dark:text-red-400"; }
-        });
+    try {
+        const r = await fetch("/ebooks/" + slug + "/settings/cover-upload", { method: "POST", body: fd });
+        if (r.ok || r.redirected) {
+            const img = document.querySelector(".cover-preview img") || document.querySelector('img[alt="Ảnh bìa"]');
+            if (img) img.src = "/ebooks/" + slug + "/cover?" + Date.now();
+            if (status) { status.textContent = "Đã tải lên"; status.className = "text-sm text-green-600 dark:text-green-400"; }
+            toast("Đã tải lên ảnh bìa.", "success");
+        } else {
+            if (status) { status.textContent = "Lỗi tải lên"; status.className = "text-sm text-red-600 dark:text-red-400"; }
+            toast("Lỗi tải lên.", "error");
+        }
+    } catch {
+        if (status) { status.textContent = "Lỗi mạng"; status.className = "text-sm text-red-600 dark:text-red-400"; }
+        toast("Lỗi kết nối mạng.", "error");
+    }
 }
 </script>
 {% endblock %}
@@ -204,21 +206,24 @@ function toggleRawYaml(id) {
 
 // Reset 1 khối cấu hình về mặc định (POST rồi reload). Dùng fetch thay vì
 // <form> lồng vì các nút này nằm TRONG form settings lớn (form lồng nhau là HTML sai).
-function resetConfigSection(url, msg) {
-    if (!confirm(msg)) return;
+async function resetConfigSection(url, msg) {
+    if (!await confirmDialog(msg, { destructive: true })) return;
     // Hủy autosave đang chờ (debounce) — không thì nó ghi lại giá trị form CŨ
     // ngay sau khi reset xoá override.
     if (typeof saveTimer !== "undefined" && saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     const status = document.getElementById("save-status");
     if (status) { status.textContent = "Đang reset..."; status.className = "text-sm text-amber-600 dark:text-amber-400"; }
-    fetch(url, { method: "POST" })
-        .then(r => {
-            if (r.ok || r.redirected) { softReload(); }
-            else if (status) { status.textContent = "Lỗi reset"; status.className = "text-sm text-red-600 dark:text-red-400"; }
-        })
-        .catch(() => {
-            if (status) { status.textContent = "Lỗi mạng"; status.className = "text-sm text-red-600 dark:text-red-400"; }
-        });
+    try {
+        const r = await fetch(url, { method: "POST" });
+        if (r.ok || r.redirected) { softReload(); }
+        else {
+            if (status) { status.textContent = "Lỗi reset"; status.className = "text-sm text-red-600 dark:text-red-400"; }
+            toast("Lỗi reset.", "error");
+        }
+    } catch {
+        if (status) { status.textContent = "Lỗi mạng"; status.className = "text-sm text-red-600 dark:text-red-400"; }
+        toast("Lỗi kết nối mạng.", "error");
+    }
 }
 </script>
 {% endblock %}

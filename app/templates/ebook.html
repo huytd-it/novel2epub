@@ -2,10 +2,16 @@
 {% block title %}{{ cfg.novel.title or cfg.novel.slug }} — novel2epub{% endblock %}
 {% block content %}
 <style>
-/* Local styles for ebook: compact-toolbar, status-bar, action-group, pager, table-wrap, selected-actions, TOC table patterns */
-.chapter-check, #check-all, #selected-override { transform: scale(1.2); margin: 0 2px; }
+/* Local styles for the chapter workspace. */
+.chapter-check, #check-all, #selected-override { inline-size: 1.5rem; block-size: 1.5rem; margin: 0; accent-color: var(--tw-brand-600, #059669); }
+.chapter-check, #check-all { cursor: pointer; }
+.chapter-check-cell { min-inline-size: 2.75rem; min-block-size: 2.75rem; }
+.chapter-check-label { display: grid; place-items: center; min-inline-size: 2.75rem; min-block-size: 2.75rem; margin: -0.625rem; }
 
-.compact-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.75rem; background: var(--tw-surface-muted, #f4f4f5); border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; }
+.ebook-overview { margin-bottom: 0.75rem; }
+.toc-workspace { position: relative; padding-bottom: 1rem; }
+.compact-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0; padding: 0.75rem; background: var(--tw-surface-muted, #f4f4f5); border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; }
+.toc-filter-bar { position: sticky; top: calc(3.5rem + 0.5rem); z-index: 20; box-shadow: 0 6px 16px rgba(24, 24, 27, 0.08); }
 .dark .compact-toolbar { background: var(--tw-surface-muted-dark, #27272a); border-color: var(--tw-border-dark, #3f3f46); }
 .compact-toolbar input[type="search"] { min-width: min(22rem, 100%); }
 .compact-toolbar select, .compact-toolbar input { font-size: 0.8125rem; width: auto; padding: 0.35rem 0.5rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 6px; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); }
@@ -15,8 +21,14 @@
 .dark .status-bar { background: var(--tw-surface-muted-dark, #27272a); border-color: var(--tw-border-dark, #3f3f46); }
 .status-hint { margin-left: auto; }
 
-.selected-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; padding: 0.55rem 0.75rem; background: var(--tw-brand-50, #ecfdf5); border: 1px solid var(--tw-brand-200, #a7f3d0); border-radius: 8px; }
+.selected-actions { display: none; align-items: center; gap: 0.5rem; flex-wrap: nowrap; margin: 0; padding: 0.65rem max(0.75rem, env(safe-area-inset-right)) max(0.65rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left)); background: var(--tw-brand-50, #ecfdf5); border-top: 1px solid var(--tw-brand-200, #a7f3d0); box-shadow: 0 -8px 24px rgba(24, 24, 27, 0.12); }
 .dark .selected-actions { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); }
+.selected-actions.has-selection { display: flex; position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; }
+.toc-workspace:has(.selected-actions.has-selection) { padding-bottom: 5.5rem; }
+.selected-actions > * { flex: 0 0 auto; }
+.selected-actions .selected-primary { display: flex; gap: 0.5rem; align-items: center; }
+.selected-actions .selected-count { font-weight: 600; white-space: nowrap; }
+.selected-actions .selected-scroll { display: flex; align-items: center; gap: 0.5rem; min-width: 0; overflow-x: auto; scrollbar-width: thin; padding-bottom: 0.15rem; }
 .selected-actions .check { margin-left: 0.25rem; }
 
 .sa-divider { width:1px; height:1.4rem; background:var(--tw-border,#e4e4e7); flex-shrink:0; }
@@ -50,6 +62,11 @@
 .reindex-new { color: var(--tw-status-run-fg, #d97706); font-weight: 700; }
 
 .toc-actions { display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0 0.5rem; }
+.toc-table-container { margin-top: 0.5rem; max-height: min(68vh, 54rem); overflow: auto; }
+.toc-table-container thead th { position: sticky; top: 0; z-index: 2; background: var(--tw-surface-light, #ffffff); }
+.dark .toc-table-container thead th { background: var(--tw-surface-dark, #18181b); }
+#chapter-table tbody tr.is-selected { background: var(--tw-brand-50, #ecfdf5); box-shadow: inset 3px 0 0 var(--tw-brand-500, #10b981); }
+.dark #chapter-table tbody tr.is-selected { background: rgba(16, 185, 129, 0.14); }
 
 .btn-stop { background: var(--tw-status-err-fg, #dc2626) !important; color: #fff !important; border-color: var(--tw-status-err-fg, #dc2626) !important; }
 .btn-stop:hover { background: var(--tw-status-err-fg-dark, #b91c1c) !important; }
@@ -57,15 +74,24 @@
 #toc-region.toc-loading { visibility: hidden; }
 
 @media (max-width: 900px) {
-    .selected-actions { position: static; }
     .selected-actions .action-group-label { display: none; }
     .sa-divider { display: none; }
     .compact-toolbar select, .compact-toolbar input { width: 100%; }
+    .selected-actions { gap: 0.35rem; }
+    .selected-actions .selected-primary { position: sticky; left: 0; z-index: 1; padding-right: 0.35rem; background: var(--tw-brand-50, #ecfdf5); }
+    .dark .selected-actions .selected-primary { background: #102b24; }
+    .selected-actions .selected-scroll { flex: 1 1 auto; }
+    .toc-workspace:has(.selected-actions.has-selection) { padding-bottom: 6.25rem; }
+}
+
+@media (min-width: 768px) {
+    .toc-filter-bar { top: calc(4rem + 0.5rem); }
 }
 </style>
 
 <p class="pb-8"><a href="/" class="text-brand-600 dark:text-brand-400 hover:underline">&larr; Quay lại thư viện</a></p>
 
+<section class="ebook-overview">
 <div class="flex gap-4 items-start">
     <div class="flex-shrink-0 w-28">
         <img src="/ebooks/{{ slug }}/cover" alt="Ảnh bìa"
@@ -89,6 +115,7 @@
         {% endif %}
     </div>
 </div>
+</section>
 
 <div class="status-bar mt-3">
     <span id="status-badge-crawl">
@@ -176,12 +203,12 @@
     </form>
 </div>
 
-<div id="toc-region" class="toc-loading">
+<div id="toc-region" class="toc-loading toc-workspace">
 <div class="flex items-baseline justify-between gap-4 mb-1 mt-3">
     <h3 class="text-base font-semibold m-0">Chương <span class="count-pill">{{ chapters|length }}</span></h3>
     <p class="text-sm text-fg-muted dark:text-fg-muted-dark m-0">Search / sort / lọc chạy ngầm (không reload), được nhớ trong trình duyệt. Tick dòng rồi chọn hành động.</p>
 </div>
-<form method="get" action="/ebooks/{{ slug }}" class="compact-toolbar">
+<form method="get" action="/ebooks/{{ slug }}" class="toc-filter-bar compact-toolbar">
     <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL" class="input input-sm">
     <select name="sort" aria-label="Sắp xếp" class="select select-sm">
         {% for key, label in [("source", "Thứ tự"), ("title", "Tiêu đề"), ("raw", "Raw"), ("translated", "Dịch")] %}
@@ -215,7 +242,7 @@
     <button type="submit" class="btn btn-sm btn-primary">Lọc</button>
 </form>
 {% if chapters %}
-<div class="selected-actions">
+<div id="selected-command-bar" class="selected-actions" aria-live="polite">
     <input type="hidden" name="sort" id="act-sort" value="{{ controls.sort }}">
     <input type="hidden" name="direction" id="act-direction" value="{{ controls.direction }}">
     <input type="hidden" name="search" id="act-search" value="{{ controls.search }}">
@@ -223,7 +250,8 @@
     <input type="hidden" name="filter_translated" id="act-filter_translated" value="{{ controls.filter_translated }}">
     <input type="hidden" name="filter_missing" id="act-filter_missing" value="{{ controls.filter_missing }}">
     <input type="hidden" name="filter_skipped" id="act-filter_skipped" value="{{ controls.filter_skipped }}">
-    <span class="action-group-label">Thao tác</span>
+    <div class="selected-primary">
+    <span id="checked-info" class="selected-count">Đã tick 0 chương.</span>
     <form method="post" action="/ebooks/{{ slug }}/jobs/chapter-action" class="selected-action-form" data-selected-action="crawl">
         <input type="hidden" name="action" value="crawl">
         <input type="hidden" name="targeting_mode" value="checked">
@@ -234,6 +262,8 @@
         <input type="hidden" name="targeting_mode" value="checked">
         <button type="submit" class="btn btn-sm btn-secondary" title="Mỗi chương = 1 job riêng trong hàng đợi. Tăng worker để chạy song song.">Dịch</button>
     </form>
+    </div>
+    <div class="selected-scroll">
     <form method="post" action="/ebooks/{{ slug }}/jobs/build-selected" class="selected-action-form" data-selected-action="build">
         <button type="submit" class="btn btn-sm btn-secondary" >Build EPUB</button>
     </form>
@@ -298,7 +328,7 @@
             <option value="hachimimt">Local NMT</option>
         </select>
     </label>
-    <span id="checked-info" class="text-fg-muted dark:text-fg-muted-dark text-sm">Đã tick 0 chương.</span>
+    </div>
 </div>
 <div id="reindex-preview-banner" class="hidden mt-1 mb-1 px-3 py-2 text-xs rounded-lg bg-status-warn-light dark:bg-status-warn-dark border border-status-warn-light dark:border-status-warn-dark text-status-warn-fg dark:text-status-warn-fg-dark">
     Đang xem trước: cột <strong>#</strong> hiển thị <code>index hiện tại → index mới</code>.
@@ -333,11 +363,11 @@
             class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">&raquo;</button>
     </div>
 </nav>
-<div class="table-container">
+<div class="table-container toc-table-container">
 <table id="chapter-table" class="table scrollbar-thin" style="table-layout:fixed">
     <thead>
     <tr>
-        <th class="w-10"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị" class="rounded border-surface-border dark:border-surface-border-dark"></th>
+        <th class="w-10 chapter-check-cell"><label class="chapter-check-label"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị" class="rounded border-surface-border dark:border-surface-border-dark"></label></th>
         <th class="w-16 cursor-pointer select-none toc-sort-th" data-sort-key="source">#<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
         <th class="cursor-pointer select-none toc-sort-th" data-sort-key="title">Tiêu đề<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
         <th class="w-24 cursor-pointer select-none toc-sort-th" data-sort-key="raw">Ký tự ZH<span class="toc-sort-ind ml-1 opacity-40">⇅</span></th>
@@ -386,6 +416,7 @@ let searchTimer = null;
 let pendingFetchToc = false;
 let pendingReindex = false;
 let reindexPreviewMode = false;
+const selectedIndexes = new Set();
 
 const LS_KEY = "n2e:toc:" + SLUG;
 const CONTROL_FIELDS = ["search", "sort", "direction", "filter_raw", "filter_translated", "filter_missing", "filter_skipped"];
@@ -441,7 +472,8 @@ function syncCheckAll() {
     if (!all) return;
     const shown = visibleRows().filter((r) => r.style.display !== "none");
     const boxes = shown.map((r) => r.querySelector(".chapter-check")).filter(Boolean);
-    all.checked = boxes.length > 0 && boxes.every((b) => b.checked);
+    all.checked = boxes.length > 0 && boxes.every((b) => selectedIndexes.has(Number(b.value)));
+    all.indeterminate = boxes.some((b) => selectedIndexes.has(Number(b.value))) && !all.checked;
 }
 
 function paginate({ reset = false } = {}) {
@@ -504,9 +536,10 @@ function jobCategoryFor(form, btn) {
 
 function refreshCheckedInfo() {
     const info = document.getElementById("checked-info");
-    if (!info) return;
-    const count = document.querySelectorAll(".chapter-check:checked").length;
-    info.textContent = `Đã tick ${count} chương.`;
+    const bar = document.getElementById("selected-command-bar");
+    const count = selectedIndexes.size;
+    if (info) info.textContent = `Đã tick ${count} chương.`;
+    if (bar) bar.classList.toggle("has-selection", count > 0);
 }
 
 function escapeHtml(str) {
@@ -523,8 +556,10 @@ function buildChapterRow(ch, newIndex) {
     const skipToggle = ch.skipped
         ? `<button type="button" class="skip-toggle-btn text-xs text-brand-600 dark:text-brand-400 hover:underline" data-index="${ch.index}" data-skip="false" title="Hiện lại chương này trong danh mục.">hiện</button>`
         : `<button type="button" class="skip-toggle-btn text-xs text-status-warn-fg dark:text-status-warn-fg-dark hover:underline" data-index="${ch.index}" data-skip="true" title="Bỏ qua (ẩn) chương này khỏi danh mục.">bỏ qua</button>`;
-    return `<tr data-index="${ch.index}" ${ch.skipped ? 'class="opacity-50"' : ''}>
-        <td class="px-3 py-2"><input type="checkbox" class="chapter-check rounded border-surface-border dark:border-surface-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}"></td>
+    const selected = selectedIndexes.has(ch.index);
+    const rowClass = [ch.skipped ? "opacity-50" : "", selected ? "is-selected" : ""].filter(Boolean).join(" ");
+    return `<tr data-index="${ch.index}" class="${rowClass}">
+        <td class="px-3 py-2 chapter-check-cell"><label class="chapter-check-label"><input type="checkbox" class="chapter-check rounded border-surface-border dark:border-surface-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}" ${selected ? "checked" : ""}></label></td>
         <td class="px-3 py-2 font-mono text-fg-muted dark:text-fg-muted-dark">${indexCell}</td>
         <td class="px-3 py-2 overflow-hidden" data-editable-title data-index="${ch.index}"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline truncate block" title="${escapeHtml(ch.visible_title)}">${escapeHtml(ch.visible_title)}</a></td>
         <td class="px-3 py-2 font-mono tabular-nums">${ch.has_raw ? (ch.zh_char_count ?? 0) : '-'}</td>
@@ -606,10 +641,20 @@ document.addEventListener("change", (event) => {
         for (const r of visibleRows()) {
             if (r.style.display === "none") continue;
             const box = r.querySelector(".chapter-check");
-            if (box) box.checked = t.checked;
+            if (box) {
+                const index = Number(box.value);
+                if (t.checked) selectedIndexes.add(index);
+                else selectedIndexes.delete(index);
+                box.checked = t.checked;
+                r.classList.toggle("is-selected", t.checked);
+            }
         }
         refreshCheckedInfo();
     } else if (t.classList && t.classList.contains("chapter-check")) {
+        const index = Number(t.value);
+        if (t.checked) selectedIndexes.add(index);
+        else selectedIndexes.delete(index);
+        t.closest("tr")?.classList.toggle("is-selected", t.checked);
         refreshCheckedInfo();
         syncCheckAll();
     } else if (t.id === "page-size") {
@@ -667,17 +712,18 @@ document.addEventListener("submit", async function(event) {
     if (action.includes("/jobs/") || action.includes("/action") || action.includes("/batch/")) {
         event.preventDefault();
 
+        const isSelectedAction = form.classList.contains("selected-action-form");
+        if (isSelectedAction && selectedIndexes.size === 0) {
+            toast("Chưa chọn chương nào. Hãy tick checkbox trước.", "warning");
+            return;
+        }
+
         // Xác nhận cho thao tác phá huỷ (vd. xoá bản dịch hàng loạt) — `data-confirm`
         // chứa message với placeholder {n} = số chương đã tick.
         const confirmMsg = form.dataset && form.dataset.confirm;
         if (confirmMsg) {
-            const checked = document.querySelectorAll(".chapter-check:checked").length;
-            if (checked === 0) {
-                alert("Chưa chọn chương nào. Hãy tick checkbox trước.");
-                return;
-            }
-            const msg = confirmMsg.replace("{n}", String(checked));
-            if (!window.confirm(msg)) return;
+            const msg = confirmMsg.replace("{n}", String(selectedIndexes.size));
+            if (!await confirmDialog(msg, { destructive: form.classList.contains("batch-form") })) return;
         }
 
         if (form.classList && form.classList.contains("selected-action-form")) {
@@ -685,11 +731,9 @@ document.addEventListener("submit", async function(event) {
             form.querySelectorAll('input.js-dyn').forEach(el => el.remove());
             if (form.classList.contains("batch-form")) {
                 const indexes = [];
-                for (const cb of document.querySelectorAll(".chapter-check:checked")) {
-                    indexes.push(cb.value);
-                }
+                selectedIndexes.forEach((index) => indexes.push(String(index)));
                 if (indexes.length === 0) {
-                    alert("Chưa chọn chương nào. Hãy tick checkbox trước.");
+                    toast("Chưa chọn chương nào. Hãy tick checkbox trước.", "warning");
                     return;
                 }
                 const indexesInput = form.querySelector('input[name="indexes"]');
@@ -697,11 +741,11 @@ document.addEventListener("submit", async function(event) {
                     indexesInput.value = indexes.join(",");
                 }
             } else {
-                for (const cb of document.querySelectorAll(".chapter-check:checked")) {
+                for (const index of selectedIndexes) {
                     const h = document.createElement("input");
                     h.type = "hidden";
                     h.name = "checked_indexes";
-                    h.value = cb.value;
+                    h.value = String(index);
                     h.className = "js-dyn";
                     form.appendChild(h);
                 }
@@ -725,17 +769,6 @@ document.addEventListener("submit", async function(event) {
                     backendInput.value = backendSelect.value;
                 }
             }
-            for (const f of ["sort", "direction", "search", "filter_raw", "filter_translated", "filter_missing", "filter_skipped"]) {
-                const src = document.getElementById("act-" + f);
-                if (src) {
-                    const h = document.createElement("input");
-                    h.type = "hidden";
-                    h.name = f;
-                    h.value = src.value;
-                    h.className = "js-dyn";
-                    form.appendChild(h);
-                }
-            }
         }
 
         if (action.endsWith("reorder")) {
@@ -748,9 +781,12 @@ document.addEventListener("submit", async function(event) {
             form.appendChild(h);
         }
 
-        const category = jobCategoryFor(form);
-        const affected = category === "both" ? ["crawl", "translate"] : [category];
-        for (const cat of affected) wasRunning[cat] = true;
+        const isQueuedJob = action.includes("/jobs/") || action.includes("/action");
+        if (isQueuedJob) {
+            const category = jobCategoryFor(form);
+            const affected = category === "both" ? ["crawl", "translate"] : [category];
+            for (const cat of affected) wasRunning[cat] = true;
+        }
 
         try {
             const formData = new FormData(form);
@@ -771,14 +807,20 @@ document.addEventListener("submit", async function(event) {
                         errMsg = errData.detail;
                     }
                 } catch (e) {}
-                alert(errMsg);
+                toast(errMsg, "error");
                 poll();
             } else {
-                setTimeout(poll, 200);
+                if (isQueuedJob) {
+                    toast("Đã gửi thao tác vào hàng đợi.", "success");
+                    setTimeout(poll, 200);
+                } else {
+                    toast("Đã áp dụng thao tác.", "success");
+                    ebookSoftReload();
+                }
             }
         } catch (error) {
             console.error(error);
-            alert("Lỗi kết nối mạng.");
+            toast("Lỗi kết nối mạng.", "error");
             poll();
         }
     }
@@ -893,7 +935,7 @@ const BULK_WINDOW_STYLE = `
 `;
 function openBulkWindow(title) {
     const win = window.open("", "_blank");
-    if (!win) { alert("Trình duyệt chặn pop-up — hãy cho phép pop-up cho trang này."); return null; }
+    if (!win) { toast("Trình duyệt chặn pop-up — hãy cho phép pop-up cho trang này.", "warning"); return null; }
     win.document.title = title;
     const style = win.document.createElement("style");
     style.textContent = BULK_WINDOW_STYLE;
@@ -940,15 +982,15 @@ const EXPORT_COPY = {
     raw: { title: "Xuất bản gốc (raw) để dịch bằng web chat AI", filenameSuffix: "dich" },
 };
 async function doExport(source) {
-    const indexes = [...document.querySelectorAll(".chapter-check:checked")].map(cb => cb.value);
-    if (!indexes.length) { alert("Chưa chọn chương nào. Hãy tick checkbox trước."); return; }
+    const indexes = [...selectedIndexes].map(String);
+    if (!indexes.length) { toast("Chưa chọn chương nào. Hãy tick checkbox trước.", "warning"); return; }
     const params = new URLSearchParams({ indexes: indexes.join(","), source });
     let data;
     try {
         const res = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/export?${params}`);
         data = await res.json();
-        if (!res.ok) { alert(data.detail || "Lỗi khi xuất."); return; }
-    } catch (err) { alert("Lỗi kết nối mạng."); return; }
+        if (!res.ok) { toast(data.detail || "Lỗi khi xuất.", "error"); return; }
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); return; }
     const skipNote = data.skipped && data.skipped.length ? ` · Bỏ qua ${data.skipped.length} chương` : "";
     openBulkTextWindow(EXPORT_COPY[source].title, data.text, skipNote);
 }
@@ -975,7 +1017,7 @@ document.getElementById("btn-import-chapters")?.addEventListener("click", () => 
         if (f) ta.value = await f.text();
     });
     importBtn.addEventListener("click", async () => {
-        if (!ta.value.trim()) { win.alert("Chưa có nội dung để nhập."); return; }
+        if (!ta.value.trim()) { showPopupMessage(win.document, "Chưa có nội dung để nhập.", "warning"); return; }
         importBtn.disabled = true;
         const fd = new FormData();
         fd.set("text", ta.value);
@@ -983,14 +1025,14 @@ document.getElementById("btn-import-chapters")?.addEventListener("click", () => 
         try {
             const res = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/batch/import`, { method: "POST", body: fd });
             const data = await res.json();
-            if (!res.ok) { win.alert(data.detail || "Lỗi khi nhập."); importBtn.disabled = false; return; }
+            if (!res.ok) { showPopupMessage(win.document, data.detail || "Lỗi khi nhập.", "error"); importBtn.disabled = false; return; }
             const parts = [`Đã nhập: ghi ${data.written.length} chương`];
             if (data.titles_updated?.length) parts.push(`${data.titles_updated.length} tiêu đề cập nhật`);
             if (data.glossary_added) parts.push(`thêm ${data.glossary_added} mục glossary`);
-            win.alert(parts.join(", ") + ".");
+            toast(parts.join(", ") + ".", "success");
             win.close();
-            if (window.opener) window.opener.ebookSoftReload();
-        } catch (err) { win.alert("Lỗi kết nối mạng."); importBtn.disabled = false; }
+            ebookSoftReload();
+        } catch (err) { showPopupMessage(win.document, "Lỗi kết nối mạng.", "error"); importBtn.disabled = false; }
     });
     actions.appendChild(fileInput);
     actions.appendChild(importBtn);
@@ -1058,14 +1100,14 @@ document.getElementById("publish-reader-btn")?.addEventListener("click", async f
         const resp = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/publish/preview`);
         const data = await resp.json();
         if (!resp.ok) {
-            alert("Lỗi: " + (data.detail || resp.status));
+            toast("Lỗi: " + (data.detail || resp.status), "error");
             return;
         }
         if (!data.new && !data.edited) {
-            alert(`Không có gì để đẩy.\n\n${data.unchanged} chương đã đồng bộ, ${data.skipped} chương bỏ qua (chưa dịch xong hoặc bị skip).`);
+            toast(`Không có gì để đẩy. ${data.unchanged} chương đã đồng bộ, ${data.skipped} chương bỏ qua (chưa dịch xong hoặc bị skip).`, "info");
             return;
         }
-        const ok = confirm(
+        const ok = await confirmDialog(
             `Đẩy lên Reader?\n\n` +
             `• Thêm mới: ${data.new} chương\n` +
             `• Cập nhật: ${data.edited} chương\n` +
@@ -1077,12 +1119,12 @@ document.getElementById("publish-reader-btn")?.addEventListener("click", async f
         const push = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/publish/push`, { method: "POST" });
         const pushData = await push.json();
         if (!push.ok) {
-            alert("Lỗi: " + (pushData.detail || push.status));
+            toast("Lỗi: " + (pushData.detail || push.status), "error");
             return;
         }
         location.href = "/queue";
     } catch (e) {
-        alert("Lỗi: " + e);
+        toast("Lỗi: " + e, "error");
     } finally {
         btn.disabled = false;
         btn.textContent = label;

@@ -998,6 +998,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     const INDEX = {{ ch.index | tojson }};
     const content = document.getElementById('reader-content');
     let openEditor = null;  // { para, editor, dirty }
+    let editorSwitchPending = false;
 
     function paraText(para) {
         return Array.from(para.childNodes)
@@ -1021,42 +1022,45 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         openEditor = null;
     }
 
-    function tryCloseEditor() {
+    async function tryCloseEditor() {
         if (!openEditor) return true;
-        if (openEditor.dirty && !confirm('Bỏ thay đổi chưa lưu ở đoạn đang mở?')) return false;
+        if (openEditor.dirty && !await confirmDialog('Bỏ thay đổi chưa lưu ở đoạn đang mở?')) return false;
         closeEditor();
         return true;
     }
 
-    function openParaEditor(para) {
-        if (openEditor && openEditor.para === para) return;
-        if (!tryCloseEditor()) return;
-        const paraIndex = +para.dataset.para;
-        const original = paraText(para);
+    async function openParaEditor(para) {
+        if (editorSwitchPending) return;
+        editorSwitchPending = true;
+        try {
+            if (openEditor && openEditor.para === para) return;
+            if (!await tryCloseEditor()) return;
+            const paraIndex = +para.dataset.para;
+            const original = paraText(para);
 
-        const editor = document.createElement('div');
-        editor.className = 'para-editor';
-        const ta = document.createElement('textarea');
-        ta.value = original;
-        const instr = document.createElement('input');
-        instr.type = 'text'; instr.className = 'para-instr';
-        instr.placeholder = 'Chỉ dẫn cho AI (để trống = biên tập mặc định)';
-        const diff = document.createElement('div');
-        diff.className = 'para-editor-diff';
-        const actions = document.createElement('div');
-        actions.className = 'para-editor-actions';
-        const aiBtn = document.createElement('button');
-        aiBtn.type = 'button'; aiBtn.textContent = 'AI biên tập';
-        const saveBtn = document.createElement('button');
-        saveBtn.type = 'button'; saveBtn.className = 'primary'; saveBtn.textContent = 'Lưu';
-        const cancelBtn = document.createElement('button');
-        cancelBtn.type = 'button'; cancelBtn.textContent = 'Hủy';
-        actions.append(aiBtn, saveBtn, cancelBtn);
-        editor.append(ta, instr, diff, actions);
+            const editor = document.createElement('div');
+            editor.className = 'para-editor';
+            const ta = document.createElement('textarea');
+            ta.value = original;
+            const instr = document.createElement('input');
+            instr.type = 'text'; instr.className = 'para-instr';
+            instr.placeholder = 'Chỉ dẫn cho AI (để trống = biên tập mặc định)';
+            const diff = document.createElement('div');
+            diff.className = 'para-editor-diff';
+            const actions = document.createElement('div');
+            actions.className = 'para-editor-actions';
+            const aiBtn = document.createElement('button');
+            aiBtn.type = 'button'; aiBtn.textContent = 'AI biên tập';
+            const saveBtn = document.createElement('button');
+            saveBtn.type = 'button'; saveBtn.className = 'primary'; saveBtn.textContent = 'Lưu';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button'; cancelBtn.textContent = 'Hủy';
+            actions.append(aiBtn, saveBtn, cancelBtn);
+            editor.append(ta, instr, diff, actions);
 
-        ta.addEventListener('input', () => { openEditor.dirty = ta.value !== original; });
+            ta.addEventListener('input', () => { openEditor.dirty = ta.value !== original; });
 
-        aiBtn.addEventListener('click', async () => {
+            aiBtn.addEventListener('click', async () => {
             aiBtn.disabled = true; aiBtn.textContent = 'Đang gửi AI…';
             const form = new FormData();
             form.set('para_index', paraIndex);
@@ -1077,9 +1081,9 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             } finally {
                 aiBtn.disabled = false; aiBtn.textContent = 'AI biên tập';
             }
-        });
+            });
 
-        saveBtn.addEventListener('click', async () => {
+            saveBtn.addEventListener('click', async () => {
             saveBtn.disabled = true;
             const form = new FormData();
             form.set('para_index', paraIndex);
@@ -1095,21 +1099,24 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
                 saveBtn.disabled = false;
                 toast(e.message, 'error');
             }
-        });
+            });
 
-        cancelBtn.addEventListener('click', () => { openEditor.dirty = false; closeEditor(); });
+            cancelBtn.addEventListener('click', () => { openEditor.dirty = false; closeEditor(); });
 
-        para.hidden = true;
-        para.after(editor);
-        openEditor = { para, editor, dirty: false };
-        ta.focus();
+            para.hidden = true;
+            para.after(editor);
+            openEditor = { para, editor, dirty: false };
+            ta.focus();
+        } finally {
+            editorSwitchPending = false;
+        }
     }
 
-    content.addEventListener('click', (e) => {
+    content.addEventListener('click', async (e) => {
         const btn = e.target.closest('.para-edit-btn');
         if (!btn) return;
         e.stopPropagation();
-        openParaEditor(btn.closest('.reader-para'));
+        await openParaEditor(btn.closest('.reader-para'));
     });
 })();
 </script>

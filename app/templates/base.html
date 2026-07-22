@@ -186,6 +186,8 @@
             .toast-success { @apply border-green-500; }
             .toast-error { @apply border-red-500; }
             .toast-info { @apply border-blue-500; }
+            .toast-warning { @apply border-status-warn-fg; }
+            .confirm-destructive { @apply bg-status-err-fg hover:bg-red-700 focus:ring-status-err-fg; }
 
             .modal-backdrop { @apply fixed inset-0 bg-black/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 hidden; }
             .modal-backdrop.open { @apply flex; }
@@ -278,6 +280,15 @@
         </div>
     </footer>
     <div id="toast-region" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50 pointer-events-none" aria-live="polite" aria-label="Notifications"></div>
+    <div id="confirm-dialog" class="modal-backdrop" hidden role="presentation">
+        <div class="modal modal-sm p-5" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-message">
+            <p id="confirm-dialog-message" class="text-sm text-fg-light dark:text-fg-dark"></p>
+            <div class="mt-5 flex justify-end gap-3">
+                <button type="button" id="confirm-dialog-cancel" class="btn-secondary">Hủy</button>
+                <button type="button" id="confirm-dialog-confirm" class="btn-primary">Xác nhận</button>
+            </div>
+        </div>
+    </div>
     <script src="/static/app.js"></script>
     <script src="/static/datatable.js"></script>
     <script>

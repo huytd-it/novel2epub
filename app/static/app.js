@@ -1,7 +1,7 @@
 // Shell dùng chung mọi trang: theme toggle (persist localStorage), toast
 // helper, queue indicator poll /api/queue, modal/canvas/tab helpers.
 
-function toast(message, kind) {
+function toast(message, kind = "info") {
     const region = document.getElementById("toast-region");
     if (!region) return;
     const el = document.createElement("div");
@@ -10,10 +10,28 @@ function toast(message, kind) {
         ? " border-status-err-fg"
         : kind === "success"
         ? " border-status-ok-fg"
+        : kind === "warning"
+        ? " border-status-warn-fg"
         : " border-surface-border dark:border-surface-border-dark";
     el.className = base + variant + " opacity-0 translate-y-2";
-    const iconName = kind === "error" ? "circle-x" : kind === "success" ? "circle-check" : "info";
-    el.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0" aria-hidden="true"><use href="#lucide-${iconName}"></use></svg><span>${message}</span>`;
+    const iconName = kind === "error" ? "circle-x" : kind === "success" ? "circle-check" : kind === "warning" ? "triangle-alert" : "info";
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.setAttribute("width", "16");
+    icon.setAttribute("height", "16");
+    icon.setAttribute("viewBox", "0 0 24 24");
+    icon.setAttribute("fill", "none");
+    icon.setAttribute("stroke", "currentColor");
+    icon.setAttribute("stroke-width", "2");
+    icon.setAttribute("stroke-linecap", "round");
+    icon.setAttribute("stroke-linejoin", "round");
+    icon.classList.add("flex-shrink-0");
+    icon.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", `#lucide-${iconName}`);
+    icon.appendChild(use);
+    const text = document.createElement("span");
+    text.textContent = String(message);
+    el.append(icon, text);
     region.appendChild(el);
     if (window.lucide) lucide.createIcons();
     requestAnimationFrame(() => {
@@ -86,7 +104,7 @@ function updateThemeIcons(isDark) {
 // Any <form data-ajax> submits via fetch instead of navigating, so background
 // actions (delete/purge/run-now/create…) never reload the whole page. Opt-in
 // data-attributes on the form:
-//   data-confirm="msg"        → window.confirm before sending
+//   data-confirm="msg"        → in-app confirmation before sending
 //   data-toast="msg"          → success toast
 //   data-ajax-reload="#id"    → after success, swap that region with the fresh
 //                               copy from the response (routes 303-redirect to
@@ -114,7 +132,9 @@ document.addEventListener("submit", async (e) => {
     const form = e.target.closest("form[data-ajax]");
     if (!form) return;
     e.preventDefault();
-    if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) return;
+    if (form.dataset.confirm && !await confirmDialog(form.dataset.confirm, {
+        destructive: form.dataset.confirmDanger === "true",
+    })) return;
     const submitBtn = form.querySelector('[type="submit"]');
     if (submitBtn) submitBtn.disabled = true;
     try {
@@ -130,7 +150,7 @@ document.addEventListener("submit", async (e) => {
             toast(detail, "error");
             return;
         }
-        if (form.dataset.toast) toast(form.dataset.toast, "success");
+        toast(form.dataset.toast || "Đã hoàn tất thao tác.", "success");
         if (form.dataset.ajaxReload) swapRegion(form.dataset.ajaxReload, html);
         if (form.dataset.closeModal) closeModal(form.dataset.closeModal);
         if (form.dataset.closeCanvas) closeCanvas(form.dataset.closeCanvas);
@@ -209,6 +229,7 @@ if (!document.getElementById('lucide-sprite')) {
         <symbol id="lucide-circle-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></symbol>
         <symbol id="lucide-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="9 12 12 15 15 9"/></symbol>
         <symbol id="lucide-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></symbol>
+        <symbol id="lucide-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
     `;
     document.body.appendChild(sprite);
 }
@@ -230,4 +251,56 @@ function swapContent(text) {
     }
     if (window.initDataTablesIn) window.initDataTablesIn(document.querySelector("main"));
     if (window.lucide) lucide.createIcons();
+}
+
+function confirmDialog(message, { confirmLabel = "Xác nhận", destructive = false } = {}) {
+    const dialog = document.getElementById("confirm-dialog");
+    const messageEl = document.getElementById("confirm-dialog-message");
+    const cancelBtn = document.getElementById("confirm-dialog-cancel");
+    const confirmBtn = document.getElementById("confirm-dialog-confirm");
+    if (!dialog || !messageEl || !cancelBtn || !confirmBtn) return Promise.resolve(false);
+
+    messageEl.textContent = String(message);
+    confirmBtn.textContent = confirmLabel;
+    confirmBtn.classList.toggle("confirm-destructive", destructive);
+    dialog.hidden = false;
+    dialog.classList.add("open");
+    cancelBtn.focus();
+
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = (result) => {
+            if (settled) return;
+            settled = true;
+            dialog.hidden = true;
+            dialog.classList.remove("open");
+            cancelBtn.removeEventListener("click", cancel);
+            confirmBtn.removeEventListener("click", confirm);
+            dialog.removeEventListener("click", backdrop);
+            document.removeEventListener("keydown", escape);
+            resolve(result);
+        };
+        const cancel = () => finish(false);
+        const confirm = () => finish(true);
+        const backdrop = (event) => { if (event.target === dialog) finish(false); };
+        const escape = (event) => { if (event.key === "Escape") finish(false); };
+        cancelBtn.addEventListener("click", cancel);
+        confirmBtn.addEventListener("click", confirm);
+        dialog.addEventListener("click", backdrop);
+        document.addEventListener("keydown", escape);
+    });
+}
+
+function showPopupMessage(popupDocument, message, kind = "info") {
+    let region = popupDocument.getElementById("popup-toast-region");
+    if (!region) {
+        region = popupDocument.createElement("div");
+        region.id = "popup-toast-region";
+        region.className = "fixed bottom-4 right-4 flex flex-col gap-2 z-50";
+        popupDocument.body.appendChild(region);
+    }
+    const el = popupDocument.createElement("div");
+    el.className = `toast toast-${kind}`;
+    el.textContent = String(message);
+    region.appendChild(el);
 }

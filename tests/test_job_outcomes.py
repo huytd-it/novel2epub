@@ -32,6 +32,22 @@ class _FakeTranslator:
         return f"VI:{text}"
 
 
+class _FailingCrawler:
+    def fetch_chapter(self, ch):
+        raise RuntimeError("crawl failed")
+
+    def sleep(self):
+        pass
+
+    def close(self):
+        pass
+
+
+class _FailingTranslator:
+    def translate(self, text, *, on_chunk=None, on_glossary=None):
+        raise RuntimeError("translation failed")
+
+
 def _manifest(cfg, chapter):
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     storage.save_manifest(Manifest(slug=cfg.novel.slug, title="Sach", chapters=[chapter]))
@@ -90,6 +106,82 @@ def test_translate_chapter_outcome_reports_existing_translation(tmp_path):
         "skipped": 1,
         "failed": 0,
         "skip_reasons": {"đã có bản dịch": 1},
+    }
+
+
+def test_translate_chapter_outcome_reports_skipped_toc_chapter(tmp_path):
+    cfg = _cfg(tmp_path)
+    chapter = Chapter(index=1, url="http://x/1", skipped=True)
+    storage = _manifest(cfg, chapter)
+    storage.write_raw(chapter, "raw")
+
+    assert pipeline.step_translate_chapter_outcome(cfg, lambda _: None, 1) == {
+        "processed": 0,
+        "skipped": 1,
+        "failed": 0,
+        "skip_reasons": {"chương đã bỏ qua": 1},
+    }
+
+
+def test_crawl_chapter_outcome_force_replaces_existing_raw(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    chapter = Chapter(index=1, url="http://x/1")
+    storage = _manifest(cfg, chapter)
+    storage.write_raw(chapter, "old raw")
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda _: _FakeCrawler())
+
+    assert pipeline.step_crawl_chapter_outcome(cfg, lambda _: None, 1, force=True) == {
+        "processed": 1,
+        "skipped": 0,
+        "failed": 0,
+        "skip_reasons": {},
+    }
+    assert storage.read_raw(chapter) == "noi dung 1"
+
+
+def test_translate_chapter_outcome_force_replaces_existing_translation(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    chapter = Chapter(index=1, url="http://x/1")
+    storage = _manifest(cfg, chapter)
+    storage.write_raw(chapter, "raw")
+    storage.write_translated(chapter, "old translation")
+    storage.mark_translated_complete(chapter)
+    monkeypatch.setattr(pipeline, "make_translator", lambda *_args, **_kwargs: _FakeTranslator())
+
+    assert pipeline.step_translate_chapter_outcome(cfg, lambda _: None, 1, force=True) == {
+        "processed": 1,
+        "skipped": 0,
+        "failed": 0,
+        "skip_reasons": {},
+    }
+    assert storage.read_translated(chapter) == "VI:raw"
+
+
+def test_crawl_chapter_outcome_reports_failure(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    _manifest(cfg, Chapter(index=1, url="http://x/1"))
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda _: _FailingCrawler())
+
+    assert pipeline.step_crawl_chapter_outcome(cfg, lambda _: None, 1) == {
+        "processed": 0,
+        "skipped": 0,
+        "failed": 1,
+        "skip_reasons": {},
+    }
+
+
+def test_translate_chapter_outcome_reports_failure(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    chapter = Chapter(index=1, url="http://x/1")
+    storage = _manifest(cfg, chapter)
+    storage.write_raw(chapter, "raw")
+    monkeypatch.setattr(pipeline, "make_translator", lambda *_args, **_kwargs: _FailingTranslator())
+
+    assert pipeline.step_translate_chapter_outcome(cfg, lambda _: None, 1) == {
+        "processed": 0,
+        "skipped": 0,
+        "failed": 1,
+        "skip_reasons": {},
     }
 
 
@@ -169,3 +261,25 @@ def test_selected_crawl_action_returns_enqueued_job_ids(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert response.json() == {"job_ids": ["job-1"], "action": "crawl"}
     assert runner.queue.enqueued[0][1:3] == ("crawl", "chapter-crawl")
+
+
+def test_selected_translate_action_returns_enqueued_job_ids(tmp_path, monkeypatch):
+    from app import deps
+    from app.main import app
+
+    cfg = _cfg(tmp_path)
+    _manifest(cfg, Chapter(index=1, url="http://x/1"))
+    runner = _FakeJobRunner()
+    monkeypatch.setattr(deps, "resolved_cfg", lambda _: cfg)
+    app.state.job = runner
+    client = TestClient(app)
+
+    response = client.post(
+        "/ebooks/t/jobs/chapter-action",
+        data={"action": "translate", "targeting_mode": "checked", "checked_indexes": "1"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"job_ids": ["job-1"], "action": "translate"}
+    assert runner.queue.enqueued[0][1:3] == ("translate", "chapter-translate")

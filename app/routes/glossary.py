@@ -2,6 +2,8 @@
 và match-count + propagate (lan truyền) thay đổi vào các bản dịch cũ."""
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Body, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
@@ -352,25 +354,36 @@ def ebook_glossary_import(slug: str, text: str = Form(...)):
     return JSONResponse({"added": added, "updated": updated, "total": added + updated})
 
 
-def _matching_chapters(storage: Storage, manifest, find: str, start, end):
-    """Chương đã dịch trong phạm vi có chứa `find` (dùng cho match-count +
-    propagate)."""
+def _compile_find(find: str, regex: bool):
+    """Biên dịch chuỗi tìm kiếm thành pattern. `regex=False` coi `find` là chuỗi
+    literal (escape). Ném HTTPException(400) khi regex không hợp lệ."""
+    try:
+        return re.compile(find if regex else re.escape(find))
+    except re.error as e:
+        raise HTTPException(status_code=400, detail=f"Regex không hợp lệ: {e}")
+
+
+def _matching_chapters(storage: Storage, manifest, pattern, start, end):
+    """Chương đã dịch trong phạm vi có chứa `pattern` (dùng cho match-count)."""
     for ch in _chapter_range(manifest.chapters, None, start, end):
         if storage.has_translated(ch):
             content = storage.read_translated(ch)
-            count = content.count(find)
+            count = len(pattern.findall(content))
             if count:
                 yield ch, content, count
 
 
 @router.get("/api/ebooks/{slug}/glossary/match-count")
-def ebook_glossary_match_count(slug: str, find: str, chapter_index: int = 0):
+def ebook_glossary_match_count(
+    slug: str, find: str, chapter_index: int = 0, regex: bool = False
+):
     """Đếm số chỗ khớp `find` trong bản dịch: theo 1 chương (nếu truyền
-    chapter_index) + toàn bộ. Số đếm này chính là preview của propagate —
-    không có bước xem trước riêng."""
+    chapter_index) + toàn bộ. `regex=True` coi `find` là biểu thức chính quy.
+    Số đếm này chính là preview của propagate — không có bước xem trước riêng."""
     find = find.strip()
     if not find:
         raise HTTPException(status_code=400, detail="Chuỗi cần tìm đang rỗng.")
+    pattern = _compile_find(find, regex)
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -378,7 +391,7 @@ def ebook_glossary_match_count(slug: str, find: str, chapter_index: int = 0):
         raise HTTPException(status_code=404, detail="Chưa có manifest.")
 
     chapter_count = total = chapter_total = 0
-    for ch, _content, count in _matching_chapters(storage, manifest, find, None, None):
+    for ch, _content, count in _matching_chapters(storage, manifest, pattern, None, None):
         total += count
         chapter_total += 1
         if chapter_index and ch.index == chapter_index:
@@ -401,11 +414,13 @@ def ebook_glossary_propagate(
     replace: str = Form(...),
     scope: str = Form(...),
     chapter_index: int = Form(0),
+    regex: bool = Form(False),
 ):
     """Lan truyền thay đổi glossary vào bản dịch: `scope=chapter` thay đồng bộ
     NGAY trong 1 chương (backup vào meta như step_find_replace), `scope=all`
-    enqueue job step_find_replace toàn bộ. Không tự sửa mục glossary — client
-    đã upsert qua /glossary/entry trước."""
+    enqueue job step_find_replace toàn bộ. `regex=True` coi `find` là biểu thức
+    chính quy (backreference `\\1` dùng được trong `replace`). Không tự sửa mục
+    glossary — client đã upsert qua /glossary/entry trước."""
     find, replace = find.strip(), replace.strip()
     if not find or not replace:
         raise HTTPException(status_code=400, detail="Cần cả chuỗi tìm và chuỗi thay.")
@@ -417,6 +432,7 @@ def ebook_glossary_propagate(
     if scope == "chapter":
         if not chapter_index:
             raise HTTPException(status_code=400, detail="Thiếu chapter_index.")
+        pattern = _compile_find(find, regex)
         manifest = storage.load_manifest()
         if manifest is None:
             raise HTTPException(status_code=404, detail="Chưa có manifest.")
@@ -424,17 +440,22 @@ def ebook_glossary_propagate(
         if ch is None or not storage.has_translated(ch):
             raise HTTPException(status_code=404, detail="Chương chưa có bản dịch.")
         content = storage.read_translated(ch)
-        count = content.count(find)
+        new_content, count = pattern.subn(replace, content)
         if count:
             meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
             meta["before_find_replace"] = content
             storage.write_meta(ch, meta)
-            storage.write_translated(ch, content.replace(find, replace))
+            storage.write_translated(ch, new_content)
         return JSONResponse({"replaced": count})
+
+    # scope == "all": validate regex sớm để trả 400 trước khi enqueue job.
+    if regex:
+        _compile_find(find, regex)
 
     def _target(log):
         step_find_replace(
-            cfg, log, find=find, replace=replace, start=None, end=None, also_raw=False
+            cfg, log, find=find, replace=replace, start=None, end=None,
+            also_raw=False, regex=regex,
         )
 
     started = request.app.state.job.start_custom(

@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub.notes import split_paras
 from novel2epub.storage import Storage
@@ -38,6 +38,64 @@ def _reader_paras(text: str) -> list[str]:
 def _pad_paras(left: list[str], right: list[str]) -> tuple[list[str], list[str]]:
     total = max(len(left), len(right))
     return left + [""] * (total - len(left)), right + [""] * (total - len(right))
+
+
+_SEARCH_SNIPPET_RADIUS = 50  # ký tự mỗi bên quanh chỗ khớp (~100 ký tự)
+_SEARCH_MAX_SNIPPETS = 3
+
+
+def _search_snippet(text: str, match: re.Match) -> str:
+    """Đoạn ~100 ký tự quanh chỗ khớp, gộp xuống dòng, thêm dấu … khi bị cắt."""
+    start = max(0, match.start() - _SEARCH_SNIPPET_RADIUS)
+    end = min(len(text), match.end() + _SEARCH_SNIPPET_RADIUS)
+    snippet = " ".join(text[start:end].split())
+    if start > 0:
+        snippet = "…" + snippet
+    if end < len(text):
+        snippet = snippet + "…"
+    return snippet
+
+
+@router.get("/api/ebooks/{slug}/search")
+def reader_search(slug: str, q: str, regex: bool = False, case: bool = False):
+    """Tìm toàn văn xuyên chương trong các bản dịch (chỉ đọc). `regex=True` coi
+    `q` là biểu thức chính quy; `case=True` phân biệt hoa/thường (mặc định
+    không). Trả list `{chapter_index, title, count, snippets}` theo thứ tự
+    chương, bỏ qua chương chưa có bản dịch."""
+    q = q.strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="Chuỗi tìm kiếm đang rỗng.")
+    flags = 0 if case else re.IGNORECASE
+    try:
+        pattern = re.compile(q if regex else re.escape(q), flags)
+    except re.error as e:
+        raise HTTPException(status_code=400, detail=f"Regex không hợp lệ: {e}")
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+
+    results = []
+    for ch in manifest.chapters:
+        if not storage.has_translated(ch):
+            continue
+        text = storage.read_translated(ch)
+        matches = list(pattern.finditer(text))
+        if not matches:
+            continue
+        results.append(
+            {
+                "chapter_index": ch.index,
+                "title": ch.title or f"Chương {ch.index}",
+                "count": len(matches),
+                "snippets": [
+                    _search_snippet(text, m) for m in matches[:_SEARCH_MAX_SNIPPETS]
+                ],
+            }
+        )
+    return JSONResponse(results)
 
 
 @router.get("/ebooks/{slug}/read")

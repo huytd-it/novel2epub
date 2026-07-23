@@ -278,6 +278,28 @@ def test_step_find_replace_replaces_and_backs_up(tmp_path):
     assert any("tổng 2 lần thay" in m for m in logs)
 
 
+def test_step_find_replace_regex_replaces_with_groups_and_backs_up(tmp_path):
+    from novel2epub.storage import Manifest
+
+    storage = Storage(tmp_path, "t")
+    chs = [Chapter(index=i, url=f"http://x/{i}") for i in (1, 2)]
+    storage.save_manifest(Manifest(slug="t", chapters=chs))
+    storage.write_translated(chs[0], "Chương 1 và Chương 12.")
+    storage.write_translated(chs[1], "Không số.")
+
+    cfg = _cfg(tmp_path)
+    logs = []
+    pipeline.step_find_replace(
+        cfg, logs.append, find=r"Chương (\d+)", replace=r"Hồi \1", regex=True
+    )
+
+    assert storage.read_translated(chs[0]) == "Hồi 1 và Hồi 12."
+    assert storage.read_translated(chs[1]) == "Không số."
+    assert storage.read_meta(chs[0])["before_find_replace"] == "Chương 1 và Chương 12."
+    assert not storage.has_meta(chs[1])
+    assert any("tổng 2 lần thay" in m for m in logs)
+
+
 def test_step_find_replace_empty_find_is_noop(tmp_path):
     from novel2epub.storage import Manifest
 

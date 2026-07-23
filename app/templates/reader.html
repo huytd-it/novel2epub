@@ -184,6 +184,51 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     .raw-compare-raw { font-size: 0.85em; }
 }
 
+/* --- Mục lục (TOC sidebar) --- */
+.reader-wrap { transition: margin-left 0.2s; }
+.reader-wrap.toc-open { margin-left: 240px; }
+.toc-sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 240px; z-index: 40; display: flex; flex-direction: column; background: var(--tw-surface-light, #ffffff); border-right: 1px solid var(--tw-border, #e4e4e7); transform: translateX(-100%); transition: transform 0.2s; }
+.dark .toc-sidebar { background: var(--tw-surface-dark, #18181b); border-right-color: var(--tw-border-dark, #3f3f46); }
+.toc-sidebar.open { transform: translateX(0); box-shadow: var(--tw-shadow-card, 0 1px 3px rgba(0,0,0,0.06)); }
+.toc-sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; font-weight: 600; font-size: 0.9rem; border-bottom: 1px solid var(--tw-border, #e4e4e7); }
+.dark .toc-sidebar-header { border-bottom-color: var(--tw-border-dark, #3f3f46); }
+.toc-sidebar-list { flex: 1; overflow-y: auto; padding: 0.25rem 0; }
+.toc-chapter-item { display: block; padding: 0.4rem 1rem; font-size: 0.85rem; text-decoration: none; color: var(--tw-fg-light, #18181b); border-left: 3px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dark .toc-chapter-item { color: var(--tw-fg-dark, #fafafa); }
+.toc-chapter-item:hover { background: var(--tw-surface-muted, #f4f4f5); }
+.dark .toc-chapter-item:hover { background: var(--tw-surface-muted-dark, #27272a); }
+.toc-chapter-item.active { font-weight: 700; border-left-color: var(--tw-brand-600, #059669); background: var(--tw-surface-muted, #f4f4f5); }
+.dark .toc-chapter-item.active { background: var(--tw-surface-muted-dark, #27272a); }
+.toc-chapter-item.untranslated { color: var(--tw-fg-muted, #a1a1aa); opacity: 0.6; }
+.toc-backdrop { position: fixed; inset: 0; z-index: 39; background: rgba(0,0,0,0.35); }
+.toc-backdrop.hidden { display: none; }
+
+/* --- Thanh tìm kiếm toàn truyện --- */
+.search-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 50; padding: 0.6rem 1rem; background: var(--tw-surface-light, #ffffff); border-bottom: 1px solid var(--tw-border, #e4e4e7); box-shadow: var(--tw-shadow-card, 0 1px 3px rgba(0,0,0,0.06)); }
+.dark .search-bar { background: var(--tw-surface-dark, #18181b); border-bottom-color: var(--tw-border-dark, #3f3f46); box-shadow: var(--tw-shadow-card-dark, 0 1px 3px rgba(0,0,0,0.3)); }
+.search-bar.hidden { display: none; }
+.search-bar-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.search-bar-row + .search-bar-row { margin-top: 0.4rem; }
+.search-input { flex: 1; min-width: 200px; font-size: 0.9rem; padding: 0.35rem 0.6rem; border-radius: 6px; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); border: 1px solid var(--tw-border, #e4e4e7); }
+.dark .search-input { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
+.search-opt { display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; white-space: nowrap; color: var(--tw-fg-muted, #71717a); }
+.dark .search-opt { color: var(--tw-fg-muted-dark, #a1a1aa); }
+.search-results { max-height: 50vh; overflow-y: auto; margin-top: 0.5rem; }
+.search-results.hidden { display: none; }
+.search-result-item { display: block; width: 100%; text-align: left; padding: 0.5rem 0.6rem; border: none; border-radius: 6px; background: none; color: inherit; font-size: 0.85rem; cursor: pointer; }
+.search-result-item:hover { background: var(--tw-surface-muted, #f4f4f5); }
+.dark .search-result-item:hover { background: var(--tw-surface-muted-dark, #27272a); }
+.search-result-count { margin-left: 0.4rem; font-weight: 600; color: var(--tw-brand-600, #059669); }
+.search-result-snippet { display: block; margin-top: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--tw-fg-muted, #71717a); }
+.dark .search-result-snippet { color: var(--tw-fg-muted-dark, #a1a1aa); }
+.search-status, .search-replace-count { font-size: 0.8rem; color: var(--tw-fg-muted, #71717a); }
+.dark .search-status, .dark .search-replace-count { color: var(--tw-fg-muted-dark, #a1a1aa); }
+
+@media (max-width: 900px) {
+    .reader-wrap.toc-open { margin-left: 0; }
+    .toc-sidebar { width: 80vw; max-width: 300px; }
+}
+
 @media (max-width: 640px) {
     .reader-wrap { padding: 0 0.5rem 0; }
     .reader-wrap.nav-fixed { padding-top: 6rem; }
@@ -233,6 +278,8 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             <button type="button" id="compare-toggle-btn" class="reader-toolbar-btn" title="So sánh bản dịch máy / bản biên tập (S)" aria-label="Compare">&#8646;</button>
             {% endif %}
             <a href="/ebooks/{{ slug }}/chapters/{{ ch.index }}" class="reader-toolbar-btn edit-mode-control" title="Sửa bản dịch" aria-label="Edit chapter" hidden>&#9998;</a>
+            <button type="button" id="toc-toggle-btn" class="reader-toolbar-btn" title="Mục lục (T)" aria-label="Mục lục">&#128209;</button>
+            <button type="button" id="search-toggle-btn" class="reader-toolbar-btn" title="Tìm toàn truyện (Ctrl+Shift+F)" aria-label="Tìm kiếm">&#128269;</button>
             <button type="button" id="settings-toggle-btn" class="reader-toolbar-btn" title="Tuỳ chỉnh hiển thị" aria-label="Settings">&#9881;</button>
         </div>
     </nav>
@@ -359,6 +406,41 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         <a href="/ebooks/{{ slug }}/read/{{ next_ch.index }}" class="reader-nav-btn">Chương tiếp &rarr;</a>
         {% endif %}
     </nav>
+</div>
+
+<aside id="toc-sidebar" class="toc-sidebar" aria-label="Mục lục">
+    <div class="toc-sidebar-header">
+        <span>Mục lục</span>
+        <button type="button" id="toc-close-btn" class="note-icon-btn" title="Đóng" aria-label="Đóng mục lục">&#10005;</button>
+    </div>
+    <nav class="toc-sidebar-list" aria-label="Danh sách chương">
+        {% for c in chapters_info %}
+        <a href="/ebooks/{{ slug }}/read/{{ c.index }}"
+           class="toc-chapter-item{% if c.index == ch.index %} active{% endif %}{% if not c.has_translated %} untranslated{% endif %}"
+           {% if c.index == ch.index %}aria-current="true"{% endif %}
+           title="{{ c.title }}">{{ c.title }}</a>
+        {% endfor %}
+    </nav>
+</aside>
+<div id="toc-backdrop" class="toc-backdrop hidden"></div>
+
+<div id="search-bar" class="search-bar hidden" role="search" aria-label="Tìm kiếm toàn truyện">
+    <div class="search-bar-row">
+        <input type="text" id="search-input" class="search-input" placeholder="Tìm trong toàn bộ chương đã dịch…" autocomplete="off" aria-label="Chuỗi cần tìm">
+        <label class="search-opt"><input type="checkbox" id="search-regex"> Regex</label>
+        <label class="search-opt"><input type="checkbox" id="search-case"> Hoa/thường</label>
+        <button type="button" id="search-run-btn" class="reader-nav-btn">Tìm</button>
+        <button type="button" id="search-replace-toggle-btn" class="reader-nav-btn">Thay thế</button>
+        <button type="button" id="search-close-btn" class="reader-nav-btn" title="Đóng (Esc)" aria-label="Đóng">&#10005;</button>
+    </div>
+    <div id="search-replace-row" class="search-bar-row" hidden>
+        <input type="text" id="search-replace-input" class="search-input" placeholder="Thay bằng…  (dùng \1 cho nhóm regex)" autocomplete="off" aria-label="Chuỗi thay thế">
+        <span id="search-replace-count" class="search-replace-count"></span>
+        <button type="button" id="search-replace-chapter-btn" class="reader-nav-btn">Thay trong chương này</button>
+        <button type="button" id="search-replace-all-btn" class="reader-nav-btn">Thay tất cả</button>
+    </div>
+    <div id="search-results" class="search-results hidden"></div>
+    <div id="search-status" class="search-status"></div>
 </div>
 
 <div id="note-popover" class="note-popover" hidden></div>
@@ -1239,4 +1321,201 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 })();
 </script>
 {% endif %}
+
+<script>
+// Mục lục (TOC sidebar) + tìm kiếm/thay thế toàn truyện.
+// Thay thế KHÔNG tự ghi đĩa ở đây — uỷ quyền cho /glossary/propagate (qua job
+// queue + backup before_find_replace) như trang Glossary.
+(function() {
+    const SLUG = {{ slug | tojson }};
+    const INDEX = {{ ch.index | tojson }};
+    const api = (path) => `/api/ebooks/${encodeURIComponent(SLUG)}${path}`;
+
+    // ---- TOC sidebar ----
+    const sidebar = document.getElementById('toc-sidebar');
+    const backdrop = document.getElementById('toc-backdrop');
+    const wrap = document.querySelector('.reader-wrap');
+    const TOC_KEY = 'n2e-reader-toc-open';
+
+    function setToc(open) {
+        sidebar.classList.toggle('open', open);
+        wrap.classList.toggle('toc-open', open);
+        backdrop.classList.toggle('hidden', !open);
+        localStorage.setItem(TOC_KEY, open ? '1' : '0');
+    }
+    const toggleToc = () => setToc(!sidebar.classList.contains('open'));
+
+    document.getElementById('toc-toggle-btn')?.addEventListener('click', toggleToc);
+    document.getElementById('toc-close-btn')?.addEventListener('click', () => setToc(false));
+    backdrop.addEventListener('click', () => setToc(false));
+    // Khôi phục trạng thái (desktop). Trên mobile luôn khởi đầu đóng.
+    if (localStorage.getItem(TOC_KEY) === '1' && window.innerWidth > 900) setToc(true);
+    // Đưa chương hiện tại vào tầm nhìn trong danh sách.
+    sidebar.querySelector('.toc-chapter-item.active')?.scrollIntoView({ block: 'center' });
+
+    // ---- Thanh tìm kiếm ----
+    const bar = document.getElementById('search-bar');
+    const input = document.getElementById('search-input');
+    const regexCb = document.getElementById('search-regex');
+    const caseCb = document.getElementById('search-case');
+    const resultsBox = document.getElementById('search-results');
+    const statusEl = document.getElementById('search-status');
+    const replaceRow = document.getElementById('search-replace-row');
+    const replaceInput = document.getElementById('search-replace-input');
+    const replaceCount = document.getElementById('search-replace-count');
+
+    const isOpen = () => !bar.classList.contains('hidden');
+    function openSearch() {
+        bar.classList.remove('hidden');
+        input.focus();
+        input.select();
+    }
+    function closeSearch() {
+        bar.classList.add('hidden');
+    }
+
+    document.getElementById('search-toggle-btn')?.addEventListener('click',
+        () => isOpen() ? closeSearch() : openSearch());
+    document.getElementById('search-close-btn')?.addEventListener('click', closeSearch);
+
+    function opts() {
+        // Gửi '0'/'1' — FastAPI coi chuỗi rỗng là bool không hợp lệ (422).
+        return {
+            q: input.value.trim(),
+            regex: regexCb.checked ? '1' : '0',
+            case: caseCb.checked ? '1' : '0',
+        };
+    }
+
+    async function runSearch() {
+        const { q, regex, case: cs } = opts();
+        if (!q) { statusEl.textContent = ''; resultsBox.classList.add('hidden'); return; }
+        statusEl.textContent = 'Đang tìm…';
+        resultsBox.classList.add('hidden');
+        const params = new URLSearchParams({ q, regex, case: cs });
+        let res, data;
+        try {
+            res = await fetch(api(`/search?${params}`));
+        } catch (e) {
+            statusEl.textContent = 'Lỗi kết nối, thử lại.';
+            return;
+        }
+        if (!res.ok) {
+            data = await res.json().catch(() => ({}));
+            statusEl.textContent = data.detail || 'Tìm kiếm thất bại.';
+            return;
+        }
+        data = await res.json();
+        renderResults(data);
+    }
+
+    function renderResults(rows) {
+        resultsBox.innerHTML = '';
+        if (!rows.length) {
+            statusEl.textContent = 'Không tìm thấy kết quả.';
+            resultsBox.classList.add('hidden');
+            return;
+        }
+        const totalMatches = rows.reduce((s, r) => s + r.count, 0);
+        statusEl.textContent = `${totalMatches} khớp trong ${rows.length} chương.`;
+        for (const r of rows) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'search-result-item';
+            const title = document.createElement('span');
+            title.className = 'search-result-title';
+            title.textContent = r.title;
+            const count = document.createElement('span');
+            count.className = 'search-result-count';
+            count.textContent = `(${r.count})`;
+            btn.append(title, count);
+            if (r.snippets && r.snippets.length) {
+                const snip = document.createElement('span');
+                snip.className = 'search-result-snippet';
+                snip.textContent = r.snippets[0];
+                btn.append(snip);
+            }
+            btn.addEventListener('click', () => {
+                window.location.href =
+                    `/ebooks/${encodeURIComponent(SLUG)}/read/${r.chapter_index}`;
+            });
+            resultsBox.append(btn);
+        }
+        resultsBox.classList.remove('hidden');
+    }
+
+    document.getElementById('search-run-btn')?.addEventListener('click', runSearch);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); runSearch(); }
+    });
+
+    // ---- Thay thế (uỷ quyền cho /glossary/propagate) ----
+    document.getElementById('search-replace-toggle-btn')?.addEventListener('click', () => {
+        replaceRow.hidden = !replaceRow.hidden;
+        if (!replaceRow.hidden) { replaceInput.focus(); previewCount(); }
+    });
+
+    async function previewCount() {
+        const { q, regex } = opts();
+        if (!q) { replaceCount.textContent = ''; return; }
+        const params = new URLSearchParams({ find: q, regex, chapter_index: INDEX });
+        try {
+            const res = await fetch(api(`/glossary/match-count?${params}`));
+            if (!res.ok) { replaceCount.textContent = ''; return; }
+            const d = await res.json();
+            replaceCount.textContent =
+                `${d.chapter_count} chỗ ở chương này · ${d.total_count} chỗ / ${d.chapter_total} chương`;
+        } catch (e) {
+            replaceCount.textContent = '';
+        }
+    }
+    input.addEventListener('input', () => { if (!replaceRow.hidden) previewCount(); });
+    regexCb.addEventListener('change', () => { if (!replaceRow.hidden) previewCount(); });
+
+    async function doPropagate(scope) {
+        const { q, regex } = opts();
+        const replace = replaceInput.value.trim();
+        if (!q || !replace) { toast('Cần cả chuỗi tìm và chuỗi thay.', 'warning'); return; }
+        const body = new URLSearchParams({ find: q, replace, scope, regex });
+        if (scope === 'chapter') body.set('chapter_index', INDEX);
+        let res;
+        try {
+            res = await fetch(api('/glossary/propagate'),
+                { method: 'POST', body });
+        } catch (e) {
+            toast('Lỗi kết nối, thử lại.', 'error');
+            return;
+        }
+        if (res.status === 409) { toast('Đang có job khác chạy, vui lòng đợi.', 'warning'); return; }
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            toast(d.detail || 'Thay thế thất bại.', 'error');
+            return;
+        }
+        const d = await res.json();
+        if (scope === 'chapter') {
+            toast(`Đã thay ${d.replaced} chỗ ở chương này.`, 'success');
+            setTimeout(() => window.location.reload(), 600);
+        } else {
+            toast('Đã xếp hàng thay tất cả chương (chạy nền).', 'success');
+        }
+    }
+    document.getElementById('search-replace-chapter-btn')
+        ?.addEventListener('click', () => doPropagate('chapter'));
+    document.getElementById('search-replace-all-btn')
+        ?.addEventListener('click', () => doPropagate('all'));
+
+    // ---- Phím tắt: Ctrl+Shift+F mở tìm (không đụng Ctrl+F gốc), T mục lục, Esc đóng ----
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+            e.preventDefault();
+            isOpen() ? input.focus() : openSearch();
+            return;
+        }
+        if (e.key === 'Escape' && isOpen()) { closeSearch(); return; }
+        const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName);
+        if (!inField && (e.key === 't' || e.key === 'T')) toggleToc();
+    });
+})();
+</script>
 {% endblock %}

@@ -508,6 +508,77 @@ def test_propagate_all_runs_find_replace_job(tmp_path, monkeypatch):
     assert storage.read_translated(chapters[0]) == "Trần Tam đi chợ."
 
 
+def test_match_count_regex_counts_pattern(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=1, url="http://x/1"), Chapter(index=2, url="http://x/2")]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    storage.write_translated(chapters[0], "Chương 1 và Chương 12.")
+    storage.write_translated(chapters[1], "Không số.")
+    client = _client(cfg, monkeypatch)
+
+    res = client.get(
+        "/api/ebooks/t/glossary/match-count",
+        params={"find": r"Chương \d+", "regex": 1, "chapter_index": 1},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["chapter_count"] == 2
+    assert data["total_count"] == 2
+    assert data["chapter_total"] == 1
+
+
+def test_match_count_regex_invalid_pattern_returns_400(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.save_manifest(Manifest(slug="t", chapters=[Chapter(index=1, url="http://x/1")]))
+    client = _client(cfg, monkeypatch)
+    res = client.get(
+        "/api/ebooks/t/glossary/match-count", params={"find": "[unclosed", "regex": 1}
+    )
+    assert res.status_code == 400
+
+
+def test_propagate_chapter_regex_uses_backreference(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=1, url="http://x/1")]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    storage.write_translated(chapters[0], "Chương 1 rồi Chương 2.")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/propagate",
+        data={
+            "find": r"Chương (\d+)",
+            "replace": r"Hồi \1",
+            "scope": "chapter",
+            "chapter_index": 1,
+            "regex": 1,
+        },
+    )
+    assert res.status_code == 200
+    assert res.json()["replaced"] == 2
+    assert storage.read_translated(chapters[0]) == "Hồi 1 rồi Hồi 2."
+    assert storage.read_meta(chapters[0])["before_find_replace"] == "Chương 1 rồi Chương 2."
+
+
+def test_propagate_all_regex_runs_job(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=1, url="http://x/1")]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    storage.write_translated(chapters[0], "Chương 1 xong.")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/propagate",
+        data={"find": r"Chương (\d+)", "replace": r"Hồi \1", "scope": "all", "regex": 1},
+    )
+    assert res.status_code == 200
+    assert storage.read_translated(chapters[0]) == "Hồi 1 xong."
+
+
 def test_propagate_rejects_bad_scope_and_missing_chapter(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")

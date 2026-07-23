@@ -1470,11 +1470,14 @@ def step_find_replace(
     start: int | None = None,
     end: int | None = None,
     also_raw: bool = False,
+    regex: bool = False,
 ) -> Manifest:
-    """Tìm & thay thế literal trên các chương đã dịch (không gọi AI).
+    """Tìm & thay thế trên các chương đã dịch (không gọi AI).
 
-    Nhanh, dùng để đổi tên riêng đã dịch hoặc sửa lỗi hàng loạt. Bản trước khi
-    thay được lưu vào meta['before_find_replace'] để có thể khôi phục.
+    Nhanh, dùng để đổi tên riêng đã dịch hoặc sửa lỗi hàng loạt. `regex=True`
+    coi `find` là biểu thức chính quy (backreference `\\1` dùng được trong
+    `replace`). Bản trước khi thay được lưu vào meta['before_find_replace'] để
+    có thể khôi phục.
     """
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -1485,26 +1488,34 @@ def step_find_replace(
         log("[find-replace] Bỏ qua: ô 'tìm' đang rỗng.")
         return manifest
 
+    pattern = re.compile(find) if regex else None
+
+    def _apply(text: str) -> tuple[str, int]:
+        """Thay `find`→`replace` trong `text`, trả (bản mới, số lần thay)."""
+        if pattern is not None:
+            return pattern.subn(replace, text)
+        return text.replace(find, replace), text.count(find)
+
     selected = _chapter_range(manifest.chapters, None, start, end)
     changed_chapters = 0
     total_replacements = 0
     for ch in selected:
         if storage.has_translated(ch):
             content = storage.read_translated(ch)
-            count = content.count(find)
+            new_content, count = _apply(content)
             if count:
                 meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
                 meta["before_find_replace"] = content
                 storage.write_meta(ch, meta)
-                storage.write_translated(ch, content.replace(find, replace))
+                storage.write_translated(ch, new_content)
                 changed_chapters += 1
                 total_replacements += count
                 log(f"[find-replace] Chương {ch.index}: thay {count} chỗ (bản dịch).")
         if also_raw and storage.has_raw(ch):
             raw = storage.read_raw(ch)
-            raw_count = raw.count(find)
+            new_raw, raw_count = _apply(raw)
             if raw_count:
-                storage.write_raw(ch, raw.replace(find, replace))
+                storage.write_raw(ch, new_raw)
                 total_replacements += raw_count
                 log(f"[find-replace] Chương {ch.index}: thay {raw_count} chỗ (bản gốc).")
 

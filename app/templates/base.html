@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}novel2epub{% endblock %}</title>
+    <link rel="icon" type="image/png" href="/static/img/favicon-light.png" media="(prefers-color-scheme: light)">
+    <link rel="icon" type="image/png" href="/static/img/favicon-dark.png" media="(prefers-color-scheme: dark)">
+    <link rel="icon" type="image/png" href="/static/img/favicon-light.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,500;7..72,600;7..72,700&display=swap&subset=vietnamese,latin" rel="stylesheet">
@@ -238,7 +241,8 @@
             <div class="flex items-center justify-between h-14 md:h-16 gap-4">
                 <div class="flex items-center gap-3 shrink-0">
                     <a href="/" class="flex items-center gap-2 text-fg-light dark:text-fg-dark hover:opacity-80 transition-opacity" aria-label="novel2epub home">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-brand-600 dark:text-brand-400" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 8h10"/><path d="M8 12h6"/><path d="M8 16h8"/></svg>
+                        <img src="/static/img/favicon-light.png" alt="" class="w-7 h-7 dark:hidden" aria-hidden="true">
+                        <img src="/static/img/favicon-dark.png" alt="" class="w-7 h-7 hidden dark:block" aria-hidden="true">
                         <span class="font-semibold text-lg hidden sm:inline">novel2epub</span>
                     </a>
                 </div>

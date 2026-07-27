@@ -37,6 +37,7 @@
 .dark .settings-row select { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
 
 .reader-content { max-width: 720px; margin: 1.5rem auto; line-height: 1.8; font-size: 18px; font-family: 'Literata', 'Georgia', serif; }
+[data-theme="sepia"] .reader-content { background: #f5f0e8; color: #5b4636; padding: 0.5rem 1.5rem; border-radius: 4px; }
 .reader-para { position: relative; margin: 0 0 0.8em; text-align: justify; }
 .para-copy-btn { position: absolute; right: -2rem; top: 0.1em; opacity: 0; font-size: 0.75rem; padding: 0.15rem; background: none; border: none; cursor: pointer; color: var(--tw-fg-muted, #71717a); transition: opacity 0.15s; }
 .dark .para-copy-btn { color: var(--tw-fg-muted-dark, #a1a1aa); }
@@ -321,6 +322,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             <label>Theme:
                 <select id="reader-theme-select" class="rounded border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
                     <option value="light">Sáng</option>
+                    <option value="sepia">Sepia</option>
                     <option value="dark">Tối</option>
                 </select>
             </label>

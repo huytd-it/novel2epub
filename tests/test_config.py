@@ -23,16 +23,15 @@ def _write_config(tmp_path: Path, extra: dict | None = None) -> Path:
     return write_db_config(path, defaults=defaults, ebooks={"my-novel": ebook})
 
 
-def test_glossary_files_default_to_data_dir_glossary_folder(tmp_path):
+def test_glossary_files_default_empty_for_sqlite_only(tmp_path):
     config_path = _write_config(tmp_path)
     cfg = load_config(config_path)
 
-    expected_dir = (tmp_path / "data" / "my-novel" / "glossary").resolve()
-    assert Path(cfg.translate.glossary_files.names) == expected_dir / "names.txt"
-    assert Path(cfg.translate.glossary_files.vietphrase) == expected_dir / "vietphrase.txt"
+    assert cfg.translate.glossary_files.names == ""
+    assert cfg.translate.glossary_files.vietphrase == ""
 
 
-def test_glossary_files_explicit_path_is_respected(tmp_path):
+def test_glossary_files_explicit_path_is_ignored(tmp_path):
     custom = tmp_path / "custom" / "names.txt"
     custom.parent.mkdir(parents=True)
     custom.write_text("元宵 = Nguyên Tiêu\n", encoding="utf-8")
@@ -42,25 +41,20 @@ def test_glossary_files_explicit_path_is_respected(tmp_path):
     )
     cfg = load_config(config_path)
 
-    assert Path(cfg.translate.glossary_files.names) == custom.resolve()
-    # vietphrase không khai báo riêng -> vẫn rơi về default trong data_dir.
-    expected_default = (tmp_path / "data" / "my-novel" / "glossary" / "vietphrase.txt").resolve()
-    assert Path(cfg.translate.glossary_files.vietphrase) == expected_default
+    assert cfg.translate.glossary_files.names == ""
+    assert cfg.translate.glossary_files.vietphrase == ""
 
 
-def test_glossary_files_stale_path_falls_back_to_default_with_warning(tmp_path):
-    """Path glossary_files stale (file không tồn tại — field deprecated còn sót
-    trong DB cũ) từng làm glossary âm thầm rỗng → bản dịch mất nhất quán tên
-    riêng. Nay phải rơi về path mặc định (trỏ DB) + có cảnh báo."""
+def test_glossary_files_stale_path_is_ignored_without_warning(tmp_path):
+    """glossary_files cũ không còn ảnh hưởng config; SQLite là nguồn duy nhất."""
     config_path = _write_config(
         tmp_path,
         extra={"translate": {"type": "none", "glossary_files": {"names": "khong/ton/tai.txt"}}},
     )
     cfg = load_config(config_path)
 
-    expected_default = (tmp_path / "data" / "my-novel" / "glossary" / "names.txt").resolve()
-    assert Path(cfg.translate.glossary_files.names) == expected_default
-    assert any("glossary_files.names" in w for w in cfg.warnings)
+    assert cfg.translate.glossary_files.names == ""
+    assert not any("glossary_files" in w for w in cfg.warnings)
 
 
 def test_no_preset_backward_compat(tmp_path):

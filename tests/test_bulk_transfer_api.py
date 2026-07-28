@@ -126,7 +126,7 @@ def test_export_raw_returns_translate_prompt_and_raw_text(tmp_path, monkeypatch)
     data = res.json()
     assert data["source"] == "raw"
     assert data["total"] == 1
-    assert "Yêu cầu dịch truyện" in data["text"]
+    assert "dịch giả tiểu thuyết mạng Trung Quốc" in data["text"]
     assert "BIÊN TẬP LẠI" not in data["text"]
     assert "原文内容" in data["text"]
     assert "## idx:1: 第一章" in data["text"]
@@ -371,7 +371,7 @@ def test_batch_translate_uses_TRANSLATE_PROMPT(tmp_path, monkeypatch):
     )
     p = captured_prompt["text"]
     # Prompt phải chứa yêu cầu dịch (không phải biên tập)
-    assert "Yêu cầu dịch truyện" in p
+    assert "dịch giả tiểu thuyết mạng Trung Quốc" in p
     assert "BIÊN TẬP LẠI" not in p
     # Phải có marker chương (idx:N — không dùng "Chương N" để tránh AI nhầm
     # N với số chương thật)

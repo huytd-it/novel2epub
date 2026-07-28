@@ -197,11 +197,15 @@ def test_prompt_max_chars_floor_when_overhead_too_big(monkeypatch):
     assert translator._clamp_to_prompt_budget(6000, "A" * 300) == OpenAITranslator.MIN_CHUNK_BUDGET
 
 
-def test_translate_multichunk_filters_glossary_per_chunk(monkeypatch):
-    """Mỗi chunk chỉ nhận các mục glossary xuất hiện trong chính chunk đó."""
+def test_translate_multichunk_filters_glossary_per_chunk(tmp_path, monkeypatch):
+    """Mỗi chunk chỉ nhận các mục glossary SQLite xuất hiện trong chính chunk đó."""
+    from novel2epub.storage import Storage
+
+    storage = Storage(tmp_path, "t")
+    storage.upsert_glossary_entry("叶凡", "Diệp Phàm")
+    storage.upsert_glossary_entry("庄国", "Trang Quốc")
     cfg = TranslateConfig(
         type="openai",
-        glossary={"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"},
         glossary_filter=True,
         openai=OpenAIConfig(
             base_url="https://api.test/v1",
@@ -218,7 +222,7 @@ def test_translate_multichunk_filters_glossary_per_chunk(monkeypatch):
         return next(responses)
 
     monkeypatch.setattr("novel2epub.translator.openai_client.run_chat_with_meta", _mock_run_chat)
-    translator = make_translator(cfg)
+    translator = make_translator(cfg, storage=storage)
     # 2 đoạn, mỗi đoạn dài hơn max_chars → 2 chunk riêng.
     out = translator.translate("叶凡AAAAAAAAAA\n庄国BBBBBBBBBB")
 

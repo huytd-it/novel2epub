@@ -11,7 +11,6 @@ import json
 import re
 import threading
 import time
-from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from . import idioms as idioms_mod
@@ -194,91 +193,19 @@ def _merge_glossaries(*parts: dict[str, str]) -> dict[str, str]:
 
 
 def load_glossary_dict(cfg: TranslateConfig, storage: "Storage | None" = None) -> dict[str, str]:
-    """Gộp glossary inline trong config + 2 list names/vietphrase.
+    """Load glossary for prompts from SQLite only.
 
-    Dùng chung cho OpenAITranslator (dịch chương) và glossary_ai (gợi ý/rewrite).
-
-    Khi caller có sẵn `storage` (pipeline/web routes) thì ĐỌC TRỰC TIẾP 2 list
-    chuẩn từ DB — nguồn mà auto-glossary + trang Glossary đang ghi. Lúc này file
-    `.txt` NẰM TRONG thư mục glossary mặc định của DB (`data_dir/<slug>/glossary/`)
-    bị BỎ QUA hoàn toàn: đó là tàn dư trước migration SQLite, đọc nó sẽ bơm ngược
-    những entry user đã xoá khỏi DB vào prompt (bug DB 27 mục → prompt phình 567).
-    `cfg.glossary_files` khi có storage chỉ còn đọc file NGOÀI thư mục đó (user tự
-    trỏ tới vị trí khác). Thứ tự merge: inline cfg.glossary < file ngoài < DB
-    (DB thắng khi trùng source). Khi trùng source giữa 2 list, `names.txt` (list
-    chuẩn duy nhất sau khi bỏ phân loại) thắng `vietphrase.txt` (dữ liệu cũ).
-
-    Khi không có `storage` (backward-compat): giữ hành vi cũ — đọc file nếu
-    tồn tại, ngược lại suy ngược data_dir/slug từ quy ước path
-    `data_dir/<slug>/glossary/<name>.txt` để đọc DB.
+    `names.txt`/`vietphrase.txt`, external glossary files, inline config glossary,
+    and pending AI suggestions are not prompt sources. Pending suggestions become
+    prompt-visible only after approval writes them into SQLite `names.txt`.
     """
-    glossary: dict[str, str] = dict(cfg.glossary)
-    # Khi có storage, DB là nguồn chuẩn cho thư mục glossary mặc định
-    # (data_dir/<slug>/glossary/). File .txt legacy còn sót TRONG đúng thư mục
-    # đó là tàn dư trước migration SQLite — KHÔNG đọc: đọc sẽ bơm ngược những
-    # entry user đã xoá khỏi DB vào prompt (bug DB 27 mục → prompt phình 567).
-    # File user tự trỏ tới vị trí NGOÀI thư mục này vẫn được đọc bình thường.
-    db_glossary_dir: Path | None = None
-    if storage is not None:
-        try:
-            db_glossary_dir = (Path(storage.data_dir) / storage.slug / "glossary").resolve()
-        except Exception:
-            db_glossary_dir = None
-    # vietphrase đọc TRƯỚC, names đọc SAU → names.txt thắng khi trùng source.
-    for path in (cfg.glossary_files.vietphrase, cfg.glossary_files.names):
-        if not path:
-            continue
-        p = Path(path)
-        if db_glossary_dir is not None:
-            try:
-                if p.resolve().parent == db_glossary_dir:
-                    continue  # file trong thư mục DB → DB đọc tập trung bên dưới
-            except Exception:
-                pass
-        if p.exists():
-            # File thật trên đĩa: file ngoài user tự trỏ, hoặc file legacy
-            # thời trước migration SQLite. Đọc trực tiếp; entry DB (đọc bên
-            # dưới khi có storage) sẽ ghi đè nếu trùng source.
-            lines = p.read_text(encoding="utf-8").splitlines()
-        elif storage is None:
-            # Đường dẫn mặc định do config.py suy ra (data_dir/<slug>/glossary/
-            # <name>.txt) — glossary nay sống trong DB qua Storage, không còn
-            # file thật ở đây. Suy ngược slug/data_dir từ đúng quy ước đó.
-            try:
-                data_dir = p.parent.parent.parent
-                slug = p.parent.parent.name
-                entries = Storage(data_dir, slug).read_glossary_entries(p.name)
-            except Exception:
-                continue
-            lines = [f"{s} = {t}" + (f" | {n}" if n else "") for s, t, n in entries]
-        else:
-            continue  # có storage: DB đọc tập trung bên dưới, không suy path
-        for line in lines:
-            parsed = parse_glossary_line(line)
-            if parsed:
-                zh, vi, _note = parsed
-                glossary[zh] = vi
-    if storage is not None:
-        # Đề xuất auto-glossary CHỜ DUYỆT vẫn được dùng khi dịch (nhất quán
-        # giữa các run + AI không đề xuất lại), nhưng merge TRƯỚC 2 list DB
-        # để mục đã duyệt/sửa tay trong names.txt thắng khi trùng source.
-        try:
-            pending = storage.read_extra_json("glossary_pending")
-        except Exception:
-            pending = None
-        if isinstance(pending, list):
-            for p in pending:
-                if isinstance(p, dict) and p.get("source") and p.get("target"):
-                    glossary[str(p["source"])] = str(p["target"])
-        for list_name in ("vietphrase.txt", "names.txt"):
-            try:
-                entries = storage.read_glossary_entries(list_name)
-            except Exception:
-                continue
-            for source, target, _note in entries:
-                if source and target:
-                    glossary[source] = target
-    return glossary
+    if storage is None:
+        return {}
+    try:
+        entries = storage.read_glossary_entries("names.txt")
+    except Exception:
+        return {}
+    return {source: target for source, target, _note in entries if source and target}
 
 
 def load_idioms_list(cfg: TranslateConfig, storage: "Storage | None") -> list[Idiom]:
@@ -376,6 +303,7 @@ class OpenAITranslator:
     def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None, storage: "Storage | None" = None):
         self.cfg = cfg
         self.openai = cfg.openai
+        self.storage = storage
         self.glossary = load_glossary_dict(cfg, storage)
         self.idioms = load_idioms_list(cfg, storage)
         self.log = log or (lambda _: None)
@@ -394,8 +322,8 @@ class OpenAITranslator:
 
         Entry mới KHÔNG vào thẳng `names.txt` nữa — persist vào extra json
         `glossary_pending` để người dùng preview/duyệt (hàng loạt) hoặc bỏ trên
-        trang Glossary. In-memory vẫn nhận ngay để các chương sau trong run
-        dịch nhất quán. Trả {'added': [(source, target), ...],
+        trang Glossary. In-memory cũng không nhận entry chưa duyệt: prompt chỉ
+        dùng SQLite `names.txt`. Trả {'added': [(source, target), ...],
         'conflicts': [{source, existing, new}, ...]}. Existing wins khi conflict.
         """
         added, conflicts = [], []
@@ -405,7 +333,6 @@ class OpenAITranslator:
                     continue
                 existing = self.glossary.get(source)
                 if existing is None:
-                    self.glossary[source] = new_target
                     added.append((source, new_target))
                 elif existing == new_target:
                     continue
@@ -440,10 +367,11 @@ class OpenAITranslator:
             return out
 
     def _glossary_for_prompt(self, zh_text: str, vi_text: str = "") -> dict[str, str]:
-        """Bản glossary để nhét vào prompt: snapshot dưới lock (an toàn với
-        extend_glossary chạy song song), lọc theo text đang xử lý nếu
-        cfg.glossary_filter bật. Không bao giờ mutate self.glossary."""
+        """Bản glossary để nhét vào prompt: reload SQLite để job đang chạy thấy
+        CRUD mới nhất, rồi snapshot dưới lock. Không dùng TXT/pending/config."""
         with self._glossary_lock:
+            if self.storage is not None:
+                self.glossary = load_glossary_dict(self.cfg, self.storage)
             snapshot = dict(self.glossary)
         if not self.cfg.glossary_filter:
             return snapshot

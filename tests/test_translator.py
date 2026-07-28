@@ -59,44 +59,15 @@ def test_apply_glossary_replaces_all_occurrences():
     assert out == "Trang Quốc đại chiến Trang Quốc"
 
 
-def test_load_glossary_dict_merges_inline_and_files(tmp_path):
+def test_load_glossary_dict_without_storage_returns_empty(tmp_path):
     names = tmp_path / "names.txt"
     names.write_text("庄国 = Trang Quốc\n", encoding="utf-8")
-    vietphrase = tmp_path / "vietphrase.txt"
-    vietphrase.write_text("元气 = nguyên khí\n", encoding="utf-8")
-
     cfg = TranslateConfig(
         glossary={"元宵": "Nguyên Tiêu"},
-        glossary_files=GlossaryFilesConfig(names=str(names), vietphrase=str(vietphrase)),
-    )
-
-    result = load_glossary_dict(cfg)
-
-    assert result == {
-        "元宵": "Nguyên Tiêu",
-        "庄国": "Trang Quốc",
-        "元气": "nguyên khí",
-    }
-
-
-def test_load_glossary_dict_strips_note(tmp_path):
-    names = tmp_path / "names.txt"
-    names.write_text("庄国 = Trang Quốc | nước hư cấu\n", encoding="utf-8")
-
-    cfg = TranslateConfig(
         glossary_files=GlossaryFilesConfig(names=str(names), vietphrase=""),
     )
-    result = load_glossary_dict(cfg)
-    # Note KHÔNG được lọt vào target (tránh thay thế literal sai khi dịch).
-    assert result == {"庄国": "Trang Quốc"}
 
-
-def test_load_glossary_dict_ignores_missing_files():
-    cfg = TranslateConfig(
-        glossary={"元宵": "Nguyên Tiêu"},
-        glossary_files=GlossaryFilesConfig(names="/khong/ton/tai.txt", vietphrase=""),
-    )
-    assert load_glossary_dict(cfg) == {"元宵": "Nguyên Tiêu"}
+    assert load_glossary_dict(cfg) == {}
 
 
 def _storage_with_glossary(tmp_path):
@@ -109,23 +80,17 @@ def _storage_with_glossary(tmp_path):
     return storage
 
 
-def test_load_glossary_dict_storage_first_reads_db(tmp_path):
-    """Có `storage`: đọc thẳng DB, không phụ thuộc path glossary_files."""
+def test_load_glossary_dict_with_storage_reads_only_sqlite_names(tmp_path):
+    """Có `storage`: prompt chỉ lấy SQLite names.txt, bỏ inline/file/vietphrase."""
     storage = _storage_with_glossary(tmp_path)
     cfg = TranslateConfig(
         glossary={"元宵": "Nguyên Tiêu"},
-        # Path mặc định (không tồn tại trên đĩa) — trước đây phải suy ngược
-        # data_dir/slug từ path; nay bỏ qua hoàn toàn khi có storage.
         glossary_files=GlossaryFilesConfig(
             names=str(tmp_path / "data" / "t" / "glossary" / "names.txt"),
             vietphrase=str(tmp_path / "data" / "t" / "glossary" / "vietphrase.txt"),
         ),
     )
-    assert load_glossary_dict(cfg, storage) == {
-        "元宵": "Nguyên Tiêu",
-        "庄国": "Trang Quốc",
-        "元气": "nguyên khí",
-    }
+    assert load_glossary_dict(cfg, storage) == {"庄国": "Trang Quốc"}
 
 
 def test_load_glossary_dict_ignores_legacy_file_in_db_dir(tmp_path):
@@ -144,12 +109,11 @@ def test_load_glossary_dict_ignores_legacy_file_in_db_dir(tmp_path):
     result = load_glossary_dict(cfg, storage)
     assert result["庄国"] == "Trang Quốc"   # DB, KHÔNG phải "Bản Cũ Sai" từ file
     assert "林凡" not in result             # entry chỉ có trong file legacy → bỏ
-    assert result["元气"] == "nguyên khí"   # list DB vẫn được đọc
+    assert "元气" not in result             # vietphrase legacy không còn vào prompt
 
 
-def test_load_glossary_dict_reads_external_file_with_storage(tmp_path):
-    """File user tự trỏ tới vị trí NGOÀI thư mục glossary DB vẫn được đọc dù có
-    storage — chỉ file trong thư mục DB mặc định mới bị bỏ qua."""
+def test_load_glossary_dict_ignores_external_file_with_storage(tmp_path):
+    """Có `storage`: không đọc TXT ngoài nữa; SQLite là nguồn duy nhất."""
     storage = _storage_with_glossary(tmp_path)
     external = tmp_path / "external"
     external.mkdir()
@@ -159,14 +123,11 @@ def test_load_glossary_dict_reads_external_file_with_storage(tmp_path):
         glossary_files=GlossaryFilesConfig(names=str(external / "extra.txt"), vietphrase=""),
     )
     result = load_glossary_dict(cfg, storage)
-    assert result["林凡"] == "Lâm Phàm"    # file ngoài vẫn đọc
-    assert result["庄国"] == "Trang Quốc"  # + DB
-    assert result["元气"] == "nguyên khí"
+    assert result == {"庄国": "Trang Quốc"}
 
 
-def test_load_glossary_dict_merges_pending_but_db_wins(tmp_path):
-    """Đề xuất chờ duyệt (glossary_pending) được dùng khi dịch — AI không đề
-    xuất lại giữa các run — nhưng mục đã có trong names.txt thắng khi trùng."""
+def test_load_glossary_dict_ignores_pending_with_storage(tmp_path):
+    """Pending chỉ là hàng chờ duyệt; prompt không dùng cho tới khi vào SQLite."""
     storage = _storage_with_glossary(tmp_path)
     storage.write_extra_json(
         "glossary_pending",
@@ -178,23 +139,22 @@ def test_load_glossary_dict_merges_pending_but_db_wins(tmp_path):
     )
     cfg = TranslateConfig(glossary_files=GlossaryFilesConfig(names="", vietphrase=""))
     result = load_glossary_dict(cfg, storage)
-    assert result["林凡"] == "Lâm Phàm"        # pending được merge
-    assert result["庄国"] == "Trang Quốc"      # names.txt (DB) thắng pending
+    assert result == {"庄国": "Trang Quốc"}
 
 
-def test_load_glossary_dict_stale_path_with_storage_still_reads_db(tmp_path):
-    """Path stale trỏ lung tung + có storage → vẫn ra glossary đúng từ DB."""
+def test_load_glossary_dict_stale_path_with_storage_still_reads_sqlite_names(tmp_path):
+    """Path stale trỏ lung tung + có storage → vẫn chỉ ra SQLite names.txt."""
     storage = _storage_with_glossary(tmp_path)
     cfg = TranslateConfig(
         glossary_files=GlossaryFilesConfig(names="/khong/ton/tai.txt", vietphrase=""),
     )
     result = load_glossary_dict(cfg, storage)
-    assert result == {"庄国": "Trang Quốc", "元气": "nguyên khí"}
+    assert result == {"庄国": "Trang Quốc"}
 
 
 def test_make_translator_passes_storage_to_prompt_glossary(tmp_path):
     """End-to-end: translator tạo qua make_translator(storage=...) phải chèn
-    glossary DB vào prompt dịch chương."""
+    glossary SQLite vào prompt dịch chương."""
     from novel2epub.translator import make_translator
 
     storage = _storage_with_glossary(tmp_path)
@@ -203,6 +163,25 @@ def test_make_translator_passes_storage_to_prompt_glossary(tmp_path):
     prompt = translator._build_prompt("庄国大军压境")
     assert "Bảng thuật ngữ bắt buộc dùng nhất quán:" in prompt
     assert "庄国 = Trang Quốc" in prompt
+    assert "元气 = nguyên khí" not in prompt
+
+
+def test_running_translator_reloads_sqlite_glossary_for_next_prompt(tmp_path):
+    """Job đang chạy phải thấy CRUD SQLite ở prompt kế tiếp, không dùng cache cũ."""
+    from novel2epub.translator import make_translator
+
+    storage = _storage_with_glossary(tmp_path)
+    cfg = TranslateConfig(type="openai")
+    translator = make_translator(cfg, storage=storage)
+    assert "庄国 = Trang Quốc" in translator._build_prompt("庄国")
+
+    storage.delete_glossary_entry("庄国")
+    storage.upsert_glossary_entry("林凡", "Lâm Phàm")
+
+    prompt = translator._build_prompt("庄国 林凡")
+    assert "庄国 = Trang Quốc" not in prompt
+    assert "林凡 = Lâm Phàm" in prompt
+
 
 
 def test_parse_title_response_standard_format():
@@ -351,14 +330,14 @@ def _make_openai_translator(**kwargs) -> "OpenAITranslator":
 
 
 def test_extend_glossary_added_goes_to_pending():
-    """Entry mới → add vào in-memory + hàng chờ duyệt, KHÔNG ghi thẳng names.txt."""
+    """Entry mới → chỉ vào hàng chờ duyệt, không vào prompt cache hay names.txt."""
     t = _make_openai_translator()
     storage = _MockStorage()
     result = t.extend_glossary({"叶凡": "Diệp Phàm"}, storage, chapter_index=7)
 
     assert len(result["added"]) == 1
     assert len(result["conflicts"]) == 0
-    assert t.glossary["叶凡"] == "Diệp Phàm"
+    assert "叶凡" not in t.glossary
     assert storage.written == []  # không đụng names.txt
     assert storage.extra["glossary_pending"] == [
         {"source": "叶凡", "target": "Diệp Phàm", "chapter_index": 7}
@@ -440,12 +419,15 @@ def test_extend_glossary_skips_empty_source():
 # _filter_glossary + lọc glossary theo đoạn khi build prompt
 # ---------------------------------------------------------------------------
 
-def _make_filter_translator(glossary_filter=True):
+def _make_filter_translator(tmp_path, glossary_filter=True):
+    from novel2epub.storage import Storage
     from novel2epub.translator import OpenAITranslator
 
+    storage = Storage(tmp_path / "data", "filter")
+    storage.upsert_glossary_entry("叶凡", "Diệp Phàm")
+    storage.upsert_glossary_entry("庄国", "Trang Quốc")
     cfg = TranslateConfig(
         type="openai",
-        glossary={"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"},
         glossary_filter=glossary_filter,
         openai=OpenAIConfig(
             base_url="https://api.test/v1",
@@ -453,7 +435,7 @@ def _make_filter_translator(glossary_filter=True):
             title_prompt_template="{glossary}\n---\n{text}",
         ),
     )
-    return OpenAITranslator(cfg)
+    return OpenAITranslator(cfg, storage=storage)
 
 
 def test_filter_glossary_keeps_only_matching_zh():
@@ -487,8 +469,8 @@ def test_format_glossary_has_no_indent():
     assert out == "Bảng thuật ngữ bắt buộc dùng nhất quán:\n叶凡 = Diệp Phàm"
 
 
-def test_build_prompt_filters_glossary_to_chunk_text():
-    t = _make_filter_translator()
+def test_build_prompt_filters_glossary_to_chunk_text(tmp_path):
+    t = _make_filter_translator(tmp_path)
     prompt = t._build_prompt("却说叶凡今日修炼")
     assert "叶凡 = Diệp Phàm" in prompt
     assert "庄国" not in prompt
@@ -496,21 +478,21 @@ def test_build_prompt_filters_glossary_to_chunk_text():
     assert t.glossary == {"叶凡": "Diệp Phàm", "庄国": "Trang Quốc"}
 
 
-def test_build_prompt_unfiltered_when_disabled():
-    t = _make_filter_translator(glossary_filter=False)
+def test_build_prompt_unfiltered_when_disabled(tmp_path):
+    t = _make_filter_translator(tmp_path, glossary_filter=False)
     prompt = t._build_prompt("却说叶凡今日修炼")
     assert "叶凡 = Diệp Phàm" in prompt
     assert "庄国 = Trang Quốc" in prompt
 
 
-def test_build_prompt_omits_header_when_no_entry_matches():
-    t = _make_filter_translator()
+def test_build_prompt_omits_header_when_no_entry_matches(tmp_path):
+    t = _make_filter_translator(tmp_path)
     prompt = t._build_prompt("完全无关的文本")
     assert "Bảng thuật ngữ" not in prompt
 
 
-def test_build_title_prompt_filters_on_title():
-    t = _make_filter_translator()
+def test_build_title_prompt_filters_on_title(tmp_path):
+    t = _make_filter_translator(tmp_path)
     prompt = t._build_title_prompt("庄国大战", kind="tên chương")
     assert "庄国 = Trang Quốc" in prompt
     assert "叶凡" not in prompt

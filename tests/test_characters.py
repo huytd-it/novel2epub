@@ -82,3 +82,38 @@ def test_resolve_relations_none_uses_chapter_zero():
 
 def test_resolve_relations_drops_pair_with_no_valid_milestone():
     assert C.resolve_relations([_R120], 50) == []
+
+
+# ---------- render khối prompt ----------
+
+def test_format_llm_block_empty_returns_empty_string():
+    assert C.format_llm_block([], []) == ""
+
+
+def test_format_llm_block_renders_attributes_and_aliases():
+    block = C.format_llm_block([_LAM], [])
+    assert "BẢNG NHÂN VẬT & NGÔI XƯNG" in block
+    assert "林凡 = Lâm Phàm" in block
+    assert "còn gọi: 凡儿" in block
+    assert 'tự xưng "ta"' in block
+    assert 'lời kể gọi "hắn"' in block
+
+
+def test_format_llm_block_relation_needs_both_characters_present():
+    # Chỉ có Lâm Phàm trong chars → dòng quan hệ tới Tô Thanh Tuyết bị bỏ.
+    only_lam = C.format_llm_block([_LAM], [_R120])
+    assert "với" not in only_lam
+
+    both = C.format_llm_block([_LAM, _TO], [_R120])
+    assert 'với Tô Thanh Tuyết: gọi "em", tự xưng "anh"' in both
+
+
+def test_format_pin_line_lists_main_only():
+    pin = C.format_pin_line([_LAM, _TO], forbid_words="anh/em/cậu/bạn")
+    assert "Lâm Phàm" in pin
+    assert "Tô Thanh Tuyết" not in pin   # side, không lên dòng ghim
+    assert "CẤM dùng anh/em/cậu/bạn" in pin
+
+
+def test_format_pin_line_empty_without_main():
+    assert C.format_pin_line([_TO], forbid_words="x") == ""

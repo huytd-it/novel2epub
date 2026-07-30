@@ -153,3 +153,82 @@ def resolve_relations(
         if current is None or rel.from_chapter > current.from_chapter:
             best[key] = rel
     return list(best.values())
+
+
+_BLOCK_HEADER = "BẢNG NHÂN VẬT & NGÔI XƯNG (bắt buộc, không tự ý đổi):"
+
+
+def _display(char: Character) -> str:
+    """Tên hiển thị: ưu tiên bản Việt, không có thì dùng bản gốc."""
+    return char.target or char.source
+
+
+def format_llm_block(chars: list[Character], relations: list[Relation]) -> str:
+    """Khối bảng nhân vật cho prompt LLM. Trả "" khi rỗng để placeholder
+    {characters} biến mất sạch (giống idioms.format_llm_block).
+
+    Dòng quan hệ chỉ render khi CẢ HAI nhân vật đều nằm trong `chars` đã lọc —
+    nhắc tới người không có mặt trong đoạn chỉ làm loãng prompt.
+    """
+    if not chars:
+        return ""
+    present = {c.source: c for c in chars}
+    by_a: dict[str, list[Relation]] = {}
+    for rel in relations:
+        if rel.a_source in present and rel.b_source in present:
+            by_a.setdefault(rel.a_source, []).append(rel)
+
+    lines: list[str] = [_BLOCK_HEADER]
+    for char in chars:
+        head = f"{char.source} = {_display(char)}"
+        if char.aliases:
+            head += f" (còn gọi: {', '.join(char.aliases)})"
+        if char.gender:
+            head += f" · {char.gender}"
+        lines.append(head)
+
+        bits: list[str] = []
+        if char.self_pronoun:
+            bits.append(f'tự xưng "{char.self_pronoun}"')
+        if char.narrator_ref:
+            bits.append(f'lời kể gọi "{char.narrator_ref}"')
+        if bits:
+            lines.append("  · " + " · ".join(bits))
+        if char.role_note:
+            lines.append(f"  · {char.role_note}")
+
+        for rel in by_a.get(char.source, []):
+            parts = []
+            if rel.a_calls_b:
+                parts.append(f'gọi "{rel.a_calls_b}"')
+            if rel.a_self:
+                parts.append(f'tự xưng "{rel.a_self}"')
+            if parts:
+                lines.append(
+                    f"  · với {_display(present[rel.b_source])}: " + ", ".join(parts)
+                )
+    return "\n".join(lines)
+
+
+def format_pin_line(chars: list[Character], forbid_words: str = "") -> str:
+    """Dòng nhắc ngắn nối vào CUỐI prompt (sau {text}).
+
+    Chỉ nhân vật `main`, tối đa 2 dòng. Đặt sau nội dung vì chỉ dẫn ở cuối prompt
+    được tuân thủ tốt hơn chỉ dẫn kẹp giữa.
+    """
+    mains = [c for c in chars if c.importance == "main"]
+    bits: list[str] = []
+    for char in mains:
+        parts = []
+        if char.self_pronoun:
+            parts.append(f'tự xưng "{char.self_pronoun}"')
+        if char.narrator_ref:
+            parts.append(f'lời kể "{char.narrator_ref}"')
+        if parts:
+            bits.append(f"{_display(char)} = " + ", ".join(parts))
+    if not bits:
+        return ""
+    out = "NHẮC LẠI: " + ". ".join(bits) + "."
+    if forbid_words:
+        out += f"\nCẤM dùng {forbid_words}."
+    return out

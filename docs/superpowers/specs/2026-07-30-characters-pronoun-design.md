@@ -246,18 +246,25 @@ Nhánh MT **đã có** một lớp chuẩn hoá xưng hô độc lập: `HONORIF
 `off` / `safe` / `xianxia_strict`, cộng `is_classical(zh)` tự đoán cổ trang hay
 hiện đại từ `WUXIA_SIGNALS` / `MODERN_SIGNALS`.
 
-Hai hệ quả bắt buộc phải xử lý, nếu không hai lớp sẽ đánh nhau:
+**Trạng thái thực tế: module này hiện KHÔNG được gọi ở đâu.**
+`normalize_honorifics` chỉ được export ở `hachimimt/__init__.py:6`; toàn repo
+không có caller nào (`feedback_log.py:36` chỉ có một field cùng tên trong bản
+ghi log, không phải lời gọi). Nó là code chết ở thời điểm này.
 
-**Xung đột thật.** Tầng `pronoun` của `normalize_honorifics` tự khoá khi
-`is_classical()` sai, nhưng tầng `kinship` thì **không** — với `genre="urban"`,
-`chị` vẫn bị viết lại thành `tỷ` dù preset đô thị cấm giọng cổ trang. Preset
-thể loại phải điều khiển luôn chế độ honorific: `xianxia` → `xianxia_strict`,
-`auto` → giữ hành vi hiện tại, `urban` / `romance` / `western` / `system_game`
-→ `off`. Người dùng đặt tay chế độ honorific thì tôn trọng lựa chọn đó.
+Hệ quả: **không có xung đột đang xảy ra**, và spec này không cần task đi hoà
+giải hai lớp. Chỉ còn một việc đáng làm và một ràng buộc cần ghi lại.
 
 **Tái sử dụng thay vì viết lại.** `genre="auto"` không tự phát minh cách đoán
 thể loại — gọi thẳng `honorific_normalize.genre_score()` / `is_classical()`.
-Chúng đã có sẵn danh sách tín hiệu và đã được dùng thật trong nhánh MT.
+Danh sách tín hiệu `WUXIA_SIGNALS` / `MODERN_SIGNALS` đã có sẵn và đủ dùng.
+
+**Ràng buộc cho tương lai (không làm bây giờ).** Nếu sau này ai đó nối
+`normalize_honorifics` vào nhánh MT, nó sẽ đánh nhau với preset thể loại: tầng
+`pronoun` tự khoá khi `is_classical()` sai, nhưng tầng `kinship` thì **không** —
+với `genre="urban"`, `chị` vẫn bị viết lại thành `tỷ` dù preset đô thị cấm giọng
+cổ trang. Khi đó preset phải điều khiển luôn chế độ honorific (`xianxia` →
+`xianxia_strict`, đô thị/ngôn tình/tây → `off`). Ghi ở đây để người nối dây biết;
+YAGNI nên không cài sẵn.
 
 Lưu ý đặt tên: `hachimimt/postprocess_policy.py` đã có `classify_genre()` cho
 mục đích khác (chính sách hậu xử lý MT). Module mới tên `novel2epub/genre.py`,
@@ -423,9 +430,9 @@ File mới:
 - `format_pronoun_rules` nối đúng phần `user_policy` do người dùng đặt, và
   không nối khi `user_policy` còn là mặc định `"contextual"`.
 - `format_style_value` map enum sang mô tả, giá trị lạ trả về nguyên văn.
-- Ánh xạ genre → chế độ honorific (§6.1): `xianxia` → `xianxia_strict`,
-  `urban` / `romance` / `western` / `system_game` → `off`, `auto` giữ nguyên
-  hành vi cũ; chế độ do người dùng đặt tay không bị ghi đè.
+- `genre="auto"` dùng lại `honorific_normalize.is_classical()` (§6.1): text
+  đậm tín hiệu tu tiên → nhánh cổ trang; text đậm tín hiệu hiện đại → nhánh
+  hiện đại.
 
 **`tests/test_routes_characters.py`**
 - CRUD nhân vật + quan hệ.

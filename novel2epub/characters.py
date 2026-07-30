@@ -14,6 +14,7 @@ nằm trong văn bản chunk, nên phải cấp cho model từ ngoài.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 
@@ -94,3 +95,61 @@ def relations_from_rows(rows) -> list[Relation]:
             )
         )
     return out
+
+
+def _mentions(needle: str, text: str, latin: bool) -> bool:
+    """Nguồn Hán: khớp substring (chữ Hán không có ranh giới từ, giống
+    idioms.filter_for_text). Nguồn Latin: khớp theo ranh giới từ để "Lin"
+    không trúng "Linda"."""
+    if not needle:
+        return False
+    if not latin:
+        return needle in text
+    return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", text) is not None
+
+
+def filter_for_text(
+    chars: list[Character], text: str, *, source_language: str = ""
+) -> list[Character]:
+    """Giữ nhân vật đáng chèn vào prompt cho đoạn `text` này.
+
+    Giữ khi: `importance == "main"` (LUÔN giữ, kể cả không xuất hiện), hoặc
+    `source`/alias bất kỳ có mặt trong text.
+
+    Luật "main luôn giữ" xử lý ca thật và hay gặp: cả chunk chỉ có "他… 他…"
+    không nêu tên lần nào nên không match được gì, và thế là mất đúng
+    `narrator_ref` cần nhất. Main thường <= 8 người nên chi phí token nhỏ.
+    """
+    latin = (source_language or "").strip().lower() not in ("", "zh", "cn", "zh-cn")
+    out: list[Character] = []
+    for c in chars:
+        if c.importance == "main":
+            out.append(c)
+            continue
+        if _mentions(c.source, text, latin):
+            out.append(c)
+            continue
+        if any(_mentions(a, text, latin) for a in c.aliases):
+            out.append(c)
+    return out
+
+
+def resolve_relations(
+    relations: list[Relation], chapter_idx: int | None
+) -> list[Relation]:
+    """Với mỗi cặp (a,b) có hướng, chọn row có `from_chapter <= chapter_idx` lớn
+    nhất; cặp không có mốc nào thoả thì bỏ.
+
+    `chapter_idx is None` → chỉ lấy mốc 0. Chủ ý: khi không biết đang ở chương
+    nào, đoán "quan hệ chưa thân" gây hại ít hơn đoán ngược lại.
+    """
+    limit = 0 if chapter_idx is None else int(chapter_idx)
+    best: dict[tuple[str, str], Relation] = {}
+    for rel in relations:
+        if rel.from_chapter > limit:
+            continue
+        key = (rel.a_source, rel.b_source)
+        current = best.get(key)
+        if current is None or rel.from_chapter > current.from_chapter:
+            best[key] = rel
+    return list(best.values())

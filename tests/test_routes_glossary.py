@@ -387,6 +387,146 @@ def test_pending_clear_selected_and_all(tmp_path, monkeypatch):
     assert storage.read_extra_json("glossary_pending") == []
 
 
+def test_bulk_conflicts_take_upserts_edited_values_and_keeps_unselected(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "叶凡 = Diệp Phàm cũ\n")
+    storage.write_extra_json(
+        "glossary_conflicts",
+        [
+            {"source": "叶凡", "existing": "Diệp Phàm cũ", "new": "Diệp Phàm"},
+            {"source": "林动", "existing": "Lâm Động", "new": "Lâm Động mới"},
+        ],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/conflicts/bulk-resolve",
+        json={
+            "action": "take",
+            "entries": [
+                {
+                    "source": "叶凡",
+                    "original_new": "Diệp Phàm",
+                    "target": "Diệp Phàm hiệu chỉnh",
+                    "note": "nhân vật chính",
+                }
+            ],
+        },
+    )
+
+    assert res.status_code == 200
+    assert res.json() == {"resolved": 1, "remaining": 1}
+    assert ("叶凡", "Diệp Phàm hiệu chỉnh", "nhân vật chính") in storage.read_glossary_entries("names.txt")
+    assert storage.read_extra_json("glossary_conflicts") == [
+        {"source": "林动", "existing": "Lâm Động", "new": "Lâm Động mới"}
+    ]
+
+
+def test_bulk_conflicts_take_ignores_stale_snapshot(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "叶凡 = Giá trị hiện tại\n")
+    storage.write_extra_json(
+        "glossary_conflicts",
+        [{"source": "叶凡", "existing": "Giá trị hiện tại", "new": "Đề xuất mới hơn"}],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/conflicts/bulk-resolve",
+        json={
+            "action": "take",
+            "entries": [
+                {
+                    "source": "叶凡",
+                    "original_new": "Đề xuất cũ đã biến mất",
+                    "target": "Không được ghi",
+                    "note": "",
+                }
+            ],
+        },
+    )
+
+    assert res.status_code == 200
+    assert res.json() == {"resolved": 0, "remaining": 1}
+    assert storage.read_glossary_file("names.txt") == {"叶凡": "Giá trị hiện tại"}
+
+
+def test_bulk_conflicts_keep_resolves_without_changing_glossary(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "叶凡 = Giữ nguyên\n")
+    storage.write_extra_json(
+        "glossary_conflicts",
+        [{"source": "叶凡", "existing": "Giữ nguyên", "new": "Không lấy"}],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/conflicts/bulk-resolve",
+        json={
+            "action": "keep",
+            "entries": [{"source": "叶凡", "original_new": "Không lấy"}],
+        },
+    )
+
+    assert res.status_code == 200
+    assert res.json() == {"resolved": 1, "remaining": 0}
+    assert storage.read_glossary_file("names.txt") == {"叶凡": "Giữ nguyên"}
+
+
+def test_bulk_conflicts_rejects_invalid_action_and_empty_entries(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    client = _client(cfg, monkeypatch)
+
+    bad_action = client.post(
+        "/api/ebooks/t/glossary/conflicts/bulk-resolve",
+        json={"action": "delete", "entries": [{"source": "叶凡", "original_new": "x"}]},
+    )
+    empty = client.post(
+        "/api/ebooks/t/glossary/conflicts/bulk-resolve",
+        json={"action": "take", "entries": []},
+    )
+
+    assert bad_action.status_code == 400
+    assert empty.status_code == 400
+
+
+def test_pending_approve_preserves_suggestions_outside_snapshot(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_extra_json(
+        "glossary_pending",
+        [
+            {"source": "叶凡", "target": "Diệp Phàm", "chapter_index": 1},
+            {"source": "Mới", "target": "Được thêm đồng thời", "chapter_index": 2},
+        ],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/pending/approve",
+        json={
+            "entries": [
+                {
+                    "source": "叶凡",
+                    "target": "Diệp Phàm sửa",
+                    "note": "",
+                    "original_source": "叶凡",
+                }
+            ]
+        },
+    )
+
+    assert res.status_code == 200
+    assert [row["source"] for row in storage.read_extra_json("glossary_pending")] == ["Mới"]
+
+
 # ----- route: nghi vấn (suspects) + resolve conflicts -----
 
 def test_suspects_returns_groups_and_count(tmp_path, monkeypatch):

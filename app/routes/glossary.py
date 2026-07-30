@@ -263,6 +263,57 @@ def ebook_glossary_conflict_resolve(
     return JSONResponse({"removed": len(raw) - len(remaining)})
 
 
+@router.post("/api/ebooks/{slug}/glossary/conflicts/bulk-resolve")
+def ebook_glossary_conflicts_bulk_resolve(slug: str, payload: dict = Body(...)):
+    action = payload.get("action")
+    if action not in {"take", "keep"}:
+        raise HTTPException(status_code=400, detail="Thao tác conflict không hợp lệ.")
+
+    requested: dict[tuple[str, str], dict[str, str]] = {}
+    rows = payload.get("entries")
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        source = str(row.get("source", "")).strip()
+        original_new = str(row.get("original_new", "")).strip()
+        target = str(row.get("target", "")).strip()
+        if not source or not original_new or (action == "take" and not target):
+            continue
+        requested[(source, original_new)] = {
+            "target": target,
+            "note": str(row.get("note", "")).strip(),
+        }
+    if not requested:
+        raise HTTPException(status_code=400, detail="Chưa chọn conflict hợp lệ.")
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    raw = storage.read_extra_json("glossary_conflicts")
+    conflicts = raw if isinstance(raw, list) else []
+    remaining = []
+    resolved = 0
+    for conflict in conflicts:
+        if not isinstance(conflict, dict):
+            remaining.append(conflict)
+            continue
+        key = (
+            str(conflict.get("source", "")).strip(),
+            str(conflict.get("new", "")).strip(),
+        )
+        request_row = requested.get(key)
+        if request_row is None:
+            remaining.append(conflict)
+            continue
+        if action == "take":
+            storage.upsert_glossary_entry(
+                key[0], request_row["target"], request_row["note"]
+            )
+        resolved += 1
+
+    storage.write_extra_json("glossary_conflicts", remaining)
+    return JSONResponse({"resolved": resolved, "remaining": len(remaining)})
+
+
 @router.post("/ebooks/{slug}/glossary")
 async def ebook_glossary_save(slug: str, payload: dict = Body(...)):
     """Lưu toàn bộ glossary từ data table. Payload JSON:

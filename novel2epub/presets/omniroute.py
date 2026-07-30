@@ -25,6 +25,7 @@ Luật dịch:
 7. Output phải là tiếng Việt 100% — KHÔNG để sót chữ Hán, KHÔNG chú thích song ngữ kiểu "từ gốc (nghĩa)". Từ không chắc nghĩa: dịch thoát theo ngữ cảnh, không giữ chữ Hán. Trước khi trả lời, rà lại: nếu còn ký tự Trung Quốc nào trong bản dịch, dịch nốt rồi mới trả lời.
 
 {glossary}
+{characters}
 --- Văn bản gốc ---
 {text}
 

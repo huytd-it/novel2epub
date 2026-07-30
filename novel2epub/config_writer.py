@@ -23,7 +23,7 @@ _DEPRECATED_CRAWL_FIELDS = frozenset({
     "ai_fallback", "ai_fallback_max_html", "concurrency_cap",
 })
 _DEPRECATED_TRANSLATE_FIELDS = frozenset({
-    "glossary", "glossary_files", "profile", "genre",
+    "glossary", "glossary_files", "profile",
 })
 
 _NOVEL_COLUMNS = frozenset({

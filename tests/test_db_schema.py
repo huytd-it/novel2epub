@@ -169,3 +169,12 @@ def test_ensure_columns_idempotent_khong_alter_hai_lan():
     init_schema(conn)
     init_schema(conn)
     assert "reader_json" in _column_names(conn, "settings")
+
+
+def test_characters_tables_exist():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    names = _table_names(conn)
+    assert "characters" in names
+    assert "character_relations" in names
+    assert SCHEMA_VERSION == 5

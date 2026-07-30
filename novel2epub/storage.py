@@ -254,6 +254,51 @@ class Storage:
             else:
                 self.conn.execute("DELETE FROM chapters WHERE ebook_slug = ?", (self.slug,))
 
+    def insert_chapter(self, ch: Chapter) -> None:
+        with self.conn:
+            ebook = self.conn.execute(
+                "SELECT 1 FROM ebooks WHERE slug = ?", (self.slug,)
+            ).fetchone()
+            if ebook is None:
+                raise ValueError("Chưa có manifest.")
+
+            count = self.conn.execute(
+                "SELECT COUNT(*) FROM chapters WHERE ebook_slug = ?", (self.slug,)
+            ).fetchone()[0]
+            if ch.index < 1 or ch.index > count + 1:
+                raise ValueError(f"Vị trí phải từ 1 đến {count + 1}.")
+
+            duplicate = self.conn.execute(
+                "SELECT 1 FROM chapters WHERE ebook_slug = ? AND url = ?",
+                (self.slug, ch.url),
+            ).fetchone()
+            if duplicate is not None:
+                raise ValueError("URL nguồn đã tồn tại trong danh mục.")
+
+            indexes = self.conn.execute(
+                "SELECT idx FROM chapters WHERE ebook_slug = ? AND idx >= ? ORDER BY idx DESC",
+                (self.slug, ch.index),
+            ).fetchall()
+            for row in indexes:
+                self.conn.execute(
+                    "UPDATE chapters SET idx = ? WHERE ebook_slug = ? AND idx = ?",
+                    (row["idx"] + 1, self.slug, row["idx"]),
+                )
+
+            self.conn.execute(
+                """
+                INSERT INTO chapters (
+                    ebook_slug, idx, url, title, title_zh, title_note,
+                    missing_fields_json, duplicate_of, last_action_status, skipped
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    self.slug, ch.index, ch.url, ch.title, ch.title_zh, ch.title_note,
+                    json.dumps(ch.missing_fields, ensure_ascii=False), ch.duplicate_of,
+                    ch.last_action_status, int(ch.skipped),
+                ),
+            )
+
     def save_chapter(self, ch: Chapter) -> None:
         """Lưu hoặc cập nhật thông tin chi tiết của 1 chương (metadata, status, skipped...)."""
         self.ensure_dirs()

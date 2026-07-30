@@ -2,6 +2,8 @@ import json
 import threading
 import time
 
+import pytest
+
 from app.queue import JobQueue
 
 
@@ -12,6 +14,57 @@ def _wait_until(predicate, timeout=5.0):
             return True
         time.sleep(0.02)
     return False
+
+
+def test_has_active_ebook_detects_pending_and_ignores_other_ebook():
+    queue = JobQueue(workers={"crawl": 0, "translate": 0, "build": 0})
+    queue.enqueue("crawl", "crawl", lambda log: None, ebook="book-a")
+
+    assert queue.has_active_ebook("book-a") is True
+    assert queue.has_active_ebook("book-b") is False
+
+
+def test_has_active_ebook_detects_running_job():
+    started = threading.Event()
+    release = threading.Event()
+    queue = JobQueue(workers={"crawl": 1, "translate": 0, "build": 0})
+
+    def target(log):
+        started.set()
+        release.wait(timeout=2)
+
+    queue.enqueue("crawl", "crawl", target, ebook="book-a")
+    assert started.wait(timeout=2)
+    try:
+        assert queue.has_active_ebook("book-a") is True
+    finally:
+        release.set()
+
+
+def test_has_active_ebook_ignores_cancelled_history_job():
+    queue = JobQueue(workers={"crawl": 0, "translate": 0, "build": 0})
+    job = queue.enqueue("crawl", "crawl", lambda log: None, ebook="book-a")
+    assert queue.cancel(job.id) is True
+
+    assert queue.has_active_ebook("book-a") is False
+
+
+def test_retire_ebook_rejects_new_jobs_until_restored():
+    queue = JobQueue(workers={"crawl": 0, "translate": 0, "build": 0})
+    assert queue.retire_ebook("book-a") is True
+
+    with pytest.raises(ValueError, match="đã bị xóa"):
+        queue.enqueue("crawl", "crawl", lambda log: None, ebook="book-a")
+
+    queue.restore_ebook("book-a")
+    queue.enqueue("crawl", "crawl", lambda log: None, ebook="book-a")
+
+
+def test_retire_ebook_rejects_existing_job():
+    queue = JobQueue(workers={"crawl": 0, "translate": 0, "build": 0})
+    queue.enqueue("crawl", "crawl", lambda log: None, ebook="book-a")
+
+    assert queue.retire_ebook("book-a") is False
 
 
 def test_second_job_enqueues_and_auto_starts_when_free():

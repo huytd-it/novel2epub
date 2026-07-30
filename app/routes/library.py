@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from novel2epub.automation import add_automation, validate_schedule
 from novel2epub.config import CrawlConfig, ScraplingConfig
-from novel2epub.config_writer import add_ebook, remove_ebook, update_ebook
+from novel2epub.config_writer import add_ebook, update_ebook
 from novel2epub.crawler import ScraplingCrawler
 from novel2epub.search import search_all, search_all_stream
 from novel2epub.sources import detect_preset, load_presets
@@ -20,6 +20,13 @@ MAX_BULK_URLS = 5
 CONTINUOUS_STEPS = ["crawl-new", "translate-pending", "cleanup-han", "build"]
 
 from .. import deps
+from ..ebook_deletion import (
+    ConfirmationMismatch,
+    EbookBusy,
+    EbookNotFound,
+    EpubDeleteFailed,
+    delete_ebook as delete_ebook_data,
+)
 
 router = APIRouter()
 
@@ -264,6 +271,7 @@ def _write_new_ebook(
 
 @router.post("/library/ebooks")
 def create_ebook(
+    request: Request,
     slug: str = Form(""),
     name: str = Form(""),
     author: str = Form(""),
@@ -301,6 +309,7 @@ def create_ebook(
         novel_extra["cover_url"] = cover_url.strip()
     if novel_extra:
         update_ebook(deps.WORKSPACE_PATH, result["slug"], {"novel": novel_extra})
+    request.app.state.job.queue.restore_ebook(result["slug"])
     return RedirectResponse(url=f"/ebooks/{result['slug']}/settings", status_code=303)
 
 
@@ -342,6 +351,7 @@ def create_ebooks_bulk(
             continue
 
         slug = created["slug"]
+        request.app.state.job.queue.restore_ebook(slug)
         if enable_continuous:
             automation = add_automation(deps.AUTOMATIONS_PATH, slug, list(CONTINUOUS_STEPS), cron)
             scheduler = getattr(request.app.state, "scheduler", None)
@@ -358,11 +368,21 @@ def create_ebooks_bulk(
 
 
 @router.post("/library/ebooks/{slug}/delete")
-def delete_ebook(slug: str, delete_config: bool = Form(False)):
-    lib = deps.library()
-    if slug not in lib.ebooks:
-        raise HTTPException(status_code=404, detail=f"Không tìm thấy ebook '{slug}'.")
-    # File gộp: xóa ebook = bỏ khối `ebooks.<slug>`. `delete_config` không còn ý
-    # nghĩa riêng (config nằm inline) nhưng giữ tham số để form cũ không vỡ.
-    remove_ebook(deps.WORKSPACE_PATH, slug)
+def delete_ebook(request: Request, slug: str, confirm_slug: str = Form(...)):
+    try:
+        delete_ebook_data(
+            deps.DB_PATH,
+            slug,
+            confirm_slug,
+            lambda: deps.resolved_cfg(slug).epub_path,
+            request.app.state.job.queue,
+        )
+    except ConfirmationMismatch as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except EbookNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except EbookBusy as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except EpubDeleteFailed as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return RedirectResponse(url="/", status_code=303)

@@ -51,7 +51,17 @@
             {% include "settings_reader.html" %}
         </div>
     </div>
+    <section class="mt-8 rounded-lg border border-status-err-light dark:border-status-err-dark p-4">
+        <h3 class="m-0 text-base font-semibold text-status-err-fg dark:text-status-err-fg-dark">Vùng nguy hiểm</h3>
+        <p class="mt-2 text-sm text-fg-muted dark:text-fg-muted-dark">
+            Xóa vĩnh viễn ebook và toàn bộ dữ liệu liên quan. Thao tác này không thể hoàn tác.
+        </p>
+        <button type="button" class="btn btn-danger mt-3"
+          data-delete-ebook="{{ slug }}"
+          onclick='openDeleteEbook({{ slug|tojson }}, {{ (cfg.novel.title or slug)|tojson }})'>Xóa ebook</button>
+    </section>
 </div>
+{% include "_delete_ebook_modal.html" %}
 
 <style>
 /* Local styles cho settings tab active + panel visibility (Tailwind cần hỗ trợ dynamic class). */

@@ -70,7 +70,6 @@
     <button type="button" onclick="bulkSubmit('run')" class="btn btn-sm btn-primary">▶ Chạy tất cả</button>
     <button type="button" onclick="bulkFetchToc()" class="btn btn-sm btn-secondary">Fetch TOC</button>
     <button type="button" onclick="bulkArchive()" class="btn btn-sm btn-secondary">Lưu trữ</button>
-    <button type="button" onclick="bulkDelete()" class="btn btn-sm btn-danger">Gỡ khỏi thư viện</button>
   </form>
   <button onclick="clearSelection()" class="ml-auto text-xs text-fg-muted dark:text-fg-muted-dark hover:underline">Bỏ chọn</button>
 </div>
@@ -141,6 +140,9 @@
             <a href="/ebooks/{{ ebook.slug }}" class="btn btn-sm btn-primary">Mở</a>
             {% if ebook.epub_exists %}<a href="/ebooks/{{ ebook.slug }}/download" class="btn btn-sm btn-secondary">EPUB</a>{% endif %}
             <a href="/ebooks/{{ ebook.slug }}/settings" class="btn btn-sm btn-secondary hidden md:inline-flex">Cài đặt</a>
+            <button type="button" class="btn btn-sm btn-danger"
+              data-delete-ebook="{{ ebook.slug }}"
+              onclick='openDeleteEbook({{ ebook.slug|tojson }}, {{ (ebook.cfg.novel.title or ebook.name)|tojson }})'>Xóa</button>
           </div>
         </td>
       </tr>
@@ -152,6 +154,7 @@
 </div>
 <p id="lib-empty" class="hidden text-sm text-fg-muted dark:text-fg-muted-dark text-center py-8">Không có ebook nào khớp bộ lọc.</p>
 </div>
+{% include "_delete_ebook_modal.html" %}
 
 <!-- Import config modal -->
 <div id="import-modal" class="modal-backdrop" hidden onclick="if(event.target===this)closeModal('import-modal')">
@@ -361,18 +364,6 @@ async function bulkArchive() {
     fetch(`/library/ebooks/${slug}/archive`, { method: "POST" }).catch(() => {})
   ));
   toast("Đã lưu trữ " + slugs.length + " ebook.");
-  clearSelection();
-  location.reload();
-}
-
-async function bulkDelete() {
-  if (!checkedSlugs.size) return;
-  const slugs = [...checkedSlugs];
-  if (!await confirmDialog("Gỡ " + slugs.length + " ebook khỏi thư viện? (Không xóa file)", { destructive: true })) return;
-  await Promise.all(slugs.map(slug =>
-    fetch(`/library/ebooks/${slug}/delete`, { method: "POST" }).catch(() => {})
-  ));
-  toast("Đã gỡ " + slugs.length + " ebook.");
   clearSelection();
   location.reload();
 }

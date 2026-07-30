@@ -8,7 +8,17 @@ from novel2epub.automation import load_automations
 
 
 def _fake_job():
+    class Queue:
+        def __init__(self):
+            self.restored = []
+
+        def restore_ebook(self, slug):
+            self.restored.append(slug)
+
     class Job:
+        def __init__(self):
+            self.queue = Queue()
+
         def status(self):
             return {
                 "crawl": {"running": False, "step": "", "error": "", "log": []},
@@ -59,6 +69,7 @@ def test_bulk_create_happy_path_three_urls(monkeypatch, tmp_path):
     assert len(results) == 3
     assert all(r["status"] == "created" for r in results)
     assert all(r["automation"] is True for r in results)
+    assert app.state.job.queue.restored == ["truyen-a", "truyen-b", "truyen-c"]
 
     automations = load_automations(tmp_path / "automations.yaml")
     assert len(automations) == 3

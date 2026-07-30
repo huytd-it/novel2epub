@@ -148,7 +148,7 @@ def export_ebook_config(slug: str):
 
 
 @router.post("/library/ebooks/import")
-async def import_ebook_config(slug: str = Form(...), file: UploadFile = File(...)):
+async def import_ebook_config(request: Request, slug: str = Form(...), file: UploadFile = File(...)):
     content = await file.read()
     try:
         data = yaml.safe_load(content.decode("utf-8")) or {}
@@ -163,6 +163,7 @@ async def import_ebook_config(slug: str = Form(...), file: UploadFile = File(...
     data.pop("translate", None)
     data.pop("ai", None)
     update_ebook(deps.WORKSPACE_PATH, slug, data)
+    request.app.state.job.queue.restore_ebook(slug)
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 

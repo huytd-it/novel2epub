@@ -9,7 +9,17 @@ from novel2epub.config import LibraryConfig
 
 
 def _fake_job():
+    class Queue:
+        def __init__(self):
+            self.restored = []
+
+        def restore_ebook(self, slug):
+            self.restored.append(slug)
+
     class Job:
+        def __init__(self):
+            self.queue = Queue()
+
         def status(self):
             return {
                 "crawl": {"running": False, "step": "", "error": "", "log": []},
@@ -90,6 +100,7 @@ def test_create_ebook_calls_add_ebook(monkeypatch, tmp_path):
     assert res.status_code == 303
     assert res.headers["location"] == "/ebooks/ten-truyen/settings"
     assert captured["slug"] == "ten-truyen"
+    assert app.state.job.queue.restored == ["ten-truyen"]
 
 
 def test_new_ebook_page_renders(monkeypatch, tmp_path):

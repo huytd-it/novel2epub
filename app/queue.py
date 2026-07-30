@@ -99,6 +99,7 @@ class JobQueue:
         self._ebook_locks: dict[str, set[str]] = {c: set() for c in (*CATEGORIES, "both")}
         self._history: deque[Job] = deque(maxlen=history_limit)
         self._jobs: dict[str, Job] = {}
+        self._retired_ebooks: set[str] = set()
         # SQLite db (bảng job_queue_history / job_queue_pending)
         self._db_path = Path(db_path) if db_path else None
         self._kind_factories: dict[str, Callable[[dict], Callable[[Callable[[str], None]], object]]] = {}
@@ -147,6 +148,8 @@ class JobQueue:
         if cancel_event is not None:
             job.cancel_event = cancel_event
         with self._cv:
+            if ebook and ebook in self._retired_ebooks:
+                raise ValueError(f"ebook '{ebook}' đã bị xóa")
             self._pending[category].append(job)
             self._jobs[job.id] = job
             self._cv.notify_all()
@@ -354,6 +357,35 @@ class JobQueue:
                     if job.step == step and (not ebook or job.ebook == ebook):
                         return True
         return False
+
+    def has_active_ebook(self, ebook: str) -> bool:
+        """Kiểm tra ebook có job đang chạy hoặc đang chờ hay không."""
+        with self._lock:
+            if any(job.ebook == ebook for job in self._running.values()):
+                return True
+            return any(
+                job.ebook == ebook
+                for pending in self._pending.values()
+                for job in pending
+            )
+
+    def retire_ebook(self, ebook: str) -> bool:
+        """Chặn job mới nếu ebook hiện không có job pending/running."""
+        with self._lock:
+            active = any(job.ebook == ebook for job in self._running.values()) or any(
+                job.ebook == ebook
+                for pending in self._pending.values()
+                for job in pending
+            )
+            if active:
+                return False
+            self._retired_ebooks.add(ebook)
+            return True
+
+    def restore_ebook(self, ebook: str) -> None:
+        """Cho phép enqueue lại slug sau khi tạo lại ebook hoặc xóa thất bại."""
+        with self._lock:
+            self._retired_ebooks.discard(ebook)
 
     def job_log(self, job_id: str) -> list[str] | None:
         with self._lock:

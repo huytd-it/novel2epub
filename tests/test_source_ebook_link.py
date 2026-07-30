@@ -329,7 +329,10 @@ class TestDbCleanup:
         }})
         tr = _read_settings_translate(config_path)
         assert tr["batch_size"] == 3
-        for field in ("profile", "genre", "glossary"):
+        # "genre" đã được hồi sinh (Task 6, có UI ở Task 9) nên không còn nằm
+        # trong danh sách deprecated — giá trị ghi xuống phải được giữ nguyên.
+        assert tr["genre"] == "y"
+        for field in ("profile", "glossary"):
             assert field not in tr
 
 

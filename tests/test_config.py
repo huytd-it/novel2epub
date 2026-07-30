@@ -346,3 +346,29 @@ def test_prompt_max_chars_parsed_from_yaml(tmp_path):
     )
     cfg = load_config(config_path)
     assert cfg.translate.prompt_max_chars == 12000
+
+
+def test_translate_genre_defaults_to_auto():
+    from novel2epub.config import TranslateConfig
+    assert TranslateConfig().genre == "auto"
+
+
+def test_genre_no_longer_deprecated():
+    from novel2epub.config_writer import _DEPRECATED_TRANSLATE_FIELDS
+    assert "genre" not in _DEPRECATED_TRANSLATE_FIELDS
+
+
+def test_default_prompts_carry_characters_placeholder():
+    from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT
+    from novel2epub.presets.go import GO_PROMPT
+    from novel2epub.presets.omniroute import OMNIPROUTE_PROMPT
+    for tpl in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, GO_PROMPT, OMNIPROUTE_PROMPT):
+        assert "{characters}" in tpl
+
+
+def test_default_prompt_no_longer_bans_ta_nguoi_globally():
+    # Vế "KHÔNG bê nguyên ta/ngươi" sai với cổ trang — đã chuyển xuống preset
+    # urban/romance, nơi nó đúng.
+    from novel2epub.config import DEFAULT_PROMPT
+    assert "KHÔNG bê nguyên ta/ngươi" not in DEFAULT_PROMPT
+    assert "[LỜI KỂ]" in DEFAULT_PROMPT

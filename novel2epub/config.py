@@ -180,7 +180,11 @@ DEFAULT_PROMPT = """Bạn là dịch giả tiểu thuyết mạng Trung Quốc s
 
 Nguyên tắc dịch:
 1. Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp Việt: đảo trật tự từ cho thuận, câu đủ chủ-vị.
-2. Ngôi xưng theo quan hệ và ngữ cảnh: cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu... KHÔNG bê nguyên ta/ngươi.
+2. Ngôi xưng theo quan hệ và ngữ cảnh — tuân thủ BẢNG NHÂN VẬT và quy tắc xưng hô bên dưới.
+   - [LỜI KỂ] ngôi 3 nhất quán theo bảng nhân vật.
+   - [THOẠI] ngôi xưng theo quan hệ người nói ↔ người nghe, độc lập với lời kể.
+   - [NỘI TÂM] dùng cách nhân vật tự gọi mình.
+   - [HỆ THỐNG] giọng máy, xưng "Ký chủ"/"Người chơi", không cảm xúc.
 3. Tên riêng, công pháp, địa danh, chiêu thức: giữ Hán Việt quen thuộc, viết hoa, nhất quán.
 4. NGOẠI LỆ của luật 3 — tên người nước ngoài (Âu-Mỹ, Nhật, Hàn...) được bản gốc phiên âm sang chữ Hán: trả về ĐÚNG dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura), KHÔNG chuyển thành Hán Việt (KHÔNG "Hạ Lạc Khắc", "Minh Nhân"). Viết hoa và NHẤT QUÁN xuyên suốt. CHỈ áp dụng khi nhận ra CHẮC CHẮN tên gốc; không chắc thì giữ Hán Việt theo luật 3.
 5. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, nhưng giữ chất cổ trang khi cần.
@@ -200,6 +204,7 @@ CHỈ trả về bản dịch tiếng Việt thuần túy. KHÔNG thêm lời m�
 KIỂM TRA CUỐI (bắt buộc): trước khi trả lời, rà lại toàn bộ bản dịch từ đầu đến cuối; nếu còn BẤT KỲ ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
 {idioms}
+{characters}
 --- Nội dung cần dịch ---
 {text}{auto_glossary_block}"""
 
@@ -226,7 +231,11 @@ EN_DEFAULT_PROMPT = """You are a professional translator converting English web 
 
 Translation rules:
 1. Translate into natural, grammatically correct Vietnamese — restructure word order as needed.
-2. Pronouns based on relationship and context: cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu... Do NOT blindly copy English pronouns.
+2. Pronouns follow the CHARACTER TABLE and pronoun rules below.
+   - [LỜI KỂ] ngôi 3 nhất quán theo bảng nhân vật.
+   - [THOẠI] ngôi xưng theo quan hệ người nói ↔ người nghe, độc lập với lời kể.
+   - [NỘI TÂM] dùng cách nhân vật tự gọi mình.
+   - [HỆ THỐNG] giọng máy, xưng "Ký chủ"/"Người chơi", không cảm xúc.
 3. Keep well-known Hán Việt names for characters, techniques, and places. Write in uppercase, be consistent.
 4. EXCEPTION to rule 3 — foreign character names (Western, Japanese, Korean...) that appear as pinyin or English glosses in the source: try to resolve them to the familiar Hán Việt form when confident (e.g. "Xie Lian" → "Tạ Liên", "Wei Wuxian" → "Ngụy Vô Tiện"). If not confident, keep the English/pinyin form as-is. Capitalize and be consistent throughout.
 5. Avoid obscure Hán Việt when a pure Vietnamese word is clearer, but keep the ancient/fantasy tone where appropriate.
@@ -246,6 +255,7 @@ ONLY return the pure Vietnamese translation. NO preamble, notes, explanations, o
 FINAL CHECK (mandatory): before answering, scan the entire translation end to end; if ANY Chinese characters remain, translate them to Vietnamese before answering.
 {glossary}
 {idioms}
+{characters}
 --- Content to translate ---
 {text}{auto_glossary_block}"""
 
@@ -325,7 +335,7 @@ class TranslateConfig:
     profile: str = "traditional_cn_novel"
     source_language: str = ""
     target_language: str = "vi"
-    genre: str = ""
+    genre: str = "auto"
     style: TranslationStyleConfig = field(default_factory=TranslationStyleConfig)
     glossary: dict[str, str] = field(default_factory=dict)
     glossary_files: GlossaryFilesConfig = field(default_factory=GlossaryFilesConfig)

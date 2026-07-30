@@ -17,6 +17,7 @@ from .logging_config import setup_logging
 from .routes import (
     automation,
     chapters,
+    characters,
     dashboard,
     ebooks,
     glossary,
@@ -77,6 +78,7 @@ app.router.lifespan_context = lifespan
 
 app.include_router(ebooks.router)
 app.include_router(chapters.router)
+app.include_router(characters.router)
 app.include_router(glossary.router)
 app.include_router(idioms.router)
 app.include_router(jobs.router)

@@ -250,3 +250,43 @@ def test_glossary_export_round_trip_flat():
     text = b.build_glossary_export(glossary)
     assert "## GLOSSARY" in text
     assert b.parse_glossary(text) == glossary
+
+
+# ── Task 8: khối nhân vật trong Xuất RAW + vá {idioms} rò ──────────────
+
+
+def test_build_export_includes_character_block():
+    out = b.build_export(
+        [(1, "Chương 1", "Nội dung")],
+        glossary={"林凡": "Lâm Phàm"},
+        characters="BẢNG NHÂN VẬT & NGÔI XƯNG (bắt buộc, không tự ý đổi):\n林凡 = Lâm Phàm",
+    )
+    assert "BẢNG NHÂN VẬT & NGÔI XƯNG" in out
+    # Khối nhân vật đứng sau glossary, trước chương đầu tiên.
+    assert out.index("Glossary tham khảo") < out.index("BẢNG NHÂN VẬT")
+    assert out.index("BẢNG NHÂN VẬT") < out.index("## idx:1")
+
+
+def test_build_export_omits_empty_character_block():
+    # Chuỗi chỉ toàn khoảng trắng phải bị coi là rỗng — dùng "" không đủ để
+    # bắt thiếu `.strip()` (falsy cả khi thiếu guard), nên test cũ pass giả.
+    out = b.build_export([(1, "Chương 1", "Nội dung")], characters="   \n  ")
+    assert "BẢNG NHÂN VẬT" not in out
+
+
+def test_translate_prompt_from_cfg_leaks_no_placeholders():
+    # `config.Config` (novel2epub/config.py) đòi 4 field bắt buộc (novel/crawl/
+    # translate/output) không default riêng ở cấp Config, nhưng bản thân từng
+    # dataclass con đều dựng rỗng được — hàm chỉ đọc cfg.translate.{openai,style,genre}.
+    cfg = config.Config(
+        novel=config.NovelConfig(),
+        crawl=config.CrawlConfig(),
+        translate=config.TranslateConfig(),
+        output=config.OutputConfig(),
+    )
+    out = b.build_translate_prompt_from_cfg(cfg)
+    for placeholder in ("{idioms}", "{characters}", "{glossary}", "{text}",
+                        "{pronoun_policy}", "{tone}", "{han_viet_level}"):
+        assert placeholder not in out
+    # Luật thể loại phải được render ra, không phải chuỗi enum trần.
+    assert "contextual" not in out

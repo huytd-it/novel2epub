@@ -11,7 +11,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _SCHEMA_STATEMENTS = [
     """
@@ -126,6 +126,39 @@ _SCHEMA_STATEMENTS = [
         literals TEXT NOT NULL DEFAULT '',
         protect INTEGER NOT NULL DEFAULT 0,
         position INTEGER NOT NULL DEFAULT 0
+    ) WITHOUT ROWID
+    """,
+    # ── bảng nhân vật & ngôi xưng theo ebook ──────────────────────────────
+    # Giải lỗi ngôi xưng: tiếng Trung chỉ có 我/你/他/她, tiếng Việt cần biết
+    # giới tính, vai vế, alias và GIAI ĐOẠN quan hệ. `role_note` cố ý là văn
+    # xuôi tự do — LLM đọc tốt hơn mọi enum ép được.
+    """
+    CREATE TABLE IF NOT EXISTS characters (
+        ebook_slug   TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        source       TEXT NOT NULL,
+        target       TEXT NOT NULL DEFAULT '',
+        aliases      TEXT NOT NULL DEFAULT '',
+        gender       TEXT NOT NULL DEFAULT '',
+        self_pronoun TEXT NOT NULL DEFAULT '',
+        narrator_ref TEXT NOT NULL DEFAULT '',
+        role_note    TEXT NOT NULL DEFAULT '',
+        importance   TEXT NOT NULL DEFAULT 'side',
+        position     INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (ebook_slug, source)
+    ) WITHOUT ROWID
+    """,
+    # Quan hệ CÓ HƯỚNG (A→B khác B→A: đồ đệ gọi sư phụ khác chiều ngược lại).
+    # `from_chapter` nằm trong khoá chính để một cặp có nhiều mốc xưng hô.
+    """
+    CREATE TABLE IF NOT EXISTS character_relations (
+        ebook_slug   TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        a_source     TEXT NOT NULL,
+        b_source     TEXT NOT NULL,
+        from_chapter INTEGER NOT NULL DEFAULT 0,
+        a_calls_b    TEXT NOT NULL DEFAULT '',
+        a_self       TEXT NOT NULL DEFAULT '',
+        note         TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (ebook_slug, a_source, b_source, from_chapter)
     ) WITHOUT ROWID
     """,
     # ── ghi chú lỗi dịch (trang đọc) ──────────────────────────────────────

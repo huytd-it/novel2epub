@@ -48,7 +48,7 @@ class _ChunkingTranslator:
     def __init__(self):
         self.calls = 0
 
-    def translate(self, text, *, on_chunk=None, on_glossary=None):
+    def translate(self, text, *, chapter_idx=None, on_chunk=None, on_glossary=None):
         parts = ["PHẦN 1", "PHẦN 2", "PHẦN 3"]
         if on_chunk is not None:
             for i, p in enumerate(parts, 1):
@@ -83,7 +83,7 @@ def test_translate_one_failure_does_not_mark_complete(tmp_path, monkeypatch):
     """Nếu translator raise giữa chừng, meta KHÔNG có `complete: true`."""
 
     class _FailingTranslator:
-        def translate(self, text, *, on_chunk=None, on_glossary=None):
+        def translate(self, text, *, chapter_idx=None, on_chunk=None, on_glossary=None):
             if on_chunk is not None:
                 on_chunk(1, 2, "PHẦN 1", False)  # chunk 1 OK
             raise RuntimeError("CLI lỗi giữa chừng")
@@ -117,9 +117,9 @@ def test_partial_chapter_is_retried_on_next_run(tmp_path, monkeypatch):
     seen: list[str] = []
 
     class _RecordingTranslator(_ChunkingTranslator):
-        def translate(self, text, *, on_chunk=None, on_glossary=None):
+        def translate(self, text, *, chapter_idx=None, on_chunk=None, on_glossary=None):
             seen.append("called")
-            return super().translate(text, on_chunk=on_chunk, on_glossary=on_glossary)
+            return super().translate(text, chapter_idx=chapter_idx, on_chunk=on_chunk, on_glossary=on_glossary)
 
         def translate_title(self, text, kind="tên chương"):
             return text, ""
@@ -131,3 +131,76 @@ def test_partial_chapter_is_retried_on_next_run(tmp_path, monkeypatch):
     # File đã được ghi đè với đầy đủ 3 chunk.
     assert storage.read_translated(ch) == "PHẦN 1\nPHẦN 2\nPHẦN 3"
     assert storage.read_meta(ch)["complete"] is True
+
+
+def _translator_with_characters(tmp_path, template):
+    from novel2epub.config import TranslateConfig
+    from novel2epub.storage import Storage
+    from novel2epub.translator import OpenAITranslator
+
+    storage = Storage(str(tmp_path), "truyen-test")
+    storage.upsert_character("林凡", "Lâm Phàm", "凡儿", "nam", "ta", "hắn", "", "main")
+    storage.upsert_character("苏清雪", "Tô Thanh Tuyết", "", "nu", "", "nàng", "", "side")
+    storage.upsert_relation("林凡", "苏清雪", 0, "nàng", "ta")
+    storage.upsert_relation("林凡", "苏清雪", 120, "em", "anh")
+
+    cfg = TranslateConfig()
+    cfg.genre = "xianxia"
+    cfg.openai.prompt_template = template
+    return OpenAITranslator(cfg, storage=storage), storage
+
+
+def test_prompt_contains_character_block(tmp_path):
+    tr, _ = _translator_with_characters(tmp_path, "A\n{characters}\n{text}")
+    prompt = tr._build_prompt("苏清雪 走了进来。", chapter_idx=200)
+    assert "BẢNG NHÂN VẬT & NGÔI XƯNG" in prompt
+    assert "林凡 = Lâm Phàm" in prompt          # main, luôn chèn
+    assert 'với Tô Thanh Tuyết: gọi "em", tự xưng "anh"' in prompt   # mốc 120
+
+
+def test_prompt_uses_chapter_zero_milestone_when_idx_missing(tmp_path):
+    tr, _ = _translator_with_characters(tmp_path, "A\n{characters}\n{text}")
+    prompt = tr._build_prompt("苏清雪 走了进来。", chapter_idx=None)
+    assert 'gọi "nàng"' in prompt
+    assert 'gọi "em"' not in prompt
+
+
+def test_block_injected_when_template_lacks_placeholder(tmp_path):
+    # Template pin cũ không có {characters} → vẫn phải được chèn, ngay trước nội dung.
+    tr, _ = _translator_with_characters(tmp_path, "A\n{glossary}\n{text}")
+    prompt = tr._build_prompt("苏清雪 走了进来。", chapter_idx=0)
+    assert "BẢNG NHÂN VẬT & NGÔI XƯNG" in prompt
+    assert prompt.index("BẢNG NHÂN VẬT") < prompt.index("苏清雪 走了进来。")
+
+
+def test_pin_line_is_last(tmp_path):
+    tr, _ = _translator_with_characters(tmp_path, "A\n{characters}\n{text}")
+    prompt = tr._build_prompt("苏清雪 走了进来。", chapter_idx=0)
+    assert "NHẮC LẠI:" in prompt
+    assert prompt.index("NHẮC LẠI:") > prompt.index("苏清雪 走了进来。")
+
+
+def test_pronoun_policy_renders_genre_rules(tmp_path):
+    tr, _ = _translator_with_characters(tmp_path, "P={pronoun_policy}\n{text}")
+    prompt = tr._build_prompt("走。", chapter_idx=0)
+    assert "tại hạ" in prompt
+    assert "contextual" not in prompt
+
+
+def test_rate_limited_forwards_chapter_idx():
+    """RateLimited là wrapper — quên chuyển tiếp chapter_idx thì mọi ebook có
+    giới hạn tốc độ sẽ mất mốc quan hệ (`from_chapter`) mà không báo lỗi gì."""
+    from novel2epub.translator import RateLimited
+
+    class _Recorder:
+        def __init__(self):
+            self.seen_chapter_idx = "chưa gọi"
+
+        def translate(self, text, *, chapter_idx=None, on_chunk=None, on_glossary=None):
+            self.seen_chapter_idx = chapter_idx
+            return text
+
+    inner = _Recorder()
+    wrapped = RateLimited(inner, delay_seconds=0)
+    wrapped.translate("苏清雪 走了进来。", chapter_idx=42)
+    assert inner.seen_chapter_idx == 42

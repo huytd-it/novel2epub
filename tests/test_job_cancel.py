@@ -33,7 +33,7 @@ class _FakeCrawler:
 
 
 class _UpperTranslator:
-    def translate(self, text, *, on_chunk=None, on_glossary=None):
+    def translate(self, text, *, chapter_idx=None, on_chunk=None, on_glossary=None):
         out = f"VI:{text}"
         if on_chunk is not None:
             on_chunk(1, 1, out, True)

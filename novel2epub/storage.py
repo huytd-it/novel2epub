@@ -953,3 +953,143 @@ class Storage:
                 "UPDATE chapters SET translated_mt_text = NULL WHERE ebook_slug = ?", (self.slug,)
             )
         return row["n"]
+
+    # ----- nhân vật & ngôi xưng (per-ebook) -----
+    def read_character_entries(self) -> list[tuple[str, str, str, str, str, str, str, str]]:
+        """Đọc nhân vật của ebook → list tuple 8 phần tử, thứ tự khớp
+        `characters.characters_from_rows`."""
+        rows = self.conn.execute(
+            "SELECT source, target, aliases, gender, self_pronoun, narrator_ref, "
+            "role_note, importance FROM characters WHERE ebook_slug=? ORDER BY position",
+            (self.slug,),
+        ).fetchall()
+        return [
+            (r["source"], r["target"], r["aliases"], r["gender"], r["self_pronoun"],
+             r["narrator_ref"], r["role_note"], r["importance"])
+            for r in rows
+        ]
+
+    def upsert_character(
+        self,
+        source: str,
+        target: str = "",
+        aliases: str = "",
+        gender: str = "",
+        self_pronoun: str = "",
+        narrator_ref: str = "",
+        role_note: str = "",
+        importance: str = "side",
+    ) -> bool:
+        """Thêm/cập nhật MỘT nhân vật. Trim; bỏ qua nếu thiếu source. Mục mới
+        nhận position = max+1; trùng source → cập nhật tại chỗ."""
+        source = (source or "").strip()
+        if not source:
+            return False
+        importance = (importance or "").strip() or "side"
+        self.ensure_dirs()
+        with self.conn:
+            row = self.conn.execute(
+                "SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM characters "
+                "WHERE ebook_slug=?",
+                (self.slug,),
+            ).fetchone()
+            self.conn.execute(
+                """
+                INSERT INTO characters (ebook_slug, source, target, aliases, gender,
+                    self_pronoun, narrator_ref, role_note, importance, position)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(ebook_slug, source) DO UPDATE SET
+                    target = excluded.target, aliases = excluded.aliases,
+                    gender = excluded.gender, self_pronoun = excluded.self_pronoun,
+                    narrator_ref = excluded.narrator_ref, role_note = excluded.role_note,
+                    importance = excluded.importance
+                """,
+                (self.slug, source, (target or "").strip(), (aliases or "").strip(),
+                 (gender or "").strip(), (self_pronoun or "").strip(),
+                 (narrator_ref or "").strip(), (role_note or "").strip(),
+                 importance, row["next_pos"]),
+            )
+        return True
+
+    def delete_character(self, source: str) -> bool:
+        """Xoá nhân vật VÀ mọi quan hệ dính tới nó (cả hai chiều).
+
+        Dọn tường minh ở đây thay vì FK ghép khoá tới `characters` — quan hệ mồ
+        côi không gây lỗi nhưng làm bẩn dữ liệu và bảng quan hệ trên web.
+        """
+        source = (source or "").strip()
+        if not source:
+            return False
+        with self.conn:
+            self.conn.execute(
+                "DELETE FROM character_relations WHERE ebook_slug=? AND (a_source=? OR b_source=?)",
+                (self.slug, source, source),
+            )
+            cur = self.conn.execute(
+                "DELETE FROM characters WHERE ebook_slug=? AND source=?",
+                (self.slug, source),
+            )
+        return cur.rowcount > 0
+
+    def read_relation_entries(self) -> list[tuple[str, str, int, str, str, str]]:
+        """Đọc quan hệ của ebook → list tuple 6 phần tử, thứ tự khớp
+        `characters.relations_from_rows`."""
+        rows = self.conn.execute(
+            "SELECT a_source, b_source, from_chapter, a_calls_b, a_self, note "
+            "FROM character_relations WHERE ebook_slug=? "
+            "ORDER BY a_source, b_source, from_chapter",
+            (self.slug,),
+        ).fetchall()
+        return [
+            (r["a_source"], r["b_source"], int(r["from_chapter"]),
+             r["a_calls_b"], r["a_self"], r["note"])
+            for r in rows
+        ]
+
+    def upsert_relation(
+        self,
+        a_source: str,
+        b_source: str,
+        from_chapter: int = 0,
+        a_calls_b: str = "",
+        a_self: str = "",
+        note: str = "",
+    ) -> bool:
+        """Thêm/cập nhật MỘT mốc quan hệ có hướng. Bỏ qua nếu thiếu một đầu."""
+        a_source = (a_source or "").strip()
+        b_source = (b_source or "").strip()
+        if not a_source or not b_source:
+            return False
+        try:
+            from_chapter = int(from_chapter)
+        except (TypeError, ValueError):
+            from_chapter = 0
+        self.ensure_dirs()
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO character_relations (ebook_slug, a_source, b_source,
+                    from_chapter, a_calls_b, a_self, note)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(ebook_slug, a_source, b_source, from_chapter) DO UPDATE SET
+                    a_calls_b = excluded.a_calls_b, a_self = excluded.a_self,
+                    note = excluded.note
+                """,
+                (self.slug, a_source, b_source, from_chapter,
+                 (a_calls_b or "").strip(), (a_self or "").strip(), (note or "").strip()),
+            )
+        return True
+
+    def delete_relation(self, a_source: str, b_source: str, from_chapter: int = 0) -> bool:
+        """Xoá MỘT mốc quan hệ có hướng theo cặp (a_source, b_source, from_chapter)."""
+        a_source = (a_source or "").strip()
+        b_source = (b_source or "").strip()
+        if not a_source or not b_source:
+            return False
+        with self.conn:
+            cur = self.conn.execute(
+                "DELETE FROM character_relations WHERE ebook_slug=? AND a_source=? "
+                "AND b_source=? AND from_chapter=?",
+                (self.slug, a_source, b_source, int(from_chapter)),
+            )
+        return cur.rowcount > 0

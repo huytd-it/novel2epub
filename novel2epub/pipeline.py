@@ -836,7 +836,10 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     try:
         _run_with_heartbeat(
             log, f"[dịch]   ({i}/{total})",
-            lambda: translator.translate(source_text, on_chunk=_on_chunk, on_glossary=_on_glossary),
+            lambda: translator.translate(
+                source_text, chapter_idx=ch.index,
+                on_chunk=_on_chunk, on_glossary=_on_glossary,
+            ),
         )
     except Exception as e:  # noqa: BLE001 - caller quyết định dừng sớm hay tiếp tục
         ch.last_action_status = "failed"

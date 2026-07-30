@@ -51,7 +51,7 @@ class _FakeTranslator:
         self.output = output
         self.seen: list[str] = []
 
-    def translate(self, text, *, on_chunk=None, on_glossary=None):
+    def translate(self, text, *, chapter_idx=None, on_chunk=None, on_glossary=None):
         self.seen.append(text)
         if on_chunk is not None:
             on_chunk(1, 1, self.output, True)
@@ -141,7 +141,7 @@ def test_streamed_title_chunk_rewritten_to_body_only(tmp_path, monkeypatch):
         def __init__(self):
             self.seen = []
 
-        def translate(self, text, *, on_chunk=None, on_glossary=None):
+        def translate(self, text, *, chapter_idx=None, on_chunk=None, on_glossary=None):
             self.seen.append(text)
             parts = ["Chương 12: Gió Nổi\nĐoạn 1.", "Đoạn 2.", "Đoạn 3."]
             for i, p in enumerate(parts, 1):

@@ -26,6 +26,7 @@ Luật dịch:
 Chỉ trả về bản dịch, không thêm lời dẫn hay chú thích.
 KIỂM TRA CUỐI: rà lại toàn bộ đầu ra; nếu còn ký tự Trung Quốc nào, dịch nốt sang tiếng Việt rồi mới trả lời.
 {glossary}
+{characters}
 --- Văn bản gốc ---
 {text}{auto_glossary_block}"""
 

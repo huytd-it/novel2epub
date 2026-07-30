@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 import html
 
 from novel2epub import bulk_transfer, footnotes
+from novel2epub import characters as characters_mod
 from novel2epub.pipeline import (
     step_cleanup_han_selected,
     step_crawl_selected,
@@ -937,6 +938,35 @@ def _filter_glossary_for_batch(
     return _filter_glossary(glossary, zh_text=combined if is_zh else "", vi_text=combined if not is_zh else "")
 
 
+def _characters_block_for_batch(
+    chars_all: list[characters_mod.Character],
+    rels_all: list[characters_mod.Relation],
+    items: list[tuple[int, str, str]],
+    source_language: str = "",
+) -> str:
+    """Render kh\u1ed1i B\u1ea2NG NH\u00c2N V\u1eacT & NG\u00d4I X\u01afNG cho m\u1ed9t l\u00f4 export/d\u1ecbch.
+
+    M\u1ed9t l\u00f4 export tr\u1ea3i nhi\u1ec1u ch\u01b0\u01a1ng n\u00ean kh\u00f4ng c\u00f3 chapter_idx duy nh\u1ea5t \u2014 d\u00f9ng
+    index NH\u1ece NH\u1ea4T trong l\u00f4 l\u00e0m m\u1ed1c (gi\u1eef tr\u1ea1ng th\u00e1i quan h\u1ec7 \u1edf \u0111\u1ea7u l\u00f4, an to\u00e0n
+    h\u01a1n l\u1ea5y m\u1ed1c cu\u1ed1i), v\u00e0 l\u1ecdc nh\u00e2n v\u1eadt tr\u00ean to\u00e0n b\u1ed9 raw c\u1ee7a l\u00f4 n\u1ed1i l\u1ea1i (k\u00e8m
+    title, gi\u1ed1ng `_filter_glossary_for_batch` \u2014 nh\u00e2n v\u1eadt ch\u1ec9 xu\u1ea5t hi\u1ec7n \u1edf ti\u00eau
+    \u0111\u1ec1 ch\u01b0\u01a1ng kh\u00f4ng \u0111\u01b0\u1ee3c b\u1ecf s\u00f3t).
+
+    `source_language` ph\u1ea3i \u0111\u01b0\u1ee3c truy\u1ec1n kh\u1edbp v\u1edbi \u0111\u01b0\u1eddng API (xem
+    `translator.py`) \u2014 thi\u1ebfu n\u00f3, `filter_for_text` m\u1eb7c \u0111\u1ecbnh so kh\u1edbp ki\u1ec3u
+    ngu\u1ed3n H\u00e1n (substring) thay v\u00ec ranh gi\u1edbi t\u1eeb cho ngu\u1ed3n Latin, khi\u1ebfn 2 \u0111\u01b0\u1eddng
+    l\u1ecdc nh\u00e2n v\u1eadt kh\u00f4ng \u0111\u1ed3ng nh\u1ea5t cho ebook ngu\u1ed3n ti\u1ebfng Anh.
+    """
+    if not items:
+        return ""
+    batch_idx = min(idx for idx, _t, _c in items)
+    batch_text = "\n".join(f"{title}\n{content}" for _i, title, content in items)
+    return characters_mod.format_llm_block(
+        characters_mod.filter_for_text(chars_all, batch_text, source_language=source_language),
+        characters_mod.resolve_relations(rels_all, batch_idx),
+    )
+
+
 def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
     if source not in _EXPORT_PROMPTS:
         raise HTTPException(status_code=400, detail=f"source không hợp lệ: {source!r}")
@@ -979,9 +1009,15 @@ def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
         prompt = bulk_transfer.build_translate_prompt_from_cfg(cfg)
     else:
         prompt = _EXPORT_PROMPTS[source]
+    chars_all = characters_mod.characters_from_rows(storage.read_character_entries())
+    rels_all = characters_mod.relations_from_rows(storage.read_relation_entries())
+    characters_block = _characters_block_for_batch(
+        chars_all, rels_all, items, source_language=cfg.translate.source_language,
+    )
     text = bulk_transfer.build_export(
         items,
         glossary=glossary,
+        characters=characters_block,
         prompt=prompt,
     )
     return JSONResponse({"text": text, "skipped": skipped, "total": len(items), "source": source})
@@ -1160,6 +1196,10 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
 
     # Glossary chung — đọc 1 lần (2 list gộp 1), merge dần qua các batch
     ref_glossary = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
+    # Bảng nhân vật & quan hệ — đọc 1 lần, lọc/resolve lại cho từng batch bên dưới
+    # (mỗi batch có thể có nhân vật khác nhau và mốc quan hệ khác nhau).
+    chars_all = characters_mod.characters_from_rows(storage.read_character_entries())
+    rels_all = characters_mod.relations_from_rows(storage.read_relation_entries())
 
     # Chia items thành các batch: tối đa translate.batch_size chương/batch,
     # VÀ khối export (prompt + glossary + chương) không vượt
@@ -1170,7 +1210,11 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
         if cfg.translate.glossary_filter:
             bg = _filter_glossary_for_batch(ref_glossary, batch)
         return len(bulk_transfer.build_export(
-            batch, glossary=bg, prompt=bulk_transfer.build_translate_prompt_from_cfg(cfg),
+            batch, glossary=bg,
+            characters=_characters_block_for_batch(
+                chars_all, rels_all, batch, source_language=cfg.translate.source_language,
+            ),
+            prompt=bulk_transfer.build_translate_prompt_from_cfg(cfg),
         ))
 
     batch_size = max(1, cfg.translate.batch_size)
@@ -1215,6 +1259,9 @@ def _run_batch_translate(slug: str, index_list: list[int], log: Callable[[str], 
         export_text = bulk_transfer.build_export(
             batch_items,
             glossary=batch_glossary,
+            characters=_characters_block_for_batch(
+                chars_all, rels_all, batch_items, source_language=cfg.translate.source_language,
+            ),
             prompt=bulk_transfer.build_translate_prompt_from_cfg(cfg),
         )
 

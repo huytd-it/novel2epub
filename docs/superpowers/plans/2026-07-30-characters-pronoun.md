@@ -27,10 +27,15 @@ pytest.
   mất sạch khỏi prompt.
 - Chạy test: `pytest tests/ -v`. Chạy một file: `pytest tests/test_characters.py -v`.
 - Mỗi task kết thúc bằng một commit.
-- **Chỉ backend `openai` được hưởng lợi.** `hachimimt` (NMT cục bộ), `google`,
-  `libretranslate` dịch thẳng văn bản như Google Translate — không nhận chỉ dẫn,
-  không có `_build_prompt`. Bảng nhân vật và preset thể loại không tác động gì
-  tới chúng. Đừng cố nhét khối vào các đường đó.
+- **Phạm vi backend: chỉ `openai`** — bao gồm cả hai preset prompt `go` và
+  `omniroute`, vì cả hai đều chạy trên backend OpenAI-Compatible.
+- **`hachimimt` NẰM NGOÀI PHẠM VI, không đụng tới bất kỳ file nào trong
+  `novel2epub/hachimimt/`.** Nó cùng `google` và `libretranslate` dịch thẳng văn
+  bản như Google Translate — không nhận chỉ dẫn, không có `_build_prompt`. Bảng
+  nhân vật và preset thể loại không tác động gì tới chúng.
+- Không module mới nào được import từ `novel2epub.hachimimt`: package đó kéo
+  theo `sentencepiece` + `huggingface_hub` (dep TÙY CHỌN) ngay ở `__init__.py`,
+  sẽ biến chúng thành bắt buộc cho đường dịch mặc định.
 
 ---
 
@@ -528,11 +533,21 @@ git commit -m "feat: render khối bảng nhân vật + dòng ghim cuối prompt
 - Test: `tests/test_genre.py`
 
 **Interfaces:**
-- Consumes: `novel2epub.hachimimt.honorific_normalize.is_classical` (đã có sẵn).
+- Consumes: không có. **`genre.py` KHÔNG được import gì từ `novel2epub.hachimimt`.**
 - Produces: `GENRE_PRESETS: dict[str, GenrePreset]`, `GENRE_KEYS: tuple[str, ...]`,
-  `format_pronoun_rules(genre, user_policy="", text="") -> str`,
-  `forbid_words(genre, text="") -> str`,
+  `resolve_genre(genre) -> GenrePreset`,
+  `format_pronoun_rules(genre, user_policy="") -> str`,
+  `forbid_words(genre) -> str`,
   `format_style_value(field, value) -> str`.
+
+**Ràng buộc phạm vi:** `hachimimt` nằm NGOÀI phạm vi và không được đụng tới.
+Bản plan trước định dùng `hachimimt.honorific_normalize.is_classical()` cho
+`genre="auto"`, nhưng `hachimimt/__init__.py:4` import thẳng `.translator`, file
+này có `import sentencepiece` và `from huggingface_hub import snapshot_download`
+ở top level — hai dep TÙY CHỌN. Vì `genre.py` được `translator.py` và
+`bulk_transfer.py` import, chuỗi đó sẽ biến dep tùy chọn thành bắt buộc cho
+backend `openai` mặc định. Do đó `auto` là preset TRUNG TÍNH, không đoán thể
+loại từ nội dung; người dùng chọn thể loại bằng dropdown.
 
 - [ ] **Step 1: Viết test thất bại**
 
@@ -563,13 +578,19 @@ def test_urban_forbids_classical_pronouns():
     assert G.forbid_words("xianxia") != G.forbid_words("urban")
 
 
-def test_auto_detects_classical_from_text():
-    # Text đậm tín hiệu tu tiên → nhánh cổ trang.
-    classical = G.format_pronoun_rules("auto", text="他修真筑基，结丹成功，法宝在手。")
-    assert "tại hạ" in classical
-    # Text đậm tín hiệu hiện đại → nhánh hiện đại.
-    modern = G.format_pronoun_rules("auto", text="他在公司用电脑打电话给经理。")
-    assert "tại hạ" not in modern
+def test_genre_module_does_not_import_hachimimt():
+    # hachimimt kéo theo sentencepiece + huggingface_hub (dep TÙY CHỌN) qua
+    # __init__.py của nó; genre.py nằm trên đường dịch mặc định nên không được
+    # phụ thuộc vào chúng.
+    import inspect
+    from novel2epub import genre
+    assert "hachimimt" not in inspect.getsource(genre)
+
+
+def test_auto_is_neutral_and_forbids_nothing():
+    out = G.format_pronoun_rules("auto")
+    assert "tại hạ" not in out
+    assert G.forbid_words("auto") == ""
 
 
 def test_user_policy_appended_only_when_customised():
@@ -606,18 +627,14 @@ Trước đây `translate.style.pronoun_policy` mặc định là chuỗi "conte
 được nhét thẳng vào prompt, tức model đọc được đúng một từ vô nghĩa. Module này
 biến lựa chọn thể loại thành BỘ LUẬT THẬT: từ nên dùng, từ cấm, mức Hán Việt.
 
-`auto` không tự phát minh cách đoán thể loại mà dùng lại
-`hachimimt.honorific_normalize.is_classical()` — nơi đã có sẵn danh sách tín
-hiệu tu tiên / hiện đại.
-
-Lưu ý phân biệt: `hachimimt/postprocess_policy.py` có `classify_genre()` cho
-mục đích khác (chính sách hậu xử lý MT), không liên quan module này.
+`auto` là preset TRUNG TÍNH — không đoán thể loại từ nội dung. Module này KHÔNG
+được import gì từ `novel2epub.hachimimt`: package đó kéo theo `sentencepiece` và
+`huggingface_hub` (dep tùy chọn) ngay ở `__init__`, mà `genre.py` lại nằm trên
+đường dịch mặc định của backend `openai`.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-from .hachimimt.honorific_normalize import is_classical
 
 # Giá trị mặc định cũ của style.pronoun_policy — coi như "người dùng chưa ghi
 # gì", không nối vào luật.
@@ -712,33 +729,24 @@ GENRE_PRESETS: dict[str, GenrePreset] = {
 GENRE_KEYS: tuple[str, ...] = tuple(GENRE_PRESETS)
 
 
-def resolve_genre(genre: str, text: str = "") -> GenrePreset:
-    """Trả preset thực dùng. Giá trị lạ hoặc rỗng → `auto`; `auto` thì đoán từ
-    nội dung qua `is_classical()`."""
+def resolve_genre(genre: str) -> GenrePreset:
+    """Trả preset thực dùng. Giá trị lạ hoặc rỗng → `auto` (trung tính)."""
     key = (genre or "").strip().lower() or "auto"
-    if key not in GENRE_PRESETS:
-        key = "auto"
-    if key != "auto":
-        return GENRE_PRESETS[key]
-    if text and is_classical(text):
-        return GENRE_PRESETS["xianxia"]
-    if text:
-        return GENRE_PRESETS["urban"]
-    return GENRE_PRESETS["auto"]
+    return GENRE_PRESETS.get(key, GENRE_PRESETS["auto"])
 
 
-def forbid_words(genre: str, text: str = "") -> str:
+def forbid_words(genre: str) -> str:
     """Danh sách từ cấm của thể loại — dùng cho dòng ghim cuối prompt."""
-    return resolve_genre(genre, text).forbid_words
+    return resolve_genre(genre).forbid_words
 
 
-def format_pronoun_rules(genre: str, user_policy: str = "", text: str = "") -> str:
+def format_pronoun_rules(genre: str, user_policy: str = "") -> str:
     """Render luật xưng hô để thay vào placeholder {pronoun_policy}.
 
     `user_policy` chỉ được nối thêm khi người dùng thực sự ghi gì đó khác giá trị
     mặc định cũ ("contextual") — giữ được quyền ghi đè mà không rò enum vào prompt.
     """
-    preset = resolve_genre(genre, text)
+    preset = resolve_genre(genre)
     lines: list[str] = []
     if preset.use_words:
         lines.append(f"Dùng: {preset.use_words}.")
@@ -1105,12 +1113,17 @@ git commit -m "feat: bảng characters/character_relations + CRUD trong Storage"
   `EN_DEFAULT_PROMPT`)
 - Modify: `novel2epub/config_writer.py:25-27` (gỡ `genre` khỏi deprecated)
 - Modify: `novel2epub/presets/go.py` (`GO_PROMPT` thêm `{characters}`)
+- Modify: `novel2epub/presets/omniroute.py` (`OMNIPROUTE_PROMPT` thêm `{characters}`)
 - Test: `tests/test_config.py` (bổ sung)
 
 **Interfaces:**
 - Consumes: không có.
 - Produces: `TranslateConfig.genre` mặc định `"auto"` và được `config_writer`
-  ghi xuống DB; ba template prompt đều chứa placeholder `{characters}`.
+  ghi xuống DB; BỐN template prompt đều chứa placeholder `{characters}`.
+
+**Phạm vi backend:** chỉ đường `openai` (gồm cả hai preset `go` và `omniroute`,
+vì cả hai đều là prompt cho backend OpenAI-Compatible). `hachimimt` không thuộc
+phạm vi và không được đụng tới.
 
 **Bối cảnh:** `TranslateConfig.genre` đã tồn tại từ trước nhưng bị liệt vào
 `_DEPRECATED_TRANSLATE_FIELDS` với lý do "không có UI". Task 9 cấp UI cho nó,
@@ -1134,7 +1147,8 @@ def test_genre_no_longer_deprecated():
 def test_default_prompts_carry_characters_placeholder():
     from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT
     from novel2epub.presets.go import GO_PROMPT
-    for tpl in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, GO_PROMPT):
+    from novel2epub.presets.omniroute import OMNIPROUTE_PROMPT
+    for tpl in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, GO_PROMPT, OMNIPROUTE_PROMPT):
         assert "{characters}" in tpl
 
 
@@ -1201,6 +1215,13 @@ Trong `novel2epub/presets/go.py`, `GO_PROMPT` thêm `{characters}` sau `{glossar
 --- Văn bản gốc ---
 {text}{auto_glossary_block}
 ```
+
+Trong `novel2epub/presets/omniroute.py`, `OMNIPROUTE_PROMPT` (dòng 16) thêm
+`{characters}` ngay sau `{glossary}` (dòng 27), giữ nguyên phần còn lại.
+
+Lưu ý: `OMNIPROUTE_PROMPT` hiện **không có** `{idioms}` — nghĩa là preset này
+vốn đã không nhận khối idiom. ĐỪNG thêm `{idioms}` vào đây: đó là thay đổi hành
+vi nằm ngoài phạm vi task này. Chỉ thêm `{characters}`.
 
 - [ ] **Step 4: Chạy test để xác nhận pass**
 
@@ -1356,7 +1377,7 @@ Thay `_build_prompt` (translator.py:380) bằng:
             .replace("{characters}", char_block)
             .replace("{tone}", style.tone)
             .replace("{pronoun_policy}", genre_mod.format_pronoun_rules(
-                self.cfg.genre, style.pronoun_policy, text))
+                self.cfg.genre, style.pronoun_policy))
             .replace("{keep_paragraphs}", str(style.keep_paragraphs))
             .replace("{title_mode}", genre_mod.format_style_value("title_mode", style.title_mode))
             .replace("{han_viet_level}", genre_mod.format_style_value(
@@ -1377,7 +1398,7 @@ Thay `_build_prompt` (translator.py:380) bằng:
         # Dòng ghim nối bằng code (không qua placeholder) nên chạy được với MỌI
         # template, kể cả prompt người dùng đã pin từ trước.
         pin = characters_mod.format_pin_line(
-            chars, genre_mod.forbid_words(self.cfg.genre, text)
+            chars, genre_mod.forbid_words(self.cfg.genre)
         )
         if pin:
             prompt = f"{prompt}\n\n{pin}"
@@ -1952,7 +1973,7 @@ Thêm hai gạch đầu dòng vào danh sách module trong `CLAUDE.md`, đặt n
 
 ```markdown
 - `characters.py` — bảng NHÂN VẬT & ngôi xưng theo ebook (khác `idioms.py` global): 2 bảng SQLite `characters` (source/target/aliases/gender/self_pronoun/narrator_ref/role_note/importance) + `character_relations` (quan hệ CÓ HƯỚNG, `from_chapter` trong khoá chính nên một cặp có nhiều mốc xưng hô). Logic thuần: `filter_for_text` (khớp cả alias; nhân vật `importance=main` LUÔN được chèn kể cả không xuất hiện — chunk toàn "他… 他…" không match được gì thì vẫn phải giữ `narrator_ref`), `resolve_relations(rels, chapter_idx)` (chọn mốc `from_chapter <= N` lớn nhất; `None` → mốc 0), `format_llm_block` (khối `{characters}` trong prompt), `format_pin_line` (dòng nhắc nối vào CUỐI prompt sau `{text}` — chỉ dẫn cuối prompt được tuân thủ tốt hơn kẹp giữa). Template pin cũ không có `{characters}` thì khối được chèn ngay trước `{text}`. Web page `/ebook/<slug>/characters`.
-- `genre.py` — preset xưng hô theo thể loại (`auto`/`xianxia`/`urban`/`romance`/`system_game`/`western`), thay cho việc nhét chuỗi enum `pronoun_policy: contextual` vào prompt. `format_pronoun_rules` render từ dùng/từ cấm/mức Hán Việt vào placeholder `{pronoun_policy}` (KHÔNG đổi template nên prompt đã pin vẫn nhận luật mới); `auto` đoán thể loại bằng `hachimimt.honorific_normalize.is_classical()`. Chọn qua `translate.genre` (field cũ, trước bị deprecate vì "không có UI" — Settings→Dịch nay có dropdown). `format_style_value` map enum `han_viet_level`/`title_mode` sang câu mô tả đầy đủ.
+- `genre.py` — preset xưng hô theo thể loại (`auto`/`xianxia`/`urban`/`romance`/`system_game`/`western`), thay cho việc nhét chuỗi enum `pronoun_policy: contextual` vào prompt. `format_pronoun_rules` render từ dùng/từ cấm/mức Hán Việt vào placeholder `{pronoun_policy}` (KHÔNG đổi template nên prompt đã pin vẫn nhận luật mới); `auto` là preset trung tính (không đoán thể loại từ nội dung, không ép luật). Module này KHÔNG import gì từ `novel2epub.hachimimt` — package đó kéo `sentencepiece` + `huggingface_hub` (dep tùy chọn) ngay ở `__init__`, mà `genre.py` nằm trên đường dịch mặc định; có test `inspect.getsource` chặn việc vô tình nối lại. Chọn qua `translate.genre` (field cũ, trước bị deprecate vì "không có UI" — Settings→Dịch nay có dropdown). `format_style_value` map enum `han_viet_level`/`title_mode` sang câu mô tả đầy đủ.
 ```
 
 - [ ] **Step 2: Ghi chú thay đổi luật ngôi xưng trong prompt**

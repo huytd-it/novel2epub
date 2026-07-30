@@ -13,6 +13,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import openai_client
+from novel2epub.genre import GENRE_PRESETS
 from novel2epub.config_writer import (
     clean_prompt_text,
     update_defaults,
@@ -69,6 +70,7 @@ def settings_page(request: Request, slug: str):
             "source_detected": source_detected,
             "overridden_fields": overridden_fields,
             "job": request.app.state.job.status(),
+            "genre_presets": GENRE_PRESETS,
         },
     )
 
@@ -564,6 +566,7 @@ def save_translate(
     temperature: float = Form(0.7),
     prompt_template: str = Form(""),
     title_prompt_template: str = Form(""),
+    genre: str = Form("auto"),
     tone: str = Form(""),
     pronoun_policy: str = Form(""),
     title_mode: str = Form(""),
@@ -613,6 +616,7 @@ def save_translate(
         "type": type,
         "source_language": source_language,
         "model": local_model,
+        "genre": genre,
         "openai": openai_cfg,
         "hachimimt": hachimimt_cfg,
         "style": {
@@ -639,11 +643,11 @@ def save_translate(
     }
     path = deps.ebook_config_path(slug)
     logger.info(
-        "[config][AI/DỊCH] slug=%s lưu riêng cho ebook (DB %s): type=%s source_lang=%s local_model=%s base_url=%r model=%r "
+        "[config][AI/DỊCH] slug=%s lưu riêng cho ebook (DB %s): type=%s source_lang=%s local_model=%s genre=%s base_url=%r model=%r "
         "hachimimt=%s timeout=%ss temperature=%s tone=%r pronoun=%s title_mode=%s han_viet=%s "
         "keep_paragraphs=%s retry=%s chunk_max_chars=%s delay=%ss "
         "batch_size=%s prompt_max_chars=%s auto_cleanup_han=%s cleanup_han=%s/%s",
-        slug, path, type, source_language, local_model, base_url, model,
+        slug, path, type, source_language, local_model, genre, base_url, model,
         hachimimt_model_key, timeout_seconds, temperature, tone,
         pronoun_policy, title_mode, han_viet_level, keep_paragraphs, retry_attempts,
         chunk_max_chars, delay_seconds,

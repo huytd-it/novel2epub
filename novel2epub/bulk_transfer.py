@@ -248,18 +248,27 @@ def build_translate_prompt_from_cfg(cfg) -> str:
     --- Nội dung cần dịch ---, v.v.) vì build_export gắn glossary + chương
     riêng bên dưới theo format ## idx:N.
     """
+    from . import genre as genre_mod
+
     tpl = cfg.translate.openai.prompt_template
     style = cfg.translate.style
     prompt = (
         tpl
         .replace("{tone}", style.tone)
-        .replace("{pronoun_policy}", style.pronoun_policy)
+        .replace("{pronoun_policy}", genre_mod.format_pronoun_rules(
+            cfg.translate.genre, style.pronoun_policy))
         .replace("{keep_paragraphs}", str(style.keep_paragraphs))
-        .replace("{title_mode}", style.title_mode)
-        .replace("{han_viet_level}", style.han_viet_level)
+        .replace("{title_mode}", genre_mod.format_style_value("title_mode", style.title_mode))
+        .replace("{han_viet_level}", genre_mod.format_style_value(
+            "han_viet_level", style.han_viet_level))
         .replace("{auto_glossary_block}", "")
         .replace("{fixup_warning}", "")
         .replace("{glossary}", "")
+        # {idioms} và {characters} được build_export gắn riêng bên dưới, giống
+        # cách glossary đang làm — nếu không xoá ở đây, placeholder rò nguyên
+        # văn vào file export.
+        .replace("{idioms}", "")
+        .replace("{characters}", "")
     )
     # Cắt phần "--- Nội dung cần dịch ---\n{text}" và các biến thể tương tự
     import re as _re
@@ -281,18 +290,23 @@ def build_export(
     items: list[tuple[int, str, str]],
     *,
     glossary: dict[str, str] | None = None,
+    characters: str = "",
     prompt: str = EDIT_PROMPT,
 ) -> str:
     """Gom các chương thành một khối xuất.
 
     items: list `(index, title, content)`; sẽ được sắp theo `index` tăng dần.
     glossary: bảng glossary hiện có để đính kèm (tham khảo, có thể rỗng).
+    characters: khối bảng nhân vật ĐÃ render sẵn (có thể rỗng) — người dùng dịch
+        tay qua web chat cần nó để xưng hô khớp với bản dịch API.
     """
     parts: list[str] = [prompt.rstrip()]
 
     glossary_block = _format_glossary_block(glossary or {})
     if glossary_block:
         parts.append(glossary_block)
+    if characters.strip():
+        parts.append(characters.strip())
 
     for index, title, content in sorted(items, key=lambda it: it[0]):
         parts.append(f"{chapter_marker(index, title)}\n{content.strip()}")

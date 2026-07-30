@@ -13,6 +13,8 @@ import threading
 import time
 from typing import Any, Callable, Protocol
 
+from . import characters as characters_mod
+from . import genre as genre_mod
 from . import idioms as idioms_mod
 from . import openai_client
 from .config import LibreTranslateConfig, TranslateConfig
@@ -223,15 +225,31 @@ def load_idioms_list(cfg: TranslateConfig, storage: "Storage | None") -> list[Id
     return idioms_mod.idioms_from_rows(rows)
 
 
+def load_characters(cfg: TranslateConfig, storage: "Storage | None") -> list:
+    """Đọc bảng nhân vật của ebook. Trả [] khi chưa có storage."""
+    if storage is None:
+        return []
+    return characters_mod.characters_from_rows(storage.read_character_entries())
+
+
+def load_relations(cfg: TranslateConfig, storage: "Storage | None") -> list:
+    """Đọc bảng quan hệ của ebook. Trả [] khi chưa có storage."""
+    if storage is None:
+        return []
+    return characters_mod.relations_from_rows(storage.read_relation_entries())
+
+
 class Translator(Protocol):
     # Mỗi translate() chia văn bản thành nhiều chunk; triển khai có thể nhận
     # kwarg tùy chọn `on_chunk(index, total, chunk_text, is_final)` để stream
-    # tiến độ (xem `translate-chunk-streaming` spec). Gọi không truyền kwarg
-    # vẫn hoạt động như cũ — tương thích ngược hoàn toàn.
+    # tiến độ (xem `translate-chunk-streaming` spec), và `chapter_idx` để chọn
+    # đúng mốc quan hệ nhân vật (xem `characters.resolve_relations`). Gọi
+    # không truyền kwarg vẫn hoạt động như cũ — tương thích ngược hoàn toàn.
     def translate(
         self,
         text: str,
         *,
+        chapter_idx: int | None = None,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
         on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str: ...
@@ -243,6 +261,7 @@ class NoopTranslator:
         self,
         text: str,
         *,
+        chapter_idx: int | None = None,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
         on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
@@ -306,6 +325,8 @@ class OpenAITranslator:
         self.storage = storage
         self.glossary = load_glossary_dict(cfg, storage)
         self.idioms = load_idioms_list(cfg, storage)
+        self.characters = load_characters(cfg, storage)
+        self.relations = load_relations(cfg, storage)
         self.log = log or (lambda _: None)
         self._glossary_lock = threading.Lock()
         self._auto_glossary_conflicts: list[dict] = []
@@ -377,7 +398,7 @@ class OpenAITranslator:
             return snapshot
         return _filter_glossary(snapshot, zh_text=zh_text, vi_text=vi_text)
 
-    def _build_prompt(self, text: str) -> str:
+    def _build_prompt(self, text: str, chapter_idx: int | None = None) -> str:
         tpl = self.openai.prompt_template
         auto_block = _AUTO_GLOSSARY_BLOCK if self.cfg.auto_glossary else ""
         # Use .replace() instead of .format() so that {auto_glossary_block}
@@ -386,17 +407,30 @@ class OpenAITranslator:
         idiom_block = idioms_mod.format_llm_block(
             idioms_mod.filter_for_text(self.idioms, text)
         )
+        chars = characters_mod.filter_for_text(
+            self.characters, text, source_language=self.cfg.source_language
+        )
+        rels = characters_mod.resolve_relations(self.relations, chapter_idx)
+        char_block = characters_mod.format_llm_block(chars, rels)
+        style = self.cfg.style
         prompt = (
             tpl
             .replace("{text}", text)
             .replace("{glossary}", _format_glossary(self._glossary_for_prompt(text)))
             .replace("{idioms}", idiom_block)
-            .replace("{tone}", self.cfg.style.tone)
-            .replace("{pronoun_policy}", self.cfg.style.pronoun_policy)
-            .replace("{keep_paragraphs}", str(self.cfg.style.keep_paragraphs))
-            .replace("{title_mode}", self.cfg.style.title_mode)
-            .replace("{han_viet_level}", self.cfg.style.han_viet_level)
+            .replace("{characters}", char_block)
+            .replace("{tone}", style.tone)
+            .replace("{pronoun_policy}", genre_mod.format_pronoun_rules(
+                self.cfg.genre, style.pronoun_policy))
+            .replace("{keep_paragraphs}", str(style.keep_paragraphs))
+            .replace("{title_mode}", genre_mod.format_style_value("title_mode", style.title_mode))
+            .replace("{han_viet_level}", genre_mod.format_style_value(
+                "han_viet_level", style.han_viet_level))
         )
+        # Back-compat: template pin cũ không có {characters} → chèn ngay trước
+        # nội dung (đúng chỗ mong muốn về mặt recency) thay vì im lặng bỏ qua.
+        if char_block and "{characters}" not in tpl:
+            prompt = prompt.replace(text, f"{char_block}\n\n{text}", 1)
         # Back-compat: old pinned templates without the placeholder → append.
         if "{auto_glossary_block}" in tpl:
             prompt = prompt.replace("{auto_glossary_block}", auto_block)
@@ -405,6 +439,13 @@ class OpenAITranslator:
         # Back-compat: strip the removed {fixup_warning} placeholder from old
         # pinned templates so it doesn't leak into the prompt literally.
         prompt = prompt.replace("{fixup_warning}", "")
+        # Dòng ghim nối bằng code (không qua placeholder) nên chạy được với MỌI
+        # template, kể cả prompt người dùng đã pin từ trước.
+        pin = characters_mod.format_pin_line(
+            chars, genre_mod.forbid_words(self.cfg.genre)
+        )
+        if pin:
+            prompt = f"{prompt}\n\n{pin}"
         return prompt
 
     def _split_response(self, raw: str) -> tuple[str, list[dict] | None]:
@@ -523,12 +564,15 @@ class OpenAITranslator:
         chunk_text: str,
         glossary_accumulator: list[dict] | None = None,
         meta_accumulator: dict[str, Any] | None = None,
+        chapter_idx: int | None = None,
     ) -> str:
         """Dịch một đoạn.
         Nếu glossary_accumulator được truyền, các entry glossary trích từ response
         AI được append vào đó. Nếu meta_accumulator được truyền, cost/tokens/latency
         từ response (OmniRoute) được cộng dồn vào đó."""
-        out, meta = self._run_chat_with_retry_meta(self._build_prompt(chunk_text))
+        out, meta = self._run_chat_with_retry_meta(
+            self._build_prompt(chunk_text, chapter_idx)
+        )
         if meta_accumulator is not None:
             self._merge_meta(meta_accumulator, meta)
         translation_text, glossary_entries = self._split_response(out)
@@ -542,18 +586,20 @@ class OpenAITranslator:
     # hàng nghìn chunk tí hon hoặc lặp vô hạn.
     MIN_CHUNK_BUDGET = 200
 
-    def _clamp_to_prompt_budget(self, max_chars: int, text: str) -> int:
+    def _clamp_to_prompt_budget(
+        self, max_chars: int, text: str, chapter_idx: int | None = None
+    ) -> int:
         """Thu nhỏ budget nội dung mỗi chunk để TỔNG prompt (template + glossary
-        + nội dung) không vượt cfg.prompt_max_chars.
+        + idiom + bảng nhân vật + nội dung) không vượt cfg.prompt_max_chars.
 
-        Overhead đo bằng prompt build từ chính `text` (glossary lọc theo toàn
-        văn bản — superset của glossary mọi chunk con, nên là cận trên an toàn).
-        prompt_max_chars <= 0 → không giới hạn, trả nguyên max_chars.
+        Overhead đo bằng prompt build từ chính `text` (glossary/idiom/bảng nhân
+        vật lọc theo toàn văn bản — superset của mọi chunk con, nên là cận trên
+        an toàn). prompt_max_chars <= 0 → không giới hạn, trả nguyên max_chars.
         """
         budget = self.cfg.prompt_max_chars
         if budget <= 0:
             return max_chars
-        overhead = len(self._build_prompt(text)) - len(text)
+        overhead = len(self._build_prompt(text, chapter_idx)) - len(text)
         allowed = budget - overhead
         if allowed >= max_chars:
             return max_chars
@@ -573,17 +619,18 @@ class OpenAITranslator:
         self,
         text: str,
         *,
+        chapter_idx: int | None = None,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
         on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
         if not text.strip():
             return text
         max_chars = self.cfg.chunk.max_chars or self.DEFAULT_MAX_CHARS
-        max_chars = self._clamp_to_prompt_budget(max_chars, text)
+        max_chars = self._clamp_to_prompt_budget(max_chars, text, chapter_idx)
         glossary_accum: list[dict] = []
         meta_accum: dict[str, Any] = {}
         if len(text) <= max_chars:
-            cleaned = self._translate_chunk(text, glossary_accum, meta_accum)
+            cleaned = self._translate_chunk(text, glossary_accum, meta_accum, chapter_idx)
             if on_chunk is not None:
                 on_chunk(1, 1, cleaned, True)
             _fire_glossary(on_glossary, glossary_accum)
@@ -599,7 +646,7 @@ class OpenAITranslator:
         for i, chunk_paragraphs in enumerate(chunks):
             chunk_text = "\n".join(chunk_paragraphs)
             self.log(f"  … đoạn {i+1}/{total} ({len(chunk_text)} ký tự)")
-            cleaned = self._translate_chunk(chunk_text, glossary_accum, meta_accum)
+            cleaned = self._translate_chunk(chunk_text, glossary_accum, meta_accum, chapter_idx)
             if i > 0 and overlap > 0:
                 lines = cleaned.split("\n")
                 cleaned = "\n".join(lines[overlap:]) if len(lines) > overlap else cleaned
@@ -686,6 +733,7 @@ class GoogleTranslator:
         self,
         text: str,
         *,
+        chapter_idx: int | None = None,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
         on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
@@ -736,6 +784,7 @@ class HachimiMTTranslator:
         self,
         text: str,
         *,
+        chapter_idx: int | None = None,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
         on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
@@ -812,6 +861,7 @@ class LibreTranslateTranslator:
         self,
         text: str,
         *,
+        chapter_idx: int | None = None,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
         on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
@@ -865,10 +915,13 @@ class RateLimited:
         self,
         text: str,
         *,
+        chapter_idx: int | None = None,
         on_chunk: Callable[[int, int, str, bool], None] | None = None,
         on_glossary: Callable[[list[dict]], None] | None = None,
     ) -> str:
-        out = self.inner.translate(text, on_chunk=on_chunk, on_glossary=on_glossary)
+        out = self.inner.translate(
+            text, chapter_idx=chapter_idx, on_chunk=on_chunk, on_glossary=on_glossary
+        )
         if self.delay > 0:
             time.sleep(self.delay)
         return out

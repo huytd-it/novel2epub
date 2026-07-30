@@ -169,7 +169,7 @@ class _FakeCrawler:
 
 
 class _FakeTranslator:
-    def translate(self, text, *, on_chunk=None, on_glossary=None):
+    def translate(self, text, *, chapter_idx=None, on_chunk=None, on_glossary=None):
         if on_chunk is not None:
             on_chunk(1, 1, f"VI:{text}", True)
         return f"VI:{text}"
@@ -187,7 +187,7 @@ class _FailingCrawler:
 
 
 class _FailingTranslator:
-    def translate(self, text, *, on_chunk=None, on_glossary=None):
+    def translate(self, text, *, chapter_idx=None, on_chunk=None, on_glossary=None):
         raise RuntimeError("translation failed")
 
 

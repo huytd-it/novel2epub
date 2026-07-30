@@ -203,7 +203,7 @@ class _FlakyTranslator:
         self.fail_on = set(fail_on)
         self.calls = 0
 
-    def translate(self, text, *, on_chunk=None, on_glossary=None):
+    def translate(self, text, *, chapter_idx=None, on_chunk=None, on_glossary=None):
         self.calls += 1
         if text in self.fail_on:
             raise RuntimeError("CLI thoát mã 0 nhưng không trả về nội dung")

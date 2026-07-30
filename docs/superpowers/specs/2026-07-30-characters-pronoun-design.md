@@ -254,9 +254,20 @@ ghi log, không phải lời gọi). Nó là code chết ở thời điểm này
 Hệ quả: **không có xung đột đang xảy ra**, và spec này không cần task đi hoà
 giải hai lớp. Chỉ còn một việc đáng làm và một ràng buộc cần ghi lại.
 
-**Tái sử dụng thay vì viết lại.** `genre="auto"` không tự phát minh cách đoán
-thể loại — gọi thẳng `honorific_normalize.genre_score()` / `is_classical()`.
-Danh sách tín hiệu `WUXIA_SIGNALS` / `MODERN_SIGNALS` đã có sẵn và đủ dùng.
+**Quyết định: `hachimimt` nằm NGOÀI phạm vi, `genre.py` không import gì từ đó.**
+
+Bản spec trước định dùng lại `honorific_normalize.is_classical()` cho
+`genre="auto"`. Không làm nữa, vì `hachimimt/__init__.py:4` import thẳng
+`.translator`, file này có `import sentencepiece` và
+`from huggingface_hub import snapshot_download` ở top level — hai dep **tùy
+chọn**. `genre.py` được `translator.py` và `bulk_transfer.py` import, nên chuỗi
+đó sẽ biến dep tùy chọn thành bắt buộc cho backend `openai` mặc định. Lỗi này
+không lộ ra khi test trên máy đã cài sẵn hai gói, chỉ nổ trên máy cài sạch.
+
+Vì vậy `genre="auto"` là preset **trung tính** — không đoán thể loại từ nội
+dung; người dùng chọn bằng dropdown Thể loại (§10). Đây cũng là ranh giới phạm
+vi chung: đường dịch được nâng cấp chỉ có backend `openai` (gồm cả hai preset
+prompt `go` và `omniroute`).
 
 **Ràng buộc cho tương lai (không làm bây giờ).** Nếu sau này ai đó nối
 `normalize_honorifics` vào nhánh MT, nó sẽ đánh nhau với preset thể loại: tầng
@@ -430,9 +441,9 @@ File mới:
 - `format_pronoun_rules` nối đúng phần `user_policy` do người dùng đặt, và
   không nối khi `user_policy` còn là mặc định `"contextual"`.
 - `format_style_value` map enum sang mô tả, giá trị lạ trả về nguyên văn.
-- `genre="auto"` dùng lại `honorific_normalize.is_classical()` (§6.1): text
-  đậm tín hiệu tu tiên → nhánh cổ trang; text đậm tín hiệu hiện đại → nhánh
-  hiện đại.
+- `genre="auto"` là preset trung tính: không ép luật, `forbid_words` rỗng.
+- `genre.py` không chứa chuỗi `hachimimt` ở bất kỳ đâu (§6.1) — kiểm bằng
+  `inspect.getsource`, chặn việc vô tình nối lại dependency tùy chọn.
 
 **`tests/test_routes_characters.py`**
 - CRUD nhân vật + quan hệ.

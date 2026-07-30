@@ -168,6 +168,8 @@ async function loadAll() {
 async function saveCharacter(row, el) {
     const source = (row.source || "").trim();
     if (!source) return;
+    const prevSaved = row._saved || "";
+    const isRename = !!prevSaved && prevSaved !== source;
     const fd = new FormData();
     fd.set("source", source);
     fd.set("target", row.target || "");
@@ -177,7 +179,7 @@ async function saveCharacter(row, el) {
     fd.set("narrator_ref", row.narrator_ref || "");
     fd.set("role_note", row.role_note || "");
     fd.set("importance", row.importance === "main" ? "main" : "side");
-    fd.set("original_source", row._saved || "");
+    fd.set("original_source", prevSaved);
     try {
         const res = await fetch(`/api/ebook/{{ slug }}/characters/entry`, { method: "POST", body: fd });
         if (!res.ok) {
@@ -186,10 +188,17 @@ async function saveCharacter(row, el) {
             if (el) flashRow(el, false);
             return;
         }
-        const isNew = !row._saved;
+        const isNew = !prevSaved;
         row._saved = source;
-        if (isNew) render(); // để hiện checkbox + khung quan hệ ngay sau lần lưu đầu
         if (el) flashRow(el, true);
+        if (isNew) {
+            render(); // để hiện checkbox + khung quan hệ ngay sau lần lưu đầu
+        } else if (isRename) {
+            // Server đã DI CHUYỂN quan hệ sang tên mới (xem characters_upsert) —
+            // reload từ server thay vì tự sửa ROWS tại chỗ, để bảng quan hệ
+            // luôn khớp sự thật thay vì hiện lại dữ liệu cũ đã bị đổi tên.
+            await loadAll();
+        }
     } catch (err) { toast("Lỗi kết nối mạng.", "error"); if (el) flashRow(el, false); }
 }
 

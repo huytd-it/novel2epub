@@ -51,6 +51,22 @@ def test_auto_is_neutral_and_forbids_nothing():
     assert G.forbid_words("auto") == ""
 
 
+def test_auto_still_gives_pronoun_guidance_without_duplicating_han_viet_slot():
+    # Trước bản vá: auto.use_words rỗng, chỗ này gần như không có nội dung —
+    # regression so với DEFAULT_PROMPT cũ (rule 2 từng liệt kê thẳng các dạng
+    # xưng hô này). Sau vá: auto phải còn hướng dẫn xưng hô thật, KHÔNG lặp
+    # lại câu Hán Việt mà {han_viet_level} đã render riêng.
+    out = G.format_pronoun_rules("auto")
+    assert out.strip()
+    for word in ("cha", "mẹ", "sư phụ", "tiền bối", "chàng", "nàng"):
+        assert word in out, word
+
+    han_viet_sentence = G.format_style_value("han_viet_level", "balanced")
+    assert han_viet_sentence not in out
+
+    assert G.forbid_words("auto") == ""
+
+
 def test_user_policy_appended_only_when_customised():
     plain = G.format_pronoun_rules("xianxia")
     assert G.format_pronoun_rules("xianxia", user_policy="contextual") == plain

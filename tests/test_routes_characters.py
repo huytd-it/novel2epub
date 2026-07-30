@@ -86,6 +86,50 @@ def test_relation_crud(tmp_path, monkeypatch):
     assert next(e for e in entries if e["source"] == "林凡")["relations"] == []
 
 
+def test_rename_character_migrates_relations(tmp_path, monkeypatch):
+    """Đổi tên gốc KHÔNG được làm mất quan hệ — cả 2 mốc mà nhân vật là
+    a_source lẫn mốc mà nó là b_source (người khác trỏ vào) phải sống sót,
+    với tên MỚI ở đúng phía đã xuất hiện tên cũ."""
+    client = _client(_cfg(tmp_path), monkeypatch)
+    client.post(f"/api/ebook/{SLUG}/characters/entry",
+                data={"source": "林凡", "target": "Lâm Phàm"})
+    client.post(f"/api/ebook/{SLUG}/characters/entry",
+                data={"source": "苏清雪", "target": "Tô Thanh Tuyết"})
+    # Hai mốc quan hệ nơi 林凡 là a_source.
+    client.post(f"/api/ebook/{SLUG}/characters/relation",
+                data={"a_source": "林凡", "b_source": "苏清雪",
+                      "from_chapter": "0", "a_calls_b": "nàng", "a_self": "ta"})
+    client.post(f"/api/ebook/{SLUG}/characters/relation",
+                data={"a_source": "林凡", "b_source": "苏清雪",
+                      "from_chapter": "120", "a_calls_b": "em", "a_self": "anh"})
+    # Một quan hệ nơi 林凡 là b_source (nhân vật kia trỏ vào nó).
+    client.post(f"/api/ebook/{SLUG}/characters/relation",
+                data={"a_source": "苏清雪", "b_source": "林凡",
+                      "from_chapter": "0", "a_calls_b": "chàng", "a_self": "ta"})
+
+    resp = client.post(
+        f"/api/ebook/{SLUG}/characters/entry",
+        data={"source": "林凡新", "target": "Lâm Phàm", "original_source": "林凡"},
+    )
+    assert resp.status_code == 200
+
+    entries = client.get(f"/api/ebook/{SLUG}/characters/list").json()["entries"]
+    assert {e["source"] for e in entries} == {"林凡新", "苏清雪"}
+
+    lam = next(e for e in entries if e["source"] == "林凡新")
+    assert len(lam["relations"]) == 2
+    by_chapter = {r["from_chapter"]: r for r in lam["relations"]}
+    assert set(by_chapter) == {0, 120}
+    assert all(r["b_source"] == "苏清雪" for r in lam["relations"])
+    assert by_chapter[0]["a_calls_b"] == "nàng"
+    assert by_chapter[120]["a_calls_b"] == "em"
+
+    su = next(e for e in entries if e["source"] == "苏清雪")
+    assert len(su["relations"]) == 1
+    assert su["relations"][0]["b_source"] == "林凡新"
+    assert su["relations"][0]["a_calls_b"] == "chàng"
+
+
 def test_delete_character_removes_its_relations(tmp_path, monkeypatch):
     client = _client(_cfg(tmp_path), monkeypatch)
     client.post(f"/api/ebook/{SLUG}/characters/entry", data={"source": "林凡"})

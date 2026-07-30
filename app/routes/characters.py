@@ -72,17 +72,32 @@ def characters_upsert(
     importance: str = Form("side"),
     original_source: str = Form(""),
 ):
-    """Autosave MỘT nhân vật. Đổi tên gốc (original_source khác source) → xoá
-    mục cũ trước, giống cách trang Idioms xử lý."""
+    """Autosave MỘT nhân vật. Đổi tên gốc (original_source khác source) → di
+    chuyển (KHÔNG xoá) mọi quan hệ đang dính tới tên cũ sang tên mới, thay vì
+    xoá thẳng theo cách trang Idioms xử lý (Idioms không có quan hệ nên xoá là
+    an toàn; nhân vật thì có character_relations ở cả 2 phía a_source/b_source
+    — xoá trước sẽ mất sạch quan hệ vì `delete_character` dọn theo CẢ HAI
+    chiều, xem `Storage.delete_character`)."""
     source = source.strip()
     if not source:
         raise HTTPException(status_code=400, detail="Cần tên gốc của nhân vật.")
     storage = _storage(slug)
     orig = original_source.strip()
     if orig and orig != source:
+        relations_to_migrate = [
+            row for row in storage.read_relation_entries()
+            if row[0] == orig or row[1] == orig
+        ]
         storage.delete_character(orig)
-    storage.upsert_character(source, target, aliases, gender, self_pronoun,
-                             narrator_ref, role_note, importance)
+        storage.upsert_character(source, target, aliases, gender, self_pronoun,
+                                 narrator_ref, role_note, importance)
+        for a, b, from_chapter, a_calls_b, a_self, note in relations_to_migrate:
+            new_a = source if a == orig else a
+            new_b = source if b == orig else b
+            storage.upsert_relation(new_a, new_b, from_chapter, a_calls_b, a_self, note)
+    else:
+        storage.upsert_character(source, target, aliases, gender, self_pronoun,
+                                 narrator_ref, role_note, importance)
     return JSONResponse({"ok": True})
 
 

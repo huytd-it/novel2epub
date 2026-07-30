@@ -79,7 +79,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
         "preset": "",
         "source_language": "",
         "target_language": "vi",
-        "genre": "",
+        "genre": "auto",
         "style": {"tone": "mượt, tự nhiên, có chất cổ trang", "pronoun_policy": "contextual", "title_mode": "creative", "han_viet_level": "balanced", "keep_paragraphs": True},
         "retry": {"attempts": 1, "delay_seconds": 0.0},
         "chunk": {"max_chars": 0, "overlap_paragraphs": 0},

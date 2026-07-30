@@ -268,7 +268,9 @@ def test_build_export_includes_character_block():
 
 
 def test_build_export_omits_empty_character_block():
-    out = b.build_export([(1, "Chương 1", "Nội dung")], characters="")
+    # Chuỗi chỉ toàn khoảng trắng phải bị coi là rỗng — dùng "" không đủ để
+    # bắt thiếu `.strip()` (falsy cả khi thiếu guard), nên test cũ pass giả.
+    out = b.build_export([(1, "Chương 1", "Nội dung")], characters="   \n  ")
     assert "BẢNG NHÂN VẬT" not in out
 
 

@@ -213,8 +213,11 @@ def format_llm_block(chars: list[Character], relations: list[Relation]) -> str:
 def format_pin_line(chars: list[Character], forbid_words: str = "") -> str:
     """Dòng nhắc ngắn nối vào CUỐI prompt (sau {text}).
 
-    Chỉ nhân vật `main`, tối đa 2 dòng. Đặt sau nội dung vì chỉ dẫn ở cuối prompt
-    được tuân thủ tốt hơn chỉ dẫn kẹp giữa.
+    Chỉ liệt kê nhân vật `main` (chỉ những người có tự xưng/lời kể để nhắc —
+    người không có cả hai bị bỏ qua), gộp thành MỘT dòng "NHẮC LẠI: ...",
+    kèm dòng CẤM riêng nếu có `forbid_words`. Trả "" khi không có gì để nhắc.
+    Đặt sau nội dung vì chỉ dẫn ở cuối prompt được tuân thủ tốt hơn chỉ dẫn
+    kẹp giữa.
     """
     mains = [c for c in chars if c.importance == "main"]
     bits: list[str] = []

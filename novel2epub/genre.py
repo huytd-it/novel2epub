@@ -32,10 +32,18 @@ GENRE_PRESETS: dict[str, GenrePreset] = {
     "auto": GenrePreset(
         key="auto",
         label="Tự động (theo nội dung)",
-        use_words="",
+        # Trung tính — không đoán thể loại, nhưng vẫn cần liệt kê các dạng
+        # xưng hô/kính ngữ chung mà rule 2 của DEFAULT_PROMPT từng ghi thẳng
+        # trước khi có bảng nhân vật (cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/
+        # nàng/ông ấy/bà ấy/ngài/người/con/cháu). KHÔNG cấm gì (forbid_words
+        # rỗng) vì auto không biết thể loại nên không được loại trừ đăng ký
+        # nào (không phải kiếm hiệp cũng không phải đô thị).
+        use_words="cha, mẹ, thúc, bá, cô, sư phụ, tiền bối, chàng, nàng, "
+                  "ông ấy, bà ấy, ngài, người, con, cháu",
         forbid_words="",
-        han_viet_hint="Cân bằng: giữ Hán Việt cho tên riêng và thuật ngữ đặc thù, "
-                      "phần còn lại ưu tiên thuần Việt.",
+        # Bỏ trống — trục Hán Việt đã có slot {han_viet_level} riêng
+        # (xem format_style_value); để câu ở đây chỉ lặp lại ý đó.
+        han_viet_hint="",
     ),
     "xianxia": GenrePreset(
         key="xianxia",

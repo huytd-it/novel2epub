@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% block title %}Nhân vật — {{ slug }} — novel2epub{% endblock %}
+{% block content %}
+<h2 class="text-xl font-semibold mt-3 mb-1">Nhân vật &amp; ngôi xưng</h2>
+<p class="text-sm text-fg-muted dark:text-fg-muted-dark mb-3">
+    Bảng nhân vật <strong>riêng của ebook này</strong> — khác Glossary (map tên → tên), bảng này mang thuộc tính
+    (giới tính, tự xưng, lời kể gọi, alias) và <strong>quan hệ CÓ HƯỚNG</strong> giữa hai nhân vật kèm mốc chương,
+    thứ LLM không đoán được từ văn bản. Bấm mũi tên ở mỗi hàng để mở/đóng quan hệ của nhân vật đó.
+    Sửa trực tiếp trong bảng — mỗi mục <strong>tự lưu</strong> khi bạn rời ô.
+</p>
+
+<!-- Thanh công cụ -->
+<div class="flex flex-wrap gap-2 items-center mb-3">
+    <input id="char-search" type="search" placeholder="Tìm tên gốc / tên Việt / alias…" autocomplete="off" class="input input-sm w-64">
+    <span id="char-count" class="text-sm text-fg-muted dark:text-fg-muted-dark"></span>
+    <div class="ml-auto flex flex-wrap gap-2">
+        <button type="button" id="btn-bulk-delete" class="btn btn-sm btn-danger hidden">Xóa đã chọn (<span id="bulk-count">0</span>)</button>
+        <button type="button" id="btn-add" class="btn btn-sm btn-secondary">+ Thêm nhân vật</button>
+    </div>
+</div>
+
+<!-- Data table -->
+<div class="table-container">
+    <table class="table">
+        <thead>
+            <tr>
+                <th class="w-8"><input type="checkbox" id="check-all" class="rounded border-surface-border dark:border-surface-border-dark" title="Chọn cả trang"></th>
+                <th>Tên gốc</th>
+                <th>Tên Việt</th>
+                <th>Alias (ngăn bằng <code>|</code>)</th>
+                <th>Giới</th>
+                <th>Tự xưng</th>
+                <th>Lời kể gọi</th>
+                <th>Vai trò</th>
+                <th class="w-14 text-center" title="Nhân vật chính">⭐</th>
+                <th class="w-16">Thao tác</th>
+            </tr>
+        </thead>
+        <tbody id="char-body"></tbody>
+    </table>
+</div>
+<p id="char-empty" class="hidden text-sm text-fg-muted dark:text-fg-muted-dark py-6 text-center">Không có nhân vật nào khớp.</p>
+
+<script>
+const COLS = 10; // checkbox + 8 cột chính + thao tác — dùng cho colspan hàng quan hệ
+let ROWS = []; // list nhân vật, mỗi phần tử có thêm _saved (source đã lưu, "" nếu chưa lưu) và relations[]
+let query = "";
+
+const body = document.getElementById("char-body");
+const searchInput = document.getElementById("char-search");
+const countLabel = document.getElementById("char-count");
+const emptyMsg = document.getElementById("char-empty");
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
+}
+
+const inputCls = "w-full bg-transparent border border-transparent hover:border-surface-border dark:hover:border-surface-border-dark focus:border-brand-500 dark:focus:border-brand-500 rounded px-1.5 py-1 text-sm focus:outline-none";
+
+function visibleRows() {
+    if (!query) return ROWS.map((e, idx) => [e, idx]);
+    const q = query.toLowerCase();
+    return ROWS
+        .map((e, idx) => [e, idx])
+        .filter(([e]) => [e.source, e.target, e.aliases].some(v => (v || "").toLowerCase().includes(q)));
+}
+
+function relationOptions(selfSource, selectedB) {
+    return ROWS
+        .filter(e => e.source && e.source !== selfSource)
+        .map(e => `<option value="${escapeHtml(e.source)}" ${e.source === selectedB ? "selected" : ""}>${escapeHtml(e.source)}${e.target ? " (" + escapeHtml(e.target) + ")" : ""}</option>`)
+        .join("");
+}
+
+function relationRowHtml(charIdx, relIdx, rel) {
+    return `
+        <tr data-rel-idx="${relIdx}">
+            <td class="px-2 py-1 align-top">
+                <select data-rel-field="b_source" class="${inputCls}">
+                    <option value="">— chọn nhân vật —</option>
+                    ${relationOptions(ROWS[charIdx].source, rel.b_source)}
+                </select>
+            </td>
+            <td class="px-2 py-1 align-top w-24"><input type="number" min="0" data-rel-field="from_chapter" value="${rel.from_chapter || 0}" class="${inputCls}" title="Từ chương"></td>
+            <td class="px-2 py-1 align-top"><input data-rel-field="a_calls_b" value="${escapeHtml(rel.a_calls_b || "")}" placeholder="VD: em" class="${inputCls}" title="Nhân vật A gọi B là gì"></td>
+            <td class="px-2 py-1 align-top"><input data-rel-field="a_self" value="${escapeHtml(rel.a_self || "")}" placeholder="VD: anh" class="${inputCls}" title="Nhân vật A tự xưng gì khi nói với B"></td>
+            <td class="px-2 py-1 align-top"><input data-rel-field="note" value="${escapeHtml(rel.note || "")}" placeholder="Ghi chú…" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top whitespace-nowrap">
+                <button type="button" data-rel-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá quan hệ">Xoá</button>
+            </td>
+        </tr>`;
+}
+
+function relationsDetailsHtml(charIdx) {
+    const e = ROWS[charIdx];
+    const rows = (e.relations || []).map((rel, relIdx) => relationRowHtml(charIdx, relIdx, rel)).join("");
+    return `
+        <details ${e._relOpen ? "open" : ""}>
+            <summary class="cursor-pointer text-sm font-medium py-1">Quan hệ (${(e.relations || []).length})</summary>
+            <table class="table mt-1">
+                <thead>
+                    <tr>
+                        <th>Với nhân vật</th>
+                        <th class="w-24">Từ chương</th>
+                        <th>A gọi B</th>
+                        <th>A tự xưng</th>
+                        <th>Ghi chú</th>
+                        <th class="w-16">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody class="rel-body">${rows}</tbody>
+            </table>
+            <button type="button" data-rel-act="add" class="btn btn-sm btn-secondary mt-1">+ Thêm quan hệ</button>
+        </details>`;
+}
+
+function render() {
+    const rows = visibleRows();
+    body.innerHTML = rows.map(([e, idx]) => `
+        <tr class="border-t border-surface-border dark:border-surface-border-dark transition-colors" data-idx="${idx}">
+            <td class="px-2 py-1 align-top">${e._saved ? `<input type="checkbox" class="bulk-check rounded border-surface-border dark:border-surface-border-dark" data-source="${escapeHtml(e._saved)}">` : ""}</td>
+            <td class="px-2 py-1 align-top"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
+            <td class="px-2 py-1 align-top"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top"><input data-field="aliases" value="${escapeHtml(e.aliases)}" placeholder="—" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top w-20"><input data-field="gender" value="${escapeHtml(e.gender)}" placeholder="nam/nữ" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top"><input data-field="self_pronoun" value="${escapeHtml(e.self_pronoun)}" placeholder="VD: ta" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top"><input data-field="narrator_ref" value="${escapeHtml(e.narrator_ref)}" placeholder="VD: hắn" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top"><input data-field="role_note" value="${escapeHtml(e.role_note)}" placeholder="VD: đồ đệ của…" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top text-center"><input type="checkbox" data-field="importance" ${e.importance === "main" ? "checked" : ""} class="rounded border-surface-border dark:border-surface-border-dark" title="Nhân vật chính"></td>
+            <td class="px-2 py-1 align-top whitespace-nowrap">
+                <button type="button" data-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá nhân vật">Xoá</button>
+            </td>
+        </tr>
+        <tr class="border-t-0 border-b border-surface-border dark:border-surface-border-dark bg-surface-alt dark:bg-surface-alt-dark" data-rel-container-idx="${idx}">
+            <td></td>
+            <td colspan="${COLS - 1}" class="px-2 py-1">${e.source ? relationsDetailsHtml(idx) : `<span class="text-xs text-fg-muted dark:text-fg-muted-dark">Lưu nhân vật trước khi thêm quan hệ.</span>`}</td>
+        </tr>`).join("");
+    emptyMsg.classList.toggle("hidden", rows.length > 0);
+    countLabel.textContent = query ? `${rows.length}/${ROWS.length} nhân vật khớp "${query}"` : `${ROWS.length} nhân vật`;
+    refreshBulkBtn();
+}
+
+function rowByEl(el) {
+    const tr = el.closest("tr[data-idx]");
+    if (!tr) return null;
+    return { row: ROWS[Number(tr.dataset.idx)], idx: Number(tr.dataset.idx) };
+}
+
+function flashRow(el, ok) {
+    const tr = el.closest("tr");
+    if (!tr) return;
+    const cls = ok ? ["bg-status-ok-light", "dark:bg-status-ok-dark"] : ["bg-status-err-light", "dark:bg-status-err-dark"];
+    tr.classList.add(...cls);
+    setTimeout(() => tr.classList.remove(...cls), ok ? 500 : 1200);
+}
+
+async function loadAll() {
+    try {
+        const res = await fetch(`/api/ebook/{{ slug }}/characters/list`);
+        if (!res.ok) { toast("Không tải được bảng nhân vật.", "error"); return; }
+        const data = await res.json();
+        ROWS = data.entries.map(e => ({ ...e, _saved: e.source, _relOpen: false }));
+        render();
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+}
+
+// --- Autosave MỘT nhân vật ---
+async function saveCharacter(row, el) {
+    const source = (row.source || "").trim();
+    if (!source) return;
+    const fd = new FormData();
+    fd.set("source", source);
+    fd.set("target", row.target || "");
+    fd.set("aliases", row.aliases || "");
+    fd.set("gender", row.gender || "");
+    fd.set("self_pronoun", row.self_pronoun || "");
+    fd.set("narrator_ref", row.narrator_ref || "");
+    fd.set("role_note", row.role_note || "");
+    fd.set("importance", row.importance === "main" ? "main" : "side");
+    fd.set("original_source", row._saved || "");
+    try {
+        const res = await fetch(`/api/ebook/{{ slug }}/characters/entry`, { method: "POST", body: fd });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            toast(data.detail || "Lưu nhân vật thất bại.", "error");
+            if (el) flashRow(el, false);
+            return;
+        }
+        const isNew = !row._saved;
+        row._saved = source;
+        if (isNew) render(); // để hiện checkbox + khung quan hệ ngay sau lần lưu đầu
+        if (el) flashRow(el, true);
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); if (el) flashRow(el, false); }
+}
+
+body.addEventListener("input", e => {
+    const field = e.target.dataset.field;
+    if (!field || field === "importance") return;
+    const ctx = rowByEl(e.target);
+    if (ctx) ctx.row[field] = e.target.value;
+});
+body.addEventListener("change", e => {
+    const field = e.target.dataset.field;
+    if (!field) return;
+    const ctx = rowByEl(e.target);
+    if (!ctx) return;
+    if (field === "importance") {
+        ctx.row.importance = e.target.checked ? "main" : "side";
+    }
+    saveCharacter(ctx.row, e.target);
+});
+
+body.addEventListener("click", async e => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const ctx = rowByEl(btn);
+    if (!ctx) return;
+    const { row, idx } = ctx;
+    if (btn.dataset.act === "delete") {
+        if (!row._saved) { ROWS.splice(idx, 1); render(); return; }
+        if (!await confirmDialog(`Xoá nhân vật "${row.source}"? Mọi quan hệ liên quan cũng bị xoá.`, { destructive: true })) return;
+        const fd = new FormData();
+        fd.set("sources", row._saved);
+        try {
+            const res = await fetch(`/api/ebook/{{ slug }}/characters/delete`, { method: "POST", body: fd });
+            if (!res.ok) { toast("Xoá thất bại.", "error"); return; }
+            toast("Đã xoá nhân vật.", "success");
+            await loadAll();
+        } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+    }
+});
+
+// --- Quan hệ: autosave + xoá + thêm dòng ---
+function relRowByEl(el) {
+    const charTr = el.closest("tr[data-rel-container-idx]");
+    const relTr = el.closest("tr[data-rel-idx]");
+    if (!charTr || !relTr) return null;
+    const charIdx = Number(charTr.dataset.relContainerIdx);
+    const relIdx = Number(relTr.dataset.relIdx);
+    const row = ROWS[charIdx];
+    if (!row || !row.relations || !row.relations[relIdx]) return null;
+    return { charRow: row, rel: row.relations[relIdx], charIdx, relIdx };
+}
+
+async function _doSaveRelation(charRow, rel, el) {
+    const bSource = (rel.b_source || "").trim();
+    if (!bSource) return;
+    const prevKey = rel._saved; // {b_source, from_chapter} | null
+    const newKey = { b_source: bSource, from_chapter: Number(rel.from_chapter) || 0 };
+    try {
+        // Đổi nhân vật B hoặc mốc chương (đổi khoá) → xoá quan hệ cũ trước khi lưu mới.
+        if (prevKey && (prevKey.b_source !== newKey.b_source || prevKey.from_chapter !== newKey.from_chapter)) {
+            const delFd = new FormData();
+            delFd.set("a_source", charRow.source);
+            delFd.set("b_source", prevKey.b_source);
+            delFd.set("from_chapter", prevKey.from_chapter);
+            await fetch(`/api/ebook/{{ slug }}/characters/relation/delete`, { method: "POST", body: delFd });
+        }
+        const fd = new FormData();
+        fd.set("a_source", charRow.source);
+        fd.set("b_source", newKey.b_source);
+        fd.set("from_chapter", newKey.from_chapter);
+        fd.set("a_calls_b", rel.a_calls_b || "");
+        fd.set("a_self", rel.a_self || "");
+        fd.set("note", rel.note || "");
+        const res = await fetch(`/api/ebook/{{ slug }}/characters/relation`, { method: "POST", body: fd });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            toast(data.detail || "Lưu quan hệ thất bại.", "error");
+            if (el) flashRow(el, false);
+            return;
+        }
+        rel._saved = newKey;
+        if (el) flashRow(el, true);
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); if (el) flashRow(el, false); }
+}
+
+// Chuỗi hoá các lần lưu liên tiếp trên CÙNG một dòng quan hệ: đổi khoá (nhân
+// vật B hoặc mốc chương) cần xoá-cũ-rồi-thêm-mới qua HAI request tuần tự —
+// nếu người dùng đổi nhiều ô gần như đồng thời (vd tab nhanh), các lần gọi
+// saveRelation() chồng lấn nhau sẽ đều đọc `rel._saved` là null lúc bắt đầu
+// và bỏ qua bước xoá cũ, sinh bản ghi orphan. Xếp hàng theo `_saveChain` để
+// mỗi lần lưu luôn thấy trạng thái đã lưu MỚI NHẤT của chính dòng đó.
+function saveRelation(charRow, rel, el) {
+    const prev = rel._saveChain || Promise.resolve();
+    const run = prev.then(() => _doSaveRelation(charRow, rel, el));
+    rel._saveChain = run.catch(() => {});
+    return run;
+}
+
+body.addEventListener("input", e => {
+    const field = e.target.dataset.relField;
+    if (!field) return;
+    const ctx = relRowByEl(e.target);
+    if (ctx) ctx.rel[field] = e.target.value;
+});
+body.addEventListener("change", async e => {
+    const field = e.target.dataset.relField;
+    if (!field) return;
+    const ctx = relRowByEl(e.target);
+    if (!ctx) return;
+    ctx.rel[field] = e.target.value;
+    await saveRelation(ctx.charRow, ctx.rel, e.target);
+});
+
+body.addEventListener("click", async e => {
+    const addBtn = e.target.closest("button[data-rel-act='add']");
+    if (addBtn) {
+        const charTr = addBtn.closest("tr[data-rel-container-idx]");
+        if (!charTr) return;
+        const charIdx = Number(charTr.dataset.relContainerIdx);
+        const row = ROWS[charIdx];
+        row.relations = row.relations || [];
+        row.relations.push({ b_source: "", from_chapter: 0, a_calls_b: "", a_self: "", note: "", _saved: null });
+        row._relOpen = true;
+        render();
+        return;
+    }
+    const delBtn = e.target.closest("button[data-rel-act='delete']");
+    if (delBtn) {
+        const ctx = relRowByEl(delBtn);
+        if (!ctx) return;
+        const { charRow, rel, charIdx, relIdx } = ctx;
+        if (!rel._saved) { charRow.relations.splice(relIdx, 1); charRow._relOpen = true; render(); return; }
+        if (!await confirmDialog(`Xoá quan hệ với "${rel.b_source}"?`, { destructive: true })) return;
+        const fd = new FormData();
+        fd.set("a_source", charRow.source);
+        fd.set("b_source", rel._saved.b_source);
+        fd.set("from_chapter", rel._saved.from_chapter);
+        try {
+            const res = await fetch(`/api/ebook/{{ slug }}/characters/relation/delete`, { method: "POST", body: fd });
+            if (!res.ok) { toast("Xoá quan hệ thất bại.", "error"); return; }
+            toast("Đã xoá quan hệ.", "success");
+            charRow._relOpen = true;
+            await loadAll();
+        } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+    }
+});
+
+// --- Bulk delete ---
+const bulkBtn = document.getElementById("btn-bulk-delete");
+const bulkCount = document.getElementById("bulk-count");
+const checkAll = document.getElementById("check-all");
+function checkedSources() {
+    return Array.from(document.querySelectorAll(".bulk-check:checked")).map(cb => cb.dataset.source);
+}
+function refreshBulkBtn() {
+    const n = checkedSources().length;
+    bulkCount.textContent = n;
+    bulkBtn.classList.toggle("hidden", n === 0);
+}
+document.addEventListener("change", e => {
+    if (e.target.classList && e.target.classList.contains("bulk-check")) refreshBulkBtn();
+});
+checkAll.addEventListener("change", () => {
+    document.querySelectorAll("#char-body .bulk-check").forEach(cb => { cb.checked = checkAll.checked; });
+    refreshBulkBtn();
+});
+bulkBtn.addEventListener("click", async () => {
+    const sources = checkedSources();
+    if (!sources.length) return;
+    if (!await confirmDialog(`Xóa ${sources.length} nhân vật đã chọn? Mọi quan hệ liên quan cũng bị xoá.`, { destructive: true })) return;
+    const fd = new FormData();
+    fd.set("sources", sources.join("|"));
+    try {
+        const res = await fetch(`/api/ebook/{{ slug }}/characters/delete`, { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(data.detail || "Xóa thất bại.", "error"); return; }
+        toast(`Đã xóa ${data.removed} nhân vật.`, "success");
+        checkAll.checked = false;
+        await loadAll();
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+});
+
+// --- Thêm nhân vật ---
+document.getElementById("btn-add").addEventListener("click", () => {
+    ROWS.unshift({ source: "", target: "", aliases: "", gender: "", self_pronoun: "",
+        narrator_ref: "", role_note: "", importance: "side", relations: [], _saved: "", _relOpen: false });
+    render();
+    const first = body.querySelector('input[data-field="source"]');
+    if (first) first.focus();
+});
+
+// --- Search (lọc trên dữ liệu đã tải, không gọi server) ---
+let searchTimer = null;
+searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { query = searchInput.value.trim(); render(); }, 200);
+});
+
+loadAll();
+</script>
+{% endblock %}

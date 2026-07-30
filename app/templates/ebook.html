@@ -182,6 +182,7 @@
     </div>
     <div class="action-group" role="group" aria-label="Khác">
         <a class="btn btn-sm btn-secondary" href="/ebooks/{{ slug }}/glossary">Glossary</a>
+        <a class="btn btn-sm btn-secondary" href="/ebook/{{ slug }}/characters">Nhân vật</a>
         <a class="btn btn-sm btn-secondary" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
         <form method="post" action="/ebooks/{{ slug }}/jobs/delete-chapters" data-job-category="both" data-confirm="Xóa toàn bộ danh mục ({{ chapters|length or '?' }} chương)? Raw, translated, và dữ liệu sẽ được giữ nguyên — cần Crawl lại để có danh sách mới.">
             <button type="submit" class="btn btn-sm btn-danger" >Xóa danh mục</button>

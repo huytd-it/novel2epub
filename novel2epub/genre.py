@@ -5,10 +5,9 @@ Trước đây `translate.style.pronoun_policy` mặc định là chuỗi "conte
 biến lựa chọn thể loại thành BỘ LUẬT THẬT: từ nên dùng, từ cấm, mức Hán Việt.
 
 `auto` là preset TRUNG TÍNH — không đoán thể loại từ nội dung. Module này KHÔNG
-được import package MT offline nội bộ của repo: package đó kéo theo
-`sentencepiece` và `huggingface_hub` (dep tùy chọn) ngay ở `__init__`, mà
-`genre.py` lại nằm trên đường dịch mặc định của backend `openai` — import
-package đó ở đây sẽ biến hai dep tùy chọn thành bắt buộc.
+được import gì từ `novel2epub.hachimimt`: package đó kéo theo `sentencepiece` và
+`huggingface_hub` (dep tùy chọn) ngay ở `__init__`, mà `genre.py` lại nằm trên
+đường dịch mặc định của backend `openai`.
 """
 from __future__ import annotations
 

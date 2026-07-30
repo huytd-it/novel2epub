@@ -25,10 +25,24 @@ def test_urban_forbids_classical_pronouns():
 def test_genre_module_does_not_import_hachimimt():
     # hachimimt kéo theo sentencepiece + huggingface_hub (dep TÙY CHỌN) qua
     # __init__.py của nó; genre.py nằm trên đường dịch mặc định nên không được
-    # phụ thuộc vào chúng.
+    # phụ thuộc vào chúng — nếu lỡ import, lỗi này sẽ KHÔNG lộ ra trên máy dev
+    # (đã có sẵn 2 dep đó) mà chỉ vỡ trên một cài đặt sạch (clean install).
+    # Check bằng AST thay vì scan chuỗi trong source: cấm IMPORT THẬT SỰ (kể
+    # cả import lồng trong hàm), không cấm nhắc tên package trong prose/docstring
+    # để giải thích lý do — đó chính là thứ ngăn dev tương lai vô tình thêm lại.
+    import ast
     import inspect
     from novel2epub import genre
-    assert "hachimimt" not in inspect.getsource(genre)
+
+    tree = ast.parse(inspect.getsource(genre))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                assert "hachimimt" not in alias.name, alias.name
+        elif isinstance(node, ast.ImportFrom):
+            assert "hachimimt" not in (node.module or ""), node.module
+            for alias in node.names:
+                assert "hachimimt" not in alias.name, alias.name
 
 
 def test_auto_is_neutral_and_forbids_nothing():

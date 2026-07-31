@@ -167,3 +167,39 @@ def test_merge_update_only_carries_aliases_only():
     assert ch["update_only"] is True
     assert ch["new_aliases_raw"] == ["凡儿"]
     assert ch.get("gender", "") == ""
+
+
+# ---------- extract_characters (hàm gọi mạng, mock openai_client) ----------
+
+def test_extract_characters_merges_groups_and_survives_bad_json(monkeypatch):
+    """Một nhóm trả rác không được giết cả lần chạy — nhóm còn lại vẫn về đích."""
+    calls = []
+
+    def fake_run_chat(cfg, prompt):
+        calls.append(prompt)
+        if len(calls) == 1:
+            return "hoàn toàn không phải JSON"
+        return ('{"characters": [{"source":"林凡","target":"Lâm Phàm"}],'
+                ' "relations": []}')
+
+    monkeypatch.setattr(A.openai_client, "run_chat", fake_run_chat)
+    out = A.extract_characters(
+        object(), [(1, "x" * 300, ""), (2, "y" * 300, "")], {}, {},
+        genre="xianxia", max_chars=400,
+    )
+    assert len(calls) == 2
+    assert [c["source"] for c in out["characters"]] == ["林凡"]
+
+
+def test_extract_characters_prompt_carries_chapter_labels(monkeypatch):
+    seen = {}
+
+    def fake_run_chat(cfg, prompt):
+        seen["prompt"] = prompt
+        return '{"characters": [], "relations": []}'
+
+    monkeypatch.setattr(A.openai_client, "run_chat", fake_run_chat)
+    A.extract_characters(object(), [(42, "原文", "")], {"林凡": "Lâm Phàm"},
+                         {}, genre="urban", max_chars=10000)
+    assert "## Chương 42" in seen["prompt"]
+    assert "林凡" in seen["prompt"]        # glossary được nhét vào

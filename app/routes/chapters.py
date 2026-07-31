@@ -13,6 +13,7 @@ import html
 
 from novel2epub import bulk_transfer, footnotes
 from novel2epub import characters as characters_mod
+from novel2epub import characters_ai
 from novel2epub.pipeline import (
     step_cleanup_han_selected,
     step_crawl_selected,
@@ -857,6 +858,54 @@ async def api_batch_suggest_glossary(
 
     started = request.app.state.job.start_custom(
         f"batch-suggest-glossary-{len(index_list)}", _target, category="translate"
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "total": len(index_list)})
+
+
+@router.post("/api/ebooks/{slug}/batch/extract-characters")
+async def api_batch_extract_characters(
+    request: Request,
+    slug: str,
+    indexes: str = Form(...),
+):
+    """AI trích nhân vật & quan hệ từ các chương đã chọn → hàng chờ duyệt.
+
+    KHÁC batch/suggest-glossary: KHÔNG lặp từng chương. Chương được gom thành
+    nhóm vừa ngân sách prompt rồi phân tích theo nhóm — mốc đổi xưng hô chỉ tồn
+    tại khi AI so sánh được hai thời điểm trong cùng một lời gọi.
+    """
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+
+    def _target(log):
+        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+        manifest = storage.load_manifest()
+        chapters: list[tuple[int, str, str]] = []
+        for ch in (manifest.chapters if manifest else []):
+            if ch.index not in index_list:
+                continue
+            raw = storage.read_raw(ch)
+            if not raw.strip():
+                continue
+            chapters.append((ch.index, raw, storage.read_translated(ch)))
+        if not chapters:
+            log("[trích-nhân-vật] Không có chương nào có raw. Dừng.")
+            return
+        existing = {r[0]: r[1] for r in storage.read_character_entries()}
+        glossary = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
+        budget = cfg.translate.prompt_max_chars or 20000
+        result = characters_ai.extract_characters(
+            cfg.translate.openai, chapters, existing, glossary,
+            genre=cfg.translate.genre, max_chars=budget, log=log,
+        )
+        storage.write_extra_json("characters_pending", result)
+        log(f"[trích-nhân-vật] Xong: {len(result['characters'])} nhân vật, "
+            f"{len(result['relations'])} quan hệ vào hàng chờ duyệt.")
+
+    started = request.app.state.job.start_custom(
+        f"extract-characters-{len(index_list)}", _target, category="translate"
     )
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")

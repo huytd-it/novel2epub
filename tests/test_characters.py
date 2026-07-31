@@ -117,3 +117,54 @@ def test_format_pin_line_lists_main_only():
 
 def test_format_pin_line_empty_without_main():
     assert C.format_pin_line([_TO], forbid_words="x") == ""
+
+
+# ---------- to_chapter (sub-project B) ----------
+
+def test_resolve_relations_without_to_chapter_unchanged():
+    # Chống hồi quy cho sub-project A: to_chapter rỗng thì hành vi y hệt trước.
+    r0 = Relation("A", "B", 0, "nàng", "ta")
+    r120 = Relation("A", "B", 120, "em", "anh")
+    assert C.resolve_relations([r0, r120], 200) == [r120]
+    assert C.resolve_relations([r0, r120], 50) == [r0]
+
+
+def test_resolve_relations_respects_to_chapter_end():
+    # Quan hệ chấm dứt ở ch.99 và KHÔNG có mốc kế tiếp → sau đó không áp dụng.
+    ended = Relation("A", "B", 0, "sư phụ", "đồ nhi", to_chapter=99)
+    assert C.resolve_relations([ended], 50) == [ended]
+    assert C.resolve_relations([ended], 100) == []
+
+
+def test_resolve_relations_to_chapter_alongside_later_milestone():
+    ended = Relation("A", "B", 0, "cô nương", "tại hạ", to_chapter=99)
+    later = Relation("A", "B", 120, "nàng", "ta")
+    assert C.resolve_relations([ended, later], 50) == [ended]
+    assert C.resolve_relations([ended, later], 110) == []      # khe hở 100-119
+    assert C.resolve_relations([ended, later], 200) == [later]
+
+
+def test_relations_from_rows_accepts_legacy_six_tuple():
+    # Row cũ 6 phần tử vẫn dựng được, trường mới nhận mặc định.
+    out = C.relations_from_rows([("A", "B", 5, "x", "y", "")])
+    assert out[0].to_chapter is None
+    assert out[0].a_calls_b_raw == ""
+    assert out[0].inferred is False
+
+
+def test_relations_from_rows_reads_new_columns():
+    row = ("A", "B", 5, "sư phụ", "đồ nhi", "", 99, "师父", "弟子", "证据", 1, "high")
+    rel = C.relations_from_rows([row])[0]
+    assert rel.to_chapter == 99
+    assert rel.a_calls_b_raw == "师父"
+    assert rel.a_self_raw == "弟子"
+    assert rel.evidence == "证据"
+    assert rel.inferred is True
+    assert rel.confidence == "high"
+
+
+def test_characters_from_rows_reads_aliases_vi():
+    row = ("林凡", "Lâm Phàm", "凡儿", "nam", "ta", "hắn", "", "main", "Phàm nhi")
+    ch = C.characters_from_rows([row])[0]
+    assert ch.aliases == ("凡儿",)
+    assert ch.aliases_vi == ("Phàm nhi",)

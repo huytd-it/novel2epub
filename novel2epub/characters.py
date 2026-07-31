@@ -28,6 +28,7 @@ class Character:
     narrator_ref: str = ""
     role_note: str = ""
     importance: str = "side"
+    aliases_vi: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,12 @@ class Relation:
     a_calls_b: str = ""
     a_self: str = ""
     note: str = ""
+    to_chapter: int | None = None
+    a_calls_b_raw: str = ""
+    a_self_raw: str = ""
+    evidence: str = ""
+    inferred: bool = False
+    confidence: str = ""
 
 
 def _split_aliases(raw: str) -> tuple[str, ...]:
@@ -48,7 +55,8 @@ def _split_aliases(raw: str) -> tuple[str, ...]:
 def characters_from_rows(rows) -> list[Character]:
     """Dựng list Character từ row DB
     `(source, target, aliases, gender, self_pronoun, narrator_ref, role_note,
-    importance)`. Bỏ row thiếu `source`."""
+    importance, aliases_vi)`. Bỏ row thiếu `source`. Cột `aliases_vi` (sub-project
+    B) nối ở CUỐI để row 8 phần tử kiểu cũ (sub-project A) vẫn dựng được."""
     out: list[Character] = []
     for row in rows:
         source = (row[0] or "").strip()
@@ -65,6 +73,7 @@ def characters_from_rows(rows) -> list[Character]:
                 narrator_ref=(row[5] or "").strip() if len(row) > 5 else "",
                 role_note=(row[6] or "").strip() if len(row) > 6 else "",
                 importance=importance or "side",
+                aliases_vi=_split_aliases(row[8] if len(row) > 8 else ""),
             )
         )
     return out
@@ -72,8 +81,11 @@ def characters_from_rows(rows) -> list[Character]:
 
 def relations_from_rows(rows) -> list[Relation]:
     """Dựng list Relation từ row DB
-    `(a_source, b_source, from_chapter, a_calls_b, a_self, note)`.
-    Bỏ row thiếu một trong hai đầu."""
+    `(a_source, b_source, from_chapter, a_calls_b, a_self, note, to_chapter,
+    a_calls_b_raw, a_self_raw, evidence, inferred, confidence)`.
+    Bỏ row thiếu một trong hai đầu. Sáu cột cuối (sub-project B) nối ở CUỐI để
+    row 6 phần tử kiểu cũ (sub-project A) vẫn dựng được, trường mới nhận mặc
+    định."""
     out: list[Relation] = []
     for row in rows:
         a = (row[0] or "").strip()
@@ -84,6 +96,12 @@ def relations_from_rows(rows) -> list[Relation]:
             from_chapter = int(row[2]) if len(row) > 2 and row[2] is not None else 0
         except (TypeError, ValueError):
             from_chapter = 0
+        to_chapter = None
+        if len(row) > 6 and row[6] is not None:
+            try:
+                to_chapter = int(row[6])
+            except (TypeError, ValueError):
+                to_chapter = None
         out.append(
             Relation(
                 a_source=a,
@@ -92,6 +110,12 @@ def relations_from_rows(rows) -> list[Relation]:
                 a_calls_b=(row[3] or "").strip() if len(row) > 3 else "",
                 a_self=(row[4] or "").strip() if len(row) > 4 else "",
                 note=(row[5] or "").strip() if len(row) > 5 else "",
+                to_chapter=to_chapter,
+                a_calls_b_raw=(row[7] or "").strip() if len(row) > 7 else "",
+                a_self_raw=(row[8] or "").strip() if len(row) > 8 else "",
+                evidence=(row[9] or "").strip() if len(row) > 9 else "",
+                inferred=bool(row[10]) if len(row) > 10 else False,
+                confidence=(row[11] or "").strip() if len(row) > 11 else "",
             )
         )
     return out
@@ -138,15 +162,23 @@ def resolve_relations(
     relations: list[Relation], chapter_idx: int | None
 ) -> list[Relation]:
     """Với mỗi cặp (a,b) có hướng, chọn row có `from_chapter <= chapter_idx` lớn
-    nhất; cặp không có mốc nào thoả thì bỏ.
+    nhất TRONG SỐ các row còn hiệu lực tại `chapter_idx`; cặp không có mốc nào
+    thoả thì bỏ.
 
     `chapter_idx is None` → chỉ lấy mốc 0. Chủ ý: khi không biết đang ở chương
     nào, đoán "quan hệ chưa thân" gây hại ít hơn đoán ngược lại.
+
+    `to_chapter` (sub-project B) rỗng = còn hiệu lực tới mốc kế tiếp (hoặc mãi
+    mãi) — hành vi y hệt sub-project A khi không có trường này. Chỉ khi được
+    điền tường minh thì quan hệ mới hết hiệu lực sau chương đó, ca nhân vật
+    chết / đoạn tuyệt nơi không có mốc kế tiếp nào thay thế.
     """
     limit = 0 if chapter_idx is None else int(chapter_idx)
     best: dict[tuple[str, str], Relation] = {}
     for rel in relations:
         if rel.from_chapter > limit:
+            continue
+        if rel.to_chapter is not None and limit > rel.to_chapter:
             continue
         key = (rel.a_source, rel.b_source)
         current = best.get(key)

@@ -177,4 +177,51 @@ def test_characters_tables_exist():
     names = _table_names(conn)
     assert "characters" in names
     assert "character_relations" in names
-    assert SCHEMA_VERSION == 5
+    assert SCHEMA_VERSION == 6
+
+
+def test_schema_v6_columns_present():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    rel_cols = {r[1] for r in conn.execute("PRAGMA table_info(character_relations)")}
+    for col in ("to_chapter", "a_calls_b_raw", "a_self_raw", "evidence",
+                "inferred", "confidence"):
+        assert col in rel_cols
+    char_cols = {r[1] for r in conn.execute("PRAGMA table_info(characters)")}
+    assert "aliases_vi" in char_cols
+
+
+def test_v5_database_gets_new_columns_without_data_loss():
+    """DB đã tồn tại ở v5 (bảng có sẵn, thiếu cột mới) phải được ALTER TABLE vá.
+
+    Đây là ca THẬT của người dùng: sub-project A đã merge nên DB của họ có hai
+    bảng này rồi, và CREATE TABLE IF NOT EXISTS sẽ không thêm cột. Mô phỏng bằng
+    cách chạy `init_schema` thật (dựng đủ schema, gồm `ebooks`) rồi hạ cấp riêng
+    `character_relations` về hình dạng 7-cột cũ (sub-project A) trước khi chạy
+    lại `init_schema`.
+    """
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    conn.execute("INSERT INTO ebooks (slug) VALUES ('t')")
+    conn.execute("DROP TABLE character_relations")
+    conn.execute(
+        "CREATE TABLE character_relations (ebook_slug TEXT NOT NULL, "
+        "a_source TEXT NOT NULL, b_source TEXT NOT NULL, "
+        "from_chapter INTEGER NOT NULL DEFAULT 0, a_calls_b TEXT NOT NULL DEFAULT '', "
+        "a_self TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', "
+        "PRIMARY KEY (ebook_slug, a_source, b_source, from_chapter))"
+    )
+    conn.execute(
+        "INSERT INTO character_relations (ebook_slug, a_source, b_source, "
+        "from_chapter, a_calls_b, a_self) VALUES ('t','A','B',5,'sư phụ','đồ nhi')"
+    )
+    conn.commit()
+
+    init_schema(conn)
+
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(character_relations)")}
+    assert "to_chapter" in cols and "confidence" in cols
+    row = conn.execute(
+        "SELECT a_calls_b, a_self, to_chapter FROM character_relations"
+    ).fetchone()
+    assert row[0] == "sư phụ" and row[1] == "đồ nhi" and row[2] is None

@@ -77,7 +77,9 @@ def test_relation_crud(tmp_path, monkeypatch):
     lam = next(e for e in entries if e["source"] == "林凡")
     assert lam["relations"] == [
         {"b_source": "苏清雪", "b_target": "Tô Thanh Tuyết", "from_chapter": 120,
-         "a_calls_b": "em", "a_self": "anh", "note": ""}
+         "a_calls_b": "em", "a_self": "anh", "note": "",
+         "to_chapter": None, "a_calls_b_raw": "", "a_self_raw": "",
+         "evidence": "", "inferred": False, "confidence": ""}
     ]
 
     client.post(f"/api/ebook/{SLUG}/characters/relation/delete",

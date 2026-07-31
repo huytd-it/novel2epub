@@ -37,7 +37,9 @@ def characters_list(slug: str):
     storage = _storage(slug)
     targets = {row[0]: row[1] for row in storage.read_character_entries()}
     by_a: dict[str, list[dict]] = {}
-    for a, b, from_chapter, a_calls_b, a_self, note in storage.read_relation_entries():
+    for row in storage.read_relation_entries():
+        a, b, from_chapter, a_calls_b, a_self, note = row[:6]
+        to_chapter, a_calls_b_raw, a_self_raw, evidence, inferred, confidence = row[6:12]
         by_a.setdefault(a, []).append({
             "b_source": b,
             "b_target": targets.get(b, ""),
@@ -45,16 +47,21 @@ def characters_list(slug: str):
             "a_calls_b": a_calls_b,
             "a_self": a_self,
             "note": note,
+            "to_chapter": to_chapter,
+            "a_calls_b_raw": a_calls_b_raw,
+            "a_self_raw": a_self_raw,
+            "evidence": evidence,
+            "inferred": bool(inferred),
+            "confidence": confidence,
         })
     entries = [
         {
-            "source": source, "target": target, "aliases": aliases, "gender": gender,
-            "self_pronoun": self_pronoun, "narrator_ref": narrator_ref,
-            "role_note": role_note, "importance": importance,
-            "relations": by_a.get(source, []),
+            "source": row[0], "target": row[1], "aliases": row[2], "gender": row[3],
+            "self_pronoun": row[4], "narrator_ref": row[5], "role_note": row[6],
+            "importance": row[7], "aliases_vi": row[8] if len(row) > 8 else "",
+            "relations": by_a.get(row[0], []),
         }
-        for source, target, aliases, gender, self_pronoun, narrator_ref, role_note,
-            importance in storage.read_character_entries()
+        for row in storage.read_character_entries()
     ]
     return JSONResponse({"entries": entries, "total": len(entries)})
 
@@ -91,10 +98,17 @@ def characters_upsert(
         storage.delete_character(orig)
         storage.upsert_character(source, target, aliases, gender, self_pronoun,
                                  narrator_ref, role_note, importance)
-        for a, b, from_chapter, a_calls_b, a_self, note in relations_to_migrate:
+        for row in relations_to_migrate:
+            a, b, from_chapter, a_calls_b, a_self, note = row[:6]
+            to_chapter, a_calls_b_raw, a_self_raw, evidence, inferred, confidence = row[6:12]
             new_a = source if a == orig else a
             new_b = source if b == orig else b
-            storage.upsert_relation(new_a, new_b, from_chapter, a_calls_b, a_self, note)
+            storage.upsert_relation(
+                new_a, new_b, from_chapter, a_calls_b, a_self, note,
+                to_chapter=to_chapter, a_calls_b_raw=a_calls_b_raw,
+                a_self_raw=a_self_raw, evidence=evidence,
+                inferred=bool(inferred), confidence=confidence,
+            )
     else:
         storage.upsert_character(source, target, aliases, gender, self_pronoun,
                                  narrator_ref, role_note, importance)

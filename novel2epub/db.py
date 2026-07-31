@@ -11,7 +11,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 _SCHEMA_STATEMENTS = [
     """
@@ -144,20 +144,30 @@ _SCHEMA_STATEMENTS = [
         role_note    TEXT NOT NULL DEFAULT '',
         importance   TEXT NOT NULL DEFAULT 'side',
         position     INTEGER NOT NULL DEFAULT 0,
+        aliases_vi   TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (ebook_slug, source)
     ) WITHOUT ROWID
     """,
     # Quan hệ CÓ HƯỚNG (A→B khác B→A: đồ đệ gọi sư phụ khác chiều ngược lại).
     # `from_chapter` nằm trong khoá chính để một cặp có nhiều mốc xưng hô.
+    # `to_chapter` NULL = còn hiệu lực tới mốc kế tiếp (hoặc mãi mãi) — chỉ điền
+    # khi quan hệ chấm dứt dứt khoát mà không có mốc thay thế. `*_raw` là chữ
+    # Hán gốc làm căn cứ (khác `a_calls_b`/`a_self` vốn đã là bản Việt hoá).
     """
     CREATE TABLE IF NOT EXISTS character_relations (
-        ebook_slug   TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
-        a_source     TEXT NOT NULL,
-        b_source     TEXT NOT NULL,
-        from_chapter INTEGER NOT NULL DEFAULT 0,
-        a_calls_b    TEXT NOT NULL DEFAULT '',
-        a_self       TEXT NOT NULL DEFAULT '',
-        note         TEXT NOT NULL DEFAULT '',
+        ebook_slug    TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        a_source      TEXT NOT NULL,
+        b_source      TEXT NOT NULL,
+        from_chapter  INTEGER NOT NULL DEFAULT 0,
+        a_calls_b     TEXT NOT NULL DEFAULT '',
+        a_self        TEXT NOT NULL DEFAULT '',
+        note          TEXT NOT NULL DEFAULT '',
+        to_chapter    INTEGER,
+        a_calls_b_raw TEXT NOT NULL DEFAULT '',
+        a_self_raw    TEXT NOT NULL DEFAULT '',
+        evidence      TEXT NOT NULL DEFAULT '',
+        inferred      INTEGER NOT NULL DEFAULT 0,
+        confidence    TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (ebook_slug, a_source, b_source, from_chapter)
     ) WITHOUT ROWID
     """,
@@ -241,6 +251,14 @@ _ADDED_COLUMNS = [
     # (bảng settings) chỉ còn là fallback + nguồn khi Reset.
     ("ebooks", "translate_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
     ("ebooks", "ai_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
+    # v6: AI trích nhân vật — chữ Hán gốc, bằng chứng, độ tin cậy, mốc kết thúc
+    ("characters", "aliases_vi", "TEXT NOT NULL DEFAULT ''"),
+    ("character_relations", "to_chapter", "INTEGER"),
+    ("character_relations", "a_calls_b_raw", "TEXT NOT NULL DEFAULT ''"),
+    ("character_relations", "a_self_raw", "TEXT NOT NULL DEFAULT ''"),
+    ("character_relations", "evidence", "TEXT NOT NULL DEFAULT ''"),
+    ("character_relations", "inferred", "INTEGER NOT NULL DEFAULT 0"),
+    ("character_relations", "confidence", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 

@@ -1000,17 +1000,21 @@ class Storage:
         return row["n"]
 
     # ----- nhân vật & ngôi xưng (per-ebook) -----
-    def read_character_entries(self) -> list[tuple[str, str, str, str, str, str, str, str]]:
-        """Đọc nhân vật của ebook → list tuple 8 phần tử, thứ tự khớp
-        `characters.characters_from_rows`."""
+    def read_character_entries(
+        self,
+    ) -> list[tuple[str, str, str, str, str, str, str, str, str]]:
+        """Đọc nhân vật của ebook → list tuple 9 phần tử, thứ tự khớp
+        `characters.characters_from_rows`. Cột `aliases_vi` (sub-project B) nối
+        ở CUỐI để không phá vỡ vị trí 8 cột cũ."""
         rows = self.conn.execute(
             "SELECT source, target, aliases, gender, self_pronoun, narrator_ref, "
-            "role_note, importance FROM characters WHERE ebook_slug=? ORDER BY position",
+            "role_note, importance, aliases_vi FROM characters "
+            "WHERE ebook_slug=? ORDER BY position",
             (self.slug,),
         ).fetchall()
         return [
             (r["source"], r["target"], r["aliases"], r["gender"], r["self_pronoun"],
-             r["narrator_ref"], r["role_note"], r["importance"])
+             r["narrator_ref"], r["role_note"], r["importance"], r["aliases_vi"])
             for r in rows
         ]
 
@@ -1024,6 +1028,7 @@ class Storage:
         narrator_ref: str = "",
         role_note: str = "",
         importance: str = "side",
+        aliases_vi: str = "",
     ) -> bool:
         """Thêm/cập nhật MỘT nhân vật. Trim; bỏ qua nếu thiếu source. Mục mới
         nhận position = max+1; trùng source → cập nhật tại chỗ."""
@@ -1041,18 +1046,19 @@ class Storage:
             self.conn.execute(
                 """
                 INSERT INTO characters (ebook_slug, source, target, aliases, gender,
-                    self_pronoun, narrator_ref, role_note, importance, position)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    self_pronoun, narrator_ref, role_note, importance, position,
+                    aliases_vi)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(ebook_slug, source) DO UPDATE SET
                     target = excluded.target, aliases = excluded.aliases,
                     gender = excluded.gender, self_pronoun = excluded.self_pronoun,
                     narrator_ref = excluded.narrator_ref, role_note = excluded.role_note,
-                    importance = excluded.importance
+                    importance = excluded.importance, aliases_vi = excluded.aliases_vi
                 """,
                 (self.slug, source, (target or "").strip(), (aliases or "").strip(),
                  (gender or "").strip(), (self_pronoun or "").strip(),
                  (narrator_ref or "").strip(), (role_note or "").strip(),
-                 importance, row["next_pos"]),
+                 importance, row["next_pos"], (aliases_vi or "").strip()),
             )
         return True
 
@@ -1076,18 +1082,25 @@ class Storage:
             )
         return cur.rowcount > 0
 
-    def read_relation_entries(self) -> list[tuple[str, str, int, str, str, str]]:
-        """Đọc quan hệ của ebook → list tuple 6 phần tử, thứ tự khớp
-        `characters.relations_from_rows`."""
+    def read_relation_entries(
+        self,
+    ) -> list[tuple[str, str, int, str, str, str, int | None, str, str, str, int, str]]:
+        """Đọc quan hệ của ebook → list tuple 12 phần tử, thứ tự khớp
+        `characters.relations_from_rows`. Sáu cột cuối (sub-project B: mốc kết
+        thúc, chữ Hán gốc, bằng chứng, độ tin cậy) nối ở CUỐI để không phá vỡ vị
+        trí 6 cột cũ."""
         rows = self.conn.execute(
-            "SELECT a_source, b_source, from_chapter, a_calls_b, a_self, note "
+            "SELECT a_source, b_source, from_chapter, a_calls_b, a_self, note, "
+            "to_chapter, a_calls_b_raw, a_self_raw, evidence, inferred, confidence "
             "FROM character_relations WHERE ebook_slug=? "
             "ORDER BY a_source, b_source, from_chapter",
             (self.slug,),
         ).fetchall()
         return [
             (r["a_source"], r["b_source"], int(r["from_chapter"]),
-             r["a_calls_b"], r["a_self"], r["note"])
+             r["a_calls_b"], r["a_self"], r["note"],
+             r["to_chapter"], r["a_calls_b_raw"], r["a_self_raw"],
+             r["evidence"], int(r["inferred"]), r["confidence"])
             for r in rows
         ]
 
@@ -1099,8 +1112,18 @@ class Storage:
         a_calls_b: str = "",
         a_self: str = "",
         note: str = "",
+        to_chapter: int | None = None,
+        a_calls_b_raw: str = "",
+        a_self_raw: str = "",
+        evidence: str = "",
+        inferred: bool = False,
+        confidence: str = "",
     ) -> bool:
-        """Thêm/cập nhật MỘT mốc quan hệ có hướng. Bỏ qua nếu thiếu một đầu."""
+        """Thêm/cập nhật MỘT mốc quan hệ có hướng. Bỏ qua nếu thiếu một đầu.
+
+        `to_chapter` giữ nguyên `None` thành SQL NULL — KHÔNG ép về 0, vì NULL
+        mang nghĩa "còn hiệu lực tới mốc kế tiếp hoặc mãi mãi" (xem
+        `characters.resolve_relations`)."""
         a_source = (a_source or "").strip()
         b_source = (b_source or "").strip()
         if not a_source or not b_source:
@@ -1109,19 +1132,31 @@ class Storage:
             from_chapter = int(from_chapter)
         except (TypeError, ValueError):
             from_chapter = 0
+        if to_chapter is not None:
+            try:
+                to_chapter = int(to_chapter)
+            except (TypeError, ValueError):
+                to_chapter = None
         self.ensure_dirs()
         with self.conn:
             self.conn.execute(
                 """
                 INSERT INTO character_relations (ebook_slug, a_source, b_source,
-                    from_chapter, a_calls_b, a_self, note)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    from_chapter, a_calls_b, a_self, note, to_chapter,
+                    a_calls_b_raw, a_self_raw, evidence, inferred, confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(ebook_slug, a_source, b_source, from_chapter) DO UPDATE SET
                     a_calls_b = excluded.a_calls_b, a_self = excluded.a_self,
-                    note = excluded.note
+                    note = excluded.note, to_chapter = excluded.to_chapter,
+                    a_calls_b_raw = excluded.a_calls_b_raw,
+                    a_self_raw = excluded.a_self_raw, evidence = excluded.evidence,
+                    inferred = excluded.inferred, confidence = excluded.confidence
                 """,
                 (self.slug, a_source, b_source, from_chapter,
-                 (a_calls_b or "").strip(), (a_self or "").strip(), (note or "").strip()),
+                 (a_calls_b or "").strip(), (a_self or "").strip(), (note or "").strip(),
+                 to_chapter, (a_calls_b_raw or "").strip(), (a_self_raw or "").strip(),
+                 (evidence or "").strip(), 1 if inferred else 0,
+                 (confidence or "").strip()),
             )
         return True
 

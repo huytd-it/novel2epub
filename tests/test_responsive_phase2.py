@@ -147,9 +147,11 @@ def test_reader_has_minimal_header_hook_marker():
     assert "{% block head %}" in READER
 
 
-def test_reader_mobile_overflow_for_lesser_tools():
+def test_reader_mobile_toolbar_keeps_touch_targets_clickable():
     assert 'class="reader-nav-right mobile-actions"' in READER
-    assert "overflow-x: auto" in READER
+    assert "overflow: visible" in READER
+    assert "touch-action: manipulation" in READER
+    assert "document.body.append(mobileTools)" in READER
     assert ".reader-nav-right {" in READER
 
 

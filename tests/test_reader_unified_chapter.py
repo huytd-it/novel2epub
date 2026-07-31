@@ -95,8 +95,12 @@ def test_reader_hides_legacy_edit_controls_until_edit_mode_is_enabled(tmp_path, 
     default = client.get("/ebooks/t/read/7")
     edit_mode = client.get("/ebooks/t/read/7?edit=1")
 
-    assert 'class="reader-toolbar-btn edit-mode-control" title="Sửa bản dịch" aria-label="Edit chapter" hidden' in default.text
-    assert 'class="para-edit-btn edit-mode-control" title="Sửa đoạn" data-para="0" hidden' in default.text
+    assert 'class="reader-toolbar-btn edit-mode-control" role="menuitem" hidden' in default.text
+    assert 'class="reader-para" data-para="0"' in default.text
+    assert "para.contentEditable = on ? 'true' : 'false'" in default.text
+    assert "savePara(para)" in default.text
+    assert "para-edit-btn" not in default.text
+    assert "para-copy-btn" not in default.text
     assert "document.querySelectorAll('.edit-mode-control').forEach(control => {" in default.text
     assert "control.hidden = !on;" in default.text
     assert "setEditMode(initialEditMode);" in edit_mode.text

@@ -13,7 +13,7 @@ def test_upsert_and_read_character(storage):
     assert storage.upsert_character("林凡", "Lâm Phàm", "凡儿|林少爷", "nam",
                                     "ta", "hắn", "đồ đệ", "main") is True
     rows = storage.read_character_entries()
-    assert rows == [("林凡", "Lâm Phàm", "凡儿|林少爷", "nam", "ta", "hắn", "đồ đệ", "main")]
+    assert rows == [("林凡", "Lâm Phàm", "凡儿|林少爷", "nam", "ta", "hắn", "đồ đệ", "main", "")]
 
 
 def test_upsert_character_requires_source(storage):
@@ -55,3 +55,32 @@ def test_delete_relation_targets_one_milestone(storage):
     assert storage.delete_relation("林凡", "苏清雪", 120) is True
     rows = storage.read_relation_entries()
     assert [r[2] for r in rows] == [0]
+
+
+# ---------- schema v6: chữ Hán gốc, bằng chứng, to_chapter (sub-project B) ----------
+
+def test_relation_roundtrip_new_columns(storage):
+    storage.upsert_relation("林凡", "苏清雪", 2, "cô nương", "tại hạ",
+                            to_chapter=119, a_calls_b_raw="姑娘",
+                            a_self_raw="在下", evidence="林公子，请自重。",
+                            inferred=True, confidence="medium")
+    row = storage.read_relation_entries()[0]
+    assert row[2] == 2            # from_chapter
+    assert row[6] == 119          # to_chapter
+    assert row[7] == "姑娘"
+    assert row[8] == "在下"
+    assert row[9] == "林公子，请自重。"
+    assert row[10] == 1           # inferred
+    assert row[11] == "medium"
+
+
+def test_relation_to_chapter_defaults_null(storage):
+    storage.upsert_relation("A", "B", 0, "x", "y")
+    assert storage.read_relation_entries()[0][6] is None
+
+
+def test_character_aliases_vi_roundtrip(storage):
+    storage.upsert_character("林凡", "Lâm Phàm", "凡儿", aliases_vi="Phàm nhi")
+    row = storage.read_character_entries()[0]
+    assert row[2] == "凡儿"
+    assert row[8] == "Phàm nhi"

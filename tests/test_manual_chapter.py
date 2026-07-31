@@ -3,7 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig, TranslateConfig
 from novel2epub.storage import Chapter, Manifest, Storage
 
 
@@ -18,6 +20,37 @@ def _chapter_row(storage: Storage, index: int):
         "SELECT * FROM chapters WHERE ebook_slug=? AND idx=?",
         ("t", index),
     ).fetchone()
+
+
+def _cfg(tmp_path):
+    return Config(
+        novel=NovelConfig(slug="t"),
+        crawl=CrawlConfig(toc_url="http://x/book/", delay_seconds=0),
+        translate=TranslateConfig(type="none"),
+        output=OutputConfig(data_dir=str(tmp_path)),
+    )
+
+
+def _client(tmp_path, monkeypatch):
+    from app import deps
+    from app.main import app
+
+    cfg = _cfg(tmp_path)
+    monkeypatch.setattr(deps, "library", lambda: type("L", (), {"ebooks": {}})())
+    monkeypatch.setattr(deps, "cfg", lambda: cfg)
+    monkeypatch.setattr(deps, "resolved_cfg", lambda slug: cfg)
+
+    class _FakeJob:
+        def status(self):
+            return {
+                "crawl": {"running": False, "step": "", "error": "", "running_ebooks": []},
+                "translate": {"running": False, "step": "", "error": "", "running_ebooks": []},
+            }
+    app.state.job = _FakeJob()
+    return TestClient(app, follow_redirects=False)
+
+
+# --- Storage.insert_chapter tests (from Task 1) ---
 
 
 def test_insert_chapter_into_empty_manifest(tmp_path):
@@ -87,3 +120,104 @@ def test_insert_chapter_rejects_duplicate_url_without_changes(tmp_path):
         storage.insert_chapter(Chapter(1, "https://x/1", "Duplicate"))
 
     assert storage.load_manifest().to_json() == before
+
+
+# --- Route tests for POST /ebooks/{slug}/chapters/manual ---
+
+
+def test_manual_chapter_success_trims_and_redirects(tmp_path, monkeypatch):
+    """Successful request with whitespace stores trimmed title and URL,
+    sets title_zh equal to title, shifts old chapter, returns 303 to /ebooks/t."""
+    client = _client(tmp_path, monkeypatch)
+    storage = Storage(tmp_path, "t")
+    storage.save_manifest(Manifest(slug="t", chapters=[Chapter(1, "https://x/1", "Old")]))
+
+    res = client.post(
+        "/ebooks/t/chapters/manual",
+        data={"index": 1, "title": "  New Title  ", "url": "  https://x/new  "},
+    )
+
+    assert res.status_code == 303
+    assert res.headers["location"] == "/ebooks/t"
+    manifest = storage.load_manifest()
+    assert [(c.index, c.url, c.title, c.title_zh) for c in manifest.chapters] == [
+        (1, "https://x/new", "New Title", "New Title"),
+        (2, "https://x/1", "Old", ""),
+    ]
+
+
+def test_manual_chapter_empty_manifest_invalid_index(tmp_path, monkeypatch):
+    """Empty-manifest invalid index 2 returns 400 containing Vị trí."""
+    client = _client(tmp_path, monkeypatch)
+    Storage(tmp_path, "t").save_manifest(Manifest(slug="t"))
+
+    res = client.post(
+        "/ebooks/t/chapters/manual",
+        data={"index": 2, "title": "New", "url": "https://x/new"},
+    )
+
+    assert res.status_code == 400
+    assert "Vị trí" in res.text
+
+
+def test_manual_chapter_blank_title_returns_400(tmp_path, monkeypatch):
+    """Blank title returns 400 containing Tiêu đề."""
+    client = _client(tmp_path, monkeypatch)
+    Storage(tmp_path, "t").save_manifest(Manifest(slug="t"))
+
+    res = client.post(
+        "/ebooks/t/chapters/manual",
+        data={"index": 1, "title": "  ", "url": "https://x/new"},
+    )
+
+    assert res.status_code == 400
+    assert "Tiêu đề" in res.text
+
+
+def test_manual_chapter_blank_url_returns_400(tmp_path, monkeypatch):
+    """Blank URL returns 400 containing URL."""
+    client = _client(tmp_path, monkeypatch)
+    Storage(tmp_path, "t").save_manifest(Manifest(slug="t"))
+
+    res = client.post(
+        "/ebooks/t/chapters/manual",
+        data={"index": 1, "title": "New", "url": "  "},
+    )
+
+    assert res.status_code == 400
+    assert "URL" in res.text
+
+
+def test_manual_chapter_duplicate_url_returns_400_without_mutation(tmp_path, monkeypatch):
+    """Duplicate URL returns 400 containing URL and leaves the original row unchanged."""
+    client = _client(tmp_path, monkeypatch)
+    storage = Storage(tmp_path, "t")
+    storage.save_manifest(Manifest(slug="t", chapters=[Chapter(1, "https://x/1", "Original")]))
+    before = storage.load_manifest().to_json()
+
+    res = client.post(
+        "/ebooks/t/chapters/manual",
+        data={"index": 2, "title": "Dup", "url": "https://x/1"},
+    )
+
+    assert res.status_code == 400
+    assert "URL" in res.text
+    assert storage.load_manifest().to_json() == before
+
+
+def test_manual_chapter_template_assertions(tmp_path, monkeypatch):
+    """Template contains IDs add-manual-chapter-btn and manual-chapter-modal,
+    form action, and named fields index, title, url."""
+    client = _client(tmp_path, monkeypatch)
+    Storage(tmp_path, "t").save_manifest(Manifest(slug="t"))
+
+    res = client.get("/ebooks/t")
+
+    assert res.status_code == 200
+    html = res.text
+    assert 'id="add-manual-chapter-btn"' in html
+    assert 'id="manual-chapter-modal"' in html
+    assert 'action="/ebooks/t/chapters/manual"' in html
+    assert 'name="index"' in html
+    assert 'name="title"' in html
+    assert 'name="url"' in html

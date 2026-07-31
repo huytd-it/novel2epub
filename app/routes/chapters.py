@@ -24,7 +24,7 @@ from novel2epub.pipeline import (
     step_translate_selected,
 )
 from novel2epub.notes import replace_para, split_paras
-from novel2epub.storage import Storage
+from novel2epub.storage import Chapter, Storage
 from novel2epub.toc import count_words
 from novel2epub.translator import _filter_glossary
 
@@ -152,6 +152,23 @@ def _nav_context(manifest, index: int) -> dict:
         "chapter_pos": pos + 1,
         "chapter_total": len(idxs),
     }
+
+
+@router.post("/ebooks/{slug}/chapters/manual")
+def ebook_chapter_manual(slug: str, index: int = Form(...), title: str = Form(...), url: str = Form(...)):
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    title = title.strip()
+    url = url.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Tiêu đề không được rỗng.")
+    if not url:
+        raise HTTPException(status_code=400, detail="URL không được rỗng.")
+    try:
+        storage.insert_chapter(Chapter(index=index, url=url, title=title, title_zh=title))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
 @router.get("/chapters/{index}")

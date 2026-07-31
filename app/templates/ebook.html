@@ -215,6 +215,7 @@
     <form method="post" action="/ebooks/{{ slug }}/jobs/fetch-toc" class="inline-form" data-job-category="crawl">
         <button type="submit" class="btn btn-sm btn-secondary">Lấy toàn bộ danh mục</button>
     </form>
+    <button type="button" id="add-manual-chapter-btn" class="btn btn-sm btn-secondary">Thêm chương thủ công</button>
 </div>
 
 <div id="toc-region" class="toc-loading toc-workspace">
@@ -400,6 +401,33 @@
     <p class="empty-state-desc">Bấm "Lấy toàn bộ danh mục" để crawl chương hoặc điều chỉnh bộ lọc.</p>
 </div>
 {% endif %}
+</div>
+
+<div id="manual-chapter-modal" class="modal-backdrop" hidden>
+    <section class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="manual-chapter-modal-title">
+        <form id="manual-chapter-form" method="post" action="/ebooks/{{ slug }}/chapters/manual" class="p-5 space-y-4">
+            <div>
+                <h3 id="manual-chapter-modal-title" class="m-0 text-base font-semibold">Thêm chương thủ công</h3>
+                <p class="mt-1 mb-0 text-sm text-fg-muted dark:text-fg-muted-dark">Thêm một mục vào danh mục chương.</p>
+            </div>
+            <label class="form-group">
+                <span class="label">Vị trí</span>
+                <input type="number" name="index" min="1" max="{{ chapters|length + 1 }}" value="{{ chapters|length + 1 }}" class="input" required>
+            </label>
+            <label class="form-group">
+                <span class="label">Tiêu đề</span>
+                <input type="text" name="title" class="input" required>
+            </label>
+            <label class="form-group">
+                <span class="label">URL</span>
+                <input type="url" name="url" class="input" required>
+            </label>
+            <div class="flex justify-end gap-2 pt-1">
+                <button type="button" class="btn btn-secondary" data-close-modal="manual-chapter-modal">Hủy</button>
+                <button type="submit" class="btn btn-primary">Thêm</button>
+            </div>
+        </form>
+    </section>
 </div>
 
 <div id="selected-ai-modal" class="modal-backdrop" hidden>
@@ -764,8 +792,12 @@ document.addEventListener("click", (event) => {
         event.preventDefault();
         openAiActionModal();
     }
-    const closeModalBtn = event.target.closest?.('[data-close-modal="selected-ai-modal"]');
-    if (closeModalBtn) closeModal("selected-ai-modal");
+    const closeModalBtn = event.target.closest?.('[data-close-modal]');
+    if (closeModalBtn) closeModal(closeModalBtn.dataset.closeModal);
+    if (event.target.closest?.("#add-manual-chapter-btn")) {
+        event.preventDefault();
+        openModal("manual-chapter-modal");
+    }
     const btn = event.target.closest && event.target.closest(".pager-nav button[data-page]");
     if (btn) { event.preventDefault(); gotoPage(btn.dataset.page); }
     const skipBtn = event.target.closest && event.target.closest(".skip-toggle-btn");
@@ -814,6 +846,11 @@ document.addEventListener("keydown", (event) => {
     const aiModal = document.getElementById("selected-ai-modal");
     if (aiModal && !aiModal.hidden) {
         closeModal("selected-ai-modal");
+        return;
+    }
+    const mcModal = document.getElementById("manual-chapter-modal");
+    if (mcModal && !mcModal.hidden) {
+        closeModal("manual-chapter-modal");
         return;
     }
     closeSelectedMoreMenu();

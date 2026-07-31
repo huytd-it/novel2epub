@@ -109,14 +109,34 @@ def test_format_llm_block_relation_needs_both_characters_present():
 
 
 def test_format_pin_line_lists_main_only():
-    pin = C.format_pin_line([_LAM, _TO], forbid_words="anh/em/cậu/bạn")
+    pin = C.format_pin_line([_LAM, _TO], forbid_words="tại hạ", pronoun_rule="luật chung")
     assert "Lâm Phàm" in pin
     assert "Tô Thanh Tuyết" not in pin   # side, không lên dòng ghim
-    assert "CẤM dùng anh/em/cậu/bạn" in pin
+    assert "thường tránh tại hạ" in pin
+    assert pin.endswith("luật chung")
 
 
 def test_format_pin_line_empty_without_main():
-    assert C.format_pin_line([_TO], forbid_words="x") == ""
+    pin = C.format_pin_line([_TO], forbid_words="x")
+    assert "thường tránh x" in pin
+    assert "NHẮC LẠI:" not in pin
+
+
+def test_format_pin_line_keeps_general_rule_without_characters():
+    pin = C.format_pin_line([], pronoun_rule="được dùng hắn/ta/ngươi theo ngữ cảnh")
+    assert pin == "được dùng hắn/ta/ngươi theo ngữ cảnh"
+
+
+def test_character_table_precedes_soft_genre_guidance_in_pin():
+    pin = C.format_pin_line(
+        [_LAM],
+        forbid_words="tại hạ",
+        pronoun_rule="BẢNG NHÂN VẬT > ngôi kể > quan hệ/ngữ cảnh > thể loại",
+    )
+    assert 'Lâm Phàm = tự xưng "ta", lời kể "hắn"' in pin
+    assert "chỉ là gợi ý mềm" in pin
+    assert pin.index("NHẮC LẠI:") < pin.index("THỂ LOẠI") < pin.index("BẢNG NHÂN VẬT >")
+    assert "CẤM" not in pin
 
 
 # ---------- to_chapter (sub-project B) ----------

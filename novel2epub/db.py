@@ -7,11 +7,31 @@ Phase 0: chỉ định nghĩa schema + kết nối, CHƯA đụng tới `storage
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
+
+_PRONOUN_MIGRATION_RULE = (
+    "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
+    "gợi ý thể loại. Lời kể được dùng \"hắn\" khi tự nhiên, kể cả truyện hiện "
+    "đại; không máy móc đổi thành \"anh/anh ta/anh ấy\". \"Ta/ngươi\" hợp lệ "
+    "trong lời kể đúng ngôi, thoại và nội tâm khi đúng giọng, thân phận và quan "
+    "hệ. Không ánh xạ máy móc 我→ta, 你→ngươi, 他→hắn."
+)
+
+_LEGACY_PRONOUN_RULES = (
+    "Ngôi xưng phải theo quan hệ và ngữ cảnh, KHÔNG bê nguyên ta/ngươi. "
+    "Chọn phù hợp giữa cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/"
+    "bà ấy/ngài/người/con/cháu...",
+    "Ngôi xưng theo quan hệ và ngữ cảnh, KHÔNG bê nguyên ta/ngươi. "
+    "Chọn phù hợp giữa cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/"
+    "bà ấy/ngài/người/con/cháu...",
+    'Ngôi xưng theo quan hệ nhân vật và ngữ cảnh (ta/ngươi, chàng/nàng, sư '
+    'phụ/đồ nhi, lão phu/tiểu hữu…). Tránh dùng "ta/ngươi" máy móc.',
+)
 
 _SCHEMA_STATEMENTS = [
     """
@@ -323,6 +343,62 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
+def _upgrade_prompt_text(prompt: str) -> str:
+    """Thay đúng luật xưng hô legacy đã phát hành; prompt khác giữ nguyên."""
+    out = prompt
+    for legacy in _LEGACY_PRONOUN_RULES:
+        out = out.replace(legacy, _PRONOUN_MIGRATION_RULE)
+    return out
+
+
+def _upgrade_prompt_json(raw: str, *, settings: bool) -> str | None:
+    """Nâng prompt trong JSON; trả None nếu hỏng, thiếu hoặc không thay đổi."""
+    try:
+        data = json.loads(raw or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    translate = data.get("translate") if settings else data
+    if not isinstance(translate, dict):
+        return None
+    openai = translate.get("openai")
+    if not isinstance(openai, dict):
+        return None
+    prompt = openai.get("prompt_template")
+    if not isinstance(prompt, str):
+        return None
+    upgraded = _upgrade_prompt_text(prompt)
+    if upgraded == prompt:
+        return None
+    openai["prompt_template"] = upgraded
+    return json.dumps(data, ensure_ascii=False)
+
+
+def _migrate_legacy_prompts(conn: sqlite3.Connection) -> None:
+    """Nâng prompt global và từng ebook, an toàn gọi lại nhiều lần."""
+    for row in conn.execute("SELECT id, translate_json FROM settings").fetchall():
+        upgraded = _upgrade_prompt_json(row["translate_json"], settings=False)
+        if upgraded is not None:
+            conn.execute(
+                "UPDATE settings SET translate_json = ?, updated_at = datetime('now') "
+                "WHERE id = ?",
+                (upgraded, row["id"]),
+            )
+    for row in conn.execute(
+        "SELECT slug, translate_overrides_json FROM ebooks"
+    ).fetchall():
+        upgraded = _upgrade_prompt_json(
+            row["translate_overrides_json"], settings=False
+        )
+        if upgraded is not None:
+            conn.execute(
+                "UPDATE ebooks SET translate_overrides_json = ?, "
+                "updated_at = datetime('now') WHERE slug = ?",
+                (upgraded, row["slug"]),
+            )
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
     """Tạo toàn bộ bảng nếu chưa có — idempotent, an toàn gọi mỗi lần khởi
     động app/CLI (không xóa/động tới dữ liệu đã có)."""
@@ -330,6 +406,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
         for stmt in _SCHEMA_STATEMENTS:
             conn.execute(stmt)
         _ensure_columns(conn)
+        _migrate_legacy_prompts(conn)
         conn.execute(
             """
             INSERT INTO _meta (key, value) VALUES ('schema_version', ?)

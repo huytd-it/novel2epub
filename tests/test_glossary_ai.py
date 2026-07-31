@@ -1,4 +1,15 @@
-from novel2epub.glossary_ai import _parse_evaluation, _parse_suggestions, format_evaluation_text
+from novel2epub.glossary_ai import (
+    EDIT_HAY_GUIDELINES,
+    _parse_evaluation,
+    _parse_suggestions,
+    format_evaluation_text,
+)
+
+
+def test_edit_guidelines_preserve_valid_contextual_pronouns():
+    assert 'Giữ "hắn"' in EDIT_HAY_GUIDELINES
+    assert '"Ta/ngươi" hợp lệ' in EDIT_HAY_GUIDELINES
+    assert "không lạm dụng ta/ngươi" not in EDIT_HAY_GUIDELINES
 
 
 def test_parse_plain_json_array():

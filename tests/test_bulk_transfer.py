@@ -67,6 +67,23 @@ def test_foreign_name_rule_present_in_every_prompt(prompt):
     assert "夏洛克" in prompt
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        config.DEFAULT_PROMPT,
+        config.EN_DEFAULT_PROMPT,
+        b.TRANSLATE_PROMPT,
+        b.EDIT_PROMPT,
+        go.GO_PROMPT,
+        omniroute.OMNIPROUTE_PROMPT,
+    ],
+)
+def test_contextual_pronoun_rule_present_in_every_translation_prompt(prompt):
+    assert '"hắn"' in prompt
+    assert '"ta/ngươi"' in prompt
+    assert "KHÔNG bê nguyên ta/ngươi" not in prompt
+
+
 @pytest.mark.parametrize("prompt", [b.TRANSLATE_PROMPT, b.EDIT_PROMPT])
 def test_foreign_name_example_in_prompt_never_imported_as_glossary(prompt):
     """Ví dụ tên nước ngoài trong prompt KHÔNG được nạp thành entry glossary thật

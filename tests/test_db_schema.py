@@ -1,3 +1,4 @@
+import json
 import sqlite3
 
 import pytest
@@ -177,7 +178,57 @@ def test_characters_tables_exist():
     names = _table_names(conn)
     assert "characters" in names
     assert "character_relations" in names
-    assert SCHEMA_VERSION == 6
+    assert SCHEMA_VERSION == 7
+
+
+def test_schema_v7_migrates_legacy_prompts_idempotently():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    legacy = (
+        "Đầu tùy chỉnh. Ngôi xưng phải theo quan hệ và ngữ cảnh, KHÔNG bê nguyên "
+        "ta/ngươi. Chọn phù hợp giữa cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/"
+        "nàng/ông ấy/bà ấy/ngài/người/con/cháu... Cuối tùy chỉnh."
+    )
+    settings = {"openai": {"prompt_template": legacy}, "type": "openai"}
+    ebook = {"openai": {"prompt_template": legacy}, "genre": "urban"}
+    with conn:
+        conn.execute(
+            "INSERT INTO settings (id, translate_json) VALUES (1, ?)",
+            (json.dumps(settings, ensure_ascii=False),),
+        )
+        conn.execute(
+            "INSERT INTO ebooks (slug, translate_overrides_json) VALUES ('demo', ?)",
+            (json.dumps(ebook, ensure_ascii=False),),
+        )
+
+    init_schema(conn)
+    first_settings = conn.execute("SELECT translate_json FROM settings").fetchone()[0]
+    first_ebook = conn.execute("SELECT translate_overrides_json FROM ebooks").fetchone()[0]
+    for raw in (first_settings, first_ebook):
+        assert "KHÔNG bê nguyên ta/ngươi" not in raw
+        assert 'được dùng \\"hắn\\"' in raw
+        assert "Đầu tùy chỉnh" in raw and "Cuối tùy chỉnh" in raw
+
+    init_schema(conn)
+    assert conn.execute("SELECT translate_json FROM settings").fetchone()[0] == first_settings
+    assert conn.execute("SELECT translate_overrides_json FROM ebooks").fetchone()[0] == first_ebook
+
+
+def test_schema_v7_preserves_custom_and_invalid_prompt_json():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    custom = json.dumps(
+        {"openai": {"prompt_template": "Luật riêng của tôi: giữ nguyên."}},
+        ensure_ascii=False,
+    )
+    with conn:
+        conn.execute("INSERT INTO settings (id, translate_json) VALUES (1, ?)", (custom,))
+        conn.execute(
+            "INSERT INTO ebooks (slug, translate_overrides_json) VALUES ('bad', '{broken')"
+        )
+    init_schema(conn)
+    assert conn.execute("SELECT translate_json FROM settings").fetchone()[0] == custom
+    assert conn.execute("SELECT translate_overrides_json FROM ebooks").fetchone()[0] == "{broken"
 
 
 def test_schema_v6_columns_present():

@@ -242,14 +242,15 @@ def format_llm_block(chars: list[Character], relations: list[Relation]) -> str:
     return "\n".join(lines)
 
 
-def format_pin_line(chars: list[Character], forbid_words: str = "") -> str:
+def format_pin_line(
+    chars: list[Character], forbid_words: str = "", pronoun_rule: str = ""
+) -> str:
     """Dòng nhắc ngắn nối vào CUỐI prompt (sau {text}).
 
-    Chỉ liệt kê nhân vật `main` (chỉ những người có tự xưng/lời kể để nhắc —
-    người không có cả hai bị bỏ qua), gộp thành MỘT dòng "NHẮC LẠI: ...",
-    kèm dòng CẤM riêng nếu có `forbid_words`. Trả "" khi không có gì để nhắc.
-    Đặt sau nội dung vì chỉ dẫn ở cuối prompt được tuân thủ tốt hơn chỉ dẫn
-    kẹp giữa.
+    Liệt kê nhân vật `main` có tự xưng/lời kể, rồi ghim luật chung kể cả khi
+    không có bảng nhân vật. `forbid_words` là danh sách thường tránh mềm, không
+    được phủ định bảng/ngôi kể/ngữ cảnh. Đặt sau nội dung vì chỉ dẫn ở cuối
+    prompt được tuân thủ tốt hơn chỉ dẫn kẹp giữa.
     """
     mains = [c for c in chars if c.importance == "main"]
     bits: list[str] = []
@@ -261,9 +262,14 @@ def format_pin_line(chars: list[Character], forbid_words: str = "") -> str:
             parts.append(f'lời kể "{char.narrator_ref}"')
         if parts:
             bits.append(f"{_display(char)} = " + ", ".join(parts))
-    if not bits:
-        return ""
-    out = "NHẮC LẠI: " + ". ".join(bits) + "."
+    lines: list[str] = []
+    if bits:
+        lines.append("NHẮC LẠI: " + ". ".join(bits) + ".")
     if forbid_words:
-        out += f"\nCẤM dùng {forbid_words}."
-    return out
+        lines.append(
+            "THỂ LOẠI (chỉ là gợi ý mềm): thường tránh "
+            f"{forbid_words} nếu BẢNG NHÂN VẬT, ngôi kể hoặc ngữ cảnh không yêu cầu."
+        )
+    if pronoun_rule:
+        lines.append(pronoun_rule)
+    return "\n".join(lines)

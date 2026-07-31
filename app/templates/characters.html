@@ -9,6 +9,56 @@
     Sửa trực tiếp trong bảng — mỗi mục <strong>tự lưu</strong> khi bạn rời ô.
 </p>
 
+<details class="border border-surface-border dark:border-surface-border-dark rounded-lg mb-4 bg-surface-alt dark:bg-surface-alt-dark">
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2">Hướng dẫn thêm thủ công để tra cứu và dịch chính xác</summary>
+    <div class="px-3 pb-3 text-sm space-y-3">
+        <p>
+            Nên tạo <strong>nhân vật trước, quan hệ sau</strong>. Thông tin ở đây được đưa vào ngữ cảnh dịch;
+            tên gốc và alias còn giúp tìm đúng nhân vật khi tên gọi thay đổi trong truyện.
+        </p>
+        <div class="grid gap-3 md:grid-cols-2">
+            <div>
+                <h3 class="font-semibold mb-1">1. Điền nhân vật</h3>
+                <ul class="list-disc pl-5 space-y-1 text-fg-muted dark:text-fg-muted-dark">
+                    <li><strong>Tên gốc:</strong> chữ đúng như bản raw, ví dụ <code>林凡</code>. Đây là khóa nhận diện, không dùng tên Việt ở ô này.</li>
+                    <li><strong>Tên Việt:</strong> cách viết thống nhất sẽ xuất hiện trong bản dịch, ví dụ <code>Lâm Phàm</code>.</li>
+                    <li><strong>Alias:</strong> mọi tên gốc, biệt danh, chức danh thường dùng để nhận diện cùng người; ngăn bằng <code>|</code>, ví dụ <code>林公子|小凡|少主</code>. Không thêm danh xưng quá chung như <code>师父</code> nếu nhiều người cùng được gọi như vậy.</li>
+                    <li><strong>Giới:</strong> ghi ngắn gọn <code>nam</code>, <code>nữ</code> hoặc <code>không rõ</code> để chọn đại từ đúng.</li>
+                    <li><strong>Tự xưng:</strong> cách mặc định nhân vật gọi chính mình, ví dụ <code>ta</code>, <code>thiếp</code>, <code>bổn tọa</code>. Trường hợp riêng với một người hãy ghi trong quan hệ.</li>
+                    <li><strong>Lời kể gọi:</strong> đại từ dùng trong câu trần thuật, ví dụ <code>hắn</code>, <code>nàng</code>, <code>ông ấy</code>.</li>
+                    <li><strong>Vai trò:</strong> ghi thông tin phân biệt và dễ tra cứu: thân phận, phe/phái, chức vụ, quan hệ nổi bật, đặc điểm nhận dạng. Ví dụ <code>đệ tử Thanh Vân Tông; con Lâm Chấn; kiếm tu</code>.</li>
+                    <li><strong>Ngôi sao:</strong> chỉ bật cho nhân vật chính hoặc người cần luôn có trong ngữ cảnh dịch.</li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-semibold mb-1">2. Điền quan hệ có hướng</h3>
+                <ul class="list-disc pl-5 space-y-1 text-fg-muted dark:text-fg-muted-dark">
+                    <li>Mở <strong>Quan hệ</strong> dưới nhân vật A rồi chọn B. Dòng này chỉ mô tả <strong>A → B</strong>, không tự suy ra chiều ngược lại.</li>
+                    <li><strong>Từ chương:</strong> chương bắt đầu áp dụng; dùng <code>0</code> nếu đúng từ đầu truyện.</li>
+                    <li><strong>A gọi B:</strong> từ A dùng để gọi B, ví dụ <code>sư phụ</code>.</li>
+                    <li><strong>A tự xưng:</strong> từ A dùng cho bản thân khi nói với B, ví dụ <code>đồ nhi</code>.</li>
+                    <li><strong>Ghi chú:</strong> nêu bản chất quan hệ và điều kiện dùng, ví dụ <code>thầy trò; trang trọng trước người ngoài</code>.</li>
+                    <li>Muốn đủ hai chiều, tạo thêm dòng <strong>B → A</strong>. Ví dụ B gọi A là <code>đồ nhi</code> và tự xưng <code>vi sư</code>.</li>
+                    <li>Khi xưng hô đổi, giữ dòng cũ và thêm dòng mới với mốc chương mới. Hệ thống chọn mốc gần nhất không vượt quá chương đang dịch.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="rounded border border-surface-border dark:border-surface-border-dark p-2">
+            <strong>Ví dụ hoàn chỉnh:</strong>
+            <span class="text-fg-muted dark:text-fg-muted-dark">
+                <code>林凡 → Lâm Phàm</code>, alias <code>林公子|小凡</code>, nam, tự xưng <code>ta</code>, lời kể gọi <code>hắn</code>,
+                vai trò <code>đệ tử Thanh Vân Tông; nhân vật chính</code>. Quan hệ từ chương 12:
+                <code>Lâm Phàm → 顾长青</code>, gọi <code>sư phụ</code>, tự xưng <code>đồ nhi</code>.
+            </span>
+        </div>
+        <p class="text-fg-muted dark:text-fg-muted-dark">
+            <strong>Mẹo tra cứu:</strong> nhập tên gốc, tên Việt hoặc alias vào ô tìm kiếm. Mỗi ô tự lưu khi rời ô;
+            nên kiểm tra dấu hiệu lưu thành công trước khi nhập quan hệ. Chỉ ghi điều đã xác nhận từ raw hoặc chương cụ thể,
+            tránh đoán giới tính và quan hệ chỉ từ tên.
+        </p>
+    </div>
+</details>
+
 <!-- Tab bar -->
 <div class="flex gap-2 border-b border-surface-border dark:border-surface-border-dark mb-3">
     <button type="button" class="char-tab-btn active px-3 py-2 text-sm border-b-2 border-brand-500 font-medium -mb-0.5" data-tab="tab-table" onclick="switchCharTab('tab-table')">Bảng nhân vật</button>
@@ -38,7 +88,7 @@
                 <th>Giới</th>
                 <th>Tự xưng</th>
                 <th>Lời kể gọi</th>
-                <th>Vai trò</th>
+                <th title="Thân phận, phe phái, chức vụ, quan hệ nổi bật và đặc điểm phân biệt">Vai trò / ghi chú</th>
                 <th class="w-14 text-center" title="Nhân vật chính">⭐</th>
                 <th class="w-16">Thao tác</th>
             </tr>
@@ -178,11 +228,11 @@ function render() {
             <td class="px-2 py-1 align-top">${e._saved ? `<input type="checkbox" class="bulk-check rounded border-surface-border dark:border-surface-border-dark" data-source="${escapeHtml(e._saved)}">` : ""}</td>
             <td class="px-2 py-1 align-top" data-label="Tên gốc"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
             <td class="px-2 py-1 align-top" data-label="Tên Việt"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top" data-label="Alias"><input data-field="aliases" value="${escapeHtml(e.aliases)}" placeholder="—" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top" data-label="Alias"><input data-field="aliases" value="${escapeHtml(e.aliases)}" placeholder="VD: 林公子|小凡" title="Tên gốc, biệt danh hoặc chức danh dùng để nhận diện cùng nhân vật; ngăn bằng |" class="${inputCls}"></td>
             <td class="px-2 py-1 align-top w-20" data-label="Giới"><input data-field="gender" value="${escapeHtml(e.gender)}" placeholder="nam/nữ" class="${inputCls}"></td>
             <td class="px-2 py-1 align-top" data-label="Tự xưng"><input data-field="self_pronoun" value="${escapeHtml(e.self_pronoun)}" placeholder="VD: ta" class="${inputCls}"></td>
             <td class="px-2 py-1 align-top" data-label="Lời kể gọi"><input data-field="narrator_ref" value="${escapeHtml(e.narrator_ref)}" placeholder="VD: hắn" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top" data-label="Vai trò"><input data-field="role_note" value="${escapeHtml(e.role_note)}" placeholder="VD: đồ đệ của…" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top" data-label="Vai trò / ghi chú"><input data-field="role_note" value="${escapeHtml(e.role_note)}" placeholder="VD: đệ tử Thanh Vân Tông; kiếm tu" title="Thân phận, phe phái, chức vụ, quan hệ nổi bật và đặc điểm giúp phân biệt" class="${inputCls}"></td>
             <td class="px-2 py-1 align-top text-center" data-label="⭐"><input type="checkbox" data-field="importance" ${e.importance === "main" ? "checked" : ""} class="rounded border-surface-border dark:border-surface-border-dark" title="Nhân vật chính"></td>
             <td class="px-2 py-1 align-top whitespace-nowrap" data-label="Thao tác">
                 <button type="button" data-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá nhân vật">Xoá</button>

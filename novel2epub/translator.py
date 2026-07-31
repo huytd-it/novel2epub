@@ -450,7 +450,9 @@ class OpenAITranslator:
         # Dòng ghim nối bằng code (không qua placeholder) nên chạy được với MỌI
         # template, kể cả prompt người dùng đã pin từ trước.
         pin = characters_mod.format_pin_line(
-            chars, genre_mod.forbid_words(self.cfg.genre)
+            chars,
+            genre_mod.forbid_words(self.cfg.genre),
+            genre_mod.RUNTIME_PRONOUN_PIN,
         )
         if pin:
             prompt = f"{prompt}\n\n{pin}"

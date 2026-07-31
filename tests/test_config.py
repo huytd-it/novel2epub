@@ -371,4 +371,23 @@ def test_default_prompt_no_longer_bans_ta_nguoi_globally():
     # urban/romance, nơi nó đúng.
     from novel2epub.config import DEFAULT_PROMPT
     assert "KHÔNG bê nguyên ta/ngươi" not in DEFAULT_PROMPT
-    assert "[LỜI KỂ]" in DEFAULT_PROMPT
+    assert "[LỜI KỂ NGÔI BA]" in DEFAULT_PROMPT
+
+
+def test_default_zh_and_en_prompts_allow_contextual_pronouns():
+    from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT
+    for prompt in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT):
+        assert '"hắn"' in prompt
+        assert '"ta/ngươi"' in prompt
+        assert "BẢNG NHÂN VẬT" in prompt or "CHARACTER TABLE" in prompt
+        assert "máy móc" in prompt or "mechanically" in prompt
+
+
+def test_default_prompts_define_pronoun_priority_and_avoid_overuse():
+    from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT
+    assert "BẢNG NHÂN VẬT > ngôi kể thực tế của đoạn > quan hệ/ngữ cảnh > gợi ý thể loại" in DEFAULT_PROMPT
+    assert 'không thay mọi 他 bằng "hắn"' in DEFAULT_PROMPT
+    assert "tránh lặp đại từ dày đặc" in DEFAULT_PROMPT
+    assert "CHARACTER TABLE > the passage's actual narrative person > relationship/context > genre suggestions" in EN_DEFAULT_PROMPT
+    assert 'Do not translate every he/him as "hắn"' in EN_DEFAULT_PROMPT
+    assert "Write in uppercase" not in EN_DEFAULT_PROMPT

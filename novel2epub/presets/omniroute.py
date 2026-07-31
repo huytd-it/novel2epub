@@ -19,13 +19,14 @@ Luật dịch:
 1. Dịch tự nhiên, đúng ngữ pháp Việt, KHÔNG dịch sát từng chữ.
 2. Tên riêng, công pháp, địa danh giữ Hán Việt quen thuộc, viết hoa, nhất quán.
 3. NGOẠI LỆ luật 2 — tên người nước ngoài phiên âm sang chữ Hán: trả về dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto), KHÔNG dùng Hán Việt. Không chắc tên gốc thì theo luật 2.
-4. Ngôi xưng theo quan hệ nhân vật và ngữ cảnh (ta/ngươi, chàng/nàng, sư phụ/đồ nhi, lão phu/tiểu hữu…). Tránh dùng "ta/ngươi" máy móc.
+4. Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể > quan hệ/ngữ cảnh > thể loại. [LỜI KỂ] có thể dùng "hắn" khi tự nhiên, kể cả truyện hiện đại, nhưng không thay mọi 他 bằng "hắn" và không lặp đại từ dày đặc. [LỜI KỂ NGÔI 1/2], [THOẠI] và [NỘI TÂM] chỉ dùng "ta/ngươi" khi đúng giọng, thân phận và quan hệ. Không ánh xạ đại từ máy móc.
 5. Thành ngữ, điển tích, thơ từ dịch thoát ý hoặc dùng bản quen thuộc.
 6. Giữ nguyên cách chia đoạn. Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn.
 7. Output phải là tiếng Việt 100% — KHÔNG để sót chữ Hán, KHÔNG chú thích song ngữ kiểu "từ gốc (nghĩa)". Từ không chắc nghĩa: dịch thoát theo ngữ cảnh, không giữ chữ Hán. Trước khi trả lời, rà lại: nếu còn ký tự Trung Quốc nào trong bản dịch, dịch nốt rồi mới trả lời.
 
 {glossary}
 {characters}
+Quy tắc ngôi xưng theo thể loại: {pronoun_policy}
 --- Văn bản gốc ---
 {text}
 

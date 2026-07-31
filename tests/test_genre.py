@@ -18,8 +18,32 @@ def test_xianxia_rules_mention_expected_pronouns():
 
 
 def test_urban_forbids_classical_pronouns():
-    assert "ngươi" in G.forbid_words("urban")
+    forbidden = G.forbid_words("urban")
+    for contextual in ("ta", "ngươi", "hắn"):
+        assert contextual not in {w.strip() for w in forbidden.split(",")}
+    assert "tại hạ" in forbidden
     assert G.forbid_words("xianxia") != G.forbid_words("urban")
+
+
+def test_contextual_pronouns_are_not_absolutely_forbidden_by_any_genre():
+    for key in G.GENRE_KEYS:
+        forbidden = {w.strip() for w in G.forbid_words(key).split(",")}
+        assert not ({"ta", "ngươi", "hắn"} & forbidden), key
+
+
+def test_pronoun_rules_explain_context_and_priority():
+    out = G.format_pronoun_rules("urban")
+    assert "Có thể dùng khi phù hợp" in out
+    assert "Thường tránh nếu BẢNG NHÂN VẬT" in out
+    assert "CẤM:" not in out
+    assert G.CONTEXTUAL_PRONOUN_RULE not in out
+
+
+def test_runtime_pin_has_complete_pronoun_priority():
+    pin = G.RUNTIME_PRONOUN_PIN
+    assert "Bảng nhân vật > ngôi kể > ngữ cảnh > thể loại" in pin
+    assert "hắn/ta/ngươi chỉ dùng khi tự nhiên" in pin
+    assert len(pin) < 100
 
 
 def test_genre_module_does_not_import_hachimimt():

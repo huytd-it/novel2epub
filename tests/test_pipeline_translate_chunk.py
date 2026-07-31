@@ -187,6 +187,30 @@ def test_pronoun_policy_renders_genre_rules(tmp_path):
     assert "contextual" not in prompt
 
 
+def test_runtime_pin_protects_contextual_pronouns_without_character_table(tmp_path):
+    from novel2epub.config import TranslateConfig
+    from novel2epub.translator import OpenAITranslator
+
+    cfg = TranslateConfig()
+    cfg.genre = "urban"
+    cfg.openai.prompt_template = "Prompt cũ cấm hắn.\n{text}"
+    prompt = OpenAITranslator(cfg)._build_prompt("他发现怪物更快。")
+    assert prompt.endswith(__import__("novel2epub.genre", fromlist=["RUNTIME_PRONOUN_PIN"]).RUNTIME_PRONOUN_PIN)
+    assert "hắn/ta/ngươi chỉ dùng khi tự nhiên" in prompt
+    assert "CẤM dùng" not in prompt
+
+
+def test_character_table_pronouns_override_urban_genre_guidance(tmp_path):
+    tr, _ = _translator_with_characters(tmp_path, "{pronoun_policy}\n{characters}\n{text}")
+    tr.cfg.genre = "urban"
+    prompt = tr._build_prompt("林凡 走了。", chapter_idx=0)
+    assert 'tự xưng "ta"' in prompt
+    assert 'lời kể gọi "hắn"' in prompt
+    assert "CẤM:" not in prompt
+    assert "CẤM dùng" not in prompt
+    assert prompt.rfind("Bảng nhân vật > ngôi kể > ngữ cảnh > thể loại") > prompt.index("林凡 走了。")
+
+
 def test_rate_limited_forwards_chapter_idx():
     """RateLimited là wrapper — quên chuyển tiếp chapter_idx thì mọi ebook có
     giới hạn tốc độ sẽ mất mốc quan hệ (`from_chapter`) mà không báo lỗi gì."""

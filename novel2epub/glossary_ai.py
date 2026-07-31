@@ -51,7 +51,7 @@ Nếu không có gì để đề xuất, trả về [].
 EDIT_HAY_GUIDELINES = """Nguyên tắc "edit hay" (biên tập lại bản dịch máy/dịch thô cho mượt):
 1. Dùng từ đồng nghĩa linh hoạt theo sắc thái nhân vật và bối cảnh; tránh từ quá thô/hài/lố nếu cảnh đang trang trọng hoặc là chính truyện.
 2. Không bê nguyên trật tự câu tiếng Trung; viết lại theo ngữ pháp Việt tự nhiên (chủ ngữ + động từ + vị ngữ, trạng ngữ lên đầu câu khi hợp lý).
-3. Ngôi xưng phải theo quan hệ và ngữ cảnh, không lạm dụng ta/ngươi.
+3. Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > thể loại. Giữ "hắn" trong lời kể khi tự nhiên, kể cả truyện hiện đại; không máy móc đổi thành "anh/anh ta/anh ấy". "Ta/ngươi" hợp lệ trong lời kể đúng ngôi, thoại và nội tâm khi đúng giọng, thân phận và quan hệ. Không ánh xạ máy móc 我/你/他 và không sửa một hệ thống xưng hô đang đúng chỉ vì sở thích văn phong.
 4. Câu rõ nghĩa nhưng khô/máy móc cần viết lại tự nhiên hơn, không đổi nghĩa gốc.
 5. Thành ngữ, tục ngữ, thơ từ, điển tích nên dịch thoát ý hoặc dùng bản dịch quen thuộc nếu có, không dịch từng chữ.
 6. Tên chương cần chuyển ngữ hay, có ý vị, không giữ nguyên Hán Việt khô khó hiểu.

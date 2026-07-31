@@ -156,8 +156,12 @@ tiếng Việt bên dưới cho hay, chính xác và tự nhiên, theo các nguy
 
 1. Đối chiếu ngữ cảnh để giữ ĐÚNG nghĩa, KHÔNG thêm bớt nội dung; gặp từ/điển \
 tích đáng ngờ thì hiểu cho đúng rồi mới viết lại.
-2. NGÔI XƯNG theo quan hệ, tuổi tác, thân phận và cảm xúc nhân vật — hạn chế \
-"ta – ngươi" máy móc (cha/mẹ/con, huynh/đệ/tỷ/muội, chàng/nàng, ông ấy/bà ấy...).
+2. NGÔI XƯNG: Bảng nhân vật > ngôi kể thực tế > quan hệ/ngữ cảnh > thể loại. \
+Giữ "hắn" trong lời kể khi tự nhiên, kể cả truyện hiện đại; không máy móc đổi \
+thành "anh/anh ta/anh ấy". "ta/ngươi" hợp lệ trong lời kể đúng ngôi, thoại và \
+nội tâm khi đúng giọng, thân phận và quan hệ; không ánh xạ máy móc 我/你/他. \
+Không thay mọi 他 bằng "hắn", không lặp đại từ dày đặc và không sửa một hệ \
+thống xưng hô đang đúng chỉ vì sở thích văn phong.
 3. Sửa NGỮ PHÁP và trật tự từ cho thuần tiếng Việt (đưa trạng ngữ lên đầu câu, \
 câu đủ chủ – vị, ngắt câu/dấu câu hợp lý).
 4. CÂN BẰNG Hán – Việt và thuần Việt: giữ sắc thái (nhất là truyện cổ đại) nhưng \
@@ -190,8 +194,11 @@ sang tiếng Việt, theo các nguyên tắc sau:
 
 1. Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp Việt: đảo trật tự từ cho thuận, \
 câu phải đủ chủ — vị.
-2. Ngôi xưng theo quan hệ và ngữ cảnh, KHÔNG bê nguyên ta/ngươi. Chọn phù hợp \
-giữa cha/mẹ/thúc/bá/cô/sư phụ/tiền bối/chàng/nàng/ông ấy/bà ấy/ngài/người/con/cháu...
+2. Ngôi xưng: Bảng nhân vật > ngôi kể thực tế > quan hệ/ngữ cảnh > thể loại. \
+Lời kể được dùng "hắn" khi tự nhiên, kể cả truyện hiện đại, không máy móc đổi \
+thành "anh/anh ta/anh ấy". "ta/ngươi" hợp lệ trong lời kể đúng ngôi, thoại và \
+nội tâm khi đúng giọng, thân phận và quan hệ. Không ánh xạ máy móc 我→ta, \
+你→ngươi, 他→hắn; không thay mọi 他 bằng "hắn" hoặc lặp đại từ dày đặc.
 3. Tên riêng, công pháp, địa danh, chiêu thức: giữ Hán Việt quen thuộc, viết \
 hoa và NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary tham khảo.
 4. NGOẠI LỆ của luật 3 — tên người nước ngoài (Âu-Mỹ, Nhật, Hàn...) được bản \

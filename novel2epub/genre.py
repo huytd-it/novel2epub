@@ -17,6 +17,20 @@ from dataclasses import dataclass
 # gì", không nối vào luật.
 _DEFAULT_POLICY = "contextual"
 
+CONTEXTUAL_PRONOUN_RULE = (
+    "Ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > gợi ý thể loại. "
+    "Trong lời kể ngôi ba, được dùng \"hắn\" khi tự nhiên và nhất quán, kể cả "
+    "truyện hiện đại; không máy móc đổi thành \"anh/anh ta/anh ấy\". Trong lời "
+    "kể ngôi một hoặc ngôi hai, thoại và nội tâm, được dùng \"ta/ngươi\" khi "
+    "đúng giọng kể, thân phận, quan hệ và cảm xúc. Không ánh xạ máy móc "
+    "我→ta, 你→ngươi, 他→hắn; chọn đại từ theo chức năng của từng câu."
+)
+
+RUNTIME_PRONOUN_PIN = (
+    "NGÔI XƯNG: Bảng nhân vật > ngôi kể > ngữ cảnh > thể loại; "
+    "hắn/ta/ngươi chỉ dùng khi tự nhiên."
+)
+
 
 @dataclass(frozen=True)
 class GenrePreset:
@@ -55,7 +69,8 @@ GENRE_PRESETS: dict[str, GenrePreset] = {
         han_viet_hint="Hán Việt cao: tên riêng, công pháp, cảnh giới, chức danh giữ "
                       "nguyên dạng Hán Việt, viết hoa, nhất quán toàn truyện.",
         extra_rules=(
-            "Lời kể dùng hắn/y/gã (nam), nàng (nữ) — KHÔNG dùng anh/cô ấy.",
+            "Lời kể thường dùng hắn/y/gã (nam), nàng (nữ); chỉ dùng anh/cô ấy "
+            "khi BẢNG NHÂN VẬT, ngôi kể hoặc ngữ cảnh yêu cầu.",
             "Đơn vị đo cổ (里/丈/尺/两/更/时辰) giữ hệ cổ: dặm, trượng, thước, "
             "lượng, canh, canh giờ.",
         ),
@@ -64,19 +79,21 @@ GENRE_PRESETS: dict[str, GenrePreset] = {
         key="urban",
         label="Đô thị / Hiện đại",
         use_words="tôi, cậu, anh, chị, em, ông, bà, nó, tao, mày",
-        forbid_words="ta, ngươi, hắn, nàng, chàng, tiểu tử, tại hạ",
+        forbid_words="chàng, tiểu tử, tại hạ, bổn tọa, lão phu",
         han_viet_hint="Hán Việt thấp: 心动 → \"tim đập loạn\", KHÔNG \"tâm động\"; "
                       "总裁 → \"tổng giám đốc\"; 微信 → \"WeChat\".",
         extra_rules=(
             "Xưng hô gia đình và công sở theo đúng thứ bậc (ba/mẹ/anh/chị, "
             "anh/chị + tên, sếp, giám đốc X).",
+            "Trong thoại hiện đại thường ưu tiên tôi/anh/em/cậu; đây là gợi ý "
+            "mềm, không được phủ định ngôi kể hoặc BẢNG NHÂN VẬT.",
         ),
     ),
     "romance": GenrePreset(
         key="romance",
         label="Ngôn tình / Đam mỹ",
         use_words="tôi, cậu, anh, em, cô, mình",
-        forbid_words="ta, ngươi, hắn, nàng, tại hạ",
+        forbid_words="tại hạ, bổn tọa, lão phu",
         han_viet_hint="Hán Việt thấp, ưu tiên từ mềm và tự nhiên.",
         extra_rules=(
             "Xưng hô ĐỔI theo tiến triển quan hệ — tuân thủ đúng mốc ghi trong "
@@ -101,7 +118,7 @@ GENRE_PRESETS: dict[str, GenrePreset] = {
         key="western",
         label="Khoa huyễn / Dị giới Tây phương",
         use_words="tôi, cậu, anh, cô, ngài",
-        forbid_words="ta, ngươi, tại hạ, bổn tọa, đạo hữu",
+        forbid_words="tại hạ, bổn tọa, đạo hữu",
         han_viet_hint="Thuật ngữ kỹ thuật KHÔNG Hán Việt hoá: 基因 → gen (không "
                       "\"cơ nhân\"), 病毒 → virus, 芯片 → chip.",
         extra_rules=(
@@ -121,7 +138,7 @@ def resolve_genre(genre: str) -> GenrePreset:
 
 
 def forbid_words(genre: str) -> str:
-    """Danh sách từ cấm của thể loại — dùng cho dòng ghim cuối prompt."""
+    """Các từ thường tránh theo thể loại, không phải lệnh cấm tuyệt đối."""
     return resolve_genre(genre).forbid_words
 
 
@@ -134,9 +151,12 @@ def format_pronoun_rules(genre: str, user_policy: str = "") -> str:
     preset = resolve_genre(genre)
     lines: list[str] = []
     if preset.use_words:
-        lines.append(f"Dùng: {preset.use_words}.")
+        lines.append(f"Có thể dùng khi phù hợp: {preset.use_words}.")
     if preset.forbid_words:
-        lines.append(f"CẤM: {preset.forbid_words}.")
+        lines.append(
+            "Thường tránh nếu BẢNG NHÂN VẬT, ngôi kể hoặc ngữ cảnh không yêu cầu: "
+            f"{preset.forbid_words}."
+        )
     if preset.han_viet_hint:
         lines.append(preset.han_viet_hint)
     lines.extend(preset.extra_rules)

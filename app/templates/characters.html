@@ -9,6 +9,13 @@
     Sửa trực tiếp trong bảng — mỗi mục <strong>tự lưu</strong> khi bạn rời ô.
 </p>
 
+<!-- Tab bar -->
+<div class="flex gap-2 border-b border-surface-border dark:border-surface-border-dark mb-3">
+    <button type="button" class="char-tab-btn active px-3 py-2 text-sm border-b-2 border-brand-500 font-medium -mb-0.5" data-tab="tab-table" onclick="switchCharTab('tab-table')">Bảng nhân vật</button>
+    <button type="button" class="char-tab-btn px-3 py-2 text-sm border-b-2 border-transparent text-fg-muted dark:text-fg-muted-dark font-medium -mb-0.5" data-tab="tab-pending" onclick="switchCharTab('tab-pending')">Đề xuất (<span id="pending-count">0</span>)</button>
+</div>
+
+<div id="tab-table">
 <!-- Thanh công cụ -->
 <div class="flex flex-wrap gap-2 items-center mb-3">
     <input id="char-search" type="search" placeholder="Tìm tên gốc / tên Việt / alias…" autocomplete="off" class="input input-sm w-64">
@@ -40,6 +47,56 @@
     </table>
 </div>
 <p id="char-empty" class="hidden text-sm text-fg-muted dark:text-fg-muted-dark py-6 text-center">Không có nhân vật nào khớp.</p>
+</div>
+
+<!-- Tab Đề xuất -->
+<div id="tab-pending" class="hidden">
+    <p class="text-sm text-fg-muted dark:text-fg-muted-dark mb-3">
+        Đề xuất do AI trích từ chương raw (bấm "AI trích nhân vật" ở trang ebook). Mỗi quan hệ kèm
+        <strong>bằng chứng</strong> — chuỗi Hán làm căn cứ — để bạn biết AI dựa vào đâu; suy luận (không có
+        trích dẫn trực tiếp) được đánh dấu riêng. Duyệt nhân vật trước khi duyệt quan hệ liên quan tới họ.
+    </p>
+    <div class="flex flex-wrap gap-2 items-center mb-2">
+        <h3 class="text-base font-semibold">Nhân vật</h3>
+        <div class="ml-auto flex gap-2">
+            <button type="button" id="btn-pending-char-clear" class="btn btn-sm btn-ghost">Bỏ đã chọn</button>
+            <button type="button" id="btn-pending-char-approve" class="btn btn-sm btn-primary">Duyệt đã chọn</button>
+        </div>
+    </div>
+    <div class="table-container mb-4">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th class="w-8"><input type="checkbox" id="pending-char-check-all" class="rounded border-surface-border dark:border-surface-border-dark"></th>
+                    <th>Tên gốc</th>
+                    <th>Tên Việt</th>
+                    <th>Alias</th>
+                    <th>Giới</th>
+                    <th>Tự xưng</th>
+                    <th>Lời kể gọi</th>
+                    <th class="w-14 text-center">⭐</th>
+                    <th>Lý do / độ tin</th>
+                </tr>
+            </thead>
+            <tbody id="pending-char-body"></tbody>
+        </table>
+    </div>
+    <p id="pending-char-empty" class="hidden text-sm text-fg-muted dark:text-fg-muted-dark py-3 text-center">Không có đề xuất nhân vật nào.</p>
+
+    <div class="flex flex-wrap gap-2 items-center mb-2">
+        <h3 class="text-base font-semibold">Quan hệ</h3>
+        <div class="ml-auto flex gap-2">
+            <button type="button" id="btn-pending-rel-clear" class="btn btn-sm btn-ghost">Bỏ đã chọn</button>
+            <button type="button" id="btn-pending-rel-approve" class="btn btn-sm btn-primary">Duyệt đã chọn</button>
+        </div>
+    </div>
+    <div id="pending-rel-list"></div>
+    <p id="pending-rel-empty" class="hidden text-sm text-fg-muted dark:text-fg-muted-dark py-3 text-center">Không có đề xuất quan hệ nào.</p>
+
+    <div class="mt-4">
+        <button type="button" id="btn-pending-clear-all" class="btn btn-sm btn-danger">Bỏ tất cả đề xuất</button>
+    </div>
+</div>
 
 <script>
 const COLS = 10; // checkbox + 8 cột chính + thao tác — dùng cho colspan hàng quan hệ
@@ -397,6 +454,209 @@ searchInput.addEventListener("input", () => {
     searchTimer = setTimeout(() => { query = searchInput.value.trim(); render(); }, 200);
 });
 
+// ================= Tab Đề xuất (AI trích nhân vật) =================
+function switchCharTab(name) {
+    document.querySelectorAll(".char-tab-btn").forEach(b => {
+        const active = b.dataset.tab === name;
+        b.classList.toggle("active", active);
+        b.classList.toggle("border-brand-500", active);
+        b.classList.toggle("border-transparent", !active);
+        b.classList.toggle("text-fg-muted", !active);
+        b.classList.toggle("dark:text-fg-muted-dark", !active);
+    });
+    document.getElementById("tab-table").classList.toggle("hidden", name !== "tab-table");
+    document.getElementById("tab-pending").classList.toggle("hidden", name !== "tab-pending");
+}
+
+let PENDING = { characters: [], relations: [] };
+const pendingCharBody = document.getElementById("pending-char-body");
+const pendingRelList = document.getElementById("pending-rel-list");
+const pendingCountLabel = document.getElementById("pending-count");
+
+function relKey(r) {
+    return `${r.a_source}␟${r.b_source}␟${Number(r.from_chapter) || 0}`;
+}
+
+function nameFor(source) {
+    const fromPending = PENDING.characters.find(c => c.source === source);
+    if (fromPending && fromPending.target) return fromPending.target;
+    const fromSaved = ROWS.find(r => r.source === source);
+    if (fromSaved && fromSaved.target) return fromSaved.target;
+    return source;
+}
+
+function pendingCharRowHtml(c, idx) {
+    if (c.update_only) {
+        return `
+        <tr class="border-t border-surface-border dark:border-surface-border-dark">
+            <td class="px-2 py-1 align-top"><input type="checkbox" class="pending-char-check rounded border-surface-border dark:border-surface-border-dark" data-idx="${idx}"></td>
+            <td class="px-2 py-1 align-top font-mono">${escapeHtml(c.source)}</td>
+            <td class="px-2 py-1 align-top text-fg-muted dark:text-fg-muted-dark italic" colspan="6">
+                Chỉ bổ sung alias: ${escapeHtml((c.new_aliases_raw || []).join(", "))}
+                ${(c.new_aliases_vi || []).length ? " (" + escapeHtml(c.new_aliases_vi.join(", ")) + ")" : ""}
+            </td>
+        </tr>`;
+    }
+    const aliasStr = [(c.aliases_raw || []).join("|"), (c.aliases_vi || []).length ? "(" + c.aliases_vi.join(", ") + ")" : ""]
+        .filter(Boolean).join(" ");
+    return `
+        <tr class="border-t border-surface-border dark:border-surface-border-dark">
+            <td class="px-2 py-1 align-top"><input type="checkbox" class="pending-char-check rounded border-surface-border dark:border-surface-border-dark" data-idx="${idx}"></td>
+            <td class="px-2 py-1 align-top font-mono">${escapeHtml(c.source)}</td>
+            <td class="px-2 py-1 align-top">${escapeHtml(c.target || "")}</td>
+            <td class="px-2 py-1 align-top text-xs">${escapeHtml(aliasStr)}</td>
+            <td class="px-2 py-1 align-top">${escapeHtml(c.gender || "")}</td>
+            <td class="px-2 py-1 align-top">${escapeHtml(c.self_pronoun || "")}</td>
+            <td class="px-2 py-1 align-top">${escapeHtml(c.narrator_ref || "")}</td>
+            <td class="px-2 py-1 align-top text-center">${c.importance === "main" ? "⭐" : ""}</td>
+            <td class="px-2 py-1 align-top text-xs text-fg-muted dark:text-fg-muted-dark">
+                ${escapeHtml(c.reason || "")}${c.confidence ? ` <span class="font-medium">[${escapeHtml(c.confidence)}]</span>` : ""}
+            </td>
+        </tr>`;
+}
+
+function relSideHtml(rawVal, viVal) {
+    if (!viVal) return "";
+    const raw = rawVal ? escapeHtml(rawVal) : "suy luận";
+    return `"${escapeHtml(viVal)}" (${raw})`;
+}
+
+function pendingRelCardHtml(r, idx, alt) {
+    const bits = [];
+    const callsBit = relSideHtml(r.a_calls_b_raw, r.a_calls_b_vi);
+    const selfBit = relSideHtml(r.a_self_raw, r.a_self_vi);
+    if (callsBit) bits.push(`gọi ${callsBit}`);
+    if (selfBit) bits.push(`tự xưng ${selfBit}`);
+    const confBadge = r.confidence ? `<span class="text-xs font-medium">[${escapeHtml(r.confidence)}${r.inferred ? " · suy luận" : ""}]</span>` : "";
+    const toChapter = r.to_chapter !== null && r.to_chapter !== undefined ? ` — hết hiệu lực sau ch.${r.to_chapter}` : "";
+    let altHtml = "";
+    if (alt) {
+        const altCalls = relSideHtml(alt.a_calls_b_raw, alt.a_calls_b_vi);
+        const altSelf = relSideHtml(alt.a_self_raw, alt.a_self_vi);
+        altHtml = `
+            <div class="mt-2 pt-2 border-t border-dashed border-surface-border dark:border-surface-border-dark text-xs">
+                <span class="font-medium text-status-warn-fg dark:text-status-warn-fg-dark">⚠ Có đề xuất khác cùng mốc, chọn một:</span>
+                <label class="flex items-center gap-1 mt-1">
+                    <input type="radio" name="rel-choice-${idx}" value="main" checked>
+                    ${[altCalls && `gọi ${altCalls}`, altSelf && `tự xưng ${altSelf}`].filter(Boolean).join(", ") ? "(bản trên)" : ""}
+                </label>
+                <label class="flex items-center gap-1">
+                    <input type="radio" name="rel-choice-${idx}" value="alt">
+                    ${[altCalls && `gọi ${altCalls}`, altSelf && `tự xưng ${altSelf}`].filter(Boolean).join(", ")}
+                    — bằng chứng: ${escapeHtml(alt.evidence || "(không có)")}
+                </label>
+            </div>`;
+    }
+    return `
+        <div class="border border-surface-border dark:border-surface-border-dark rounded p-2 mb-2" data-rel-idx="${idx}">
+            <label class="flex items-start gap-2">
+                <input type="checkbox" class="pending-rel-check rounded border-surface-border dark:border-surface-border-dark mt-1" data-idx="${idx}">
+                <span>
+                    <span class="font-medium">${escapeHtml(nameFor(r.a_source))} → ${escapeHtml(nameFor(r.b_source))}</span>
+                    <span class="text-xs text-fg-muted dark:text-fg-muted-dark">từ ch.${r.from_chapter}${toChapter}</span>
+                    <br>${bits.join(" · ") || "<span class=\"text-fg-muted dark:text-fg-muted-dark\">(không có đề xuất cụ thể)</span>"} ${confBadge}
+                    <br><span class="text-xs text-fg-muted dark:text-fg-muted-dark">bằng chứng: ${escapeHtml(r.evidence || "(không có)")}</span>
+                    ${r.reason ? `<br><span class="text-xs text-fg-muted dark:text-fg-muted-dark">${escapeHtml(r.reason)}</span>` : ""}
+                </span>
+            </label>
+            ${altHtml}
+        </div>`;
+}
+
+function renderPending() {
+    pendingCountLabel.textContent = PENDING.characters.length + PENDING.relations.length;
+
+    pendingCharBody.innerHTML = PENDING.characters.map((c, idx) => pendingCharRowHtml(c, idx)).join("");
+    document.getElementById("pending-char-empty").classList.toggle("hidden", PENDING.characters.length > 0);
+
+    pendingRelList.innerHTML = PENDING.relations.map((r, idx) => pendingRelCardHtml(r, idx, r.conflict ? r.conflict_with : null)).join("");
+    document.getElementById("pending-rel-empty").classList.toggle("hidden", PENDING.relations.length > 0);
+}
+
+async function loadPending() {
+    try {
+        const res = await fetch(`/api/ebook/{{ slug }}/characters/pending`);
+        if (!res.ok) return;
+        const data = await res.json();
+        PENDING = { characters: data.characters || [], relations: data.relations || [] };
+        renderPending();
+    } catch (err) { /* im lặng — trang vẫn dùng được nếu tab Đề xuất lỗi */ }
+}
+
+function checkedPendingChars() {
+    return Array.from(document.querySelectorAll(".pending-char-check:checked"))
+        .map(cb => PENDING.characters[Number(cb.dataset.idx)]);
+}
+function checkedPendingRels() {
+    return Array.from(document.querySelectorAll(".pending-rel-check:checked"))
+        .map(cb => {
+            const idx = Number(cb.dataset.idx);
+            const r = PENDING.relations[idx];
+            if (r.conflict) {
+                const chosen = document.querySelector(`input[name="rel-choice-${idx}"]:checked`);
+                if (chosen && chosen.value === "alt") return r.conflict_with;
+            }
+            return r;
+        });
+}
+
+document.getElementById("pending-char-check-all").addEventListener("change", e => {
+    document.querySelectorAll(".pending-char-check").forEach(cb => { cb.checked = e.target.checked; });
+});
+
+document.getElementById("btn-pending-char-approve").addEventListener("click", async () => {
+    const picked = checkedPendingChars();
+    if (!picked.length) { toast("Chưa chọn đề xuất nào.", "error"); return; }
+    await postApprove({ characters: picked.map(c => ({ source: c.source })), relations: [] });
+});
+document.getElementById("btn-pending-rel-approve").addEventListener("click", async () => {
+    const picked = checkedPendingRels();
+    if (!picked.length) { toast("Chưa chọn đề xuất nào.", "error"); return; }
+    await postApprove({ characters: [], relations: picked.map(r => ({ a_source: r.a_source, b_source: r.b_source, from_chapter: r.from_chapter })) });
+});
+
+async function postApprove(payload) {
+    try {
+        const res = await fetch(`/api/ebook/{{ slug }}/characters/pending/approve`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { toast(data.detail || "Duyệt thất bại.", "error"); return; }
+        if (data.blocked && data.blocked.length) {
+            data.blocked.forEach(msg => toast(msg, "error"));
+        }
+        toast(`Đã duyệt ${data.approved_characters || 0} nhân vật, ${data.approved_relations || 0} quan hệ.`, "success");
+        await loadPending();
+        await loadAll();
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+}
+
+async function postClear(payload) {
+    try {
+        const res = await fetch(`/api/ebook/{{ slug }}/characters/pending/clear`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        if (!res.ok) { toast("Bỏ đề xuất thất bại.", "error"); return; }
+        await loadPending();
+    } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
+}
+
+document.getElementById("btn-pending-char-clear").addEventListener("click", async () => {
+    const picked = checkedPendingChars();
+    if (!picked.length) { toast("Chưa chọn đề xuất nào.", "error"); return; }
+    await postClear({ characters: picked.map(c => c.source), relations: [] });
+});
+document.getElementById("btn-pending-rel-clear").addEventListener("click", async () => {
+    const picked = checkedPendingRels();
+    if (!picked.length) { toast("Chưa chọn đề xuất nào.", "error"); return; }
+    await postClear({ characters: [], relations: picked.map(r => ({ a_source: r.a_source, b_source: r.b_source, from_chapter: r.from_chapter })) });
+});
+document.getElementById("btn-pending-clear-all").addEventListener("click", async () => {
+    if (!await confirmDialog("Bỏ TẤT CẢ đề xuất đang chờ duyệt?", { destructive: true })) return;
+    await postClear({ all: true });
+});
+
 loadAll();
+loadPending();
 </script>
 {% endblock %}

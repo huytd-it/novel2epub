@@ -296,6 +296,10 @@
             <input type="hidden" name="indexes" id="batch-indexes-glossary" value="">
             <button type="submit" class="btn btn-sm btn-secondary">Glossary</button>
         </form>
+        <form method="post" action="/api/ebooks/{{ slug }}/batch/extract-characters" class="selected-action-form batch-form" data-selected-action="translate">
+            <input type="hidden" name="indexes" id="batch-indexes-extract-characters" value="">
+            <button type="submit" class="btn btn-sm btn-secondary" title="Gom nhóm chương đã chọn, gửi AI trích nhân vật &amp; quan hệ → hàng chờ duyệt ở trang Nhân vật.">AI trích nhân vật</button>
+        </form>
         <form id="selected-translate-toc-form" method="post" action="/ebooks/{{ slug }}/jobs/translate-toc-selected" class="selected-action-form hidden" data-selected-action="translate">
             <input type="hidden" name="backend" value="openai" class="js-bulk-backend">
         </form>

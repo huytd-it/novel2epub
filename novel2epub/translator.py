@@ -19,7 +19,7 @@ from . import idioms as idioms_mod
 from . import openai_client
 from .config import LibreTranslateConfig, TranslateConfig
 from .idioms import Idiom
-from .storage import Storage, parse_glossary_line
+from .storage import Storage, normalize_glossary_pending, parse_glossary_line
 
 # Một số mẫu "lời mở đầu" mà LLM hay tự thêm dù đã bảo đừng.
 _PREAMBLE = re.compile(
@@ -329,7 +329,6 @@ class OpenAITranslator:
         self.relations = load_relations(cfg, storage)
         self.log = log or (lambda _: None)
         self._glossary_lock = threading.Lock()
-        self._auto_glossary_conflicts: list[dict] = []
         self._last_chapter_meta: dict[str, Any] = {}
 
     def extend_glossary(
@@ -338,54 +337,63 @@ class OpenAITranslator:
         storage: "Storage",
         chapter_index: int = 0,
     ) -> dict:
-        """Merge new_entries vào in-memory glossary + ghi HÀNG CHỜ DUYỆT.
-        Thread-safe.
+        """Merge new_entries vào glossary + ghi HÀNG CHỜ DUYỆT. Thread-safe.
 
-        Entry mới KHÔNG vào thẳng `names.txt` nữa — persist vào extra json
-        `glossary_pending` để người dùng preview/duyệt (hàng loạt) hoặc bỏ trên
-        trang Glossary. In-memory cũng không nhận entry chưa duyệt: prompt chỉ
-        dùng SQLite `names.txt`. Trả {'added': [(source, target), ...],
-        'conflicts': [{source, existing, new}, ...]}. Existing wins khi conflict.
+        - Source MỚI (chưa có trong glossary): thêm NGAY vào `names.txt` (note
+          rỗng) + cập nhật in-memory — prompt các chương sau thấy ngay.
+        - Source đã có CÙNG giá trị: bỏ qua.
+        - Source đã có KHÁC giá trị (đổi cách dịch): KHÔNG tự sửa — persist vào
+          extra json `glossary_pending` (first-wins theo source, atomic qua
+          `update_extra_json`) để người dùng preview/duyệt trên trang Glossary.
+
+        Trả {'added': [(source, target), ...],
+        'changed': [{source, existing_target, target, chapter_index}, ...]}.
         """
-        added, conflicts = [], []
+        added, changed = [], []
         with self._glossary_lock:
             for source, new_target in new_entries.items():
                 if not source or not new_target:
                     continue
                 existing = self.glossary.get(source)
                 if existing is None:
+                    self.glossary[source] = new_target
+                    storage.append_glossary_line("names.txt", f"{source} = {new_target}")
                     added.append((source, new_target))
                 elif existing == new_target:
                     continue
                 else:
-                    c = {
-                        "source": source,
-                        "existing": existing,
-                        "new": new_target,
-                    }
-                    conflicts.append(c)
-                    self._auto_glossary_conflicts.append(c)
-            if added:
-                # Persist ngay từng chương (không drain cuối run) để không mất
-                # đề xuất nếu job dừng giữa chừng; dedup theo source.
-                pending = storage.read_extra_json("glossary_pending")
-                if not isinstance(pending, list):
-                    pending = []
-                seen = {p.get("source") for p in pending if isinstance(p, dict)}
-                for source, target in added:
-                    if source not in seen:
-                        pending.append(
-                            {"source": source, "target": target, "chapter_index": chapter_index}
-                        )
-                        seen.add(source)
-                storage.write_extra_json("glossary_pending", pending)
-        return {"added": added, "conflicts": conflicts}
+                    changed.append(
+                        {
+                            "source": source,
+                            "existing_target": existing,
+                            "target": new_target,
+                            "chapter_index": chapter_index,
+                        }
+                    )
+            if changed:
+                preexisting = {
+                    p["source"] for p in normalize_glossary_pending(storage.read_extra_json("glossary_pending"))
+                }
 
-    def drain_conflicts(self) -> list[dict]:
-        with self._glossary_lock:
-            out = list(self._auto_glossary_conflicts)
-            self._auto_glossary_conflicts.clear()
-            return out
+                def _merge_pending(current):
+                    pending = normalize_glossary_pending(current)
+                    seen = {p["source"] for p in pending}
+                    out = list(pending)
+                    for c in normalize_glossary_pending(changed):
+                        if c["source"] not in seen:
+                            out.append(c)
+                            seen.add(c["source"])
+                    return out
+
+                storage.update_extra_json("glossary_pending", _merge_pending)
+                # `changed` trả về chỉ gồm những source THỰC SỰ được thêm mới
+                # vào hàng chờ lần này (first-wins: source đã chờ từ trước → bỏ).
+                changed = [
+                    c
+                    for c in normalize_glossary_pending(changed)
+                    if c["source"] not in preexisting
+                ]
+        return {"added": added, "changed": changed}
 
     def _glossary_for_prompt(self, zh_text: str, vi_text: str = "") -> dict[str, str]:
         """Bản glossary để nhét vào prompt: reload SQLite để job đang chạy thấy
@@ -940,9 +948,6 @@ class RateLimited:
 
     def extend_glossary(self, new_entries: dict[str, str], storage, chapter_index: int = 0) -> dict:
         return self.inner.extend_glossary(new_entries, storage, chapter_index)
-
-    def drain_conflicts(self) -> list[dict]:
-        return self.inner.drain_conflicts() if hasattr(self.inner, "drain_conflicts") else []
 
     def drain_last_meta(self) -> dict:
         return self.inner.drain_last_meta() if hasattr(self.inner, "drain_last_meta") else {}

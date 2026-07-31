@@ -8,11 +8,12 @@ SQLite thống nhất (xem kế hoạch SQLite unification), không còn ghi fil
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .db import get_thread_connection, resolve_db_path
 
@@ -36,6 +37,94 @@ def parse_glossary_line(line: str) -> tuple[str, str, str] | None:
     if not source or not target:
         return None
     return source, target, note
+
+
+# Hàng chờ duyệt auto-glossary — schema replacement chuẩn, mỗi row:
+#   {"source", "existing_target", "target", "chapter_index", "note"}
+def normalize_glossary_pending(raw) -> list[dict]:
+    """Normalize một snapshot hàng chờ `glossary_pending` về schema chuẩn.
+    Bỏ row hỏng, trim mọi field, ép kiểu chapter_index. Row cũ (thiếu
+    existing_target/note) vẫn qua được — existing_target rỗng nghĩa là mục
+    chưa có trong glossary (thêm mới, không cần lan truyền)."""
+    out: list[dict] = []
+    for p in raw if isinstance(raw, list) else []:
+        if not isinstance(p, dict):
+            continue
+        source = str(p.get("source", "")).strip()
+        target = str(p.get("target", "")).strip()
+        if not source or not target:
+            continue
+        try:
+            chapter_index = int(p.get("chapter_index", 0))
+        except (TypeError, ValueError):
+            chapter_index = 0
+        out.append(
+            {
+                "source": source,
+                "existing_target": str(p.get("existing_target", "")).strip(),
+                "target": target,
+                "chapter_index": chapter_index,
+                "note": str(p.get("note", "")).strip(),
+            }
+        )
+    return out
+
+
+# Các key trong meta_json chương được phép quét khi lan truyền thay đổi
+# glossary (recursive) — những trường khác (complete, warnings, cost...) là
+# trạng thái kỹ thuật, không phải nội dung dịch cần cập nhật.
+_META_REPLACE_KEYS = frozenset({"ai_review", "ai_rewrite", "ai_suggestions", "glossary_conflicts"})
+_EBOK_REPLACE_COLS = ("title", "description", "title_note", "series", "subjects_json")
+
+
+def _replacement_matcher(pairs: list[tuple[str, str]]):
+    """Dựng bộ thay thế literal ĐỒNG THỜI cho `pairs` (old→new).
+
+    Một lượt quét (output không bị quét lại nên không cascade), ưu tiên old
+    dài hơn (longest-first — mô hình `_apply_glossary` trong translator). Trả
+    `(active_pairs, compiled_pattern)` hoặc None nếu không có cặp khả dụng."""
+    active = [(old, new) for old, new in pairs if old and new and old != new]
+    if not active:
+        return None
+    active.sort(key=lambda kv: len(kv[0]), reverse=True)
+    pattern = re.compile("|".join(re.escape(old) for old, _new in active))
+    return active, pattern
+
+
+def _replace_in_node(node, repl: Callable[[str], tuple[str, int]]) -> tuple[Any, int]:
+    """Áp `repl` lên MỌI chuỗi trong cấu trúc dict/list lồng nhau. `repl` trả
+    (bản mới, số lần thay). Trả (bản mới của node, tổng số lần thay)."""
+    if isinstance(node, str):
+        return repl(node)
+    if isinstance(node, dict):
+        out: dict = {}
+        total = 0
+        for k, v in node.items():
+            nv, n = _replace_in_node(v, repl)
+            out[k] = nv
+            total += n
+        return out, total
+    if isinstance(node, list):
+        out_list: list = []
+        total = 0
+        for v in node:
+            nv, n = _replace_in_node(v, repl)
+            out_list.append(nv)
+            total += n
+        return out_list, total
+    return node, 0
+
+
+def _replace_in_meta(meta: dict, repl: Callable[[str], tuple[str, int]]) -> tuple[dict, int]:
+    """Áp `repl` CHỈ vào các key allowlist trong meta chương (đệ quy)."""
+    out = dict(meta)
+    total = 0
+    for key in _META_REPLACE_KEYS:
+        if key in out:
+            node, n = _replace_in_node(out[key], repl)
+            out[key] = node
+            total += n
+    return out, total
 
 
 @dataclass
@@ -912,6 +1001,422 @@ class Storage:
                 """,
                 (self.slug, key, json.dumps(data, ensure_ascii=False)),
             )
+
+    def update_extra_json(self, key: str, update: Callable[[Any], Any]) -> Any:
+        """Atomically read, transform, and write one ebook JSON value.
+
+        ``BEGIN IMMEDIATE`` serializes concurrent read-modify-write operations
+        from translation workers and web requests so neither can overwrite a
+        newer glossary queue snapshot.
+        """
+        self.ensure_dirs()
+        conn = self.conn
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT data_json FROM ebook_extra_json WHERE ebook_slug=? AND key=?",
+                (self.slug, key),
+            ).fetchone()
+            current = None
+            if row is not None:
+                try:
+                    current = json.loads(row["data_json"])
+                except json.JSONDecodeError:
+                    pass
+            result = update(current)
+            conn.execute(
+                """
+                INSERT INTO ebook_extra_json (ebook_slug, key, data_json) VALUES (?, ?, ?)
+                ON CONFLICT(ebook_slug, key) DO UPDATE SET data_json = excluded.data_json
+                """,
+                (self.slug, key, json.dumps(result, ensure_ascii=False)),
+            )
+            conn.commit()
+            return result
+        except Exception:
+            conn.rollback()
+            raise
+
+    # ----- hàng chờ duyệt glossary (replacement) + lan truyền vào bản dịch -----
+    def migrate_glossary_queue(self) -> bool:
+        """Lazy, idempotent, atomic migration hàng chờ auto-glossary CŨ
+        (`glossary_pending` schema cũ + `glossary_conflicts`) sang schema
+        replacement chuẩn. Chạy ĐÚNG 1 lần (marker extra json
+        `glossary_queue_v2`); trả True nếu lần này vừa migrate.
+
+        Trùng source → first-wins (pending cũ trước, conflicts sau). Row cũ
+        không có existing_target/note được lấp từ glossary hiện tại (rỗng nếu
+        mục chưa tồn tại — thêm mới, không cần lan truyền).
+        """
+        self.ensure_dirs()
+        conn = self.conn
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            marker = conn.execute(
+                "SELECT 1 FROM ebook_extra_json WHERE ebook_slug=? AND key='glossary_queue_v2'",
+                (self.slug,),
+            ).fetchone()
+            if marker is not None:
+                conn.commit()
+                return False
+
+            def _read(key: str):
+                row = conn.execute(
+                    "SELECT data_json FROM ebook_extra_json WHERE ebook_slug=? AND key=?",
+                    (self.slug, key),
+                ).fetchone()
+                if row is None:
+                    return None
+                try:
+                    return json.loads(row["data_json"])
+                except json.JSONDecodeError:
+                    return None
+
+            glossary_target = {s: t for s, t, _n in self.read_glossary_entries_merged()}
+            merged: dict[str, dict] = {}
+
+            def _add(row: dict, *, fallback_existing: str = "") -> None:
+                source = str(row.get("source", "")).strip()
+                target = str(row.get("target", "")).strip()
+                if not source or not target or source in merged:
+                    return
+                try:
+                    ci = int(row.get("chapter_index", 0))
+                except (TypeError, ValueError):
+                    ci = 0
+                merged[source] = {
+                    "source": source,
+                    "existing_target": str(row.get("existing_target", fallback_existing)).strip(),
+                    "target": target,
+                    "chapter_index": ci,
+                    "note": str(row.get("note", "")).strip(),
+                }
+
+            pending_raw = _read("glossary_pending")
+            for p in pending_raw if isinstance(pending_raw, list) else []:
+                if isinstance(p, dict):
+                    _add(
+                        p,
+                        fallback_existing=glossary_target.get(str(p.get("source", "")).strip(), ""),
+                    )
+            conflicts_raw = _read("glossary_conflicts")
+            for c in conflicts_raw if isinstance(conflicts_raw, list) else []:
+                if isinstance(c, dict):
+                    _add(
+                        {
+                            "source": c.get("source", ""),
+                            "target": c.get("new", ""),
+                            "existing_target": c.get("existing", ""),
+                            "chapter_index": c.get("chapter_index", 0),
+                            "note": c.get("note", ""),
+                        }
+                    )
+
+            conn.execute(
+                """
+                INSERT INTO ebook_extra_json (ebook_slug, key, data_json) VALUES (?, 'glossary_pending', ?)
+                ON CONFLICT(ebook_slug, key) DO UPDATE SET data_json = excluded.data_json
+                """,
+                (self.slug, json.dumps(list(merged.values()), ensure_ascii=False)),
+            )
+            conn.execute(
+                "DELETE FROM ebook_extra_json WHERE ebook_slug=? AND key='glossary_conflicts'",
+                (self.slug,),
+            )
+            conn.execute(
+                """
+                INSERT INTO ebook_extra_json (ebook_slug, key, data_json) VALUES (?, 'glossary_queue_v2', 'true')
+                ON CONFLICT(ebook_slug, key) DO UPDATE SET data_json = excluded.data_json
+                """,
+                (self.slug,),
+            )
+            conn.commit()
+            return True
+        except Exception:
+            conn.rollback()
+            raise
+
+    def approve_glossary_rows(self, rows: list[dict]) -> dict:
+        """Duyệt (hàng loạt) đề xuất thay thế trong MỘT transaction: upsert từng
+        mục vào `names.txt` + gỡ source đã duyệt khỏi hàng chờ `glossary_pending`.
+
+        `rows` là `[{source, target, note}]` — giá trị đã sửa tay trên UI. Row
+        thiếu source/target bị bỏ. Source không còn trong hàng chờ (stale — đã
+        bị duyệt/bỏ bởi luồng khác) được bỏ qua, chấp nhận count drift.
+        `existing_target` lấy từ hàng chờ HIỆN TẠI (giá trị tại thời điểm duyệt).
+        Trả {"approved": [{source, existing_target, target, note}], "remaining": [...]}.
+        """
+        self.ensure_dirs()
+        conn = self.conn
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            pend_row = conn.execute(
+                "SELECT data_json FROM ebook_extra_json WHERE ebook_slug=? AND key='glossary_pending'",
+                (self.slug,),
+            ).fetchone()
+            raw = json.loads(pend_row["data_json"]) if pend_row else None
+            pending = normalize_glossary_pending(raw)
+            by_source = {p["source"]: p for p in pending}
+
+            approved: list[dict] = []
+            for row in rows if isinstance(rows, list) else []:
+                if not isinstance(row, dict):
+                    continue
+                source = str(row.get("source", "")).strip()
+                target = str(row.get("target", "")).strip()
+                if not source or not target:
+                    continue
+                pending_row = by_source.get(source)
+                if pending_row is None:
+                    continue
+                approved.append(
+                    {
+                        "source": source,
+                        "existing_target": pending_row["existing_target"],
+                        "target": target,
+                        "note": str(row.get("note", "")).strip(),
+                    }
+                )
+
+            for a in approved:
+                pos_row = conn.execute(
+                    "SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM glossary_entries "
+                    "WHERE ebook_slug=? AND list_name='names.txt'",
+                    (self.slug,),
+                ).fetchone()
+                conn.execute(
+                    """
+                    INSERT INTO glossary_entries (ebook_slug, list_name, source, target, note, position)
+                    VALUES (?, 'names.txt', ?, ?, ?, ?)
+                    ON CONFLICT(ebook_slug, list_name, source) DO UPDATE SET
+                        target = excluded.target, note = excluded.note
+                    """,
+                    (self.slug, a["source"], a["target"], a["note"], pos_row["next_pos"]),
+                )
+
+            approved_keys = {a["source"] for a in approved}
+            remaining = [p for p in pending if p["source"] not in approved_keys]
+            conn.execute(
+                """
+                INSERT INTO ebook_extra_json (ebook_slug, key, data_json) VALUES (?, 'glossary_pending', ?)
+                ON CONFLICT(ebook_slug, key) DO UPDATE SET data_json = excluded.data_json
+                """,
+                (self.slug, json.dumps(remaining, ensure_ascii=False)),
+            )
+            conn.commit()
+            return {"approved": approved, "remaining": remaining}
+        except Exception:
+            conn.rollback()
+            raise
+
+    def replacement_counts(self, pairs: list[tuple[str, str]]) -> dict:
+        """Preview: đếm số lần khớp từng `old` (longest-first, 1 lượt) trong phạm
+        vi chính xác — chapters `translated_text`/`title`/`title_note` + meta_json
+        allowlist (đệ quy), và cột ebook `title`/`description`/`title_note`/
+        `series`/`subjects_json`. Trả {"pairs": [{old,new,count,chapters}], "total"}.
+        """
+        matcher = _replacement_matcher(pairs)
+        if matcher is None:
+            return {
+                "pairs": [{"old": old, "new": new, "count": 0, "chapters": 0} for old, new in pairs],
+                "total": 0,
+            }
+        active, pattern = matcher
+        counts = {old: 0 for old, _new in active}
+        chapter_hits = {old: 0 for old in counts}
+
+        def _scan(text: str, local: dict) -> None:
+            if not text:
+                return
+
+            def _m(m):
+                local[m.group(0)] += 1
+                return m.group(0)
+
+            pattern.sub(_m, text)
+
+        def _scan_node(node, local: dict) -> None:
+            if isinstance(node, str):
+                _scan(node, local)
+            elif isinstance(node, dict):
+                for v in node.values():
+                    _scan_node(v, local)
+            elif isinstance(node, list):
+                for v in node:
+                    _scan_node(v, local)
+
+        for row in self.conn.execute(
+            "SELECT idx, translated_text, title, title_note, meta_json FROM chapters WHERE ebook_slug=?",
+            (self.slug,),
+        ).fetchall():
+            local = {old: 0 for old in counts}
+            _scan(row["translated_text"], local)
+            _scan(row["title"], local)
+            _scan(row["title_note"], local)
+            try:
+                meta = json.loads(row["meta_json"] or "{}")
+            except json.JSONDecodeError:
+                meta = {}
+            if isinstance(meta, dict):
+                for key in _META_REPLACE_KEYS:
+                    if key in meta:
+                        _scan_node(meta[key], local)
+            for old, n in local.items():
+                counts[old] += n
+                if n:
+                    chapter_hits[old] += 1
+
+        ebook_row = self.conn.execute(
+            "SELECT title, description, title_note, series, subjects_json FROM ebooks WHERE slug=?",
+            (self.slug,),
+        ).fetchone()
+        if ebook_row is not None:
+            local = {old: 0 for old in counts}
+            for col in _EBOK_REPLACE_COLS[:4]:
+                _scan(ebook_row[col], local)
+            try:
+                subjects = json.loads(ebook_row["subjects_json"] or "[]")
+            except json.JSONDecodeError:
+                subjects = []
+            _scan_node(subjects, local)
+            for old, n in local.items():
+                counts[old] += n
+
+        return {
+            "pairs": [
+                {"old": old, "new": new, "count": counts.get(old, 0), "chapters": chapter_hits.get(old, 0)}
+                for old, new in pairs
+            ],
+            "total": sum(counts.values()),
+        }
+
+    def apply_replacements(self, pairs: list[tuple[str, str]]) -> dict:
+        """Lan truyền (đồng thời, longest-old first, một lượt) các thay đổi
+        `old→new` vào phạm vi chính xác: chapters `translated_text`/`title`/
+        `title_note` + meta_json allowlist (đệ quy), và cột ebook `title`/
+        `description`/`title_note`/`series`/`subjects_json`. Một transaction.
+        Trả {"total": int, "chapters": int (số chương đổi), "ebook": bool}.
+        """
+        self.ensure_dirs()
+        conn = self.conn
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            matcher = _replacement_matcher(pairs)
+            if matcher is None:
+                conn.commit()
+                return {"total": 0, "chapters": 0, "ebook": False}
+            _active, pattern = matcher
+            mapping = dict(_active)
+
+            def _replace_text(text: str) -> tuple[str, int]:
+                if not text:
+                    return text, 0
+                hits = {"n": 0}
+
+                def _m(m):
+                    hits["n"] += 1
+                    return mapping[m.group(0)]
+
+                return pattern.sub(_m, text), hits["n"]
+
+            total = 0
+            chapters_changed = 0
+            for row in conn.execute(
+                "SELECT idx, translated_text, title, title_note, meta_json FROM chapters WHERE ebook_slug=?",
+                (self.slug,),
+            ).fetchall():
+                idx = row["idx"]
+                new_translated = row["translated_text"]
+                new_title = row["title"]
+                new_title_note = row["title_note"]
+                new_meta = row["meta_json"]
+                changed_here = False
+                tr_changed = False
+                if new_translated:
+                    new_translated, n = _replace_text(new_translated)
+                    if n:
+                        total += n
+                        changed_here = True
+                        tr_changed = True
+                if new_title:
+                    new_title, n = _replace_text(new_title)
+                    if n:
+                        total += n
+                        changed_here = True
+                if new_title_note:
+                    new_title_note, n = _replace_text(new_title_note)
+                    if n:
+                        total += n
+                        changed_here = True
+                if new_meta:
+                    try:
+                        meta_obj = json.loads(new_meta)
+                    except json.JSONDecodeError:
+                        meta_obj = None
+                    if isinstance(meta_obj, dict):
+                        meta_new, meta_n = _replace_in_meta(meta_obj, _replace_text)
+                        if meta_n:
+                            total += meta_n
+                            changed_here = True
+                            new_meta = json.dumps(meta_new, ensure_ascii=False)
+                if changed_here:
+                    if tr_changed:
+                        conn.execute(
+                            "UPDATE chapters SET translated_text=?, translated_updated_at=unixepoch('now'), "
+                            "title=?, title_note=?, meta_json=? WHERE ebook_slug=? AND idx=?",
+                            (new_translated, new_title, new_title_note, new_meta, self.slug, idx),
+                        )
+                    else:
+                        conn.execute(
+                            "UPDATE chapters SET title=?, title_note=?, meta_json=? "
+                            "WHERE ebook_slug=? AND idx=?",
+                            (new_title, new_title_note, new_meta, self.slug, idx),
+                        )
+                    chapters_changed += 1
+
+            ebook_changed = False
+            ebook_row = conn.execute(
+                "SELECT title, description, title_note, series, subjects_json FROM ebooks WHERE slug=?",
+                (self.slug,),
+            ).fetchone()
+            if ebook_row is not None:
+                e_sets: list[str] = []
+                e_params: list = []
+
+                def _set_col(col: str, value) -> None:
+                    nonlocal ebook_changed, total
+                    if value is None:
+                        return
+                    new_value, n = _replace_text(value)
+                    if n:
+                        total += n
+                        ebook_changed = True
+                        e_sets.append(f"{col} = ?")
+                        e_params.append(new_value)
+
+                for col in _EBOK_REPLACE_COLS[:4]:
+                    _set_col(col, ebook_row[col])
+                try:
+                    subjects = json.loads(ebook_row["subjects_json"] or "[]")
+                except json.JSONDecodeError:
+                    subjects = []
+                new_subjects, subj_n = _replace_in_node(subjects, _replace_text)
+                if subj_n:
+                    total += subj_n
+                    ebook_changed = True
+                    e_sets.append("subjects_json = ?")
+                    e_params.append(json.dumps(new_subjects, ensure_ascii=False))
+                if ebook_changed:
+                    e_params.append(self.slug)
+                    conn.execute(
+                        f"UPDATE ebooks SET {', '.join(e_sets)}, updated_at = datetime('now') WHERE slug = ?",
+                        e_params,
+                    )
+            conn.commit()
+            return {"total": total, "chapters": chapters_changed, "ebook": ebook_changed}
+        except Exception:
+            conn.rollback()
+            raise
 
     # ----- báo cáo dung lượng + dọn dẹp (thay app/storage_report.py cũ) -----
     def content_bytes(self) -> dict[str, int]:

@@ -28,7 +28,7 @@
 
 <!-- Data table -->
 <div class="table-container">
-    <table class="table">
+    <table class="table table-responsive table-grid-mobile">
         <thead>
             <tr>
                 <th class="w-8"><input type="checkbox" id="check-all" class="rounded border-surface-border dark:border-surface-border-dark" title="Chọn cả trang"></th>
@@ -64,7 +64,7 @@
         </div>
     </div>
     <div class="table-container mb-4">
-        <table class="table">
+        <table class="table table-responsive table-grid-mobile">
             <thead>
                 <tr>
                     <th class="w-8"><input type="checkbox" id="pending-char-check-all" class="rounded border-surface-border dark:border-surface-border-dark"></th>
@@ -132,17 +132,17 @@ function relationOptions(selfSource, selectedB) {
 function relationRowHtml(charIdx, relIdx, rel) {
     return `
         <tr data-rel-idx="${relIdx}">
-            <td class="px-2 py-1 align-top">
+            <td class="px-2 py-1 align-top" data-label="Với nhân vật">
                 <select data-rel-field="b_source" class="${inputCls}">
                     <option value="">— chọn nhân vật —</option>
                     ${relationOptions(ROWS[charIdx].source, rel.b_source)}
                 </select>
             </td>
-            <td class="px-2 py-1 align-top w-24"><input type="number" min="0" data-rel-field="from_chapter" value="${rel.from_chapter || 0}" class="${inputCls}" title="Từ chương"></td>
-            <td class="px-2 py-1 align-top"><input data-rel-field="a_calls_b" value="${escapeHtml(rel.a_calls_b || "")}" placeholder="VD: em" class="${inputCls}" title="Nhân vật A gọi B là gì"></td>
-            <td class="px-2 py-1 align-top"><input data-rel-field="a_self" value="${escapeHtml(rel.a_self || "")}" placeholder="VD: anh" class="${inputCls}" title="Nhân vật A tự xưng gì khi nói với B"></td>
-            <td class="px-2 py-1 align-top"><input data-rel-field="note" value="${escapeHtml(rel.note || "")}" placeholder="Ghi chú…" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top whitespace-nowrap">
+            <td class="px-2 py-1 align-top w-24" data-label="Từ chương"><input type="number" min="0" data-rel-field="from_chapter" value="${rel.from_chapter || 0}" class="${inputCls}" title="Từ chương"></td>
+            <td class="px-2 py-1 align-top" data-label="A gọi B"><input data-rel-field="a_calls_b" value="${escapeHtml(rel.a_calls_b || "")}" placeholder="VD: em" class="${inputCls}" title="Nhân vật A gọi B là gì"></td>
+            <td class="px-2 py-1 align-top" data-label="A tự xưng"><input data-rel-field="a_self" value="${escapeHtml(rel.a_self || "")}" placeholder="VD: anh" class="${inputCls}" title="Nhân vật A tự xưng gì khi nói với B"></td>
+            <td class="px-2 py-1 align-top" data-label="Ghi chú"><input data-rel-field="note" value="${escapeHtml(rel.note || "")}" placeholder="Ghi chú…" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top whitespace-nowrap" data-label="Thao tác">
                 <button type="button" data-rel-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá quan hệ">Xoá</button>
             </td>
         </tr>`;
@@ -154,7 +154,7 @@ function relationsDetailsHtml(charIdx) {
     return `
         <details ${e._relOpen ? "open" : ""}>
             <summary class="cursor-pointer text-sm font-medium py-1">Quan hệ (${(e.relations || []).length})</summary>
-            <table class="table mt-1">
+            <table class="table table-responsive table-grid-mobile mt-1">
                 <thead>
                     <tr>
                         <th>Với nhân vật</th>
@@ -176,21 +176,21 @@ function render() {
     body.innerHTML = rows.map(([e, idx]) => `
         <tr class="border-t border-surface-border dark:border-surface-border-dark transition-colors" data-idx="${idx}">
             <td class="px-2 py-1 align-top">${e._saved ? `<input type="checkbox" class="bulk-check rounded border-surface-border dark:border-surface-border-dark" data-source="${escapeHtml(e._saved)}">` : ""}</td>
-            <td class="px-2 py-1 align-top"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
-            <td class="px-2 py-1 align-top"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top"><input data-field="aliases" value="${escapeHtml(e.aliases)}" placeholder="—" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top w-20"><input data-field="gender" value="${escapeHtml(e.gender)}" placeholder="nam/nữ" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top"><input data-field="self_pronoun" value="${escapeHtml(e.self_pronoun)}" placeholder="VD: ta" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top"><input data-field="narrator_ref" value="${escapeHtml(e.narrator_ref)}" placeholder="VD: hắn" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top"><input data-field="role_note" value="${escapeHtml(e.role_note)}" placeholder="VD: đồ đệ của…" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top text-center"><input type="checkbox" data-field="importance" ${e.importance === "main" ? "checked" : ""} class="rounded border-surface-border dark:border-surface-border-dark" title="Nhân vật chính"></td>
-            <td class="px-2 py-1 align-top whitespace-nowrap">
+            <td class="px-2 py-1 align-top" data-label="Tên gốc"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
+            <td class="px-2 py-1 align-top" data-label="Tên Việt"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top" data-label="Alias"><input data-field="aliases" value="${escapeHtml(e.aliases)}" placeholder="—" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top w-20" data-label="Giới"><input data-field="gender" value="${escapeHtml(e.gender)}" placeholder="nam/nữ" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top" data-label="Tự xưng"><input data-field="self_pronoun" value="${escapeHtml(e.self_pronoun)}" placeholder="VD: ta" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top" data-label="Lời kể gọi"><input data-field="narrator_ref" value="${escapeHtml(e.narrator_ref)}" placeholder="VD: hắn" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top" data-label="Vai trò"><input data-field="role_note" value="${escapeHtml(e.role_note)}" placeholder="VD: đồ đệ của…" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top text-center" data-label="⭐"><input type="checkbox" data-field="importance" ${e.importance === "main" ? "checked" : ""} class="rounded border-surface-border dark:border-surface-border-dark" title="Nhân vật chính"></td>
+            <td class="px-2 py-1 align-top whitespace-nowrap" data-label="Thao tác">
                 <button type="button" data-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá nhân vật">Xoá</button>
             </td>
         </tr>
         <tr class="border-t-0 border-b border-surface-border dark:border-surface-border-dark bg-surface-alt dark:bg-surface-alt-dark" data-rel-container-idx="${idx}">
             <td></td>
-            <td colspan="${COLS - 1}" class="px-2 py-1">${e.source ? relationsDetailsHtml(idx) : `<span class="text-xs text-fg-muted dark:text-fg-muted-dark">Lưu nhân vật trước khi thêm quan hệ.</span>`}</td>
+            <td colspan="${COLS - 1}" class="px-2 py-1" data-label="Quan hệ">${e.source ? relationsDetailsHtml(idx) : `<span class="text-xs text-fg-muted dark:text-fg-muted-dark">Lưu nhân vật trước khi thêm quan hệ.</span>`}</td>
         </tr>`).join("");
     emptyMsg.classList.toggle("hidden", rows.length > 0);
     countLabel.textContent = query ? `${rows.length}/${ROWS.length} nhân vật khớp "${query}"` : `${ROWS.length} nhân vật`;
@@ -490,7 +490,7 @@ function pendingCharRowHtml(c, idx) {
         return `
         <tr class="border-t border-surface-border dark:border-surface-border-dark">
             <td class="px-2 py-1 align-top"><input type="checkbox" class="pending-char-check rounded border-surface-border dark:border-surface-border-dark" data-idx="${idx}"></td>
-            <td class="px-2 py-1 align-top font-mono">${escapeHtml(c.source)}</td>
+            <td class="px-2 py-1 align-top font-mono" data-label="Tên gốc">${escapeHtml(c.source)}</td>
             <td class="px-2 py-1 align-top text-fg-muted dark:text-fg-muted-dark italic" colspan="6">
                 Chỉ bổ sung alias: ${escapeHtml((c.new_aliases_raw || []).join(", "))}
                 ${(c.new_aliases_vi || []).length ? " (" + escapeHtml(c.new_aliases_vi.join(", ")) + ")" : ""}
@@ -502,14 +502,14 @@ function pendingCharRowHtml(c, idx) {
     return `
         <tr class="border-t border-surface-border dark:border-surface-border-dark">
             <td class="px-2 py-1 align-top"><input type="checkbox" class="pending-char-check rounded border-surface-border dark:border-surface-border-dark" data-idx="${idx}"></td>
-            <td class="px-2 py-1 align-top font-mono">${escapeHtml(c.source)}</td>
-            <td class="px-2 py-1 align-top">${escapeHtml(c.target || "")}</td>
-            <td class="px-2 py-1 align-top text-xs">${escapeHtml(aliasStr)}</td>
-            <td class="px-2 py-1 align-top">${escapeHtml(c.gender || "")}</td>
-            <td class="px-2 py-1 align-top">${escapeHtml(c.self_pronoun || "")}</td>
-            <td class="px-2 py-1 align-top">${escapeHtml(c.narrator_ref || "")}</td>
-            <td class="px-2 py-1 align-top text-center">${c.importance === "main" ? "⭐" : ""}</td>
-            <td class="px-2 py-1 align-top text-xs text-fg-muted dark:text-fg-muted-dark">
+            <td class="px-2 py-1 align-top font-mono" data-label="Tên gốc">${escapeHtml(c.source)}</td>
+            <td class="px-2 py-1 align-top" data-label="Tên Việt">${escapeHtml(c.target || "")}</td>
+            <td class="px-2 py-1 align-top text-xs" data-label="Alias">${escapeHtml(aliasStr)}</td>
+            <td class="px-2 py-1 align-top" data-label="Giới">${escapeHtml(c.gender || "")}</td>
+            <td class="px-2 py-1 align-top" data-label="Tự xưng">${escapeHtml(c.self_pronoun || "")}</td>
+            <td class="px-2 py-1 align-top" data-label="Lời kể gọi">${escapeHtml(c.narrator_ref || "")}</td>
+            <td class="px-2 py-1 align-top text-center" data-label="⭐">${c.importance === "main" ? "⭐" : ""}</td>
+            <td class="px-2 py-1 align-top text-xs text-fg-muted dark:text-fg-muted-dark" data-label="Lý do / độ tin">
                 ${escapeHtml(c.reason || "")}${c.confidence ? ` <span class="font-medium">[${escapeHtml(c.confidence)}]</span>` : ""}
             </td>
         </tr>`;

@@ -77,7 +77,7 @@
 <!-- Main table -->
 <div id="library-region">
 <div class="table-container">
-  <table class="table lib-table" id="lib-table">
+  <table class="table responsive-table table-grid-mobile lib-table" id="lib-table">
     <thead class="bg-surface-muted dark:bg-surface-muted-dark text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide">
       <tr>
         <th class="px-3 py-2 w-8"><input type="checkbox" id="select-all" class="rounded border-surface-border dark:border-surface-border-dark"></th>
@@ -109,17 +109,17 @@
         <td class="px-2 py-1">
           <img src="/ebooks/{{ ebook.slug }}/cover" alt="" class="lib-cover" onerror="this.style.display='none'">
         </td>
-        <td class="px-3 py-2">
+        <td class="px-3 py-2" data-label="Tên">
           <a href="/ebooks/{{ ebook.slug }}" class="font-medium text-sm hover:underline text-fg-light dark:text-fg-dark">{{ ebook.cfg.novel.title or ebook.name }}</a>
           {% if ebook.archived %}<span class="badge badge-neutral ml-1 text-xs">lưu trữ</span>{% endif %}
         </td>
-        <td class="px-3 py-2 text-sm text-fg-muted dark:text-fg-muted-dark hidden sm:table-cell">{{ ebook.cfg.novel.author or '—' }}</td>
-        <td class="px-3 py-2 hidden md:table-cell"><code class="text-xs bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ ebook.slug }}</code></td>
-        <td class="px-3 py-2 text-right text-sm whitespace-nowrap">
+        <td class="px-3 py-2 text-sm text-fg-muted dark:text-fg-muted-dark hidden sm:table-cell" data-label="Tác giả">{{ ebook.cfg.novel.author or '—' }}</td>
+        <td class="px-3 py-2 hidden md:table-cell" data-label="Slug"><code class="text-xs bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ ebook.slug }}</code></td>
+        <td class="px-3 py-2 text-right text-sm whitespace-nowrap" data-label="Chương">
           {% set ch = ebook.manifest.chapters|length if ebook.manifest else 0 %}
           {{ ch }}
         </td>
-        <td class="px-3 py-2 hidden lg:table-cell">
+        <td class="px-3 py-2 hidden lg:table-cell" data-label="Tiến độ">
           {% set ch = ebook.manifest.chapters|length if ebook.manifest else 0 %}
           {% if ch > 0 %}
           <div class="flex items-center gap-2">
@@ -128,14 +128,14 @@
           </div>
           {% else %}<span class="text-xs text-fg-muted dark:text-fg-muted-dark">—</span>{% endif %}
         </td>
-        <td class="px-3 py-2 text-center hidden sm:table-cell">
+        <td class="px-3 py-2 text-center hidden sm:table-cell" data-label="EPUB">
           {% if ebook.epub_exists %}
             <span class="badge badge-ok">✓</span>
           {% else %}
             <span class="badge badge-err">✗</span>
           {% endif %}
         </td>
-        <td class="px-3 py-2 text-right whitespace-nowrap">
+        <td class="px-3 py-2 text-right whitespace-nowrap mobile-actions" data-label="Thao tác">
           <div class="flex gap-1 justify-end">
             <a href="/ebooks/{{ ebook.slug }}" class="btn btn-sm btn-primary">Mở</a>
             {% if ebook.epub_exists %}<a href="/ebooks/{{ ebook.slug }}/download" class="btn btn-sm btn-secondary">EPUB</a>{% endif %}
@@ -158,9 +158,9 @@
 
 <!-- Import config modal -->
 <div id="import-modal" class="modal-backdrop" hidden onclick="if(event.target===this)closeModal('import-modal')">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
     <div class="p-5 border-b border-surface-border dark:border-surface-border-dark flex items-center justify-between">
-      <h3 class="m-0 text-base font-semibold">Nhập config ebook (.yaml)</h3>
+      <h3 id="import-modal-title" class="m-0 text-base font-semibold">Nhập config ebook (.yaml)</h3>
       <button type="button" onclick="closeModal('import-modal')" class="btn btn-sm btn-ghost text-lg leading-none">✕</button>
     </div>
     <form method="post" action="/library/ebooks/import" enctype="multipart/form-data" class="p-5 space-y-4"

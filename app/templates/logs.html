@@ -22,7 +22,7 @@
 </div>
 
 <div class="table-container">
-    <table class="table">
+    <table class="table table-responsive table-grid-mobile">
         <thead>
             <tr>
                 <th class="w-28 font-mono">Thời gian</th>
@@ -90,9 +90,9 @@ function renderLines(lines, append = false) {
         const tr = document.createElement("tr");
         tr.className = "hover:bg-surface-muted/50 dark:hover:bg-surface-muted-dark/50 border-t border-surface-border dark:border-surface-border-dark";
         tr.innerHTML = `
-            <td class="px-3 py-1.5 font-mono text-xs">${time}</td>
-            <td class="px-3 py-1.5 text-xs ${levelClass(level)}">${level || "—"}</td>
-            <td class="px-3 py-1.5 text-sm font-mono text-fg-light dark:text-fg-dark whitespace-pre-wrap break-words">${msg}</td>
+            <td class="px-3 py-1.5 font-mono text-xs" data-label="Thời gian">${time}</td>
+            <td class="px-3 py-1.5 text-xs ${levelClass(level)}" data-label="Mức độ">${level || "—"}</td>
+            <td class="px-3 py-1.5 text-sm font-mono text-fg-light dark:text-fg-dark whitespace-pre-wrap break-words" data-label="Nội dung">${msg}</td>
         `;
         tbody.appendChild(tr);
         lastLine++;

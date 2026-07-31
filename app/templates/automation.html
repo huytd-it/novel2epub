@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Tự động hóa — novel2epub{% endblock %}
 {% block content %}
-<style>.modal-backdrop[hidden]{display:none!important}</style>
 <div class="flex items-baseline justify-between gap-4 mb-1">
     <h2 class="m-0 text-xl font-semibold">Tự động hóa</h2>
     <button type="button" id="add-automation-btn" class="btn btn-sm btn-primary">+ Thêm automation</button>
@@ -10,7 +9,7 @@
 
 <div id="automation-region">
 <div class="table-container">
-    <table class="table" data-dt data-dt-placeholder="Tìm automation…">
+    <table class="table table-responsive table-grid-mobile" data-dt data-dt-placeholder="Tìm automation…">
         <thead>
             <tr>
                 <th data-dt-sort data-dt-filter class="text-left">Ebook</th>
@@ -20,19 +19,19 @@
                 <th data-dt-sort data-dt-filter class="text-left">Bật</th>
                 <th data-dt-sort class="text-left">Lần chạy cuối</th>
                 <th data-dt-sort data-dt-filter class="text-left">Kết quả</th>
-                <th class="text-left"></th>
+                <th class="text-left">Thao tác</th>
             </tr>
         </thead>
         <tbody>
         {% for a in automations %}
         <tr class="hover:bg-surface-muted/50 dark:hover:bg-surface-muted-dark/50">
-            <td class="px-3 py-2">{{ a.ebook }}</td>
-            <td class="px-3 py-2">{{ a.steps | join(' → ') }}</td>
-            <td class="px-3 py-2"><code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ a.schedule }}</code></td>
-            <td class="px-3 py-2">{{ next_runs[a.id] or '—' }}</td>
-            <td class="px-3 py-2">{% if a.enabled %}<span class="badge badge-ok">bật</span>{% else %}<span class="badge badge-err">tắt</span>{% endif %}</td>
-            <td class="px-3 py-2">{{ a.last_run_at or '—' }}</td>
-            <td class="px-3 py-2">
+            <td class="px-3 py-2" data-label="Ebook">{{ a.ebook }}</td>
+            <td class="px-3 py-2" data-label="Các bước">{{ a.steps | join(' → ') }}</td>
+            <td class="px-3 py-2" data-label="Lịch"><code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">{{ a.schedule }}</code></td>
+            <td class="px-3 py-2" data-label="Chạy kế tiếp">{{ next_runs[a.id] or '—' }}</td>
+            <td class="px-3 py-2" data-label="Bật">{% if a.enabled %}<span class="badge badge-ok">bật</span>{% else %}<span class="badge badge-err">tắt</span>{% endif %}</td>
+            <td class="px-3 py-2" data-label="Lần chạy cuối">{{ a.last_run_at or '—' }}</td>
+            <td class="px-3 py-2" data-label="Kết quả">
                 {% if a.last_run_outcome == 'success' %}<span class="badge badge-ok" {% if a.last_run_error %}title="{{ a.last_run_error }}"{% endif %}>thành công</span>
                 {% elif a.last_run_outcome == 'failure' %}<span class="badge badge-err" title="{{ a.last_run_error }}">lỗi</span>
                 {% elif a.last_run_outcome == 'partial' %}<span class="badge badge-warn" title="{{ a.last_run_error }}">một phần</span>
@@ -41,7 +40,7 @@
                 <div class="text-xs text-fg-muted dark:text-fg-muted-dark mt-0.5">+{{ a.last_run_stats.crawled or 0 }} cào, +{{ a.last_run_stats.translated or 0 }} dịch, {{ a.last_run_stats.han_fixed or 0 }} Hán</div>
                 {% endif %}
             </td>
-            <td class="px-3 py-2">
+            <td class="px-3 py-2" data-label="Thao tác">
                 <div class="inline-flex gap-1.5 items-center flex-wrap">
                     <form method="post" action="/automation/{{ a.id }}/run-now" data-ajax data-ajax-reload="#automation-region" data-toast="Đã đưa automation vào hàng đợi."><button type="submit" class="btn btn-sm btn-primary">Chạy ngay</button></form>
                     <form method="post" action="/automation/{{ a.id }}/delete" data-ajax data-ajax-reload="#automation-region" data-toast="Đã xóa automation." data-confirm="Xóa automation này?"><button type="submit" class="btn btn-sm btn-danger">Xóa</button></form>
@@ -58,9 +57,9 @@
 
 <!-- Modal: Add automation -->
 <div id="add-automation-modal" class="modal-backdrop" hidden>
-    <div class="modal modal-lg">
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="add-automation-modal-title">
         <div class="p-5 border-b border-surface-border dark:border-surface-border-dark flex items-center justify-between">
-            <h3 class="m-0 text-lg font-semibold">Thêm automation</h3>
+            <h3 id="add-automation-modal-title" class="m-0 text-lg font-semibold">Thêm automation</h3>
             <button type="button" onclick="closeModal('add-automation-modal')" class="btn btn-sm btn-ghost text-lg leading-none">✕</button>
         </div>
         <form method="post" action="/automation" data-ajax data-ajax-reload="#automation-region" data-close-modal="add-automation-modal" data-reset="true" data-toast="Đã tạo automation.">

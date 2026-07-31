@@ -21,7 +21,7 @@ from .crawl_throttle import AdaptiveConcurrency, DomainRateLimiter
 from .crawler import ScraplingCrawler, is_rate_limited
 from .epub_builder import build_epub
 from .storage import Chapter, Manifest, Storage
-from .toc import mark_duplicate_chapters
+from .toc import chapter_title_key, mark_duplicate_chapters
 from .translator import RateLimited, make_translator
 from . import han_cleanup
 
@@ -371,18 +371,18 @@ def _refresh_manifest(cfg: Config, storage: Storage, crawler, log: LogFn) -> Man
             # KHÔNG xóa chương cũ vắng mặt trong TOC mới: TOC có thể thiếu tạm
             # thời (chỉ load được trang đầu khi phân trang, site đổi định dạng
             # URL...) — xóa entry sẽ mồ côi file raw/translated đã có trên đĩa.
-            new_by_url = {ch.url: ch for ch in toc.chapters}
+            new_by_key = {(ch.url, chapter_title_key(ch)): ch for ch in toc.chapters}
             merged = []
-            seen = {ch.url for ch in manifest.chapters}
+            seen = {(ch.url, chapter_title_key(ch)) for ch in manifest.chapters}
             for old_ch in manifest.chapters:
-                new_ch = new_by_url.get(old_ch.url)
+                new_ch = new_by_key.get((old_ch.url, chapter_title_key(old_ch)))
                 if new_ch is not None:
                     old_ch.title = old_ch.title or new_ch.title
                     old_ch.title_zh = old_ch.title_zh or new_ch.title
                 merged.append(old_ch)
             next_idx = max((ch.index for ch in merged), default=0) + 1
             for new_ch in toc.chapters:
-                if new_ch.url not in seen:
+                if (new_ch.url, chapter_title_key(new_ch)) not in seen:
                     new_ch.index = next_idx
                     new_ch.title_zh = new_ch.title
                     next_idx += 1
@@ -971,25 +971,14 @@ def _maybe_extract_chapter_glossary(
     if not entries:
         return
 
-    chapter_conflicts: list[dict] = []
     result = translator.extend_glossary(entries, storage, chapter_index=ch.index)
     for source, target in result["added"]:
-        log(f"[dịch]   ({i}/{total}) + đề xuất glossary (chờ duyệt): {source} = {target}")
-    for c in result["conflicts"]:
-        c["chapter_index"] = ch.index
-        chapter_conflicts.append(c)
+        log(f"[dịch]   ({i}/{total}) + thêm glossary: {source} = {target}")
+    for c in result["changed"]:
         log(
-            f"[dịch]   ({i}/{total}) ⚠ conflict {c['source']}: "
-            f"hiện có '{c['existing']}', AI đề xuất '{c['new']}' (giữ giá trị cũ)"
+            f"[dịch]   ({i}/{total}) ⚠ đổi {c['source']}: '{c['existing_target']}' → "
+            f"'{c['target']}' (chờ duyệt)"
         )
-
-    if chapter_conflicts:
-        try:
-            meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-            meta["glossary_conflicts"] = chapter_conflicts
-            storage.write_meta(ch, meta)
-        except Exception as e:
-            log(f"[dịch]   ({i}/{total}) ! Không ghi được glossary_conflicts vào meta: {e}")
 
 
 def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool, should_cancel: CancelFn | None = None) -> tuple[int, int, int, bool]:
@@ -1138,27 +1127,11 @@ def step_translate_selected(
         )
 
     if cfg.translate.auto_glossary and cfg.translate.type.lower() == "openai":
-        inner = translator.inner if hasattr(translator, "inner") else translator
-        if hasattr(inner, "drain_conflicts"):
-            conflicts = inner.drain_conflicts()
-            if conflicts:
-                existing = storage.read_extra_json("glossary_conflicts")
-                if not isinstance(existing, list):
-                    existing = []
-                # `.get` vì entry cũ đã persist còn mang target_file, entry mới không.
-                seen = {(c["source"], c["new"]) for c in existing}
-                for c in conflicts:
-                    key = (c["source"], c["new"])
-                    if key not in seen:
-                        existing.append(c)
-                        seen.add(key)
-                storage.write_extra_json("glossary_conflicts", existing)
-                log(f"[dịch] Auto-glossary: {len(conflicts)} xung đột — xem trang Glossary")
         pending = storage.read_extra_json("glossary_pending")
         if isinstance(pending, list) and pending:
             log(
-                f"[dịch] Auto-glossary: {len(pending)} đề xuất đang chờ duyệt — "
-                "duyệt/bỏ ở trang Glossary (tab Đề xuất AI)"
+                f"[dịch] Auto-glossary: {len(pending)} thay đổi đang chờ duyệt — "
+                "duyệt/bỏ ở trang Glossary (hàng chờ replacement)"
             )
 
     # OmniRoute cost summary: aggregate từ meta.omniroute của các chương vừa dịch.

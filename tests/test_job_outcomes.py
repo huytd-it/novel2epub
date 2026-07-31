@@ -23,6 +23,15 @@ def test_ebook_page_contains_queue_outcome_aggregation():
     assert "finishOutcomeGroups(queueSnapshot)" in template
 
 
+def test_ebook_page_guards_job_forms_against_duplicate_submit():
+    template = (Path(__file__).parents[1] / "app" / "templates" / "ebook.html").read_text(encoding="utf-8")
+
+    assert "const submittingForms = new WeakSet();" in template
+    assert "if (submittingForms.has(form)) return;" in template
+    assert "submittingForms.add(form);" in template
+    assert "finally {\n            submittingForms.delete(form);" in template
+
+
 def test_ebook_page_has_compact_selected_command_bar():
     template = (Path(__file__).parents[1] / "app" / "templates" / "ebook.html").read_text(encoding="utf-8")
 

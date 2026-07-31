@@ -308,6 +308,11 @@ class _MockStorage:
     def write_extra_json(self, key: str, data) -> None:
         self.extra[key] = data
 
+    def update_extra_json(self, key: str, update):
+        result = update(self.extra.get(key))
+        self.extra[key] = result
+        return result
+
     def glossary_path(self, name: str):
         from pathlib import Path
         return Path(name)
@@ -329,33 +334,69 @@ def _make_openai_translator(**kwargs) -> "OpenAITranslator":
     return OpenAITranslator(cfg)
 
 
-def test_extend_glossary_added_goes_to_pending():
-    """Entry mới → chỉ vào hàng chờ duyệt, không vào prompt cache hay names.txt."""
+def test_extend_glossary_new_source_appends_immediately():
+    """Entry MỚI → ghi NGAY vào names.txt + cập nhật in-memory (prompt thấy), không vào hàng chờ."""
     t = _make_openai_translator()
     storage = _MockStorage()
     result = t.extend_glossary({"叶凡": "Diệp Phàm"}, storage, chapter_index=7)
 
-    assert len(result["added"]) == 1
-    assert len(result["conflicts"]) == 0
-    assert "叶凡" not in t.glossary
-    assert storage.written == []  # không đụng names.txt
-    assert storage.extra["glossary_pending"] == [
-        {"source": "叶凡", "target": "Diệp Phàm", "chapter_index": 7}
+    assert result["added"] == [("叶凡", "Diệp Phàm")]
+    assert result["changed"] == []
+    assert t.glossary["叶凡"] == "Diệp Phàm"
+    assert storage.written == [("names.txt", "叶凡 = Diệp Phàm")]
+    assert storage.extra.get("glossary_pending") is None  # không vào hàng chờ
+
+
+def test_extend_glossary_changed_goes_pending_first_wins():
+    """Source đã có KHÁC giá trị → không sửa file, persist vào hàng chờ duyệt
+    (first-wins theo source, atomic qua update_extra_json)."""
+    t = _make_openai_translator()
+    t.glossary["叶凡"] = "Diệp Phàm"
+    storage = _MockStorage()
+    result = t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, storage, chapter_index=5)
+
+    assert result["added"] == []
+    assert len(result["changed"]) == 1
+    c = result["changed"][0]
+    assert c["source"] == "叶凡"
+    assert c["existing_target"] == "Diệp Phàm"
+    assert c["target"] == "Diệp Phà (cũ)"
+    assert c["chapter_index"] == 5
+    # In-memory vẫn giữ giá trị cũ
+    assert t.glossary["叶凡"] == "Diệp Phàm"
+    # File không được ghi; hàng chờ có 1 dòng normalized
+    assert storage.written == []
+    pending = storage.extra["glossary_pending"]
+    assert pending == [
+        {
+            "source": "叶凡",
+            "existing_target": "Diệp Phàm",
+            "target": "Diệp Phà (cũ)",
+            "chapter_index": 5,
+            "note": "",
+        }
     ]
 
 
 def test_extend_glossary_pending_dedups_by_source():
-    """Source đã nằm trong hàng chờ (run trước) → không thêm bản ghi trùng."""
+    """Source đã có trong hàng chờ (run trước) → giữ bản ghi first-wins, không thêm dòng trùng."""
     t = _make_openai_translator()
+    t.glossary["叶凡"] = "Diệp Phàm"
     storage = _MockStorage()
     storage.extra["glossary_pending"] = [
-        {"source": "叶凡", "target": "Diệp Phàm", "chapter_index": 1}
+        {
+            "source": "叶凡",
+            "existing_target": "Diệp Phàm",
+            "target": "Diệp Phà (cũ)",
+            "chapter_index": 1,
+            "note": "",
+        }
     ]
-    t.extend_glossary({"叶凡": "Diệp Phàm Khác"}, storage, chapter_index=9)
+    result = t.extend_glossary({"叶凡": "Diệp Phà (lại nữa)"}, storage, chapter_index=9)
 
-    # In-memory nhận giá trị mới (source chưa có trong glossary của translator
-    # này) nhưng hàng chờ giữ bản ghi cũ — 1 source chỉ 1 dòng chờ duyệt.
+    assert result["changed"] == []
     assert len(storage.extra["glossary_pending"]) == 1
+    assert storage.extra["glossary_pending"][0]["target"] == "Diệp Phà (cũ)"
     assert storage.extra["glossary_pending"][0]["chapter_index"] == 1
 
 
@@ -366,44 +407,27 @@ def test_extend_glossary_unchanged():
     storage = _MockStorage()
     result = t.extend_glossary({"叶凡": "Diệp Phàm"}, storage)
 
-    assert len(result["added"]) == 0
-    assert len(result["conflicts"]) == 0
+    assert result["added"] == []
+    assert result["changed"] == []
     assert storage.written == []
+    assert storage.extra.get("glossary_pending") is None
 
 
-def test_extend_glossary_conflict_existing_wins():
-    """Source đã có khác value → existing wins, conflict báo lại."""
-    t = _make_openai_translator()
-    t.glossary["叶凡"] = "Diệp Phàm"
-    storage = _MockStorage()
-    result = t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, storage)
-
-    assert len(result["added"]) == 0
-    assert len(result["conflicts"]) == 1
-    c = result["conflicts"][0]
-    assert c["source"] == "叶凡"
-    assert c["existing"] == "Diệp Phàm"
-    assert c["new"] == "Diệp Phà (cũ)"
-    assert "target_file" not in c
-    # In-memory vẫn giữ giá trị cũ
-    assert t.glossary["叶凡"] == "Diệp Phàm"
-    # File không được ghi
-    assert storage.written == []
-
-
-def test_extend_glossary_accumulates_conflicts():
-    """Nhiều conflict tích lũy trong _auto_glossary_conflicts, drain_conflicts trả hết."""
+def test_extend_glossary_multiple_changed_accumulate():
+    """Nhiều source đổi cùng lúc → gộp hết vào một lần update_extra_json."""
     t = _make_openai_translator()
     t.glossary["叶凡"] = "Diệp Phàm"
     t.glossary["林动"] = "Lâm Động"
     storage = _MockStorage()
-    t.extend_glossary({"叶凡": "Diệp Phà (cũ)"}, storage)
-    t.extend_glossary({"林动": "Lâm Động (khác)"}, storage)
+    result = t.extend_glossary(
+        {"叶凡": "Diệp Phà (cũ)", "林动": "Lâm Động (khác)"}, storage
+    )
 
-    drained = t.drain_conflicts()
-    assert len(drained) == 2
-    # drain xong list rỗng
-    assert t.drain_conflicts() == []
+    assert result["added"] == []
+    assert len(result["changed"]) == 2
+    pending = storage.extra["glossary_pending"]
+    assert len(pending) == 2
+    assert {p["source"] for p in pending} == {"叶凡", "林动"}
 
 
 def test_extend_glossary_skips_empty_source():
@@ -411,8 +435,10 @@ def test_extend_glossary_skips_empty_source():
     t = _make_openai_translator()
     storage = _MockStorage()
     result = t.extend_glossary({"": "something", "valid": ""}, storage)
-    assert len(result["added"]) == 0
-    assert len(result["conflicts"]) == 0
+    assert result["added"] == []
+    assert result["changed"] == []
+    assert storage.written == []
+    assert storage.extra.get("glossary_pending") is None
 
 
 # ---------------------------------------------------------------------------

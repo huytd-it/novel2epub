@@ -10,7 +10,19 @@
 </div>
 
 <div id="settings-layout" data-slug="{{ slug }}" class="max-w-8xl mx-auto">
-    <nav class="flex border-b-2 border-border-light dark:border-border-dark mb-3">
+    <div class="md:hidden mb-3">
+        <label for="settings-tab-select" class="label">Chọn mục cài đặt</label>
+        <select id="settings-tab-select" class="select" aria-label="Chọn mục cài đặt">
+            <option value="tab-novel">📖 Truyện</option>
+            <option value="tab-crawl">🌐 Nguồn</option>
+            <option value="tab-translate">🤖 Dịch</option>
+            <option value="tab-ai">✨ AI biên tập</option>
+            <option value="tab-output">📦 Đầu ra</option>
+            <option value="tab-reader">🚀 Reader</option>
+        </select>
+    </div>
+    <h2 id="settings-tab-heading" class="md:hidden text-lg font-semibold mb-3">📖 Truyện</h2>
+    <nav class="hidden md:flex border-b-2 border-border-light dark:border-border-dark mb-3">
         <button class="settings-tab active px-4 py-2 text-sm border-b-2 border-transparent -mb-0.5 text-muted-light dark:text-muted-dark font-medium hover:text-fg-light dark:hover:text-fg-dark" data-tab="tab-novel" onclick="switchSettingsTab('tab-novel')">
             <span class="mr-1">📖</span> Truyện
         </button>
@@ -71,6 +83,14 @@
 
 <script>
 // --- Tab switching ---
+const TAB_LABELS = {
+    "tab-novel": "📖 Truyện",
+    "tab-crawl": "🌐 Nguồn",
+    "tab-translate": "🤖 Dịch",
+    "tab-ai": "✨ AI biên tập",
+    "tab-output": "📦 Đầu ra",
+    "tab-reader": "🚀 Reader",
+};
 function switchSettingsTab(tabName) {
     const layout = document.getElementById("settings-layout");
     layout.querySelectorAll(".settings-panel").forEach(p => {
@@ -82,7 +102,18 @@ function switchSettingsTab(tabName) {
     if (panel) { panel.classList.remove("hidden"); panel.classList.add("active"); }
     const tabBtn = layout.querySelector(`.settings-tab[data-tab="${tabName}"]`);
     if (tabBtn) tabBtn.classList.add("active");
+    const select = document.getElementById("settings-tab-select");
+    if (select) select.value = tabName;
+    const heading = document.getElementById("settings-tab-heading");
+    if (heading && TAB_LABELS[tabName]) heading.textContent = TAB_LABELS[tabName];
     sessionStorage.setItem("settings-tab-" + layout.dataset.slug, tabName);
+}
+
+const settingsTabSelect = document.getElementById("settings-tab-select");
+if (settingsTabSelect) {
+    settingsTabSelect.addEventListener("change", function () {
+        switchSettingsTab(this.value);
+    });
 }
 
 // --- Auto-save with debounce ---
@@ -134,9 +165,7 @@ document.addEventListener("DOMContentLoaded", function () {
     } else {
         // Đảm bảo tab-novel hiện mặc định
         const defaultPanel = document.getElementById("tab-novel");
-        if (defaultPanel) { defaultPanel.classList.remove("hidden"); defaultPanel.classList.add("active"); }
-        const defaultTab = layout.querySelector('.settings-tab[data-tab="tab-novel"]');
-        if (defaultTab) defaultTab.classList.add("active");
+        if (defaultPanel) switchSettingsTab("tab-novel");
     }
 });
 

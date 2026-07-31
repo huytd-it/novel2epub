@@ -106,14 +106,25 @@ class TocResult:
 
 
 def _dedupe_keep_last(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
-    """Khử trùng lặp URL nhưng GIỮ LẦN XUẤT HIỆN CUỐI.
+    """Khử trùng lặp (URL, tiêu đề) nhưng GIỮ LẦN XUẤT HIỆN CUỐI.
 
     Trang mục lục kiểu biquge thường có khối "chương mới nhất" ở đầu trang lặp
     lại vài chương cuối. Giữ lần cuối => các chương đó về đúng vị trí trong phần
     chính văn, cho thứ tự đọc đúng (Chương 1, 2, 3...).
+    Cùng URL nhưng tiêu đề khác nhau là hai chương riêng. Tiêu đề rỗng khớp
+    wildcard: nếu URL có bất kỳ tiêu đề không rỗng nào thì bỏ entry rỗng.
     """
-    last_idx = {url: i for i, (url, _) in enumerate(pairs)}
-    return [(url, text) for i, (url, text) in enumerate(pairs) if last_idx[url] == i]
+    urls_with_titles = {url for url, title in pairs if title.strip()}
+    last_idx = {
+        (url, title): i
+        for i, (url, title) in enumerate(pairs)
+        if title.strip() or url not in urls_with_titles
+    }
+    return [
+        (url, title)
+        for i, (url, title) in enumerate(pairs)
+        if (title.strip() or url not in urls_with_titles) and last_idx[(url, title)] == i
+    ]
 
 _CHAPTER_BASE_ID_RE = re.compile(r"(\d+)(?:[_-]\d+)?\.\w+(?:[?#].*)?$")
 

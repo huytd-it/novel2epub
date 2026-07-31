@@ -175,7 +175,7 @@ def test_refresh_manifest_partial_toc_keeps_missing_chapters(tmp_path, monkeypat
     toc = TocResult(
         title="",
         chapters=[
-            Chapter(index=1, url="http://x/2", title="C2 mới"),
+            Chapter(index=1, url="http://x/2", title="C2"),
             Chapter(index=2, url="http://x/3", title="C3"),
         ],
     )
@@ -194,6 +194,35 @@ def test_refresh_manifest_partial_toc_keeps_missing_chapters(tmp_path, monkeypat
     assert manifest.chapters[2].index == 3
     # Title cũ không bị TOC mới ghi đè
     assert manifest.chapters[1].title == "C2"
+
+
+def test_refresh_manifest_keeps_same_url_different_titles(tmp_path, monkeypatch):
+    """A new title at an existing URL is a new chapter with a new index."""
+    from novel2epub.storage import Manifest
+
+    storage = Storage(tmp_path, "t")
+    storage.save_manifest(Manifest(
+        slug="t",
+        chapters=[Chapter(index=1, url="http://x/1", title="C1")],
+    ))
+    toc = TocResult(
+        title="",
+        chapters=[
+            Chapter(index=1, url="http://x/1", title="C1"),
+            Chapter(index=2, url="http://x/1", title="C1 bản khác"),
+        ],
+    )
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(toc))
+
+    pipeline.step_fetch_toc(_cfg(tmp_path), lambda m: None)
+
+    chapters = storage.load_manifest().chapters
+    assert [(ch.index, ch.url, ch.title) for ch in chapters] == [
+        (1, "http://x/1", "C1"),
+        (2, "http://x/1", "C1 bản khác"),
+    ]
+    assert chapters[1].duplicate_of is None
+    assert "duplicate" not in chapters[1].missing_fields
 
 
 class _FlakyTranslator:

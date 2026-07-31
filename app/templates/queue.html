@@ -88,12 +88,12 @@
   <span id="queue-summary" class="text-xs text-fg-muted dark:text-fg-muted-dark ml-auto"></span>
 </div>
 
-<!-- Pagination bar -->
-<div id="pagination-bar" class="flex flex-wrap items-center gap-2 mb-2 text-xs text-fg-muted dark:text-fg-muted-dark hidden">
-  <button id="pg-prev" onclick="changePage(-1)" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">‹ Trước</button>
-  <span id="pg-info"></span>
-  <button id="pg-next" onclick="changePage(1)" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">Sau ›</button>
-  <select id="page-size" onchange="changePageSize(this.value)" class="select select-sm w-auto ml-2" style="min-width: 80px;">
+<!-- Pagination bar (top + bottom share classes/data-role; state synced in JS) -->
+<div class="pagination-bar flex flex-wrap items-center gap-2 mb-2 text-xs text-fg-muted dark:text-fg-muted-dark hidden" data-role="pagination">
+  <button type="button" class="pagination-prev btn btn-sm btn-secondary" data-role="prev" onclick="changePage(-1)" style="padding: 0.25rem 0.5rem;">‹ Trước</button>
+  <span class="pagination-info" data-role="info"></span>
+  <button type="button" class="pagination-next btn btn-sm btn-secondary" data-role="next" onclick="changePage(1)" style="padding: 0.25rem 0.5rem;">Sau ›</button>
+  <select class="pagination-size select select-sm w-auto ml-2" data-role="size" style="min-width: 80px;">
     <option value="100">100 / trang</option>
     <option value="200">200 / trang</option>
     <option value="300">300 / trang</option>
@@ -103,7 +103,7 @@
 
 <!-- Main table -->
 <div class="table-container">
-  <table class="table" id="queue-table">
+  <table class="table table-responsive table-grid-mobile" id="queue-table">
     <thead class="bg-surface-muted dark:bg-surface-muted-dark text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide">
       <tr>
         <th class="px-3 py-2 w-8">
@@ -122,11 +122,11 @@
 </div>
 
 <!-- Pagination bar -->
-<div id="pagination-bar" class="flex flex-wrap items-center gap-2 mt-2 text-xs text-fg-muted dark:text-fg-muted-dark hidden">
-  <button id="pg-prev" onclick="changePage(-1)" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">‹ Trước</button>
-  <span id="pg-info"></span>
-  <button id="pg-next" onclick="changePage(1)" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">Sau ›</button>
-  <select id="page-size" onchange="changePageSize(this.value)" class="select select-sm w-auto ml-2" style="min-width: 80px;">
+<div class="pagination-bar flex flex-wrap items-center gap-2 mt-2 text-xs text-fg-muted dark:text-fg-muted-dark hidden" data-role="pagination">
+  <button type="button" class="pagination-prev btn btn-sm btn-secondary" data-role="prev" onclick="changePage(-1)" style="padding: 0.25rem 0.5rem;">‹ Trước</button>
+  <span class="pagination-info" data-role="info"></span>
+  <button type="button" class="pagination-next btn btn-sm btn-secondary" data-role="next" onclick="changePage(1)" style="padding: 0.25rem 0.5rem;">Sau ›</button>
+  <select class="pagination-size select select-sm w-auto ml-2" data-role="size" style="min-width: 80px;">
     <option value="100">100 / trang</option>
     <option value="200">200 / trang</option>
     <option value="300">300 / trang</option>
@@ -136,8 +136,8 @@
 
 <!-- Log viewer modal -->
 <div id="log-viewer" class="modal-backdrop" hidden onclick="if(event.target===this)closeLog()">
-  <div class="modal modal-lg">
-    <h3 class="mt-0 mb-2 text-base font-semibold p-5 border-b border-surface-border dark:border-surface-border-dark">Nhật ký <span id="log-viewer-title" class="font-normal text-fg-muted dark:text-fg-muted-dark"></span></h3>
+  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="log-viewer-heading">
+    <h3 id="log-viewer-heading" class="mt-0 mb-2 text-base font-semibold p-5 border-b border-surface-border dark:border-surface-border-dark">Nhật ký <span id="log-viewer-title" class="font-normal text-fg-muted dark:text-fg-muted-dark"></span></h3>
     <pre id="log-viewer-content" class="bg-zinc-950 text-zinc-100 font-mono text-xs rounded p-3 overflow-auto max-h-[60vh] whitespace-pre-wrap m-0 mx-5 mb-5"></pre>
     <div class="flex gap-2 justify-end p-5 border-t border-surface-border dark:border-surface-border-dark">
       <button type="button" onclick="closeLog()" class="btn btn-sm btn-secondary">Đóng</button>
@@ -155,6 +155,7 @@ let activeFilter = "all";
 let currentPage = 1;
 let pageSize = 100;
 const PAGE_SIZE_OPTIONS = [100, 200, 300, "all"];
+let activeMenuId = null; // job id whose mobile actions menu is open
 
 // ── Time helpers ──────────────────────────────────────────────────────────
 function fmtTime(ts) {
@@ -203,11 +204,17 @@ function renderRow(j, pos) {
   const canStart  = j.state === "pending";
   const canDelete = j.state !== "running";
 
-  let actionBtns = `<button class="q-log btn btn-sm btn-secondary" data-id="${j.id}" data-label="${escHtml(j.label)}">📋</button>`;
-  if (canStart)  actionBtns += `<button class="q-startnow btn btn-sm btn-primary" data-id="${j.id}" title="Chạy ngay">▶</button>`;
-  if (canCancel) actionBtns += `<button class="q-cancel btn btn-sm btn-secondary" data-id="${j.id}" title="Hủy">✕</button>`;
-  if (canRetry)  actionBtns += `<button class="q-retry btn btn-sm btn-success" data-id="${j.id}" title="Thử lại">↺</button>`;
-  if (canDelete) actionBtns += `<button class="q-delete btn btn-sm btn-danger" data-id="${j.id}" title="Xóa">🗑</button>`;
+  let actionBtns = `<button class="q-log btn btn-sm btn-secondary" data-role="log" data-id="${j.id}" data-label="${escHtml(j.label)}">📋</button>`;
+  if (canStart)  actionBtns += `<button class="q-startnow btn btn-sm btn-primary" data-role="start" data-id="${j.id}" title="Chạy ngay">▶</button>`;
+  if (canCancel) actionBtns += `<button class="q-cancel btn btn-sm btn-secondary" data-role="cancel" data-id="${j.id}" title="Hủy">✕</button>`;
+  if (canRetry)  actionBtns += `<button class="q-retry btn btn-sm btn-success" data-role="retry" data-id="${j.id}" title="Thử lại">↺</button>`;
+  if (canDelete) actionBtns += `<button class="q-delete btn btn-sm btn-danger" data-role="delete" data-id="${j.id}" title="Xóa">🗑</button>`;
+
+  const menuOpen = activeMenuId === j.id;
+  const actionsCell = `<div class="actions-menu${menuOpen ? " open" : ""}">
+      <button type="button" class="actions-menu-toggle" data-role="menu-toggle" aria-label="Thao tác" aria-haspopup="true" aria-expanded="${menuOpen}">⋯</button>
+      <div class="actions-menu-panel">${actionBtns}</div>
+    </div>`;
 
   const posCell = j.state === "pending" ? `<span class="text-xs text-fg-muted dark:text-fg-muted-dark">#${pos}</span> ` : "";
   const labelTitle = j.ebook ? `${j.label} [${j.ebook}]` : j.label;
@@ -217,15 +224,15 @@ function renderRow(j, pos) {
 
   return `<tr class="hover:bg-surface-muted/50 dark:hover:bg-surface-muted-dark/50 border-b border-surface-border dark:border-surface-border-dark ${rowClass}" data-id="${j.id}">
     <td class="px-3 py-2"><input type="checkbox" class="row-check rounded border-surface-border dark:border-surface-border-dark" data-id="${j.id}" ${checked}></td>
-    <td class="px-3 py-2 max-w-xs">
+    <td class="px-3 py-2 max-w-xs" data-label="Label">
       <div class="font-medium text-xs truncate" title="${escHtml(labelTitle)}">${posCell}${escHtml(j.label)}</div>
       ${j.error ? `<div class="text-status-err-fg dark:text-status-err-fg-dark text-xs truncate mt-0.5" title="${escHtml(j.error)}">${escHtml(j.error.slice(0,80))}</div>` : ""}
     </td>
-    <td class="px-3 py-2 hidden sm:table-cell">${catBadge(j.category)}</td>
-    <td class="px-3 py-2">${stateBadge(j.state, j.cancelling)}</td>
-    <td class="px-3 py-2 text-xs hidden md:table-cell whitespace-nowrap">${fmtTime(j.started_at)}</td>
-    <td class="px-3 py-2 text-xs hidden md:table-cell whitespace-nowrap">${endCell}</td>
-    <td class="px-3 py-2 text-right whitespace-nowrap"><div class="flex gap-1 justify-end">${actionBtns}</div></td>
+    <td class="px-3 py-2 hidden sm:table-cell" data-label="Cat.">${catBadge(j.category)}</td>
+    <td class="px-3 py-2" data-label="Trạng thái">${stateBadge(j.state, j.cancelling)}</td>
+    <td class="px-3 py-2 text-xs hidden md:table-cell whitespace-nowrap" data-label="Bắt đầu">${fmtTime(j.started_at)}</td>
+    <td class="px-3 py-2 text-xs hidden md:table-cell whitespace-nowrap" data-label="Kết thúc / Thời lượng">${endCell}</td>
+    <td class="px-3 py-2 text-right whitespace-nowrap" data-label="Thao tác">${actionsCell}</td>
   </tr>`;
 }
 
@@ -305,20 +312,19 @@ function renderTable() {
   const tbody = document.getElementById("queue-tbody");
   tbody.innerHTML = html || `<tr><td colspan="7" class="text-center text-fg-muted dark:text-fg-muted-dark py-6 text-sm">Không có job nào.</td></tr>`;
 
-  // Page size selector
-  const pageSizeSel = document.getElementById("page-size");
-  if (pageSizeSel) pageSizeSel.value = pageSize;
-
-  // Pagination
-  const pgBar = document.getElementById("pagination-bar");
-  if (pageSize !== "all" && totalPages > 1) {
-    pgBar.classList.remove("hidden");
-    document.getElementById("pg-info").textContent = `Trang ${currentPage}/${totalPages} (${total} job)`;
-    document.getElementById("pg-prev").disabled = currentPage <= 1;
-    document.getElementById("pg-next").disabled = currentPage >= totalPages;
-  } else {
-    pgBar.classList.add("hidden");
-  }
+  // Pagination bars (top + bottom share one state via data-role; sync all)
+  const showPager = pageSize !== "all" && totalPages > 1;
+  document.querySelectorAll(".pagination-bar").forEach(bar => {
+    bar.classList.toggle("hidden", !showPager);
+    const info = bar.querySelector('[data-role="info"]');
+    if (info) info.textContent = `Trang ${currentPage}/${totalPages} (${total} job)`;
+    const prev = bar.querySelector('[data-role="prev"]');
+    const next = bar.querySelector('[data-role="next"]');
+    if (prev) prev.disabled = currentPage <= 1;
+    if (next) next.disabled = currentPage >= totalPages;
+    const size = bar.querySelector('[data-role="size"]');
+    if (size) size.value = pageSize;
+  });
 
   // Tab counts
   const cnts = {all:0, running:0, pending:0, done:0, failed:0, cancelled:0};
@@ -361,6 +367,16 @@ function renderTable() {
   }));
   tbody.querySelectorAll(".q-log").forEach(btn => btn.addEventListener("click", () => {
     openLog(btn.dataset.id, btn.dataset.label);
+  }));
+  tbody.querySelectorAll(".actions-menu-toggle").forEach(btn => btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const menu = btn.closest(".actions-menu");
+    const rowId = btn.closest("tr").dataset.id;
+    const willOpen = !menu.classList.contains("open");
+    document.querySelectorAll("#queue-tbody .actions-menu.open").forEach(m => m.classList.remove("open"));
+    if (willOpen) menu.classList.add("open");
+    activeMenuId = willOpen ? rowId : null;
+    btn.setAttribute("aria-expanded", String(willOpen));
   }));
 
   // Select-all state
@@ -528,9 +544,22 @@ document.getElementById("enqueue-form")?.addEventListener("submit", async e => {
 });
 
 // ── Keyboard ──────────────────────────────────────────────────────────────
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeLog(); });
+function closeActionMenus() {
+  activeMenuId = null;
+  document.querySelectorAll("#queue-tbody .actions-menu.open").forEach(m => m.classList.remove("open"));
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") { closeLog(); closeActionMenus(); } });
+
+// Click bên ngoài menu → đóng menu thao tác đang mở.
+document.addEventListener("click", e => {
+  if (activeMenuId && !e.target.closest(".actions-menu")) closeActionMenus();
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────
+// Cả hai thanh phân trang (đầu + cuối bảng) dùng chung classes/data-role.
+document.querySelectorAll(".pagination-size").forEach(sel => {
+  sel.addEventListener("change", () => changePageSize(sel.value));
+});
 renderQueue();
 setInterval(renderQueue, 2000);
 </script>

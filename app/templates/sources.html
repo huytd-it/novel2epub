@@ -2,34 +2,6 @@
 {% block title %}Nguồn — novel2epub{% endblock %}
 {% block content %}
 
-<style>
-/* Local styles for sources: canvas, custom form patterns */
-.modal-backdrop[hidden] { display: none !important; }
-.canvas-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; justify-content: flex-end; z-index: 40; opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s ease; }
-.canvas-backdrop.open { opacity: 1; visibility: visible; }
-.canvas-backdrop[hidden] { display: none; }
-.canvas { background: var(--tw-surface, #fff); color: var(--tw-fg, #18181b); border-left: 1px solid var(--tw-border, #e4e4e7); width: min(45vw, 600px); max-width: 100vw; height: 100vh; overflow-y: auto; padding: 1.25rem 1.5rem; box-shadow: -4px 0 24px rgba(0,0,0,0.1); transform: translateX(100%); transition: transform 0.25s ease; box-sizing: border-box; display: flex; flex-direction: column; }
-.dark .canvas { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-left-color: var(--tw-border-dark, #3f3f46); }
-.canvas-backdrop.open .canvas { transform: translateX(0); }
-.canvas-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0; }
-.canvas-header h2, .canvas-header h3 { margin: 0; }
-.canvas-close { padding: 0.3rem 0.6rem; border: 1px solid var(--tw-border, #e4e4e7); background: var(--tw-surface-muted, #f4f4f5); border-radius: 6px; cursor: pointer; font-size: 1.1rem; line-height: 1; }
-.dark .canvas-close { border-color: var(--tw-border-dark, #3f3f46); background: var(--tw-surface-muted-dark, #27272a); }
-.canvas-close:hover { background: var(--tw-border, #e4e4e7); }
-.dark .canvas-close:hover { background: var(--tw-border-dark, #3f3f46); }
-.canvas-body { flex: 1; overflow-y: auto; }
-.canvas-footer { flex-shrink: 0; padding-top: 1rem; border-top: 1px solid var(--tw-border, #e4e4e7); margin-top: auto; }
-.dark .canvas-footer { border-top-color: var(--tw-border-dark, #3f3f46); }
-.canvas .canvas-body .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem 1rem; align-items: end; }
-.canvas .canvas-body .form-row label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8125rem; min-width: 0; }
-.canvas .canvas-body .form-row label.check { flex-direction: row; align-items: center; gap: 0.35rem; }
-.canvas .canvas-body .form-row input, .canvas .canvas-body .form-row select { width: 100%; box-sizing: border-box; }
-.canvas .canvas-body fieldset { border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; padding: 0.7rem 0.9rem 0.5rem; margin: 0.5rem 0; background: var(--tw-surface-muted, #f4f4f5); }
-.dark .canvas .canvas-body fieldset { border-color: var(--tw-border-dark, #3f3f46); background: var(--tw-surface-muted-dark, #27272a); }
-.canvas .canvas-body fieldset legend { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--tw-fg-muted, #71717a); padding: 0 0.4rem; }
-.dark .canvas .canvas-body fieldset legend { color: var(--tw-fg-muted-dark, #a1a1aa); }
-</style>
-
 <div class="flex items-baseline justify-between gap-4 mb-1">
     <h2 class="m-0 text-xl font-semibold">Thư viện nguồn (site preset)</h2>
     <div class="inline-flex gap-1.5 items-center flex-wrap">
@@ -42,7 +14,7 @@
 <div id="sources-region">
 {% if presets %}
 <div class="table-container">
-    <table class="table" data-dt data-dt-placeholder="Tìm nguồn / URL / selector…" style="table-layout:fixed;width:100%">
+    <table class="table table-responsive table-grid-mobile" data-dt data-dt-placeholder="Tìm nguồn / URL / selector…" style="table-layout:fixed;width:100%">
         <thead>
             <tr>
                 <th data-dt-sort class="text-left" style="width:180px">Tên</th>
@@ -56,20 +28,20 @@
         <tbody>
         {% for name, p in presets.items() %}
         <tr class="hover:bg-surface-muted/50 dark:hover:bg-surface-muted-dark/50">
-            <td class="px-3 py-2">{{ name }}</td>
-            <td class="px-3 py-2 overflow-hidden truncate max-w-0">
+            <td class="px-3 py-2" data-label="Tên">{{ name }}</td>
+            <td class="px-3 py-2 overflow-hidden truncate max-w-0" data-label="URL">
                 {% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener" class="text-brand-600 dark:text-brand-400 hover:underline truncate block" title="{{ p.url }}">{{ p.url }}</a>
                 {% else %}<span class="text-fg-muted dark:text-fg-muted-dark text-sm">—</span>{% endif %}
             </td>
-            <td class="px-3 py-2"><code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded block">{{ p.content_selector }}</code></td>
-            <td class="px-3 py-2"><code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded block">{{ p.chapter_link_pattern }}</code></td>
-            <td class="px-3 py-2">
+            <td class="px-3 py-2" data-label="Selector nội dung"><code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded block">{{ p.content_selector }}</code></td>
+            <td class="px-3 py-2" data-label="Pattern link"><code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded block">{{ p.chapter_link_pattern }}</code></td>
+            <td class="px-3 py-2" data-label="Đang dùng bởi">
                 {% set used = usage.get(name, []) %}
                 {% if used %}
                 {% for slug in used %}<a href="/ebooks/{{ slug }}" class="text-brand-600 dark:text-brand-400 hover:underline">{{ slug }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
                 {% else %}<span class="text-fg-muted dark:text-fg-muted-dark text-sm">—</span>{% endif %}
             </td>
-            <td class="px-3 py-2">
+            <td class="px-3 py-2" data-label="Thao tác">
                 <div class="inline-flex gap-1.5 items-center whitespace-nowrap">
                     <button type="button" class="btn-edit-preset btn btn-sm btn-primary"
                         data-name="{{ name }}"
@@ -123,9 +95,9 @@
 </details>
 
 <div id="source-test-modal" class="modal-backdrop" hidden>
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="source-test-modal-title">
         <div class="p-5 border-b border-surface-border dark:border-surface-border-dark flex items-center justify-between">
-            <h3 class="m-0 text-lg font-semibold">Test nguồn</h3>
+            <h3 id="source-test-modal-title" class="m-0 text-lg font-semibold">Test nguồn</h3>
             <button type="button" onclick="closeModal('source-test-modal')" class="btn btn-sm btn-ghost text-lg leading-none">✕</button>
         </div>
         <div class="p-5">
@@ -143,10 +115,10 @@
 
 <!-- Canvas: Preset Editor (Add/Edit) -->
 <div id="preset-canvas" class="canvas-backdrop" hidden>
-    <div class="canvas">
+    <div class="canvas" role="dialog" aria-modal="true" aria-labelledby="preset-canvas-title">
         <div class="canvas-header">
             <h3 id="preset-canvas-title" class="m-0 text-lg font-semibold">Thêm preset</h3>
-            <button type="button" class="canvas-close" onclick="closeCanvas('preset-canvas')">✕</button>
+            <button type="button" class="btn btn-sm btn-ghost" onclick="closeCanvas('preset-canvas')" aria-label="Đóng">✕</button>
         </div>
         <div class="canvas-body">
             <form method="post" action="/sources" id="preset-form" class="space-y-3" data-ajax data-ajax-reload="#sources-region" data-close-canvas="preset-canvas" data-toast="Đã lưu preset.">

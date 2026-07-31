@@ -1,5 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Đọc: {{ ch.title }} — novel2epub{% endblock %}
+{% block head %}
+<script>
+// Marker cho trang đọc: CSS chung có thể dùng để ẩn header toàn cục và bật chế độ
+// toàn màn hình (html.reader-page). Không đụng tới base.html / app.js.
+document.documentElement.classList.add("reader-page");
+</script>
+{% endblock %}
 {% block mainclass %}{% endblock %}
 {% block content %}
 
@@ -9,7 +16,7 @@
 .reader-wrap.nav-fixed { padding-top: 3.5rem; }
 .reader-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 1rem; border-bottom: 1px solid var(--tw-border, #e4e4e7); flex-wrap: wrap; max-width: 900px; margin: 0 auto; background: var(--tw-surface-light, #ffffff); position: relative; z-index: 20; }
 .dark .reader-nav { border-bottom-color: var(--tw-border-dark, #3f3f46); background: var(--tw-surface-dark, #18181b); }
-.reader-nav:not(.reader-nav-bottom).fixed { position: fixed; top: 0; left: 0; right: 0; z-index: 30; box-shadow: var(--tw-shadow-card, 0 1px 3px rgba(0,0,0,0.06)); }
+.reader-nav:not(.reader-nav-bottom).fixed { position: fixed; top: 0; left: 0; right: 0; z-index: 30; box-shadow: var(--tw-shadow-card, 0 1px 3px rgba(0,0,0,0.06)); padding-top: env(safe-area-inset-top); }
 .dark .reader-nav:not(.reader-nav-bottom).fixed { box-shadow: var(--tw-shadow-card-dark, 0 1px 3px rgba(0,0,0,0.3)); }
 .reader-nav-bottom { border-bottom: none; border-top: 1px solid var(--tw-border, #e4e4e7); justify-content: center; gap: 1.5rem; padding: 1rem 0 2rem; top: auto; bottom: 0; }
 .dark .reader-nav-bottom { border-top-color: var(--tw-border-dark, #3f3f46); }
@@ -231,21 +238,81 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 }
 
 @media (max-width: 640px) {
-    .reader-wrap { padding: 0 0.5rem 0; }
-    .reader-wrap.nav-fixed { padding-top: 6rem; }
-    .reader-nav { gap: 0.4rem; padding-left: 0.5rem; padding-right: 0.5rem; }
-    .reader-nav-right { gap: 0.25rem; }
-    .reader-chapter-select { max-width: 180px; font-size: 0.75rem; }
-    .reader-content { font-size: 16px; max-width: 100%; }
-    .para-copy-btn { right: 0; top: auto; bottom: -0.3em; opacity: 0.4; }
-    .settings-row { gap: 0.5rem; }
+    .reader-wrap { padding: 0 0.85rem calc(4.5rem + env(safe-area-inset-bottom)); }
+    .reader-wrap.nav-fixed { padding-top: 3.75rem; }
+    .reader-nav:not(.reader-nav-bottom) {
+        display: grid;
+        grid-template-columns: 2.5rem minmax(0, 1fr);
+        gap: 0.45rem;
+        padding: max(0.4rem, env(safe-area-inset-top)) 0.65rem 0.4rem;
+    }
+    .reader-nav-left { justify-content: center; }
+    .reader-back-label { display: none; }
+    .reader-nav-center { min-width: 0; gap: 0.3rem; }
+    .reader-nav-btn, .reader-toolbar-btn { min-width: 2.75rem; height: 2.75rem; border-radius: 10px; }
+    .reader-chapter-select { flex: 1 1 auto; min-width: 0; max-width: none; height: 2.75rem; font-size: 0.8125rem; }
+    .reader-content { margin: 1rem auto 2rem; font-size: 17px; max-width: 100%; line-height: 1.85; }
+    .reader-para { margin-bottom: 1em; text-align: left; padding-right: 1.85rem; }
+    .para-copy-btn, .para-edit-btn { right: 0; opacity: 0.45; width: 1.75rem; height: 1.75rem; padding: 0; border-radius: 6px; background: var(--tw-surface-muted, #f4f4f5); }
+    .dark .para-copy-btn, .dark .para-edit-btn { background: var(--tw-surface-muted-dark, #27272a); }
+    .para-copy-btn { top: 0; bottom: auto; }
+    .para-edit-btn { top: 2rem; }
+    .settings-row { gap: 0.5rem; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.2rem; }
+    .settings-row > * { flex: 0 0 auto; }
+    .reader-settings-panel {
+        position: fixed;
+        left: 0.5rem;
+        right: 0.5rem;
+        bottom: calc(3.65rem + env(safe-area-inset-bottom));
+        z-index: 34;
+        padding: 0.65rem;
+        border: 1px solid var(--tw-border, #e4e4e7);
+        border-radius: 12px;
+        background: var(--tw-surface-light, #ffffff);
+        box-shadow: 0 -8px 30px rgba(24, 24, 27, 0.14);
+    }
+    .dark .reader-settings-panel { background: var(--tw-surface-dark, #18181b); border-color: var(--tw-border-dark, #3f3f46); }
+    /* Primary reading tools stay reachable as a thumb-friendly bottom dock. */
+    .reader-nav-right {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 35;
+        max-width: none;
+        padding: 0.45rem max(0.6rem, env(safe-area-inset-right)) max(0.45rem, env(safe-area-inset-bottom)) max(0.6rem, env(safe-area-inset-left));
+        gap: 0.35rem;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        background: color-mix(in srgb, var(--tw-surface-light, #ffffff) 94%, transparent);
+        border-top: 1px solid var(--tw-border, #e4e4e7);
+        box-shadow: 0 -8px 24px rgba(24, 24, 27, 0.1);
+        backdrop-filter: blur(12px);
+    }
+    .dark .reader-nav-right { background: color-mix(in srgb, var(--tw-surface-dark, #18181b) 94%, transparent); border-top-color: var(--tw-border-dark, #3f3f46); }
+    .reader-nav-right .reader-toolbar-btn { flex: 0 0 2.75rem; }
+    #edit-mode-toggle-btn, #raw-compare-toggle-btn { width: auto; flex-basis: auto; padding: 0 0.65rem; font-size: 0.75rem; font-weight: 600; }
+    .bookmark-indicator { display: none; }
+    .reader-nav-right::-webkit-scrollbar { height: 3px; }
+    .reader-nav-right::-webkit-scrollbar-thumb { background-color: var(--tw-border, #e4e4e7); border-radius: 3px; }
+    .dark .reader-nav-right::-webkit-scrollbar-thumb { background-color: var(--tw-border-dark, #3f3f46); }
+    /* Panel neo theo mép màn hình tôn trọng safe-area (notch / home indicator). */
+    .reader-nav-bottom { margin-bottom: 1rem; padding: 1rem 0; gap: 0.6rem; }
+    .reader-nav-bottom .reader-nav-btn { flex: 1 1 0; }
+    .notes-panel { height: min(78vh, 42rem); padding-bottom: env(safe-area-inset-bottom); border-radius: 16px 16px 0 0; }
+    .search-bar { padding-top: calc(0.6rem + env(safe-area-inset-top)); }
+    .search-bar-row { flex-wrap: nowrap; overflow-x: auto; }
+    .search-input { min-width: min(15rem, 65vw); }
+    .toc-sidebar { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 }
 </style>
 
 <div class="reader-wrap">
-    <nav class="reader-nav" aria-label="Điều hướng chương">
+    <nav class="reader-nav safe-panels" aria-label="Điều hướng chương">
         <div class="reader-nav-left">
-            <a href="/ebooks/{{ slug }}" class="text-brand-600 dark:text-brand-400 hover:underline">&larr; Quay lại</a>
+            <a href="/ebooks/{{ slug }}" class="reader-nav-btn" aria-label="Quay lại ebook" title="Quay lại ebook">&larr;<span class="reader-back-label ml-1">Quay lại</span></a>
         </div>
         <div class="reader-nav-center">
             {% if prev_ch %}
@@ -266,7 +333,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             <span class="reader-nav-btn disabled" aria-label="Chương tiếp">&rarr;</span>
             {% endif %}
         </div>
-        <div class="reader-nav-right">
+        <div class="reader-nav-right mobile-actions">
             <button type="button" id="edit-mode-toggle-btn" class="reader-toolbar-btn" title="Chế độ biên tập" aria-label="Edit mode">Edit</button>
             {% if has_raw %}
             <button type="button" id="raw-compare-toggle-btn" class="reader-toolbar-btn" title="So sánh raw / bản dịch" aria-label="Raw compare">Raw</button>
@@ -410,7 +477,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     </nav>
 </div>
 
-<aside id="toc-sidebar" class="toc-sidebar" aria-label="Mục lục">
+<aside id="toc-sidebar" class="toc-sidebar safe-panels" aria-label="Mục lục">
     <div class="toc-sidebar-header">
         <span>Mục lục</span>
         <button type="button" id="toc-close-btn" class="note-icon-btn" title="Đóng" aria-label="Đóng mục lục">&#10005;</button>
@@ -426,7 +493,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 </aside>
 <div id="toc-backdrop" class="toc-backdrop hidden"></div>
 
-<div id="search-bar" class="search-bar hidden" role="search" aria-label="Tìm kiếm toàn truyện">
+<div id="search-bar" class="search-bar safe-panels hidden" role="search" aria-label="Tìm kiếm toàn truyện">
     <div class="search-bar-row">
         <input type="text" id="search-input" class="search-input" placeholder="Tìm trong toàn bộ chương đã dịch…" autocomplete="off" aria-label="Chuỗi cần tìm">
         <label class="search-opt"><input type="checkbox" id="search-regex"> Regex</label>
@@ -447,7 +514,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 
 <div id="note-popover" class="note-popover" hidden></div>
 
-<aside id="notes-panel" class="notes-panel" aria-label="Ghi chú lỗi dịch">
+<aside id="notes-panel" class="notes-panel safe-panels" aria-label="Ghi chú lỗi dịch">
     <div class="notes-panel-header">
         <span>Ghi chú lỗi dịch</span>
         <button type="button" id="notes-panel-close" class="note-icon-btn" title="Đóng" aria-label="Close">&#10005;</button>

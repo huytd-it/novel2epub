@@ -6,36 +6,37 @@ TEMPLATE = (Path(__file__).parents[1] / "app" / "templates" / "glossary.html").r
 )
 
 
-def test_glossary_table_exposes_pending_and_conflict_controls():
+def test_glossary_table_exposes_pending_and_entry_controls():
     required_ids = {
         "btn-approve-selected",
         "btn-approve-all",
         "btn-pending-clear",
-        "btn-conflict-take",
-        "btn-conflict-keep",
+        "btn-add",
     }
     for control_id in required_ids:
         assert f'id="{control_id}"' in TEMPLATE
-    assert "AI đề xuất mới" in TEMPLATE
+    assert "Đề xuất mới" in TEMPLATE
+    assert "Việt hiện tại" in TEMPLATE
     assert 'data-kind="pending"' in TEMPLATE
-    assert 'data-kind="conflict"' in TEMPLATE
     assert 'data-kind="entry"' in TEMPLATE
+    # Conflicts cũ đã gỡ — không còn điều khiển/checkbox loại conflict.
+    assert "data-kind=\"conflict\"" not in TEMPLATE
+    assert "btn-conflict-take" not in TEMPLATE
+    assert "btn-conflict-keep" not in TEMPLATE
 
 
-def test_glossary_loader_fetches_all_three_sources_in_parallel():
+def test_glossary_loader_fetches_all_sources_in_parallel():
     assert "Promise.all" in TEMPLATE
     assert "/glossary/list?" in TEMPLATE
     assert "/glossary/pending" in TEMPLATE
-    assert "/glossary/suspects" in TEMPLATE
+    assert "/glossary/replace/preview" in TEMPLATE
     assert "PENDING_ROWS" in TEMPLATE
-    assert "CONFLICT_ROWS" in TEMPLATE
+    assert "CONFLICT_ROWS" not in TEMPLATE
 
 
 def test_glossary_bulk_payloads_use_explicit_snapshots():
-    assert "original_source" in TEMPLATE
-    assert "original_new" in TEMPLATE
-    assert "/glossary/pending/approve" in TEMPLATE
+    assert "source: row.source.trim()" in TEMPLATE
+    assert "target: row.target.trim()" in TEMPLATE
+    assert "/glossary/replace/approve" in TEMPLATE
     assert "/glossary/pending/clear" in TEMPLATE
-    assert "/glossary/conflicts/bulk-resolve" in TEMPLATE
-    assert '"take"' in TEMPLATE
-    assert '"keep"' in TEMPLATE
+    assert "/glossary/conflicts/bulk-resolve" not in TEMPLATE

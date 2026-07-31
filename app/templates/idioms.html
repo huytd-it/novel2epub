@@ -41,7 +41,7 @@
 
 <!-- Data table -->
 <div class="table-container">
-    <table class="table">
+    <table class="table table-responsive table-grid-mobile">
         <thead>
             <tr>
                 <th class="w-8"><input type="checkbox" id="check-all" class="rounded border-surface-border dark:border-surface-border-dark" title="Chọn cả trang"></th>
@@ -81,11 +81,11 @@ function render() {
     body.innerHTML = ROWS.map((e, idx) => `
         <tr class="border-t border-surface-border dark:border-surface-border-dark transition-colors" data-idx="${idx}">
             <td class="px-2 py-1 align-top">${e._saved ? `<input type="checkbox" class="bulk-check rounded border-surface-border dark:border-surface-border-dark" data-source="${escapeHtml(e._saved)}">` : ""}</td>
-            <td class="px-2 py-1 align-top"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
-            <td class="px-2 py-1 align-top"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top"><input data-field="literals" value="${escapeHtml(e.literals)}" placeholder="—" class="${inputCls} text-fg-muted dark:text-fg-muted-dark" ${e.protect ? "disabled title='protect bật — không dùng bản máy'" : ""}></td>
-            <td class="px-2 py-1 align-top text-center"><input type="checkbox" data-field="protect" ${e.protect ? "checked" : ""} class="rounded border-surface-border dark:border-surface-border-dark"></td>
-            <td class="px-2 py-1 align-top whitespace-nowrap">
+            <td class="px-2 py-1 align-top" data-label="Hán"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
+            <td class="px-2 py-1 align-top" data-label="Bản đẹp"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top" data-label="Bản máy"><input data-field="literals" value="${escapeHtml(e.literals)}" placeholder="—" class="${inputCls} text-fg-muted dark:text-fg-muted-dark" ${e.protect ? "disabled title='protect bật — không dùng bản máy'" : ""}></td>
+            <td class="px-2 py-1 align-top text-center" data-label="protect"><input type="checkbox" data-field="protect" ${e.protect ? "checked" : ""} class="rounded border-surface-border dark:border-surface-border-dark"></td>
+            <td class="px-2 py-1 align-top whitespace-nowrap" data-label="Thao tác">
                 <button type="button" data-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá mục">Xoá</button>
             </td>
         </tr>`).join("");

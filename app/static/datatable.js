@@ -42,16 +42,31 @@
         if (!thead || !tbody || !thead.rows.length) return;
         const headers = Array.from(thead.rows[0].cells);
 
+        // ── Responsive labels ─────────────────────────────────────────────
+        // Card-mode tables (`.responsive-table` / `.table-responsive`) show
+        // each cell's column name above its value via `data-label`. Sync from
+        // the header text for any cell that does not declare one explicitly —
+        // explicit labels (e.g. "Thao tác") are always kept.
+        Array.from(tbody.rows).forEach((row) => {
+            if (!isDataRow(row)) return;
+            Array.from(row.cells).forEach((td, i) => {
+                const th = headers[i];
+                if (!td.dataset.label && th && norm(th.textContent)) {
+                    td.dataset.label = norm(th.textContent);
+                }
+            });
+        });
+
         // ── Toolbar (search + filters + count) ─────────────────────────────
         const wrapper = table.closest(".table-container") || table;
         const toolbar = document.createElement("div");
-        toolbar.className = "flex flex-wrap items-center gap-2 mb-2";
+        toolbar.className = "dt-toolbar";
 
         const search = document.createElement("input");
         search.type = "search";
         search.placeholder = table.dataset.dtPlaceholder || "Tìm kiếm…";
         search.className =
-            "input input-sm w-full md:w-64";
+            "input input-sm dt-search";
         toolbar.appendChild(search);
 
         const filters = []; // {col, select}
@@ -65,7 +80,7 @@
             });
             const sel = document.createElement("select");
             sel.className =
-                "select select-sm";
+                "select select-sm dt-filter";
             sel.innerHTML =
                 `<option value="">${label}: tất cả</option>` +
                 Array.from(values)
@@ -78,7 +93,7 @@
         });
 
         const count = document.createElement("span");
-        count.className = "text-sm text-fg-muted dark:text-fg-muted-dark ml-auto";
+        count.className = "text-sm text-fg-muted dark:text-fg-muted-dark dt-count";
         toolbar.appendChild(count);
 
         wrapper.parentNode.insertBefore(toolbar, wrapper);

@@ -14,21 +14,21 @@
 
     <!-- Summary Cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <div class="card p-4">
+        <div class="card p-4 min-w-0">
             <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark mb-1">Ebook</div>
-            <div class="text-3xl font-bold text-fg-light dark:text-fg-dark" id="stat-ebook-count">0</div>
+            <div class="text-2xl sm:text-3xl font-bold text-fg-light dark:text-fg-dark" id="stat-ebook-count">0</div>
         </div>
-        <div class="card p-4">
+        <div class="card p-4 min-w-0">
             <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark mb-1">Tổng chương</div>
-            <div class="text-3xl font-bold text-fg-light dark:text-fg-dark" id="stat-total-chapters">0</div>
+            <div class="text-2xl sm:text-3xl font-bold text-fg-light dark:text-fg-dark" id="stat-total-chapters">0</div>
         </div>
-        <div class="card p-4">
+        <div class="card p-4 min-w-0">
             <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark mb-1">Đang lỗi</div>
-            <div class="text-3xl font-bold text-status-err-fg dark:text-status-err-fg-dark" id="stat-error-count">0</div>
+            <div class="text-2xl sm:text-3xl font-bold text-status-err-fg dark:text-status-err-fg-dark" id="stat-error-count">0</div>
         </div>
-        <div class="card p-4">
+        <div class="card p-4 min-w-0">
             <div class="text-xs font-medium uppercase tracking-wider text-fg-muted dark:text-fg-muted-dark mb-1">Job đang chạy</div>
-            <div class="text-3xl font-bold text-status-info-fg dark:text-status-info-fg-dark" id="stat-running-jobs">0</div>
+            <div class="text-2xl sm:text-3xl font-bold text-status-info-fg dark:text-status-info-fg-dark" id="stat-running-jobs">0</div>
         </div>
     </div>
 
@@ -39,22 +39,22 @@
                 <canvas id="dashboard-donut" width="160" height="160" class="w-40 h-40 md:w-44 md:h-44"></canvas>
             </div>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                <div>
+                <div class="min-w-0">
                     <div class="text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide mb-0.5">Đã dịch</div>
                     <div class="text-xl font-semibold text-brand-600 dark:text-brand-400" id="stat-translated-count">0</div>
                     <div class="text-xs text-fg-muted dark:text-fg-muted-dark" id="stat-translated-pct">0%</div>
                 </div>
-                <div>
+                <div class="min-w-0">
                     <div class="text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide mb-0.5">Đã cào (chưa dịch)</div>
                     <div class="text-xl font-semibold text-status-info-fg dark:text-status-info-fg-dark" id="stat-raw-only-count">0</div>
                     <div class="text-xs text-fg-muted dark:text-fg-muted-dark" id="stat-raw-only-pct">0%</div>
                 </div>
-                <div>
+                <div class="min-w-0">
                     <div class="text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide mb-0.5">Chưa cào</div>
                     <div class="text-xl font-semibold text-fg-muted dark:text-fg-muted-dark" id="stat-remaining-count">0</div>
                     <div class="text-xs text-fg-muted dark:text-fg-muted-dark" id="stat-remaining-pct">0%</div>
                 </div>
-                <div>
+                <div class="min-w-0">
                     <div class="text-fg-muted dark:text-fg-muted-dark text-xs uppercase tracking-wide mb-0.5">Tiến độ tổng</div>
                     <div class="text-xl font-semibold text-fg-light dark:text-fg-dark" id="stat-overall-pct">0%</div>
                 </div>

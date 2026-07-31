@@ -1,16 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Glossary — novel2epub{% endblock %}
 {% block content %}
+<style>
+/* Touch-safe row selection (shared responsive contract). */
+.gloss-check { display: grid; place-items: center; min-inline-size: 2rem; min-block-size: 2.25rem; margin: -0.25rem 0; cursor: pointer; }
+</style>
 <p><a href="/ebooks/{{ slug }}" class="text-brand-600 dark:text-brand-400 hover:underline">&larr; Quay lại ebook</a></p>
 <h2 class="text-xl font-semibold mt-3 mb-1">Glossary</h2>
 <p class="text-sm text-fg-muted dark:text-fg-muted-dark mb-3">Bảng đồng bộ cách dịch tên riêng / thuật ngữ xuyên suốt truyện. Mỗi mục có <strong>Hán</strong>, <strong>Việt</strong> và <strong>ghi chú</strong> tuỳ chọn (mục có ghi chú sẽ tự sinh footnote ở lần xuất hiện đầu tiên mỗi chương khi build EPUB). Sửa trực tiếp trong bảng — mỗi mục <strong>tự lưu</strong> khi bạn rời ô.</p>
-
-{% if conflicts_count and conflicts_count > 0 %}
-<div class="mb-3 px-3 py-2 rounded-lg bg-status-warn-light dark:bg-status-warn-dark border border-status-warn-light dark:border-status-warn-dark text-status-warn-fg dark:text-status-warn-fg-dark text-sm">
-    ⚠ Có <strong>{{ conflicts_count }}</strong> xung đột glossary từ lần dịch gần nhất (giá trị cũ được giữ).
-    Xem chi tiết trong <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">translation_meta/_glossary_conflicts.json</code>.
-</div>
-{% endif %}
 
 <!-- Thanh công cụ -->
 <div class="flex flex-wrap gap-2 items-center mb-3">
@@ -30,8 +27,6 @@
     <button type="button" id="btn-approve-selected" class="btn btn-sm btn-primary hidden">Duyệt đã chọn (<span id="approve-count">0</span>)</button>
     <button type="button" id="btn-approve-all" class="btn btn-sm btn-primary hidden">Duyệt tất cả (<span id="approve-all-count">0</span>)</button>
     <button type="button" id="btn-pending-clear" class="btn btn-sm btn-secondary hidden">Bỏ đề xuất đã chọn (<span id="pending-clear-count">0</span>)</button>
-    <button type="button" id="btn-conflict-take" class="btn btn-sm btn-primary hidden">Chấp nhận ghi đè (<span id="conflict-take-count">0</span>)</button>
-    <button type="button" id="btn-conflict-keep" class="btn btn-sm btn-secondary hidden">Giữ hiện tại (<span id="conflict-keep-count">0</span>)</button>
     <button type="button" id="btn-bulk-delete" class="btn btn-sm btn-danger hidden">Xóa đã chọn (<span id="bulk-count">0</span>)</button>
     <div class="flex flex-wrap gap-2">
         <button type="button" id="btn-add" class="btn btn-sm btn-secondary">+ Thêm mục</button>
@@ -59,16 +54,18 @@
 
 <!-- Data table -->
 <div class="table-container">
-    <table class="table">
+    <table class="table table-responsive table-grid-mobile">
         <thead>
             <tr>
-                <th class="w-8"><input type="checkbox" id="check-all" class="rounded border-surface-border dark:border-surface-border-dark" title="Chọn các dòng đang hiển thị"></th>
+                <th class="w-8"><label class="gloss-check"><input type="checkbox" id="check-all" class="rounded border-surface-border dark:border-surface-border-dark" title="Chọn các dòng đang hiển thị"></label></th>
                 <th class="w-24">Trạng thái</th>
                 <th data-dt-sort class="gloss-th">Hán <span class="sort-ind"></span></th>
                 <th data-dt-sort data-dt-filter class="gloss-th">Việt hiện tại <span class="sort-ind"></span></th>
-                <th>AI đề xuất mới</th>
+                <th>Đề xuất mới</th>
                 <th>Ghi chú</th>
-                <th class="w-56">Thao tác</th>
+                <th class="w-20">Chương</th>
+                <th class="w-16">Số chỗ</th>
+                <th class="w-48">Thao tác</th>
             </tr>
         </thead>
         <tbody id="gloss-body"></tbody>
@@ -76,7 +73,7 @@
 </div>
 <p id="gloss-empty" class="hidden text-sm text-fg-muted dark:text-fg-muted-dark py-6 text-center">Không có mục nào khớp.</p>
 
-<!-- View Nghi vấn: nhóm trùng target / Hán lồng nhau / conflicts -->
+<!-- View Nghi vấn: nhóm trùng target / Hán lồng nhau -->
 <div id="suspects-view" class="hidden space-y-4"></div>
 
 <p class="mt-4">
@@ -85,6 +82,10 @@
         {% if job.translate.running and slug in job.translate.running_ebooks %}<span class="badge badge-run">đang chạy: {{ job.translate.step }}</span>{% elif job.translate.running %}<span class="badge badge-run">đang chạy (ebook khác)</span>{% else %}<span class="badge badge-ok">rảnh</span>{% endif %}
     </span>
 </p>
+<p class="mt-1 text-sm">
+    Duyệt glossary:
+    <span id="approve-status-container"><span class="text-fg-muted dark:text-fg-muted-dark">chưa duyệt lần nào</span></span>
+</p>
 
 <script>
 const GLOSSARY_SLUG = {{ slug | tojson }};
@@ -92,7 +93,6 @@ const GLOSSARY_SLUG = {{ slug | tojson }};
 const state = { page: 1, perPage: 50, q: "", sort: "", dir: 1 };
 let ROWS = [];
 let PENDING_ROWS = [];
-let CONFLICT_ROWS = [];
 let total = 0, pages = 1;
 
 const body = document.getElementById("gloss-body");
@@ -108,14 +108,10 @@ const pgSize = document.getElementById("pg-size");
 const approveSelectedBtn = document.getElementById("btn-approve-selected");
 const approveAllBtn = document.getElementById("btn-approve-all");
 const pendingClearBtn = document.getElementById("btn-pending-clear");
-const conflictTakeBtn = document.getElementById("btn-conflict-take");
-const conflictKeepBtn = document.getElementById("btn-conflict-keep");
 const bulkBtn = document.getElementById("btn-bulk-delete");
 const approveCount = document.getElementById("approve-count");
 const approveAllCount = document.getElementById("approve-all-count");
 const pendingClearCount = document.getElementById("pending-clear-count");
-const conflictTakeCount = document.getElementById("conflict-take-count");
-const conflictKeepCount = document.getElementById("conflict-keep-count");
 const bulkCount = document.getElementById("bulk-count");
 const checkAll = document.getElementById("check-all");
 
@@ -125,60 +121,59 @@ function escapeHtml(s) {
 
 const inputCls = "w-full bg-transparent border border-transparent hover:border-surface-border dark:hover:border-surface-border-dark focus:border-brand-500 dark:focus:border-brand-500 rounded px-1.5 py-1 text-sm focus:outline-none";
 
-function conflictRow(e, idx) {
-    return `<tr class="border-t border-status-warn-light dark:border-status-warn-dark bg-status-warn-light/40 dark:bg-status-warn-dark/30" data-kind="conflict" data-conflict-idx="${idx}">
-        <td class="px-2 py-1"><input type="checkbox" class="bulk-check" data-kind="conflict"></td>
-        <td class="px-2 py-1"><span class="badge badge-warn">Xung đột</span></td>
-        <td class="px-2 py-1 font-mono">${escapeHtml(e.source)}</td>
-        <td class="px-2 py-1">${escapeHtml(e.kept)}</td>
-        <td class="px-2 py-1"><input data-conflict-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
-        <td class="px-2 py-1"><input data-conflict-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls}"></td>
-        <td class="px-2 py-1 whitespace-nowrap">
-            <button type="button" data-act="conflict-take" class="btn btn-sm btn-primary">Chấp nhận ghi đè</button>
-            <button type="button" data-act="conflict-keep" class="btn btn-sm btn-ghost">Giữ hiện tại</button>
-        </td>
-    </tr>`;
-}
-
 function pendingRow(e, idx) {
+    const ch = e.chapterIndex ? `Ch. ${e.chapterIndex}` : "—";
     return `<tr class="border-t border-brand-200 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-950/20" data-kind="pending" data-pending-idx="${idx}">
-        <td class="px-2 py-1"><input type="checkbox" class="bulk-check" data-kind="pending"></td>
-        <td class="px-2 py-1"><span class="badge badge-run">Chờ duyệt</span></td>
-        <td class="px-2 py-1"><input data-pending-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
-        <td class="px-2 py-1 text-fg-muted dark:text-fg-muted-dark">—</td>
-        <td class="px-2 py-1"><input data-pending-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
-        <td class="px-2 py-1"><input data-pending-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls}"></td>
-        <td class="px-2 py-1 whitespace-nowrap">
-            <button type="button" data-act="pending-approve" class="btn btn-sm btn-primary">Duyệt</button>
-            <button type="button" data-act="pending-clear" class="btn btn-sm btn-ghost">Bỏ đề xuất</button>
+        <td class="px-2 py-1" data-label="Chọn"><label class="gloss-check"><input type="checkbox" class="bulk-check" data-kind="pending" aria-label="Chọn đề xuất"></label></td>
+        <td class="px-2 py-1" data-label="Trạng thái"><span class="badge badge-run">Chờ duyệt</span></td>
+        <td class="px-2 py-1 font-mono" data-label="Hán">${escapeHtml(e.source)}</td>
+        <td class="px-2 py-1" data-label="Việt hiện tại">${escapeHtml(e.existingTarget || "—")}</td>
+        <td class="px-2 py-1" data-label="Đề xuất mới"><input data-pending-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
+        <td class="px-2 py-1" data-label="Ghi chú"><input data-pending-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls}"></td>
+        <td class="px-2 py-1 text-fg-muted dark:text-fg-muted-dark whitespace-nowrap" data-label="Chương">${ch}</td>
+        <td class="px-2 py-1 text-center ${e.count > 0 ? "" : "text-fg-muted dark:text-fg-muted-dark"}" data-label="Số chỗ">${e.count || 0}</td>
+        <td class="px-2 py-1 mobile-actions" data-label="Thao tác">
+            <div class="actions-menu">
+                <button type="button" class="actions-menu-toggle" aria-label="Thao tác" aria-haspopup="true" aria-expanded="false">⋯</button>
+                <div class="actions-menu-panel">
+                    <button type="button" data-act="pending-approve" class="btn btn-sm btn-primary">Duyệt</button>
+                    <button type="button" data-act="pending-clear" class="btn btn-sm btn-ghost">Bỏ đề xuất</button>
+                </div>
+            </div>
         </td>
     </tr>`;
 }
 
 function entryRow(e, idx) {
     const cb = e._saved
-        ? `<input type="checkbox" class="bulk-check" data-kind="entry" data-source="${escapeHtml(e._saved)}">`
+        ? `<label class="gloss-check"><input type="checkbox" class="bulk-check" data-kind="entry" data-source="${escapeHtml(e._saved)}" aria-label="Chọn mục"></label>`
         : "";
     return `<tr class="border-t border-surface-border dark:border-surface-border-dark transition-colors" data-kind="entry" data-idx="${idx}">
-        <td class="px-2 py-1">${cb}</td>
-        <td class="px-2 py-1"></td>
-        <td class="px-2 py-1"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
-        <td class="px-2 py-1"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
-        <td class="px-2 py-1"></td>
-        <td class="px-2 py-1"><input data-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-fg-muted dark:text-fg-muted-dark"></td>
-        <td class="px-2 py-1 whitespace-nowrap">
-            <button type="button" data-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá mục">Xoá</button>
+        <td class="px-2 py-1" data-label="Chọn">${cb}</td>
+        <td class="px-2 py-1" data-label="Trạng thái"></td>
+        <td class="px-2 py-1" data-label="Hán"><input data-field="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
+        <td class="px-2 py-1" data-label="Việt hiện tại"><input data-field="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
+        <td class="px-2 py-1" data-label="Đề xuất mới"></td>
+        <td class="px-2 py-1" data-label="Ghi chú"><input data-field="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-fg-muted dark:text-fg-muted-dark"></td>
+        <td class="px-2 py-1" data-label="Chương"></td>
+        <td class="px-2 py-1" data-label="Số chỗ"></td>
+        <td class="px-2 py-1 mobile-actions" data-label="Thao tác">
+            <div class="actions-menu">
+                <button type="button" class="actions-menu-toggle" aria-label="Thao tác" aria-haspopup="true" aria-expanded="false">⋯</button>
+                <div class="actions-menu-panel">
+                    <button type="button" data-act="delete" class="btn btn-sm btn-ghost text-xs text-status-err-fg dark:text-status-err-fg-dark hover:bg-status-err-light dark:hover:bg-status-err-dark" title="Xoá mục">Xoá</button>
+                </div>
+            </div>
         </td>
     </tr>`;
 }
 
 function render() {
     body.innerHTML = [
-        ...CONFLICT_ROWS.map((e, i) => conflictRow(e, i)),
         ...PENDING_ROWS.map((e, i) => pendingRow(e, i)),
         ...ROWS.map((e, i) => entryRow(e, i)),
     ].join("");
-    const hasData = CONFLICT_ROWS.length + PENDING_ROWS.length + ROWS.length > 0;
+    const hasData = PENDING_ROWS.length + ROWS.length > 0;
     emptyMsg.classList.toggle("hidden", hasData);
     renderPager();
     refreshBulkBtn();
@@ -186,10 +181,9 @@ function render() {
 
 function renderPager() {
     const pendingSuffix = PENDING_ROWS.length ? ` · ${PENDING_ROWS.length} chờ duyệt` : "";
-    const conflictSuffix = CONFLICT_ROWS.length ? ` · ${CONFLICT_ROWS.length} xung đột` : "";
     countLabel.textContent = state.q
-        ? `${total} mục khớp "${state.q}"${pendingSuffix}${conflictSuffix}`
-        : `${total} mục${pendingSuffix}${conflictSuffix}`;
+        ? `${total} mục khớp "${state.q}"${pendingSuffix}`
+        : `${total} mục${pendingSuffix}`;
     pgInfo.textContent = `Trang ${state.page}/${pages}`;
     pgPrev.disabled = state.page <= 1;
     pgNext.disabled = state.page >= pages;
@@ -217,24 +211,27 @@ async function loadPage() {
         sort: state.sort || "", dir: state.dir > 0 ? "asc" : "desc",
     });
     try {
-        const [listRes, pendingRes, suspectsRes] = await Promise.all([
+        const [listRes, pendingRes, previewRes] = await Promise.all([
             fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/list?${params}`),
             fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/pending`),
-            fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/suspects`),
+            fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/replace/preview`),
         ]);
-        if (!listRes.ok || !pendingRes.ok || !suspectsRes.ok) {
+        if (!listRes.ok || !pendingRes.ok || !previewRes.ok) {
             toast("Không tải được dữ liệu glossary.", "error");
             return;
         }
-        const [data, pendingData, suspectData] = await Promise.all([
-            listRes.json(), pendingRes.json(), suspectsRes.json(),
+        const [data, pendingData, previewData] = await Promise.all([
+            listRes.json(), pendingRes.json(), previewRes.json(),
         ]);
         ROWS = data.entries.map(e => ({ ...e, _saved: e.source, _savedTarget: e.target }));
+        const countsBySource = {};
+        previewData.entries.forEach(p => { countsBySource[p.source] = p; });
         PENDING_ROWS = pendingData.entries.map(e => ({
-            ...e, note: "", originalSource: e.source, selected: false,
-        }));
-        CONFLICT_ROWS = suspectData.conflicts.map(e => ({
-            ...e, target: e.new, note: "", originalNew: e.new, selected: false,
+            ...e,
+            existingTarget: e.existing_target || "",
+            chapterIndex: e.chapter_index || 0,
+            count: (countsBySource[e.source] || {}).count || 0,
+            selected: false,
         }));
         total = data.total; pages = data.pages; state.page = data.page; state.perPage = data.per_page;
         render();
@@ -249,19 +246,14 @@ function checkedRows(kind) {
 
 function refreshBulkBtn() {
     const pendingCount = checkedRows("pending").length;
-    const conflictCount = checkedRows("conflict").length;
     const entryCount = checkedRows("entry").length;
     approveCount.textContent = pendingCount;
     approveAllCount.textContent = PENDING_ROWS.length;
     pendingClearCount.textContent = pendingCount;
-    conflictTakeCount.textContent = conflictCount;
-    conflictKeepCount.textContent = conflictCount;
     bulkCount.textContent = entryCount;
     approveSelectedBtn.classList.toggle("hidden", pendingCount === 0);
     approveAllBtn.classList.toggle("hidden", PENDING_ROWS.length === 0);
     pendingClearBtn.classList.toggle("hidden", pendingCount === 0);
-    conflictTakeBtn.classList.toggle("hidden", conflictCount === 0);
-    conflictKeepBtn.classList.toggle("hidden", conflictCount === 0);
     bulkBtn.classList.toggle("hidden", entryCount === 0);
 }
 
@@ -300,36 +292,29 @@ function pendingPayload(rows) {
     return rows.map(tr => PENDING_ROWS[Number(tr.dataset.pendingIdx)])
         .filter(row => row && row.source.trim() && row.target.trim())
         .map(row => ({
-            source: row.source.trim(), target: row.target.trim(), note: row.note,
-            original_source: row.originalSource,
+            source: row.source.trim(), target: row.target.trim(), note: row.note || "",
         }));
 }
 
-function conflictPayload(rows) {
-    return rows.map(tr => CONFLICT_ROWS[Number(tr.dataset.conflictIdx)])
-        .filter(row => row && row.source && row.originalNew)
-        .map(row => ({
-            source: row.source, original_new: row.originalNew,
-            target: row.target.trim(), note: row.note,
-        }));
-}
-
-// Approve pending
+// Approve pending: enqueue ONE job duyệt (category translate, lock ebook) — job
+// upsert glossary + gỡ hàng chờ + lan truyền vào bản dịch cũ, outcome ở
+// /glossary/approve/status.
 async function approvePending(rows, button) {
     const entries = pendingPayload(rows);
     if (!entries.length) return;
     if (!await confirmDialog(`Duyệt ${entries.length} đề xuất?`)) return;
     button.disabled = true;
     try {
-        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/pending/approve`, {
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/replace/approve`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ entries }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) { toast(data.detail || "Duyệt thất bại.", "error"); return; }
-        toast(`Đã duyệt ${data.approved} đề xuất.`, "success");
-        await loadPage();
+        toast(`Đã gửi job duyệt ${data.requested} đề xuất (chạy nền).`, "success");
+        checkAll.checked = false;
+        await pollApproveStatus();
     } catch (err) {
         toast("Lỗi kết nối mạng.", "error");
     } finally {
@@ -347,35 +332,11 @@ async function clearPending(rows, button) {
         const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/pending/clear`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sources: entries.map(e => e.original_source) }),
+            body: JSON.stringify({ sources: entries.map(e => e.source) }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) { toast(data.detail || "Bỏ đề xuất thất bại.", "error"); return; }
         toast(`Đã bỏ ${data.cleared} đề xuất.`, "success");
-        await loadPage();
-    } catch (err) {
-        toast("Lỗi kết nối mạng.", "error");
-    } finally {
-        button.disabled = false;
-    }
-}
-
-// Resolve conflicts (take or keep)
-async function resolveConflicts(action, rows, button) {
-    const entries = conflictPayload(rows);
-    if (!entries.length) return;
-    const verb = action === "take" ? "ghi đè" : "giữ giá trị hiện tại cho";
-    if (!await confirmDialog(`${verb} ${entries.length} xung đột?`)) return;
-    button.disabled = true;
-    try {
-        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/conflicts/bulk-resolve`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action, entries }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) { toast(data.detail || "Xử lý xung đột thất bại.", "error"); return; }
-        toast(`Đã xử lý ${data.resolved} xung đột.`, "success");
         await loadPage();
     } catch (err) {
         toast("Lỗi kết nối mạng.", "error");
@@ -391,8 +352,6 @@ approveAllBtn.addEventListener("click", () => {
     approvePending(rows, approveAllBtn);
 });
 pendingClearBtn.addEventListener("click", () => clearPending(checkedRows("pending"), pendingClearBtn));
-conflictTakeBtn.addEventListener("click", () => resolveConflicts("take", checkedRows("conflict"), conflictTakeBtn));
-conflictKeepBtn.addEventListener("click", () => resolveConflicts("keep", checkedRows("conflict"), conflictKeepBtn));
 
 /* ---------- Tab Nghi vấn ---------- */
 const viewAllBtn = document.getElementById("view-all");
@@ -416,15 +375,15 @@ viewSuspectsBtn.addEventListener("click", async () => { setView(true); await loa
 function suspectRow(e) {
     return `
         <tr class="border-t border-surface-border dark:border-surface-border-dark" data-orig-source="${escapeHtml(e.source)}" data-orig-target="${escapeHtml(e.target)}">
-            <td class="px-2 py-1 align-top w-8"><input type="checkbox" class="bulk-check rounded border-surface-border dark:border-surface-border-dark" data-source="${escapeHtml(e.source)}"></td>
-            <td class="px-2 py-1 align-top"><input data-sfield="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
-            <td class="px-2 py-1 align-top"><input data-sfield="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
-            <td class="px-2 py-1 align-top"><input data-sfield="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-fg-muted dark:text-fg-muted-dark"></td>
+            <td class="px-2 py-1 align-top w-8" data-label="Chọn"><label class="gloss-check"><input type="checkbox" class="bulk-check rounded border-surface-border dark:border-surface-border-dark" data-source="${escapeHtml(e.source)}" aria-label="Chọn mục nghi vấn"></label></td>
+            <td class="px-2 py-1 align-top" data-label="Hán"><input data-sfield="source" value="${escapeHtml(e.source)}" class="${inputCls} font-mono"></td>
+            <td class="px-2 py-1 align-top" data-label="Việt"><input data-sfield="target" value="${escapeHtml(e.target)}" class="${inputCls}"></td>
+            <td class="px-2 py-1 align-top" data-label="Ghi chú"><input data-sfield="note" value="${escapeHtml(e.note)}" placeholder="—" class="${inputCls} text-fg-muted dark:text-fg-muted-dark"></td>
         </tr>`;
 }
 
 function suspectTable(rowsHtml) {
-    return `<div class="table-container"><table class="table"><tbody>${rowsHtml}</tbody></table></div>`;
+    return `<div class="table-container"><table class="table table-responsive table-grid-mobile"><tbody>${rowsHtml}</tbody></table></div>`;
 }
 
 async function loadSuspects() {
@@ -437,21 +396,8 @@ async function loadSuspects() {
     } catch (err) { toast("Lỗi kết nối mạng.", "error"); return; }
 
     const parts = [];
-    if (data.conflicts.length) {
-        parts.push(`<h3 class="text-base font-semibold m-0">Conflicts từ lần dịch (${data.conflicts.length})</h3>`);
-        parts.push(data.conflicts.map(c => `
-            <div class="conflict-row flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg border border-status-warn-light dark:border-status-warn-dark text-sm"
-                 data-source="${escapeHtml(c.source)}" data-kept="${escapeHtml(c.kept)}" data-new="${escapeHtml(c.new)}">
-                <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">${escapeHtml(c.source)}</code>
-                giữ "<strong>${escapeHtml(c.kept)}</strong>" · AI đề xuất "<strong>${escapeHtml(c.new)}</strong>"
-                <span class="ml-auto flex gap-2">
-                    <button type="button" class="btn btn-sm btn-ghost conflict-keep">Giữ cũ</button>
-                    <button type="button" class="btn btn-sm btn-secondary conflict-take">Lấy mới</button>
-                </span>
-            </div>`).join(""));
-    }
     if (data.same_target.length) {
-        parts.push(`<h3 class="text-base font-semibold m-0 mt-2">Trùng Việt — nhiều Hán cùng 1 cách dịch (${data.same_target.length} nhóm)</h3>`);
+        parts.push(`<h3 class="text-base font-semibold m-0">Trùng Việt — nhiều Hán cùng 1 cách dịch (${data.same_target.length} nhóm)</h3>`);
         parts.push(data.same_target.map(g => `
             <div class="rounded-lg border border-surface-border dark:border-surface-border-dark p-2">
                 <p class="m-0 mb-1 text-sm text-fg-muted dark:text-fg-muted-dark">→ "<strong>${escapeHtml(g.target)}</strong>"</p>
@@ -489,39 +435,6 @@ suspectsView.addEventListener("change", async e => {
         tr.dataset.origSource = source;
         tr.dataset.origTarget = target;
         if (oldTarget && oldTarget !== target) showPropagateBanner(tr, oldTarget, target);
-    } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
-});
-
-suspectsView.addEventListener("click", async e => {
-    const row = e.target.closest(".conflict-row");
-    if (!row) return;
-    const keep = e.target.closest(".conflict-keep");
-    const take = e.target.closest(".conflict-take");
-    if (!keep && !take) return;
-    const { source, kept, new: newTarget } = row.dataset;
-    try {
-        if (take) {
-            const fd = new FormData();
-            fd.set("source", source); fd.set("target", newTarget); fd.set("note", "");
-            const r = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/entry`, { method: "POST", body: fd });
-            if (!r.ok) { toast("Không cập nhật được mục.", "error"); return; }
-        }
-        const fd2 = new FormData();
-        fd2.set("source", source); fd2.set("new", newTarget);
-        await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/conflicts/resolve`, { method: "POST", body: fd2 });
-        if (take && kept && kept !== newTarget) {
-            const holder = document.createElement("table");
-            holder.className = "w-full";
-            const tbody = document.createElement("tbody");
-            const tr = document.createElement("tr");
-            const td = document.createElement("td");
-            tr.appendChild(td); tbody.appendChild(tr); holder.appendChild(tbody);
-            row.after(holder);
-            showPropagateBanner(tr, kept, newTarget);
-        }
-        row.classList.add("opacity-40");
-        row.querySelectorAll("button").forEach(b => { b.disabled = true; });
-        toast(take ? `Đã lấy "${newTarget}".` : "Đã giữ giá trị cũ.", "success");
     } catch (err) { toast("Lỗi kết nối mạng.", "error"); }
 });
 
@@ -564,12 +477,6 @@ body.addEventListener("input", e => {
         if (row) row[pendingField] = e.target.value;
         return;
     }
-    const conflictField = e.target.dataset.conflictField;
-    if (conflictField) {
-        const row = CONFLICT_ROWS[Number(e.target.closest("tr").dataset.conflictIdx)];
-        if (row) row[conflictField] = e.target.value;
-        return;
-    }
     const field = e.target.dataset.field;
     if (!field) return;
     const row = rowByEl(e.target);
@@ -581,7 +488,7 @@ body.addEventListener("change", e => {
     if (row) saveRow(row, e.target);
 });
 
-// Nút thao tác trên từng dòng — dispatch pending/conflict/entry.
+// Nút thao tác trên từng dòng — dispatch pending/entry.
 body.addEventListener("click", async e => {
     const btn = e.target.closest("button[data-act]");
     if (!btn) return;
@@ -594,23 +501,6 @@ body.addEventListener("click", async e => {
     }
     if (act === "pending-clear") {
         await clearPending([tr], btn);
-        return;
-    }
-    if (act === "conflict-take") {
-        await resolveConflicts("take", [tr], btn);
-        const row = CONFLICT_ROWS[Number(tr.dataset.conflictIdx)];
-        if (row && row.kept && row.kept !== row.target) {
-            const bannerTr = document.createElement("tr");
-            const td = document.createElement("td");
-            td.colSpan = 7;
-            bannerTr.appendChild(td);
-            tr.after(bannerTr);
-            showPropagateBanner(bannerTr, row.kept, row.target);
-        }
-        return;
-    }
-    if (act === "conflict-keep") {
-        await resolveConflicts("keep", [tr], btn);
         return;
     }
     if (act === "delete") {
@@ -803,7 +693,7 @@ async function showPropagateBanner(afterTr, oldStr, newStr) {
     removePropagateBanner();
     const banner = document.createElement("tr");
     banner.id = "propagate-banner";
-    banner.innerHTML = `<td colspan="7" class="px-3 py-2 text-sm bg-brand-50 dark:bg-brand-950/30 border-t border-surface-border dark:border-surface-border-dark">
+    banner.innerHTML = `<td colspan="7" data-label="Lan truyền" class="px-3 py-2 text-sm bg-brand-50 dark:bg-brand-950/30 border-t border-surface-border dark:border-surface-border-dark">
         Thay "<strong>${escapeHtml(oldStr)}</strong>" → "<strong>${escapeHtml(newStr)}</strong>" trong bản dịch cũ?
         <span class="prop-actions text-fg-muted dark:text-fg-muted-dark">đang đếm…</span></td>`;
     afterTr.after(banner);
@@ -853,6 +743,33 @@ async function pollStatus() {
 }
 pollStatus();
 setInterval(pollStatus, 2000);
+
+// Poll trạng thái job duyệt (glossary-approve) để hiển thị trong trang.
+async function pollApproveStatus() {
+    const container = document.getElementById("approve-status-container");
+    if (!container) return;
+    try {
+        const res = await fetch(`/api/ebooks/${GLOSSARY_SLUG}/glossary/approve/status`);
+        if (!res.ok) { container.innerHTML = '<span class="badge badge-err">không đọc được trạng thái</span>'; return; }
+        const data = await res.json();
+        if (data.running) {
+            container.innerHTML = `<span class="badge badge-run">đang duyệt… (job ${escapeHtml(data.job_id)})</span>`;
+            return;
+        }
+        if (data.state === "done") {
+            const res = data.outcome || {};
+            container.innerHTML = `<span class="badge badge-ok">xong gần nhất: duyệt ${res.approved ?? 0}, thay ${res.total ?? 0} chỗ (job ${escapeHtml(data.job_id)})</span>`;
+            return;
+        }
+        if (data.state === "failed") {
+            container.innerHTML = `<span class="badge badge-err">thất bại: ${escapeHtml(data.error || "")}</span>`;
+            return;
+        }
+        container.innerHTML = '<span class="text-fg-muted dark:text-fg-muted-dark">chưa duyệt lần nào</span>';
+    } catch (err) { /* im lặng */ }
+}
+pollApproveStatus();
+setInterval(pollApproveStatus, 3000);
 
 loadPage();
 </script>

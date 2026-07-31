@@ -2,11 +2,8 @@
 <html lang="vi" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>{% block title %}novel2epub{% endblock %}</title>
-    <link rel="icon" type="image/png" href="/static/img/favicon-light.png" media="(prefers-color-scheme: light)">
-    <link rel="icon" type="image/png" href="/static/img/favicon-dark.png" media="(prefers-color-scheme: dark)">
-    <link rel="icon" type="image/png" href="/static/img/favicon-light.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,500;7..72,600;7..72,700&display=swap&subset=vietnamese,latin" rel="stylesheet">
@@ -107,6 +104,13 @@
                 font-feature-settings: "cv02", "cv03", "cv04", "cv11";
             }
             .dark body { @apply bg-surface-dark text-fg-dark; }
+            /* Viewport safety: never let fixed content (drawer/canvas/toast)
+               cause horizontal scroll, disable double-tap zoom delays on
+               buttons, and prevent iOS text-size auto-inflation. */
+            html { overflow-x: clip; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+            body { overflow-x: clip; -webkit-tap-highlight-color: transparent; }
+            body.n2e-body-lock { overflow: hidden; }
+            button { touch-action: manipulation; }
             :focus-visible {
                 @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-surface-light dark:ring-offset-surface-dark;
             }
@@ -198,6 +202,9 @@
             .modal-sm { @apply max-w-md; }
             .modal-lg { @apply max-w-3xl; }
             .modal-xl { @apply max-w-5xl; }
+            /* Safety: an element with a `hidden` attribute must never render,
+               even if it also carries the `.open` class (e.g. mid-animation). */
+            .modal-backdrop[hidden], .canvas-backdrop[hidden] { display: none !important; }
 
             .canvas-backdrop { @apply fixed inset-0 bg-black/35 z-40 flex justify-end hidden; }
             .canvas-backdrop.open { @apply flex; }
@@ -206,6 +213,241 @@
             .canvas-header { @apply flex items-center justify-between p-4 border-b border-surface-border dark:border-surface-border-dark sticky top-0 bg-surface-light/95 dark:bg-surface-dark/95 backdrop-blur supports-[backdrop-filter]:bg-surface-light/80 supports-[backdrop-filter]:dark:bg-surface-dark/80 z-10; }
             .canvas-body { @apply p-4 flex-1 overflow-y-auto; }
             .canvas-footer { @apply p-4 border-t border-surface-border dark:border-surface-border-dark sticky bottom-0 bg-surface-light/95 dark:bg-surface-dark/95 backdrop-blur supports-[backdrop-filter]:bg-surface-light/80 supports-[backdrop-filter]:dark:bg-surface-dark/80; }
+
+            /* Responsive table contract — opt in with `table-responsive` or
+               `responsive-table` on a `.table`. Below the `md` breakpoint the
+               table becomes stacked "cards": <thead> is hidden and every <td>
+               with a `data-label` shows its column name above the value, so no
+               column is lost on mobile. HTML stays a real <table> with one
+               <tr> per record (one record = one card). */
+            @media (max-width: 767.98px) {
+                .table-responsive, .responsive-table { display: block; }
+                .table-responsive > thead, .responsive-table > thead { display: none; }
+                .table-responsive > tbody, .responsive-table > tbody { display: block; }
+                .table-responsive > tbody > tr, .responsive-table > tbody > tr {
+                    display: block;
+                    margin: 0 0 0.75rem;
+                    background: var(--tw-surface-light, #ffffff);
+                    border: 1px solid var(--tw-border, #e4e4e7);
+                    border-radius: 0.5rem;
+                    overflow: hidden;
+                }
+                .dark .table-responsive > tbody > tr, .dark .responsive-table > tbody > tr {
+                    background: var(--tw-surface-dark, #18181b);
+                    border-color: var(--tw-border-dark, #3f3f46);
+                }
+                .table-responsive > tbody > tr:last-child, .responsive-table > tbody > tr:last-child { margin-bottom: 0; }
+                .table-responsive > tbody > tr > td, .responsive-table > tbody > tr > td {
+                    display: block;
+                    width: auto !important;
+                    max-width: none !important;
+                    border-bottom: 1px solid var(--tw-border, #e4e4e7);
+                }
+                .dark .table-responsive > tbody > tr > td, .dark .responsive-table > tbody > tr > td { border-bottom-color: var(--tw-border-dark, #3f3f46); }
+                .table-responsive > tbody > tr > td:last-child, .responsive-table > tbody > tr > td:last-child { border-bottom: none; }
+                .table-responsive > tbody > tr > td[data-label]::before, .responsive-table > tbody > tr > td[data-label]::before {
+                    content: attr(data-label);
+                    display: block;
+                    margin-bottom: 0.2rem;
+                    font-size: 0.65rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    color: var(--tw-fg-muted, #71717a);
+                }
+                .dark .table-responsive > tbody > tr > td[data-label]::before, .dark .responsive-table > tbody > tr > td[data-label]::before { color: var(--tw-fg-muted-dark, #a1a1aa); }
+                /* Columns hidden with Tailwind `hidden sm/md/lg:table-cell`
+                   at small widths are restored in card mode so no info is
+                   dropped. */
+                .table-responsive > tbody > tr > td.hidden, .responsive-table > tbody > tr > td.hidden { display: block; }
+
+                /* Dense editors and bulk-selection lists stay as compact grids.
+                   Horizontal scrolling preserves row comparison and keeps the
+                   header-level select-all control available on small screens. */
+                .table-responsive.table-grid-mobile, .responsive-table.table-grid-mobile {
+                    display: table;
+                    width: max-content;
+                    min-width: 100%;
+                    table-layout: auto !important;
+                }
+                .table-responsive.table-grid-mobile > thead, .responsive-table.table-grid-mobile > thead { display: table-header-group; }
+                .table-responsive.table-grid-mobile > tbody, .responsive-table.table-grid-mobile > tbody { display: table-row-group; }
+                .table-responsive.table-grid-mobile > tbody > tr, .responsive-table.table-grid-mobile > tbody > tr {
+                    display: table-row;
+                    margin: 0;
+                    background: transparent;
+                    border: 0;
+                    border-radius: 0;
+                    overflow: visible;
+                }
+                .table-responsive.table-grid-mobile > tbody > tr > td, .responsive-table.table-grid-mobile > tbody > tr > td {
+                    display: table-cell;
+                    width: auto !important;
+                    max-width: none !important;
+                    min-width: 7rem;
+                    border-bottom: 1px solid var(--tw-border, #e4e4e7);
+                    white-space: nowrap;
+                }
+                .table-responsive.table-grid-mobile > tbody > tr > td:first-child, .responsive-table.table-grid-mobile > tbody > tr > td:first-child,
+                .table-responsive.table-grid-mobile > thead > tr > th:first-child, .responsive-table.table-grid-mobile > thead > tr > th:first-child {
+                    position: sticky;
+                    left: 0;
+                    z-index: 2;
+                    min-width: 3rem;
+                    background: var(--tw-surface-light, #ffffff);
+                    box-shadow: 1px 0 0 var(--tw-border, #e4e4e7);
+                }
+                .dark .table-responsive.table-grid-mobile > tbody > tr > td:first-child, .dark .responsive-table.table-grid-mobile > tbody > tr > td:first-child,
+                .dark .table-responsive.table-grid-mobile > thead > tr > th:first-child, .dark .responsive-table.table-grid-mobile > thead > tr > th:first-child {
+                    background: var(--tw-surface-dark, #18181b);
+                    box-shadow: 1px 0 0 var(--tw-border-dark, #3f3f46);
+                }
+                .table-responsive.table-grid-mobile > tbody > tr > td[data-label]::before, .responsive-table.table-grid-mobile > tbody > tr > td[data-label]::before { content: none; }
+                .table-responsive.table-grid-mobile > tbody > tr > td.hidden, .responsive-table.table-grid-mobile > tbody > tr > td.hidden { display: none; }
+                .table-responsive.table-grid-mobile input:not([type="checkbox"]), .responsive-table.table-grid-mobile input:not([type="checkbox"]),
+                .table-responsive.table-grid-mobile select, .responsive-table.table-grid-mobile select,
+                .table-responsive.table-grid-mobile textarea, .responsive-table.table-grid-mobile textarea { min-width: 9rem; }
+                .bulk-bar:not([hidden]) { position: sticky; top: 3.75rem; z-index: 20; }
+            }
+
+            /* Actions menu — a row of buttons inline on desktop, collapsed
+               into a "⋯" dropdown anchored to the row on mobile. Opt in with
+               `.actions-menu` + `.actions-menu-toggle` + `.actions-menu-panel`
+               (panel toggled with `.actions-menu.open`). App-level JS in
+               app.js toggles the menu. */
+            .actions-menu { position: relative; display: inline-flex; }
+            .actions-menu-toggle { display: none; }
+            .actions-menu-panel { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end; }
+            @media (max-width: 767.98px) {
+                .actions-menu-toggle { display: inline-flex; }
+                .actions-menu-panel {
+                    display: none;
+                    position: absolute;
+                    right: 0;
+                    top: calc(100% + 0.35rem);
+                    z-index: 30;
+                    min-width: 9.5rem;
+                    flex-direction: column;
+                    align-items: stretch;
+                    gap: 0.35rem;
+                    padding: 0.45rem;
+                    background: var(--tw-surface-light, #ffffff);
+                    border: 1px solid var(--tw-border, #e4e4e7);
+                    border-radius: 0.5rem;
+                    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+                }
+                .dark .actions-menu-panel {
+                    background: var(--tw-surface-dark, #18181b);
+                    border-color: var(--tw-border-dark, #3f3f46);
+                }
+                .actions-menu.open .actions-menu-panel { display: flex; }
+            }
+
+            /* Mobile drawer — full-height slide-in nav shown below `md`.
+               `[hidden]` always wins over `.open` (same rule as modal/canvas)
+               so the element never flashes. */
+            .n2e-drawer { position: fixed; inset: 0; z-index: 60; display: none; }
+            .n2e-drawer.open { display: flex; }
+            .n2e-drawer[hidden] { display: none !important; }
+            .n2e-drawer-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(2px); }
+            .n2e-drawer-panel {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                left: 0;
+                width: min(80vw, 19rem);
+                display: flex;
+                flex-direction: column;
+                background: var(--tw-surface-light, #ffffff);
+                color: var(--tw-fg-light, #18181b);
+                box-shadow: 12px 0 32px rgba(0, 0, 0, 0.18);
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+                padding-top: env(safe-area-inset-top, 0);
+                padding-bottom: env(safe-area-inset-bottom, 0);
+            }
+            .dark .n2e-drawer-panel { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); }
+            .n2e-drawer.open .n2e-drawer-panel { transform: translateX(0); }
+            .n2e-drawer-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0.85rem 1rem;
+                border-bottom: 1px solid var(--tw-border, #e4e4e7);
+            }
+            .dark .n2e-drawer-header { border-bottom-color: var(--tw-border-dark, #3f3f46); }
+            .n2e-drawer-close {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0.4rem;
+                border-radius: 0.5rem;
+                color: var(--tw-fg-muted, #71717a);
+                background: transparent;
+                border: 1px solid transparent;
+            }
+            .n2e-drawer-close:hover { background: var(--tw-surface-muted, #f4f4f5); }
+            .dark .n2e-drawer-close:hover { background: var(--tw-surface-muted-dark, #27272a); }
+            .n2e-drawer-nav {
+                display: flex;
+                flex-direction: column;
+                gap: 0.2rem;
+                padding: 0.5rem;
+                overflow-y: auto;
+                flex: 1;
+            }
+            .n2e-drawer-nav a {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.6rem 0.75rem;
+                border-radius: 0.5rem;
+                font-size: 0.9rem;
+                color: var(--tw-fg-muted, #71717a);
+                transition: background-color 0.12s ease, color 0.12s ease;
+            }
+            .n2e-drawer-nav a:hover { background: var(--tw-surface-muted, #f4f4f5); color: var(--tw-fg-light, #18181b); }
+            .dark .n2e-drawer-nav a:hover { background: var(--tw-surface-muted-dark, #27272a); color: var(--tw-fg-dark, #fafafa); }
+            .n2e-drawer-nav a.active {
+                background: color-mix(in srgb, var(--tw-brand-500, #10b981) 12%, transparent);
+                color: var(--tw-brand-600, #059669);
+                font-weight: 600;
+            }
+            .dark .n2e-drawer-nav a.active { color: var(--tw-brand-400, #34d399); }
+            .n2e-drawer-footer {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0.75rem 1rem;
+                border-top: 1px solid var(--tw-border, #e4e4e7);
+            }
+            .dark .n2e-drawer-footer { border-top-color: var(--tw-border-dark, #3f3f46); }
+
+            /* Reader minimal shell — reader.html marks `<html>` with the
+               `reader-page` class so the global header collapses and the page
+               becomes a clean, full-height reading view. */
+            html.reader-page header { display: none; }
+            html.reader-page main { padding-top: 0; }
+
+            /* Shared hooks referenced by templates (Phase 2): a cell/toolbar
+               of row actions that must not wrap awkwardly on small screens
+               (`mobile-actions`) and fixed/side panels that must respect
+               device safe-areas — notch / home indicator (`safe-panels`). */
+            .mobile-actions { white-space: nowrap; }
+            .safe-panels {
+                padding-left: env(safe-area-inset-left, 0);
+                padding-right: env(safe-area-inset-right, 0);
+                padding-bottom: env(safe-area-inset-bottom, 0);
+            }
+
+            /* Data-table toolbar (injected by datatable.js): search grows to
+               full width below `md`, column filters wrap, count pins right. */
+            .dt-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+            .dt-toolbar .dt-search { flex: 1 1 100%; min-width: 0; }
+            .dt-toolbar .dt-count { margin-left: auto; }
+            @media (min-width: 768px) {
+                .dt-toolbar .dt-search { flex: 0 0 auto; width: 16rem; }
+            }
 
             .form-group { @apply space-y-1.5; }
             .form-row { @apply grid gap-4 md:grid-cols-2; }
@@ -240,13 +482,14 @@
         <div class="mx-auto max-w-[1400px] px-4 md:px-6">
             <div class="flex items-center justify-between h-14 md:h-16 gap-4">
                 <div class="flex items-center gap-3 shrink-0">
+                    <button type="button" id="drawer-open-btn" class="md:hidden p-1.5 -ml-1 rounded-lg text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark transition-colors" aria-controls="n2e-drawer" aria-expanded="false" aria-label="Mở menu điều hướng">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                    </button>
                     <a href="/" class="flex items-center gap-2 text-fg-light dark:text-fg-dark hover:opacity-80 transition-opacity" aria-label="novel2epub home">
-                        <img src="/static/img/favicon-light.png" alt="" class="w-7 h-7 dark:hidden" aria-hidden="true">
-                        <img src="/static/img/favicon-dark.png" alt="" class="w-7 h-7 hidden dark:block" aria-hidden="true">
                         <span class="font-semibold text-lg hidden sm:inline">novel2epub</span>
                     </a>
                 </div>
-                <nav class="flex items-center gap-1 md:gap-2 shrink-0" aria-label="Main navigation">
+                <nav class="hidden md:flex items-center gap-1 md:gap-2 shrink-0" aria-label="Main navigation">
                     <a href="/" class="nav-link px-3 py-1.5 text-sm rounded-lg {% if request.url.path == '/' %}bg-brand-500/10 text-brand-600 dark:text-brand-400{% else %}text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark{% endif %} transition-colors whitespace-nowrap">Thư viện</a>
                     <a href="/sources" class="nav-link px-3 py-1.5 text-sm rounded-lg {% if request.url.path.startswith('/sources') %}bg-brand-500/10 text-brand-600 dark:text-brand-400{% else %}text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark{% endif %} transition-colors whitespace-nowrap">Nguồn</a>
                     <a href="/storage" class="nav-link px-3 py-1.5 text-sm rounded-lg {% if request.url.path.startswith('/storage') %}bg-brand-500/10 text-brand-600 dark:text-brand-400{% else %}text-fg-muted dark:text-fg-muted-dark hover:bg-surface-muted dark:hover:bg-surface-muted-dark{% endif %} transition-colors whitespace-nowrap">Lưu trữ</a>
@@ -275,6 +518,31 @@
             </div>
         </div>
     </header>
+    <div id="n2e-drawer" class="n2e-drawer" hidden role="dialog" aria-modal="true" aria-label="Menu điều hướng">
+        <div class="n2e-drawer-backdrop" data-close-drawer></div>
+        <aside class="n2e-drawer-panel">
+            <div class="n2e-drawer-header">
+                <span class="font-semibold text-lg">novel2epub</span>
+                <button type="button" class="n2e-drawer-close" data-close-drawer aria-label="Đóng menu">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <nav class="n2e-drawer-nav" aria-label="Main navigation">
+                <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Thư viện</a>
+                <a href="/sources" class="{% if request.url.path.startswith('/sources') %}active{% endif %}">Nguồn</a>
+                <a href="/storage" class="{% if request.url.path.startswith('/storage') %}active{% endif %}">Lưu trữ</a>
+                <a href="/automation" class="{% if request.url.path.startswith('/automation') %}active{% endif %}">Tự động hóa</a>
+                <a href="/idioms" class="{% if request.url.path.startswith('/idioms') %}active{% endif %}" title="Từ điển thành ngữ dùng chung mọi ebook">Từ điển chung</a>
+                <a href="/dashboard" class="{% if request.url.path.startswith('/dashboard') %}active{% endif %}">Bảng điều khiển</a>
+                <a href="/queue" class="{% if request.url.path.startswith('/queue') %}active{% endif %}">Hàng đợi</a>
+                <a href="/logs" class="{% if request.url.path.startswith('/logs') %}active{% endif %}">Nhật ký</a>
+            </nav>
+            <div class="n2e-drawer-footer">
+                <span class="text-xs text-fg-muted dark:text-fg-muted-dark">novel2epub</span>
+                <a href="https://github.com/novel2epub/novel2epub" target="_blank" rel="noopener" class="hover:text-fg-light dark:hover:text-fg-dark transition-colors">GitHub</a>
+            </div>
+        </aside>
+    </div>
     <main class="flex-1 mx-auto max-w-[1400px] w-full px-4 md:px-6 py-5 md:py-6 {% block mainclass %}{% endblock %}">
         {% block content %}{% endblock %}
     </main>
@@ -284,7 +552,7 @@
             <a href="https://github.com/novel2epub/novel2epub" target="_blank" rel="noopener" class="hover:text-fg-light dark:hover:text-fg-dark transition-colors">GitHub</a>
         </div>
     </footer>
-    <div id="toast-region" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50 pointer-events-none" aria-live="polite" aria-label="Notifications"></div>
+    <div id="toast-region" class="safe-panels fixed bottom-4 right-4 flex flex-col gap-2 z-50 pointer-events-none" aria-live="polite" aria-label="Notifications"></div>
     <div id="confirm-dialog" class="modal-backdrop" hidden role="presentation">
         <div class="modal modal-sm p-5" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-message">
             <p id="confirm-dialog-message" class="text-sm text-fg-light dark:text-fg-dark"></p>
@@ -296,26 +564,6 @@
     </div>
     <script src="/static/app.js"></script>
     <script src="/static/datatable.js"></script>
-    <script>
-        if (window.lucide) lucide.createIcons();
-
-        function openModal(id) {
-            const el = document.getElementById(id);
-            if (el) { el.hidden = false; el.classList.add("open"); }
-        }
-        function closeModal(id) {
-            const el = document.getElementById(id);
-            if (el) { el.hidden = true; el.classList.remove("open"); }
-        }
-        function openCanvas(id) {
-            const el = document.getElementById(id);
-            if (el) { el.hidden = false; setTimeout(() => el.classList.add("open"), 10); }
-        }
-        function closeCanvas(id) {
-            const el = document.getElementById(id);
-            if (el) { el.classList.remove("open"); setTimeout(() => el.hidden = true, 200); }
-        }
-    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

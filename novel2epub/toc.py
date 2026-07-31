@@ -62,18 +62,27 @@ def chapter_missing(ch: Chapter) -> list[str]:
     return missing
 
 
+def chapter_title_key(ch: Chapter) -> str:
+    return (ch.title_zh or ch.title or "").strip()
+
+
 def mark_duplicate_chapters(chapters: list[Chapter]) -> list[Chapter]:
-    seen: dict[str, int] = {}
+    seen: dict[tuple[str, str], int] = {}
+    seen_urls: dict[str, int] = {}
     for ch in chapters:
         ch.missing_fields = chapter_missing(ch)
         if ch.url:
-            first = seen.get(ch.url)
-            if first is None:
-                seen[ch.url] = ch.index
-            else:
+            title = chapter_title_key(ch)
+            first = seen.get((ch.url, title))
+            if not title:
+                first = seen_urls.get(ch.url)
+            if first is not None:
                 ch.duplicate_of = first
                 if "duplicate" not in ch.missing_fields:
                     ch.missing_fields.append("duplicate")
+            else:
+                seen[(ch.url, title)] = ch.index
+                seen_urls.setdefault(ch.url, ch.index)
     return chapters
 
 

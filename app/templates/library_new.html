@@ -51,14 +51,24 @@
 .pv-cell-value.empty { color: var(--tw-fg-muted, #71717a); font-style: italic; }
 .dark .pv-cell-value.empty { color: var(--tw-fg-muted-dark, #a1a1aa); }
 .pv-input { width: 100%; box-sizing: border-box; }
+
+/* Keep preview values aligned for quick comparison on mobile. */
+@media (max-width: 640px) {
+    .pv-header { flex-direction: column; align-items: center; text-align: center; }
+    .pv-header-body { width: 100%; }
+    .pv-slug { width: 100%; }
+    .slug-input { width: 100%; min-width: 0; }
+    .pv-table { min-width: 36rem; }
+    .pv-table-scroll { overflow-x: auto; }
+}
 </style>
 
-<div class="flex justify-between items-center mb-4 pb-2 border-b border-surface-border dark:border-surface-border-dark">
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-2 border-b border-surface-border dark:border-surface-border-dark">
     <div>
         <a href="/" class="text-sm text-fg-muted dark:text-fg-muted-dark no-underline hover:text-brand-600 dark:hover:text-brand-400">&larr; Thư viện</a>
         <h2 class="m-0 mt-1 text-xl font-semibold">Thêm ebook mới</h2>
     </div>
-    <div class="flex gap-2 mb-0">
+    <div class="flex flex-wrap gap-2 mb-0">
         <button type="button" id="add-mode-single-btn" class="add-mode-tab btn btn-sm btn-primary">Nhập 1 link</button>
         <button type="button" id="add-mode-bulk-btn" class="add-mode-tab btn btn-sm btn-secondary">Nhập hàng loạt</button>
     </div>
@@ -121,8 +131,8 @@
         <div class="step-panel" data-step="1">
             <fieldset class="bg-surface-muted/50 dark:bg-surface-muted-dark/50 rounded-xl">
                 <legend>Nhập link mục lục truyện</legend>
-                <div class="flex flex-wrap gap-4 items-end">
-                    <label class="form-group flex-1 min-w-0"><span class="label">URL mục lục</span><input type="text" name="toc_url_display" id="toc_url_display" required placeholder="https://..." autocomplete="off" class="input"></label>
+                <div class="flex flex-col sm:flex-row sm:flex-wrap gap-4 sm:items-end">
+                    <label class="form-group w-full sm:w-auto sm:flex-1 sm:min-w-0"><span class="label">URL mục lục</span><input type="text" name="toc_url_display" id="toc_url_display" required placeholder="https://..." autocomplete="off" class="input"></label>
                     <label class="form-group"><span class="label">Chế độ crawl (scrapling)</span>
                         <select name="scrapling_mode" id="scrapling_mode" class="select input-sm">
                             <option value="">(tự động theo nguồn)</option>
@@ -164,6 +174,7 @@
                         </div>
                     </div>
 
+                    <div class="pv-table-scroll">
                     <table class="pv-table">
                         <tbody>
                             <tr>
@@ -180,6 +191,7 @@
                             </tr>
                         </tbody>
                     </table>
+                    </div>
                 </div>
                 <div id="preview-placeholder" class="pv-placeholder">
                     <div class="pv-placeholder-icon">📖</div>
@@ -191,15 +203,18 @@
             <fieldset id="crawl-config-box" class="bg-surface-muted/50 dark:bg-surface-muted-dark/50 rounded-xl" style="display:none">
                 <legend>Config crawl sẽ áp dụng</legend>
                 <p class="text-xs text-fg-muted dark:text-fg-muted-dark mt-0 mb-2" id="pv-source-line"></p>
+                <div class="pv-table-scroll">
                 <table class="pv-table">
                     <tbody id="crawl-config-rows"></tbody>
                 </table>
+                </div>
                 <p class="text-xs text-fg-muted dark:text-fg-muted-dark mb-0">Ebook mới chỉ lưu <code>toc_url</code>{% if presets %} + tham chiếu nguồn{% endif %} — các giá trị trên ăn theo nguồn/mặc định, KHÔNG bị copy cứng vào ebook (sửa nguồn sau này ebook tự nhận). Chỉnh riêng từng field trong Cài đặt sau khi tạo.</p>
             </fieldset>
 
             <!-- Config dịch/AI mặc định — ebook mới kế thừa cho tới khi cấu hình riêng -->
             <fieldset class="bg-surface-muted/50 dark:bg-surface-muted-dark/50 rounded-xl">
                 <legend>Config dịch / AI ebook mới sẽ dùng (kế thừa config chung)</legend>
+                <div class="pv-table-scroll">
                 <table class="pv-table">
                     <tbody>
                         <tr>
@@ -231,6 +246,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
                 <p class="text-xs text-fg-muted dark:text-fg-muted-dark mb-0">Ebook mới chưa có cấu hình dịch/AI riêng nên dùng config chung ở trên. Sau khi tạo, chỉnh riêng cho truyện này trong tab Dịch / AI biên tập của Cài đặt — không ảnh hưởng truyện khác.</p>
             </fieldset>
 

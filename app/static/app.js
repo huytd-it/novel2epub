@@ -162,52 +162,208 @@ document.addEventListener("submit", async (e) => {
     }
 });
 
-// --- Modal helpers ---
+// --- Overlay manager (modal + canvas + drawer) ------------------------------
+// One shared stack so Escape closes the top-most overlay, body scroll locks
+// exactly once, and focus is trapped + restored on close. `openModal(id)` /
+// `closeModal(id)` / `openCanvas(id)` / `closeCanvas(id)` keep their historic
+// signatures and also manage the `.open` class + `hidden` attribute that the
+// templates' CSS (`.modal-backdrop.open`, `.canvas-backdrop.open`) relies on.
+
+let overlayStack = [];
+let bodyLockDepth = 0;
+
+function bodyLockInc() {
+    bodyLockDepth++;
+    document.body.classList.add("n2e-body-lock");
+}
+function bodyLockDec() {
+    bodyLockDepth = Math.max(0, bodyLockDepth - 1);
+    if (bodyLockDepth === 0) document.body.classList.remove("n2e-body-lock");
+}
+
+function pushOverlay(el) {
+    if (!overlayStack.includes(el)) overlayStack.push(el);
+}
+function popOverlay(el) {
+    const i = overlayStack.indexOf(el);
+    if (i !== -1) overlayStack.splice(i, 1);
+}
+function topOverlay() {
+    return overlayStack[overlayStack.length - 1] || null;
+}
+
+const FOCUSABLE_SELECTOR =
+    'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function restoreFocus(el) {
+    const prev = el._n2eLastFocus;
+    if (prev && prev.isConnected && typeof prev.focus === "function") prev.focus();
+    delete el._n2eLastFocus;
+}
+
+function focusFirst(el) {
+    const auto = el.querySelector("[data-autofocus], [autofocus]");
+    if (auto) { auto.focus(); return; }
+    const first = el.querySelector(FOCUSABLE_SELECTOR);
+    if (first && !el.contains(document.activeElement)) first.focus();
+}
+
+function openOverlay(el, { canvas = false } = {}) {
+    if (!el || overlayStack.includes(el)) return;
+    if (el._n2eCloseTimer) {
+        clearTimeout(el._n2eCloseTimer);
+        delete el._n2eCloseTimer;
+    }
+    el._n2eLastFocus = document.activeElement;
+    el.hidden = false;
+    if (canvas) el.classList.remove("open");
+    else el.classList.add("open");
+    el.setAttribute("aria-hidden", "false");
+    bodyLockInc();
+    pushOverlay(el);
+    requestAnimationFrame(() => {
+        if (canvas) el.classList.add("open");
+        focusFirst(el);
+    });
+}
+
+function closeOverlay(el, { canvas = false } = {}) {
+    if (!el) return;
+    const wasOpen = overlayStack.includes(el);
+    el.classList.remove("open");
+    el.setAttribute("aria-hidden", "true");
+    restoreFocus(el);
+    popOverlay(el);
+    if (wasOpen) bodyLockDec();
+    if (canvas) {
+        el._n2eCloseTimer = setTimeout(() => {
+            el.hidden = true;
+            delete el._n2eCloseTimer;
+        }, 250);
+    }
+    else el.hidden = true;
+}
+
 function openModal(id) {
     const el = document.getElementById(id);
-    if (el) el.hidden = false;
+    if (el) openOverlay(el);
 }
 function closeModal(id) {
     const el = document.getElementById(id);
-    if (el) el.hidden = true;
+    if (el) closeOverlay(el);
 }
-document.addEventListener('click', (e) => {
-    const backdrop = e.target.closest('.modal-backdrop');
-    if (backdrop && e.target === backdrop) backdrop.hidden = true;
-});
 
-// --- Canvas (slide-in panel) helpers ---
 function openCanvas(id) {
     const el = document.getElementById(id);
-    if (el) {
-        el.classList.remove('open');
-        el.hidden = false;
-        requestAnimationFrame(() => el.classList.add('open'));
-    }
+    if (el) openOverlay(el, { canvas: true });
 }
 function closeCanvas(id) {
     const el = document.getElementById(id);
-    if (el) {
-        el.classList.remove('open');
-        setTimeout(() => el.hidden = true, 250);
+    if (el) closeOverlay(el, { canvas: true });
+}
+
+// Click a modal/canvas backdrop (not its content) to close it. Also close any
+// open action-menu panel when clicking outside the menu.
+document.addEventListener('click', (e) => {
+    const modal = e.target.closest('.modal-backdrop');
+    if (modal && e.target === modal) closeModal(modal.id);
+    const canvas = e.target.closest('.canvas-backdrop');
+    if (canvas && e.target === canvas) closeCanvas(canvas.id);
+    if (!e.target.closest('.actions-menu')) closeActionMenus();
+});
+
+// --- Keyboard: Escape closes the top-most overlay, Tab is trapped inside it.
+function trapTabFocus(overlay, e) {
+    const focusables = Array.from(overlay.querySelectorAll(FOCUSABLE_SELECTOR));
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (!overlay.contains(document.activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+    }
+    if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
     }
 }
-document.addEventListener('click', (e) => {
-    const backdrop = e.target.closest('.canvas-backdrop');
-    if (backdrop && e.target === backdrop) {
-        const id = backdrop.id;
-        closeCanvas(id);
-    }
-});
+
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        document.querySelectorAll('.canvas-backdrop.open').forEach(el => {
-            closeCanvas(el.id);
-        });
-        document.querySelectorAll('.modal-backdrop:not([hidden])').forEach(el => {
-            el.hidden = true;
-        });
+        const top = topOverlay();
+        if (top) {
+            if (top.classList.contains('n2e-drawer')) closeDrawer();
+            else if (top.classList.contains('canvas-backdrop')) closeCanvas(top.id);
+            else closeModal(top.id);
+        } else {
+            // Legacy elements opened without the overlay manager (e.g. the
+            // confirm dialog) — close every visible overlay in one go.
+            document.querySelectorAll('.modal-backdrop:not([hidden])').forEach((el) => closeModal(el.id));
+            document.querySelectorAll('.canvas-backdrop.open').forEach((el) => closeCanvas(el.id));
+        }
+        closeActionMenus();
+    } else if (e.key === 'Tab') {
+        const top = topOverlay();
+        if (top) trapTabFocus(top, e);
     }
+});
+
+// --- Mobile drawer (nav) ----------------------------------------------------
+// Full-height slide-in nav below `md`. Breakpoint cleanup closes it whenever
+// the viewport crosses up to desktop so no stale body-lock/focus state lingers.
+function openDrawer() {
+    const drawer = document.getElementById("n2e-drawer");
+    if (!drawer) return;
+    const btn = document.getElementById("drawer-open-btn");
+    if (btn) btn.setAttribute("aria-expanded", "true");
+    openOverlay(drawer, { canvas: true });
+}
+function closeDrawer() {
+    const drawer = document.getElementById("n2e-drawer");
+    if (!drawer) return;
+    const btn = document.getElementById("drawer-open-btn");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+    closeOverlay(drawer, { canvas: true });
+}
+document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close-drawer]')) closeDrawer();
+});
+document.addEventListener('click', (e) => {
+    if (e.target.closest('#drawer-open-btn')) {
+        const drawer = document.getElementById("n2e-drawer");
+        if (drawer && drawer.classList.contains("open")) closeDrawer();
+        else openDrawer();
+    }
+});
+(function initBreakpointCleanup() {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onChange = (e) => { if (e.matches) closeDrawer(); };
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else mq.addListener(onChange);
+})();
+
+// --- Actions menu (mobile) --------------------------------------------------
+// Shared delegated toggle for `.actions-menu` rows: clicking the "⋯" toggle
+// opens that row's panel (and closes the others), clicking anywhere else
+// closes every open panel. In-card expansion avoids clipping by the table's
+// `overflow-x-auto` container (panels are absolutely positioned in-flow).
+function closeActionMenus() {
+    document.querySelectorAll('.actions-menu.open').forEach((m) => m.classList.remove('open'));
+}
+document.addEventListener('click', (e) => {
+    const toggle = e.target.closest('.actions-menu-toggle');
+    if (!toggle) return;
+    const menu = toggle.closest('.actions-menu');
+    if (!menu) return;
+    const willOpen = !menu.classList.contains('open');
+    closeActionMenus();
+    menu.classList.toggle('open', willOpen);
+    toggle.setAttribute('aria-expanded', String(willOpen));
+    if (willOpen) menu.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 });
 
 // --- Tab helpers ---
@@ -233,6 +389,11 @@ if (!document.getElementById('lucide-sprite')) {
     `;
     document.body.appendChild(sprite);
 }
+
+// Lucide icon init for the initial render (was inline in base.html).
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.lucide) lucide.createIcons();
+});
 
 // --- Soft reload helpers ----------------------------------------------------
 // Fetch current page and swap <main> content without full navigation.
@@ -265,6 +426,7 @@ function confirmDialog(message, { confirmLabel = "Xác nhận", destructive = fa
     confirmBtn.classList.toggle("confirm-destructive", destructive);
     dialog.hidden = false;
     dialog.classList.add("open");
+    bodyLockInc();
     cancelBtn.focus();
 
     return new Promise((resolve) => {
@@ -274,6 +436,7 @@ function confirmDialog(message, { confirmLabel = "Xác nhận", destructive = fa
             settled = true;
             dialog.hidden = true;
             dialog.classList.remove("open");
+            bodyLockDec();
             cancelBtn.removeEventListener("click", cancel);
             confirmBtn.removeEventListener("click", confirm);
             dialog.removeEventListener("click", backdrop);

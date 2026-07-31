@@ -9,35 +9,23 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import bulk_transfer, glossary_review
 from novel2epub.pipeline import _chapter_range, step_find_replace
-from novel2epub.storage import Storage
+from novel2epub.storage import Storage, normalize_glossary_pending
 
 from .. import deps
 
 router = APIRouter()
 
-def _conflicts_count(storage) -> int:
-    data = storage.read_extra_json("glossary_conflicts")
-    return len(data) if isinstance(data, list) else 0
-
 
 def _read_pending(storage) -> list[dict]:
-    """Hàng chờ duyệt đề xuất auto-glossary (extra json `glossary_pending`),
-    đã normalize — bỏ row hỏng, ép kiểu chapter_index."""
-    raw = storage.read_extra_json("glossary_pending")
-    out: list[dict] = []
-    for p in raw if isinstance(raw, list) else []:
-        if not isinstance(p, dict):
-            continue
-        source = str(p.get("source", "")).strip()
-        target = str(p.get("target", "")).strip()
-        if not source or not target:
-            continue
-        try:
-            chapter_index = int(p.get("chapter_index", 0))
-        except (TypeError, ValueError):
-            chapter_index = 0
-        out.append({"source": source, "target": target, "chapter_index": chapter_index})
-    return out
+    """Hàng chờ duyệt thay đổi auto-glossary (extra json `glossary_pending`),
+    đã migrate schema replacement + normalize."""
+    storage.migrate_glossary_queue()
+    return normalize_glossary_pending(storage.read_extra_json("glossary_pending"))
+
+
+def _normalize_pending(raw) -> list[dict]:
+    """Normalize a queue snapshot without performing another database read."""
+    return normalize_glossary_pending(raw)
 
 
 def _append_glossary_entry(
@@ -62,6 +50,7 @@ def _append_glossary_entry(
 def ebook_glossary(request: Request, slug: str):
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    storage.migrate_glossary_queue()
     # Trang tải dữ liệu theo trang qua ajax (/glossary/list) — không nhúng toàn
     # bộ mục vào HTML nữa.
     return deps.templates.TemplateResponse(
@@ -70,8 +59,6 @@ def ebook_glossary(request: Request, slug: str):
         {
             "slug": slug,
             "job": request.app.state.job.status(),
-            "conflicts_count": _conflicts_count(storage),
-            "pending_count": len(_read_pending(storage)),
         },
     )
 
@@ -167,19 +154,88 @@ def ebook_glossary_clean(slug: str):
 
 @router.get("/api/ebooks/{slug}/glossary/pending")
 def ebook_glossary_pending(slug: str):
-    """Danh sách đề xuất auto-glossary đang chờ duyệt (tab "Đề xuất AI")."""
+    """Danh sách đề xuất thay đổi glossary đang chờ duyệt (hàng chờ replacement)."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     entries = _read_pending(storage)
     return JSONResponse({"entries": entries, "count": len(entries)})
 
 
-@router.post("/api/ebooks/{slug}/glossary/pending/approve")
-def ebook_glossary_pending_approve(slug: str, payload: dict = Body(...)):
-    """Duyệt (hàng loạt) đề xuất chờ: upsert vào names.txt rồi gỡ khỏi hàng chờ.
-    Body JSON `{"entries": [{source, target, note, original_source}, ...]}` —
-    giá trị lấy từ input trên UI nên có thể đã được sửa tay trước khi duyệt;
-    `original_source` là source lúc AI đề xuất, dùng làm khóa gỡ khỏi hàng chờ."""
+@router.get("/api/ebooks/{slug}/glossary/replace/preview")
+def ebook_glossary_replace_preview(slug: str):
+    """Preview: đếm số lần khớp từng đề xuất trong bản dịch cũ + meta + ebook
+    (xem `Storage.replacement_counts`) — dữ liệu cho nút "Duyệt" xác nhận,
+    kể cả khi count = 0 (chỉ upsert glossary, không cần lan truyền)."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    entries = _read_pending(storage)
+    pairs = [
+        (p["existing_target"], p["target"])
+        for p in entries
+        if p["existing_target"] and p["existing_target"] != p["target"]
+    ]
+    counts = storage.replacement_counts(pairs)
+    by_old = {c["old"]: c for c in counts["pairs"]}
+    for p in entries:
+        info = by_old.get(p["existing_target"]) if p["existing_target"] else None
+        p["count"] = info["count"] if info else 0
+        p["chapters"] = info["chapters"] if info else 0
+    return JSONResponse({"entries": entries, "count": len(entries), "total_matches": counts["total"]})
+
+
+def glossary_approve_job_factory(params: dict):
+    """Tái tạo job duyệt glossary từ spec đã lưu (xem JobQueue.register_kind)
+    — để enqueue lại job còn dang dở sau khi app restart.
+
+    Job thực hiện: upsert glossary + gỡ hàng chờ (MỘT transaction) rồi lan
+    truyền các thay đổi `existing_target → target` vào bản dịch cũ. Idempotent:
+    nếu chạy lại, các source đã duyệt không còn trong hàng chờ nên bị bỏ qua
+    (stale)."""
+    slug = params["slug"]
+    requested = params["entries"]
+
+    def _target(log: Callable[[str], None]) -> None:
+        cfg = deps.resolved_cfg(slug)
+        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+        result = storage.approve_glossary_rows(requested)
+        approved = result["approved"]
+        log(f"[glossary-duyệt] Đã duyệt {len(approved)}/{len(requested)} mục, còn {len(result['remaining'])} chờ.")
+        for a in approved:
+            log(
+                f"[glossary-duyệt]   + {a['source']}: "
+                f"'{a.get('existing_target') or '—'}' → '{a['target']}'"
+            )
+        pairs = [
+            (a["existing_target"], a["target"])
+            for a in approved
+            if a.get("existing_target") and a["existing_target"] != a["target"]
+        ]
+        stats: dict = {"total": 0, "chapters": 0, "ebook": False}
+        if pairs:
+            log(f"[glossary-duyệt] Lan truyền {len(pairs)} thay đổi vào bản dịch cũ…")
+            stats = storage.apply_replacements(pairs)
+            log(f"[glossary-duyệt] Hoàn tất: {stats['total']} lần thay trên {stats['chapters']} chương.")
+        else:
+            log("[glossary-duyệt] Không có thay đổi nào để lan truyền (mục mới / giữ nguyên).")
+        return {
+            "requested": len(requested),
+            "approved": approved,
+            "remaining": len(result["remaining"]),
+            "replacements": stats,
+        }
+
+    return _target
+
+
+@router.post("/api/ebooks/{slug}/glossary/replace/approve")
+def ebook_glossary_replace_approve(request: Request, slug: str, payload: dict = Body(...)):
+    """Duyệt (hàng loạt) đề xuất thay thế: enqueue MỘT job duyệt
+    (category=translate, lock ebook) — KHÔNG thay đổi dữ liệu ngay ở đây. Job
+    thực hiện upsert glossary + gỡ hàng chờ + lan truyền vào bản dịch (xem
+    `glossary_approve_job_factory`), kết quả nằm trong outcome/log của job.
+
+    Body JSON `{"entries": [{source, target, note}, ...]}` — giá trị lấy từ
+    input trên UI nên có thể đã được sửa tay (note giữ nguyên nếu để trống)."""
     entries = []
     for row in payload.get("entries", []) if isinstance(payload.get("entries"), list) else []:
         if not isinstance(row, dict):
@@ -193,19 +249,53 @@ def ebook_glossary_pending_approve(slug: str, payload: dict = Body(...)):
                 "source": source,
                 "target": target,
                 "note": str(row.get("note", "")).strip(),
-                "original_source": str(row.get("original_source", "")).strip() or source,
             }
         )
     if not entries:
         raise HTTPException(status_code=400, detail="Chưa chọn đề xuất nào để duyệt.")
     cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    for e in entries:
-        storage.upsert_glossary_entry(e["source"], e["target"], e["note"])
-    approved_keys = {e["original_source"] for e in entries}
-    remaining = [p for p in _read_pending(storage) if p["source"] not in approved_keys]
-    storage.write_extra_json("glossary_pending", remaining)
-    return JSONResponse({"approved": len(entries), "remaining": len(remaining)})
+    spec = {"kind": "glossary-approve", "params": {"slug": slug, "entries": entries}}
+    started = request.app.state.job.start_custom(
+        "glossary-approve",
+        glossary_approve_job_factory(spec["params"]),
+        category="translate",
+        ebook=slug,
+        spec=spec,
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "requested": len(entries)})
+
+
+@router.get("/api/ebooks/{slug}/glossary/approve/status")
+def ebook_glossary_approve_status(request: Request, slug: str):
+    """Trạng thái + outcome của job duyệt glossary gần nhất cho ebook này."""
+    queue = getattr(request.app.state.job, "queue", None)
+    if queue is None:
+        return JSONResponse({"running": False, "state": "", "step": "", "job_id": "", "outcome": None, "error": ""})
+    recent = None
+    running = False
+    for j in queue.snapshot()["history"]:
+        if j.get("ebook") == slug and j.get("step") == "glossary-approve":
+            recent = j
+            break
+    for j in queue.snapshot()["running"]:
+        if j.get("ebook") == slug and j.get("step") == "glossary-approve":
+            running = True
+            recent = j
+            break
+    if recent is None:
+        return JSONResponse({"running": False, "state": "", "step": "", "job_id": "", "outcome": None, "error": ""})
+    return JSONResponse(
+        {
+            "running": running,
+            "state": recent.get("state", ""),
+            "step": recent.get("step", ""),
+            "job_id": recent.get("id", ""),
+            "outcome": recent.get("outcome"),
+            "error": recent.get("error", ""),
+        }
+    )
 
 
 @router.post("/api/ebooks/{slug}/glossary/pending/clear")
@@ -214,104 +304,46 @@ def ebook_glossary_pending_clear(slug: str, payload: dict = Body(...)):
     `{"sources": [...]}` hoặc `{"all": true}` (bỏ toàn bộ)."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    pending = _read_pending(storage)
+    storage.migrate_glossary_queue()
     if payload.get("all"):
-        storage.write_extra_json("glossary_pending", [])
-        return JSONResponse({"cleared": len(pending)})
+        previous_count = 0
+        def _clear_all(raw):
+            nonlocal previous_count
+            previous_count = len(_normalize_pending(raw))
+            return []
+        storage.update_extra_json("glossary_pending", _clear_all)
+        return JSONResponse({"cleared": previous_count})
     sources = {str(s).strip() for s in payload.get("sources", []) if str(s).strip()}
     if not sources:
         raise HTTPException(status_code=400, detail="Chưa chọn đề xuất nào để bỏ.")
-    remaining = [p for p in pending if p["source"] not in sources]
-    storage.write_extra_json("glossary_pending", remaining)
-    return JSONResponse({"cleared": len(pending) - len(remaining)})
+    cleared = 0
+    def _clear_selected(raw):
+        nonlocal cleared
+        pending = _normalize_pending(raw)
+        remaining = [p for p in pending if p["source"] not in sources]
+        cleared = len(pending) - len(remaining)
+        return remaining
+    storage.update_extra_json("glossary_pending", _clear_selected)
+    return JSONResponse({"cleared": cleared})
 
 
 @router.get("/api/ebooks/{slug}/glossary/suspects")
 def ebook_glossary_suspects(slug: str):
-    """Tab "Nghi vấn": nhóm mục trùng target / source lồng nhau / conflicts
-    từ lần dịch. Consolidate legacy trước để chỉ quét names.txt."""
+    """Tab "Nghi vấn": nhóm mục trùng target / source lồng nhau. Conflicts từ
+    lần dịch nay nằm trong hàng chờ duyệt (replacement) nên không còn nhóm
+    riêng ở đây. Consolidate legacy trước để chỉ quét names.txt."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     storage.consolidate_glossary()
+    storage.migrate_glossary_queue()
     data = glossary_review.find_suspects(
         storage.read_glossary_entries("names.txt"),
-        storage.read_extra_json("glossary_conflicts"),
+        None,
     )
     data["count"] = (
         len(data["same_target"]) + len(data["nested_source"]) + len(data["conflicts"])
     )
     return JSONResponse(data)
-
-
-@router.post("/api/ebooks/{slug}/glossary/conflicts/resolve")
-def ebook_glossary_conflict_resolve(
-    slug: str, source: str = Form(...), new: str = Form(...)
-):
-    """Gỡ 1 conflict đã xử lý (Giữ cũ / Lấy mới đều gọi) theo khóa dedup
-    `(source, new)` — trùng key pipeline dùng khi ghi — để không hiện lại."""
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    raw = storage.read_extra_json("glossary_conflicts")
-    if not isinstance(raw, list):
-        raw = []
-    remaining = [
-        c
-        for c in raw
-        if not (isinstance(c, dict) and c.get("source") == source and c.get("new") == new)
-    ]
-    storage.write_extra_json("glossary_conflicts", remaining)
-    return JSONResponse({"removed": len(raw) - len(remaining)})
-
-
-@router.post("/api/ebooks/{slug}/glossary/conflicts/bulk-resolve")
-def ebook_glossary_conflicts_bulk_resolve(slug: str, payload: dict = Body(...)):
-    action = payload.get("action")
-    if action not in {"take", "keep"}:
-        raise HTTPException(status_code=400, detail="Thao tác conflict không hợp lệ.")
-
-    requested: dict[tuple[str, str], dict[str, str]] = {}
-    rows = payload.get("entries")
-    for row in rows if isinstance(rows, list) else []:
-        if not isinstance(row, dict):
-            continue
-        source = str(row.get("source", "")).strip()
-        original_new = str(row.get("original_new", "")).strip()
-        target = str(row.get("target", "")).strip()
-        if not source or not original_new or (action == "take" and not target):
-            continue
-        requested[(source, original_new)] = {
-            "target": target,
-            "note": str(row.get("note", "")).strip(),
-        }
-    if not requested:
-        raise HTTPException(status_code=400, detail="Chưa chọn conflict hợp lệ.")
-
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    raw = storage.read_extra_json("glossary_conflicts")
-    conflicts = raw if isinstance(raw, list) else []
-    remaining = []
-    resolved = 0
-    for conflict in conflicts:
-        if not isinstance(conflict, dict):
-            remaining.append(conflict)
-            continue
-        key = (
-            str(conflict.get("source", "")).strip(),
-            str(conflict.get("new", "")).strip(),
-        )
-        request_row = requested.get(key)
-        if request_row is None:
-            remaining.append(conflict)
-            continue
-        if action == "take":
-            storage.upsert_glossary_entry(
-                key[0], request_row["target"], request_row["note"]
-            )
-        resolved += 1
-
-    storage.write_extra_json("glossary_conflicts", remaining)
-    return JSONResponse({"resolved": resolved, "remaining": len(remaining)})
 
 
 @router.post("/ebooks/{slug}/glossary")

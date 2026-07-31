@@ -10,11 +10,16 @@
 
 .ebook-overview { margin-bottom: 0.75rem; }
 .toc-workspace { position: relative; padding-bottom: 1rem; }
-.compact-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0; padding: 0.75rem; background: var(--tw-surface-muted, #f4f4f5); border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; }
+.compact-toolbar { display: flex; align-items: center; gap: 0.5rem; margin: 0; padding: 0.5rem; background: var(--tw-surface-muted, #f4f4f5); border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; }
 .toc-filter-bar { position: sticky; top: calc(3.5rem + 0.5rem); z-index: 20; box-shadow: 0 6px 16px rgba(24, 24, 27, 0.08); }
 .dark .compact-toolbar { background: var(--tw-surface-muted-dark, #27272a); border-color: var(--tw-border-dark, #3f3f46); }
-.compact-toolbar input[type="search"] { min-width: min(22rem, 100%); }
+.toc-filter-search { position: relative; flex: 1 1 16rem; min-width: 12rem; }
+.toc-filter-search svg { position: absolute; left: 0.55rem; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--tw-fg-muted, #71717a); }
+.toc-filter-search input[type="search"] { width: 100%; min-width: 0; padding-left: 1.9rem; }
+.toc-filter-controls { display: flex; align-items: center; gap: 0.35rem; flex: 0 1 auto; min-width: 0; }
 .compact-toolbar select, .compact-toolbar input { font-size: 0.8125rem; width: auto; padding: 0.35rem 0.5rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 6px; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); }
+.compact-toolbar select { max-width: 9.5rem; }
+.compact-toolbar .toc-filter-submit { flex: 0 0 auto; }
 .dark .compact-toolbar select, .dark .compact-toolbar input { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
 
 .status-bar { display: flex; align-items: center; gap: 0.5rem 0.9rem; flex-wrap: wrap; margin: 0.75rem 0; padding: 0.5rem 0.75rem; background: var(--tw-surface-muted, #f4f4f5); border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; }
@@ -91,10 +96,18 @@
 @media (max-width: 900px) {
     .selected-actions .action-group-label { display: none; }
     .sa-divider { display: none; }
-    .compact-toolbar select, .compact-toolbar input { width: 100%; }
     .selected-actions { gap: 0.35rem; }
     .selected-actions .selected-primary { flex: 1 1 100%; }
     .toc-workspace:has(.selected-actions.has-selection) { padding-bottom: 6.25rem; }
+}
+
+@media (max-width: 767px) {
+    .compact-toolbar { display: block; padding: 0.4rem; }
+    .toc-filter-search { min-width: 0; }
+    .toc-filter-controls { margin-top: 0.4rem; padding-bottom: 0.15rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+    .compact-toolbar select { flex: 0 0 auto; width: auto; max-width: none; }
+    .toc-filter-submit { position: sticky; right: 0; box-shadow: -8px 0 10px var(--tw-surface-muted, #f4f4f5); }
+    .dark .toc-filter-submit { box-shadow: -8px 0 10px var(--tw-surface-muted-dark, #27272a); }
 }
 
 @media (min-width: 768px) {
@@ -224,7 +237,11 @@
     <p class="text-sm text-fg-muted dark:text-fg-muted-dark m-0">Search / sort / lọc chạy ngầm (không reload), được nhớ trong trình duyệt. Tick dòng rồi chọn hành động.</p>
 </div>
 <form method="get" action="/ebooks/{{ slug }}" class="toc-filter-bar compact-toolbar">
-    <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL" class="input input-sm">
+    <div class="toc-filter-search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" name="search" value="{{ controls.search }}" placeholder="Tìm tiêu đề hoặc URL" class="input input-sm" aria-label="Tìm chương">
+    </div>
+    <div class="toc-filter-controls scrollbar-thin">
     <select name="sort" aria-label="Sắp xếp" class="select select-sm">
         {% for key, label in [("source", "Thứ tự"), ("title", "Tiêu đề"), ("raw", "Raw"), ("translated", "Dịch")] %}
         <option value="{{ key }}" {% if controls.sort == key %}selected{% endif %}>{{ label }}</option>
@@ -254,7 +271,8 @@
         <option value="yes" {% if controls.filter_skipped == "yes" %}selected{% endif %}>Bỏ qua: chỉ hiện bỏ qua</option>
         <option value="any" {% if controls.filter_skipped == "any" %}selected{% endif %}>Bỏ qua: tất cả</option>
     </select>
-    <button type="submit" class="btn btn-sm btn-primary">Lọc</button>
+    <button type="submit" class="btn btn-sm btn-primary toc-filter-submit">Lọc</button>
+    </div>
 </form>
 {% if chapters %}
 <div id="selected-command-bar" class="selected-actions" aria-live="polite">
@@ -380,7 +398,7 @@
     </div>
 </nav>
 <div class="table-container toc-table-container">
-<table id="chapter-table" class="table scrollbar-thin" style="table-layout:fixed">
+<table id="chapter-table" class="table responsive-table table-grid-mobile scrollbar-thin" style="table-layout:fixed">
     <thead>
     <tr>
         <th class="w-10 chapter-check-cell"><label class="chapter-check-label"><input type="checkbox" id="check-all" aria-label="Chọn tất cả dòng đang hiển thị" class="rounded border-surface-border dark:border-surface-border-dark"></label></th>
@@ -489,6 +507,7 @@ let searchTimer = null;
 let pendingFetchToc = false;
 let pendingReindex = false;
 let reindexPreviewMode = false;
+const submittingForms = new WeakSet();
 
 function closeSelectedMoreMenu() {
     const menu = document.querySelector(".selected-more");
@@ -661,14 +680,14 @@ function buildChapterRow(ch, newIndex) {
     const selected = selectedIndexes.has(ch.index);
     const rowClass = [ch.skipped ? "opacity-50" : "", selected ? "is-selected" : ""].filter(Boolean).join(" ");
     return `<tr data-index="${ch.index}" class="${rowClass}">
-        <td class="px-3 py-2 chapter-check-cell"><label class="chapter-check-label"><input type="checkbox" class="chapter-check rounded border-surface-border dark:border-surface-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}" ${selected ? "checked" : ""}></label></td>
-        <td class="px-3 py-2 font-mono text-fg-muted dark:text-fg-muted-dark">${indexCell}</td>
-        <td class="px-3 py-2 overflow-hidden" data-editable-title data-index="${ch.index}"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline truncate block" title="${escapeHtml(ch.visible_title)}">${escapeHtml(ch.visible_title)}</a></td>
-        <td class="px-3 py-2 font-mono tabular-nums">${ch.has_raw ? (ch.zh_char_count ?? 0) : '-'}</td>
-        <td class="px-3 py-2 font-mono tabular-nums">${ch.has_translated ? ch.word_count : '-'}</td>
-        <td class="px-3 py-2 font-mono tabular-nums text-fg-muted dark:text-fg-muted-dark">${ch.glossary_count ?? '-'}</td>
-        <td class="px-3 py-2 font-mono tabular-nums">${ch.total_chars ?? '-'}</td>
-        <td class="px-3 py-2">
+        <td class="px-3 py-2 chapter-check-cell" data-label="Chọn"><label class="chapter-check-label"><input type="checkbox" class="chapter-check rounded border-surface-border dark:border-surface-border-dark" value="${ch.index}" aria-label="Chọn chương ${ch.index}" ${selected ? "checked" : ""}></label></td>
+        <td class="px-3 py-2 font-mono text-fg-muted dark:text-fg-muted-dark" data-label="#">${indexCell}</td>
+        <td class="px-3 py-2 overflow-hidden" data-editable-title data-index="${ch.index}" data-label="Tiêu đề"><a href="${escapeHtml(ch.url)}" target="_blank" class="text-brand-600 dark:text-brand-400 hover:underline truncate block" title="${escapeHtml(ch.visible_title)}">${escapeHtml(ch.visible_title)}</a></td>
+        <td class="px-3 py-2 font-mono tabular-nums" data-label="Ký tự ZH">${ch.has_raw ? (ch.zh_char_count ?? 0) : '-'}</td>
+        <td class="px-3 py-2 font-mono tabular-nums" data-label="Số từ">${ch.has_translated ? ch.word_count : '-'}</td>
+        <td class="px-3 py-2 font-mono tabular-nums text-fg-muted dark:text-fg-muted-dark" data-label="Glossary">${ch.glossary_count ?? '-'}</td>
+        <td class="px-3 py-2 font-mono tabular-nums" data-label="Tổng chars">${ch.total_chars ?? '-'}</td>
+        <td class="px-3 py-2 mobile-actions" data-label="Thao tác">
             <div class="inline-flex gap-0.5 items-center">
                 <button type="button" class="btn btn-sm btn-secondary action-icon-btn" data-tooltip="Xem / sửa" onclick="location.href='/ebooks/${SLUG}/chapters/${ch.index}'" title="Xem / sửa">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
@@ -880,18 +899,24 @@ document.addEventListener("submit", async function(event) {
     if (action.includes("/jobs/") || action.includes("/action") || action.includes("/batch/")) {
         event.preventDefault();
 
+        if (submittingForms.has(form)) return;
+
         const isSelectedAction = form.classList.contains("selected-action-form");
         if (isSelectedAction && selectedIndexes.size === 0) {
             toast("Chưa chọn chương nào. Hãy tick checkbox trước.", "warning");
             return;
         }
+        submittingForms.add(form);
 
         // Xác nhận cho thao tác phá huỷ (vd. xoá bản dịch hàng loạt) — `data-confirm`
         // chứa message với placeholder {n} = số chương đã tick.
         const confirmMsg = form.dataset && form.dataset.confirm;
         if (confirmMsg) {
             const msg = confirmMsg.replace("{n}", String(selectedIndexes.size));
-            if (!await confirmDialog(msg, { destructive: form.classList.contains("batch-form") })) return;
+            if (!await confirmDialog(msg, { destructive: form.classList.contains("batch-form") })) {
+                submittingForms.delete(form);
+                return;
+            }
         }
 
         if (form.classList && form.classList.contains("selected-action-form")) {
@@ -996,6 +1021,8 @@ document.addEventListener("submit", async function(event) {
             console.error(error);
             toast("Lỗi kết nối mạng.", "error");
             poll();
+        } finally {
+            submittingForms.delete(form);
         }
     }
 });

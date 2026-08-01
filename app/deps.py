@@ -37,6 +37,17 @@ LIBRARY_STATE_PATH = DB_PATH
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+
+def static_version(name: str) -> str:
+    """Return a deployment-safe cache key for a static asset."""
+    try:
+        return str((BASE_DIR / "static" / name).stat().st_mtime_ns)
+    except OSError:
+        return "0"
+
+
+templates.env.globals["static_version"] = static_version
+
 # ── Config default values ───────────────────────────────────────────
 # Mirrors dataclass defaults from novel2epub/config.py for UI display.
 # Keyed: section -> field -> default_value

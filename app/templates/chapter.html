@@ -432,7 +432,7 @@ details[open] > summary.no-marker .dd-caret { transform: rotate(180deg); }
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/diff.js?v=20260731-3"></script>
+<script src="/static/diff.js?v={{ static_version('diff.js') }}"></script>
 <script>
 const CHAPTER_SLUG = {{ slug | tojson }};
 const CHAPTER_INDEX = {{ ch.index | tojson }};

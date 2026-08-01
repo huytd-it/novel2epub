@@ -15,7 +15,7 @@
             if (theme === "dark") document.documentElement.classList.add("dark");
         })();
     </script>
-    <script src="/static/tailwind.js?v=20260731-3"></script>
+    <script src="/static/tailwind.js?v={{ static_version('tailwind.js') }}"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -562,8 +562,8 @@
             </div>
         </div>
     </div>
-    <script src="/static/app.js?v=20260731-3"></script>
-    <script src="/static/datatable.js?v=20260731-3"></script>
+    <script src="/static/app.js?v={{ static_version('app.js') }}"></script>
+    <script src="/static/datatable.js?v={{ static_version('datatable.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

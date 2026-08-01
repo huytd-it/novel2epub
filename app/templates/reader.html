@@ -555,7 +555,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/diff.js?v=20260731-3"></script>
+<script src="/static/diff.js?v={{ static_version('diff.js') }}"></script>
 <script>
 (function() {
     const SLUG = {{ slug | tojson }};

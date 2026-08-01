@@ -12,7 +12,7 @@ document.documentElement.classList.add("reader-page");
 
 <style>
 /* Local styles for reader: typography controls, chapter navigation, copy buttons */
-.reader-wrap { max-width: 900px; margin: 0 auto; padding: 0 1rem 0; }
+.reader-wrap { width: 100%; max-width: none; margin: 0 auto; padding: 0 1rem 0; }
 .reader-wrap.nav-fixed { padding-top: 3.5rem; }
 .reader-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 1rem; border-bottom: 1px solid var(--tw-border, #e4e4e7); flex-wrap: wrap; max-width: 900px; margin: 0 auto; background: var(--tw-surface-light, #ffffff); position: relative; z-index: 20; }
 .dark .reader-nav { border-bottom-color: var(--tw-border-dark, #3f3f46); background: var(--tw-surface-dark, #18181b); }
@@ -51,7 +51,7 @@ document.documentElement.classList.add("reader-page");
 .settings-row select { font-size: 0.8125rem; padding: 0.2rem 0.4rem; border-radius: 4px; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); border: 1px solid var(--tw-border, #e4e4e7); }
 .dark .settings-row select { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
 
-.reader-content { max-width: 720px; margin: 1.5rem auto; line-height: 1.8; font-size: 18px; font-family: 'Literata', 'Georgia', serif; }
+.reader-content { width: 100%; max-width: 720px; box-sizing: border-box; margin: 1.5rem auto; line-height: 1.8; font-size: 18px; font-family: 'Literata', 'Georgia', serif; }
 [data-theme="sepia"] .reader-content { background: #f5f0e8; color: #5b4636; padding: 0.5rem 1.5rem; border-radius: 4px; }
 .reader-para { position: relative; margin: 0 0 0.8em; text-align: justify; }
 .reader-content.edit-mode .reader-para { cursor: text; border-radius: 6px; outline: 1px dashed transparent; transition: background 0.15s, outline-color 0.15s; }
@@ -198,6 +198,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 .toc-chapter-item.untranslated { color: var(--tw-fg-muted, #a1a1aa); opacity: 0.6; }
 .toc-backdrop { position: fixed; inset: 0; z-index: 39; background: rgba(0,0,0,0.35); }
 .toc-backdrop.hidden { display: none; }
+.reader-mobile-backdrop { display: none; }
 
 /* --- Thanh tìm kiếm toàn truyện --- */
 .search-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 50; padding: 0.6rem 1rem; background: var(--tw-surface-light, #ffffff); border-bottom: 1px solid var(--tw-border, #e4e4e7); box-shadow: var(--tw-shadow-card, 0 1px 3px rgba(0,0,0,0.06)); }
@@ -226,6 +227,17 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 }
 
 @media (max-width: 640px) {
+    .reader-mobile-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 44;
+        display: block;
+        border: 0;
+        background: rgba(0, 0, 0, 0.42);
+        backdrop-filter: blur(2px);
+    }
+    .reader-mobile-backdrop[hidden] { display: none; }
+    #reader-tools-backdrop { z-index: 59; }
     .reader-wrap { padding: 0 0.85rem calc(4.5rem + env(safe-area-inset-bottom)); }
     .reader-wrap.nav-fixed { padding-top: 4.25rem; }
     .reader-nav:not(.reader-nav-bottom) {
@@ -474,6 +486,9 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     </nav>
 </div>
 
+<button type="button" id="reader-tools-backdrop" class="reader-mobile-backdrop" hidden aria-label="Đóng menu công cụ"></button>
+<button type="button" id="notes-backdrop" class="reader-mobile-backdrop" hidden aria-label="Đóng ghi chú"></button>
+
 <aside id="toc-sidebar" class="toc-sidebar safe-panels" aria-label="Mục lục">
     <div class="toc-sidebar-header">
         <span>Mục lục</span>
@@ -546,10 +561,28 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     else mobileMq.addListener(placeMobileTools);
 
     const toolsMore = document.querySelector('.reader-tools-more');
+    const toolsBackdrop = document.getElementById('reader-tools-backdrop');
+    let toolsScrollLocked = false;
+
+    function syncToolsOverlay() {
+        const active = Boolean(toolsMore?.open && mobileMq.matches);
+        if (toolsBackdrop) toolsBackdrop.hidden = !active;
+        if (active && !toolsScrollLocked) {
+            bodyLockInc();
+            toolsScrollLocked = true;
+        } else if (!active && toolsScrollLocked) {
+            bodyLockDec();
+            toolsScrollLocked = false;
+        }
+    }
 
     toolsMore?.addEventListener('click', (event) => {
         if (event.target.closest('.reader-tools-menu .reader-toolbar-btn')) toolsMore.open = false;
     });
+    toolsMore?.addEventListener('toggle', syncToolsOverlay);
+    toolsBackdrop?.addEventListener('click', () => { toolsMore.open = false; });
+    if (mobileMq.addEventListener) mobileMq.addEventListener('change', syncToolsOverlay);
+    else mobileMq.addListener(syncToolsOverlay);
     document.addEventListener('click', (event) => {
         if (toolsMore?.open && !event.target.closest('.reader-tools-more')) toolsMore.open = false;
     });
@@ -728,6 +761,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     const SLUG = {{ slug | tojson }};
     const INDEX = {{ ch.index | tojson }};
     const HAS_MT = {{ has_mt_snapshot | tojson }};
+    const MODE_KEY = `n2e-reader-mode-${SLUG}`;
     let allNotes = {{ notes | tojson }};
     let compareMode = false;
     let aiBusy = false;
@@ -740,6 +774,9 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     const badge = document.getElementById('notes-badge');
     const compareView = document.getElementById('compare-view');
     const notesToggleBtn = document.getElementById('notes-toggle-btn');
+    const notesBackdrop = document.getElementById('notes-backdrop');
+    const mobileMq = window.matchMedia('(max-width: 640px)');
+    let notesScrollLocked = false;
     const compareToggleBtn = document.getElementById('compare-toggle-btn');
 
     const chapterNotes = () => allNotes.filter(n => n.chapter_index === INDEX);
@@ -922,10 +959,24 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 
     // ---------- Panel ghi chú ----------
     function togglePanel(open) {
-        panel.classList.toggle('open', open ?? !panel.classList.contains('open'));
+        const active = open ?? !panel.classList.contains('open');
+        panel.classList.toggle('open', active);
+        const mobileActive = active && mobileMq.matches;
+        notesBackdrop.hidden = !mobileActive;
+        if (mobileActive && !notesScrollLocked) {
+            bodyLockInc();
+            notesScrollLocked = true;
+        } else if (!mobileActive && notesScrollLocked) {
+            bodyLockDec();
+            notesScrollLocked = false;
+        }
     }
     notesToggleBtn?.addEventListener('click', () => togglePanel());
     document.getElementById('notes-panel-close')?.addEventListener('click', () => togglePanel(false));
+    notesBackdrop?.addEventListener('click', () => togglePanel(false));
+    const syncNotesViewport = () => togglePanel(panel.classList.contains('open'));
+    if (mobileMq.addEventListener) mobileMq.addEventListener('change', syncNotesViewport);
+    else mobileMq.addListener(syncNotesViewport);
 
     content.addEventListener('click', (e) => {
         const mark = e.target.closest('mark.note-mark');
@@ -1236,6 +1287,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         compareView.hidden = false;
         compareMode = true;
         compareToggleBtn.classList.add('active');
+        localStorage.setItem(MODE_KEY, 'compare');
         hidePopover();
     }
 
@@ -1245,6 +1297,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         content.hidden = false;
         compareMode = false;
         compareToggleBtn.classList.remove('active');
+        if (localStorage.getItem(MODE_KEY) === 'compare') localStorage.setItem(MODE_KEY, 'read');
     }
 
     compareToggleBtn?.addEventListener('click', () => compareMode ? exitCompare() : enterCompare());
@@ -1266,6 +1319,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     });
 
     refreshUI();
+    if (localStorage.getItem(MODE_KEY) === 'compare') enterCompare();
 })();
 </script>
 <script>

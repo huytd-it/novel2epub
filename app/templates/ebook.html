@@ -80,6 +80,8 @@
 .toc-table-container { margin-top: 0.5rem; max-height: min(68vh, 54rem); overflow: auto; }
 .toc-table-container thead th { position: sticky; top: 0; z-index: 2; background: var(--tw-surface-light, #ffffff); }
 .dark .toc-table-container thead th { background: var(--tw-surface-dark, #18181b); }
+#chapter-table thead th:first-child { z-index: 4; }
+#chapter-table tbody td:first-child { z-index: 3; }
 #chapter-table tbody tr.is-selected { background: var(--tw-brand-50, #ecfdf5); box-shadow: inset 3px 0 0 var(--tw-brand-500, #10b981); }
 .dark #chapter-table tbody tr.is-selected { background: rgba(16, 185, 129, 0.14); }
 
@@ -90,6 +92,7 @@
 .action-icon-btn[title]:hover::after { content: attr(title); position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); background: #18181b; color: #fafafa; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap; z-index: 50; pointer-events: none; }
 .dark .action-icon-btn[title]:hover::after { background: #fafafa; color: #18181b; }
 .action-icon-btn { position: relative; }
+.selected-menu-backdrop { display: none; }
 
 #toc-region.toc-loading { visibility: hidden; }
 
@@ -102,12 +105,44 @@
 }
 
 @media (max-width: 767px) {
+    .selected-menu-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 44;
+        display: block;
+        border: 0;
+        background: rgba(0, 0, 0, 0.42);
+        backdrop-filter: blur(2px);
+    }
+    .selected-menu-backdrop[hidden] { display: none; }
     .compact-toolbar { display: block; padding: 0.4rem; }
     .toc-filter-search { min-width: 0; }
     .toc-filter-controls { margin-top: 0.4rem; padding-bottom: 0.15rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
     .compact-toolbar select { flex: 0 0 auto; width: auto; max-width: none; }
     .toc-filter-submit { position: sticky; right: 0; box-shadow: -8px 0 10px var(--tw-surface-muted, #f4f4f5); }
     .dark .toc-filter-submit { box-shadow: -8px 0 10px var(--tw-surface-muted-dark, #27272a); }
+    .selected-actions { z-index: 45; }
+    .selected-actions .selected-menu {
+        position: fixed;
+        inset: auto 0.5rem calc(4.25rem + env(safe-area-inset-bottom)) 0.5rem;
+        z-index: 60;
+        width: auto;
+        max-height: min(72dvh, 36rem);
+        overscroll-behavior: contain;
+        border-radius: 14px;
+        box-shadow: 0 -14px 36px rgba(24, 24, 27, 0.24);
+    }
+    .selected-menu-section { padding: 0.55rem; }
+    .selected-menu .btn { min-height: 2.75rem; }
+    #chapter-table > thead > tr > th:first-child,
+    #chapter-table > tbody > tr > td:first-child {
+        box-sizing: border-box;
+        width: 3.25rem !important;
+        min-width: 3.25rem;
+        max-width: 3.25rem !important;
+    }
+    #chapter-table > tbody > tr.is-selected > td:first-child { background: var(--tw-brand-50, #ecfdf5); }
+    .dark #chapter-table > tbody > tr.is-selected > td:first-child { background: color-mix(in srgb, var(--tw-brand-500, #10b981) 14%, var(--tw-surface-dark, #18181b)); }
 }
 
 @media (min-width: 768px) {
@@ -364,6 +399,7 @@
     </details>
     </div>
 </div>
+<button type="button" id="selected-menu-backdrop" class="selected-menu-backdrop" hidden aria-label="Đóng menu thao tác"></button>
 <div id="reindex-preview-banner" class="hidden mt-1 mb-1 px-3 py-2 text-xs rounded-lg bg-status-warn-light dark:bg-status-warn-dark border border-status-warn-light dark:border-status-warn-dark text-status-warn-fg dark:text-status-warn-fg-dark">
     Đang xem trước: cột <strong>#</strong> hiển thị <code>index hiện tại → index mới</code>.
     Nếu ưng, bấm nút <strong>"Đánh index lại"</strong> ở toolbar phía trên (sẽ áp dụng đúng thứ tự bạn đang xem).
@@ -508,6 +544,22 @@ let pendingFetchToc = false;
 let pendingReindex = false;
 let reindexPreviewMode = false;
 const submittingForms = new WeakSet();
+const selectedMenuMq = window.matchMedia("(max-width: 767px)");
+let selectedMenuScrollLocked = false;
+
+function syncSelectedMoreOverlay() {
+    const menu = document.querySelector(".selected-more");
+    const backdrop = document.getElementById("selected-menu-backdrop");
+    const active = Boolean(menu?.open && selectedMenuMq.matches);
+    if (backdrop) backdrop.hidden = !active;
+    if (active && !selectedMenuScrollLocked) {
+        bodyLockInc();
+        selectedMenuScrollLocked = true;
+    } else if (!active && selectedMenuScrollLocked) {
+        bodyLockDec();
+        selectedMenuScrollLocked = false;
+    }
+}
 
 function closeSelectedMoreMenu() {
     const menu = document.querySelector(".selected-more");
@@ -515,6 +567,11 @@ function closeSelectedMoreMenu() {
     if (menu) menu.open = false;
     if (trigger) trigger.setAttribute("aria-expanded", "false");
 }
+
+document.querySelector(".selected-more")?.addEventListener("toggle", syncSelectedMoreOverlay);
+document.getElementById("selected-menu-backdrop")?.addEventListener("click", closeSelectedMoreMenu);
+if (selectedMenuMq.addEventListener) selectedMenuMq.addEventListener("change", syncSelectedMoreOverlay);
+else selectedMenuMq.addListener(syncSelectedMoreOverlay);
 
 function syncAiActionModal() {
     const action = document.getElementById("selected-ai-action");

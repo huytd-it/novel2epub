@@ -6,6 +6,9 @@
 // toàn màn hình (html.reader-page). Không đụng tới base.html / app.js.
 document.documentElement.classList.add("reader-page");
 </script>
+<style>
+html.reader-page main { max-width: none; padding-left: 0; padding-right: 0; }
+</style>
 {% endblock %}
 {% block mainclass %}{% endblock %}
 {% block content %}
@@ -393,44 +396,6 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         </div>
     </div>
 
-    <div id="reader-settings-panel" class="reader-settings-panel" hidden>
-        <div class="settings-row">
-            <label>Theme:
-                <select id="reader-theme-select" class="rounded border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
-                    <option value="light">Sáng</option>
-                    <option value="sepia">Sepia</option>
-                    <option value="dark">Tối</option>
-                </select>
-            </label>
-            <label>Font:
-                <select id="reader-font-select" class="rounded border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
-                    <option value="'Literata', 'Georgia', serif">Literata</option>
-                    <option value="'Noto Serif', serif">Noto Serif</option>
-                    <option value="Georgia, serif">Georgia</option>
-                    <option value="'Times New Roman', serif">Times New Roman</option>
-                    <option value="monospace">Monospace</option>
-                </select>
-            </label>
-            <label>Cỡ:
-                <select id="reader-size-select" class="rounded border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
-                    <option value="16px">16</option>
-                    <option value="18px">18</option>
-                    <option value="20px">20</option>
-                    <option value="22px">22</option>
-                    <option value="24px">24</option>
-                </select>
-            </label>
-            <label>Chiều rộng:
-                <select id="reader-width-select" class="rounded border border-surface-border dark:border-surface-border-dark bg-surface-light dark:bg-surface-dark text-sm px-1 py-0.5">
-                    <option value="600px">Hẹp</option>
-                    <option value="720px">Vừa</option>
-                    <option value="860px">Rộng</option>
-                    <option value="100%">Toàn màn hình</option>
-                </select>
-            </label>
-        </div>
-    </div>
-
     <article class="reader-content" id="reader-content">
         {% if has_translated %}
             {% for para in translated_paras %}
@@ -484,6 +449,55 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         <a href="/ebooks/{{ slug }}/read/{{ next_ch.index }}" class="reader-nav-btn">Chương tiếp &rarr;</a>
         {% endif %}
     </nav>
+</div>
+
+<div id="reader-settings-modal" class="modal-backdrop" hidden>
+    <section class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="reader-settings-title">
+        <div class="p-5">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <div>
+                    <h2 id="reader-settings-title" class="m-0 text-base font-semibold">Tuỳ chỉnh hiển thị</h2>
+                    <p class="m-0 mt-1 text-xs text-fg-muted dark:text-fg-muted-dark">Thay đổi được lưu tự động trên trình duyệt này.</p>
+                </div>
+                <button type="button" class="reader-toolbar-btn" data-close-modal="reader-settings-modal" aria-label="Đóng">&#10005;</button>
+            </div>
+            <div class="grid gap-4 sm:grid-cols-2">
+            <label class="form-group"><span class="label">Theme</span>
+                <select id="reader-theme-select" class="select">
+                    <option value="light">Sáng</option>
+                    <option value="sepia">Sepia</option>
+                    <option value="dark">Tối</option>
+                </select>
+            </label>
+            <label class="form-group"><span class="label">Font</span>
+                <select id="reader-font-select" class="select">
+                    <option value="'Literata', 'Georgia', serif">Literata</option>
+                    <option value="'Noto Serif', serif">Noto Serif</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="monospace">Monospace</option>
+                </select>
+            </label>
+            <label class="form-group"><span class="label">Cỡ chữ</span>
+                <select id="reader-size-select" class="select">
+                    <option value="16px">16</option>
+                    <option value="18px">18</option>
+                    <option value="20px">20</option>
+                    <option value="22px">22</option>
+                    <option value="24px">24</option>
+                </select>
+            </label>
+            <label class="form-group"><span class="label">Chiều rộng</span>
+                <select id="reader-width-select" class="select">
+                    <option value="600px">Hẹp</option>
+                    <option value="720px">Vừa</option>
+                    <option value="860px">Rộng</option>
+                    <option value="100%">Toàn màn hình</option>
+                </select>
+            </label>
+            </div>
+        </div>
+    </section>
 </div>
 
 <button type="button" id="reader-tools-backdrop" class="reader-mobile-backdrop" hidden aria-label="Đóng menu công cụ"></button>
@@ -590,10 +604,12 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         if (event.key === 'Escape' && toolsMore?.open) toolsMore.open = false;
     });
 
-    const settingsPanel = document.getElementById('reader-settings-panel');
     const content = document.getElementById('reader-content');
     document.getElementById('settings-toggle-btn')?.addEventListener('click', () => {
-        settingsPanel.hidden = !settingsPanel.hidden;
+        openModal('reader-settings-modal');
+    });
+    document.querySelector('[data-close-modal="reader-settings-modal"]')?.addEventListener('click', () => {
+        closeModal('reader-settings-modal');
     });
 
     const editToolbar = document.getElementById('reader-edit-toolbar');

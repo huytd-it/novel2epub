@@ -197,8 +197,9 @@
             .confirm-destructive { @apply bg-status-err-fg hover:bg-red-700 focus:ring-status-err-fg; }
 
             .modal-backdrop { @apply fixed inset-0 bg-black/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 hidden; }
+            .modal-backdrop { z-index: 80; }
             .modal-backdrop.open { @apply flex; }
-            .modal { @apply bg-surface-light dark:bg-surface-dark border border-surface-border dark:border-surface-border-dark rounded-2xl shadow-modal dark:shadow-modal-dark max-h-[90vh] overflow-y-auto w-full max-w-lg; }
+            .modal { @apply bg-surface-light dark:bg-surface-dark border border-surface-border dark:border-surface-border-dark rounded-2xl shadow-modal dark:shadow-modal-dark max-h-[90vh] overflow-y-auto w-full max-w-lg; position: relative; z-index: 1; isolation: isolate; }
             .modal-sm { @apply max-w-md; }
             .modal-lg { @apply max-w-3xl; }
             .modal-xl { @apply max-w-5xl; }

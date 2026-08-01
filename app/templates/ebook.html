@@ -595,6 +595,7 @@ function openAiActionModal() {
     if (override && modalOverride) modalOverride.checked = override.checked;
     syncAiActionModal();
     closeSelectedMoreMenu();
+    syncSelectedMoreOverlay();
     openModal("selected-ai-modal");
 }
 const selectedIndexes = new Set();
@@ -876,6 +877,8 @@ document.addEventListener("click", (event) => {
     if (closeModalBtn) closeModal(closeModalBtn.dataset.closeModal);
     if (event.target.closest?.("#add-manual-chapter-btn")) {
         event.preventDefault();
+        closeSelectedMoreMenu();
+        syncSelectedMoreOverlay();
         openModal("manual-chapter-modal");
     }
     const btn = event.target.closest && event.target.closest(".pager-nav button[data-page]");

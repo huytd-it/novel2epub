@@ -202,8 +202,6 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 .toc-backdrop { position: fixed; inset: 0; z-index: 39; background: rgba(0,0,0,0.35); }
 .toc-backdrop.hidden { display: none; }
 .reader-mobile-backdrop { display: none; }
-#reader-settings-modal { z-index: 70; }
-#reader-settings-modal > .modal { position: relative; z-index: 1; }
 
 /* --- Thanh tìm kiếm toàn truyện --- */
 .search-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 50; padding: 0.6rem 1rem; background: var(--tw-surface-light, #ffffff); border-bottom: 1px solid var(--tw-border, #e4e4e7); box-shadow: var(--tw-shadow-card, 0 1px 3px rgba(0,0,0,0.06)); }
@@ -306,7 +304,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     .reader-nav-right .reader-toolbar-btn { flex: 0 0 2.4rem; }
     .reader-nav-right button, .reader-nav-right a, .reader-nav-right summary { pointer-events: auto; touch-action: manipulation; }
     .reader-tools-more { flex: 0 0 auto; }
-    .reader-tools-menu { position: fixed; top: auto; right: 0.6rem; bottom: calc(3.65rem + env(safe-area-inset-bottom)); width: min(15rem, calc(100vw - 1.2rem)); }
+    .reader-tools-menu { position: fixed; top: auto; right: 0.6rem; bottom: calc(3.65rem + env(safe-area-inset-bottom)); z-index: 60; width: min(15rem, calc(100vw - 1.2rem)); }
     .reader-tools-menu .reader-toolbar-btn { flex-basis: auto; height: 2.4rem; }
     .bookmark-indicator { display: none; }
     /* Panel neo theo mép màn hình tôn trọng safe-area (notch / home indicator). */
@@ -608,6 +606,8 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 
     const content = document.getElementById('reader-content');
     document.getElementById('settings-toggle-btn')?.addEventListener('click', () => {
+        if (toolsMore) toolsMore.open = false;
+        syncToolsOverlay();
         openModal('reader-settings-modal');
     });
     document.querySelector('[data-close-modal="reader-settings-modal"]')?.addEventListener('click', () => {

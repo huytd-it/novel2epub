@@ -226,7 +226,7 @@
     </div>
     <div class="action-group" role="group" aria-label="Đọc">
         <span class="action-group-label">Đọc</span>
-        <a class="btn btn-sm btn-primary" href="/ebooks/{{ slug }}/read">📖 Đọc truyện</a>
+        <a class="btn btn-sm btn-primary" id="open-reader-btn" href="/ebooks/{{ slug }}/read">📖 Đọc truyện</a>
     </div>
     <div class="action-group" role="group" aria-label="Khác">
         <a class="btn btn-sm btn-secondary" href="/ebooks/{{ slug }}/glossary">Glossary</a>
@@ -545,7 +545,26 @@ let pendingReindex = false;
 let reindexPreviewMode = false;
 const submittingForms = new WeakSet();
 const selectedMenuMq = window.matchMedia("(max-width: 767px)");
+const LAST_READER_CHAPTER_KEY = "n2e:last-reader-chapter:" + SLUG;
 let selectedMenuScrollLocked = false;
+
+function saveLastReaderChapter(index) {
+    try { localStorage.setItem(LAST_READER_CHAPTER_KEY, String(index)); } catch (e) {}
+}
+function getLastReaderChapter() {
+    try { return localStorage.getItem(LAST_READER_CHAPTER_KEY); } catch (e) { return null; }
+}
+function readerHref(index) {
+    return `/ebooks/${encodeURIComponent(SLUG)}/read/${index}`;
+}
+function openReaderHref(defaultHref) {
+    const last = getLastReaderChapter();
+    if (!last) return defaultHref;
+    const base = `/ebooks/${encodeURIComponent(SLUG)}/read/${last}`;
+    const mode = localStorage.getItem("n2e-reader-mode-" + SLUG) === "edit" ? "?edit=1" : "";
+    return base + mode;
+}
+
 
 function syncSelectedMoreOverlay() {
     const menu = document.querySelector(".selected-more");

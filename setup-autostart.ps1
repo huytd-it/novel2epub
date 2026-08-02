@@ -1,8 +1,8 @@
-<![CDATA[#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 
 param(
     [string]$TaskName = "Novel2epubWebUI",
-    [string]$Command = "uvicorn app.main:app --port 8010",
+    [string]$Command = "uvicorn app.main:app --port 8000",
     [string]$WorkingDir = "D:\Projects\novel2epub"
 )
 
@@ -15,4 +15,3 @@ Register-ScheduledTask -TaskName $TaskName -InputObject $task -Force
 
 Write-Host "Created task '$TaskName' to run at logon: $Command" -ForegroundColor Green
 Write-Host "Run 'schtasks /run /tn $TaskName' to test now" -ForegroundColor Yellow
-]]>

@@ -157,8 +157,8 @@ def test_replace_para_multiline_new_text_collapsed_to_one_line():
     assert split_paras(new_text)[2] == "C."
 
 
-def test_replace_para_empty_new_text_rejected():
+def test_replace_para_empty_new_text_deletes_paragraph():
     translated = "A.\n\nB.\n\nC."
     new_text, err = replace_para(translated, 1, "B.", "   \n  ")
-    assert new_text is None
-    assert "trống" in err
+    assert new_text == "A.\n\nC."
+    assert err == ""

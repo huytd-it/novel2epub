@@ -73,7 +73,7 @@ def test_para_save_stale_conflict(tmp_path, monkeypatch):
     assert "thay đổi" in res.json()["detail"]
 
 
-def test_para_save_empty_rejected(tmp_path, monkeypatch):
+def test_para_save_empty_deletes_paragraph(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     _storage, _ch = _seed(tmp_path)
     client = _client(tmp_path, monkeypatch, cfg)
@@ -82,8 +82,9 @@ def test_para_save_empty_rejected(tmp_path, monkeypatch):
         "/api/ebooks/t/chapters/7/para/save",
         data={"para_index": 1, "para_text": "B.", "new_text": "   "},
     )
-    assert res.status_code == 409
-    assert "trống" in res.json()["detail"]
+    assert res.status_code == 200, res.text
+    assert res.json()["deleted"] is True
+    assert _storage.read_translated(_ch) == "A.\n\nC."
 
 
 def test_para_save_unknown_chapter_404(tmp_path, monkeypatch):

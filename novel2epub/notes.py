@@ -86,9 +86,9 @@ def replace_para(
     `para_text_expected` khớp dòng hiện tại trước khi ghi để chống ghi đè khi
     bản dịch đã đổi sau lúc mở editor.
 
-    `new_text` nhiều dòng bị gộp về MỘT dòng (nối bằng khoảng trắng) để giữ bất
-    biến "một đoạn = một dòng" mà reader dựa vào — tránh làm lệch `para_index`
-    của các đoạn sau. Đoạn rỗng bị từ chối (sẽ biến mất và lệch index).
+    `new_text` nhiều dòng bị gộp về MỘT dòng (nối bằng khoảng trắng). Nếu nội
+    dung mới rỗng, xóa hẳn dòng đoạn đó; client phải đánh lại `para_index` cho
+    các đoạn phía sau.
 
     Trả (văn_bản_mới, "") khi thành công, (None, lý_do) khi thất bại.
     """
@@ -103,7 +103,9 @@ def replace_para(
 
     cleaned = " ".join(seg.strip() for seg in new_text.splitlines() if seg.strip())
     if not cleaned:
-        return None, "Đoạn không được để trống."
+        lines.pop(line_idx)
+        remaining = [line.strip() for line in lines if line.strip()]
+        return "\n\n".join(remaining), ""
 
     lines[line_idx] = cleaned
     return "\n".join(lines), ""

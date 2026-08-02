@@ -55,6 +55,11 @@ html.reader-page main { max-width: none; padding-left: 0; padding-right: 0; }
 .dark .settings-row select { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
 
 .reader-content { width: 100%; max-width: 720px; box-sizing: border-box; margin: 1.5rem auto; line-height: 1.8; font-size: 18px; font-family: 'Literata', 'Georgia', serif; }
+.reader-chapter-title { margin: 0 0 1.35rem; font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-size: 1.55em; line-height: 1.3; text-align: center; }
+.reader-content:not(.edit-mode) .reader-chapter-title { display: none; }
+.reader-content.edit-mode .reader-chapter-title { cursor: text; border-radius: 6px; outline: 1px dashed var(--tw-border, #e4e4e7); }
+.reader-content.edit-mode .reader-chapter-title[contenteditable="true"]:focus { outline: 2px solid var(--tw-brand-500, #10b981); background: var(--tw-brand-50, #ecfdf5); }
+.dark .reader-content.edit-mode .reader-chapter-title[contenteditable="true"]:focus { background: rgba(16, 185, 129, 0.1); }
 [data-theme="sepia"] .reader-content { background: #f5f0e8; color: #5b4636; padding: 0.5rem 1.5rem; border-radius: 4px; }
 .reader-para { position: relative; margin: 0 0 0.8em; text-align: justify; }
 .reader-content.edit-mode .reader-para { cursor: text; border-radius: 6px; outline: 1px dashed transparent; transition: background 0.15s, outline-color 0.15s; }
@@ -420,6 +425,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 
     <article class="reader-content" id="reader-content">
         {% if has_translated %}
+            <h1 id="reader-chapter-title" class="reader-chapter-title">{{ ch.title }}</h1>
             {% for para in translated_paras %}
             <p class="reader-para" data-para="{{ loop.index0 }}">{{ para }}</p>
             {% endfor %}
@@ -587,6 +593,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     const INDEX = {{ ch.index | tojson }};
     const STORAGE_KEY = `n2e-read-${SLUG}-${INDEX}`;
     const BOOKMARK_KEY = `n2e-bookmark-${SLUG}`;
+    const MODE_KEY = `n2e-reader-mode-${SLUG}`;
     const mobileTools = document.querySelector('.reader-nav-right.mobile-actions');
     const mobileToolsHome = mobileTools ? document.createComment('reader tools home') : null;
     const mobileMq = window.matchMedia('(max-width: 640px)');
@@ -662,6 +669,11 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             para.contentEditable = on ? 'true' : 'false';
             if (!on) para.blur();
         });
+        const chapterTitle = document.getElementById('reader-chapter-title');
+        if (chapterTitle) {
+            chapterTitle.contentEditable = on ? 'true' : 'false';
+            if (!on) chapterTitle.blur();
+        }
         document.querySelectorAll('.edit-mode-control').forEach(control => {
             control.hidden = !on;
         });
@@ -1419,6 +1431,14 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         form.set('new_text', next);
         try {
             const data = await api(`/api/ebooks/${encodeURIComponent(SLUG)}/chapters/${INDEX}/para/save`, form);
+            if (data.deleted) {
+                para.remove();
+                content.querySelectorAll('.reader-para').forEach((item, index) => {
+                    item.dataset.para = String(index);
+                });
+                toast('Đã xóa đoạn', 'success');
+                return;
+            }
             para.textContent = data.para;
             originals.set(para, data.para);
             toast('Đã lưu đoạn', 'success');
@@ -1431,25 +1451,51 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         }
     }
 
+    async function saveTitle(title) {
+        const original = originals.get(title);
+        const next = title.textContent.trim();
+        if (original == null || next === original) return;
+        const form = new FormData();
+        form.set('title', next);
+        title.classList.add('is-saving');
+        title.classList.remove('save-error');
+        try {
+            const data = await api(`/api/ebooks/${encodeURIComponent(SLUG)}/chapters/${INDEX}/title`, form);
+            title.textContent = data.title;
+            originals.set(title, data.title);
+            const option = document.querySelector(`#chapter-select option[value="${INDEX}"]`);
+            if (option) option.textContent = data.title;
+            document.title = `Đọc: ${data.title} — novel2epub`;
+            toast('Đã lưu tiêu đề', 'success');
+        } catch (error) {
+            title.classList.add('save-error');
+            toast(error.message, 'error');
+        } finally {
+            title.classList.remove('is-saving');
+        }
+    }
+
     content.addEventListener('focusin', (event) => {
-        const para = event.target.closest('.reader-para[contenteditable="true"]');
-        if (para && !originals.has(para)) originals.set(para, para.textContent.trim());
+        const editable = event.target.closest('.reader-para[contenteditable="true"], .reader-chapter-title[contenteditable="true"]');
+        if (editable && !originals.has(editable)) originals.set(editable, editable.textContent.trim());
     });
     content.addEventListener('focusout', (event) => {
         const para = event.target.closest('.reader-para[contenteditable="true"]');
         if (para) savePara(para);
+        const title = event.target.closest('.reader-chapter-title[contenteditable="true"]');
+        if (title) saveTitle(title);
     });
     content.addEventListener('keydown', (event) => {
-        const para = event.target.closest('.reader-para[contenteditable="true"]');
-        if (!para) return;
+        const editable = event.target.closest('.reader-para[contenteditable="true"], .reader-chapter-title[contenteditable="true"]');
+        if (!editable) return;
         if (event.key === 'Escape') {
             event.preventDefault();
-            para.textContent = originals.get(para) ?? para.textContent;
-            para.classList.remove('save-error');
-            para.blur();
+            editable.textContent = originals.get(editable) ?? editable.textContent;
+            editable.classList.remove('save-error');
+            editable.blur();
         } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
             event.preventDefault();
-            para.blur();
+            editable.blur();
         }
     });
 })();
@@ -1464,6 +1510,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     const SLUG = {{ slug | tojson }};
     const INDEX = {{ ch.index | tojson }};
     const api = (path) => `/api/ebooks/${encodeURIComponent(SLUG)}${path}`;
+    const mobileMq = window.matchMedia('(max-width: 640px)');
 
     // ---- TOC sidebar ----
     const sidebar = document.getElementById('toc-sidebar');
@@ -1497,6 +1544,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     const replaceRow = document.getElementById('search-replace-row');
     const replaceInput = document.getElementById('search-replace-input');
     const replaceCount = document.getElementById('search-replace-count');
+    const searchToolsMore = document.querySelector('.reader-tools-more');
     const searchBackdrop = document.createElement('button');
     searchBackdrop.type = 'button';
     searchBackdrop.id = 'search-backdrop';
@@ -1519,8 +1567,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 
     const isOpen = () => !bar.classList.contains('hidden');
     function openSearch() {
-        toolsMore && (toolsMore.open = false);
-        syncToolsOverlay();
+        if (searchToolsMore) searchToolsMore.open = false;
         bar.classList.remove('hidden');
         syncSearchOverlay();
         input.focus();

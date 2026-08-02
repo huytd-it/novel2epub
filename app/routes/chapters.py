@@ -529,6 +529,8 @@ def api_ebook_chapter_para_save(
     if new_translated is None:
         raise HTTPException(status_code=409, detail=err)
     storage.write_translated(ch, new_translated)
+    if not new_text.strip():
+        return JSONResponse({"saved": True, "deleted": True})
     # Đoạn đã chuẩn hoá (gộp dòng) để client render lại đúng.
     return JSONResponse({"saved": True, "para": split_paras(new_translated)[para_index]})
 

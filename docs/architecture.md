@@ -71,6 +71,14 @@ FastAPI render giao diện Jinja2 và cung cấp API nội bộ. `JobQueue` chia
 
 `AutomationScheduler` kiểm tra cron định kỳ và enqueue toàn bộ chuỗi bước như một job tuần tự. Lịch bị lỡ khi máy tắt được chạy bù tối đa một lần.
 
+## Trang Đọc
+
+`/ebooks/{slug}/read/{index}` là trang đọc. Bôi đen văn bản mở thanh công cụ nổi: copy, dịch nhanh, thay thế, đọc từ đoạn này, ghi chú lỗi dịch.
+
+- `POST /api/ebooks/{slug}/quick-translate`: dịch đoạn bôi đen bằng NMT cục bộ (HachimiMT/MoxhiMT), bất kể `translate.type` của ebook. Instance model được cache theo `model_key` trong tiến trình web.
+- Thay thế có ba phạm vi: vùng đã chọn ghi thẳng qua `chapters/{index}/para/save`; toàn bộ chương và toàn bộ sách uỷ quyền cho `glossary/propagate` (có backup + job queue). Tuỳ chọn "toàn bộ từ" bọc chuỗi tìm bằng `\b` và gửi như regex.
+- `POST /api/tts`: tổng hợp giọng đọc bằng Edge TTS (`edge-tts`), trả mp3 cho từng đoạn. Trang đọc phát tuần tự, prefetch đoạn kế và tự chuyển chương khi hết bài. Dịch vụ Edge thỉnh thoảng trả stream rỗng nên endpoint thử lại tối đa 3 lần.
+
 ## Reader Sync
 
 Tích hợp Reader dùng Supabase PostgREST. Đồng bộ dựa trên hash nội dung và upsert theo `(book_id, index)`:

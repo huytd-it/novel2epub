@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import re
+import threading
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from novel2epub.notes import split_paras
 from novel2epub.storage import Storage
@@ -168,3 +169,92 @@ def reader_chapter(request: Request, slug: str, index: int):
             "has_mt_snapshot": storage.has_translated_mt(ch),
         },
     )
+
+
+_QUICK_MT_MAX_CHARS = 2000
+_quick_mt_lock = threading.Lock()
+_quick_mt_cache: dict[str, object] = {}
+
+
+def _quick_mt_translator(slug: str):
+    """Translator NMT cục bộ dùng chung cho dịch nhanh trên trang đọc.
+
+    Model CT2 nặng nên giữ một instance cho mỗi model_key — mọi ebook dùng
+    cùng model sẽ chia sẻ, glossary lấy theo ebook đầu tiên nạp model đó.
+    """
+    from novel2epub.translator import HachimiMTTranslator
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    key = cfg.translate.hachimimt.model_key
+    with _quick_mt_lock:
+        translator = _quick_mt_cache.get(key)
+        if translator is None:
+            translator = HachimiMTTranslator(cfg.translate, storage=storage)
+            _quick_mt_cache[key] = translator
+        return translator
+
+
+@router.post("/api/ebooks/{slug}/quick-translate")
+def reader_quick_translate(slug: str, text: str = Form(...)):
+    """Dịch nhanh một đoạn được bôi đen bằng NMT cục bộ (HachimiMT/MoxhiMT)."""
+    text = text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Chưa có nội dung để dịch.")
+    if len(text) > _QUICK_MT_MAX_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Đoạn quá dài ({len(text)} ký tự, tối đa {_QUICK_MT_MAX_CHARS}).",
+        )
+    translator = _quick_mt_translator(slug)
+    with _quick_mt_lock:
+        try:
+            translated = translator.translate(text)
+        except Exception as e:  # model chưa tải được / thiếu ctranslate2
+            raise HTTPException(status_code=503, detail=f"MT cục bộ lỗi: {e}")
+    return JSONResponse({"text": translated})
+
+
+_TTS_MAX_CHARS = 3000
+_TTS_VOICE_RE = re.compile(r"^[a-zA-Z]{2}-[a-zA-Z]{2,4}-[A-Za-z0-9]+Neural$")
+_TTS_RATE_RE = re.compile(r"^[+-]\d{1,3}%$")
+
+
+@router.post("/api/tts")
+async def reader_tts(
+    text: str = Form(...),
+    voice: str = Form("vi-VN-HoaiMyNeural"),
+    rate: str = Form("+0%"),
+):
+    """Tổng hợp giọng đọc bằng Edge TTS, trả về một file mp3 trọn đoạn."""
+    text = text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Chưa có nội dung để đọc.")
+    if len(text) > _TTS_MAX_CHARS:
+        text = text[:_TTS_MAX_CHARS]
+    if not _TTS_VOICE_RE.match(voice):
+        raise HTTPException(status_code=400, detail="Giọng đọc không hợp lệ.")
+    if not _TTS_RATE_RE.match(rate):
+        raise HTTPException(status_code=400, detail="Tốc độ đọc không hợp lệ.")
+
+    try:
+        import edge_tts
+    except ImportError:
+        raise HTTPException(
+            status_code=503, detail="Chưa cài edge-tts (pip install edge-tts)."
+        )
+
+    # Dịch vụ Edge thỉnh thoảng đóng stream mà không gửi audio — thử lại vài lần.
+    last_error = "Edge TTS không trả về âm thanh."
+    for _ in range(3):
+        audio = bytearray()
+        try:
+            async for chunk in edge_tts.Communicate(text, voice, rate=rate).stream():
+                if chunk["type"] == "audio":
+                    audio.extend(chunk["data"])
+        except Exception as e:
+            last_error = str(e)
+            continue
+        if audio:
+            return Response(bytes(audio), media_type="audio/mpeg")
+    raise HTTPException(status_code=502, detail=f"Edge TTS lỗi: {last_error}")

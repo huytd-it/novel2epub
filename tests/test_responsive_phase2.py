@@ -156,7 +156,7 @@ def test_reader_mobile_toolbar_keeps_touch_targets_clickable():
 
 
 def test_reader_safe_panels():
-    assert READER.count("safe-panels") == 4
+    assert READER.count("safe-panels") == 5
     assert "env(safe-area-inset-top)" in READER
     assert "env(safe-area-inset-bottom)" in READER
 

@@ -9,6 +9,9 @@ python-multipart>=0.0.9
 pytest>=8.0.0
 croniter>=2.0
 
+# Đọc thành tiếng trên trang đọc (/api/tts) — giọng Edge Neural
+edge-tts>=7.0
+
 # Engine crawl: Scrapling (anti-bot bypass, stealth browser)
 # pip install scrapling[fetchers] && scrapling install
 scrapling[fetchers]>=0.2

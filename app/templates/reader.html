@@ -229,6 +229,36 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 .search-status, .search-replace-count { font-size: 0.8rem; color: var(--tw-fg-muted, #71717a); }
 .dark .search-status, .dark .search-replace-count { color: var(--tw-fg-muted-dark, #a1a1aa); }
 
+/* --- Thanh công cụ nổi khi bôi đen (kiểu Word) --- */
+.sel-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.1rem; }
+.sel-toolbar .sep { width: 1px; align-self: stretch; margin: 0.15rem 0.2rem; background: var(--tw-border, #e4e4e7); }
+.dark .sel-toolbar .sep { background: var(--tw-border-dark, #3f3f46); }
+.sel-tool-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.5rem; border: none; border-radius: 6px; background: none; color: var(--tw-fg-light, #18181b); font-size: 0.8125rem; line-height: 1; white-space: nowrap; cursor: pointer; }
+.dark .sel-tool-btn { color: var(--tw-fg-dark, #fafafa); }
+.sel-tool-btn:hover { background: var(--tw-surface-muted, #f4f4f5); }
+.dark .sel-tool-btn:hover { background: var(--tw-surface-muted-dark, #27272a); }
+.sel-tool-btn:disabled { opacity: 0.5; cursor: wait; }
+.sel-tool-btn svg { width: 0.95rem; height: 0.95rem; flex: 0 0 auto; }
+.sel-mt-result { width: 300px; max-width: 75vw; margin-top: 0.3rem; padding: 0.4rem 0.5rem; border-radius: 6px; font-size: 0.8125rem; line-height: 1.55; background: var(--tw-surface-muted, #f4f4f5); }
+.dark .sel-mt-result { background: var(--tw-surface-muted-dark, #27272a); }
+
+/* --- Modal thay thế --- */
+.replace-scope { display: grid; gap: 0.35rem; }
+.replace-scope label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.875rem; }
+.replace-hint { font-size: 0.75rem; color: var(--tw-fg-muted, #71717a); overflow-wrap: anywhere; }
+.dark .replace-hint { color: var(--tw-fg-muted-dark, #a1a1aa); }
+
+/* --- Thanh điều khiển TTS --- */
+.tts-bar { position: fixed; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 36; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; justify-content: center; max-width: min(46rem, calc(100vw - 1.5rem)); padding: 0.45rem 0.6rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 999px; background: var(--tw-surface-light, #ffffff); box-shadow: 0 10px 30px rgba(24, 24, 27, 0.16); }
+.dark .tts-bar { background: var(--tw-surface-dark, #18181b); border-color: var(--tw-border-dark, #3f3f46); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
+.tts-bar[hidden] { display: none; }
+.tts-bar select { font-size: 0.8rem; padding: 0.2rem 0.35rem; border-radius: 6px; background: var(--tw-surface-light, #ffffff); color: var(--tw-fg-light, #18181b); border: 1px solid var(--tw-border, #e4e4e7); }
+.dark .tts-bar select { background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
+.tts-status { font-size: 0.75rem; color: var(--tw-fg-muted, #71717a); min-width: 5.5rem; text-align: center; }
+.dark .tts-status { color: var(--tw-fg-muted-dark, #a1a1aa); }
+.reader-para.tts-reading { background: var(--tw-status-warn-light, #fef9c3); border-radius: 4px; box-shadow: 0 0 0 0.35rem var(--tw-status-warn-light, #fef9c3); }
+.dark .reader-para.tts-reading { background: var(--tw-status-warn-dark, #4a3c10); box-shadow: 0 0 0 0.35rem var(--tw-status-warn-dark, #4a3c10); }
+
 @media (max-width: 900px) {
     .reader-wrap.toc-open { margin-left: 0; }
     .toc-sidebar { width: 80vw; max-width: 300px; }
@@ -337,6 +367,8 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     .reader-tools-menu { position: fixed; top: auto; right: 0.6rem; bottom: calc(3.65rem + env(safe-area-inset-bottom)); z-index: 60; width: min(15rem, calc(100vw - 1.2rem)); }
     .reader-tools-menu .reader-toolbar-btn { flex-basis: auto; height: 2.4rem; }
     .bookmark-indicator { display: none; }
+    .tts-bar { left: 0.5rem; right: 0.5rem; transform: none; max-width: none; bottom: calc(3.65rem + env(safe-area-inset-bottom)); border-radius: 14px; }
+    .tts-status { flex: 1 1 100%; order: 9; }
     /* Panel neo theo mép màn hình tôn trọng safe-area (notch / home indicator). */
     .reader-nav-bottom { margin-bottom: 1rem; padding: 1rem 0; gap: 0.6rem; }
     .reader-nav-bottom .reader-nav-btn { flex: 1 1 0; }
@@ -375,6 +407,9 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             <button type="button" id="bookmark-toggle-btn" class="reader-toolbar-btn" title="Bookmark (B)" aria-label="Bookmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button>
             {% if has_translated %}
             <button type="button" id="notes-toggle-btn" class="reader-toolbar-btn" title="Ghi chú lỗi dịch (N)" aria-label="Ghi chú" style="position: relative;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg><span id="notes-badge" class="notes-badge" hidden>0</span></button>
+            {% endif %}
+            {% if has_translated %}
+            <button type="button" id="tts-toggle-btn" class="reader-toolbar-btn" title="Đọc thành tiếng (P)" aria-label="Đọc thành tiếng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
             {% endif %}
             <button type="button" id="search-toggle-btn" class="reader-toolbar-btn" title="Tìm toàn truyện (Ctrl+Shift+F)" aria-label="Tìm kiếm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
             <button type="button" id="settings-toggle-btn" class="reader-toolbar-btn" title="Tuỳ chỉnh hiển thị" aria-label="Cài đặt hiển thị"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></svg></button>
@@ -527,6 +562,65 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         </div>
     </section>
 </div>
+
+{% if has_translated %}
+<div id="reader-replace-modal" class="modal-backdrop" hidden>
+    <section class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="reader-replace-title">
+        <div class="p-5">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <h2 id="reader-replace-title" class="m-0 text-base font-semibold">Thay thế</h2>
+                <button type="button" class="reader-toolbar-btn" data-close-modal="reader-replace-modal" aria-label="Đóng">&#10005;</button>
+            </div>
+            <div class="grid gap-3">
+                <label class="form-group"><span class="label">Tìm</span>
+                    <input type="text" id="replace-find-input" class="input" autocomplete="off">
+                </label>
+                <label class="form-group"><span class="label">Thay thế bằng</span>
+                    <input type="text" id="replace-with-input" class="input" placeholder="Nội dung mới…" autocomplete="off">
+                </label>
+                <div class="flex flex-wrap gap-4">
+                    <label class="search-opt"><input type="checkbox" id="replace-whole-word"> Toàn bộ từ</label>
+                    <label class="search-opt"><input type="checkbox" id="replace-regex"> Regex</label>
+                </div>
+                <div class="form-group">
+                    <span class="label">Phạm vi</span>
+                    <div class="replace-scope">
+                        <label><input type="radio" name="replace-scope" value="selection" checked> Chỉ vùng đã chọn</label>
+                        <label><input type="radio" name="replace-scope" value="chapter"> Toàn bộ chương</label>
+                        <label><input type="radio" name="replace-scope" value="all"> Toàn bộ sách</label>
+                    </div>
+                </div>
+                <div id="replace-hint" class="replace-hint"></div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" class="btn btn-secondary" data-close-modal="reader-replace-modal">Hủy</button>
+                    <button type="button" id="replace-run-btn" class="btn btn-primary">Thay thế</button>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div id="tts-bar" class="tts-bar safe-panels" role="group" aria-label="Đọc thành tiếng" hidden>
+    <button type="button" id="tts-prev-btn" class="reader-toolbar-btn" title="Đoạn trước" aria-label="Đoạn trước">&#9198;</button>
+    <button type="button" id="tts-play-btn" class="reader-toolbar-btn" title="Phát / tạm dừng" aria-label="Phát">&#9654;</button>
+    <button type="button" id="tts-next-btn" class="reader-toolbar-btn" title="Đoạn sau" aria-label="Đoạn sau">&#9197;</button>
+    <select id="tts-voice-select" aria-label="Giọng đọc">
+        <option value="vi-VN-HoaiMyNeural">Hoài My (nữ)</option>
+        <option value="vi-VN-NamMinhNeural">Nam Minh (nam)</option>
+    </select>
+    <select id="tts-rate-select" aria-label="Tốc độ đọc">
+        <option value="-25%">0.75×</option>
+        <option value="+0%">1×</option>
+        <option value="+25%">1.25×</option>
+        <option value="+50%">1.5×</option>
+        <option value="+75%">1.75×</option>
+        <option value="+100%">2×</option>
+    </select>
+    <label class="search-opt"><input type="checkbox" id="tts-autonext" checked> Tự sang chương</label>
+    <span id="tts-status" class="tts-status"></span>
+    <button type="button" id="tts-close-btn" class="reader-toolbar-btn" title="Dừng và đóng" aria-label="Đóng">&#10005;</button>
+</div>
+{% endif %}
 
 <button type="button" id="reader-tools-backdrop" class="reader-mobile-backdrop" hidden aria-label="Đóng menu công cụ"></button>
 <button type="button" id="notes-backdrop" class="reader-mobile-backdrop" hidden aria-label="Đóng ghi chú"></button>
@@ -959,12 +1053,32 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         popover.style.top = (rect.bottom + window.scrollY + 6) + 'px';
     }
 
-    content.addEventListener('mouseup', () => {
+    function toolButton(label, onClick) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'sel-tool-btn';
+        btn.textContent = label;
+        btn.addEventListener('mousedown', (e) => e.preventDefault());
+        btn.addEventListener('click', onClick);
+        return btn;
+    }
+
+    // Offset ký tự của điểm bắt đầu vùng chọn tính từ đầu đoạn.
+    function selectionStart(para, range) {
+        const pre = range.cloneRange();
+        pre.selectNodeContents(para);
+        pre.setEnd(range.startContainer, range.startOffset);
+        return pre.toString().length;
+    }
+
+    function onSelectionDone() {
         if (compareMode || aiBusy) return;
         setTimeout(() => {
             const sel = window.getSelection();
             if (!sel || sel.isCollapsed) return;
-            const text = sel.toString().trim();
+            if (!popover.hidden && popover.contains(sel.anchorNode)) return;
+            const raw = sel.toString();
+            const text = raw.trim();
             if (!text) return;
             const paraOf = (node) => {
                 const el = node && (node.nodeType === 1 ? node : node.parentElement);
@@ -973,18 +1087,232 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             const p1 = paraOf(sel.anchorNode), p2 = paraOf(sel.focusNode);
             if (!p1 || !p2) return;
             if (p1 !== p2) { toast('Chỉ chọn được trong 1 đoạn văn', 'error'); return; }
-            const rect = sel.getRangeAt(0).getBoundingClientRect();
-            draft = { para_index: +p1.dataset.para, selected_text: text, para_text: paraText(p1) };
-            showPopoverAt(rect, (root) => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'note-popover-btn';
-                btn.textContent = '\u{1F4DD} Ghi chú lỗi dịch';
-                btn.addEventListener('mousedown', (e) => e.preventDefault());
-                btn.addEventListener('click', () => showNoteForm(rect));
-                root.appendChild(btn);
-            });
+            const range = sel.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            draft = {
+                para_index: +p1.dataset.para,
+                selected_text: text,
+                para_text: paraText(p1),
+                start: selectionStart(p1, range) + raw.indexOf(text),
+            };
+            showToolbar(rect);
         }, 0);
+    }
+    content.addEventListener('mouseup', onSelectionDone);
+    content.addEventListener('touchend', onSelectionDone);
+
+    function showToolbar(rect) {
+        const d = draft;
+        showPopoverAt(rect, (root) => {
+            const bar = document.createElement('div');
+            bar.className = 'sel-toolbar';
+            bar.append(
+                toolButton('⧉ Copy', () => {
+                    navigator.clipboard?.writeText(d.selected_text);
+                    toast('Đã copy', 'success');
+                    hidePopover();
+                }),
+                toolButton('⇄ Dịch MT', (e) => quickTranslate(rect, e.currentTarget)),
+                toolButton('⇋ Thay thế', () => openReplaceModal(d)),
+            );
+            const sep = document.createElement('span');
+            sep.className = 'sep';
+            bar.append(sep, toolButton('▶ Đọc từ đây', () => {
+                hidePopover();
+                window.n2eTts?.playFromPara(d.para_index);
+            }), toolButton('✎ Ghi chú', () => showNoteForm(rect)));
+            root.appendChild(bar);
+        });
+        draft = d;
+    }
+
+    async function quickTranslate(rect, btn) {
+        const d = draft;
+        if (!d) return;
+        btn.disabled = true;
+        btn.textContent = '… Đang dịch';
+        const form = new FormData();
+        form.set('text', d.selected_text);
+        let data;
+        try {
+            data = await api(`/api/ebooks/${encodeURIComponent(SLUG)}/quick-translate`, form);
+        } catch (e) {
+            btn.disabled = false;
+            btn.textContent = '⇄ Dịch MT';
+            toast(e.message, 'error');
+            return;
+        }
+        showPopoverAt(rect, (root) => {
+            const quote = document.createElement('div');
+            quote.className = 'note-popover-quote';
+            quote.textContent = '«' + d.selected_text + '»';
+            const out = document.createElement('div');
+            out.className = 'sel-mt-result';
+            out.textContent = data.text;
+            const actions = document.createElement('div');
+            actions.className = 'note-popover-actions';
+            const copy = document.createElement('button');
+            copy.type = 'button'; copy.textContent = 'Copy';
+            copy.addEventListener('click', () => {
+                navigator.clipboard?.writeText(data.text);
+                toast('Đã copy', 'success');
+            });
+            const apply = document.createElement('button');
+            apply.type = 'button'; apply.className = 'primary'; apply.textContent = 'Thay bằng bản này';
+            apply.addEventListener('click', async () => {
+                apply.disabled = true;
+                await applyToSelection(d, data.text);
+            });
+            actions.append(copy, apply);
+            root.append(quote, out, actions);
+        });
+        draft = d;
+    }
+
+    // ---------- Thay thế trong vùng chọn ----------
+    async function applyToSelection(d, newText) {
+        const paraText0 = d.para_text;
+        const next = paraText0.slice(0, d.start) + newText
+            + paraText0.slice(d.start + d.selected_text.length);
+        if (next === paraText0) { hidePopover(); return; }
+        const form = new FormData();
+        form.set('para_index', d.para_index);
+        form.set('para_text', paraText0);
+        form.set('new_text', next);
+        try {
+            const res = await api(
+                `/api/ebooks/${encodeURIComponent(SLUG)}/chapters/${INDEX}/para/save`, form);
+            const para = content.querySelectorAll('.reader-para')[d.para_index];
+            if (res.deleted) para?.remove();
+            else if (para) para.textContent = res.para;
+            hidePopover();
+            window.getSelection()?.removeAllRanges();
+            refreshUI();
+            toast('Đã cập nhật đoạn', 'success');
+        } catch (e) {
+            toast(e.message, 'error');
+        }
+    }
+
+    // Escape an ninh cho cả JS RegExp lẫn `re` của Python.
+    const escapeRe = (s) => s.replace(/[.^$*+?()[\]{}|\\\/-]/g, '\\$&');
+
+    function buildPattern({ find, regex, wholeWord }) {
+        if (regex) return find;
+        const body = escapeRe(find);
+        return wholeWord ? `\\b${body}\\b` : body;
+    }
+
+    const replaceModal = document.getElementById('reader-replace-modal');
+    const replaceFind = document.getElementById('replace-find-input');
+    const replaceWith = document.getElementById('replace-with-input');
+    const replaceWhole = document.getElementById('replace-whole-word');
+    const replaceRegex = document.getElementById('replace-regex');
+    const replaceHint = document.getElementById('replace-hint');
+    const replaceRunBtn = document.getElementById('replace-run-btn');
+    const scopeInput = () => replaceModal.querySelector('input[name="replace-scope"]:checked');
+    let replaceCtx = null;
+
+    function openReplaceModal(d) {
+        replaceCtx = d;
+        replaceFind.value = d.selected_text;
+        replaceWith.value = '';
+        replaceWhole.checked = false;
+        replaceRegex.checked = false;
+        replaceModal.querySelector('input[value="selection"]').checked = true;
+        replaceHint.textContent = '';
+        hidePopover();
+        openModal('reader-replace-modal');
+        replaceWith.focus();
+        refreshReplaceHint();
+    }
+    replaceModal?.querySelectorAll('[data-close-modal="reader-replace-modal"]').forEach(btn => {
+        btn.addEventListener('click', () => closeModal('reader-replace-modal'));
+    });
+
+    async function refreshReplaceHint() {
+        const find = replaceFind.value.trim();
+        const scope = scopeInput()?.value;
+        if (!find) { replaceHint.textContent = ''; return; }
+        if (scope === 'selection') {
+            replaceHint.textContent = 'Chỉ đổi trong phần văn bản vừa bôi đen.';
+            return;
+        }
+        const pattern = buildPattern({ find, regex: replaceRegex.checked, wholeWord: replaceWhole.checked });
+        const params = new URLSearchParams({ find: pattern, regex: '1', chapter_index: INDEX });
+        try {
+            const res = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/glossary/match-count?${params}`);
+            if (!res.ok) { replaceHint.textContent = ''; return; }
+            const d = await res.json();
+            replaceHint.textContent = scope === 'chapter'
+                ? `${d.chapter_count} chỗ trong chương này.`
+                : `${d.total_count} chỗ trong ${d.chapter_total} chương.`;
+        } catch (e) { replaceHint.textContent = ''; }
+    }
+    [replaceFind, replaceWith].forEach(el => el?.addEventListener('input', refreshReplaceHint));
+    [replaceWhole, replaceRegex].forEach(el => el?.addEventListener('change', refreshReplaceHint));
+    replaceModal?.querySelectorAll('input[name="replace-scope"]').forEach(radio => {
+        radio.addEventListener('change', refreshReplaceHint);
+    });
+
+    async function replaceInSelection(find) {
+        const d = replaceCtx;
+        if (!d) { toast('Vùng chọn không còn khả dụng.', 'error'); return; }
+        let re;
+        try {
+            re = new RegExp(buildPattern({ find, regex: replaceRegex.checked, wholeWord: replaceWhole.checked }), 'g');
+        } catch (e) {
+            toast(`Regex không hợp lệ: ${e.message}`, 'error');
+            return;
+        }
+        const replaced = d.selected_text.replace(re, replaceWith.value);
+        if (replaced === d.selected_text) { toast('Không có chỗ nào khớp.', 'warning'); return; }
+        closeModal('reader-replace-modal');
+        await applyToSelection(d, replaced);
+    }
+
+    async function replaceInScope(find, scope) {
+        const replace = replaceWith.value.trim();
+        if (!replace) { toast('Cần nội dung thay thế.', 'warning'); return; }
+        const body = new URLSearchParams({
+            find: buildPattern({ find, regex: replaceRegex.checked, wholeWord: replaceWhole.checked }),
+            replace,
+            scope: scope === 'chapter' ? 'chapter' : 'all',
+            regex: '1',
+        });
+        if (scope === 'chapter') body.set('chapter_index', INDEX);
+        let res;
+        try {
+            res = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/glossary/propagate`,
+                { method: 'POST', body });
+        } catch (e) { toast('Lỗi kết nối, thử lại.', 'error'); return; }
+        if (res.status === 409) { toast('Đang có job khác chạy, vui lòng đợi.', 'warning'); return; }
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            toast(d.detail || 'Thay thế thất bại.', 'error');
+            return;
+        }
+        const data = await res.json();
+        closeModal('reader-replace-modal');
+        if (scope === 'chapter') {
+            toast(`Đã thay ${data.replaced} chỗ trong chương này.`, 'success');
+            setTimeout(() => window.location.reload(), 600);
+        } else {
+            toast('Đã xếp hàng thay toàn bộ sách (chạy nền).', 'success');
+        }
+    }
+
+    replaceRunBtn?.addEventListener('click', async () => {
+        const find = replaceFind.value.trim();
+        if (!find) { toast('Cần chuỗi cần tìm.', 'warning'); return; }
+        const scope = scopeInput()?.value;
+        replaceRunBtn.disabled = true;
+        try {
+            if (scope === 'selection') await replaceInSelection(find);
+            else await replaceInScope(find, scope);
+        } finally {
+            replaceRunBtn.disabled = false;
+        }
     });
 
     function showNoteForm(rect) {
@@ -1498,6 +1826,209 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             editable.blur();
         }
     });
+})();
+</script>
+<script>
+// Đọc thành tiếng bằng Edge TTS: từng đoạn một, tự sang chương khi hết bài.
+(function() {
+    const SLUG = {{ slug | tojson }};
+    const INDEX = {{ ch.index | tojson }};
+    const NEXT_INDEX = {{ next_ch.index if next_ch else 'null' }};
+    const AUTO_KEY = 'n2e-tts-auto';
+    const VOICE_KEY = 'n2e-tts-voice';
+    const RATE_KEY = 'n2e-tts-rate';
+    const AUTONEXT_KEY = 'n2e-tts-autonext';
+    const CACHE_MAX = 6;
+
+    const content = document.getElementById('reader-content');
+    const bar = document.getElementById('tts-bar');
+    if (!content || !bar) return;
+    const playBtn = document.getElementById('tts-play-btn');
+    const statusEl = document.getElementById('tts-status');
+    const voiceSel = document.getElementById('tts-voice-select');
+    const rateSel = document.getElementById('tts-rate-select');
+    const autoNextCb = document.getElementById('tts-autonext');
+
+    voiceSel.value = localStorage.getItem(VOICE_KEY) || voiceSel.value;
+    rateSel.value = localStorage.getItem(RATE_KEY) || '+0%';
+    autoNextCb.checked = localStorage.getItem(AUTONEXT_KEY) !== '0';
+
+    const audio = new Audio();
+    const cache = new Map();
+    let idx = 0;
+    let generation = 0;
+
+    const paras = () => Array.from(content.querySelectorAll('.reader-para'));
+    const textOf = (i) => (paras()[i]?.textContent || '').trim();
+
+    function setStatus(msg) { statusEl.textContent = msg; }
+    function setPlayIcon(isPlaying) {
+        playBtn.innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9654;';
+        playBtn.title = isPlaying ? 'Tạm dừng' : 'Phát';
+    }
+
+    function highlight() {
+        const list = paras();
+        list.forEach(p => p.classList.remove('tts-reading'));
+        const para = list[idx];
+        if (!para) return;
+        para.classList.add('tts-reading');
+        const box = para.getBoundingClientRect();
+        if (box.top < 80 || box.bottom > window.innerHeight - 120) {
+            para.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+    }
+
+    function dropCache() {
+        for (const url of cache.values()) URL.revokeObjectURL(url);
+        cache.clear();
+    }
+
+    async function audioUrl(i) {
+        const key = `${i}|${voiceSel.value}|${rateSel.value}`;
+        if (cache.has(key)) return cache.get(key);
+        const text = textOf(i);
+        if (!text) return null;
+        const form = new FormData();
+        form.set('text', text);
+        form.set('voice', voiceSel.value);
+        form.set('rate', rateSel.value);
+        const res = await fetch('/api/tts', { method: 'POST', body: form });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.detail || `TTS lỗi (HTTP ${res.status})`);
+        }
+        const url = URL.createObjectURL(await res.blob());
+        cache.set(key, url);
+        if (cache.size > CACHE_MAX) {
+            const oldest = cache.keys().next().value;
+            URL.revokeObjectURL(cache.get(oldest));
+            cache.delete(oldest);
+        }
+        return url;
+    }
+
+    function prefetch(i) {
+        if (i < paras().length) audioUrl(i).catch(() => {});
+    }
+
+    async function playIndex(i) {
+        const list = paras();
+        if (i >= list.length) { finishChapter(); return; }
+        if (i < 0) i = 0;
+        idx = i;
+        const my = ++generation;
+        highlight();
+        setStatus(`Đoạn ${i + 1}/${list.length} · đang tải…`);
+        let url;
+        try {
+            url = await audioUrl(i);
+        } catch (e) {
+            toast(e.message, 'error');
+            pause();
+            setStatus('Lỗi TTS');
+            return;
+        }
+        if (my !== generation) return;
+        if (!url) { playIndex(i + 1); return; }
+        audio.src = url;
+        try {
+            await audio.play();
+        } catch (e) {
+            setPlayIcon(false);
+            setStatus('Bấm ▶ để đọc');
+            return;
+        }
+        setPlayIcon(true);
+        setStatus(`Đoạn ${i + 1}/${list.length}`);
+        prefetch(i + 1);
+    }
+
+    function finishChapter() {
+        pause();
+        if (autoNextCb.checked && NEXT_INDEX !== null) {
+            sessionStorage.setItem(AUTO_KEY, JSON.stringify({ slug: SLUG, index: NEXT_INDEX }));
+            window.location.href = `/ebooks/${encodeURIComponent(SLUG)}/read/${NEXT_INDEX}`;
+            return;
+        }
+        setStatus('Đã đọc hết chương');
+    }
+
+    function pause() {
+        audio.pause();
+        setPlayIcon(false);
+    }
+
+    function openBar() {
+        bar.hidden = false;
+        document.getElementById('tts-toggle-btn')?.classList.add('active');
+    }
+    function closeBar() {
+        generation++;
+        pause();
+        bar.hidden = true;
+        document.getElementById('tts-toggle-btn')?.classList.remove('active');
+        paras().forEach(p => p.classList.remove('tts-reading'));
+        setStatus('');
+    }
+
+    audio.addEventListener('ended', () => playIndex(idx + 1));
+
+    playBtn.addEventListener('click', () => {
+        if (!audio.paused) { pause(); return; }
+        if (audio.src && audio.currentTime > 0 && !audio.ended) {
+            audio.play().then(() => setPlayIcon(true)).catch(() => {});
+            return;
+        }
+        playIndex(idx);
+    });
+    document.getElementById('tts-prev-btn')?.addEventListener('click', () => playIndex(idx - 1));
+    document.getElementById('tts-next-btn')?.addEventListener('click', () => playIndex(idx + 1));
+    document.getElementById('tts-close-btn')?.addEventListener('click', closeBar);
+
+    voiceSel.addEventListener('change', () => {
+        localStorage.setItem(VOICE_KEY, voiceSel.value);
+        dropCache();
+        if (!audio.paused) playIndex(idx);
+    });
+    rateSel.addEventListener('change', () => {
+        localStorage.setItem(RATE_KEY, rateSel.value);
+        dropCache();
+        if (!audio.paused) playIndex(idx);
+    });
+    autoNextCb.addEventListener('change', () => {
+        localStorage.setItem(AUTONEXT_KEY, autoNextCb.checked ? '1' : '0');
+    });
+
+    document.getElementById('tts-toggle-btn')?.addEventListener('click', () => {
+        if (bar.hidden) { openBar(); playIndex(idx); }
+        else closeBar();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+        if (e.target.isContentEditable) return;
+        if (e.key === 'p' || e.key === 'P') {
+            if (bar.hidden) { openBar(); playIndex(idx); }
+            else playBtn.click();
+        }
+    });
+
+    window.n2eTts = {
+        playFromPara(i) {
+            openBar();
+            playIndex(i);
+        },
+    };
+
+    // Tiếp tục đọc sau khi tự chuyển sang chương kế.
+    let pending = null;
+    try { pending = JSON.parse(sessionStorage.getItem(AUTO_KEY) || 'null'); } catch (e) {}
+    if (pending && pending.slug === SLUG && pending.index === INDEX) {
+        sessionStorage.removeItem(AUTO_KEY);
+        openBar();
+        playIndex(0);
+    }
 })();
 </script>
 {% endif %}

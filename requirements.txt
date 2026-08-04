@@ -17,7 +17,7 @@ scrapling[fetchers]>=0.2
 # cần PySocks: pip install "requests[socks]" (Scrapling/curl_cffi không cần)
 # requests[socks]
 
-# Optional: backend dịch cục bộ MoxhiMT (translate.type=moxhimt) — chỉ cần khi dùng
+# Optional: backend dịch cục bộ HachimiMT/MoxhiMT (translate.type=hachimimt)
 # pip install ctranslate2 sentencepiece huggingface_hub
 # ctranslate2>=4.0.0
 # sentencepiece>=0.2.0

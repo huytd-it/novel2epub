@@ -1,18 +1,18 @@
 # ============================================================
-# novel2epub — file cấu hình GỘP duy nhất
-# Copy thành `novel2epub.yaml` rồi chỉnh sửa.
+# novel2epub — mẫu seed cho SQLite DB mới
+# `python scripts/init_db.py` đọc file này để tạo defaults và source presets.
+# Runtime KHÔNG đọc YAML; chỉnh cấu hình DB hiện tại qua Web UI.
 #
 # 2 khối:
 #   defaults: phần DÙNG CHUNG cho mọi ebook (prompt dịch, style, output...).
 #   ebooks  : mỗi ebook CHỈ khai phần KHÁC với defaults (deep-merge lên defaults).
-# Preset nguồn tách riêng: sources.yaml
+# Source preset nếu có nằm trong khối `sources:` của chính mẫu này.
 #
-# Config hiệu lực của 1 ebook = deep_merge(defaults, ebooks[<slug>]).
-# NGOẠI LỆ: `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình GLOBAL —
-# chỉ đọc từ defaults, khai trong ebooks[<slug>] sẽ bị BỎ QUA. Đổi 1 lần,
-# áp dụng cho mọi ebook (web UI Settings tab Dịch / AI biên tập ghi vào đây).
+# Config hiệu lực = defaults -> source preset -> ebook override.
+# `translate` và `ai` có thể override theo ebook. Riêng reader.url,
+# service_key, timeout_seconds và batch_size chỉ lấy từ defaults.
 # Chọn ebook khi chạy: `python -m novel2epub -e <slug> <command>`.
-# Đổi file qua ENV: NOVEL2EPUB_FILE=/đường/dẫn/khác.yaml
+# Đổi DB runtime qua ENV: NOVEL2EPUB_DB=/đường/dẫn/khác.db
 # ============================================================
 
 defaults:
@@ -60,7 +60,7 @@ defaults:
       respect_retry_after: true
 
   translate:
-    type: hachimimt            # hachimimt | openai | google | none
+    type: hachimimt            # hachimimt | openai | google | libretranslate | none
     # Nguồn tiếng Việt (truyện VN, không cần dịch): source_language: vi
     # → bước dịch chỉ copy nguyên văn raw → translated, không gọi AI/model.
     # source_language: ""       # "" = Trung (mặc định) | en | vi
@@ -145,6 +145,8 @@ defaults:
 
 
 ebooks:
+  # Khối này chỉ minh họa cấu trúc export/import. init_db chỉ seed defaults và
+  # sources; hãy tạo ebook thật qua Web UI sau khi khởi động.
   vi-du-truyen:
     name: "Tên hiển thị ở dashboard"
     novel:

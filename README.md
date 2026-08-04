@@ -1,300 +1,105 @@
 # novel2epub
 
-Crawl truyện chữ tiếng Trung → dịch sang tiếng Việt → đóng gói EPUB,
-kèm Web UI quản lý: hàng đợi job song song, thư viện ebook, crawl console,
-và tự động hóa theo lịch.
+Ứng dụng crawl tiểu thuyết web, dịch sang tiếng Việt, biên tập và xuất EPUB. Hệ thống cung cấp cả CLI lẫn Web UI, lưu cấu hình và dữ liệu vận hành trong một SQLite database.
 
-Pipeline 3 bước, mỗi bước cache nên có thể dừng/chạy lại bất cứ lúc nào:
+```text
+fetch TOC -> crawl raw -> translate -> edit/cleanup -> build EPUB
+```
 
-```
-TOC fetch → crawl raw → translate → translated → build → .epub
-```
+Mỗi bước ghi kết quả vào DB nên có thể dừng, chạy tiếp hoặc chạy lại một phạm vi chương mà không bắt đầu từ đầu.
+
+## Tính năng
+
+- Crawl bằng Scrapling với ba mode: `fetcher`, `stealthy`, `dynamic`.
+- Hỗ trợ mục lục và chương phân trang, retry/backoff, giới hạn song song theo nguồn.
+- Dịch bằng OpenAI-compatible API, HachimiMT cục bộ, Google, LibreTranslate hoặc passthrough.
+- Quản lý glossary theo ebook, từ điển thành ngữ dùng chung và bảng nhân vật/xưng hô.
+- Biên tập từng đoạn, AI review/rewrite, cleanup chữ Hán còn sót và xử lý hàng loạt.
+- Job queue theo nhóm crawl/translate, automation bằng cron và lịch sử thực thi.
+- Xuất EPUB có bìa, metadata, series và chú thích glossary.
+- Đồng bộ tăng dần sang novel-reader qua Supabase mà không thay ID chương.
+- Backup/restore toàn bộ hệ thống bằng một file SQLite.
 
 ## Cài đặt
 
-Yêu cầu Python >= 3.10.
+Yêu cầu Python 3.10 trở lên.
 
-```bash
-git clone <repo-url> && cd novel2epub
+```powershell
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-pip install "scrapling[fetchers]"
 scrapling install
+python scripts/init_db.py
 ```
 
-Dịch cục bộ `hachimimt` (offline, miễn phí, CPU/GPU):
+Linux/macOS dùng `source .venv/bin/activate` thay cho lệnh kích hoạt PowerShell.
 
-```bash
+HachimiMT là backend tùy chọn:
+
+```sh
 pip install ctranslate2 sentencepiece huggingface_hub
 ```
 
-Web UI:
+## Khởi động
 
-```bash
-pip install fastapi uvicorn jinja2 python-multipart
-```
-
-## Cấu hình
-
-**Mọi thứ nằm trong 1 file `novel2epub.db`** (SQLite) — cấu hình lẫn dữ liệu:
-chapters, glossary, job queue, automations, covers, notes. Backup toàn bộ state
-chỉ bằng cách copy 1 file.
-
-Tạo file đó cho cài đặt mới:
-
-```bash
-python scripts/init_db.py          # tạo novel2epub.db với cấu hình mặc định
-```
-
-Sau đó chỉnh cấu hình qua **Web UI → Cài đặt** (`/ebooks/<slug>/settings`).
-Không cần (và không thể) sửa cấu hình bằng cách viết tay file YAML — `.yaml`
-chỉ còn là mẫu khởi tạo, xem [Vai trò của các file YAML](#vai-trò-của-các-file-yaml).
-
-### Cấu trúc cấu hình
-
-Cấu hình chia 3 tầng, hợp nhất khi load:
-
-| Tầng | Bảng DB | Nội dung |
-|------|---------|----------|
-| `defaults` | `settings` | Dùng chung: crawl, translate, AI, output, queue, reader |
-| `sources` | `sources` | Preset crawl từng website (selector, engine, delay...) |
-| `ebooks` | `ebooks` | Mỗi ebook chỉ lưu phần KHÁC với `defaults` |
-
-Config hiệu lực của ebook = `deep_merge(defaults, sources[<preset>], ebooks[<slug>])`.
-
-**Ngoại lệ — cấu hình chỉ đọc từ `defaults`:** `translate` (AI dịch), `ai`
-(AI biên tập) và 4 field kết nối của `reader` (`url`, `service_key`,
-`timeout_seconds`, `batch_size`) dùng CHUNG cho mọi ebook — override theo ebook
-bị bỏ qua lúc load. Để không mỗi truyện một bản cấu hình AI khác nhau, và để
-`service_key` chỉ nằm đúng một chỗ.
-
-### Vai trò của các file YAML
-
-Trước đây cấu hình nằm trong `novel2epub.yaml` + `sources.yaml` + `config.yaml`
-+ `library.yaml` + `configs/*.yaml`. Nay tất cả đã gộp vào `novel2epub.db`;
-YAML chỉ còn 3 vai trò hẹp:
-
-| File | Vai trò hiện tại |
-|------|------------------|
-| `novel2epub.example.yaml` | Mẫu `scripts/init_db.py` đọc để seed `defaults` + `sources` cho DB mới. Cũng là tài liệu tham chiếu đầy đủ mọi field. |
-| `sources.yaml` | **Di sản** — chỉ `scripts/migrate_to_sqlite.py` còn đọc. Preset nay nằm trong bảng `sources`, quản lý ở `/sources`. |
-| Export/import 1 ebook | Web UI xuất/nhập cấu hình 1 truyện dạng `.yaml` (`/ebooks/<slug>/config/export`). |
-
-> `novel2epub.yaml` **không còn được đọc**. Nếu chỉ có file này mà không có
-> `.db`, mọi lệnh sẽ báo `Không tìm thấy DB cấu hình` — hãy chạy
-> `scripts/migrate_to_sqlite.py` để chuyển sang DB.
-
-### Chuyển từ bản cũ sang DB
-
-Cài đặt cũ (còn `novel2epub.yaml`, `data/<slug>/`, `workspace/.n2e/`):
-
-```bash
-python scripts/migrate_to_sqlite.py    # đọc file cũ -> ghi vào novel2epub.db
-```
-
-Toàn bộ state cũ được gộp vào DB:
-
-| Dữ liệu cũ | Bảng DB |
-|------------|---------|
-| `novel2epub.yaml` (`defaults`/`sources`/`ebooks`) | `settings` + `sources` + `ebooks` |
-| `manifest.json` | `ebooks` + `chapters` |
-| `raw/*.md` | `chapters.raw_text` |
-| `translated/*.md` | `chapters.translated_text` |
-| `glossary/*.txt` | `glossary_entries` |
-| `cover.*` | `ebook_covers` |
-| `queue_history.json` | `job_queue_history` |
-| `automations.yaml` | `automations` |
-| `library_state.json` | `ebooks.archived` |
-
-Script không xoá file cũ — kiểm tra DB chạy đúng rồi tự dọn.
-
-### Crawl engines
-
-| Engine | Backend | Khi nào dùng |
-|--------|---------|--------------|
-| `http` | requests + BeautifulSoup | Site HTML tĩnh |
-| `crawl4ai` | Playwright browser | Site cần JS render, SPA |
-| `scrapling` | Scrapling stealth browser | Anti-bot, Cloudflare bypass |
-
-`scrapling` có 3 mode: `fetcher` (nhanh, cao concurrency), `stealthy` (Camoufox
-ẩn), `dynamic` (Playwright đầy đủ).
-
-### Dịch (translate)
-
-| Engine | Loại | Ghi chú |
-|--------|------|---------|
-| `hachimimt` | NMT cục bộ (CTranslate2) | Mặc định, offline, miễn phí |
-| `openai` | OpenAI-compatible HTTP | OpenAI, Ollama, LM Studio... |
-| `google` | Google Translate (deep-translator) | Nhanh, văn phong kém |
-| `none` | Không dịch | Test crawl/build |
-
-Model `hachimimt` mặc định: **HachimiMT-60** (`ngocdang83/HachimiMT-60-zh-vi`).
-Tự tải từ Hugging Face Hub về cache ở lần dùng đầu.
-
-### Đẩy lên app đọc novel-reader (`reader`)
-
-Đẩy chương đã dịch thẳng lên [novel-reader](https://github.com/huytd-it/novel-reader)
-(Supabase) — **chỉ đẩy phần thay đổi**, không cần build EPUB rồi nạp lại cả bộ:
-
-| Trạng thái chương | Hành động |
-|-------------------|-----------|
-| Chưa từng đẩy | Thêm mới, set `is_free` theo `free_chapters` |
-| Đã sửa (nội dung hoặc tiêu đề) | Cập nhật, **giữ nguyên `chapters.id`**, không đụng `is_free` |
-| Không đổi | Bỏ qua, không tốn request |
-| Bị skip / chưa dịch xong | Bỏ qua |
-| Đã xoá ở local | **Không đụng tới** trên Reader |
-
-Điểm quan trọng: hai đường ingest sẵn có của novel-reader (`admin-import` và
-`scripts/ingest-epub.ts`) đều xoá sạch `chapters` rồi insert lại, nên
-`chapters.id` bị sinh mới mỗi lần → bookmark, tiến độ đọc và review trỏ theo
-`chapter_id` sẽ hỏng. Ở đây dùng upsert theo `on_conflict=book_id,index` nên
-`id` ổn định. **Không cần sửa hay deploy gì ở repo novel-reader.**
-
-Cấu hình — 4 field kết nối đặt ở `defaults`, phần còn lại đặt riêng từng truyện:
-
-```yaml
-defaults:
-  reader:
-    url: "https://xxxxx.supabase.co"   # KHÔNG kèm /rest/v1
-    service_key: "eyJhbGci..."         # SUPABASE_SERVICE_ROLE_KEY
-    timeout_seconds: 60
-    batch_size: 50                     # số chương mỗi request
-
-ebooks:
-  vi-du-truyen:
-    reader:
-      slug: "truyen-tren-reader"  # books.slug; trống = dùng novel.slug
-      free_chapters: 5            # số chương ĐẦU đọc miễn phí
-      published: false            # is_published, CHỈ set khi tạo sách lần đầu
-```
-
-| Field | Phạm vi | Ghi chú |
-|-------|---------|---------|
-| `url` | chung | URL project Supabase |
-| `service_key` | chung | `service_role` key — **bypass toàn bộ RLS** |
-| `timeout_seconds` | chung | Mặc định 60 |
-| `batch_size` | chung | Mặc định 50 |
-| `slug` | theo ebook | Trống = dùng `novel.slug` |
-| `free_chapters` | theo ebook | Chỉ áp cho chương **mới** — chỉnh tay `is_free` bên Reader không bị đạp lên |
-| `published` | theo ebook | Chỉ set lúc **tạo sách mới**; sách đã có thì Reader tự quyết |
-
-Lấy key: Supabase Dashboard → Project Settings → API → `service_role`.
-
-> ⚠ `service_role` bypass toàn bộ RLS. Key được lưu trong `novel2epub.db` (cùng
-> chỗ với `translate.openai.api_key`), che trong UI và không bao giờ ghi vào job
-> log — nhưng đừng chia sẻ file `.db`.
-
-Cách chạy — 3 đường, đều dùng chung một bước `publish-reader`:
-
-- **Web UI** — nút **🚀 Đẩy lên Reader** ở trang ebook: xem trước
-  "thêm N / sửa M / bỏ qua K" rồi mới đẩy thật qua hàng đợi.
-- **Automation** — thêm step `publish-reader` vào chuỗi để chạy theo lịch.
-- **Cài đặt** — tab **Reader** ở `/ebooks/<slug>/settings`.
-
-Cách phân biệt mới/sửa: mỗi chương lưu content hash trong `meta_json["reader"]`
-(dùng hash chứ không dùng `translated_updated_at` vì cột đó chỉ có độ phân giải
-1 giây). Trước mỗi lần đẩy còn đối chiếu với danh sách chương thật trên Reader
-— nếu Reader từng bị `npm run ingest` xoá sạch, lần đẩy sau tự nhận ra và đẩy
-lại, không cần can thiệp tay.
-
-## Sử dụng CLI
-
-```bash
-# Liệt kê ebook
-python -m novel2epub list
-
-# Pipeline từng bước (có -e <slug>)
-python -m novel2epub -e <slug> crawl
-python -m novel2epub -e <slug> translate
-python -m novel2epub -e <slug> build
-
-# Chạy toàn bộ pipeline
-python -m novel2epub -e <slug> run
-
-# Dịch chương còn thiếu / 1 chương cụ thể
-python -m novel2epub -e <slug> translate --missing
-python -m novel2epub -e <slug> translate --chapter 12
-
-# Lấy mục lục / metadata
-python -m novel2epub -e <slug> toc
-python -m novel2epub -e <slug> meta
-
-# Liệt kê chương với filter
-python -m novel2epub -e <slug> chapters --sort title --filter raw:no
-
-# Đánh giá chất lượng dịch
-python -m novel2epub -e <slug> evaluate --from 1 --to 2
-```
-
-## Web UI
-
-```bash
+```sh
 uvicorn app.main:app --reload --port 8010
 ```
 
-Mở `http://127.0.0.1:8010`.
+Mở `http://127.0.0.1:8010`, tạo ebook ở trang Thư viện, chọn source preset hoặc điền URL mục lục, sau đó chạy lần lượt TOC, crawl, translate và build.
 
-### Tính năng chính
-
-- **Thư viện ebook** — thẻ tiến độ với hành động nhanh: crawl, dịch, build,
-  tải EPUB, lưu trữ.
-- **Hàng đợi job song song** — 2 nhóm worker độc lập cho crawl và dịch,
-  có Hủy / Retry, tự điều tiết khi gặp rate-limit.
-- **Crawl console** — hiển thị chương thiếu/lỗi, retry đúng chương đó
-  bằng 1 nút.
-- **Automation** — chuỗi bước (fetch-toc → crawl-new → translate-pending →
-  cleanup-han → build → publish-reader) chạy theo lịch cron 5 trường
-  (`*/30 * * * *`, `0 3 * * *`...) hoặc bấm tay; lịch cũ `daily@HH:MM`/
-  `continuous@N` tự migrate. Lỡ mốc (máy tắt) → chạy bù 1 lần khi bật lại.
-- **Đẩy lên Reader** — đồng bộ chương lên app đọc novel-reader (Supabase),
-  chỉ đẩy phần thay đổi, giữ nguyên `chapters.id` nên không hỏng bookmark.
-  Có xem trước trước khi đẩy thật.
-- **Storage** — xem dung lượng từng ebook, dọn raw, xóa MT snapshot, đóng
-  gói .zip.
-- **Metadata EPUB đầy đủ** — nhà xuất bản, ngày xuất bản, chủ đề, bộ sách,
-  định danh, miêu tả.
-
-### Chạy nền khi khởi động máy
+Luồng CLI tương đương:
 
 ```sh
-python -m novel2epub service install     # Windows: Task Scheduler (khi đăng nhập); Linux: systemd user service
-python -m novel2epub service status
-python -m novel2epub service uninstall
+python -m novel2epub list
+python -m novel2epub -e <slug> toc
+python -m novel2epub -e <slug> crawl
+python -m novel2epub -e <slug> translate
+python -m novel2epub -e <slug> build
 ```
 
-Tùy chọn `--host`/`--port` (mặc định `127.0.0.1:8010`). Linux muốn chạy khi
-chưa đăng nhập: `loginctl enable-linger $USER`.
+Chạy trọn pipeline bằng `python -m novel2epub -e <slug> run`.
 
-## Quy trình cho truyện mới
+## Dữ liệu Và Cấu Hình
 
-Tạo ebook ở Web UI, rồi chỉnh các giá trị dưới đây ở **Cài đặt** của truyện đó:
+`novel2epub.db` là nguồn dữ liệu chính, gồm:
 
-1. Tab **Nguồn**: đặt `max_chapters` = 2, tab **Dịch**: `type` = `none`. Chạy
-   `crawl` → kiểm tra `raw` lấy đúng nội dung, chỉnh `content_selector` nếu cần.
-2. Đổi `type` sang `openai` (hoặc `hachimimt`), dịch 2 chương → xem chất lượng,
-   bổ sung `glossary`.
-3. Đặt `max_chapters` = 0, tăng `max_workers` (10-30 cho `fetcher`). Chạy `run`.
-4. (Tuỳ chọn) Muốn đưa lên app đọc: điền `reader.url` + `reader.service_key`
-   ở Cài đặt → tab **Reader**, đặt `slug`/`free_chapters` cho truyện, rồi bấm
-   **🚀 Đẩy lên Reader**. Từ đó về sau chỉ cần thêm step `publish-reader` vào
-   automation — chương mới và chương vừa biên tập lại tự lên Reader theo lịch.
+- Cấu hình mặc định, source preset và override từng ebook.
+- Manifest, raw, bản dịch máy, bản biên tập và metadata chương.
+- Glossary, thành ngữ, nhân vật, quan hệ và ghi chú.
+- Job queue, lịch sử, automation, trạng thái lưu trữ và thông tin đồng bộ Reader.
 
-## Môi trường
+`novel2epub.example.yaml` chỉ là mẫu seed cho `scripts/init_db.py`, không phải file cấu hình runtime. Cấu hình được chỉnh qua Web UI và có thể export/import YAML theo từng ebook.
 
-| Biến | Ý nghĩa |
-|------|---------|
-| `NOVEL2EPUB_DB` | Đường dẫn file SQLite (mặc định: `novel2epub.db`) |
-| `NOVEL2EPUB_FILE` | Fallback nếu `NOVEL2EPUB_DB` không set — tên cũ từ thời config YAML |
-| `NOVEL2EPUB_CONFIG` | Fallback cuối, dùng khi cả hai biến trên đều không set |
+Đổi vị trí DB bằng biến `NOVEL2EPUB_DB`:
 
-Thứ tự ưu tiên: `NOVEL2EPUB_DB` → `NOVEL2EPUB_FILE` → `NOVEL2EPUB_CONFIG` →
-`novel2epub.db`. Hai biến sau giữ lại cho tương thích ngược; cài mới chỉ cần
-`NOVEL2EPUB_DB`. Cả ba đều phải trỏ tới file `.db`.
+```powershell
+$env:NOVEL2EPUB_DB = "D:\data\novel2epub.db"
+uvicorn app.main:app --port 8010
+```
 
-## Hạn chế
+`NOVEL2EPUB_FILE` và `NOVEL2EPUB_CONFIG` chỉ còn là fallback tương thích, nhưng giá trị vẫn phải trỏ đến file `.db`.
 
-- Chương VIP/cần đăng nhập cần nguồn khác.
-- Chất lượng dịch phụ thuộc model AI (với `openai`) hoặc giới hạn NMT cục bộ
-  (với `hachimimt`).
-- Tôn trọng bản quyền & điều khoản trang nguồn; chỉ dùng cho mục đích cá nhân.
+## Backup
+
+```sh
+python -m novel2epub backup
+python -m novel2epub restore --from backups/novel2epub-YYYYMMDD-HHMMSS.db
+```
+
+Không copy trực tiếp DB đang chạy nếu muốn bảo đảm snapshot nhất quán. Lệnh `backup` dùng SQLite backup API và an toàn khi Web UI đang hoạt động.
+
+## Tài Liệu
+
+- [Kiến trúc hệ thống](docs/architecture.md)
+- [Cấu hình](docs/configuration.md)
+- [Hướng dẫn vận hành](docs/operations.md)
+- [Dịch và biên tập](docs/translation.md)
+- [Phát triển và kiểm thử](docs/development.md)
+
+## Giới Hạn
+
+- Nội dung VIP hoặc cần đăng nhập chỉ crawl được khi nguồn và phiên truy cập cho phép.
+- Cấu trúc website có thể thay đổi; selector và source preset cần được bảo trì.
+- Chất lượng bản dịch phụ thuộc backend, model, prompt, glossary và bước biên tập.
+- Chỉ sử dụng nội dung khi bạn có quyền truy cập và tuân thủ điều khoản của nguồn.

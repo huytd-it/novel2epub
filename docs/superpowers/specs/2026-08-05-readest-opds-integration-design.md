@@ -107,9 +107,11 @@ elif storage.has_raw(ch):
 
 Chương thuộc nhánh thứ hai chứa **văn bản Hán gốc**, trong khi API PATCH ghi vào `translated_text`. Gắn neo cho chúng sẽ khiến người dùng sửa từ readest và ghi đè lên một cột hoàn toàn khác.
 
-Vì vậy `build_epub` nhận thêm cờ cho mỗi chương, và `_md_to_xhtml_body` **chỉ sinh `data-n2e-p` khi cờ bật**. Cách truyền: mở rộng phần tử của `chapters_html` từ `(chapter, title, md)` thành `(chapter, title, md, anchored: bool)`.
+Vì vậy `build_epub` nhận thêm thông tin chương nào được neo, và `_md_to_xhtml_body` **chỉ sinh `data-n2e-p` khi được bật**.
 
-`build_epub` có 3 call site trong `pipeline.py` và được `tests/test_pipeline_meta.py` phủ. Để không phải sửa hết cùng lúc, hàm chấp nhận **cả tuple 3 lẫn 4 phần tử**; tuple 3 phần tử coi như `anchored=False`. Đây là tương thích ngược có chủ đích và tạm thời — kế hoạch triển khai phải có một bước dọn hết call site về tuple 4 phần tử rồi bỏ nhánh cũ, chứ không để nó nằm lại vĩnh viễn.
+Cách truyền: thêm tham số **`anchored_stems: set[str] | None = None`** vào `build_epub`, đúng khuôn `footnotes_by_stem: dict[str, list[dict]] | None = None` đã có sẵn ngay cạnh trong cùng chữ ký hàm. Không đổi shape của `chapters_html`.
+
+> Điểm này thay đổi so với bản spec duyệt ngày 2026-08-05, vốn định mở rộng tuple `chapters_html` từ 3 lên 4 phần tử kèm một nhánh tương thích ngược tạm thời. Dùng tham số riêng thì 3 call site trong `pipeline.py` và `tests/test_pipeline_meta.py` chạy nguyên trạng, không cần nhánh tương thích, nên cũng không sinh ra bước dọn dẹp nào về sau. Ít code hơn, và bám sát khuôn có sẵn của chính hàm đó.
 
 ### Footnote không phá neo
 
@@ -129,9 +131,19 @@ Phương án ID bất biến (thêm cột `para_id` vào DB) bị loại: nó bu
 
 ### OPDS
 
-Chọn **OPDS 1.2 (Atom XML)**. Lý do: Calibre, Komga và Kavita đều phục vụ bản này, mà readest nối được cả ba. Tài liệu readest không nói rõ nó dùng 1.2 hay 2.0.
+Chọn **OPDS 1.2 (Atom XML)**. **Đã xác minh bằng source của readest (2026-08-05):** `apps/readest-app/src/types/opds.ts` import `SYMBOL` từ `foliate-js/opds.js` — readest parse feed bằng chính parser của foliate-js, vốn xử lý **cả OPDS 1.x (Atom) lẫn 2.0 (JSON)** và chuẩn hoá về cùng một shape. Bình luận trong file đó nói thẳng rằng với "OPDS 1.x feeds" phần mô tả sách nằm ở `<summary>`. Công thức kiểm thử nội bộ của readest cũng dựng "Atom acquisition feed" để thử.
 
-> **Việc đầu tiên của kế hoạch triển khai là đọc code readest để xác minh bản OPDS và cách nó gửi xác thực — trước khi viết feed.** Nếu readest chỉ nói OPDS 2.0 (JSON) thì `opds.py` đổi hàm sinh output, phần còn lại của thiết kế không đổi.
+Các `rel` readest thực sự đọc (từ hằng `REL` trong `types/opds.ts`):
+
+| Mục đích | Giá trị `rel` |
+|---|---|
+| Link tải sách | `http://opds-spec.org/acquisition` |
+| Ảnh bìa đầy đủ | `http://opds-spec.org/image` |
+| Ảnh thu nhỏ | `http://opds-spec.org/image/thumbnail` |
+
+Hai rel ảnh phải là **token chính xác**, và phải phát cả hai. Mô tả sách đặt trong `<summary>` — đó là chỗ parser OPDS 1.x đọc.
+
+Trường readest đọc được từ mỗi entry: `id`, `updated`, `title`, `subtitle`, `description`/`content`, `author[]`, `contributor[]`, `publisher`, `published`, `language`, `identifier`, `subject[]`, `rights`. readest **ưu tiên metadata của feed hơn metadata nhúng trong EPUB** (`applyOPDSMetadata`, PR #5477), nên feed phải điền đúng — sai ở feed sẽ đè lên bản đúng trong EPUB.
 
 | Endpoint | Việc |
 |---|---|
@@ -188,9 +200,17 @@ Token là cấu hình **toàn cục**, không per-ebook.
 Chấp nhận hai dạng cùng lúc:
 
 - **Basic** — readest gửi username/password cho OPDS. Username bỏ qua, password so với token.
-- **Bearer** — cho API sửa của fork GĐ2, và cho việc thử bằng `curl`.
+- **Bearer** — cho API sửa của fork GĐ2, và cho việc thử bằng `curl`. readest cũng có `customHeaders` theo từng catalog nếu cần dùng Bearer cho OPDS.
 
 So khớp bằng `hmac.compare_digest` để không rò độ dài token qua thời gian phản hồi.
+
+### Bắt buộc: 401 kèm `WWW-Authenticate`
+
+**Xác minh từ source readest (`src/app/opds/utils/opdsReq.ts`, ghi chú nội bộ `opds-preemptive-basic-digest-400`):** readest gửi Basic **preemptive** ngay từ request đầu, và chỉ đàm phán lại khi nhận **401 hoặc 403**. Nếu server trả **400**, readest coi là "server từ chối cơ chế này", thử lại một lần không kèm credential để moi header `WWW-Authenticate`, rồi mới đàm phán tiếp.
+
+Hệ quả bắt buộc với novel2epub: khi token sai hoặc thiếu, trả **401** kèm header `WWW-Authenticate: Basic realm="novel2epub"`. Không được trả 400 hay 403 cho lỗi xác thực — readest sẽ đi vào nhánh phục hồi sai và người dùng chỉ thấy "Failed to load OPDS feed".
+
+Trường hợp **chưa cấu hình token** vẫn giữ **503** như bảng lỗi ở §8: đó là lỗi cấu hình phía server, không phải thử thách xác thực, và không được phép làm readest tưởng có thể đàm phán.
 
 ### Miễn trừ localhost
 
@@ -220,7 +240,7 @@ Cùng nguyên tắc `reader_client.py` đang giữ với `service_key`: token kh
 |---|---|---|
 | `expected` không khớp bản hiện tại | **409** | kèm đoạn hiện tại, để client hiện "ai đó đã sửa đoạn này" |
 | Chưa cấu hình token, request đến từ ngoài localhost | **503** | kèm hướng dẫn bật — phân biệt rõ với "sai token" |
-| Sai token | **401** | |
+| Sai token / thiếu token | **401** | **bắt buộc** kèm `WWW-Authenticate: Basic realm="novel2epub"` |
 | Ebook / chương không tồn tại | **404** | |
 | Chương chưa có bản dịch (PATCH) | **404** | "chương chưa dịch" |
 | `text` rỗng | **400** | "không xoá đoạn qua API" |
@@ -232,7 +252,7 @@ Theo lối `tests/test_reader_sync.py`: logic thuần tách khỏi HTTP.
 
 | File | Nội dung |
 |---|---|
-| `tests/test_opds.py` | Cấu trúc feed, XML hợp lệ, escape tiêu đề chứa `《》`/`&`/dấu ngoặc, entry thiếu bìa, ebook archive bị loại |
+| `tests/test_opds.py` | Cấu trúc feed, XML hợp lệ, escape tiêu đề chứa `《》`/`&`/dấu ngoặc, entry thiếu bìa, ebook archive bị loại, **không có ký tự nào sau `</feed>`**, hai rel ảnh đúng token chính xác |
 | `tests/test_epub_anchors.py` | `data-n2e-p` khớp **chính xác** `notes.split_paras`; case block nhiều dòng (đúng tình huống 161≠160); heading nhận đúng chỉ số; chương không bật cờ thì **không** có neo nào |
 | `tests/test_api_auth.py` | Basic, Bearer, sai token, chưa cấu hình, miễn localhost, và **không** miễn khi `X-Forwarded-For` giả mạo |
 | `tests/test_opds_routes.py` | TestClient: 401 / 503 / 404, EPUB chưa build |
@@ -248,8 +268,9 @@ Build EPUB thật từ dữ liệu dựng sẵn → giải nén, parse XHTML →
 
 | # | Rủi ro | Xử lý |
 |---|---|---|
-| 1 | readest có thể dùng OPDS 2.0 (JSON) thay vì 1.2 (Atom) | Đọc code readest **trước khi** viết feed. `opds.py` thuần nên chỉ đổi hàm sinh output. |
-| 2 | readest có thể yêu cầu trường Atom/OPDS mà thiết kế chưa liệt kê | Thử feed bằng readest thật ngay sau khi có bản chạy được, trước khi làm tiếp API sửa. |
+| 1 | ~~readest có thể dùng OPDS 2.0 thay vì 1.2~~ | **Đã đóng 2026-08-05.** readest parse bằng `foliate-js/opds.js`, hỗ trợ cả hai. Atom 1.2 là lựa chọn đúng. Xem §6. |
+| 2 | readest có thể yêu cầu trường Atom/OPDS mà thiết kế chưa liệt kê | Danh sách `rel` và trường metadata đã lấy từ `types/opds.ts` (§6). Vẫn phải thử bằng readest thật ngay sau khi feed chạy được, trước khi làm tiếp API sửa. |
+| 2b | Parser XML nghiêm ngặt trên một số nền tảng | Ghi chú nội bộ `opds-firefox-strict-xml-4479` của readest: rác **sau** `</feed>` khiến DOMParser nghiêm ngặt (Firefox, jsdom) huỷ cả tài liệu. Response phải sạch tuyệt đối sau thẻ đóng gốc — đã thành một test bắt buộc ở §9. |
 | 3 | Neo theo vị trí lệch khi thêm/xoá đoạn trên PC | `para_text_expected` bắt được và trả 409. Đã chấp nhận. |
 | 4 | Một số tính năng readest bị khoá theo gói trả phí | Ảnh hưởng các nhà cung cấp sync bên thứ ba, không ảnh hưởng OPDS tự host. Cần xác nhận lại khi thử thật. |
 | 5 | Mở novel2epub ra LAN làm lộ toàn bộ web UI, không chỉ OPDS | Nằm ngoài phạm vi GĐ1. Nếu cần, đặt sau reverse proxy hoặc Tailscale. Cần nói rõ với người dùng khi hướng dẫn bind `0.0.0.0`. |

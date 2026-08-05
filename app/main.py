@@ -25,6 +25,7 @@ from .routes import (
     jobs,
     library,
     notes,
+    opds,
     reader,
     settings,
     sources,
@@ -101,3 +102,4 @@ app.include_router(notes.router)
 app.include_router(reader.router)
 app.include_router(automation.router)
 app.include_router(dashboard.router)
+app.include_router(opds.router)

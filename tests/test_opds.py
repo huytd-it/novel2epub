@@ -168,8 +168,8 @@ def test_khong_co_ky_tu_nao_sau_the_dong_goc():
         navigation_feed(base_url="http://h:8010", updated=UPDATED),
         acquisition_feed([_book()], base_url="http://h:8010", updated=UPDATED),
     ):
-        assert xml.rstrip().endswith("</feed>")
-        assert xml.strip() == xml.rstrip()
+        assert xml.endswith("</feed>")
+        assert xml == xml.rstrip()
 
 
 def test_feed_bat_dau_bang_khai_bao_xml():

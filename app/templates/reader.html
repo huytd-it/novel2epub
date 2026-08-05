@@ -1246,7 +1246,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             const d = await res.json();
             replaceHint.textContent = scope === 'chapter'
                 ? `${d.chapter_count} chỗ trong chương này.`
-                : `${d.total_count} chỗ trong ${d.chapter_total} chương.`;
+                : `${d.total_count} chỗ trong ${d.chapter_total} chương · ${d.chapter_count} chỗ đổi ngay ở chương này, phần còn lại xếp hàng chạy nền.`;
         } catch (e) { replaceHint.textContent = ''; }
     }
     [replaceFind, replaceWith].forEach(el => el?.addEventListener('input', refreshReplaceHint));
@@ -1271,35 +1271,56 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         await applyToSelection(d, replaced);
     }
 
-    async function replaceInScope(find, scope) {
-        const replace = replaceWith.value.trim();
-        if (!replace) { toast('Cần nội dung thay thế.', 'warning'); return; }
-        const body = new URLSearchParams({
-            find: buildPattern({ find, regex: replaceRegex.checked, wholeWord: replaceWhole.checked }),
-            replace,
-            scope: scope === 'chapter' ? 'chapter' : 'all',
-            regex: '1',
-        });
+    async function postPropagate(pattern, replace, scope) {
+        const body = new URLSearchParams({ find: pattern, replace, scope, regex: '1' });
         if (scope === 'chapter') body.set('chapter_index', INDEX);
         let res;
         try {
             res = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/glossary/propagate`,
                 { method: 'POST', body });
-        } catch (e) { toast('Lỗi kết nối, thử lại.', 'error'); return; }
-        if (res.status === 409) { toast('Đang có job khác chạy, vui lòng đợi.', 'warning'); return; }
-        if (!res.ok) {
-            const d = await res.json().catch(() => ({}));
-            toast(d.detail || 'Thay thế thất bại.', 'error');
+        } catch (e) {
+            throw new Error('Lỗi kết nối, thử lại.');
+        }
+        if (res.ok) return res.json();
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.detail || `Thay thế thất bại (HTTP ${res.status}).`);
+        err.status = res.status;
+        throw err;
+    }
+
+    // Chương đang đọc luôn đổi đồng bộ để thấy kết quả ngay; phạm vi toàn sách
+    // xếp thêm một job nền lo các chương còn lại (chương này khi đó đã sạch nên
+    // job chạy lại không đổi gì thêm).
+    async function replaceInScope(find, scope) {
+        const replace = replaceWith.value.trim();
+        if (!replace) { toast('Cần nội dung thay thế.', 'warning'); return; }
+        const pattern = buildPattern({
+            find, regex: replaceRegex.checked, wholeWord: replaceWhole.checked,
+        });
+
+        let done;
+        try {
+            done = await postPropagate(pattern, replace, 'chapter');
+        } catch (e) {
+            toast(e.message, 'error');
             return;
         }
-        const data = await res.json();
         closeModal('reader-replace-modal');
-        if (scope === 'chapter') {
-            toast(`Đã thay ${data.replaced} chỗ trong chương này.`, 'success');
-            setTimeout(() => window.location.reload(), 600);
+
+        if (scope === 'all') {
+            try {
+                await postPropagate(pattern, replace, 'all');
+                toast(`Đã thay ${done.replaced} chỗ ở chương này · các chương còn lại đang chạy nền.`, 'success');
+            } catch (e) {
+                toast(e.status === 409
+                    ? `Đã thay ${done.replaced} chỗ ở chương này. Job khác đang chạy nên chưa xếp hàng được các chương còn lại.`
+                    : `Đã thay ${done.replaced} chỗ ở chương này, nhưng xếp hàng thất bại: ${e.message}`,
+                    'warning');
+            }
         } else {
-            toast('Đã xếp hàng thay toàn bộ sách (chạy nền).', 'success');
+            toast(`Đã thay ${done.replaced} chỗ ở chương này.`, 'success');
         }
+        setTimeout(() => window.location.reload(), 800);
     }
 
     replaceRunBtn?.addEventListener('click', async () => {

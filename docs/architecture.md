@@ -77,6 +77,7 @@ FastAPI render giao diện Jinja2 và cung cấp API nội bộ. `JobQueue` chia
 
 - `POST /api/ebooks/{slug}/quick-translate`: dịch đoạn bôi đen bằng NMT cục bộ (HachimiMT/MoxhiMT), bất kể `translate.type` của ebook. Instance model được cache theo `model_key` trong tiến trình web.
 - Thay thế có ba phạm vi: vùng đã chọn ghi thẳng qua `chapters/{index}/para/save`; toàn bộ chương và toàn bộ sách uỷ quyền cho `glossary/propagate` (có backup + job queue). Tuỳ chọn "toàn bộ từ" bọc chuỗi tìm bằng `\b` và gửi như regex.
+- Mọi phạm vi đều đổi ngay chương đang đọc. Riêng "toàn bộ sách" gọi `propagate` hai lần: `scope=chapter` chạy đồng bộ để người đọc thấy kết quả tức thì, rồi `scope=all` xếp job nền cho các chương còn lại. Job chạy lại trên chương đã sạch không đổi gì thêm; nếu queue bận (409) thì thay đổi tức thì vẫn giữ và UI báo chưa xếp hàng được.
 - `POST /api/tts`: tổng hợp giọng đọc bằng Edge TTS (`edge-tts`), trả mp3 cho từng đoạn. Trang đọc phát tuần tự, prefetch đoạn kế và tự chuyển chương khi hết bài. Dịch vụ Edge thỉnh thoảng trả stream rỗng nên endpoint thử lại tối đa 3 lần.
 
 ## Reader Sync

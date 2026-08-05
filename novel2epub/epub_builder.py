@@ -44,7 +44,11 @@ def _md_to_xhtml_body(md: str, *, anchored: bool = False) -> str:
         block = block.strip()
         if not block:
             continue
-        heading = re.match(r"^#{1,6}\s+(.*)$", block)
+        # `\s+` trong regex khớp cả xuống dòng, nên block 2 dòng mà dòng đầu chỉ
+        # có dấu thăng ("#", "## ") sẽ bị nuốt thành MỘT <h2> — một neo cho hai
+        # dòng của split_paras, lệch toàn bộ chỉ số phía sau. Heading thật luôn
+        # là block một dòng, nên chặn ở đây.
+        heading = re.match(r"^#{1,6}\s+(.*)$", block) if "\n" not in block else None
         if heading:
             inner = _markers_to_html(html.escape(heading.group(1).strip()))
             attr = f' data-n2e-p="{para_index}"' if anchored else ""

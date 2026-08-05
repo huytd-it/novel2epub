@@ -131,3 +131,11 @@ def test_chi_chuong_da_dich_moi_duoc_gan_neo(tmp_path):
     co_neo = [n for n, b in bodies.items() if "data-n2e-p" in b]
     assert any("0001" in n for n in co_neo)
     assert not any("0002" in n for n in co_neo)
+
+
+def test_dong_chi_co_dau_thang_khong_nuot_dong_ke_tiep():
+    """Regex heading có `\s+` khớp cả xuống dòng: block 2 dòng mà dòng đầu chỉ
+    là dấu thăng từng bị gộp thành MỘT <h2>, làm lệch mọi neo phía sau."""
+    for md in ("#\n## H2", "# \nĐoạn A", "##\nĐoạn A\n\nĐoạn B"):
+        html = _md_to_xhtml_body(md, anchored=True)
+        assert _anchors(html) == list(range(len(split_paras(md)))), md

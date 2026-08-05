@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Cài đặt API — novel2epub{% endblock %}
+{% block content %}
+
+<div class="flex justify-between items-center mb-3 pb-2 border-b border-border-light dark:border-border-dark">
+    <a href="/" class="text-base font-semibold text-fg-light dark:text-fg-dark no-underline hover:text-link-light dark:hover:text-link-dark">&larr; Thư viện</a>
+    <div class="flex items-center gap-2">
+        <span class="text-sm text-muted-light dark:text-muted-dark" id="save-status"></span>
+    </div>
+</div>
+
+<h2 class="text-lg font-semibold mb-3">🔑 API &amp; OPDS</h2>
+
+<form method="post" action="/settings/api" class="settings-form max-w-3xl">
+
+<p class="text-sm text-muted-light dark:text-muted-dark px-3 pt-1">Cho phép ứng dụng đọc sách ngoài (như <strong>readest</strong>) truy cập catalog OPDS và các API của novel2epub từ ngoài máy này. Request từ localhost luôn được miễn token.</p>
+
+<div class="rounded-lg border border-status-warn-light dark:border-status-warn-dark bg-status-warn-light/40 dark:bg-status-warn-dark/20 px-3 py-2 my-3 text-sm">
+    ⚠ Mở novel2epub ra LAN là mở <strong>toàn bộ</strong> web UI chứ không riêng OPDS — chỉ làm việc này trên mạng bạn tin tưởng.
+</div>
+
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Token truy cập</summary>
+
+    <div class="grid grid-cols-1 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> token
+            <span class="flex gap-2 items-center">
+                <input type="password" id="api-token-input" name="token" value="{{ api.token }}" autocomplete="off"
+                    class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm flex-1 min-w-0 focus:outline-none focus:ring-2 focus:ring-link-light/40">
+                <button type="button" onclick="toggleApiTokenVisibility()" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Hiện/Ẩn</button>
+            </span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Dán token này vào ô mật khẩu của readest (để trống username). Không chia sẻ token.</span>
+        </label>
+    </div>
+
+    <div class="flex flex-wrap gap-2 items-center px-3 pb-3">
+        <button type="button" formaction="/settings/api/token" formmethod="post" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Sinh token mới</button>
+        <span class="text-xs italic text-muted-light dark:text-muted-dark">Token cũ mất hiệu lực ngay — mọi thiết bị đã cấu hình phải nhập lại.</span>
+    </div>
+</details>
+
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">CORS</summary>
+    <div class="grid grid-cols-1 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> cors_origins
+            <textarea name="cors_origins" rows="4" placeholder="http://localhost:3000"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-link-light/40">{% for origin in api.cors_origins %}{{ origin }}
+{% endfor %}</textarea>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mỗi origin một dòng. Chỉ cần khi dùng bản <strong>readest web</strong> — Tauri desktop/mobile gọi HTTP native, không đi qua CORS. TUYỆT ĐỐI không dùng <code>*</code>.</span>
+        </label>
+    </div>
+</details>
+
+<div class="flex flex-wrap gap-2 items-center mt-3 pt-3 border-t border-border-light dark:border-border-dark">
+    <button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:opacity-90">Lưu</button>
+</div>
+
+</form>
+
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark max-w-3xl" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Catalog OPDS</summary>
+    <div class="grid grid-cols-1 gap-3 px-3 pb-3">
+        <label class="flex flex-col gap-1 text-sm min-w-0"> URL catalog
+            <span class="flex gap-2 items-center">
+                <input type="text" id="opds-url-input" readonly value="{{ opds_url }}"
+                    class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm flex-1 min-w-0">
+                <button type="button" onclick="copyOpdsUrl()" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-muted-light dark:text-muted-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark">Chép</button>
+            </span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Dán URL này vào readest, để trống username, điền token ở trên vào ô password.</span>
+        </label>
+    </div>
+</details>
+
+<script>
+function toggleApiTokenVisibility() {
+    var el = document.getElementById("api-token-input");
+    el.type = el.type === "password" ? "text" : "password";
+}
+function copyOpdsUrl() {
+    var el = document.getElementById("opds-url-input");
+    el.select();
+    navigator.clipboard && navigator.clipboard.writeText(el.value);
+}
+</script>
+
+{% endblock %}

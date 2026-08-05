@@ -731,6 +731,49 @@ def save_reader(
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
+@router.get("/settings/api")
+def settings_api(request: Request):
+    """Khối cấu hình truy cập ngoài: token, CORS, URL catalog OPDS."""
+    cfg = deps.cfg()
+    return deps.templates.TemplateResponse(
+        request,
+        "settings_api.html",
+        {
+            "api": cfg.api,
+            # Địa chỉ đúng như client đang gọi — nếu người dùng mở trang này
+            # bằng IP LAN thì URL hiện ra cũng là IP LAN, dán vào readest trên
+            # điện thoại là chạy. Hiện "localhost" ở đây là bẫy: trên điện
+            # thoại nó trỏ về chính cái điện thoại.
+            "opds_url": str(request.base_url).rstrip("/") + "/opds",
+        },
+    )
+
+
+@router.post("/settings/api")
+def settings_api_save(
+    token: str = Form(""),
+    cors_origins: str = Form(""),
+):
+    origins = [line.strip() for line in cors_origins.splitlines() if line.strip()]
+    update_defaults(
+        deps.WORKSPACE_PATH,
+        {"api": {"token": token.strip(), "cors_origins": origins}},
+    )
+    return RedirectResponse(url="/settings/api", status_code=303)
+
+
+@router.post("/settings/api/token")
+def settings_api_new_token():
+    """Sinh token ngẫu nhiên mới. Token cũ mất hiệu lực ngay — mọi thiết bị
+    đã cấu hình phải nhập lại."""
+    import secrets
+
+    update_defaults(
+        deps.WORKSPACE_PATH, {"api": {"token": secrets.token_urlsafe(32)}}
+    )
+    return RedirectResponse(url="/settings/api", status_code=303)
+
+
 @router.post("/ebooks/{slug}/settings/output")
 def save_output(
     slug: str,

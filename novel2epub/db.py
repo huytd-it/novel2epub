@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -51,6 +51,7 @@ _SCHEMA_STATEMENTS = [
         output_json TEXT NOT NULL DEFAULT '{}',
         queue_json TEXT NOT NULL DEFAULT '{}',
         reader_json TEXT NOT NULL DEFAULT '{}',
+        api_json TEXT NOT NULL DEFAULT '{}',
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
@@ -279,6 +280,9 @@ _ADDED_COLUMNS = [
     ("character_relations", "evidence", "TEXT NOT NULL DEFAULT ''"),
     ("character_relations", "inferred", "INTEGER NOT NULL DEFAULT 0"),
     ("character_relations", "confidence", "TEXT NOT NULL DEFAULT ''"),
+    # v8: token + CORS cho OPDS/API ngoài localhost (tích hợp readest GĐ1).
+    # KHÔNG gộp vào `reader_json` — khối đó thuộc app novel-reader (Supabase).
+    ("settings", "api_json", "TEXT NOT NULL DEFAULT '{}'"),
 ]
 
 

@@ -19,6 +19,7 @@ Mỗi bước ghi kết quả vào DB nên có thể dừng, chạy tiếp hoặ
 - Xuất EPUB có bìa, metadata, series và chú thích glossary.
 - Đồng bộ tăng dần sang novel-reader qua Supabase mà không thay ID chương.
 - Backup/restore toàn bộ hệ thống bằng một file SQLite.
+- Catalog OPDS để đọc trực tiếp bằng readest — xem [Đọc bằng readest qua OPDS](docs/operations.md#đọc-bằng-readest-qua-opds).
 
 ## Cài đặt
 

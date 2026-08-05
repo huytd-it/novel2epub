@@ -22,23 +22,55 @@ sup.fn a { text-decoration: none; font-size: 0.8em; }
 _markers_to_html = footnotes.markers_to_html
 
 
-def _md_to_xhtml_body(md: str) -> str:
+def _md_to_xhtml_body(md: str, *, anchored: bool = False) -> str:
     """Chuyển markdown đơn giản -> các đoạn <p>/<h2> (escape an toàn).
 
     Placeholder footnote (ký tự PUA) được giữ qua html.escape rồi đổi thành <sup>.
+
+    `anchored=True` gắn thêm `data-n2e-p="<chỉ số>"` cho từng đoạn, để trình
+    đọc ngoài (readest) định vị được đoạn mà gọi API sửa. Chỉ số đếm theo
+    DÒNG-KHÔNG-RỖNG xuyên suốt cả chương, kể cả heading — khớp chính xác
+    `notes.split_paras`, tức là thứ `notes.replace_para` dùng để ghi. Đếm theo
+    block cách-dòng-trống (cách hàm này tách khối) sẽ lệch ở chương có block
+    nhiều dòng, và mọi lần sửa sau đó ghi nhầm đoạn.
+
+    Hình thức hiển thị KHÔNG đổi khi bật neo: vẫn một <p> cho mỗi block, các
+    dòng trong block vẫn nối bằng <br/>. Neo bọc trong <span> chứ không tách
+    thành nhiều <p> để không đổi thụt đầu dòng và giãn cách của mọi EPUB cũ.
     """
     blocks: list[str] = []
+    para_index = 0
     for block in re.split(r"\n\s*\n", md.strip()):
         block = block.strip()
         if not block:
             continue
-        heading = re.match(r"^#{1,6}\s+(.*)$", block)
+        # `\s+` trong regex khớp cả xuống dòng, nên block 2 dòng mà dòng đầu chỉ
+        # có dấu thăng ("#", "## ") sẽ bị nuốt thành MỘT <h2> — một neo cho hai
+        # dòng của split_paras, lệch toàn bộ chỉ số phía sau. Heading thật luôn
+        # là block một dòng, nên chặn ở đây.
+        heading = re.match(r"^#{1,6}\s+(.*)$", block) if "\n" not in block else None
         if heading:
-            blocks.append(f"<h2>{_markers_to_html(html.escape(heading.group(1).strip()))}</h2>")
+            inner = _markers_to_html(html.escape(heading.group(1).strip()))
+            attr = f' data-n2e-p="{para_index}"' if anchored else ""
+            blocks.append(f"<h2{attr}>{inner}</h2>")
+            para_index += 1
             continue
         # Gộp các dòng trong cùng đoạn, xuống dòng -> <br/>
-        lines = [_markers_to_html(html.escape(ln.strip())) for ln in block.splitlines() if ln.strip()]
-        blocks.append("<p>" + "<br/>".join(lines) + "</p>")
+        # PHẢI dùng split("\n"), KHÔNG dùng splitlines(): `split_paras` tách
+        # bằng text.split("\n") nên chỉ vỡ ở đúng ký tự \n. splitlines() còn vỡ
+        # ở \r, \v, \f, \x1c-\x1e, \x85 (NEL),  ,   — mỗi ký tự đó
+        # nằm trong block sẽ sinh THÊM neo so với số đoạn của split_paras, làm
+        # lệch mọi chỉ số phía sau. (\r\n vẫn an toàn vì có \n.)
+        rendered: list[str] = []
+        for line in block.split("\n"):
+            if not line.strip():
+                continue
+            inner = _markers_to_html(html.escape(line.strip()))
+            if anchored:
+                inner = f'<span data-n2e-p="{para_index}">{inner}</span>'
+            rendered.append(inner)
+            para_index += 1
+        blocks.append("<p>" + "<br/>".join(rendered) + "</p>")
     return "\n".join(blocks)
 
 
@@ -53,6 +85,7 @@ def build_epub(
     cover_path: str | Path | None = None,
     footnotes_by_stem: dict[str, list[dict]] | None = None,
     metadata: NovelConfig | None = None,
+    anchored_stems: set[str] | None = None,
 ) -> Path:
     """chapters_html: danh sách (chapter, tiêu_đề_hiển_thị, nội_dung_markdown).
 
@@ -62,8 +95,14 @@ def build_epub(
     `metadata` (tùy chọn) cung cấp publisher/pubdate/subjects/series/series_index/
     identifier/date_added — field rỗng bị bỏ qua, không ghi giá trị trống vào EPUB
     (xem spec ebook-metadata).
+
+    `anchored_stems` (tùy chọn): tập `ch.stem` được gắn neo `data-n2e-p`.
+    CHỈ truyền stem của chương có BẢN DỊCH — chương rơi về `raw_text` chứa
+    văn bản Hán gốc, mà API sửa lại ghi vào `translated_text`; gắn neo cho
+    chúng là mời người dùng sửa nhầm cột.
     """
     footnotes_by_stem = footnotes_by_stem or {}
+    anchored_stems = anchored_stems or set()
     try:
         from ebooklib import epub
     except ImportError as e:  # pragma: no cover
@@ -120,7 +159,7 @@ def build_epub(
             file_name=f"chap_{ch.stem}.xhtml",
             lang=language,
         )
-        body = _md_to_xhtml_body(md)
+        body = _md_to_xhtml_body(md, anchored=ch.stem in anchored_stems)
         body += _render_footnotes(footnotes_by_stem.get(ch.stem, []))
         item.content = (
             f"<html><head><title>{html.escape(title)}</title>"

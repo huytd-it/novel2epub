@@ -17,7 +17,8 @@ def _anchors(html: str) -> list[int]:
 
 def _anchored_text(html: str, index: int) -> str:
     m = re.search(rf'data-n2e-p="{index}"[^>]*>(.*?)<', html, re.S)
-    return m.group(1) if m else ""
+    assert m, f"khong tim thay neo {index} trong: {html!r}"
+    return m.group(1)
 
 
 def test_khong_bat_thi_khong_co_neo_nao():
@@ -104,6 +105,37 @@ def test_footnote_khong_lam_lech_chi_so():
     assert _anchors(_md_to_xhtml_body(marked, anchored=True)) == [0, 1, 2]
 
 
+def test_dong_chi_co_dau_thang_khong_nuot_dong_ke_tiep():
+    """Regex heading có `\\s+` khớp cả xuống dòng: block 2 dòng mà dòng đầu chỉ
+    là dấu thăng từng bị gộp thành MỘT <h2>, làm lệch mọi neo phía sau."""
+    for md in ("#\n## H2", "# \nĐoạn A", "##\nĐoạn A\n\nĐoạn B"):
+        html = _md_to_xhtml_body(md, anchored=True)
+        assert _anchors(html) == list(range(len(split_paras(md)))), md
+
+
+def test_ky_tu_xuong_dong_la_khong_sinh_them_neo():
+    """`split_paras` tách bằng text.split("\\n") — CHỈ vỡ ở \\n.
+
+    `str.splitlines()` còn vỡ ở \\r, \\v, \\f, \\x1c-\\x1e, \\x85 (NEL), \\u2028,
+    \\u2029; dùng nó sẽ sinh THÊM neo so với số đoạn của split_paras và làm lệch
+    mọi chỉ số phía sau trong chương. (\\r\\n vẫn an toàn vì có \\n.)
+    """
+    for sep in ("\r", " ", " ", "\x0b", "\x0c", "\x85", "\x1c", "\x1d", "\x1e"):
+        md = f"A{sep}B"
+        assert len(split_paras(md)) == 1, repr(sep)
+        assert _anchors(_md_to_xhtml_body(md, anchored=True)) == [0], repr(sep)
+
+    # ký tự lạ nằm giữa chương thật: mọi neo sau đó phải giữ nguyên chỉ số
+    md = "# Chương 1\n\nĐoạn A\rvẫn cùng đoạn\n\nĐoạn B"
+    assert _anchors(_md_to_xhtml_body(md, anchored=True)) == list(range(len(split_paras(md))))
+
+    # \r\n vẫn tách bình thường, giống split_paras
+    md_crlf = "Dòng một\r\nDòng hai"
+    assert _anchors(_md_to_xhtml_body(md_crlf, anchored=True)) == list(
+        range(len(split_paras(md_crlf)))
+    )
+
+
 def test_chi_chuong_da_dich_moi_duoc_gan_neo(tmp_path):
     """Chương rơi về raw_text (Hán gốc) tuyệt đối không được có neo — API sửa
     ghi vào translated_text, gắn neo là mời sửa nhầm cột."""
@@ -131,11 +163,3 @@ def test_chi_chuong_da_dich_moi_duoc_gan_neo(tmp_path):
     co_neo = [n for n, b in bodies.items() if "data-n2e-p" in b]
     assert any("0001" in n for n in co_neo)
     assert not any("0002" in n for n in co_neo)
-
-
-def test_dong_chi_co_dau_thang_khong_nuot_dong_ke_tiep():
-    """Regex heading có `\s+` khớp cả xuống dòng: block 2 dòng mà dòng đầu chỉ
-    là dấu thăng từng bị gộp thành MỘT <h2>, làm lệch mọi neo phía sau."""
-    for md in ("#\n## H2", "# \nĐoạn A", "##\nĐoạn A\n\nĐoạn B"):
-        html = _md_to_xhtml_body(md, anchored=True)
-        assert _anchors(html) == list(range(len(split_paras(md)))), md

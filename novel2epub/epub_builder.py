@@ -56,8 +56,13 @@ def _md_to_xhtml_body(md: str, *, anchored: bool = False) -> str:
             para_index += 1
             continue
         # Gộp các dòng trong cùng đoạn, xuống dòng -> <br/>
+        # PHẢI dùng split("\n"), KHÔNG dùng splitlines(): `split_paras` tách
+        # bằng text.split("\n") nên chỉ vỡ ở đúng ký tự \n. splitlines() còn vỡ
+        # ở \r, \v, \f, \x1c-\x1e, \x85 (NEL),  ,   — mỗi ký tự đó
+        # nằm trong block sẽ sinh THÊM neo so với số đoạn của split_paras, làm
+        # lệch mọi chỉ số phía sau. (\r\n vẫn an toàn vì có \n.)
         rendered: list[str] = []
-        for line in block.splitlines():
+        for line in block.split("\n"):
             if not line.strip():
                 continue
             inner = _markers_to_html(html.escape(line.strip()))

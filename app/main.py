@@ -8,6 +8,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from . import deps
@@ -72,19 +73,53 @@ app = FastAPI(title="novel2epub")
 from fastapi.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-_ALLOWED_ORIGINS = _cors_origins()
-if _ALLOWED_ORIGINS:
-    from fastapi.middleware.cors import CORSMiddleware
-
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_ALLOWED_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["GET", "PATCH", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type"],
-    )
-
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+
+# Đường dẫn được phép nhận CORS — CHỈ OPDS + API sửa đoạn, không bao giờ mở
+# rộng ra /settings hay bất kỳ route web UI nào khác (token bị lộ ở
+# /settings/api dạng cleartext, xem finding review nhánh readest-opds-integration).
+_CORS_PREFIXES = ("/opds", "/api/v1")
+
+
+def _cors_eligible_path(path: str) -> bool:
+    return path.startswith(_CORS_PREFIXES)
+
+
+@app.middleware("http")
+async def opds_api_cors(request: Request, call_next):
+    """CORS thủ công, chỉ áp cho /opds/* và /api/v1/* — KHÔNG dùng
+    `CORSMiddleware` app-wide: nó sẽ mở luôn `/settings/api`, nơi token hiện
+    ra cleartext trong HTML, cho origin đã cấu hình đọc trộm qua fetch().
+
+    Đọc `cors_origins` MỚI mỗi request (không cache ở import time) để khớp
+    hành vi với token — sửa trong Cài đặt có hiệu lực ngay, không cần restart.
+
+    `allow_credentials` không bật: auth ở đây là header `Authorization`
+    tường minh (Basic/Bearer), không phải cookie/session — không có state nào
+    để "credentials" bảo vệ, bật lên chỉ khiến trình duyệt sẵn sàng đính kèm
+    state ẩn cho request chéo mà không được lợi gì.
+    """
+    path = request.url.path
+    origin = request.headers.get("origin")
+
+    if not _cors_eligible_path(path) or not origin:
+        return await call_next(request)
+
+    allowed = _cors_origins()
+    if origin not in allowed:
+        return await call_next(request)
+
+    if request.method == "OPTIONS":
+        response = Response(status_code=200)
+    else:
+        response = await call_next(request)
+
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Vary"] = "Origin"
+    response.headers["Access-Control-Allow-Methods"] = "GET, PATCH, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+    return response
 
 
 @app.middleware("http")

@@ -13,8 +13,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from novel2epub import opds
+from novel2epub.notes import replace_para, split_paras
 from novel2epub.storage import Storage
 
 from .. import deps
@@ -131,3 +133,68 @@ def opds_cover(slug: str) -> Response:
         raise HTTPException(status_code=404, detail="Ebook chưa có ảnh bìa.")
     content, ext = cover
     return Response(content=content, media_type=_cover_media_type(ext))
+
+
+class ParagraphPatch(BaseModel):
+    """Thân request sửa một đoạn.
+
+    `expected` PHẢI lấy từ `GET .../chapters/{idx}`, KHÔNG được lấy từ DOM của
+    trang đang đọc: văn bản trong EPUB đã qua html.escape và marker footnote đã
+    thành <sup>, nên không bao giờ khớp bản trong DB.
+    """
+    text: str
+    expected: str
+
+
+def _chapter_or_404(slug: str, idx: int):
+    """(storage, chapter) của một chương, hoặc 404."""
+    _cfg, storage = _ebook_or_404(slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    ch = next((c for c in manifest.chapters if c.index == idx), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
+    return storage, ch
+
+
+@router.get("/api/v1/ebooks/{slug}/chapters/{idx}")
+def api_chapter(slug: str, idx: int) -> dict:
+    """Các đoạn của một chương kèm chỉ số — nguồn `expected` cho PATCH."""
+    storage, ch = _chapter_or_404(slug, idx)
+    translated = storage.read_translated(ch)
+    paras = split_paras(translated)
+    return {
+        "slug": slug,
+        "index": idx,
+        "title": ch.title or f"Chương {idx}",
+        "paragraphs": [{"index": i, "text": p} for i, p in enumerate(paras)],
+    }
+
+
+@router.patch("/api/v1/ebooks/{slug}/chapters/{idx}/paragraphs/{para_index}")
+def api_patch_paragraph(slug: str, idx: int, para_index: int, body: ParagraphPatch) -> dict:
+    """Thay toàn bộ một đoạn. Chống ghi đè bằng `expected`.
+
+    Không cho `text` rỗng: `replace_para` khi nhận rỗng sẽ xoá hẳn dòng rồi
+    đánh lại chỉ số mọi đoạn phía sau, mà client vẫn giữ chỉ số cũ. Xoá đoạn
+    chỉ làm ở web UI, nơi trang tự tải lại sau mỗi thao tác.
+    """
+    storage, ch = _chapter_or_404(slug, idx)
+    if not body.text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Không xoá đoạn qua API — dùng trang biên tập trên web.",
+        )
+    if not storage.has_translated(ch):
+        raise HTTPException(status_code=404, detail="Chương chưa có bản dịch.")
+
+    translated = storage.read_translated(ch)
+    updated, error = replace_para(translated, para_index, body.expected, body.text)
+    if updated is None:
+        paras = split_paras(translated)
+        current = paras[para_index] if 0 <= para_index < len(paras) else ""
+        raise HTTPException(status_code=409, detail={"error": error, "current": current})
+
+    storage.write_translated(ch, updated)
+    return {"ok": True, "index": para_index, "text": split_paras(updated)[para_index]}

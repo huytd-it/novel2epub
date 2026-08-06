@@ -62,3 +62,20 @@ def test_token_khong_nhung_vao_url_catalog(monkeypatch, tmp_path):
     for line in html.splitlines():
         if "/opds" in line:
             assert "sieu-bi-mat" not in line
+
+
+def test_nut_sinh_token_phai_la_type_submit(monkeypatch, tmp_path):
+    # formaction/formmethod CHỈ có tác dụng trên type="submit" — type="button"
+    # không submit form gì cả nếu không có onclick riêng, nên bấm sẽ không làm
+    # gì. Đây là regression test cho lỗi đã xảy ra: nút render type="button"
+    # trong khi route /settings/api/token hoạt động đúng — test hit route
+    # trực tiếp qua client.post() nên không bắt được, phải soi HTML thật.
+    client, _db = _client(monkeypatch, tmp_path)
+    html = client.get("/settings/api").text
+    button_line = next(
+        line for line in html.splitlines() if 'formaction="/settings/api/token"' in line
+    )
+    assert 'type="submit"' in button_line, (
+        f'Nút sinh token phải type="submit" để formaction hoạt động, '
+        f"tìm thấy: {button_line.strip()}"
+    )

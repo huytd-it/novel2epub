@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import dataclasses
+import csv
+import io
 import threading
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Form, HTTPException, Query, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse, Response
 
 from novel2epub.pipeline import step_cleanup_han_selected
 from novel2epub.pipeline import step_crawl_selected
@@ -22,6 +24,9 @@ from .. import deps
 from ..job import _STEPS, _STEP_CATEGORY
 
 router = APIRouter()
+
+_TOC_CSV_FIELDS = ("index", "url", "title", "title_zh")
+_TOC_CSV_MAX_BYTES = 5 * 1024 * 1024
 
 def _parse_optional_int(value: str) -> int | None:
     value = (value or "").strip()
@@ -296,13 +301,87 @@ def start_ebook_build_selected(
 
 @router.post("/ebooks/{slug}/jobs/delete-chapters")
 def start_ebook_delete_chapters(request: Request, slug: str):
-    """Xóa toàn bộ danh mục chương khỏi manifest."""
+    """Xóa tiêu đề TOC, giữ nguyên chapter và toàn bộ dữ liệu nội dung."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
         raise HTTPException(status_code=404, detail="Chưa có manifest.")
-    manifest.chapters.clear()
+    for chapter in manifest.chapters:
+        chapter.title = ""
+        chapter.title_zh = ""
+    storage.save_manifest(manifest)
+    return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
+
+
+@router.get("/ebooks/{slug}/toc.csv")
+def export_ebook_toc_csv(slug: str):
+    """Xuất TOC để sửa bằng bảng tính; UTF-8 BOM giúp Excel nhận đúng Unicode."""
+    cfg = deps.resolved_cfg(slug)
+    manifest = Storage(cfg.output.data_dir, cfg.novel.slug).load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=_TOC_CSV_FIELDS, lineterminator="\r\n")
+    writer.writeheader()
+    for chapter in manifest.chapters:
+        writer.writerow({
+            "index": chapter.index,
+            "url": chapter.url,
+            "title": chapter.title,
+            "title_zh": chapter.title_zh,
+        })
+    content = "\ufeff" + stream.getvalue()
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{slug}-toc.csv"'},
+    )
+
+
+@router.post("/ebooks/{slug}/toc.csv")
+async def import_ebook_toc_csv(slug: str, file: UploadFile = File(...)):
+    """Nhập CSV TOC, chỉ cập nhật title/title_zh theo index."""
+    raw = await file.read(_TOC_CSV_MAX_BYTES + 1)
+    if len(raw) > _TOC_CSV_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="CSV vượt quá giới hạn 5 MB.")
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="CSV phải dùng UTF-8.") from exc
+    try:
+        reader = csv.DictReader(io.StringIO(text, newline=""))
+        if not reader.fieldnames or not {"index", "title", "title_zh"}.issubset(reader.fieldnames):
+            raise HTTPException(
+                status_code=400,
+                detail="CSV phải có các cột index, title, title_zh.",
+            )
+        rows = list(reader)
+    except csv.Error as exc:
+        raise HTTPException(status_code=400, detail=f"CSV không hợp lệ: {exc}") from exc
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    chapters = {chapter.index: chapter for chapter in manifest.chapters}
+    seen: set[int] = set()
+    updates: list[tuple[object, str, str]] = []
+    for line_number, row in enumerate(rows, start=2):
+        try:
+            index = int((row.get("index") or "").strip())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Dòng {line_number}: index không hợp lệ.") from exc
+        if index in seen:
+            raise HTTPException(status_code=400, detail=f"Dòng {line_number}: index {index} bị trùng.")
+        if index not in chapters:
+            raise HTTPException(status_code=400, detail=f"Dòng {line_number}: không có chương index {index}.")
+        seen.add(index)
+        updates.append((chapters[index], row.get("title") or "", row.get("title_zh") or ""))
+    for chapter, title, title_zh in updates:
+        chapter.title = title.strip()
+        chapter.title_zh = title_zh.strip()
     storage.save_manifest(manifest)
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 

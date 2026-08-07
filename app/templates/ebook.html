@@ -232,7 +232,12 @@
         <a class="btn btn-sm btn-secondary" href="/ebooks/{{ slug }}/glossary">Glossary</a>
         <a class="btn btn-sm btn-secondary" href="/ebook/{{ slug }}/characters">Nhân vật</a>
         <a class="btn btn-sm btn-secondary" href="/ebooks/{{ slug }}/settings">Cài đặt</a>
-        <form method="post" action="/ebooks/{{ slug }}/jobs/delete-chapters" data-job-category="both" data-confirm="Xóa toàn bộ danh mục ({{ chapters|length or '?' }} chương)? Raw, translated, và dữ liệu sẽ được giữ nguyên — cần Crawl lại để có danh sách mới.">
+        <a class="btn btn-sm btn-secondary" href="/ebooks/{{ slug }}/toc.csv">Xuất CSV</a>
+        <form method="post" action="/ebooks/{{ slug }}/toc.csv" enctype="multipart/form-data" class="inline-flex items-center gap-1">
+            <input type="file" name="file" accept=".csv,text/csv" required class="text-xs max-w-40">
+            <button type="submit" class="btn btn-sm btn-secondary">Nhập CSV</button>
+        </form>
+        <form method="post" action="/ebooks/{{ slug }}/jobs/delete-chapters" data-job-category="both" data-confirm="Xóa title và title gốc của {{ chapters|length or '?' }} chương? Danh sách chương, raw, translated, metadata và các dữ liệu khác sẽ được giữ nguyên.">
             <button type="submit" class="btn btn-sm btn-danger" >Xóa danh mục</button>
         </form>
     </div>
@@ -543,6 +548,7 @@ let searchTimer = null;
 let pendingFetchToc = false;
 let pendingReindex = false;
 let reindexPreviewMode = false;
+let reindexPreviewOrder = null;
 const submittingForms = new WeakSet();
 const selectedMenuMq = window.matchMedia("(max-width: 767px)");
 const LAST_READER_CHAPTER_KEY = "n2e:last-reader-chapter:" + SLUG;
@@ -837,6 +843,9 @@ function renderToc() {
     if (!tbody) return;
     persistControls();
     const data = getFilteredData();
+    if (reindexPreviewMode) {
+        reindexPreviewOrder = data.map(ch => ch.index);
+    }
     tbody.innerHTML = data.map((ch, i) => buildChapterRow(ch, i + 1)).join("");
     const pill = document.querySelector(".count-pill");
     if (pill) pill.textContent = String(data.length);
@@ -985,6 +994,10 @@ document.addEventListener("submit", async function(event) {
             toast("Chưa chọn chương nào. Hãy tick checkbox trước.", "warning");
             return;
         }
+        if (action.endsWith("reorder") && (!reindexPreviewMode || !reindexPreviewOrder?.length)) {
+            toast("Hãy bấm Xem trước index trước khi đánh index lại.", "warning");
+            return;
+        }
         submittingForms.add(form);
 
         // Xác nhận cho thao tác phá huỷ (vd. xoá bản dịch hàng loạt) — `data-confirm`
@@ -1044,11 +1057,10 @@ document.addEventListener("submit", async function(event) {
         }
 
         if (action.endsWith("reorder")) {
-            const data = getFilteredData();
             const h = document.createElement("input");
             h.type = "hidden";
-            h.name = "ordered_indexes";
-            h.value = data.map(ch => ch.index).join(",");
+            h.name = "order";
+            h.value = reindexPreviewOrder.join(",");
             h.className = "js-dyn";
             form.appendChild(h);
         }
@@ -1439,6 +1451,7 @@ document.addEventListener("dblclick", (e) => {
 // Reindex preview
 document.getElementById("btn-preview-reindex")?.addEventListener("click", function() {
     reindexPreviewMode = !reindexPreviewMode;
+    if (!reindexPreviewMode) reindexPreviewOrder = null;
     this.classList.toggle("active", reindexPreviewMode);
     const banner = document.getElementById("reindex-preview-banner");
     if (banner) banner.classList.toggle("hidden", !reindexPreviewMode);

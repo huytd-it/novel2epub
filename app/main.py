@@ -6,12 +6,14 @@ Chạy: uvicorn app.main:app --reload   (từ thư mục novel2epub/)
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 
 from fastapi import FastAPI, Request
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import deps
+from .auth import check_api_auth
 from .deps import BASE_DIR, WORKSPACE_PATH
 from .job import JobRunner
 from .logging_config import setup_logging
@@ -31,6 +33,7 @@ from .routes import (
     settings,
     sources,
     storage,
+    webui,
     wireguard,
 )
 from .scheduler import AutomationScheduler
@@ -70,6 +73,24 @@ def _cors_origins(path: str | None = None) -> list[str]:
 
 
 app = FastAPI(title="novel2epub")
+
+
+def _load_oidc_validator():
+    """Đọc OIDC global trực tiếp từ SQLite; không log config hay token."""
+    from novel2epub.db import get_connection, init_schema
+    from novel2epub.oidc import OIDCValidator, config_from_mapping
+
+    conn = get_connection(deps.DB_PATH)
+    try:
+        init_schema(conn)
+        row = conn.execute("SELECT oidc_json FROM settings WHERE id = 1").fetchone()
+        config = config_from_mapping(json.loads(row["oidc_json"] or "{}") if row else {})
+        return OIDCValidator(config) if config else None
+    finally:
+        conn.close()
+
+
+app.state.oidc_validator = _load_oidc_validator()
 # ponytail: add GZip compression for faster page loads
 from fastapi.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=500)
@@ -77,10 +98,28 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
-# Đường dẫn được phép nhận CORS — CHỈ OPDS + API sửa đoạn, không bao giờ mở
+# Đường dẫn được phép nhận CORS — CHỈ nhóm API thuần JSON, không bao giờ mở
 # rộng ra /settings hay bất kỳ route web UI nào khác (token bị lộ ở
 # /settings/api dạng cleartext, xem finding review nhánh readest-opds-integration).
-_CORS_PREFIXES = ("/opds", "/api/v1")
+#
+# `/api` bao trọn `/api/v1` (readest), `/api/ui` (SPA) và các endpoint nội bộ
+# mà SPA cần. An toàn vì KHÔNG route nào dưới `/api` trả secret — token chỉ
+# xuất hiện trong HTML của trang `/settings/api`, và tiền tố đó không khớp.
+_CORS_PREFIXES = ("/opds", "/api")
+
+# Nhóm đường dẫn đòi token khi gọi từ ngoài localhost. Trước đây chỉ `/opds` và
+# `/api/v1` được bảo vệ vì phần còn lại giả định "chỉ máy này gọi". Đưa SPA lên
+# host khác (Vercel/Cloudflare Pages, backend qua Tailscale) phá vỡ đúng giả
+# định đó: không chặn thì ai tới được cổng là điều khiển được crawler và queue.
+#
+# Web UI Jinja2 vẫn là công cụ chạy tại chỗ — mở qua http://localhost:8010 thì
+# không đổi gì; mở qua địa chỉ tailnet thì các lời gọi `/api/*` của nó sẽ 401.
+_AUTH_PREFIXES = ("/opds", "/api")
+
+
+def _legacy_auth_path(path: str) -> bool:
+    """Static token chỉ còn áp cho OPDS/v1/legacy; v2 dùng OIDC dependency."""
+    return path.startswith(_AUTH_PREFIXES) and not path.startswith("/api/v2")
 
 
 def _cors_eligible_path(path: str) -> bool:
@@ -88,8 +127,39 @@ def _cors_eligible_path(path: str) -> bool:
 
 
 @app.middleware("http")
+async def api_token_gate(request: Request, call_next):
+    """Đòi token cho `/api/*` và `/opds/*` khi client không phải localhost.
+
+    Đặt ở middleware chứ không phải dependency vì các router trộn lẫn route
+    HTML và route JSON trong cùng một file (`jobs.py` vừa có trang `/queue`
+    vừa có `/api/queue`), nên gắn theo router sẽ chặn nhầm trang.
+
+    ĐĂNG KÝ TRƯỚC `opds_api_cors` là có chủ đích: Starlette chạy middleware
+    đăng ký sau ở vòng NGOÀI, nên thứ tự này đặt CORS bọc ngoài auth. Ngược
+    lại thì response 401 không đi qua lớp CORS, và trình duyệt sẽ báo "CORS
+    error" mơ hồ thay vì để frontend đọc được "Token không hợp lệ".
+
+    Preflight `OPTIONS` đi qua không kiểm tra: trình duyệt không đính kèm
+    `Authorization` vào preflight, chặn ở đây thì mọi request chéo chết trước
+    khi kịp gửi token.
+    """
+    if request.method == "OPTIONS" or not _legacy_auth_path(request.url.path):
+        return await call_next(request)
+
+    failure = check_api_auth(request)
+    if failure is None:
+        return await call_next(request)
+
+    return JSONResponse(
+        {"detail": failure.detail},
+        status_code=failure.status,
+        headers=failure.headers or None,
+    )
+
+
+@app.middleware("http")
 async def opds_api_cors(request: Request, call_next):
-    """CORS thủ công, chỉ áp cho /opds/* và /api/v1/* — KHÔNG dùng
+    """CORS thủ công, chỉ áp cho /opds/* và /api/* — KHÔNG dùng
     `CORSMiddleware` app-wide: nó sẽ mở luôn `/settings/api`, nơi token hiện
     ra cleartext trong HTML, cho origin đã cấu hình đọc trộm qua fetch().
 
@@ -118,8 +188,9 @@ async def opds_api_cors(request: Request, call_next):
 
     response.headers["Access-Control-Allow-Origin"] = origin
     response.headers["Vary"] = "Origin"
-    response.headers["Access-Control-Allow-Methods"] = "GET, PATCH, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+    response.headers["Access-Control-Max-Age"] = "600"
     return response
 
 
@@ -172,3 +243,24 @@ app.include_router(automation.router)
 app.include_router(dashboard.router)
 app.include_router(opds.router)
 app.include_router(wireguard.router)
+app.include_router(webui.router)
+
+
+# SPA React build ra `app/webui/`. Chỉ gắn khi đã build — thiếu bundle thì
+# server vẫn chạy bình thường với UI Jinja2 và `/app` trả 404.
+_SPA_DIR = BASE_DIR / "webui"
+if (_SPA_DIR / "index.html").exists():
+    app.mount("/app/assets", StaticFiles(directory=str(_SPA_DIR / "assets")), name="spa-assets")
+
+    @app.get("/app")
+    @app.get("/app/{path:path}")
+    def spa(path: str = ""):
+        """Mọi đường dẫn con trả về index.html để router phía client tự xử lý.
+
+        File tĩnh ngoài `assets/` (favicon, font tải rời) vẫn phải trả đúng
+        file, nếu không trình duyệt nhận HTML với đuôi `.woff2`.
+        """
+        candidate = (_SPA_DIR / path).resolve()
+        if path and candidate.is_file() and candidate.is_relative_to(_SPA_DIR):
+            return FileResponse(candidate)
+        return FileResponse(_SPA_DIR / "index.html")

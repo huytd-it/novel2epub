@@ -1,0 +1,39 @@
+/**
+ * Bộ icon dùng chung — Phosphor qua `react-icons`.
+ *
+ * Đặt tên theo việc icon làm trong app chứ không theo hình vẽ, để đổi bộ icon
+ * sau này chỉ phải sửa file này.
+ */
+export {
+  PiArrowClockwise as IconRetry,
+  PiArrowSquareOut as IconExternal,
+  PiBookOpen as IconRead,
+  PiBooks as IconLibrary,
+  PiCaretDown as IconCaretDown,
+  PiCaretRight as IconChevronRight,
+  PiCaretUpDown as IconSwitch,
+  PiCheck as IconCheck,
+  PiClock as IconClock,
+  PiGearSix as IconSettings,
+  PiListNumbers as IconChapters,
+  PiSquaresFour as IconOverview,
+  PiTextAa as IconBook,
+  PiTranslate as IconGlossary,
+  PiUsersThree as IconCharacters,
+  PiDatabase as IconSource,
+  PiDownloadSimple as IconDownload,
+  PiGauge as IconGauge,
+  PiHardDrives as IconDisk,
+  PiList as IconMenu,
+  PiMagnifyingGlass as IconSearch,
+  PiMoon as IconMoon,
+  PiPlay as IconPlay,
+  PiPlugsConnected as IconPlug,
+  PiPlus as IconPlus,
+  PiScroll as IconLog,
+  PiShieldCheck as IconShield,
+  PiStack as IconQueue,
+  PiSun as IconSun,
+  PiTrash as IconTrash,
+  PiX as IconClose,
+} from "react-icons/pi";

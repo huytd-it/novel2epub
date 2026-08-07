@@ -7,9 +7,33 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+from starlette.testclient import TestClient
+
 from novel2epub.db import get_connection, init_schema
 
 _SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "output", "queue", "reader", "api", "wireguard")
+
+
+@pytest.fixture(autouse=True)
+def local_testclient(monkeypatch):
+    """Mặc định mọi `TestClient` nói chuyện từ 127.0.0.1.
+
+    `TestClient` để `request.client.host` là "testclient", mà `api_token_gate`
+    trong `app/main.py` chỉ miễn token cho địa chỉ localhost thật — không có
+    fixture này thì mọi test gọi `/api/*` đều nhận 503 dù ý của nó là "web UI
+    gọi từ chính máy đang chạy".
+
+    Test nào cần đóng vai client TỪ XA (`test_api_auth_dep`, `test_api_cors`)
+    vẫn truyền `client=` tường minh, và `setdefault` không ghi đè giá trị đó.
+    """
+    original = TestClient.__init__
+
+    def patched(self, app, *args, **kwargs):
+        kwargs.setdefault("client", ("127.0.0.1", 12345))
+        return original(self, app, *args, **kwargs)
+
+    monkeypatch.setattr(TestClient, "__init__", patched)
 
 
 def write_db_config(

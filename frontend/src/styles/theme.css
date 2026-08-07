@@ -1,0 +1,205 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: false;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   novel2epub — "Xưởng & Trang giấy"
+
+   Chrome của app là sàn xưởng (nền mực, dày đặc, đo đếm được); Reader là
+   trang giấy (nền sáng, chữ chân phương, thoáng). Bảng màu chức năng lấy
+   từ tranh Đông Hồ: hoa hòe = máy làm, lục = người duyệt, chàm = nguồn,
+   son = hỏng. Bốn sắc này phải phân biệt được ở kích thước 3px vì dải
+   chương vẽ mỗi chương thành một ô.
+
+   Tên theme đặt đúng là "light"/"dark" để trùng giá trị `data-theme` mà
+   script chống nháy trong index.html gán trước khi React chạy.
+   ───────────────────────────────────────────────────────────────────── */
+
+@plugin "daisyui/theme" {
+  name: "dark";
+  default: true;
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-base-100: #151a21;
+  --color-base-200: #0e1116;
+  --color-base-300: #242d38;
+  --color-base-content: #e4e8ee;
+
+  --color-primary: #d9a23a;
+  --color-primary-content: #17130a;
+  --color-secondary: #6d8ae0;
+  --color-secondary-content: #0c1020;
+  --color-accent: #63b58c;
+  --color-accent-content: #08140e;
+  --color-neutral: #1d242d;
+  --color-neutral-content: #e4e8ee;
+
+  --color-info: #6d8ae0;
+  --color-info-content: #0c1020;
+  --color-success: #63b58c;
+  --color-success-content: #08140e;
+  --color-warning: #d9a23a;
+  --color-warning-content: #17130a;
+  --color-error: #e0664a;
+  --color-error-content: #1b0c08;
+
+  --radius-selector: 0.125rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.375rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "light";
+  color-scheme: light;
+
+  --color-base-100: #f7f8f5;
+  --color-base-200: #eaebe5;
+  --color-base-300: #d3d6cb;
+  --color-base-content: #191d22;
+
+  --color-primary: #a8761a;
+  --color-primary-content: #ffffff;
+  --color-secondary: #3d5cb0;
+  --color-secondary-content: #ffffff;
+  --color-accent: #3f7d5c;
+  --color-accent-content: #ffffff;
+  --color-neutral: #2b3038;
+  --color-neutral-content: #f7f8f5;
+
+  --color-info: #3d5cb0;
+  --color-info-content: #ffffff;
+  --color-success: #3f7d5c;
+  --color-success-content: #ffffff;
+  --color-warning: #a8761a;
+  --color-warning-content: #ffffff;
+  --color-error: #b33c26;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 0.125rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.375rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Trạng thái "bỏ qua" không có sắc daisyUI nào hợp: `neutral` trùng nền panel
+   nên ô chương biến mất, còn `base-content` thì sáng hơn cả trạng thái đã
+   xong. Đây là màu xám trung tính riêng, đủ tách khỏi nền mà không giành
+   chú ý. */
+[data-theme="dark"] {
+  --n2e-skip: #4a5563;
+}
+[data-theme="light"] {
+  --n2e-skip: #9aa3ae;
+}
+
+@theme {
+  --font-display: "Bricolage Grotesque Variable", "Be Vietnam Pro", sans-serif;
+  --font-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-read: "Literata Variable", Georgia, serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overflow-x: clip;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-base-200);
+    color: var(--color-base-content);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  /* Số liệu phải xếp thẳng cột khi giá trị đổi liên tục (queue, tiến độ). */
+  code,
+  kbd,
+  pre,
+  samp,
+  [data-numeric] {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-primary) 35%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .scroll-slim {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-base-300) transparent;
+  }
+  .scroll-slim::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  .scroll-slim::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scroll-slim::-webkit-scrollbar-thumb {
+    background-color: var(--color-base-300);
+    border: 3px solid transparent;
+    border-radius: 99px;
+    background-clip: content-box;
+  }
+
+  /* Vạch nhịp của xưởng: dùng cho thanh job đang chạy và ô chương đang xử lý.
+     Nhịp chậm, biên độ nhỏ — báo "còn sống", không đòi chú ý. */
+  .pulse-run {
+    animation: n2e-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes n2e-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+}

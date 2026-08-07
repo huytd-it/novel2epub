@@ -23,6 +23,20 @@ env/
 dist/
 *.egg-info/
 
+# Frontend (Vite/React) build và dependency
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+app/webui/
+*.tsbuildinfo
+.eslintcache
+
+# Tauri: target/ là build Rust, gen/ do CLI sinh lại được
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+frontend/src-tauri/Cargo.lock
+
 # OS/editor temporary files
 .DS_Store
 Thumbs.db

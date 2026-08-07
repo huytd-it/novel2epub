@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "novel2epub",
+  "version": "0.1.0",
+  "identifier": "app.novel2epub.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5183/app/",
+    "beforeBuildCommand": "npm run build:tauri",
+    "frontendDist": "../../app/webui"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "novel2epub",
+        "width": 1360,
+        "height": 900,
+        "minWidth": 880,
+        "minHeight": 600,
+        "resizable": true,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http://localhost:* http://127.0.0.1:* http://*:* https://*:*"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"],
+    "category": "Productivity",
+    "shortDescription": "Xưởng crawl, dịch và đóng gói EPUB",
+    "longDescription": "Giao diện desktop cho novel2epub: quản lý thư viện, hàng đợi job, glossary và trang đọc."
+  },
+  "plugins": {}
+}

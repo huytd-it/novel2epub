@@ -261,6 +261,11 @@ def test_ensure_title_number_title_only_number():
     assert b.ensure_title_number("第5章", "Chương 5") == "Chương 5"
 
 
+def test_ensure_title_number_supports_chinese_numerals():
+    assert b.ensure_title_number("第一章", "Mở màn") == "Chương 1: Mở màn"
+    assert b.ensure_title_number("第一百零二章", "Trở về") == "Chương 102: Trở về"
+
+
 def test_glossary_export_round_trip_flat():
     """build_glossary_export → parse_glossary phải nạp lại đúng bảng phẳng."""
     glossary = {"萧炎": "Tiêu Viêm", "斗气": "Đấu khí"}

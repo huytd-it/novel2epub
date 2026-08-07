@@ -57,7 +57,49 @@ def test_toc_first_time_translates_from_title_and_backfills_title_zh(tmp_path, m
     assert tr.batch_calls == [["第一章"]]
     ch2 = storage.load_manifest().chapters[0]
     assert ch2.title_zh == "第一章"
-    assert ch2.title == "VI:第一章"
+    assert ch2.title == "Chương 1: VI:第一章"
+
+
+def test_toc_formats_numbered_title_with_name(tmp_path, monkeypatch):
+    tr = _FakeTitleTranslator()
+    tr.translate_titles = lambda titles: ["Tên chương"]
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
+
+    storage = _seed(tmp_path, [Chapter(index=1, url="http://x/1", title="第12章 原名")])
+
+    pipeline.step_translate_toc_selected(_cfg(tmp_path), lambda m: None, selected_indexes=[1])
+
+    assert storage.load_manifest().chapters[0].title == "Chương 12: Tên chương"
+
+
+def test_toc_formats_numbered_title_without_name(tmp_path, monkeypatch):
+    tr = _FakeTitleTranslator()
+    tr.translate_titles = lambda titles: ["Chương 12"]
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
+
+    storage = _seed(tmp_path, [Chapter(index=1, url="http://x/1", title="第12章")])
+
+    pipeline.step_translate_toc_selected(_cfg(tmp_path), lambda m: None, selected_indexes=[1])
+
+    assert storage.load_manifest().chapters[0].title == "Chương 12"
+
+
+def test_toc_removes_vote_request_suffix(tmp_path, monkeypatch):
+    tr = _FakeTitleTranslator()
+    tr.translate_titles = lambda titles: ["Tên chương (Cầu phiếu tháng!)"]
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
+
+    storage = _seed(tmp_path, [Chapter(index=1, url="http://x/1", title="第12章 原名 求月票")])
+
+    pipeline.step_translate_toc_selected(_cfg(tmp_path), lambda m: None, selected_indexes=[1])
+
+    assert storage.load_manifest().chapters[0].title == "Chương 12: Tên chương"
+
+
+def test_clean_title_removes_common_vote_suffixes_only_at_end():
+    assert pipeline._clean_title("Tên chương - xin phiếu đề cử") == "Tên chương"
+    assert pipeline._clean_title("Tên chương【Cầu vé tháng】") == "Tên chương"
+    assert pipeline._clean_title("Lá phiếu định mệnh") == "Lá phiếu định mệnh"
 
 
 def test_toc_skips_already_translated_without_force(tmp_path, monkeypatch):
@@ -95,7 +137,7 @@ def test_toc_force_retranslates_from_title_zh_not_current_title(tmp_path, monkey
     # Nguồn gửi AI phải là title_zh (第一章), không phải "Chương 1: Tiêu đề cũ VI".
     assert tr.batch_calls == [["第一章"]]
     ch2 = storage.load_manifest().chapters[0]
-    assert ch2.title == "VI:第一章"
+    assert ch2.title == "Chương 1: VI:第一章"
     assert ch2.title_zh == "第一章"  # giữ nguyên, không bị ghi đè bởi title cũ
 
 

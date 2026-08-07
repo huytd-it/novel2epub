@@ -56,10 +56,30 @@ GLOSSARY_MARKER_RE = re.compile(r"^(?:#{1,6}\s*|={3,}\s*)GLOSSARY\b", re.IGNOREC
 _BULLET_RE = re.compile(r"^[-*+]\s+")
 
 
-# Số chương THẬT ở đầu tiêu đề gốc (第911章/卷/回) — chỉ hỗ trợ chữ số Ả Rập,
-# nhất quán với `pipeline._clean_title`.
-_ZH_NUM_PREFIX_RE = re.compile(r"^第\s*(\d+)\s*(章|卷|回)")
+# Số chương THẬT ở đầu tiêu đề gốc (第911章/第十二章/卷/回).
+_ZH_NUM_PREFIX_RE = re.compile(r"^第\s*([\d零〇一二两三四五六七八九十百千万]+)\s*(章|卷|回)")
 _ZH_NUM_LABELS = {"章": "Chương", "卷": "Quyển", "回": "Hồi"}
+
+
+def _parse_zh_number(value: str) -> int:
+    if value.isdigit():
+        return int(value)
+    digits = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
+              "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+    units = {"十": 10, "百": 100, "千": 1000, "万": 10000}
+    total = section = number = 0
+    for char in value:
+        if char in digits:
+            number = digits[char]
+        else:
+            unit = units[char]
+            if unit == 10000:
+                total += (section + number) * unit
+                section = number = 0
+            else:
+                section += (number or 1) * unit
+                number = 0
+    return total + section + number
 
 
 def ensure_title_number(zh_title: str, vi_title: str) -> str:
@@ -76,7 +96,7 @@ def ensure_title_number(zh_title: str, vi_title: str) -> str:
     m = _ZH_NUM_PREFIX_RE.match(zh_title.strip())
     if not m or not vi_title:
         return vi_title
-    num, label = int(m.group(1)), _ZH_NUM_LABELS[m.group(2)]
+    num, label = _parse_zh_number(m.group(1)), _ZH_NUM_LABELS[m.group(2)]
     rest = re.sub(
         rf"^{label}\s+\d+\s*[:：\-–—.]?\s*", "", vi_title, flags=re.IGNORECASE
     ).strip()

@@ -55,6 +55,8 @@ python -m novel2epub wireguard remove <id|filename>
 
 WireGuard/wgcf hoạt động độc lập với ebook. `wgcf.argv` và `wgcf.executable` phải do người dùng cấu hình tường minh (hệ thống không tự bịa cờ). Kích hoạt profile (`activate`/`rotate`) chạy vòng đời tunnel service thật của WireGuard for Windows và đòi hỏi `wireguard.manage_service=true` (ngược lại bị từ chối). Scope mạng (`wireguard_network_scope`) chỉ chọn id profile + giữ khóa, metadata-only — không thay đổi trạng thái active hay service.
 
+Ngoài CLI, có Web UI toàn cục tại **`/wireguard`** (menu WireGuard): hiển thị cấu hình đã làm sạch + metadata profile, lưu cấu hình toàn cục, nhập `.conf` (giới hạn kích thước), quét thư mục, cung cấp wgcf, enable/disable/set thứ tự/activate/rotate/xóa. Mọi lỗi domain map về HTTP status sạch; xóa profile đang active bị từ chối (`409`); không endpoint nào hiển thị/tải nội dung cấu hình hoặc private key — URL thao tác dùng id profile opaque.
+
 ## Automation
 
 Một automation gồm ebook, cron năm trường và danh sách có thứ tự từ:

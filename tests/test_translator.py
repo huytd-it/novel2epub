@@ -212,6 +212,16 @@ def test_parse_title_response_fallback_when_no_format():
     assert note == ""
 
 
+def test_openai_titles_prompt_requests_removing_vote_suffixes():
+    from novel2epub.translator import make_translator
+
+    translator = make_translator(TranslateConfig(type="openai"))
+    prompt = translator._build_titles_batch_prompt(["第一章 开始 求月票"])
+
+    assert "Xóa các hậu tố quảng bá/kêu gọi độc giả" in prompt
+    assert "cầu vé tháng" in prompt
+
+
 def test_go_preset_chapter_translation_uses_openai(monkeypatch):
     from novel2epub.translator import make_translator
 

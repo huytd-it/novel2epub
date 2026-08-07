@@ -180,6 +180,16 @@ def _clean_title(vi: str) -> str:
     vi = re.sub(r"第\s*(\d+)\s*卷", r"Quyển \1", vi)
     vi = re.sub(r"第\s*(\d+)\s*回", r"Hồi \1", vi)
     vi = vi.replace("楔子", "Mở đầu").replace("序章", "Khúc dạo đầu")
+    vi = re.sub(
+        r"\s*(?:[（(【\[]\s*)?"
+        r"(?:cầu|xin)\s+(?:(?:vé|phiếu)\s+)?"
+        r"(?:tháng|đề\s*cử|giới\s*thiệu|ủng\s*hộ|bình\s*chọn|phiếu|vé)"
+        r"(?:\s*[!！~～]*)\s*(?:[）)】\]])?\s*$",
+        "",
+        vi,
+        flags=re.IGNORECASE,
+    )
+    vi = re.sub(r"\s*[:：\-–—,，;；]+\s*$", "", vi)
     return vi.strip()
 
 
@@ -1413,7 +1423,7 @@ def step_translate_toc_selected(
         if ch.index in title_lookup:
             if not ch.title_zh:
                 ch.title_zh = ch.title
-            ch.title = _clean_title(title_lookup[ch.index])
+            ch.title = ensure_title_number(ch.title_zh, _clean_title(title_lookup[ch.index]))
             ch.title_note = ""
             changed += 1
 

@@ -787,15 +787,17 @@ def _batch_translate_titles(
     này vẫn là ZH gốc từ crawl). Trả dict mapping index chương → tiêu đề đã
     dịch. Fallback về dịch từng cái nếu translator không hỗ trợ batch.
     """
-    inner = translator.inner if hasattr(translator, "inner") else translator
-    if not hasattr(inner, "translate_titles"):
-        return {}
     items = [(ch.index, ch.title_zh or ch.title) for ch in chapters if (ch.title_zh or ch.title)]
     if not items:
         return {}
     indexes, sources = zip(*items)
-    log(f"[dịch] Đang dịch hàng loạt {len(sources)} tiêu đề…")
-    translated = inner.translate_titles(list(sources))
+    inner = translator.inner if hasattr(translator, "inner") else translator
+    if hasattr(inner, "translate_titles"):
+        log(f"[dịch] Đang dịch hàng loạt {len(sources)} tiêu đề…")
+        translated = inner.translate_titles(list(sources))
+    else:
+        log(f"[dịch] Đang dịch lần lượt {len(sources)} tiêu đề…")
+        translated = [translator.translate_title(source)[0] for source in sources]
     return dict(zip(indexes, translated))
 
 
@@ -1830,7 +1832,8 @@ def step_retranslate_title(
     """Dịch lại tiêu đề chương dùng nội dung đã dịch làm ngữ cảnh.
 
     Trả dict {title_vi, title_note, title, title_description}.
-    engine: "openai" | "google" | "hachimimt" (default: cfg.translate.type)
+    engine: "openai" | "google" | "hachimimt" | "moxhimt" | "libretranslate"
+    (default: cfg.translate.type)
     """
 
     from .openai_client import run_chat
@@ -1909,14 +1912,13 @@ def step_retranslate_title(
             cfg.translate.openai.model = orig_model
         title_vi, title_note = _parse_title_response(raw)
         title_vi = _clean_title(title_vi)
-    elif selected_engine in ("google", "hachimimt"):
-        # Google/HachimiMT: literal translation without context
-        # Use simple prompt for these engines
-        simple_prompt = _RETRANSLATE_TITLE_SIMPLE_PROMPT.format(title=zh_title)
-        translator = make_translator(cfg.translate, storage=storage)
-        title_vi = translator.translate(simple_prompt)
-        title_vi = _clean_title(title_vi)
-        title_note = ""  # No explanation for simple translation
+    elif selected_engine in ("google", "hachimimt", "moxhimt", "libretranslate"):
+        # MT không hiểu instruction: chỉ gửi nguyên văn tiêu đề nguồn, tương tự
+        # Google Translate. Config phải dùng đúng engine người dùng đã chọn.
+        mt_cfg = replace(cfg.translate, type=selected_engine)
+        translator = make_translator(mt_cfg, storage=storage)
+        title_vi, title_note = translator.translate_title(zh_title)
+        title_vi = ensure_title_number(zh_title, _clean_title(title_vi))
         log(f"[dịch-tiêu-đề] Backend {selected_engine} không hỗ trợ context-based. Dịch literal.")
     else:
         raise RuntimeError(f"Engine không hỗ trợ: {selected_engine!r}")

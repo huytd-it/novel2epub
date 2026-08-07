@@ -37,6 +37,15 @@ class _FakeTitleTranslator:
         return f"VI:{text}"
 
 
+class _FakeSingleTitleMT:
+    def __init__(self):
+        self.calls = []
+
+    def translate_title(self, text, kind="tên chương"):
+        self.calls.append(text)
+        return f"MT:{text}", ""
+
+
 def _seed(tmp_path, chapters):
     storage = Storage(tmp_path, "t")
     storage.save_manifest(Manifest(slug="t", chapters=chapters))
@@ -94,6 +103,23 @@ def test_toc_removes_vote_request_suffix(tmp_path, monkeypatch):
     pipeline.step_translate_toc_selected(_cfg(tmp_path), lambda m: None, selected_indexes=[1])
 
     assert storage.load_manifest().chapters[0].title == "Chương 12: Tên chương"
+
+
+def test_toc_mt_without_batch_translates_raw_titles_one_by_one(tmp_path, monkeypatch):
+    tr = _FakeSingleTitleMT()
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
+    storage = _seed(tmp_path, [
+        Chapter(index=1, url="http://x/1", title="第一章 开始"),
+        Chapter(index=2, url="http://x/2", title="第二章 继续"),
+    ])
+
+    pipeline.step_translate_toc_selected(_cfg(tmp_path), lambda m: None, selected_indexes=[1, 2])
+
+    assert tr.calls == ["第一章 开始", "第二章 继续"]
+    assert [ch.title for ch in storage.load_manifest().chapters] == [
+        "Chương 1: MT:第一章 开始",
+        "Chương 2: MT:第二章 继续",
+    ]
 
 
 def test_clean_title_removes_common_vote_suffixes_only_at_end():
@@ -161,12 +187,37 @@ def test_retranslate_title_uses_title_zh_when_already_translated(tmp_path, monke
         cfg, lambda m: None, slug="t", index=1, engine="hachimimt", generate_description=False
     )
 
-    # translate() được gọi với prompt literal chứa title_zh ("第一章"), không
-    # phải title hiện tại ("Chương 1: Tiêu đề cũ VI").
+    # Local MT phải nhận đúng chuỗi nguồn, không nhận prompt/instruction như LLM.
     assert len(tr.single_calls) == 1
-    assert "第一章" in tr.single_calls[0]
-    assert "Chương 1: Tiêu đề cũ VI" not in tr.single_calls[0]
+    assert tr.single_calls[0] == "第一章"
 
     ch2 = storage.load_manifest().chapters[0]
     assert ch2.title_zh == "第一章"  # không bị đụng vào
+    assert ch2.title == "Chương 1: VI:第一章"
     assert result["title"] == ch2.title
+
+
+def test_retranslate_title_uses_selected_mt_backend_not_global_type(tmp_path, monkeypatch):
+    from novel2epub import translator as translator_module
+
+    tr = _FakeTitleTranslator()
+    seen_types = []
+
+    def fake_make_translator(cfg, log=None, **kw):
+        seen_types.append(cfg.type)
+        return tr
+
+    monkeypatch.setattr(translator_module, "make_translator", fake_make_translator)
+    ch = Chapter(index=1, url="http://x/1", title="Chương 1: Cũ", title_zh="第一章 新名")
+    storage = _seed(tmp_path, [ch])
+    storage.write_translated(ch, "Nội dung đã dịch.")
+    cfg = _cfg(tmp_path)
+    cfg.translate.type = "openai"
+
+    pipeline.step_retranslate_title(
+        cfg, lambda m: None, slug="t", index=1,
+        engine="hachimimt", generate_description=False,
+    )
+
+    assert seen_types == ["hachimimt"]
+    assert tr.single_calls == ["第一章 新名"]

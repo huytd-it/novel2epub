@@ -484,3 +484,61 @@ def test_load_pending_skips_unregistered_kind(tmp_path):
     restored = q.load_pending()
     assert restored == 0
     assert q.snapshot()["pending"]["translate"] == []
+
+
+def _call_with_timeout(fn, timeout=5.0):
+    """Chạy fn() trong thread riêng — phát hiện deadlock mà không treo cả suite."""
+    box = {}
+    t = threading.Thread(target=lambda: box.setdefault("value", fn()), daemon=True)
+    t.start()
+    t.join(timeout)
+    return (not t.is_alive()), box.get("value")
+
+
+def test_start_now_job_finishes_without_deadlocking_queue(tmp_path):
+    """Job chạy qua start_now đi theo nhánh "extra worker" lúc kết thúc. Nhánh
+    này từng gọi _save_pending() khi vẫn giữ self._cv (Lock không reentrant) →
+    worker treo vĩnh viễn và mọi request web UI đọc snapshot() đứng theo."""
+    q = JobQueue(
+        workers={"crawl": 0, "translate": 0, "build": 0},
+        db_path=tmp_path / "novel2epub.db",
+    )
+    ran = threading.Event()
+    job = q.enqueue(
+        "crawl", "crawl", lambda log: ran.set(), spec={"kind": "noop", "params": {}}
+    )
+
+    assert q.start_now(job.id) is True
+    assert ran.wait(timeout=5)
+    assert _wait_until(lambda: job.state == "done")
+
+    ok, snap = _call_with_timeout(q.snapshot)
+    assert ok, "snapshot() treo → worker chưa nhả lock hàng đợi"
+    assert any(item["id"] == job.id for item in snap["history"])
+
+    ok, _ = _call_with_timeout(lambda: q.enqueue("crawl", "crawl", lambda log: None))
+    assert ok, "enqueue() treo sau khi job start_now kết thúc"
+    assert q.snapshot()["workers"]["crawl"] == 0
+
+
+def test_delete_removes_job_from_history_table(tmp_path):
+    from novel2epub.db import get_thread_connection
+
+    db_path = tmp_path / "novel2epub.db"
+    q = JobQueue(workers={"crawl": 1, "translate": 0, "build": 0}, db_path=db_path)
+    job = q.enqueue("crawl", "crawl", lambda log: None)
+    assert _wait_until(lambda: job.state == "done")
+
+    conn = get_thread_connection(db_path)
+
+    def _row_count():
+        return conn.execute(
+            "SELECT COUNT(*) AS n FROM job_queue_history WHERE id = ?", (job.id,)
+        ).fetchone()["n"]
+
+    assert _wait_until(lambda: _row_count() == 1)
+    assert q.delete(job.id) is True
+    assert _row_count() == 0
+
+    restored = JobQueue(workers={"crawl": 0, "translate": 0, "build": 0}, db_path=db_path)
+    assert job.id not in restored._jobs

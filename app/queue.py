@@ -84,7 +84,10 @@ class JobQueue:
         db_path: str | Path | None = None,
         history_limit: int = DEFAULT_HISTORY_LIMIT,
     ):
-        self._lock = threading.Lock()
+        # RLock (không phải Lock) để một helper vô tình gọi lồng nhau chỉ chậm
+        # chứ không treo cứng cả queue — xem _save_pending/_save_history_job,
+        # cả hai tự lấy lock nên từng bị deadlock khi gọi từ trong critical section.
+        self._lock = threading.RLock()
         self._cv = threading.Condition(self._lock)
         # Allow 0 workers (paused state)
         self._workers = {c: max(0, int((workers or {}).get(c, 1))) for c in CATEGORIES}
@@ -157,6 +160,7 @@ class JobQueue:
         return job
 
     def cancel(self, job_id: str) -> bool:
+        retired: Job | None = None
         with self._cv:
             job = self._jobs.get(job_id)
             if job is None:
@@ -170,6 +174,7 @@ class JobQueue:
                 job.state = "cancelled"
                 job.ended_at = time.time()
                 self._push_history(job)
+                retired = job
                 self._cv.notify_all()
                 result = True
             elif job.state == "running":
@@ -177,6 +182,8 @@ class JobQueue:
                 result = True
             else:
                 result = False
+        if retired is not None:
+            self._save_history_job(retired)
         self._save_pending()
         return result
 
@@ -254,7 +261,7 @@ class JobQueue:
             self._jobs.pop(job_id, None)
             self._cv.notify_all()
         self._save_pending()
-        self._save_history()
+        self._delete_history_row(job_id)
         return True
 
     def update_workers(self, category: str, count: int) -> int:
@@ -506,6 +513,7 @@ class JobQueue:
 
             self._execute(job)
 
+            stop_worker = False
             with self._cv:
                 self._running.pop(job.id, None)
                 if category == "both":
@@ -519,11 +527,14 @@ class JobQueue:
                 if category != "both" and self._extra_workers.get(category, 0) > 0:
                     self._extra_workers[category] -= 1
                     self._workers[category] = max(0, self._workers[category] - 1)
-                    self._cv.notify_all()
-                    self._save_pending()
-                    return
+                    stop_worker = True
                 self._cv.notify_all()
+            # Ghi SQLite LUÔN nằm ngoài self._cv: giữ lock trong lúc I/O sẽ chặn
+            # snapshot()/category_status() và treo toàn bộ web UI.
+            self._save_history_job(job)
             self._save_pending()
+            if stop_worker:
+                return
 
     def _execute(self, job: Job) -> None:
         def log_fn(msg: str) -> None:
@@ -550,8 +561,9 @@ class JobQueue:
         job.ended_at = time.time()
 
     def _push_history(self, job: Job) -> None:
+        """Chỉ đụng deque trong bộ nhớ (gọi khi đang giữ self._cv). Caller phải
+        gọi _save_history_job(job) SAU khi nhả lock để ghi xuống SQLite."""
         self._history.appendleft(job)
-        self._save_history()
 
     # ---------- resume sau restart ----------
 
@@ -621,7 +633,47 @@ class JobQueue:
 
     # ---------- persistence ----------
 
+    def _save_history_job(self, job: Job) -> None:
+        """Ghi 1 job vào lịch sử + prune. Rẻ hơn _save_history() (viết lại toàn
+        bộ deque, O(n) mỗi lần job kết thúc) nên phải dùng ở hot path."""
+        if self._db_path is None:
+            return
+        with self._lock:
+            if job.id not in self._jobs:
+                return  # job bị delete() trong lúc nó vừa chạy xong — đừng ghi lại
+        data_json = json.dumps(job.to_dict(), ensure_ascii=False)
+        conn = get_thread_connection(self._db_path)
+        limit = self._history.maxlen or DEFAULT_HISTORY_LIMIT
+        try:
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO job_queue_history (id, data_json, ended_at) VALUES (?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET data_json = excluded.data_json, ended_at = excluded.ended_at
+                    """,
+                    (job.id, data_json, job.ended_at),
+                )
+                conn.execute(
+                    "DELETE FROM job_queue_history WHERE id NOT IN "
+                    "(SELECT id FROM job_queue_history ORDER BY ended_at DESC LIMIT ?)",
+                    (limit,),
+                )
+        except Exception:
+            logger.exception("Không lưu được job %s vào lịch sử (%s)", job.id, self._db_path)
+
+    def _delete_history_row(self, job_id: str) -> None:
+        if self._db_path is None:
+            return
+        conn = get_thread_connection(self._db_path)
+        try:
+            with conn:
+                conn.execute("DELETE FROM job_queue_history WHERE id = ?", (job_id,))
+        except Exception:
+            logger.exception("Không xóa được job %s khỏi lịch sử (%s)", job_id, self._db_path)
+
     def _save_history(self) -> None:
+        """Viết lại toàn bộ deque lịch sử (dùng lúc khởi động/kiểm thử, KHÔNG
+        dùng trong hot path — xem _save_history_job)."""
         if self._db_path is None:
             return
         conn = get_thread_connection(self._db_path)

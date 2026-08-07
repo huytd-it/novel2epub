@@ -478,6 +478,19 @@ class QueueConfig:
     crawl_workers: int = 2      # job crawl chạy song song
 
 
+@dataclass
+class ApiConfig:
+    """Truy cập API/OPDS từ ngoài localhost (tích hợp readest).
+
+    `token` dùng chung mọi ebook. Request từ localhost được miễn token nên
+    web UI và readest desktop chạy cùng máy không cần cấu hình gì.
+    `cors_origins` chỉ cần cho bản readest WEB — Tauri desktop/mobile gọi
+    HTTP native, không đi qua CORS. TUYỆT ĐỐI không dùng "*".
+    """
+    token: str = ""
+    cors_origins: list[str] = field(default_factory=list)
+
+
 # Các field của `reader` CHỈ đọc từ `defaults:` — override per-ebook bị bỏ đi
 # lúc load (xem `load_config`). Chủ yếu để `service_key` chỉ nằm ĐÚNG MỘT chỗ.
 READER_GLOBAL_FIELDS = ("url", "service_key", "timeout_seconds", "batch_size")
@@ -515,6 +528,7 @@ class Config:
     ai: AIConfig = field(default_factory=AIConfig)
     queue: QueueConfig = field(default_factory=QueueConfig)
     reader: ReaderConfig = field(default_factory=ReaderConfig)
+    api: ApiConfig = field(default_factory=ApiConfig)
     # Tên source preset mà ebook này tham chiếu. Rỗng = không dùng preset.
     source: str = ""
     # Cảnh báo xung đột tính năng phát hiện lúc load config (vd preset ép đổi
@@ -605,7 +619,7 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
     settings_row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
     defaults: dict[str, Any] = {}
     if settings_row:
-        for section in ("novel", "crawl", "translate", "ai", "output", "queue", "reader"):
+        for section in ("novel", "crawl", "translate", "ai", "output", "queue", "reader", "api"):
             data = json.loads(settings_row[f"{section}_json"] or "{}")
             if data:
                 defaults[section] = data
@@ -905,4 +919,16 @@ def load_config(path: str | Path, slug: str = "") -> Config:
             "reader.service_key đã điền nhưng reader.url trống — đẩy lên Reader sẽ bị bỏ qua."
         )
 
-    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, reader=reader, source=source_name, warnings=warnings)
+    api_raw = _as_dict(raw.get("api"))
+    origins_raw = api_raw.get("cors_origins")
+    cors_origins = (
+        [str(o).strip() for o in origins_raw if str(o).strip()]
+        if isinstance(origins_raw, list)
+        else []
+    )
+    api = ApiConfig(
+        token=str(api_raw.get("token", "")).strip(),
+        cors_origins=cors_origins,
+    )
+
+    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, reader=reader, api=api, source=source_name, warnings=warnings)

@@ -2049,9 +2049,11 @@ def step_build_selected(
     notes = storage.read_glossary_notes()
     chapters_html = []
     footnotes_by_stem: dict[str, list[dict]] = {}
+    anchored_stems: set[str] = set()
     for ch in chapters:
         if storage.has_translated(ch):
             md = storage.read_translated(ch)
+            anchored_stems.add(ch.stem)
             title = ch.title or f"Chương {ch.index}"
             md, fns = _footnotes.annotate(md, notes)
             if fns:
@@ -2078,6 +2080,7 @@ def step_build_selected(
         cover_path=cover_path,
         footnotes_by_stem=footnotes_by_stem,
         metadata=cfg.novel,
+        anchored_stems=anchored_stems,
     )
     log(f"[build] Đã tạo EPUB: {out}  ({len(chapters_html)} chương)")
     return str(out)

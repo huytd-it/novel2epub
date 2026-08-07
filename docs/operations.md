@@ -67,6 +67,40 @@ Restore tự tạo pre-restore backup và yêu cầu xác nhận. Dùng `--yes` 
 
 Nên backup định kỳ và giữ ít nhất một bản ở ổ đĩa khác. DB có thể chứa API key và Reader service-role key, vì vậy backup phải được bảo vệ như secret.
 
+## Đọc Bằng Readest Qua OPDS
+
+novel2epub lộ một catalog OPDS (`/opds`) liệt kê mọi ebook đã build, cho phép readest (web, desktop, mobile) tải và cập nhật EPUB trực tiếp mà không cần copy file thủ công.
+
+**1. Sinh token API**
+
+Vào Cài đặt > API trong Web UI, bấm sinh token mới rồi lưu lại. Token này dùng để xác thực mọi request đến `/opds` và `/api/v1/...` từ máy khác — request từ chính máy chạy server (localhost) luôn được miễn token.
+
+**2. Chạy server cho máy khác truy cập được**
+
+Mặc định `uvicorn --reload` chỉ bind `127.0.0.1`, máy khác trong LAN không vào được. Bind `0.0.0.0` để mở ra LAN:
+
+```sh
+uvicorn app.main:app --host 0.0.0.0 --port 8010
+```
+
+Tìm IP LAN của máy (`ipconfig` trên Windows, `ip addr` trên Linux) để dùng ở bước sau, ví dụ `192.168.1.50`.
+
+> **Cảnh báo:** bind `0.0.0.0` mở ra LAN **toàn bộ Web UI**, không riêng gì OPDS — ai vào được `/opds` từ cùng mạng thì cũng vào được `/settings`, `/queue` và mọi route khác. Chỉ làm việc này trên mạng tin cậy (nhà riêng). Trên mạng không tin cậy (quán café, mạng công ty dùng chung, v.v.), đặt server sau một reverse proxy có TLS + xác thực riêng, hoặc dùng Tailscale/VPN để chỉ thiết bị của bạn thấy được server — không bind thẳng `0.0.0.0` ra mạng đó.
+
+**3. Thêm catalog trong readest**
+
+Trong readest, thêm nguồn OPDS mới với:
+
+- URL: `http://<IP-LAN>:8010/opds`
+- Username: để trống
+- Password: dán token đã sinh ở bước 1
+
+readest sẽ hiện danh sách ebook đã build, kèm bìa và metadata (tiêu đề, tác giả, mô tả lấy từ feed — feed được readest ưu tiên hơn metadata nhúng trong EPUB).
+
+**4. Ebook phải được build trước**
+
+Chỉ ebook đã build EPUB (có file `.epub` tồn tại) mới xuất hiện trong catalog. Ebook mới tạo hoặc chưa build sẽ không hiện. Khi dịch thêm chương mới cho một ebook đã có trong catalog, phải build lại (thủ công qua nút Build hoặc qua Automation) thì readest mới thấy bản EPUB mới — catalog không tự cập nhật theo tiến độ dịch, chỉ theo file EPUB đã ghi ra đĩa.
+
 ## Xử Lý Sự Cố
 
 TOC rỗng:

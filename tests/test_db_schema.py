@@ -178,7 +178,7 @@ def test_characters_tables_exist():
     names = _table_names(conn)
     assert "characters" in names
     assert "character_relations" in names
-    assert SCHEMA_VERSION == 7
+    assert SCHEMA_VERSION == 8
 
 
 def test_schema_v7_migrates_legacy_prompts_idempotently():

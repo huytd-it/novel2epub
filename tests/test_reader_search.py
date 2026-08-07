@@ -106,5 +106,8 @@ def test_reader_page_renders_toc_and_search_ui(tmp_path, monkeypatch):
     assert res.status_code == 200
     # Mục lục + thanh tìm kiếm được render, và chương hiện tại đánh dấu active.
     assert 'id="toc-sidebar"' in res.text
+    assert 'id="toc-search-input"' in res.text
+    assert 'id="toc-search-status"' in res.text
     assert 'id="search-bar"' in res.text
     assert 'toc-chapter-item active' in res.text
+    assert "function filterToc()" in res.text

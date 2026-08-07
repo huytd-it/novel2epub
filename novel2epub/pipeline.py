@@ -1320,6 +1320,47 @@ def step_cleanup_han_selected(
     return manifest
 
 
+def step_cleanup_han_local_mt_selected(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    chapter: int | None = None,
+    selected_indexes: list[int] | None = None,
+    should_cancel: CancelFn | None = None,
+) -> Manifest:
+    """Clear vùng chữ Hán bằng HachimiMT/MoxhiMT cục bộ, không sửa phần Việt."""
+    from .translator import HachimiMTTranslator
+
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest.")
+    selected = _chapter_selection(manifest.chapters, chapter, None, None, selected_indexes)
+    translator = HachimiMTTranslator(cfg.translate, storage=storage)
+    total_fixed = 0
+    for position, ch in enumerate(selected, 1):
+        if should_cancel and should_cancel():
+            log("[local-mt-cleanup] Đã dừng theo yêu cầu.")
+            break
+        if not storage.has_translated(ch):
+            continue
+        before = storage.read_translated(ch)
+        han_before = han_cleanup.count_han(before)
+        if not han_before:
+            continue
+        log(f"[local-mt-cleanup] ({position}/{len(selected)}) {ch.title}: {han_before} Hán")
+        after, fixed, warnings = han_cleanup.cleanup_han_with_local_mt(
+            before, translator.translate, log,
+        )
+        if after != before:
+            storage.write_translated(ch, after)
+        total_fixed += fixed
+        for warning in warnings:
+            log(f"[local-mt-cleanup] Cảnh báo: {warning}")
+    log(f"[local-mt-cleanup] Hoàn tất, đã clear {total_fixed} ký tự Hán.")
+    return manifest
+
+
 def step_translate_toc_selected(
     cfg: Config,
     log: LogFn = _print,

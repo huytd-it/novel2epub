@@ -196,6 +196,12 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 .toc-sidebar.open { transform: translateX(0); box-shadow: var(--tw-shadow-card, 0 1px 3px rgba(0,0,0,0.06)); }
 .toc-sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; font-weight: 600; font-size: 0.9rem; border-bottom: 1px solid var(--tw-border, #e4e4e7); }
 .dark .toc-sidebar-header { border-bottom-color: var(--tw-border-dark, #3f3f46); }
+.toc-search-wrap { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--tw-border, #e4e4e7); }
+.dark .toc-search-wrap { border-bottom-color: var(--tw-border-dark, #3f3f46); }
+.toc-search-input { width: 100%; box-sizing: border-box; padding: 0.4rem 0.55rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 7px; background: var(--tw-surface-light, #fff); color: var(--tw-fg-light, #18181b); font-size: 0.82rem; }
+.dark .toc-search-input { border-color: var(--tw-border-dark, #3f3f46); background: var(--tw-surface-dark, #18181b); color: var(--tw-fg-dark, #fafafa); }
+.toc-search-status { min-height: 1em; margin-top: 0.3rem; color: var(--tw-fg-muted, #71717a); font-size: 0.7rem; }
+.dark .toc-search-status { color: var(--tw-fg-muted-dark, #a1a1aa); }
 .toc-sidebar-list { flex: 1; overflow-y: auto; padding: 0.25rem 0; }
 .toc-chapter-item { display: block; padding: 0.4rem 1rem; font-size: 0.85rem; text-decoration: none; color: var(--tw-fg-light, #18181b); border-left: 3px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dark .toc-chapter-item { color: var(--tw-fg-dark, #fafafa); }
@@ -403,15 +409,15 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         </div>
         <div class="reader-nav-right mobile-actions">
             <span id="bookmark-indicator" class="bookmark-indicator" hidden title="Có bookmark">&#128278;</span>
-            <button type="button" id="toc-toggle-btn" class="reader-toolbar-btn" title="Mục lục (T)" aria-label="Mục lục"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-            <button type="button" id="bookmark-toggle-btn" class="reader-toolbar-btn" title="Bookmark (B)" aria-label="Bookmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button>
+            <button type="button" id="toc-toggle-btn" class="reader-toolbar-btn" title="Mục lục" aria-label="Mục lục"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+            <button type="button" id="bookmark-toggle-btn" class="reader-toolbar-btn" title="Bookmark" aria-label="Bookmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button>
             {% if has_translated %}
-            <button type="button" id="notes-toggle-btn" class="reader-toolbar-btn" title="Ghi chú lỗi dịch (N)" aria-label="Ghi chú" style="position: relative;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg><span id="notes-badge" class="notes-badge" hidden>0</span></button>
+            <button type="button" id="notes-toggle-btn" class="reader-toolbar-btn" title="Ghi chú lỗi dịch" aria-label="Ghi chú" style="position: relative;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg><span id="notes-badge" class="notes-badge" hidden>0</span></button>
             {% endif %}
             {% if has_translated %}
-            <button type="button" id="tts-toggle-btn" class="reader-toolbar-btn" title="Đọc thành tiếng (P)" aria-label="Đọc thành tiếng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+            <button type="button" id="tts-toggle-btn" class="reader-toolbar-btn" title="Đọc thành tiếng" aria-label="Đọc thành tiếng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
             {% endif %}
-            <button type="button" id="search-toggle-btn" class="reader-toolbar-btn" title="Tìm toàn truyện (Ctrl+Shift+F)" aria-label="Tìm kiếm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+            <button type="button" id="search-toggle-btn" class="reader-toolbar-btn" title="Tìm toàn truyện" aria-label="Tìm kiếm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
             <button type="button" id="settings-toggle-btn" class="reader-toolbar-btn" title="Tuỳ chỉnh hiển thị" aria-label="Cài đặt hiển thị"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/></svg></button>
             <details class="reader-tools-more">
                 <summary class="reader-toolbar-btn" title="Thêm công cụ" aria-label="Thêm công cụ" aria-haspopup="menu"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></summary>
@@ -447,8 +453,13 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/action" class="m-0">
                 <input type="hidden" name="action" value="cleanup-han">
                 <input type="hidden" name="override" value="true">
-                <button type="submit" class="reader-nav-btn">Làm sạch Hán</button>
+                <button type="submit" class="reader-nav-btn">Làm sạch Hán bằng AI</button>
             </form>
+            {% if has_translated %}
+            <button type="button" id="undo-edit-btn" class="reader-nav-btn" disabled>Hoàn tác</button>
+            <button type="button" id="redo-edit-btn" class="reader-nav-btn" disabled>Làm lại</button>
+            <button type="button" id="local-mt-cleanup-btn" class="reader-nav-btn">Clear Hán bằng Local MT</button>
+            {% endif %}
             {% if has_translated %}
             <form method="post" action="/ebooks/{{ slug }}/chapters/{{ ch.index }}/delete-translation" class="m-0" data-confirm="Xóa bản dịch của chương này?" data-confirm-danger="true">
                 <button type="submit" class="reader-nav-btn">Xóa bản dịch</button>
@@ -564,6 +575,28 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 </div>
 
 {% if has_translated %}
+<div id="local-mt-cleanup-modal" class="modal-backdrop" hidden>
+    <section class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="local-mt-cleanup-title">
+        <div class="p-5">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <div>
+                    <h2 id="local-mt-cleanup-title" class="m-0 text-base font-semibold">Clear Hán bằng Local MT</h2>
+                    <p class="m-0 mt-1 text-xs text-fg-muted dark:text-fg-muted-dark">Chỉ dịch các vùng còn ký tự Trung và tự chèn khoảng trắng ở ranh giới từ khi cần.</p>
+                </div>
+                <button type="button" class="reader-toolbar-btn" data-close-modal="local-mt-cleanup-modal" aria-label="Đóng">&#10005;</button>
+            </div>
+            <div class="replace-scope mb-4">
+                <label><input type="radio" name="local-mt-cleanup-scope" value="chapter" checked> Chương hiện tại</label>
+                <label><input type="radio" name="local-mt-cleanup-scope" value="all"> Toàn bộ sách (chạy nền)</label>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" class="btn btn-secondary" data-close-modal="local-mt-cleanup-modal">Hủy</button>
+                <button type="button" id="local-mt-cleanup-run-btn" class="btn btn-primary">Chạy</button>
+            </div>
+        </div>
+    </section>
+</div>
+
 <div id="reader-replace-modal" class="modal-backdrop" hidden>
     <section class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="reader-replace-title">
         <div class="p-5">
@@ -630,10 +663,15 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         <span>Mục lục</span>
         <button type="button" id="toc-close-btn" class="note-icon-btn" title="Đóng" aria-label="Đóng mục lục">&#10005;</button>
     </div>
+    <div class="toc-search-wrap">
+        <input type="search" id="toc-search-input" class="toc-search-input" placeholder="Tìm chương…" autocomplete="off" aria-label="Tìm trong mục lục">
+        <div id="toc-search-status" class="toc-search-status" aria-live="polite"></div>
+    </div>
     <nav class="toc-sidebar-list" aria-label="Danh sách chương">
         {% for c in chapters_info %}
         <a href="/ebooks/{{ slug }}/read/{{ c.index }}"
            class="toc-chapter-item{% if c.index == ch.index %} active{% endif %}{% if not c.has_translated %} untranslated{% endif %}"
+           data-index="{{ c.index }}"
            {% if c.index == ch.index %}aria-current="true"{% endif %}
            title="{{ c.title }}">{{ c.title }}</a>
         {% endfor %}
@@ -644,7 +682,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 <div id="search-bar" class="search-bar safe-panels hidden" role="search" aria-label="Tìm kiếm toàn truyện">
     <div class="search-bar-row search-bar-header">
         <strong class="search-title">Tìm / thay thế</strong>
-        <button type="button" id="search-close-btn" class="reader-nav-btn search-close-btn" title="Đóng (Esc)" aria-label="Đóng">&#10005;</button>
+        <button type="button" id="search-close-btn" class="reader-nav-btn search-close-btn" title="Đóng" aria-label="Đóng">&#10005;</button>
     </div>
     <div class="search-bar-row">
         <input type="text" id="search-input" class="search-input" placeholder="Tìm trong toàn bộ chương đã dịch…" autocomplete="off" aria-label="Chuỗi cần tìm">
@@ -728,10 +766,6 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     document.addEventListener('click', (event) => {
         if (toolsMore?.open && !event.target.closest('.reader-tools-more')) toolsMore.open = false;
     });
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && toolsMore?.open) toolsMore.open = false;
-    });
-
     const content = document.getElementById('reader-content');
     document.getElementById('settings-toggle-btn')?.addEventListener('click', () => {
         if (toolsMore) toolsMore.open = false;
@@ -890,7 +924,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             bookmarkBtn.title = `Bookmark: Chương ${bm.index} — Bấm để đặt lại`;
         } else {
             bookmarkIndicator.hidden = true;
-            bookmarkBtn.title = 'Đặt bookmark (B)';
+            bookmarkBtn.title = 'Đặt bookmark';
         }
     }
     updateBookmarkUI();
@@ -911,18 +945,6 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         window.location.href = `/ebooks/${encodeURIComponent(SLUG)}/read/${this.value}`;
     });
 
-    document.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-        if (e.key === 'ArrowLeft' && {{ prev_ch.index if prev_ch else 'null' }} !== null) {
-            window.location.href = `/ebooks/${encodeURIComponent(SLUG)}/read/{{ prev_ch.index if prev_ch else '' }}`;
-        } else if (e.key === 'ArrowRight' && {{ next_ch.index if next_ch else 'null' }} !== null) {
-            window.location.href = `/ebooks/${encodeURIComponent(SLUG)}/read/{{ next_ch.index if next_ch else '' }}`;
-        } else if (e.key === 'b' || e.key === 'B') {
-            bookmarkBtn?.click();
-        } else if (e.key === 'c' || e.key === 'C') {
-            document.getElementById('copy-all-btn')?.click();
-        }
-    });
 })();
 </script>
 {% if has_translated %}
@@ -1185,6 +1207,9 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             const para = content.querySelectorAll('.reader-para')[d.para_index];
             if (res.deleted) para?.remove();
             else if (para) para.textContent = res.para;
+            if (!res.deleted) window.n2eEditHistory?.record({
+                type: 'paragraph', paraIndex: d.para_index, before: paraText0, after: res.para,
+            });
             hidePopover();
             window.getSelection()?.removeAllRanges();
             refreshUI();
@@ -1333,6 +1358,36 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             else await replaceInScope(find, scope);
         } finally {
             replaceRunBtn.disabled = false;
+        }
+    });
+
+    const localMtModal = document.getElementById('local-mt-cleanup-modal');
+    const localMtRunBtn = document.getElementById('local-mt-cleanup-run-btn');
+    document.getElementById('local-mt-cleanup-btn')?.addEventListener('click', () => {
+        openModal('local-mt-cleanup-modal');
+    });
+    localMtModal?.querySelectorAll('[data-close-modal="local-mt-cleanup-modal"]').forEach(btn => {
+        btn.addEventListener('click', () => closeModal('local-mt-cleanup-modal'));
+    });
+    localMtRunBtn?.addEventListener('click', async () => {
+        const scope = localMtModal.querySelector('input[name="local-mt-cleanup-scope"]:checked')?.value || 'chapter';
+        const form = new FormData();
+        form.set('scope', scope);
+        if (scope === 'chapter') form.set('chapter_index', INDEX);
+        localMtRunBtn.disabled = true;
+        try {
+            const data = await api(`/api/ebooks/${encodeURIComponent(SLUG)}/cleanup-han-local-mt`, form);
+            closeModal('local-mt-cleanup-modal');
+            if (scope === 'all') {
+                toast('Đã xếp hàng clear Hán bằng Local MT cho toàn bộ sách.', 'success');
+            } else {
+                toast(`Đã clear ${data.fixed} ký tự Hán; còn ${data.han_after}.`, data.han_after ? 'warning' : 'success');
+                setTimeout(() => window.location.reload(), 700);
+            }
+        } catch (error) {
+            toast(error.message, 'error');
+        } finally {
+            localMtRunBtn.disabled = false;
         }
     });
 
@@ -1728,22 +1783,6 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 
     compareToggleBtn?.addEventListener('click', () => compareMode ? exitCompare() : enterCompare());
 
-    // ---------- Phím tắt ----------
-    document.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
-            if (e.key === 'Escape') hidePopover();
-            return;
-        }
-        if (e.key === 'Escape') {
-            hidePopover();
-            togglePanel(false);
-        } else if (e.key === 'n' || e.key === 'N') {
-            togglePanel();
-        } else if (e.key === 's' || e.key === 'S') {
-            compareToggleBtn?.click();
-        }
-    });
-
     refreshUI();
     if (localStorage.getItem(MODE_KEY) === 'compare') enterCompare();
 })();
@@ -1757,6 +1796,23 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     if (!content) return;
     const originals = new WeakMap();
     const saving = new WeakSet();
+    const undoStack = [];
+    const redoStack = [];
+    const undoBtn = document.getElementById('undo-edit-btn');
+    const redoBtn = document.getElementById('redo-edit-btn');
+    let historyBusy = false;
+
+    function updateHistoryButtons() {
+        if (undoBtn) undoBtn.disabled = historyBusy || undoStack.length === 0;
+        if (redoBtn) redoBtn.disabled = historyBusy || redoStack.length === 0;
+    }
+
+    function recordCommand(command) {
+        if (!command || command.before === command.after) return;
+        undoStack.push(command);
+        redoStack.length = 0;
+        updateHistoryButtons();
+    }
 
     async function api(path, form) {
         const res = await fetch(path, { method: 'POST', body: form });
@@ -1790,6 +1846,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             }
             para.textContent = data.para;
             originals.set(para, data.para);
+            recordCommand({ type: 'paragraph', paraIndex: +para.dataset.para, before: original, after: data.para });
             toast('Đã lưu đoạn', 'success');
         } catch (error) {
             para.classList.add('save-error');
@@ -1814,7 +1871,11 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             originals.set(title, data.title);
             const option = document.querySelector(`#chapter-select option[value="${INDEX}"]`);
             if (option) option.textContent = data.title;
+            const tocItem = document.querySelector(`.toc-chapter-item[data-index="${INDEX}"]`);
+            if (tocItem) { tocItem.textContent = data.title; tocItem.title = data.title; }
+            document.getElementById('toc-search-input')?.dispatchEvent(new Event('input'));
             document.title = `Đọc: ${data.title} — novel2epub`;
+            recordCommand({ type: 'title', before: original, after: data.title });
             toast('Đã lưu tiêu đề', 'success');
         } catch (error) {
             title.classList.add('save-error');
@@ -1834,19 +1895,60 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         const title = event.target.closest('.reader-chapter-title[contenteditable="true"]');
         if (title) saveTitle(title);
     });
-    content.addEventListener('keydown', (event) => {
-        const editable = event.target.closest('.reader-para[contenteditable="true"], .reader-chapter-title[contenteditable="true"]');
-        if (!editable) return;
-        if (event.key === 'Escape') {
-            event.preventDefault();
-            editable.textContent = originals.get(editable) ?? editable.textContent;
-            editable.classList.remove('save-error');
-            editable.blur();
-        } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-            event.preventDefault();
-            editable.blur();
+
+    async function applyHistory(command, undoing) {
+        const from = undoing ? command.after : command.before;
+        const to = undoing ? command.before : command.after;
+        if (command.type === 'paragraph') {
+            const para = content.querySelector(`.reader-para[data-para="${command.paraIndex}"]`);
+            if (!para) throw new Error('Đoạn văn không còn ở vị trí cũ.');
+            const form = new FormData();
+            form.set('para_index', command.paraIndex);
+            form.set('para_text', from);
+            form.set('new_text', to);
+            const data = await api(`/api/ebooks/${encodeURIComponent(SLUG)}/chapters/${INDEX}/para/save`, form);
+            if (data.deleted) throw new Error('Không thể hoàn tác thao tác làm thay đổi số đoạn.');
+            para.textContent = data.para;
+            originals.set(para, data.para);
+            return;
         }
-    });
+        if (command.type === 'title') {
+            const form = new FormData();
+            form.set('title', to);
+            const data = await api(`/api/ebooks/${encodeURIComponent(SLUG)}/chapters/${INDEX}/title`, form);
+            const title = document.getElementById('reader-chapter-title');
+            if (title) { title.textContent = data.title; originals.set(title, data.title); }
+            const option = document.querySelector(`#chapter-select option[value="${INDEX}"]`);
+            if (option) option.textContent = data.title;
+            const tocItem = document.querySelector(`.toc-chapter-item[data-index="${INDEX}"]`);
+            if (tocItem) { tocItem.textContent = data.title; tocItem.title = data.title; }
+            document.title = `Đọc: ${data.title} — novel2epub`;
+        }
+    }
+
+    async function moveHistory(fromStack, toStack, undoing) {
+        if (historyBusy || !fromStack.length) return;
+        historyBusy = true;
+        updateHistoryButtons();
+        const command = fromStack[fromStack.length - 1];
+        try {
+            await applyHistory(command, undoing);
+            fromStack.pop();
+            toStack.push(command);
+            document.getElementById('toc-search-input')?.dispatchEvent(new Event('input'));
+            toast(undoing ? 'Đã hoàn tác' : 'Đã làm lại', 'success');
+        } catch (error) {
+            toast(error.message, 'error');
+        } finally {
+            historyBusy = false;
+            updateHistoryButtons();
+        }
+    }
+
+    undoBtn?.addEventListener('click', () => moveHistory(undoStack, redoStack, true));
+    redoBtn?.addEventListener('click', () => moveHistory(redoStack, undoStack, false));
+    window.n2eEditHistory = { record: recordCommand };
+    updateHistoryButtons();
 })();
 </script>
 <script>
@@ -2026,15 +2128,6 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         else closeBar();
     });
 
-    document.addEventListener('keydown', (e) => {
-        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
-        if (e.target.isContentEditable) return;
-        if (e.key === 'p' || e.key === 'P') {
-            if (bar.hidden) { openBar(); playIndex(idx); }
-            else playBtn.click();
-        }
-    });
-
     window.n2eTts = {
         playFromPara(i) {
             openBar();
@@ -2085,6 +2178,23 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     if (localStorage.getItem(TOC_KEY) === '1' && window.innerWidth > 900) setToc(true);
     // Đưa chương hiện tại vào tầm nhìn trong danh sách.
     sidebar.querySelector('.toc-chapter-item.active')?.scrollIntoView({ block: 'center' });
+    const tocSearchInput = document.getElementById('toc-search-input');
+    const tocSearchStatus = document.getElementById('toc-search-status');
+    const tocItems = Array.from(sidebar.querySelectorAll('.toc-chapter-item'));
+    function filterToc() {
+        const query = (tocSearchInput?.value || '').trim().toLocaleLowerCase('vi');
+        let visible = 0;
+        for (const item of tocItems) {
+            const matched = !query || item.textContent.toLocaleLowerCase('vi').includes(query);
+            item.hidden = !matched;
+            if (matched) visible++;
+        }
+        tocSearchStatus.textContent = query
+            ? `${visible}/${tocItems.length} chương`
+            : `${tocItems.length} chương`;
+    }
+    tocSearchInput?.addEventListener('input', filterToc);
+    filterToc();
 
     // ---- Thanh tìm kiếm ----
     const bar = document.getElementById('search-bar');
@@ -2268,17 +2378,6 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     document.getElementById('search-replace-all-btn')
         ?.addEventListener('click', () => doPropagate('all'));
 
-    // ---- Phím tắt: Ctrl+Shift+F mở tìm (không đụng Ctrl+F gốc), T mục lục, Esc đóng ----
-    document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
-            e.preventDefault();
-            isOpen() ? input.focus() : openSearch();
-            return;
-        }
-        if (e.key === 'Escape' && isOpen()) { closeSearch(); return; }
-        const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName);
-        if (!inField && (e.key === 't' || e.key === 'T')) toggleToc();
-    });
 })();
 </script>
 {% endblock %}

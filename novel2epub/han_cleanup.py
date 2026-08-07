@@ -399,6 +399,71 @@ def cleanup_chapter(
     return current, total_fixed, warnings
 
 
+def _is_word_char(char: str) -> bool:
+    """Ký tự có thể dính vào từ Việt/Latin ở ranh giới replacement."""
+    return bool(char) and (char.isalpha() or char.isdigit()) and not _HAN_RE.match(char)
+
+
+def splice_local_mt_translation(text: str, start: int, end: int, replacement: str) -> str:
+    """Thay một vùng Hán và thêm space ở ranh giới từ khi thực sự cần.
+
+    Chỉ đụng khoảng trắng sát vùng thay thế; không normalize toàn paragraph và
+    không tạo khoảng trắng thừa cạnh dấu câu hoặc ngoặc.
+    """
+    replacement = replacement.strip()
+    if not replacement:
+        return text
+    before = text[:start]
+    after = text[end:]
+    if before and not before[-1].isspace() and _is_word_char(before[-1]) and _is_word_char(replacement[0]):
+        replacement = " " + replacement
+    if after and not after[0].isspace() and _is_word_char(replacement[-1]) and _is_word_char(after[0]):
+        replacement += " "
+    return before + replacement + after
+
+
+def cleanup_han_with_local_mt(
+    translated: str,
+    translate: Callable[[str], str],
+    log: Callable[[str], None] | None = None,
+) -> tuple[str, int, list[str]]:
+    """Dịch riêng từng vùng còn Hán bằng Local MT, giữ nguyên phần Việt."""
+    log = log or (lambda _: None)
+    regions = find_han_regions(translated)
+    if not regions:
+        return translated, 0, []
+    current = translated
+    fixed = 0
+    warnings: list[str] = []
+    # Offset được tính trên text ban đầu nên thay từ phải sang trái.
+    for region in sorted(regions, key=lambda item: (item["paragraph_index"], item["start"]), reverse=True):
+        source = region["chinese_text"]
+        try:
+            replacement = (translate(source) or "").strip()
+        except Exception as exc:
+            warnings.append(f"Local MT lỗi với {source!r}: {exc}")
+            continue
+        if not replacement or replacement == source:
+            warnings.append(f"Local MT không dịch được {source!r}")
+            continue
+
+        # Chuyển offset paragraph thành offset toàn chapter.
+        lines = current.split("\n")
+        para_index = region["paragraph_index"]
+        if para_index >= len(lines):
+            continue
+        paragraph = lines[para_index]
+        start, end = region["start"], region["end"]
+        if paragraph[start:end] != source:
+            warnings.append(f"Bỏ qua vùng đã thay đổi {source!r}")
+            continue
+        lines[para_index] = splice_local_mt_translation(paragraph, start, end, replacement)
+        current = "\n".join(lines)
+        fixed += max(0, count_han(source) - count_han(replacement))
+        log(f"  … {source!r} → {replacement!r}")
+    return current, fixed, warnings
+
+
 def count_han(text: str) -> int:
     """Đếm số ký tự Trung Quốc trong text."""
     return len(_HAN_RE.findall(text))

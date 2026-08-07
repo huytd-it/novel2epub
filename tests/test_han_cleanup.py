@@ -3,8 +3,42 @@ from novel2epub.han_cleanup import (
     find_han_regions,
     build_cleanup_prompt,
     _extract_replacement,
+    cleanup_han_with_local_mt,
     count_han,
+    splice_local_mt_translation,
 )
+
+
+def test_splice_local_mt_translation_adds_spaces_only_at_word_boundaries():
+    assert splice_local_mt_translation("anh说đi", 3, 4, "nói") == "anh nói đi"
+    assert splice_local_mt_translation("(说)", 1, 2, "nói") == "(nói)"
+    assert splice_local_mt_translation("gọi他.", 3, 4, "hắn") == "gọi hắn."
+    assert splice_local_mt_translation("说, rồi", 0, 1, "nói") == "nói, rồi"
+
+
+def test_cleanup_han_with_local_mt_replaces_regions_right_to_left():
+    calls = []
+    mapping = {"说": "nói", "他": "hắn"}
+
+    def translate(text):
+        calls.append(text)
+        return mapping[text]
+
+    cleaned, fixed, warnings = cleanup_han_with_local_mt("anh说đi và gọi他.", translate)
+
+    assert cleaned == "anh nói đi và gọi hắn."
+    assert fixed == 2
+    assert warnings == []
+    assert calls == ["他", "说"]
+
+
+def test_cleanup_han_with_local_mt_skips_clean_text():
+    calls = []
+    cleaned, fixed, warnings = cleanup_han_with_local_mt("Chỉ có tiếng Việt.", calls.append)
+    assert cleaned == "Chỉ có tiếng Việt."
+    assert fixed == 0
+    assert warnings == []
+    assert calls == []
 
 
 def test_find_han_regions_empty():

@@ -83,6 +83,9 @@ def test_reader_with_translation_contains_edit_mode_toolbar(tmp_path, monkeypatc
     assert 'id="edit-mode-toggle-btn"' in res.text
     assert 'id="reader-edit-toolbar"' in res.text
     assert 'name="action" value="cleanup-han"' in res.text
+    assert 'id="local-mt-cleanup-btn"' in res.text
+    assert 'id="undo-edit-btn"' in res.text
+    assert 'id="redo-edit-btn"' in res.text
     assert 'action="/ebooks/t/chapters/7/delete-raw"' in res.text
     assert 'action="/ebooks/t/chapters/7/delete-translation"' in res.text
     assert 'href="/ebooks/t/glossary"' in res.text
@@ -104,6 +107,19 @@ def test_reader_hides_legacy_edit_controls_until_edit_mode_is_enabled(tmp_path, 
     assert "document.querySelectorAll('.edit-mode-control').forEach(control => {" in default.text
     assert "control.hidden = !on;" in default.text
     assert "setEditMode(initialEditMode);" in edit_mode.text
+
+
+def test_reader_does_not_register_global_keyboard_shortcuts(tmp_path, monkeypatch):
+    _seed(tmp_path, raw="原文", translated="Bản dịch")
+    client = _client(tmp_path, monkeypatch)
+
+    res = client.get("/ebooks/t/read/7")
+
+    assert "document.addEventListener('keydown'" not in res.text
+    assert "content.addEventListener('keydown'" not in res.text
+    assert "Ctrl+Shift+F" not in res.text
+    assert "Mục lục (T)" not in res.text
+    assert "Bookmark (B)" not in res.text
 
 
 def test_reader_with_raw_and_translation_contains_raw_compare_view(tmp_path, monkeypatch):

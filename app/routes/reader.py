@@ -7,7 +7,9 @@ import threading
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 
+from novel2epub import han_cleanup
 from novel2epub.notes import split_paras
+from novel2epub.pipeline import step_cleanup_han_local_mt_selected
 from novel2epub.storage import Storage
 from novel2epub.toc import count_words
 
@@ -179,14 +181,14 @@ _quick_mt_cache: dict[str, object] = {}
 def _quick_mt_translator(slug: str):
     """Translator NMT cục bộ dùng chung cho dịch nhanh trên trang đọc.
 
-    Model CT2 nặng nên giữ một instance cho mỗi model_key — mọi ebook dùng
-    cùng model sẽ chia sẻ, glossary lấy theo ebook đầu tiên nạp model đó.
+    Model CT2 nặng nên cache theo model và ebook; glossary/storage là dữ liệu
+    riêng từng ebook nên không được dùng nhầm instance giữa các sách.
     """
     from novel2epub.translator import HachimiMTTranslator
 
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    key = cfg.translate.hachimimt.model_key
+    key = f"{cfg.translate.hachimimt.model_key}:{cfg.novel.slug}"
     with _quick_mt_lock:
         translator = _quick_mt_cache.get(key)
         if translator is None:
@@ -213,6 +215,57 @@ def reader_quick_translate(slug: str, text: str = Form(...)):
         except Exception as e:  # model chưa tải được / thiếu ctranslate2
             raise HTTPException(status_code=503, detail=f"MT cục bộ lỗi: {e}")
     return JSONResponse({"text": translated})
+
+
+@router.post("/api/ebooks/{slug}/cleanup-han-local-mt")
+def reader_cleanup_han_local_mt(
+    request: Request,
+    slug: str,
+    scope: str = Form(...),
+    chapter_index: int = Form(0),
+):
+    """Clear vùng chữ Hán bằng Local MT trong chương hoặc xếp job toàn sách."""
+    if scope not in {"chapter", "all"}:
+        raise HTTPException(status_code=400, detail="scope phải là 'chapter' hoặc 'all'.")
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+
+    if scope == "chapter":
+        if not chapter_index:
+            raise HTTPException(status_code=400, detail="Thiếu chapter_index.")
+        _cfg, storage, _manifest, ch = _load_chapter_or_404(slug, chapter_index)
+        if not storage.has_translated(ch):
+            raise HTTPException(status_code=404, detail="Chương chưa có bản dịch.")
+        before = storage.read_translated(ch)
+        translator = _quick_mt_translator(slug)
+        with _quick_mt_lock:
+            try:
+                after, fixed, warnings = han_cleanup.cleanup_han_with_local_mt(
+                    before, translator.translate,
+                )
+            except Exception as exc:
+                raise HTTPException(status_code=503, detail=f"MT cục bộ lỗi: {exc}")
+        if after != before:
+            meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+            meta["before_local_mt_cleanup"] = before
+            storage.write_meta(ch, meta)
+            storage.write_translated(ch, after)
+        return JSONResponse({
+            "fixed": fixed,
+            "han_before": han_cleanup.count_han(before),
+            "han_after": han_cleanup.count_han(after),
+            "warnings": warnings,
+        })
+
+    def _target(log):
+        step_cleanup_han_local_mt_selected(cfg, log)
+
+    started = request.app.state.job.start_custom(
+        "cleanup-han-local-mt", _target, category="translate", ebook=cfg.novel.slug,
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"ok": True})
 
 
 _TTS_MAX_CHARS = 3000

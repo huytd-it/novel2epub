@@ -24,7 +24,7 @@ from novel2epub.pipeline import (
     step_suggest_chapter,
     step_translate_selected,
 )
-from novel2epub.notes import replace_para, split_paras
+from novel2epub.notes import insert_para, replace_para, split_paras
 from novel2epub.storage import Chapter, Storage
 from novel2epub.toc import count_words
 from novel2epub.translator import _filter_glossary
@@ -32,6 +32,7 @@ from novel2epub.translator import _filter_glossary
 from novel2epub.openai_client import run_chat as openai_run_chat
 
 from .. import deps
+from ..chapter_compare import align_paragraphs
 from .glossary import _append_glossary_entry
 
 _AI_STEPS = {
@@ -101,26 +102,13 @@ def _chapter_context(storage: Storage, ch, raw: str, translated: str, slug: str,
     # Cột "VI" (bản dịch máy) trong editor 3 cột: snapshot bản máy nếu có; chương
     # cũ chưa có snapshot thì degrade an toàn về bản dịch hiện hành (read-only).
     translated_mt = storage.read_translated_mt(ch) if storage.has_translated_mt(ch) else translated
-    # Chuẩn bị dữ liệu paragraph để render table so sánh (raw || MT || biên tập)
-    # Gom dòng theo paragraph (cách bởi dòng trống) để raw và MT cùng align.
-    def _paras(t: str) -> list[str]:
-        blocks = re.split(r'\n\s*\n', t.strip())
-        return [' '.join(b.splitlines()) for b in blocks if b.strip()]
-    raw_paras = _paras(raw) if raw else [""]
-    mt_paras = _paras(translated_mt) if translated_mt else [""]
-    edit_paras = _paras(translated) if translated else [""]
-    num_paras = max(len(raw_paras), len(mt_paras), len(edit_paras))
-    raw_paras += [""] * (num_paras - len(raw_paras))
-    mt_paras += [""] * (num_paras - len(mt_paras))
-    edit_paras += [""] * (num_paras - len(edit_paras))
-    # Loại bỏ các row có raw trống (blank line, trailing newline)
-    filtered = [(r, m, e) for r, m, e in zip(raw_paras, mt_paras, edit_paras) if r.strip()]
-    if not filtered:
-        filtered = [("", "", "")]
-    raw_paras = [f[0] for f in filtered]
-    mt_paras = [f[1] for f in filtered]
-    edit_paras = [f[2] for f in filtered]
-    num_paras = len(raw_paras)
+    # Dữ liệu paragraph cho table so sánh (raw || MT || biên tập). Cách chia
+    # nằm ở `app/chapter_compare.py` vì API của SPA phải chia y hệt.
+    rows = align_paragraphs(raw, translated_mt, translated)
+    raw_paras = [r[0] for r in rows]
+    mt_paras = [r[1] for r in rows]
+    edit_paras = [r[2] for r in rows]
+    num_paras = len(rows)
     return {
         "ch": ch,
         "raw": raw,
@@ -533,6 +521,31 @@ def api_ebook_chapter_para_save(
         return JSONResponse({"saved": True, "deleted": True})
     # Đoạn đã chuẩn hoá (gộp dòng) để client render lại đúng.
     return JSONResponse({"saved": True, "para": split_paras(new_translated)[para_index]})
+
+
+@router.post("/api/ebooks/{slug}/chapters/{index}/para/insert")
+def api_ebook_chapter_para_insert(
+    slug: str,
+    index: int,
+    after_index: int = Form(...),
+    text: str = Form(""),
+):
+    """Chèn một đoạn mới vào `translated/` ngay trên trang đọc.
+
+    `after_index = -1` chèn ở đầu chương; ngược lại chèn ngay sau đoạn đó.
+    Trả đoạn mới + index của nó để client chèn đúng chỗ trong DOM.
+    """
+    storage, _manifest, ch = _load_chapter_json_or_404(slug, index)
+    if not storage.has_translated(ch):
+        raise HTTPException(status_code=409, detail="Chương không còn bản dịch.")
+    translated = storage.read_translated(ch)
+    new_translated, err = insert_para(translated, after_index, text)
+    if new_translated is None:
+        raise HTTPException(status_code=409, detail=err)
+    storage.write_translated(ch, new_translated)
+    new_index = after_index + 1
+    paras = split_paras(new_translated)
+    return JSONResponse({"saved": True, "para": paras[new_index], "para_index": new_index})
 
 
 @router.post("/api/ebooks/{slug}/chapters/{index}/delete-translation")

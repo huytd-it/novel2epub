@@ -109,3 +109,27 @@ def replace_para(
 
     lines[line_idx] = cleaned
     return "\n".join(lines), ""
+
+
+def insert_para(translated: str, after_index: int, text: str) -> tuple[str | None, str]:
+    """Chèn một đoạn mới (dòng mới, không rỗng) vào bản dịch.
+
+    `after_index` là index đoạn-không-rỗng (theo `split_paras`) để chèn đoạn
+    mới NGAY SAU; dùng `-1` để chèn ở đầu bản dịch (trước đoạn đầu tiên).
+    Đoạn mới luôn có nội dung — nếu `text` rỗng thì dùng placeholder để có
+    chỗ bấm sửa ngay trên trang đọc.
+
+    Trả (văn_bản_mới, "") khi thành công, (None, lý_do) khi thất bại.
+    """
+    lines = translated.split("\n") if translated else []
+    para_line_indexes = [i for i, line in enumerate(lines) if line.strip()]
+    if after_index != -1 and not (0 <= after_index < len(para_line_indexes)):
+        return None, "Không tìm thấy đoạn để chèn sau — bản dịch đã thay đổi."
+
+    cleaned = " ".join(seg.strip() for seg in text.splitlines() if seg.strip())
+    if not cleaned:
+        cleaned = "Đoạn mới…"
+
+    insert_at = 0 if after_index == -1 else para_line_indexes[after_index] + 1
+    lines.insert(insert_at, cleaned)
+    return "\n".join(lines), ""

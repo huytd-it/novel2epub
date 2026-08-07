@@ -2,6 +2,7 @@
 và match-count + propagate (lan truyền) thay đổi vào các bản dịch cũ."""
 from __future__ import annotations
 
+import json
 import re
 
 from fastapi import APIRouter, Body, Form, HTTPException, Request
@@ -9,6 +10,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import bulk_transfer, glossary_review
 from novel2epub.han_cleanup import count_han
+from novel2epub.notes import split_paras
 from novel2epub.pipeline import _chapter_range, step_find_replace
 from novel2epub.storage import Storage, normalize_glossary_pending
 
@@ -564,3 +566,144 @@ def ebook_glossary_propagate(
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return JSONResponse({"ok": True})
+
+
+_FIND_PREVIEW_LIMIT = 300
+
+
+@router.get("/api/ebooks/{slug}/glossary/find-preview")
+def ebook_glossary_find_preview(
+    slug: str,
+    find: str,
+    replace: str = "",
+    regex: bool = False,
+    scope: str = "chapter",
+    chapter_index: int = 0,
+):
+    """Xem trước các ĐOẠN (không phải từng chỗ khớp) chứa `find`, phục vụ
+    modal thay thế cho phép chọn áp dụng theo từng đoạn tìm thấy hoặc tất cả.
+    `scope=chapter` chỉ quét 1 chương, `scope=all` quét mọi chương đã dịch.
+    Giới hạn 300 đoạn để tránh trả về quá nặng với truyện dài.
+    """
+    find = find.strip()
+    if not find:
+        raise HTTPException(status_code=400, detail="Chuỗi cần tìm đang rỗng.")
+    if scope not in ("chapter", "all"):
+        raise HTTPException(status_code=400, detail="scope phải là 'chapter' hoặc 'all'.")
+    pattern = _compile_find(find, regex)
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+
+    if scope == "chapter":
+        if not chapter_index:
+            raise HTTPException(status_code=400, detail="Thiếu chapter_index.")
+        chapters = [c for c in manifest.chapters if c.index == chapter_index]
+        if not chapters:
+            raise HTTPException(status_code=404, detail="Không tìm thấy chương.")
+    else:
+        chapters = manifest.chapters
+
+    items: list[dict] = []
+    truncated = False
+    for ch in chapters:
+        if not storage.has_translated(ch):
+            continue
+        paras = split_paras(storage.read_translated(ch))
+        for i, para in enumerate(paras):
+            count = len(pattern.findall(para))
+            if not count:
+                continue
+            try:
+                after = pattern.sub(replace, para) if replace else para
+            except re.error as e:
+                raise HTTPException(status_code=400, detail=f"Regex thay thế không hợp lệ: {e}")
+            items.append({
+                "chapter_index": ch.index,
+                "chapter_title": ch.title or f"Chương {ch.index}",
+                "para_index": i,
+                "count": count,
+                "before": para,
+                "after": after,
+            })
+            if len(items) >= _FIND_PREVIEW_LIMIT:
+                truncated = True
+                break
+        if truncated:
+            break
+    return JSONResponse({"items": items, "truncated": truncated})
+
+
+@router.post("/api/ebooks/{slug}/glossary/apply-selected")
+def ebook_glossary_apply_selected(
+    slug: str,
+    find: str = Form(...),
+    replace: str = Form(...),
+    regex: bool = Form(False),
+    selections: str = Form(...),
+):
+    """Áp dụng thay thế CHỈ cho các đoạn client đã chọn (từ `/find-preview`).
+
+    `selections` là JSON list `[{"chapter_index": N, "para_index": N}, ...]`.
+    Mỗi đoạn được chọn: thay mọi chỗ khớp `find` NGAY trong đoạn đó (giống
+    hành vi propagate hiện có, chỉ khác là giới hạn phạm vi theo đoạn thay vì
+    cả chương/cả sách). Backup `before_find_replace` vào meta cho các chương
+    có thay đổi thật, giống `/glossary/propagate`.
+    """
+    find, replace = find.strip(), replace.strip()
+    if not find:
+        raise HTTPException(status_code=400, detail="Cần chuỗi cần tìm.")
+    try:
+        sel_list = json.loads(selections)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="selections không hợp lệ.")
+    if not isinstance(sel_list, list) or not sel_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn đoạn nào để thay thế.")
+
+    pattern = _compile_find(find, regex)
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+
+    by_chapter: dict[int, set[int]] = {}
+    for sel in sel_list:
+        if not isinstance(sel, dict):
+            continue
+        try:
+            ci = int(sel["chapter_index"])
+            pi = int(sel["para_index"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        by_chapter.setdefault(ci, set()).add(pi)
+
+    total_replaced = 0
+    chapters_touched = 0
+    for ch in manifest.chapters:
+        para_indexes = by_chapter.get(ch.index)
+        if not para_indexes or not storage.has_translated(ch):
+            continue
+        translated = storage.read_translated(ch)
+        lines = translated.split("\n")
+        para_line_indexes = [i for i, line in enumerate(lines) if line.strip()]
+        changed = False
+        for pi in para_indexes:
+            if not (0 <= pi < len(para_line_indexes)):
+                continue
+            line_idx = para_line_indexes[pi]
+            new_line, count = pattern.subn(replace, lines[line_idx])
+            if count:
+                lines[line_idx] = new_line
+                total_replaced += count
+                changed = True
+        if changed:
+            meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+            meta["before_find_replace"] = translated
+            storage.write_meta(ch, meta)
+            storage.write_translated(ch, "\n".join(lines))
+            chapters_touched += 1
+
+    return JSONResponse({"replaced": total_replaced, "chapters": chapters_touched})

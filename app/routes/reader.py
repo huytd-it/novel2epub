@@ -117,9 +117,10 @@ def reader_root(request: Request, slug: str):
     return RedirectResponse(url=f"/ebooks/{slug}/read/{manifest.chapters[0].index}", status_code=302)
 
 
-@router.get("/ebooks/{slug}/read/{index}")
-def reader_chapter(request: Request, slug: str, index: int):
-    """Trang đọc chương với giao diện sách."""
+def _chapter_context(slug: str, index: int) -> dict:
+    """Dữ liệu render đầy đủ cho 1 chương — dùng chung cho trang HTML và API
+    AJAX (`/read/{index}/data`) để trang đọc có thể chuyển chương không cần
+    tải lại toàn trang khi đang biên tập."""
     cfg, storage, manifest, ch = _load_chapter_or_404(slug, index)
 
     has_translated = storage.has_translated(ch)
@@ -150,27 +151,55 @@ def reader_chapter(request: Request, slug: str, index: int):
                 next_ch = manifest.chapters[i + 1]
             break
 
-    return deps.templates.TemplateResponse(
-        request,
-        "reader.html",
-        {
-            "slug": slug,
-            "ch": ch,
-            "has_translated": has_translated,
-            "has_raw": has_raw,
-            "raw": raw,
-            "raw_paras": raw_paras,
-            "edit_paras": edit_paras,
-            "raw_char_count": len(raw),
-            "translated_paras": translated_paras,
-            "translated_word_count": count_words(translated) if translated else 0,
-            "chapters_info": chapters_info,
-            "prev_ch": prev_ch,
-            "next_ch": next_ch,
-            "notes": storage.read_notes(),
-            "has_mt_snapshot": storage.has_translated_mt(ch),
-        },
-    )
+    return {
+        "slug": slug,
+        "ch": ch,
+        "has_translated": has_translated,
+        "has_raw": has_raw,
+        "raw": raw,
+        "raw_paras": raw_paras,
+        "edit_paras": edit_paras,
+        "raw_char_count": len(raw),
+        "translated_paras": translated_paras,
+        "translated_word_count": count_words(translated) if translated else 0,
+        "chapters_info": chapters_info,
+        "prev_ch": prev_ch,
+        "next_ch": next_ch,
+        "notes": storage.read_notes(),
+        "has_mt_snapshot": storage.has_translated_mt(ch),
+    }
+
+
+@router.get("/ebooks/{slug}/read/{index}")
+def reader_chapter(request: Request, slug: str, index: int):
+    """Trang đọc chương với giao diện sách."""
+    ctx = _chapter_context(slug, index)
+    return deps.templates.TemplateResponse(request, "reader.html", ctx)
+
+
+@router.get("/api/ebooks/{slug}/read/{index}/data")
+def reader_chapter_data(slug: str, index: int):
+    """Dữ liệu JSON của 1 chương cho điều hướng AJAX trên trang đọc.
+
+    Chỉ dùng cho chuyển chương nhanh khi đang biên tập: client tự fallback về
+    điều hướng tải lại trang bình thường khi `has_translated=false` (khi đó
+    khung HTML rỗng/hành động khác quá nhiều để dựng lại an toàn bằng JS).
+    """
+    ctx = _chapter_context(slug, index)
+    ch = ctx["ch"]
+    return JSONResponse({
+        "index": ch.index,
+        "title": ch.title or f"Chương {ch.index}",
+        "has_translated": ctx["has_translated"],
+        "has_raw": ctx["has_raw"],
+        "has_mt_snapshot": ctx["has_mt_snapshot"],
+        "translated_paras": ctx["translated_paras"],
+        "raw_paras": ctx["raw_paras"],
+        "edit_paras": ctx["edit_paras"],
+        "prev_index": ctx["prev_ch"].index if ctx["prev_ch"] else None,
+        "next_index": ctx["next_ch"].index if ctx["next_ch"] else None,
+        "notes": ctx["notes"],
+    })
 
 
 _QUICK_MT_MAX_CHARS = 2000

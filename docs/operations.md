@@ -142,6 +142,59 @@ Bốn điều cần biết về hành vi này:
 
 Theo dõi tiến độ ở `/queue` (job tên `opds-autobuild:<slug>`) và `/logs`. Tắt cờ `auto_build` thì quay về build tay hoàn toàn qua nút Build hoặc Automation.
 
+## Tách Giao Diện Khỏi Máy Chạy Backend
+
+SPA (`/app`) là file tĩnh nên có thể để trên Vercel/Cloudflare Pages, còn
+backend nằm trên máy ở nhà và ra ngoài qua Tailscale.
+
+### Dùng `serve`, không dùng `funnel`
+
+```sh
+tailscale serve --bg 8010
+```
+
+Lệnh này cấp `https://<máy>.<tailnet>.ts.net` có chứng chỉ thật nhưng **chỉ
+thiết bị trong tailnet mới resolve và tới được**. Trang trên Vercel là công
+khai — không sao, nó chỉ là HTML/JS — nhưng lời gọi API từ đó chỉ thành công
+trên máy đã bật Tailscale.
+
+`tailscale funnel` thì mở backend ra Internet công cộng. Chỉ dùng nếu bạn thực
+sự cần, và hiểu rằng lúc đó token API là thứ duy nhất đứng giữa người lạ và
+quyền điều khiển crawler.
+
+### Cấu hình phía server
+
+1. **Đặt token** ở Cài đặt > API. Bắt buộc: mọi request `/api/*` và `/opds/*`
+   từ ngoài localhost đều bị từ chối nếu chưa có token (`api_token_gate` trong
+   `app/main.py`). Chưa đặt token thì trả 503 chứ không phải 401 — đó là lỗi
+   cấu hình server, không phải lời mời đăng nhập.
+2. **Thêm origin** của frontend vào `api.cors_origins` (cùng trang Cài đặt >
+   API), ví dụ `https://xuong.vercel.app`. Không bao giờ dùng `*`.
+
+Hai giá trị này đọc lại mỗi request nên sửa xong có hiệu lực ngay, không cần
+restart.
+
+### Cấu hình phía frontend
+
+Đặt biến môi trường lúc build trong dashboard Vercel/Cloudflare Pages:
+
+```text
+N2E_API_BASE=https://<máy>.<tailnet>.ts.net
+```
+
+Build command `npm --prefix frontend run build`, thư mục xuất `app/webui`.
+Token nhập một lần ở trang **Kết nối** trong app và lưu ở `localStorage` —
+không nung vào bundle, vì bundle là file công khai.
+
+### Điều còn hạn chế
+
+Web UI Jinja2 vẫn là công cụ chạy tại chỗ. Mở qua `http://localhost:8010` thì
+không đổi gì, nhưng mở qua địa chỉ tailnet thì các lời gọi `/api/*` của nó sẽ
+nhận 401 — nó không có chỗ nào để nhập token. Các trang chưa được port sang
+SPA cũng vậy: SPA link sang chúng bằng URL tuyệt đối trỏ về backend, mở được
+nhưng phần JavaScript gọi API bên trong sẽ hỏng khi truy cập từ xa. Cho tới
+khi port xong, hãy dùng SPA từ xa và để dành UI cũ cho lúc ngồi tại máy.
+
 ## Vị Trí WireGuard Trong Pipeline
 
 Phiên bản WireGuard hiện tại cung cấp bộ quản lý profile + cung cấp wgcf qua CLI và một context manager **tái sử dụng** (`novel2epub.wireguard.wireguard_network_scope`) để dùng ĐÚNG **một** profile cho toàn bộ một thao tác mạng (toc/crawl), khóa liên tiến trình. Scope này **metadata-free**: chỉ chọn id profile và giữ khóa; nó KHÔNG ghi DB active và KHÔNG tự nhận đã kích hoạt. Vòng đời tunnel service thật (cài/gỡ WireGuard for Windows) là việc riêng của `activate_profile`/`rotate_profile`, chỉ chạy khi `wireguard.manage_service=true` (ngược lại bị TỪ CHỐI).

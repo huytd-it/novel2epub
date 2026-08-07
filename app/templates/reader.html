@@ -69,6 +69,17 @@ html.reader-page main { max-width: none; padding-left: 0; padding-right: 0; }
 .reader-para.is-saving { opacity: 0.65; }
 .reader-para.save-error { outline: 2px solid var(--tw-status-err-fg, #dc2626) !important; }
 
+/* --- Chèn / xóa đoạn khi ở chế độ biên tập --- */
+.para-toolbar { position: absolute; z-index: 25; display: none; gap: 0.2rem; padding: 0.15rem; border-radius: 8px; background: var(--tw-surface-light, #ffffff); border: 1px solid var(--tw-border, #e4e4e7); box-shadow: 0 4px 14px rgba(24,24,27,0.14); }
+.dark .para-toolbar { background: var(--tw-surface-dark, #18181b); border-color: var(--tw-border-dark, #3f3f46); }
+.para-toolbar.visible { display: flex; }
+.para-toolbar button { display: inline-flex; align-items: center; justify-content: center; width: 1.7rem; height: 1.7rem; border: none; border-radius: 6px; background: none; cursor: pointer; font-size: 0.9rem; line-height: 1; color: var(--tw-fg-muted, #71717a); }
+.dark .para-toolbar button { color: var(--tw-fg-muted-dark, #a1a1aa); }
+.para-toolbar button:hover { background: var(--tw-surface-muted, #f4f4f5); color: var(--tw-fg-light, #18181b); }
+.dark .para-toolbar button:hover { background: var(--tw-surface-muted-dark, #27272a); color: var(--tw-fg-dark, #fafafa); }
+.para-toolbar button.danger:hover { background: var(--tw-status-err-light, #ffe1e1); color: var(--tw-status-err-fg, #dc2626); }
+.dark .para-toolbar button.danger:hover { background: var(--tw-status-err-dark, #3a1a1a); }
+
 .reader-empty { text-align: center; padding: 3rem 1rem; color: var(--tw-fg-muted, #71717a); }
 .dark .reader-empty { color: var(--tw-fg-muted-dark, #a1a1aa); }
 .reader-empty a { display: inline-block; margin-top: 0.75rem; }
@@ -214,6 +225,13 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 .toc-backdrop.hidden { display: none; }
 .reader-mobile-backdrop { display: none; }
 
+/* Desktop: mục lục luôn hiển thị, không cần thu gọn/toggle. */
+@media (min-width: 901px) {
+    .toc-sidebar { transform: translateX(0); box-shadow: none; }
+    .reader-wrap { margin-left: 240px; }
+    #toc-toggle-btn, #toc-close-btn, #toc-backdrop { display: none !important; }
+}
+
 /* --- Thanh tìm kiếm toàn truyện --- */
 .search-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 50; padding: 0.6rem 1rem; background: var(--tw-surface-light, #ffffff); border-bottom: 1px solid var(--tw-border, #e4e4e7); box-shadow: var(--tw-shadow-card, 0 1px 3px rgba(0,0,0,0.06)); }
 .dark .search-bar { background: var(--tw-surface-dark, #18181b); border-bottom-color: var(--tw-border-dark, #3f3f46); box-shadow: var(--tw-shadow-card-dark, 0 1px 3px rgba(0,0,0,0.3)); }
@@ -253,6 +271,25 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 .replace-scope label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.875rem; }
 .replace-hint { font-size: 0.75rem; color: var(--tw-fg-muted, #71717a); overflow-wrap: anywhere; }
 .dark .replace-hint { color: var(--tw-fg-muted-dark, #a1a1aa); }
+
+/* --- Xem trước theo từng đoạn tìm thấy (modal thay thế) --- */
+.replace-preview { max-height: 42vh; overflow-y: auto; display: grid; gap: 0.5rem; }
+.replace-preview-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.75rem; color: var(--tw-fg-muted, #71717a); }
+.dark .replace-preview-toolbar { color: var(--tw-fg-muted-dark, #a1a1aa); }
+.replace-preview-toolbar button { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 6px; border: 1px solid var(--tw-border, #e4e4e7); background: var(--tw-surface-muted, #f4f4f5); color: var(--tw-fg-light, #18181b); cursor: pointer; }
+.dark .replace-preview-toolbar button { background: var(--tw-surface-muted-dark, #27272a); color: var(--tw-fg-dark, #fafafa); border-color: var(--tw-border-dark, #3f3f46); }
+.replace-preview-item { display: flex; gap: 0.5rem; padding: 0.5rem 0.6rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 8px; font-size: 0.8125rem; }
+.dark .replace-preview-item { border-color: var(--tw-border-dark, #3f3f46); }
+.replace-preview-item input[type="checkbox"] { margin-top: 0.2rem; flex: 0 0 auto; }
+.replace-preview-body { flex: 1; min-width: 0; display: grid; gap: 0.15rem; }
+.replace-preview-meta { font-size: 0.7rem; color: var(--tw-fg-muted, #71717a); }
+.dark .replace-preview-meta { color: var(--tw-fg-muted-dark, #a1a1aa); }
+.replace-preview-before, .replace-preview-after { overflow-wrap: anywhere; }
+.replace-preview-before { color: var(--tw-fg-muted, #71717a); text-decoration: line-through; }
+.dark .replace-preview-before { color: var(--tw-fg-muted-dark, #a1a1aa); }
+.replace-preview-after { color: var(--tw-status-ok-fg, #16a34a); }
+.replace-preview-empty { text-align: center; color: var(--tw-fg-muted, #71717a); font-size: 0.8125rem; padding: 0.75rem 0; }
+.dark .replace-preview-empty { color: var(--tw-fg-muted-dark, #a1a1aa); }
 
 /* --- Thanh điều khiển TTS --- */
 .tts-bar { position: fixed; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 36; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; justify-content: center; max-width: min(46rem, calc(100vw - 1.5rem)); padding: 0.45rem 0.6rem; border: 1px solid var(--tw-border, #e4e4e7); border-radius: 999px; background: var(--tw-surface-light, #ffffff); box-shadow: 0 10px 30px rgba(24, 24, 27, 0.16); }
@@ -389,11 +426,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             <a href="/ebooks/{{ slug }}" class="reader-nav-btn" aria-label="Quay lại ebook" title="Quay lại ebook">&larr;<span class="reader-back-label ml-1">Quay lại</span></a>
         </div>
         <div class="reader-nav-center">
-            {% if prev_ch %}
-            <a href="/ebooks/{{ slug }}/read/{{ prev_ch.index }}" class="reader-nav-btn" title="Chương trước" aria-label="Chương trước">&larr;</a>
-            {% else %}
-            <span class="reader-nav-btn disabled" aria-label="Chương trước">&larr;</span>
-            {% endif %}
+            <a id="nav-prev-top" href="{% if prev_ch %}/ebooks/{{ slug }}/read/{{ prev_ch.index }}{% else %}#{% endif %}" class="reader-nav-btn{% if not prev_ch %} disabled{% endif %}" title="Chương trước" aria-label="Chương trước">&larr;</a>
             <select id="chapter-select" class="reader-chapter-select" aria-label="Chọn chương">
                 {% for c in chapters_info %}
                 <option value="{{ c.index }}" {% if c.index == ch.index %}selected{% endif %} {% if not c.has_translated %}class="text-fg-muted dark:text-fg-muted-dark"{% endif %}>
@@ -401,11 +434,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
                 </option>
                 {% endfor %}
             </select>
-            {% if next_ch %}
-            <a href="/ebooks/{{ slug }}/read/{{ next_ch.index }}" class="reader-nav-btn" title="Chương tiếp" aria-label="Chương tiếp">&rarr;</a>
-            {% else %}
-            <span class="reader-nav-btn disabled" aria-label="Chương tiếp">&rarr;</span>
-            {% endif %}
+            <a id="nav-next-top" href="{% if next_ch %}/ebooks/{{ slug }}/read/{{ next_ch.index }}{% else %}#{% endif %}" class="reader-nav-btn{% if not next_ch %} disabled{% endif %}" title="Chương tiếp" aria-label="Chương tiếp">&rarr;</a>
         </div>
         <div class="reader-nav-right mobile-actions">
             <span id="bookmark-indicator" class="bookmark-indicator" hidden title="Có bookmark">&#128278;</span>
@@ -516,12 +545,8 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     <div id="compare-view" class="compare-view" hidden></div>
 
     <nav class="reader-nav reader-nav-bottom" aria-label="Điều hướng chương (duôi trang)">
-        {% if prev_ch %}
-        <a href="/ebooks/{{ slug }}/read/{{ prev_ch.index }}" class="reader-nav-btn">&larr; Chương trước</a>
-        {% endif %}
-        {% if next_ch %}
-        <a href="/ebooks/{{ slug }}/read/{{ next_ch.index }}" class="reader-nav-btn">Chương tiếp &rarr;</a>
-        {% endif %}
+        <a id="nav-prev-bottom" href="/ebooks/{{ slug }}/read/{{ prev_ch.index if prev_ch else '' }}" class="reader-nav-btn" {% if not prev_ch %}hidden{% endif %}>&larr; Chương trước</a>
+        <a id="nav-next-bottom" href="/ebooks/{{ slug }}/read/{{ next_ch.index if next_ch else '' }}" class="reader-nav-btn" {% if not next_ch %}hidden{% endif %}>Chương tiếp &rarr;</a>
     </nav>
 </div>
 
@@ -624,8 +649,20 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
                     </div>
                 </div>
                 <div id="replace-hint" class="replace-hint"></div>
+                <div id="replace-preview-wrap" hidden>
+                    <div class="replace-preview-toolbar">
+                        <span id="replace-preview-status">Chưa xem trước.</span>
+                        <span class="flex gap-2">
+                            <button type="button" id="replace-select-all-btn">Chọn tất cả</button>
+                            <button type="button" id="replace-select-none-btn">Bỏ chọn</button>
+                        </span>
+                    </div>
+                    <div id="replace-preview-list" class="replace-preview"></div>
+                </div>
                 <div class="flex justify-end gap-2">
                     <button type="button" class="btn btn-secondary" data-close-modal="reader-replace-modal">Hủy</button>
+                    <button type="button" id="replace-preview-btn" class="btn btn-secondary" hidden>Xem trước theo đoạn</button>
+                    <button type="button" id="replace-apply-btn" class="btn btn-primary" hidden disabled>Áp dụng đã chọn</button>
                     <button type="button" id="replace-run-btn" class="btn btn-primary">Thay thế</button>
                 </div>
             </div>
@@ -722,8 +759,8 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 <script>
 (function() {
     const SLUG = {{ slug | tojson }};
-    const INDEX = {{ ch.index | tojson }};
-    const STORAGE_KEY = `n2e-read-${SLUG}-${INDEX}`;
+    let INDEX = {{ ch.index | tojson }};
+    let STORAGE_KEY = `n2e-read-${SLUG}-${INDEX}`;
     const BOOKMARK_KEY = `n2e-bookmark-${SLUG}`;
     const MODE_KEY = `n2e-reader-mode-${SLUG}`;
     const mobileTools = document.querySelector('.reader-nav-right.mobile-actions');
@@ -942,7 +979,20 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     });
 
     document.getElementById('chapter-select')?.addEventListener('change', function() {
-        window.location.href = `/ebooks/${encodeURIComponent(SLUG)}/read/${this.value}`;
+        if (window.n2eLoadChapter) window.n2eLoadChapter(+this.value);
+        else window.location.href = `/ebooks/${encodeURIComponent(SLUG)}/read/${this.value}`;
+    });
+
+    // Cho phần điều hướng AJAX (script cuối trang) biết chế độ biên tập hiện
+    // tại + cách gắn query ?edit=1 vào link, và tự cập nhật khi đổi chương.
+    window.n2eReaderMode = {
+        query: readerModeQuery,
+        isEdit: () => Boolean(content?.classList.contains('edit-mode')),
+    };
+    document.addEventListener('n2e:chapter-changed', (event) => {
+        INDEX = event.detail.index;
+        STORAGE_KEY = `n2e-read-${SLUG}-${INDEX}`;
+        updateBookmarkUI();
     });
 
 })();
@@ -952,7 +1002,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 // Ghi chú lỗi dịch (bôi đen → note → AI sửa) + chế độ so sánh MT/Biên tập.
 (function() {
     const SLUG = {{ slug | tojson }};
-    const INDEX = {{ ch.index | tojson }};
+    let INDEX = {{ ch.index | tojson }};
     const HAS_MT = {{ has_mt_snapshot | tojson }};
     const MODE_KEY = `n2e-reader-mode-${SLUG}`;
     let allNotes = {{ notes | tojson }};
@@ -1235,8 +1285,35 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     const replaceRegex = document.getElementById('replace-regex');
     const replaceHint = document.getElementById('replace-hint');
     const replaceRunBtn = document.getElementById('replace-run-btn');
+    const replacePreviewBtn = document.getElementById('replace-preview-btn');
+    const replaceApplyBtn = document.getElementById('replace-apply-btn');
+    const replacePreviewWrap = document.getElementById('replace-preview-wrap');
+    const replacePreviewList = document.getElementById('replace-preview-list');
+    const replacePreviewStatus = document.getElementById('replace-preview-status');
     const scopeInput = () => replaceModal.querySelector('input[name="replace-scope"]:checked');
     let replaceCtx = null;
+    let previewItems = [];
+
+    function resetPreview() {
+        previewItems = [];
+        replacePreviewWrap.hidden = true;
+        replacePreviewList.innerHTML = '';
+        replacePreviewStatus.textContent = 'Chưa xem trước.';
+        replaceApplyBtn.hidden = true;
+        replaceApplyBtn.disabled = true;
+    }
+
+    function syncReplaceButtons() {
+        const scope = scopeInput()?.value;
+        resetPreview();
+        if (scope === 'selection') {
+            replaceRunBtn.hidden = false;
+            replacePreviewBtn.hidden = true;
+        } else {
+            replaceRunBtn.hidden = true;
+            replacePreviewBtn.hidden = false;
+        }
+    }
 
     function openReplaceModal(d) {
         replaceCtx = d;
@@ -1248,6 +1325,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         replaceHint.textContent = '';
         hidePopover();
         openModal('reader-replace-modal');
+        syncReplaceButtons();
         replaceWith.focus();
         refreshReplaceHint();
     }
@@ -1271,13 +1349,13 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
             const d = await res.json();
             replaceHint.textContent = scope === 'chapter'
                 ? `${d.chapter_count} chỗ trong chương này.`
-                : `${d.total_count} chỗ trong ${d.chapter_total} chương · ${d.chapter_count} chỗ đổi ngay ở chương này, phần còn lại xếp hàng chạy nền.`;
+                : `${d.total_count} chỗ trong ${d.chapter_total} chương.`;
         } catch (e) { replaceHint.textContent = ''; }
     }
-    [replaceFind, replaceWith].forEach(el => el?.addEventListener('input', refreshReplaceHint));
-    [replaceWhole, replaceRegex].forEach(el => el?.addEventListener('change', refreshReplaceHint));
+    [replaceFind, replaceWith].forEach(el => el?.addEventListener('input', () => { refreshReplaceHint(); resetPreview(); }));
+    [replaceWhole, replaceRegex].forEach(el => el?.addEventListener('change', () => { refreshReplaceHint(); resetPreview(); }));
     replaceModal?.querySelectorAll('input[name="replace-scope"]').forEach(radio => {
-        radio.addEventListener('change', refreshReplaceHint);
+        radio.addEventListener('change', () => { refreshReplaceHint(); syncReplaceButtons(); });
     });
 
     async function replaceInSelection(find) {
@@ -1296,68 +1374,135 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         await applyToSelection(d, replaced);
     }
 
-    async function postPropagate(pattern, replace, scope) {
-        const body = new URLSearchParams({ find: pattern, replace, scope, regex: '1' });
-        if (scope === 'chapter') body.set('chapter_index', INDEX);
-        let res;
-        try {
-            res = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/glossary/propagate`,
-                { method: 'POST', body });
-        } catch (e) {
-            throw new Error('Lỗi kết nối, thử lại.');
-        }
-        if (res.ok) return res.json();
-        const data = await res.json().catch(() => ({}));
-        const err = new Error(data.detail || `Thay thế thất bại (HTTP ${res.status}).`);
-        err.status = res.status;
-        throw err;
-    }
-
-    // Chương đang đọc luôn đổi đồng bộ để thấy kết quả ngay; phạm vi toàn sách
-    // xếp thêm một job nền lo các chương còn lại (chương này khi đó đã sạch nên
-    // job chạy lại không đổi gì thêm).
-    async function replaceInScope(find, scope) {
-        const replace = replaceWith.value.trim();
-        if (!replace) { toast('Cần nội dung thay thế.', 'warning'); return; }
-        const pattern = buildPattern({
-            find, regex: replaceRegex.checked, wholeWord: replaceWhole.checked,
-        });
-
-        let done;
-        try {
-            done = await postPropagate(pattern, replace, 'chapter');
-        } catch (e) {
-            toast(e.message, 'error');
-            return;
-        }
-        closeModal('reader-replace-modal');
-
-        if (scope === 'all') {
-            try {
-                await postPropagate(pattern, replace, 'all');
-                toast(`Đã thay ${done.replaced} chỗ ở chương này · các chương còn lại đang chạy nền.`, 'success');
-            } catch (e) {
-                toast(e.status === 409
-                    ? `Đã thay ${done.replaced} chỗ ở chương này. Job khác đang chạy nên chưa xếp hàng được các chương còn lại.`
-                    : `Đã thay ${done.replaced} chỗ ở chương này, nhưng xếp hàng thất bại: ${e.message}`,
-                    'warning');
-            }
-        } else {
-            toast(`Đã thay ${done.replaced} chỗ ở chương này.`, 'success');
-        }
-        setTimeout(() => window.location.reload(), 800);
-    }
-
     replaceRunBtn?.addEventListener('click', async () => {
         const find = replaceFind.value.trim();
         if (!find) { toast('Cần chuỗi cần tìm.', 'warning'); return; }
-        const scope = scopeInput()?.value;
         replaceRunBtn.disabled = true;
         try {
-            if (scope === 'selection') await replaceInSelection(find);
-            else await replaceInScope(find, scope);
+            await replaceInSelection(find);
         } finally {
             replaceRunBtn.disabled = false;
+        }
+    });
+
+    // ---- Xem trước theo đoạn (scope=chapter/all): chọn áp dụng từng đoạn hoặc tất cả ----
+    function renderPreviewItem(item, idx) {
+        const row = document.createElement('label');
+        row.className = 'replace-preview-item';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = true;
+        cb.dataset.idx = String(idx);
+        const body = document.createElement('div');
+        body.className = 'replace-preview-body';
+        const meta = document.createElement('div');
+        meta.className = 'replace-preview-meta';
+        meta.textContent = scopeInput()?.value === 'all'
+            ? `${item.chapter_title} · đoạn ${item.para_index + 1} · ${item.count} chỗ`
+            : `Đoạn ${item.para_index + 1} · ${item.count} chỗ`;
+        const before = document.createElement('div');
+        before.className = 'replace-preview-before';
+        before.textContent = item.before;
+        const after = document.createElement('div');
+        after.className = 'replace-preview-after';
+        after.textContent = item.after;
+        body.append(meta, before, after);
+        row.append(cb, body);
+        return row;
+    }
+
+    function renderPreview() {
+        replacePreviewList.innerHTML = '';
+        if (!previewItems.length) {
+            const empty = document.createElement('div');
+            empty.className = 'replace-preview-empty';
+            empty.textContent = 'Không tìm thấy đoạn nào khớp.';
+            replacePreviewList.appendChild(empty);
+            replaceApplyBtn.hidden = true;
+            replaceApplyBtn.disabled = true;
+        } else {
+            previewItems.forEach((item, idx) => replacePreviewList.appendChild(renderPreviewItem(item, idx)));
+            replaceApplyBtn.hidden = false;
+            replaceApplyBtn.disabled = false;
+        }
+        updatePreviewStatus();
+    }
+
+    function checkedCheckboxes() {
+        return Array.from(replacePreviewList.querySelectorAll('input[type="checkbox"]'));
+    }
+
+    function updatePreviewStatus() {
+        const boxes = checkedCheckboxes();
+        const checked = boxes.filter(b => b.checked).length;
+        replacePreviewStatus.textContent = previewItems.length
+            ? `Đã chọn ${checked}/${previewItems.length} đoạn.`
+            : 'Không tìm thấy đoạn nào khớp.';
+        replaceApplyBtn.disabled = checked === 0;
+    }
+    replacePreviewList.addEventListener('change', (e) => {
+        if (e.target.matches('input[type="checkbox"]')) updatePreviewStatus();
+    });
+    document.getElementById('replace-select-all-btn')?.addEventListener('click', () => {
+        checkedCheckboxes().forEach(b => { b.checked = true; });
+        updatePreviewStatus();
+    });
+    document.getElementById('replace-select-none-btn')?.addEventListener('click', () => {
+        checkedCheckboxes().forEach(b => { b.checked = false; });
+        updatePreviewStatus();
+    });
+
+    replacePreviewBtn?.addEventListener('click', async () => {
+        const find = replaceFind.value.trim();
+        if (!find) { toast('Cần chuỗi cần tìm.', 'warning'); return; }
+        const scope = scopeInput()?.value;
+        const pattern = buildPattern({ find, regex: replaceRegex.checked, wholeWord: replaceWhole.checked });
+        const params = new URLSearchParams({
+            find: pattern, replace: replaceWith.value, regex: '1', scope,
+        });
+        if (scope === 'chapter') params.set('chapter_index', INDEX);
+        replacePreviewBtn.disabled = true;
+        replacePreviewWrap.hidden = false;
+        replacePreviewStatus.textContent = 'Đang tìm…';
+        replacePreviewList.innerHTML = '';
+        try {
+            const res = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/glossary/find-preview?${params}`);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || 'Xem trước thất bại.');
+            previewItems = data.items || [];
+            renderPreview();
+            if (data.truncated) toast('Danh sách khá dài, chỉ hiển thị 300 đoạn đầu.', 'warning');
+        } catch (e) {
+            replacePreviewStatus.textContent = e.message;
+        } finally {
+            replacePreviewBtn.disabled = false;
+        }
+    });
+
+    replaceApplyBtn?.addEventListener('click', async () => {
+        const selections = checkedCheckboxes()
+            .filter(b => b.checked)
+            .map(b => previewItems[+b.dataset.idx])
+            .map(item => ({ chapter_index: item.chapter_index, para_index: item.para_index }));
+        if (!selections.length) { toast('Chưa chọn đoạn nào.', 'warning'); return; }
+        const find = replaceFind.value.trim();
+        const pattern = buildPattern({ find, regex: replaceRegex.checked, wholeWord: replaceWhole.checked });
+        const body = new URLSearchParams({
+            find: pattern, replace: replaceWith.value, regex: '1',
+            selections: JSON.stringify(selections),
+        });
+        replaceApplyBtn.disabled = true;
+        try {
+            const res = await fetch(`/api/ebooks/${encodeURIComponent(SLUG)}/glossary/apply-selected`,
+                { method: 'POST', body });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || 'Áp dụng thất bại.');
+            closeModal('reader-replace-modal');
+            toast(`Đã thay ${data.replaced} chỗ trong ${data.chapters} chương.`, 'success');
+            setTimeout(() => window.location.reload(), 800);
+        } catch (e) {
+            toast(e.message, 'error');
+            replaceApplyBtn.disabled = false;
         }
     });
 
@@ -1785,13 +1930,21 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 
     refreshUI();
     if (localStorage.getItem(MODE_KEY) === 'compare') enterCompare();
+
+    document.addEventListener('n2e:chapter-changed', (event) => {
+        INDEX = event.detail.index;
+        allNotes = event.detail.data.notes || [];
+        if (compareMode) exitCompare();
+        hidePopover();
+        refreshUI();
+    });
 })();
 </script>
 <script>
 // Edit mode turns every paragraph into a direct editor and saves on blur.
 (function() {
     const SLUG = {{ slug | tojson }};
-    const INDEX = {{ ch.index | tojson }};
+    let INDEX = {{ ch.index | tojson }};
     const content = document.getElementById('reader-content');
     if (!content) return;
     const originals = new WeakMap();
@@ -1949,14 +2102,136 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     redoBtn?.addEventListener('click', () => moveHistory(redoStack, undoStack, false));
     window.n2eEditHistory = { record: recordCommand };
     updateHistoryButtons();
+
+    // ---- Chèn / xóa đoạn — thanh công cụ nhỏ nổi theo đoạn đang hover/focus,
+    // chỉ hiện ở chế độ biên tập (đặt ngoài .reader-para để không lẫn vào
+    // nội dung contenteditable khi lưu). ----
+    const paraToolbar = document.createElement('div');
+    paraToolbar.className = 'para-toolbar';
+    paraToolbar.innerHTML =
+        '<button type="button" data-action="insert" title="Chèn đoạn mới ngay sau" aria-label="Chèn đoạn">+</button>' +
+        '<button type="button" data-action="delete" class="danger" title="Xóa đoạn này" aria-label="Xóa đoạn">&#128465;</button>';
+    document.body.appendChild(paraToolbar);
+    let toolbarPara = null;
+    let toolbarHideTimer = null;
+
+    function renumberParas() {
+        content.querySelectorAll('.reader-para').forEach((item, index) => {
+            item.dataset.para = String(index);
+        });
+    }
+
+    function positionParaToolbar(para) {
+        const rect = para.getBoundingClientRect();
+        paraToolbar.style.top = `${rect.top + window.scrollY + 2}px`;
+        paraToolbar.style.left = `${rect.right + window.scrollX - paraToolbar.offsetWidth - 2}px`;
+    }
+    function showParaToolbar(para) {
+        if (!content.classList.contains('edit-mode')) return;
+        clearTimeout(toolbarHideTimer);
+        toolbarPara = para;
+        positionParaToolbar(para);
+        paraToolbar.classList.add('visible');
+    }
+    function scheduleHideParaToolbar() {
+        clearTimeout(toolbarHideTimer);
+        toolbarHideTimer = setTimeout(() => {
+            paraToolbar.classList.remove('visible');
+            toolbarPara = null;
+        }, 300);
+    }
+    content.addEventListener('mouseover', (event) => {
+        const para = event.target.closest('.reader-para');
+        if (para) showParaToolbar(para);
+    });
+    content.addEventListener('mouseout', (event) => {
+        const to = event.relatedTarget;
+        if (!to || (!to.closest?.('.reader-para') && !to.closest?.('.para-toolbar'))) scheduleHideParaToolbar();
+    });
+    content.addEventListener('focusin', (event) => {
+        const para = event.target.closest('.reader-para');
+        if (para) showParaToolbar(para);
+    });
+    paraToolbar.addEventListener('mouseenter', () => clearTimeout(toolbarHideTimer));
+    paraToolbar.addEventListener('mouseleave', scheduleHideParaToolbar);
+    window.addEventListener('scroll', () => { if (toolbarPara) positionParaToolbar(toolbarPara); }, { passive: true });
+
+    async function insertParaAfter(para) {
+        const afterIndex = +para.dataset.para;
+        paraToolbar.classList.remove('visible');
+        const form = new FormData();
+        form.set('after_index', afterIndex);
+        try {
+            const data = await api(`/api/ebooks/${encodeURIComponent(SLUG)}/chapters/${INDEX}/para/insert`, form);
+            const newPara = document.createElement('p');
+            newPara.className = 'reader-para';
+            newPara.contentEditable = 'true';
+            newPara.textContent = data.para;
+            para.after(newPara);
+            renumberParas();
+            originals.set(newPara, data.para);
+            newPara.focus();
+            const range = document.createRange();
+            range.selectNodeContents(newPara);
+            const sel = window.getSelection();
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+            toast('Đã chèn đoạn mới — sửa nội dung rồi bấm ra ngoài để lưu', 'success');
+        } catch (error) {
+            toast(error.message, 'error');
+        }
+    }
+
+    async function deleteParaWithToolbar(para) {
+        const confirmed = await confirmDialog('Xóa đoạn văn này? Không thể hoàn tác.', { destructive: true });
+        if (!confirmed) return;
+        const paraIndex = +para.dataset.para;
+        const paraText = para.textContent.trim();
+        paraToolbar.classList.remove('visible');
+        const form = new FormData();
+        form.set('para_index', paraIndex);
+        form.set('para_text', paraText);
+        form.set('new_text', '');
+        try {
+            await api(`/api/ebooks/${encodeURIComponent(SLUG)}/chapters/${INDEX}/para/save`, form);
+            para.remove();
+            renumberParas();
+            toast('Đã xóa đoạn', 'success');
+        } catch (error) {
+            toast(error.message, 'error');
+        }
+    }
+
+    paraToolbar.addEventListener('click', (event) => {
+        const btn = event.target.closest('button[data-action]');
+        if (!btn || !toolbarPara) return;
+        if (btn.dataset.action === 'insert') insertParaAfter(toolbarPara);
+        else if (btn.dataset.action === 'delete') deleteParaWithToolbar(toolbarPara);
+    });
+
+    // Đổi chương (AJAX): undo/redo gắn với đoạn của chương cũ nên không mang
+    // theo được — reset sạch. Đoạn mới sẽ tự có originals khi focus (focusin).
+    document.addEventListener('n2e:chapter-changed', (event) => {
+        INDEX = event.detail.index;
+        undoStack.length = 0;
+        redoStack.length = 0;
+        updateHistoryButtons();
+        paraToolbar.classList.remove('visible');
+        toolbarPara = null;
+        // Node tiêu đề được TÁI SỬ DỤNG giữa các chương (không tạo lại như
+        // đoạn văn) — xóa "original" cũ để lần focus tới lấy đúng tiêu đề
+        // của chương mới thay vì so lệch với chương trước.
+        const titleEl = document.getElementById('reader-chapter-title');
+        if (titleEl) originals.delete(titleEl);
+    });
 })();
 </script>
 <script>
 // Đọc thành tiếng bằng Edge TTS: từng đoạn một, tự sang chương khi hết bài.
 (function() {
     const SLUG = {{ slug | tojson }};
-    const INDEX = {{ ch.index | tojson }};
-    const NEXT_INDEX = {{ next_ch.index if next_ch else 'null' }};
+    let INDEX = {{ ch.index | tojson }};
+    let NEXT_INDEX = {{ next_ch.index if next_ch else 'null' }};
     const AUTO_KEY = 'n2e-tts-auto';
     const VOICE_KEY = 'n2e-tts-voice';
     const RATE_KEY = 'n2e-tts-rate';
@@ -2143,6 +2418,14 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
         openBar();
         playIndex(0);
     }
+
+    // Đổi chương qua AJAX: dừng phát (index/đoạn của chương cũ không còn khớp
+    // DOM mới) — người đọc bấm lại nút đọc để phát tiếp ở chương mới.
+    document.addEventListener('n2e:chapter-changed', (event) => {
+        INDEX = event.detail.index;
+        NEXT_INDEX = event.detail.data.next_index;
+        if (!bar.hidden) closeBar();
+    });
 })();
 </script>
 {% endif %}
@@ -2153,7 +2436,7 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
 // queue + backup before_find_replace) như trang Glossary.
 (function() {
     const SLUG = {{ slug | tojson }};
-    const INDEX = {{ ch.index | tojson }};
+    let INDEX = {{ ch.index | tojson }};
     const api = (path) => `/api/ebooks/${encodeURIComponent(SLUG)}${path}`;
     const mobileMq = window.matchMedia('(max-width: 640px)');
 
@@ -2195,6 +2478,150 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
     }
     tocSearchInput?.addEventListener('input', filterToc);
     filterToc();
+
+    // ---- Điều hướng chương bằng AJAX (nhanh hơn khi đang biên tập) ----
+    // Chỉ áp dụng khi chương đích ĐÃ có bản dịch — khung trang khi chưa
+    // crawl/chưa dịch khác nhiều (form rỗng, thiếu nút...) nên fallback tải
+    // lại trang bình thường để chắc chắn đúng, thay vì cố dựng lại bằng JS.
+    const readerContentEl = document.getElementById('reader-content');
+    const chapterTitleEl = document.getElementById('reader-chapter-title');
+    const chapterSelectEl = document.getElementById('chapter-select');
+
+    function isPlainClick(event) {
+        return event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey;
+    }
+
+    function fullNavUrl(idx) {
+        const q = window.n2eReaderMode?.query() || '';
+        return `/ebooks/${encodeURIComponent(SLUG)}/read/${idx}${q}`;
+    }
+
+    function renderChapterParas(data) {
+        if (chapterTitleEl) chapterTitleEl.textContent = data.title;
+        readerContentEl.querySelectorAll('.reader-para').forEach(p => p.remove());
+        const editOn = Boolean(window.n2eReaderMode?.isEdit());
+        data.translated_paras.forEach((text, i) => {
+            const p = document.createElement('p');
+            p.className = 'reader-para';
+            p.dataset.para = String(i);
+            p.contentEditable = editOn ? 'true' : 'false';
+            p.textContent = text;
+            readerContentEl.appendChild(p);
+        });
+    }
+
+    function renderRawCompareView(data) {
+        const view = document.getElementById('raw-compare-view');
+        if (!view) return; // chương lúc tải trang đầu chưa có raw — bỏ qua tính năng này phiên này
+        view.querySelectorAll('.raw-compare-row').forEach(r => r.remove());
+        (data.raw_paras || []).forEach((raw, i) => {
+            const row = document.createElement('div');
+            row.className = 'raw-compare-row';
+            row.dataset.para = String(i);
+            const rawDiv = document.createElement('div');
+            rawDiv.className = 'raw-compare-raw';
+            rawDiv.textContent = raw;
+            const viDiv = document.createElement('div');
+            viDiv.className = 'raw-compare-vi';
+            viDiv.textContent = (data.edit_paras || [])[i] || '';
+            row.append(rawDiv, viDiv);
+            view.appendChild(row);
+        });
+        if (!view.hidden) {
+            // Đang mở so sánh raw ở chương cũ — thoát vì dữ liệu không còn khớp.
+            view.hidden = true;
+            readerContentEl.hidden = false;
+            document.getElementById('raw-compare-toggle-btn')?.classList.remove('active');
+        }
+    }
+
+    function applyNavSlot(id, targetIdx, hideWhenMissing) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (targetIdx == null) {
+            if (hideWhenMissing) el.hidden = true;
+            else { el.classList.add('disabled'); el.removeAttribute('href'); delete el.dataset.baseHref; }
+            return;
+        }
+        el.hidden = false;
+        el.classList.remove('disabled');
+        const href = `/ebooks/${encodeURIComponent(SLUG)}/read/${targetIdx}`;
+        el.dataset.baseHref = href;
+        el.setAttribute('href', window.n2eReaderMode?.isEdit() ? `${href}?edit=1` : href);
+    }
+
+    function retargetChapterActions(idx) {
+        document.querySelectorAll('#reader-edit-toolbar form[action]').forEach(f => {
+            f.action = f.action.replace(/\/chapters\/\d+\//, `/chapters/${idx}/`);
+        });
+        document.querySelectorAll('.edit-mode-control[href*="/chapters/"]').forEach(a => {
+            a.setAttribute('href', a.getAttribute('href').replace(/\/chapters\/\d+/, `/chapters/${idx}`));
+        });
+    }
+
+    function applyChapterData(idx, data) {
+        renderChapterParas(data);
+        renderRawCompareView(data);
+        applyNavSlot('nav-prev-top', data.prev_index, false);
+        applyNavSlot('nav-next-top', data.next_index, false);
+        applyNavSlot('nav-prev-bottom', data.prev_index, true);
+        applyNavSlot('nav-next-bottom', data.next_index, true);
+        if (chapterSelectEl) chapterSelectEl.value = String(idx);
+        tocItems.forEach(item => item.classList.toggle('active', +item.dataset.index === idx));
+        sidebar.querySelector('.toc-chapter-item.active')?.scrollIntoView({ block: 'nearest' });
+        retargetChapterActions(idx);
+        document.title = `Đọc: ${data.title} — novel2epub`;
+    }
+
+    async function n2eLoadChapter(idx, { push = true } = {}) {
+        idx = +idx;
+        if (!Number.isFinite(idx)) return;
+        if (idx === INDEX) { if (mobileMq.matches) setToc(false); return; }
+        let res, data;
+        try {
+            res = await fetch(api(`/read/${idx}/data`));
+            data = await res.json();
+        } catch (e) {
+            window.location.href = fullNavUrl(idx);
+            return;
+        }
+        if (!res.ok || !data.has_translated) {
+            // Chương trống/chưa dịch — khung trang khác quá nhiều, tải lại cho chắc.
+            window.location.href = fullNavUrl(idx);
+            return;
+        }
+        applyChapterData(idx, data);
+        INDEX = idx;
+        if (push) history.pushState({ index: idx }, '', `/ebooks/${encodeURIComponent(SLUG)}/read/${idx}`);
+        window.scrollTo(0, 0);
+        if (mobileMq.matches) setToc(false);
+        document.dispatchEvent(new CustomEvent('n2e:chapter-changed', { detail: { index: idx, data } }));
+    }
+    window.n2eLoadChapter = n2eLoadChapter;
+
+    sidebar.addEventListener('click', (event) => {
+        const link = event.target.closest('.toc-chapter-item');
+        if (!link || !isPlainClick(event)) return;
+        event.preventDefault();
+        n2eLoadChapter(link.dataset.index);
+    });
+
+    ['nav-prev-top', 'nav-next-top', 'nav-prev-bottom', 'nav-next-bottom'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', (event) => {
+            const el = event.currentTarget;
+            if (!isPlainClick(event) || el.classList.contains('disabled') || el.hidden) return;
+            const href = el.dataset.baseHref || el.getAttribute('href') || '';
+            const m = href.match(/\/read\/(\d+)/);
+            if (!m) return;
+            event.preventDefault();
+            n2eLoadChapter(m[1]);
+        });
+    });
+
+    window.addEventListener('popstate', () => {
+        const m = window.location.pathname.match(/\/read\/(\d+)/);
+        if (m) n2eLoadChapter(m[1], { push: false });
+    });
 
     // ---- Thanh tìm kiếm ----
     const bar = document.getElementById('search-bar');
@@ -2308,9 +2735,9 @@ details.notes-collapse .note-card { margin-top: 0.4rem; }
                 btn.append(snip);
             }
             btn.addEventListener('click', () => {
-                localStorage.setItem(STORAGE_KEY, '0');
-                window.location.href =
-                    `/ebooks/${encodeURIComponent(SLUG)}/read/${r.chapter_index}`;
+                localStorage.setItem(`n2e-read-${SLUG}-${r.chapter_index}`, '0');
+                closeSearch();
+                n2eLoadChapter(r.chapter_index);
             });
             resultsBox.append(btn);
         }

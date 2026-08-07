@@ -71,6 +71,64 @@ FastAPI render giao diện Jinja2 và cung cấp API nội bộ. `JobQueue` chia
 
 `AutomationScheduler` kiểm tra cron định kỳ và enqueue toàn bộ chuỗi bước như một job tuần tự. Lịch bị lỡ khi máy tắt được chạy bù tối đa một lần.
 
+## Giao Diện SPA (`frontend/`)
+
+Giao diện đang được chuyển dần từ Jinja2 sang một SPA React. Hai giao diện chạy
+song song: route Jinja2 cũ giữ nguyên đường dẫn, SPA phục vụ tại `/app`.
+
+- Stack: Vite + React + TypeScript + TanStack Query + react-router, Tailwind v4
+  với daisyUI, icon Phosphor qua `react-icons`.
+- Build: `npm --prefix frontend run build` xuất ra `app/webui/`. `app/main.py`
+  chỉ gắn mount `/app` khi thư mục đó có `index.html`, nên thiếu bundle thì
+  server vẫn chạy bình thường với UI cũ.
+- Dev: `npm --prefix frontend run dev` (cổng 5183) proxy mọi lời gọi API sang
+  uvicorn ở 8011.
+- API riêng của SPA nằm dưới `/api/ui/` trong `app/routes/webui.py`, tách khỏi
+  `/api/v1/` (hợp đồng công khai cho readest) và `/api/` (endpoint nội bộ đã
+  có). Router này chỉ đọc lại domain logic sẵn có, không sửa route cũ.
+- Toàn bộ `/api/*` và `/opds/*` đi qua hai middleware trong `app/main.py`:
+  `api_token_gate` đòi token khi client không phải localhost, `opds_api_cors`
+  gắn header CORS cho origin đã cấu hình. Thứ tự đăng ký là có chủ đích —
+  Starlette chạy middleware đăng ký sau ở vòng ngoài, nên CORS bọc ngoài auth
+  và response 401 vẫn đọc được từ frontend khác origin. Route web UI (kể cả
+  `/settings/api`, nơi token hiện cleartext) nằm ngoài cả hai.
+- Dải chương (`GET /api/ui/library`) gửi trạng thái từng chương dạng run-length
+  (`e120,m40,n1500`): trạng thái gần như luôn liên tục theo lô crawl/dịch nên
+  payload nhỏ hơn hai bậc so với gửi cả mảng, mà vẫn chính xác từng chương.
+- Bảng chương (`GET /api/ui/ebooks/{slug}/chapters`) lọc và phân trang phía
+  server, uỷ quyền cho `apply_chapter_query` — cùng hàm mà thao tác hàng loạt
+  dùng, nên "chọn tất cả kết quả đang lọc" trỏ đúng tập chương backend sẽ xử
+  lý. Response kèm `indexes` (toàn bộ index khớp) để nút chọn-tất-cả không
+  phải tải hết từng dòng.
+
+### Hai Cách Đánh Số Đoạn — Đừng Trộn
+
+Có HAI cách chia đoạn trong hệ thống, và chúng không tương đương:
+
+| Nơi dùng | Hàm | Đơn vị |
+| --- | --- | --- |
+| Reader, ghi chú, `para/save` | `notes.split_paras` | từng DÒNG không rỗng |
+| Khung so sánh 3 cột | `app/chapter_compare.align_paragraphs` | KHỐI (cách bởi dòng trống), các dòng trong khối gộp lại |
+
+Một khối "lời dẫn + lời thoại" là **1 hàng** ở khung so sánh nhưng là **2 đoạn**
+với `para/save`. Lấy chỉ số hàng của khung so sánh gọi sang `para/save` sẽ ghi
+đè nhầm dòng và không có lỗi nào nổ ra.
+
+Vì vậy trang so sánh (`/app/ebooks/{slug}/chapters/{index}`) chỉ ĐỌC ở ba cột;
+muốn sửa thì hoặc ghi toàn văn qua
+`POST /api/ui/ebooks/{slug}/chapters/{index}/translated` (giữ nguyên từng ký tự
+xuống dòng), hoặc mở Reader để sửa theo đoạn bằng đúng cách đánh số của nó.
+`tests/test_chapter_compare.py` chốt lại sự khác biệt này.
+
+### Bản Desktop (Tauri)
+
+`frontend/src-tauri/` đóng gói cùng bundle thành app desktop đa nền tảng. Khác
+biệt duy nhất so với bản web: Tauri nạp giao diện từ `tauri://` nên không suy ra
+được server ở đâu — địa chỉ và token API nhập ở trang **Kết nối** và lưu trong
+`localStorage`. Build desktop dùng `npm --prefix frontend run build:tauri`
+(`--mode tauri`, base tương đối) rồi `npm --prefix frontend run tauri:build`.
+Cần cài Rust toolchain.
+
 ## Trang Đọc
 
 `/ebooks/{slug}/read/{index}` là trang đọc. Bôi đen văn bản mở thanh công cụ nổi: copy, dịch nhanh, thay thế, đọc từ đoạn này, ghi chú lỗi dịch.
@@ -78,8 +136,11 @@ FastAPI render giao diện Jinja2 và cung cấp API nội bộ. `JobQueue` chia
 - `POST /api/ebooks/{slug}/quick-translate`: dịch đoạn bôi đen bằng NMT cục bộ (HachimiMT/MoxhiMT), bất kể `translate.type` của ebook. Instance model được cache theo `model_key` và ebook trong tiến trình web để không dùng nhầm glossary.
 - `POST /api/ebooks/{slug}/cleanup-han-local-mt`: chỉ dịch các vùng còn ký tự Hán, giữ nguyên phần tiếng Việt và tự chèn khoảng trắng tại ranh giới từ khi cần. Phạm vi chương chạy đồng bộ; phạm vi toàn sách chạy qua queue `translate`.
 - Chế độ biên tập có nút hoàn tác/làm lại cho thay đổi đoạn và tiêu đề trong phiên đọc hiện tại. Mục lục có bộ lọc tiêu đề chạy hoàn toàn phía client; Reader không đăng ký phím tắt toàn cục.
-- Thay thế có ba phạm vi: vùng đã chọn ghi thẳng qua `chapters/{index}/para/save`; toàn bộ chương và toàn bộ sách uỷ quyền cho `glossary/propagate` (có backup + job queue). Tuỳ chọn "toàn bộ từ" bọc chuỗi tìm bằng `\b` và gửi như regex.
-- Mọi phạm vi đều đổi ngay chương đang đọc. Riêng "toàn bộ sách" gọi `propagate` hai lần: `scope=chapter` chạy đồng bộ để người đọc thấy kết quả tức thì, rồi `scope=all` xếp job nền cho các chương còn lại. Job chạy lại trên chương đã sạch không đổi gì thêm; nếu queue bận (409) thì thay đổi tức thì vẫn giữ và UI báo chưa xếp hàng được.
+- Chế độ biên tập còn có thể chèn/xóa đoạn: hover hoặc focus vào một đoạn hiện thanh công cụ nhỏ nổi bên phải (`+` chèn đoạn trống ngay sau, thùng rác xóa đoạn có xác nhận). `POST /chapters/{index}/para/insert` (`novel2epub.notes.insert_para`) chèn 1 dòng mới vào `translated/`; xóa tái dùng `para/save` với `new_text` rỗng (đã có sẵn). Thao tác chèn/xóa đổi số đoạn nên KHÔNG vào được undo/redo stack (chỉ sửa nội dung tại chỗ mới undo được).
+- Mục lục (TOC sidebar) luôn hiển thị ở desktop (≥ 901px, không cần bấm mở); trên mobile vẫn thu gọn sau nút hamburger như cũ.
+- Chuyển chương (nút trước/sau, dropdown, mục lục, kết quả tìm kiếm) tải qua AJAX (`GET /api/ebooks/{slug}/read/{index}/data`) thay vì tải lại trang — nhanh hơn khi đang biên tập nhiều chương liên tiếp. Chỉ áp dụng khi chương đích ĐÃ có bản dịch; chương chưa dịch/chưa crawl có khung trang khác hẳn (form trống, thiếu nút) nên client tự rơi về điều hướng tải lại trang bình thường. Các script phụ (ghi chú, biên tập, TTS, mục lục) đồng bộ theo qua custom event `n2e:chapter-changed` trên `document`.
+- Thay thế có ba phạm vi: vùng đã chọn ghi thẳng qua `chapters/{index}/para/save`; toàn bộ chương và toàn bộ sách xem trước theo TỪNG ĐOẠN trước khi ghi. Tuỳ chọn "toàn bộ từ" bọc chuỗi tìm bằng `\b` và gửi như regex.
+- Với phạm vi chương/sách, modal thay thế (mở từ thanh công cụ nổi khi bôi đen) có bước "Xem trước theo đoạn": `GET /glossary/find-preview` liệt kê từng đoạn khớp (kèm bản trước/sau), người dùng tick chọn từng đoạn muốn đổi hoặc bấm "Chọn tất cả", rồi `POST /glossary/apply-selected` chỉ ghi các đoạn đã chọn (có backup `before_find_replace` như `propagate`). Thanh tìm kiếm toàn truyện (nút "Thay trong chương này"/"Thay tất cả") vẫn là đường tắt ghi thẳng không qua xem trước, dùng `glossary/propagate` như cũ.
 - `POST /api/tts`: tổng hợp giọng đọc bằng Edge TTS (`edge-tts`), trả mp3 cho từng đoạn. Trang đọc phát tuần tự, prefetch đoạn kế và tự chuyển chương khi hết bài. Dịch vụ Edge thỉnh thoảng trả stream rỗng nên endpoint thử lại tối đa 3 lần.
 
 ## Reader Sync

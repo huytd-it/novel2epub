@@ -32,7 +32,7 @@ _NOVEL_COLUMNS = frozenset({
 })
 
 # Các section của bảng `settings` — thứ tự khớp cột trong _upsert_settings.
-_SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "output", "queue", "reader", "api")
+_SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "output", "queue", "reader", "api", "wireguard")
 
 
 def clean_prompt_text(value: str) -> str:
@@ -195,8 +195,8 @@ def _read_settings_sections(conn) -> dict[str, Any]:
 def _upsert_settings(conn, current: dict[str, Any]) -> None:
     conn.execute(
         """
-        INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json, reader_json, api_json)
-        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json, reader_json, api_json, wireguard_json)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             novel_json = excluded.novel_json,
             crawl_json = excluded.crawl_json,
@@ -206,6 +206,7 @@ def _upsert_settings(conn, current: dict[str, Any]) -> None:
             queue_json = excluded.queue_json,
             reader_json = excluded.reader_json,
             api_json = excluded.api_json,
+            wireguard_json = excluded.wireguard_json,
             updated_at = datetime('now')
         """,
         tuple(json.dumps(current[s], ensure_ascii=False) for s in _SETTINGS_SECTIONS),

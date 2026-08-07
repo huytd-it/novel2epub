@@ -40,3 +40,9 @@ def test_glossary_bulk_payloads_use_explicit_snapshots():
     assert "/glossary/replace/approve" in TEMPLATE
     assert "/glossary/pending/clear" in TEMPLATE
     assert "/glossary/conflicts/bulk-resolve" not in TEMPLATE
+
+
+def test_glossary_ui_rejects_non_han_sources_before_saving():
+    assert "HAN_SOURCE_RE" in TEMPLATE
+    assert "Source phải chứa chữ Hán, không nhập tiếng Việt." in TEMPLATE
+    assert "validateSource(source" in TEMPLATE

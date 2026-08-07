@@ -90,3 +90,36 @@ Tích hợp Reader dùng Supabase PostgREST. Đồng bộ dựa trên hash nội
 - Cập nhật tiêu đề/nội dung đã đổi và giữ nguyên `chapters.id`.
 - Bỏ qua chương không đổi hoặc chưa dịch.
 - Không tự xóa chương trên Reader.
+
+### Neo Đoạn Khi Đẩy Sang Reader
+
+`reader.push_anchors` (mặc định **tắt**) đẩy kèm cột `chapter_contents.para_anchors` — nền móng để sau này sửa bản dịch ngược từ app đọc về Xưởng.
+
+**Neo là gì.** `anchors[j]` là chỉ số trong `notes.split_paras(translated_text)` của **dòng thứ j** của `content`. Đơn vị là DÒNG không rỗng, đếm xuyên suốt cả chương:
+
+```
+content.split("\n")  (bỏ dòng rỗng)  ->  1:1 với anchors
+```
+
+**Vì sao đơn vị là dòng, không phải block.** `notes.replace_para` — hàm duy nhất ghi bản sửa — thao tác theo dòng. Nếu một đoạn hiển thị bên Reader gộp hai dòng nguồn thì lúc editor viết lại đoạn đó, không có cách nào tách kết quả về đúng hai dòng. Đơn vị sửa và đơn vị lưu bắt buộc 1:1.
+
+Dòng trống trong `content` vẫn giữ nguyên vị trí nên thông tin "hai dòng này thuộc cùng một đoạn" (cặp lời dẫn + lời thoại) không mất — Reader dựa vào đó render sát nhau, y như `<br/>` trong EPUB.
+
+**Vì sao không phải ánh xạ đồng nhất.** Hai chỗ làm neo lệch:
+
+- Heading ĐẦU TIÊN bị bỏ khỏi `content` (trùng cột `title` bên Reader) nhưng vẫn chiếm một chỗ trong `split_paras` → mọi neo sau đó lệch 1.
+- Heading còn lại mất dấu `#`, nên `content_line[j] != split_paras[anchors[j]]`. Neo trỏ đúng DÒNG, không hứa hai chuỗi bằng nhau.
+
+Chương không có heading thì neo suy biến về ánh xạ đồng nhất — đó là mốc kiểm tra rẻ nhất khi nghi ngờ.
+
+**Bật thế nào.** Chạy migration bên Supabase TRƯỚC:
+
+```sql
+alter table chapter_contents add column para_anchors jsonb;
+```
+
+Rồi mới tick `push_anchors` ở Cài đặt > Reader. Bật khi chưa có cột thì PostgREST trả 400 và hỏng cả lần đẩy.
+
+Neo đi trong **cùng payload** với `content` (`reader_client.upsert_contents`). Không tách thành hai lần ghi: neo thuộc về một bản văn khác với nội dung là sai lệch âm thầm — không lỗi nào nổ ra, chỉ có bản sửa ghi nhầm đoạn.
+
+Thiết kế đầy đủ của pipeline hai chiều: [spec 2026-08-07](superpowers/specs/2026-08-07-two-way-edit-pipeline-design.md).

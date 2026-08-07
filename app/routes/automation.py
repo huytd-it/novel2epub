@@ -30,9 +30,15 @@ def _require_valid_schedule(schedule: str) -> None:
         )
 
 
-def _ebook_slugs() -> list[str]:
+def _ebook_options() -> list[dict[str, str]]:
     library = deps.library()
-    return list(library.ebooks.keys()) if library.ebooks else ["default"]
+    if not library.ebooks:
+        return [{"slug": "default", "title": "default"}]
+    options = []
+    for slug, entry in library.ebooks.items():
+        cfg = deps.resolved_cfg(slug)
+        options.append({"slug": slug, "title": entry.name or cfg.novel.title or slug})
+    return sorted(options, key=lambda ebook: ebook["title"].casefold())
 
 
 @router.get("/automation")
@@ -46,9 +52,14 @@ def automation_page(request: Request):
     return deps.templates.TemplateResponse(
         request,
         "automation.html",
-        {"automations": automations.values(), "ebooks": _ebook_slugs(),
+        {"automations": automations.values(), "ebooks": _ebook_options(),
          "steps": STEPS, "next_runs": next_runs},
     )
+
+
+@router.get("/api/automation/validate-schedule")
+def automation_validate_schedule(schedule: str):
+    return {"valid": validate_schedule(schedule.strip())}
 
 
 @router.post("/automation")
@@ -56,10 +67,15 @@ def automation_create(
     ebook: str = Form(...),
     steps: Annotated[list[str], Form()] = [],
     schedule: str = Form("manual"),
+    crawl_workers: int = Form(4, ge=1),
+    translate_workers: int = Form(4, ge=1),
 ):
     _require_valid_schedule(schedule)
     steps = [s for s in steps if s in STEPS] or ["build"]
-    add_automation(deps.AUTOMATIONS_PATH, ebook, steps, schedule)
+    add_automation(
+        deps.AUTOMATIONS_PATH, ebook, steps, schedule,
+        crawl_workers=crawl_workers, translate_workers=translate_workers,
+    )
     return RedirectResponse(url="/automation", status_code=303)
 
 

@@ -22,12 +22,10 @@ STEPS = ("fetch-toc", "crawl-new", "translate-pending", "cleanup-han", "build", 
 
 
 def validate_schedule(s: str) -> bool:
-    """True nếu `s` là lịch hợp lệ: "manual" hoặc biểu thức cron croniter
-    chấp nhận (5 trường chuẩn; croniter cũng nhận @daily/6 trường — vẫn coi
-    là hợp lệ vì scheduler xử lý được)."""
+    """True với ``manual`` hoặc biểu thức cron chuẩn gồm đúng 5 trường."""
     if s == "manual":
         return True
-    return croniter.is_valid(s)
+    return len(s.split()) == 5 and croniter.is_valid(s)
 
 
 logger = logging.getLogger("novel2epub.automation")
@@ -76,6 +74,8 @@ class Automation:
     last_run_outcome: str = ""  # "" | "success" | "failure" | "partial"
     last_run_error: str = ""  # "{step}: {lỗi}" của lần chạy gần nhất, "" nếu thành công
     last_run_stats: dict = field(default_factory=dict)  # {"chapters_total", "crawled", "translated", "han_fixed"}
+    crawl_workers: int = 4
+    translate_workers: int = 4
     created_at: str = ""  # ISO datetime lúc tạo — base tính đến hạn khi chưa từng chạy
 
 
@@ -101,6 +101,8 @@ def load_automations(db_path: str | Path) -> dict[str, Automation]:
             last_run_outcome=r["last_run_outcome"],
             last_run_error=r["last_run_error"],
             last_run_stats=json.loads(r["last_run_stats_json"] or "{}"),
+            crawl_workers=r["crawl_workers"],
+            translate_workers=r["translate_workers"],
             created_at=created_at,
         )
     if changed:
@@ -118,22 +120,31 @@ def save_automations(db_path: str | Path, automations: dict[str, Automation]) ->
                 INSERT INTO automations
                     (id, ebook, steps_json, schedule, enabled,
                      last_run_at, last_run_outcome, last_run_error, last_run_stats_json,
-                     created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     crawl_workers, translate_workers, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     a.id, a.ebook, json.dumps(a.steps, ensure_ascii=False), a.schedule,
                     int(a.enabled), a.last_run_at, a.last_run_outcome, a.last_run_error,
-                    json.dumps(a.last_run_stats, ensure_ascii=False), a.created_at,
+                    json.dumps(a.last_run_stats, ensure_ascii=False), a.crawl_workers,
+                    a.translate_workers, a.created_at,
                 ),
             )
 
 
-def add_automation(db_path: str | Path, ebook: str, steps: list[str], schedule: str = "manual") -> Automation:
+def add_automation(
+    db_path: str | Path,
+    ebook: str,
+    steps: list[str],
+    schedule: str = "manual",
+    crawl_workers: int = 4,
+    translate_workers: int = 4,
+) -> Automation:
     automations = load_automations(db_path)
     new_id = str(uuid.uuid4())
     automation = Automation(
         id=new_id, ebook=ebook, steps=list(steps), schedule=schedule,
+        crawl_workers=crawl_workers, translate_workers=translate_workers,
         created_at=datetime.now().isoformat(),
     )
     automations[new_id] = automation

@@ -249,13 +249,26 @@ def upsert_contents(
     cfg: ReaderConfig,
     rows: list[tuple[str, str]],
     *,
+    anchors_by_id: dict[str, list[int]] | None = None,
     log=None,
 ) -> None:
     """Upsert `chapter_contents` theo `on_conflict=chapter_id`.
-    `rows`: list `(chapter_id, content)`."""
+
+    `rows`: list `(chapter_id, content)`.
+
+    `anchors_by_id` (chỉ truyền khi `cfg.push_anchors`): neo đoạn đi kèm, ghi
+    vào cột `para_anchors`. Phải nằm trong CÙNG payload với `content` — neo và
+    nội dung lệch phiên bản là sai lệch âm thầm, loại nguy hiểm nhất: không có
+    lỗi nào nổ ra, chỉ có bản sửa ghi nhầm đoạn.
+    """
     if not rows:
         return
     payload = [{"chapter_id": cid, "content": content} for cid, content in rows]
+    if anchors_by_id:
+        for row in payload:
+            anchors = anchors_by_id.get(row["chapter_id"])
+            if anchors is not None:
+                row["para_anchors"] = anchors
     _request(
         cfg, "POST", "chapter_contents",
         params={"on_conflict": "chapter_id"},

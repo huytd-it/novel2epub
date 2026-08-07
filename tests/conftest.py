@@ -9,7 +9,7 @@ from typing import Any
 
 from novel2epub.db import get_connection, init_schema
 
-_SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "output", "queue", "reader", "api")
+_SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "output", "queue", "reader", "api", "wireguard")
 
 
 def write_db_config(
@@ -31,13 +31,14 @@ def write_db_config(
     with conn:
         conn.execute(
             """
-            INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json, reader_json, api_json)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json, reader_json, api_json, wireguard_json)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 novel_json = excluded.novel_json, crawl_json = excluded.crawl_json,
                 translate_json = excluded.translate_json, ai_json = excluded.ai_json,
                 output_json = excluded.output_json, queue_json = excluded.queue_json,
-                reader_json = excluded.reader_json, api_json = excluded.api_json
+                reader_json = excluded.reader_json, api_json = excluded.api_json,
+                wireguard_json = excluded.wireguard_json
             """,
             tuple(json.dumps(defaults.get(s, {}), ensure_ascii=False) for s in _SETTINGS_SECTIONS),
         )

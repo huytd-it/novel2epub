@@ -479,10 +479,40 @@ class QueueConfig:
 
 
 @dataclass
+class WgcfConfig:
+    """Cấu hình cung cấp profile qua wgcf (Cloudflare WARP).
+
+    KHÔNG tự bịa ra cờ mặc định cho wgcf: `argv` là danh sách tham số TƯỜNG
+    MINH người dùng cấu hình, `executable` là đường dẫn đúng file wgcf. Sản
+    phẩm sẽ được chạy trong một thư mục làm việc tạm cô lập và profile sinh
+    ra phải nằm đúng tên file tương đối `output` trong thư mục đó.
+    """
+    enabled: bool = False
+    executable: str = ""            # đường dẫn file wgcf thực thi (bắt buộc)
+    argv: list[str] = field(default_factory=list)  # tham số wgcf TƯỞNG MINH
+    output: str = "wgcf-profile.conf"  # tên file tương đối wgcf sinh ra
+    timeout_seconds: float = 120
+
+
+@dataclass
+class WireGuardConfig:
+    """Cấu hình quản lý profile WireGuard cho novel2epub — CHỈ toàn cục.
+
+    AN TOÀN: nội dung cấu hình/private key KHÔNG bao giờ vào DB/log/repr.
+    Profile là file ngoài trong `profiles_dir` (thư mục bảo mật). DB chỉ lưu
+    metadata id/filename/source/... (bảng `wireguard_profiles`)."""
+    enabled: bool = False
+    profiles_dir: str = ""  # rỗng = mặc định <db_dir>/wireguard (xem load_config)
+    wg_exe: str = ""        # đường dẫn wireguard.exe cho service tunnel Windows
+    manage_service: bool = False  # tự cài/gỡ tunnel service (cần quyền admin)
+    service_timeout_seconds: float = 60.0
+    lock_timeout_seconds: float = 30.0
+    wgcf: WgcfConfig = field(default_factory=WgcfConfig)
+
+
+@dataclass
 class ApiConfig:
     """Truy cập API/OPDS từ ngoài localhost (tích hợp readest).
-
-    `token` dùng chung mọi ebook. Request từ localhost được miễn token nên
     web UI và readest desktop chạy cùng máy không cần cấu hình gì.
     `cors_origins` chỉ cần cho bản readest WEB — Tauri desktop/mobile gọi
     HTTP native, không đi qua CORS. TUYỆT ĐỐI không dùng "*".
@@ -497,7 +527,7 @@ class ApiConfig:
 
 # Các field của `reader` CHỈ đọc từ `defaults:` — override per-ebook bị bỏ đi
 # lúc load (xem `load_config`). Chủ yếu để `service_key` chỉ nằm ĐÚNG MỘT chỗ.
-READER_GLOBAL_FIELDS = ("url", "service_key", "timeout_seconds", "batch_size")
+READER_GLOBAL_FIELDS = ("url", "service_key", "timeout_seconds", "batch_size", "push_anchors")
 
 
 @dataclass
@@ -513,6 +543,11 @@ class ReaderConfig:
     service_key: str = ""    # service_role key — bypass RLS, TUYỆT ĐỐI không log
     timeout_seconds: int = 60
     batch_size: int = 50
+    # Đẩy kèm cột `chapter_contents.para_anchors` (neo đoạn, cho phép sửa
+    # ngược từ app đọc về Xưởng). MẶC ĐỊNH TẮT: bên Supabase phải chạy
+    # migration thêm cột trước, chưa có cột mà đẩy thì PostgREST trả 400 và
+    # hỏng cả lần đẩy. Xem docs/translation.md.
+    push_anchors: bool = False
     # ── theo ebook ──
     slug: str = ""           # books.slug bên Reader; rỗng = dùng novel.slug
     free_chapters: int = 5   # số chương đầu đọc miễn phí (như cờ --free của ingest-epub.ts)
@@ -533,6 +568,7 @@ class Config:
     queue: QueueConfig = field(default_factory=QueueConfig)
     reader: ReaderConfig = field(default_factory=ReaderConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
+    wireguard: WireGuardConfig = field(default_factory=WireGuardConfig)
     # Tên source preset mà ebook này tham chiếu. Rỗng = không dùng preset.
     source: str = ""
     # Cảnh báo xung đột tính năng phát hiện lúc load config (vd preset ép đổi
@@ -623,7 +659,7 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
     settings_row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
     defaults: dict[str, Any] = {}
     if settings_row:
-        for section in ("novel", "crawl", "translate", "ai", "output", "queue", "reader", "api"):
+        for section in ("novel", "crawl", "translate", "ai", "output", "queue", "reader", "api", "wireguard"):
             data = json.loads(settings_row[f"{section}_json"] or "{}")
             if data:
                 defaults[section] = data
@@ -909,6 +945,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         service_key=str(reader_raw.get("service_key", defaults_r.service_key)).strip(),
         timeout_seconds=max(1, int(reader_raw.get("timeout_seconds", defaults_r.timeout_seconds))),
         batch_size=max(1, int(reader_raw.get("batch_size", defaults_r.batch_size))),
+        push_anchors=bool(reader_raw.get("push_anchors", defaults_r.push_anchors)),
         # Rỗng = dùng slug của ebook, để không phải khai lại cho mọi truyện.
         slug=str(reader_raw.get("slug", defaults_r.slug)).strip() or novel.slug,
         free_chapters=max(0, int(reader_raw.get("free_chapters", defaults_r.free_chapters))),
@@ -938,4 +975,26 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         auto_build=bool(api_raw.get("auto_build", True)),
     )
 
-    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, reader=reader, api=api, source=source_name, warnings=warnings)
+    # --- WireGuard (CHỈ toàn cục — xem novel2epub/wireguard.py) -----------
+    # `profiles_dir` rỗng trong config -> mặc định <db_dir>/wireguard (file
+    # .conf NẰM NGOÀI DB, không bao giờ lưu nội dung cấu hình/key vào SQLite).
+    wg_raw = _as_dict(raw.get("wireguard"))
+    wgcf_raw = _as_dict(wg_raw.get("wgcf"))
+    wgcf = WgcfConfig(
+        enabled=bool(wgcf_raw.get("enabled", False)),
+        executable=str(wgcf_raw.get("executable", "")),
+        argv=[str(a) for a in (wgcf_raw.get("argv") or [])],
+        output=str(wgcf_raw.get("output", "wgcf-profile.conf")),
+        timeout_seconds=float(wgcf_raw.get("timeout_seconds", 120)),
+    )
+    wireguard = WireGuardConfig(
+        enabled=bool(wg_raw.get("enabled", False)),
+        profiles_dir=str(wg_raw.get("profiles_dir", "")).strip() or str(base_dir / "wireguard"),
+        wg_exe=str(wg_raw.get("wg_exe", "")).strip(),
+        manage_service=bool(wg_raw.get("manage_service", False)),
+        service_timeout_seconds=float(wg_raw.get("service_timeout_seconds", 60)),
+        lock_timeout_seconds=float(wg_raw.get("lock_timeout_seconds", 30)),
+        wgcf=wgcf,
+    )
+
+    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, reader=reader, api=api, wireguard=wireguard, source=source_name, warnings=warnings)

@@ -35,6 +35,26 @@ python -m novel2epub -e book translate --search "Chương 10" --range 1:5
 
 Các lệnh bổ sung: `evaluate`, `reindex`, `search`, `models`, `backup`, `restore`, `service`.
 
+### WireGuard / wgcf (không cần ebook)
+
+```sh
+python -m novel2epub wireguard config          # cấu hình toàn cục (không chứa key)
+python -m novel2epub wireguard set enabled true
+python -m novel2epub wireguard set wgcf.executable C:/tools/wgcf.exe
+python -m novel2epub wireguard set wgcf.argv "register,--token,ABC"
+python -m novel2epub wireguard provision --label warp.conf   # chạy wgcf trong cwd tạm, nhập profile, dọn artifact
+python -m novel2epub wireguard import path/to/x.conf --name x
+python -m novel2epub wireguard list --scan
+python -m novel2epub wireguard status
+python -m novel2epub wireguard enable <id|filename>
+python -m novel2epub wireguard disable <id|filename>
+python -m novel2epub wireguard activate <id|filename>
+python -m novel2epub wireguard rotate
+python -m novel2epub wireguard remove <id|filename>
+```
+
+WireGuard/wgcf hoạt động độc lập với ebook. `wgcf.argv` và `wgcf.executable` phải do người dùng cấu hình tường minh (hệ thống không tự bịa cờ). Kích hoạt profile (`activate`/`rotate`) chạy vòng đời tunnel service thật của WireGuard for Windows và đòi hỏi `wireguard.manage_service=true` (ngược lại bị từ chối). Scope mạng (`wireguard_network_scope`) chỉ chọn id profile + giữ khóa, metadata-only — không thay đổi trạng thái active hay service.
+
 ## Automation
 
 Một automation gồm ebook, cron năm trường và danh sách có thứ tự từ:
@@ -119,6 +139,12 @@ Bốn điều cần biết về hành vi này:
 **Mỗi ebook nghỉ 5 phút giữa hai lần build.** readest hỏi lại catalog mỗi lần mở app và mỗi lần kéo-để-làm-mới; không có mốc nghỉ này thì mỗi cú kéo lại đẻ thêm một job cho cùng cuốn sách. Mốc nghỉ giữ trong RAM nên restart server sẽ xoá — cùng lắm tốn thêm một lần build dư.
 
 Theo dõi tiến độ ở `/queue` (job tên `opds-autobuild:<slug>`) và `/logs`. Tắt cờ `auto_build` thì quay về build tay hoàn toàn qua nút Build hoặc Automation.
+
+## Vị Trí WireGuard Trong Pipeline
+
+Phiên bản WireGuard hiện tại cung cấp bộ quản lý profile + cung cấp wgcf qua CLI và một context manager **tái sử dụng** (`novel2epub.wireguard.wireguard_network_scope`) để dùng ĐÚNG **một** profile cho toàn bộ một thao tác mạng (toc/crawl), khóa liên tiến trình. Scope này **metadata-free**: chỉ chọn id profile và giữ khóa; nó KHÔNG ghi DB active và KHÔNG tự nhận đã kích hoạt. Vòng đời tunnel service thật (cài/gỡ WireGuard for Windows) là việc riêng của `activate_profile`/`rotate_profile`, chỉ chạy khi `wireguard.manage_service=true` (ngược lại bị TỪ CHỐI).
+
+**Giới hạn có chủ đích:** pipeline `crawl`/`toc` **chưa tự** gọi scope này — rotation giữa request là không an toàn và bị loại ở v1. Nếu cần, tích hợp ở tầng job-level: bọc toàn bộ job crawl/toc bằng context manager và giữ nguyên một profile xuyên suốt job, tuyệt đối không rotate giữa chừng.
 
 ## Xử Lý Sự Cố
 

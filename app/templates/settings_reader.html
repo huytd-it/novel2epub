@@ -33,6 +33,15 @@
             <span class="text-xs italic text-muted-light dark:text-muted-dark">Số chương mỗi request. Mặc định: 50</span>
         </label>
     </div>
+    <div class="grid grid-cols-1 gap-3 px-3 pb-3">
+        <label class="flex items-start gap-2 text-sm min-w-0">
+            <input type="checkbox" name="push_anchors" value="1" {% if cfg.reader.push_anchors %}checked{% endif %} class="mt-0.5">
+            <span class="flex flex-col gap-1">
+                <span>push_anchors</span>
+                <span class="text-xs italic text-muted-light dark:text-muted-dark">Đẩy kèm <strong>neo đoạn</strong> vào cột <code>chapter_contents.para_anchors</code> — điều kiện để sau này sửa bản dịch ngược từ app đọc về Xưởng. <strong>Chỉ bật sau khi</strong> đã chạy migration thêm cột đó bên Supabase; chưa có cột mà bật thì PostgREST trả 400 và hỏng cả lần đẩy. Mặc định: tắt.</span>
+            </span>
+        </label>
+    </div>
 </details>
 
 <details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>

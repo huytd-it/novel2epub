@@ -103,6 +103,10 @@ def run_automation_steps(workspace_path, automation: Automation, log) -> dict:
             log(f"[automation] step không hợp lệ: {step!r}, bỏ qua.")
             continue
         try:
+            if step == "crawl-new" and hasattr(cfg, "crawl"):
+                cfg.crawl.max_workers = automation.crawl_workers
+            elif step == "translate-pending" and hasattr(cfg, "translate"):
+                cfg.translate.max_workers = automation.translate_workers
             fn(cfg, log)
             succeeded += 1
         except Exception as e:  # noqa: BLE001 - log lỗi, dừng chuỗi step

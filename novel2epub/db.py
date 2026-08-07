@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -52,9 +52,34 @@ _SCHEMA_STATEMENTS = [
         queue_json TEXT NOT NULL DEFAULT '{}',
         reader_json TEXT NOT NULL DEFAULT '{}',
         api_json TEXT NOT NULL DEFAULT '{}',
+        -- Cấu hình WireGuard toàn cục (thư mục profile, executable, wgcf...).
+        -- KHÔNG bao giờ lưu nội dung cấu hình WireGuard/private key ở đây —
+        -- chỉ chứa tham chiếu đến file ngoài trong profiles_dir.
+        wireguard_json TEXT NOT NULL DEFAULT '{}',
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
+    # ── metadata profile WireGuard ─────────────────────────────────────────
+    # Profile NẰM NGOÀI DB trong thư mục `wireguard.profiles_dir` (file .conf).
+    # Bảng này CHỈ lưu metadata: id không rõ nguồn gốc, filename tương đối,
+    # source, enabled, order, status + timestamps + error. KHÔNG lưu text cấu
+    # hình hay private key. `id` là opaque (uuid hex) — không suy ra filename.
+    """
+    CREATE TABLE IF NOT EXISTS wireguard_profiles (
+        id TEXT PRIMARY KEY,
+        filename TEXT NOT NULL UNIQUE,
+        source TEXT NOT NULL DEFAULT 'manual',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        position INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'inactive',
+        error TEXT NOT NULL DEFAULT '',
+        activated_at TEXT NOT NULL DEFAULT '',
+        last_error_at TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_wireguard_profiles_position ON wireguard_profiles(position, enabled)",
     # ── preset site (thay sources.yaml) ──────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS sources (
@@ -252,6 +277,8 @@ _SCHEMA_STATEMENTS = [
         last_run_outcome TEXT NOT NULL DEFAULT '',
         last_run_error TEXT NOT NULL DEFAULT '',
         last_run_stats_json TEXT NOT NULL DEFAULT '{}',
+        crawl_workers INTEGER NOT NULL DEFAULT 4,
+        translate_workers INTEGER NOT NULL DEFAULT 4,
         created_at TEXT NOT NULL DEFAULT ''
     )
     """,
@@ -268,6 +295,8 @@ _ADDED_COLUMNS = [
     ("ebooks", "reader_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
     # v3: lịch cron — base tính "đến hạn" cho automation chưa từng chạy
     ("automations", "created_at", "TEXT NOT NULL DEFAULT ''"),
+    ("automations", "crawl_workers", "INTEGER NOT NULL DEFAULT 4"),
+    ("automations", "translate_workers", "INTEGER NOT NULL DEFAULT 4"),
     # v3: translate/ai per-ebook — mỗi ebook một config AI riêng, defaults
     # (bảng settings) chỉ còn là fallback + nguồn khi Reset.
     ("ebooks", "translate_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
@@ -283,6 +312,9 @@ _ADDED_COLUMNS = [
     # v8: token + CORS cho OPDS/API ngoài localhost (tích hợp readest GĐ1).
     # KHÔNG gộp vào `reader_json` — khối đó thuộc app novel-reader (Supabase).
     ("settings", "api_json", "TEXT NOT NULL DEFAULT '{}'"),
+    # v9: cấu hình WireGuard toàn cục (settings.wireguard_json) — chỉ tham
+    # chiếu file ngoài, không phải nội dung cấu hình/private key.
+    ("settings", "wireguard_json", "TEXT NOT NULL DEFAULT '{}'"),
 ]
 
 

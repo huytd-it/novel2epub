@@ -18,6 +18,8 @@ def test_add_and_load_automation_roundtrip(tmp_path):
     assert loaded[a.id].steps == ["fetch-toc", "build"]
     assert loaded[a.id].schedule == "0 3 * * *"
     assert loaded[a.id].enabled is True
+    assert loaded[a.id].crawl_workers == 4
+    assert loaded[a.id].translate_workers == 4
 
 
 def test_update_automation_persists_changes(tmp_path):
@@ -189,6 +191,36 @@ def test_run_automation_steps_all_succeed(tmp_path, monkeypatch):
     assert calls == ["fetch-toc", "build"]
 
 
+def test_run_automation_steps_applies_worker_options(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from app import scheduler as scheduler_mod
+
+    cfg = SimpleNamespace(
+        crawl=SimpleNamespace(max_workers=1),
+        translate=SimpleNamespace(max_workers=1),
+    )
+    seen = []
+    monkeypatch.setattr(scheduler_mod, "load_config", lambda path, slug: cfg)
+    monkeypatch.setattr(scheduler_mod, "_count_progress", lambda value: _stub_progress())
+    monkeypatch.setitem(
+        scheduler_mod._STEP_FN, "crawl-new",
+        lambda value, log: seen.append(("crawl", value.crawl.max_workers)),
+    )
+    monkeypatch.setitem(
+        scheduler_mod._STEP_FN, "translate-pending",
+        lambda value, log: seen.append(("translate", value.translate.max_workers)),
+    )
+
+    automation = Automation(
+        id="x", ebook="e", steps=["crawl-new", "translate-pending"],
+        crawl_workers=6, translate_workers=8,
+    )
+    result = run_automation_steps(tmp_path, automation, lambda message: None)
+
+    assert result["outcome"] == "success"
+    assert seen == [("crawl", 6), ("translate", 8)]
+
+
 def test_run_automation_steps_partial_on_failure(monkeypatch, tmp_path):
     from app import scheduler as scheduler_mod
 
@@ -352,6 +384,8 @@ def test_validate_schedule_accepts_manual_and_cron():
     assert validate_schedule("*/30 * * * *") is True
     assert validate_schedule("0 3 * * *") is True
     assert validate_schedule("0 3 * * 0") is True
+    assert validate_schedule("0 0 3 * * *") is False
+    assert validate_schedule("@daily") is False
 
 
 def test_validate_schedule_rejects_legacy_and_garbage():

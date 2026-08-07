@@ -74,11 +74,38 @@ HachimiMT chọn model qua `translate.model` hoặc `hachimimt.model_key`. Model
 
 ## Reader
 
-Field global: `url`, `service_key`, `timeout_seconds`, `batch_size`.
+Field global: `url`, `service_key`, `timeout_seconds`, `batch_size`, `push_anchors`.
 
 Field theo ebook: `slug`, `free_chapters`, `published`.
 
 `service_key` là Supabase service-role key và bypass RLS. Không chia sẻ DB hoặc backup có chứa key.
+
+`push_anchors` mặc định **tắt** — xem [Neo đoạn khi đẩy sang Reader](architecture.md#neo-đoạn-khi-đẩy-sang-reader) trước khi bật.
+
+## WireGuard (chỉ toàn cục)
+
+Cấu hình WireGuard nằm trong khối `wireguard:` ở `defaults:`. **AN TOÀN:** DB không bao giờ lưu nội dung cấu hình WireGuard hay private key — profile là file ngoài trong `profiles_dir`; SQLite chỉ lưu metadata (id opaque, filename tương đối, source, enabled, order, status, timestamps, error).
+
+| Field | Ý nghĩa |
+| --- | --- |
+| `enabled` | Bật dùng WireGuard làm "chặng mạng" cố định khi crawl/toc |
+| `profiles_dir` | Thư mục bảo mật chứa file `.conf`. Rỗng = mặc định `<db_dir>/wireguard` |
+| `wg_exe` | Đường dẫn `wireguard.exe` cho service tunnel Windows |
+| `manage_service` | Tự cài/gỡ tunnel service (cần quyền admin) khi kích hoạt |
+| `service_timeout_seconds` | Timeout lệnh service (mặc định 60) |
+| `lock_timeout_seconds` | Timeout chờ khóa liên tiến trình (mặc định 30) |
+
+### wgcf (cung cấp profile)
+
+| Field | Ý nghĩa |
+| --- | --- |
+| `wgcf.enabled` | Bật cung cấp profile qua wgcf |
+| `wgcf.executable` | Đường dẫn `wgcf` thực thi (bắt buộc) |
+| `wgcf.argv` | Danh sách tham số **tường minh** — hệ thống không tự bịa cờ mặc định cho wgcf |
+| `wgcf.output` | Tên file **tương đối** wgcf sinh ra trong cwd tạm cô lập |
+| `wgcf.timeout_seconds` | Timeout chạy wgcf (mặc định 120) |
+
+wgcf chạy trong một thư mục làm việc tạm; profile sinh ra được nhập vào `profiles_dir`, sau đó toàn bộ artifact trong cwd tạm bị dọn sạch. `output` bị chặn path traversal (phải là tên file đơn giản).
 
 ## Mẫu YAML
 

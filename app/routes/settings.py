@@ -697,6 +697,7 @@ def save_reader(
     service_key: str = Form(""),
     timeout_seconds: int = Form(60),
     batch_size: int = Form(50),
+    push_anchors: str = Form(""),
     reader_slug: str = Form(""),
     free_chapters: int = Form(5),
     published: bool = Form(False),
@@ -722,6 +723,8 @@ def save_reader(
         "service_key": service_key,
         "timeout_seconds": timeout_seconds,
         "batch_size": batch_size,
+        # Checkbox không tick thì trình duyệt KHÔNG gửi field — rỗng = tắt.
+        "push_anchors": bool(push_anchors),
     }})
     update_ebook(deps.WORKSPACE_PATH, slug, {"reader": {
         "slug": reader_slug,

@@ -36,6 +36,18 @@ def test_create_accepts_cron_schedule(monkeypatch, tmp_path):
     assert next(iter(automations.values())).schedule == "*/30 * * * *"
 
 
+def test_create_persists_automation_workers(monkeypatch, tmp_path):
+    app, client = _client(monkeypatch, tmp_path)
+    res = client.post("/automation", data={
+        "ebook": "e", "steps": ["crawl-new", "translate-pending"],
+        "crawl_workers": "6", "translate_workers": "8",
+    }, follow_redirects=False)
+    assert res.status_code == 303
+    automation = next(iter(load_automations(tmp_path / "automations.yaml").values()))
+    assert automation.crawl_workers == 6
+    assert automation.translate_workers == 8
+
+
 def test_update_rejects_invalid_schedule(monkeypatch, tmp_path):
     app, client = _client(monkeypatch, tmp_path)
     a = add_automation(tmp_path / "automations.yaml", "e", ["build"], "*/30 * * * *")
@@ -62,3 +74,9 @@ def test_page_shows_next_run(monkeypatch, tmp_path):
     res = client.get("/automation")
     assert res.status_code == 200
     assert expected in res.text  # cột "Chạy kế tiếp" hiện mốc 3h sáng kế tiếp
+
+
+def test_validate_schedule_api(monkeypatch, tmp_path):
+    app, client = _client(monkeypatch, tmp_path)
+    assert client.get("/api/automation/validate-schedule", params={"schedule": "0 3 * * *"}).json() == {"valid": True}
+    assert client.get("/api/automation/validate-schedule", params={"schedule": "@daily"}).json() == {"valid": False}

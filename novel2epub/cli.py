@@ -29,6 +29,125 @@ DEFAULT_CONFIG_PATH = os.environ.get(
 )
 
 
+def _coerce_wg_value(value: str):
+    """Ép kiểu giá trị CLI `wireguard set` — số/bool tự nhận, còn lại là chuỗi."""
+    low = value.strip().lower()
+    if low in ("true", "yes", "on", "1"):
+        return True
+    if low in ("false", "no", "off", "0"):
+        return False
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    return value
+
+
+def _wireguard_main(config: str, args) -> int:
+    """Xử lý các lệnh con của `wireguard` — KHÔNG cần ebook, không lưu key."""
+    from . import wireguard as wg_mod
+    from .config import load_config
+
+    if not os.path.exists(config):
+        print(f"Lỗi: không tìm thấy DB {config}", file=sys.stderr)
+        return 1
+    try:
+        wgcfg = load_config(config).wireguard
+        action = args.wg_action
+
+        if action == "config":
+            for key, value in wg_mod.describe_config(wgcfg).items():
+                display = repr(value) if isinstance(value, list) else value
+                print(f"{key} = {display}")
+            return 0
+
+        if action == "status":
+            print(f"wireguard.enabled = {wgcfg.enabled}")
+            print(f"profiles_dir = {wgcfg.profiles_dir}")
+            active = wg_mod.get_active(config)
+            if active is None:
+                print("active = (không có)")
+            else:
+                print(f"active = {active['filename']} ({active['id']})")
+            rows = wg_mod.list_profiles(config)
+            if not rows:
+                print("(chưa có profile — dùng wireguard import hoặc wireguard provision)")
+            for r in rows:
+                print(f"  {r['filename']}\t{r['source']}\t{'on' if r['enabled'] else 'off'}\t"
+                      f"{r['status'] or 'inactive'}\t{r['id']}")
+            return 0
+
+        if action == "set":
+            if args.key.endswith("argv"):
+                value = [v.strip() for v in args.value.split(",") if v.strip()]
+            else:
+                value = _coerce_wg_value(args.value)
+            wg_mod.write_config(config, wg_mod.nested_update(args.key, value))
+            print(f"Đã đặt wireguard.{args.key} = {value!r}")
+            return 0
+
+        if action == "list":
+            if args.scan:
+                wg_mod.discover_profiles(config, wgcfg.profiles_dir)
+            rows = wg_mod.list_profiles(config)
+            if not rows:
+                print("(chưa có profile nào — dùng `wireguard import` hoặc `wireguard provision`)")
+            for r in rows:
+                print(f"{r['filename']}\t{r['source']}\t{'on' if r['enabled'] else 'off'}\t"
+                      f"{r['status'] or 'inactive'}\t{r['id']}")
+            return 0
+
+        if action == "import":
+            prof = wg_mod.import_profile(
+                config, wgcfg.profiles_dir, args.path,
+                source=args.source, name=args.name or None,
+            )
+            print(f"Đã nhập profile {prof['filename']} (id={prof['id']}).")
+            return 0
+
+        if action == "remove":
+            ok = wg_mod.remove_profile(config, wgcfg.profiles_dir, args.selector)
+            if not ok:
+                print(f"Lỗi: không tìm thấy profile {args.selector!r}.", file=sys.stderr)
+                return 1
+            print("Đã xóa profile.")
+            return 0
+
+        if action in ("enable", "disable"):
+            ok = wg_mod.set_enabled(config, args.selector, action == "enable")
+            if not ok:
+                print(f"Lỗi: không tìm thấy profile {args.selector!r}.", file=sys.stderr)
+                return 1
+            print(f"Đã {'bật' if action == 'enable' else 'tắt'} profile {args.selector!r}.")
+            return 0
+
+        if action == "activate":
+            prof = wg_mod.activate_profile(config, wgcfg, args.selector)
+            print(f"Đã kích hoạt profile {prof['filename']} (tunnel service thật).")
+            return 0
+
+        if action == "rotate":
+            prof = wg_mod.rotate_profile(config, wgcfg)
+            print(f"Đã rotate sang profile {prof['filename']} (tunnel service thật).")
+            return 0
+
+        if action == "provision":
+            prof = wg_mod.provision_wgcf_profile(config, wgcfg, label=args.label)
+            print(f"Đã cung cấp wgcf và nhập profile {prof['filename']} (id={prof['id']}).")
+            return 0
+    except wg_mod.WireGuardProfileError as e:
+        print(f"Lỗi: {e}", file=sys.stderr)
+        return 1
+    except (ValueError, OSError) as e:
+        print(f"Lỗi: {e}", file=sys.stderr)
+        return 1
+    return 1
+
+
 def _force_utf8() -> None:
     """Console Windows mặc định cp1252 -> in tiếng Việt bị lỗi. Ép về UTF-8."""
     for stream in (sys.stdout, sys.stderr):
@@ -148,6 +267,35 @@ def main(argv: list[str] | None = None) -> int:
     service_parser.add_argument("action", choices=["install", "uninstall", "status"])
     service_parser.add_argument("--host", default="127.0.0.1", help="Host uvicorn (mặc định 127.0.0.1)")
     service_parser.add_argument("--port", type=int, default=8010, help="Port uvicorn (mặc định 8010)")
+
+    # ── WireGuard / wgcf — hoạt động ĐỘC LẬP, không cần ebook ─────────────
+    wg = sub.add_parser(
+        "wireguard",
+        help="Quản lý profile WireGuard/wgcf (không cần ebook; KHÔNG lưu key trong DB)",
+    )
+    wg_sub = wg.add_subparsers(dest="wg_action", required=True)
+    wg_sub.add_parser("config", help="Hiển thị cấu hình wireguard toàn cục (không chứa key)")
+    wg_sub.add_parser("status", help="Trạng thái wireguard: active + danh sách profile (không chứa key)")
+    set_parser = wg_sub.add_parser("set", help="Đặt 1 field cấu hình wireguard (không có key)")
+    set_parser.add_argument("key", help="Ví dụ: enabled, profiles_dir, wgcf.output, wgcf.argv")
+    set_parser.add_argument("value", help="Giá trị; với wgcf.argv dùng danh sách cách nhau bởi dấu phẩy")
+    list_parser = wg_sub.add_parser("list", help="Liệt kê profile")
+    list_parser.add_argument("--scan", action="store_true", help="Đăng ký các file .conf hợp lệ chưa có trong DB")
+    import_parser = wg_sub.add_parser("import", help="Nhập profile từ file (xác thực + copy vào profiles_dir)")
+    import_parser.add_argument("path", help="File cấu hình .conf nguồn")
+    import_parser.add_argument("--name", default="", help="Tên file ưu tiên trong profiles_dir")
+    import_parser.add_argument("--source", default="manual", help="Gắn nhãn nguồn")
+    remove_parser = wg_sub.add_parser("remove", help="Xóa profile theo id hoặc filename")
+    remove_parser.add_argument("selector")
+    enable_parser = wg_sub.add_parser("enable", help="Bật profile")
+    enable_parser.add_argument("selector")
+    disable_parser = wg_sub.add_parser("disable", help="Tắt profile")
+    disable_parser.add_argument("selector")
+    activate_parser = wg_sub.add_parser("activate", help="Kích hoạt 1 profile (metadata active)")
+    activate_parser.add_argument("selector")
+    wg_sub.add_parser("rotate", help="Kích hoạt profile kế tiếp (round-robin xác định)")
+    provision_parser = wg_sub.add_parser("provision", help="Chạy wgcf trong cwd tạm rồi nhập profile sinh ra")
+    provision_parser.add_argument("--label", default="", help="Tên file ưu tiên cho profile sinh ra")
 
     translate_parser = sub.choices["translate"]
     translate_parser.add_argument("--force", action="store_true", help="Dịch lại dù đã có bản dịch")
@@ -322,6 +470,9 @@ def main(argv: list[str] | None = None) -> int:
             for m in model_ids:
                 print(m)
         return 0
+
+    if args.command == "wireguard":
+        return _wireguard_main(args.config, args)
 
     try:
         cfg = load_config(args.config, args.ebook)

@@ -120,6 +120,15 @@ function escapeHtml(s) {
 }
 
 const inputCls = "w-full bg-transparent border border-transparent hover:border-surface-border dark:hover:border-surface-border-dark focus:border-brand-500 dark:focus:border-brand-500 rounded px-1.5 py-1 text-sm focus:outline-none";
+const HAN_SOURCE_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+const INVALID_SOURCE_MESSAGE = "Source phải chứa chữ Hán, không nhập tiếng Việt.";
+
+function validateSource(source, el) {
+    if (HAN_SOURCE_RE.test(source)) return true;
+    toast(INVALID_SOURCE_MESSAGE, "error");
+    if (el) { flashRow(el, false); el.focus(); }
+    return false;
+}
 
 function pendingRow(e, idx) {
     const ch = e.chapterIndex ? `Ch. ${e.chapterIndex}` : "—";
@@ -302,6 +311,8 @@ function pendingPayload(rows) {
 async function approvePending(rows, button) {
     const entries = pendingPayload(rows);
     if (!entries.length) return;
+    const invalid = entries.find(entry => !HAN_SOURCE_RE.test(entry.source));
+    if (invalid) { toast(INVALID_SOURCE_MESSAGE, "error"); return; }
     if (!await confirmDialog(`Duyệt ${entries.length} đề xuất?`)) return;
     button.disabled = true;
     try {
@@ -424,6 +435,7 @@ suspectsView.addEventListener("change", async e => {
     const target = tr.querySelector('[data-sfield="target"]').value.trim();
     const note = tr.querySelector('[data-sfield="note"]').value;
     if (!source || !target) return;
+    if (!validateSource(source, tr.querySelector('[data-sfield="source"]'))) return;
     const fd = new FormData();
     fd.set("source", source); fd.set("target", target); fd.set("note", note);
     fd.set("original_source", tr.dataset.origSource || "");
@@ -443,6 +455,7 @@ async function saveRow(row, el) {
     const source = (row.source || "").trim();
     const target = (row.target || "").trim();
     if (!source || !target) return;
+    if (!validateSource(source, el)) return;
     const fd = new FormData();
     fd.set("source", source);
     fd.set("target", target);

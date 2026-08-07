@@ -95,6 +95,19 @@ def test_append_rejects_blank_fields(tmp_path):
     assert _append_glossary_entry(storage, "庄国", "") is False
 
 
+def test_append_rejects_vietnamese_source(tmp_path):
+    storage = Storage(tmp_path, "slug")
+    storage.ensure_dirs()
+
+    try:
+        _append_glossary_entry(storage, "Trang Quốc", "Trang Quốc")
+        assert False, "Expected invalid Vietnamese source to be rejected"
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 400
+        assert "chứa chữ Hán" in exc.detail
+    assert storage.read_glossary_entries("names.txt") == []
+
+
 # ----- storage entry helpers (data table cần giữ ghi chú + trim/dedup) -----
 
 def test_read_glossary_entries_keeps_note(tmp_path):
@@ -216,6 +229,22 @@ def test_upsert_entry_rejects_blank(tmp_path, monkeypatch):
     assert res.status_code == 400
 
 
+def test_upsert_entry_rejects_vietnamese_source(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/entry",
+        data={"source": "Tiêu Viêm", "target": "Tiêu Viêm"},
+    )
+
+    assert res.status_code == 400
+    assert res.json()["detail"] == "Source phải chứa chữ Hán, không nhập tiếng Việt."
+    assert storage.read_glossary_entries("names.txt") == []
+
+
 def test_delete_entry_removes_from_db(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")
@@ -301,6 +330,20 @@ def test_import_glossary_rejects_empty(tmp_path, monkeypatch):
     assert res.status_code == 400
 
 
+def test_import_glossary_rejects_vietnamese_source_atomically(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    client = _client(cfg, monkeypatch)
+
+    text = "## GLOSSARY\n- 叶凡 = Diệp Phàm\n- Diệp Phàm = Diệp Phàm\n"
+    res = client.post("/api/ebooks/t/glossary/import", data={"text": text})
+
+    assert res.status_code == 400
+    assert "chứa chữ Hán" in res.json()["detail"]
+    assert storage.read_glossary_entries("names.txt") == []
+
+
 # ----- route: hàng chờ duyệt đề xuất auto-glossary (tab Đề xuất AI) -----
 
 def test_pending_lists_normalized_entries(tmp_path, monkeypatch):
@@ -376,6 +419,19 @@ def test_pending_approve_rejects_empty(tmp_path, monkeypatch):
     client = _client(cfg, monkeypatch)
     res = client.post("/api/ebooks/t/glossary/replace/approve", json={"entries": []})
     assert res.status_code == 400
+
+
+def test_pending_approve_rejects_vietnamese_source(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/replace/approve",
+        json={"entries": [{"source": "Diệp Phàm", "target": "Diệp Phàm"}]},
+    )
+
+    assert res.status_code == 400
+    assert "chứa chữ Hán" in res.json()["detail"]
 
 
 def test_pending_clear_selected_and_all(tmp_path, monkeypatch):

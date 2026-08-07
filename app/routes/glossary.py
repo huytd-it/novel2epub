@@ -8,12 +8,20 @@ from fastapi import APIRouter, Body, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import bulk_transfer, glossary_review
+from novel2epub.han_cleanup import count_han
 from novel2epub.pipeline import _chapter_range, step_find_replace
 from novel2epub.storage import Storage, normalize_glossary_pending
 
 from .. import deps
 
 router = APIRouter()
+
+INVALID_SOURCE_DETAIL = "Source phải chứa chữ Hán, không nhập tiếng Việt."
+
+
+def _validate_glossary_source(source: str) -> None:
+    if count_han(source) == 0:
+        raise HTTPException(status_code=400, detail=INVALID_SOURCE_DETAIL)
 
 
 def _read_pending(storage) -> list[dict]:
@@ -37,6 +45,7 @@ def _append_glossary_entry(
     source, suggested, note = source.strip(), suggested.strip(), note.strip()
     if not source or not suggested:
         return False
+    _validate_glossary_source(source)
     existing = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
     if existing.get(source) == suggested and not note:
         return False
@@ -108,6 +117,7 @@ def ebook_glossary_upsert_entry(
     source, target = source.strip(), target.strip()
     if not source or not target:
         raise HTTPException(status_code=400, detail="Cần cả Hán và Việt.")
+    _validate_glossary_source(source)
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     orig = original_source.strip()
@@ -244,6 +254,7 @@ def ebook_glossary_replace_approve(request: Request, slug: str, payload: dict = 
         target = str(row.get("target", "")).strip()
         if not source or not target:
             continue
+        _validate_glossary_source(source)
         entries.append(
             {
                 "source": source,
@@ -369,7 +380,11 @@ async def ebook_glossary_save(slug: str, payload: dict = Body(...)):
             )
         return out
 
-    storage.write_glossary_entries("names.txt", _to_tuples(payload.get("entries")))
+    entries = _to_tuples(payload.get("entries"))
+    for source, target, _note in entries:
+        if source.strip() and target.strip():
+            _validate_glossary_source(source)
+    storage.write_glossary_entries("names.txt", entries)
     storage.write_glossary_entries("vietphrase.txt", [])
     return JSONResponse({"ok": True})
 
@@ -416,6 +431,8 @@ def ebook_glossary_import(slug: str, text: str = Form(...)):
             status_code=400,
             detail="Không tìm thấy mục glossary nào (cần khối ## GLOSSARY với các dòng `Hán = Việt`).",
         )
+    for source in parsed:
+        _validate_glossary_source(source)
 
     current = storage.read_glossary_entries_merged()
     note_by_source = {s: n for s, _t, n in current}

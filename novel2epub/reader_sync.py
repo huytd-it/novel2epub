@@ -34,21 +34,63 @@ def md_to_plaintext(md: str) -> str:
     - Heading còn lại: bỏ dấu `#`, giữ nguyên chữ.
     - Marker footnote (ký tự PUA) bị xoá — Reader không có UI footnote.
     """
+    return md_to_plaintext_with_anchors(md)[0]
+
+
+def md_to_plaintext_with_anchors(md: str) -> tuple[str, list[int]]:
+    """`(plaintext, anchors)` — thêm neo để sửa ngược từ app đọc về Xưởng.
+
+    `anchors[j]` = chỉ số trong `notes.split_paras(md)` của **dòng thứ j** của
+    plaintext. Dòng ở đây là dòng không rỗng, đếm xuyên suốt cả chương, KHÔNG
+    phải block cách nhau bằng dòng trống:
+
+        content.split("\\n")  (bỏ dòng rỗng)  ->  1:1 với anchors
+
+    Vì sao đơn vị là DÒNG chứ không phải block: `notes.replace_para` — hàm duy
+    nhất ghi bản sửa — thao tác theo dòng. Nếu một đoạn hiển thị bên Reader gộp
+    hai dòng nguồn thì lúc editor viết lại đoạn đó, không có cách nào tách kết
+    quả về đúng hai dòng. Đơn vị sửa và đơn vị lưu BẮT BUỘC 1:1, nếu không thì
+    bản sửa không đi ngược về được.
+
+    Dòng trống trong `plaintext` vẫn giữ nguyên vị trí, nên thông tin "hai dòng
+    này thuộc cùng một đoạn" (lời dẫn + lời thoại) không mất — Reader dựa vào
+    đó để render sát nhau, y như `<br/>` trong EPUB.
+
+    Hai chỗ neo KHÔNG phải ánh xạ đồng nhất, và đó là lý do mảng này tồn tại:
+
+    - Heading ĐẦU TIÊN bị bỏ khỏi plaintext (trùng cột `title` bên Reader)
+      nhưng vẫn chiếm một chỗ trong `split_paras` -> mọi neo sau đó lệch 1.
+    - Heading còn lại mất dấu `#` nên `plaintext[j] != split_paras[anchors[j]]`;
+      neo trỏ đúng DÒNG, không hứa hẹn hai chuỗi bằng nhau.
+    """
     blocks: list[str] = []
+    anchors: list[int] = []
+    src = 0  # chỉ số split_paras của dòng nguồn kế tiếp chưa tiêu thụ
     for raw_block in _BLOCK_SPLIT_RE.split(md.strip()):
         block = raw_block.strip()
         if not block:
             continue
+        # `_HEADING_RE` neo `^...$` không bật MULTILINE nên chỉ khớp block MỘT
+        # dòng — block nhiều dòng mở đầu bằng `#` rơi xuống nhánh dưới (xem
+        # commit ae3279d "heading chỉ khớp block một dòng để neo không lệch").
         heading = _HEADING_RE.match(block)
         if heading:
-            # Heading mở đầu = tiêu đề chương, đã có cột `title` riêng.
             if not blocks:
+                # Heading mở đầu = tiêu đề chương, đã có cột `title` riêng.
+                # Bỏ khỏi đầu ra nhưng VẪN tiêu thụ một dòng nguồn — quên dòng
+                # này là toàn bộ chương lệch một bậc.
+                src += 1
                 continue
             blocks.append(heading.group(1).strip())
+            anchors.append(src)
+            src += 1
             continue
         lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
         blocks.append("\n".join(lines))
-    return footnotes.strip_markers("\n\n".join(blocks)).strip()
+        for _ in lines:
+            anchors.append(src)
+            src += 1
+    return footnotes.strip_markers("\n\n".join(blocks)).strip(), anchors
 
 
 def content_hash(title: str, content: str) -> str:
@@ -71,6 +113,10 @@ class ChapterPush:
     content: str
     hash: str
     remote_id: str = ""  # rỗng với chương MỚI — điền sau khi upsert trả về id
+    # Neo đoạn: anchors[j] = chỉ số split_paras của dòng thứ j trong `content`.
+    # Phải đi CÙNG transaction với `content` — neo của bản cũ áp lên bản mới là
+    # sai lệch âm thầm.
+    anchors: list[int] = field(default_factory=list)
 
     @property
     def word_count(self) -> int:
@@ -123,7 +169,7 @@ def classify_chapters(
     """
     plan = PublishPlan()
     for index, title, md, meta in items:
-        content = md_to_plaintext(md)
+        content, anchors = md_to_plaintext_with_anchors(md)
         if not content:
             plan.skipped += 1
             continue
@@ -131,7 +177,8 @@ def classify_chapters(
         state = reader_meta(meta)
         remote_id = remote_ids.get(index, "")
         push = ChapterPush(
-            index=index, title=title, content=content, hash=digest, remote_id=remote_id
+            index=index, title=title, content=content, hash=digest,
+            remote_id=remote_id, anchors=anchors,
         )
         if not remote_id:
             plan.new.append(push)

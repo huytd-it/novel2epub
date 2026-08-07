@@ -20,6 +20,7 @@ Mỗi bước ghi kết quả vào DB nên có thể dừng, chạy tiếp hoặ
 - Đồng bộ tăng dần sang novel-reader qua Supabase mà không thay ID chương.
 - Backup/restore toàn bộ hệ thống bằng một file SQLite.
 - Catalog OPDS để đọc trực tiếp bằng readest, tự build EPUB (chỉ chương đã dịch) khi catalog được gọi — xem [Đọc bằng readest qua OPDS](docs/operations.md#đọc-bằng-readest-qua-opds).
+- Quản lý profile WireGuard và cung cấp profile qua wgcf — profile nằm ngoài DB, SQLite chỉ lưu metadata, không bao giờ chứa private key (xem [WireGuard trong vận hành](docs/operations.md#vị-trí-wireguard-và-pipeline)).
 
 ## Cài đặt
 

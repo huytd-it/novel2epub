@@ -64,20 +64,42 @@
         </div>
         <form method="post" action="/automation" data-ajax data-ajax-reload="#automation-region" data-close-modal="add-automation-modal" data-reset="true" data-toast="Đã tạo automation.">
             <div class="p-5 space-y-4">
-                <fieldset class="border border-surface-border dark:border-surface-border-dark rounded-lg p-3 bg-surface-muted/50 dark:bg-surface-muted-dark/50">
-                    <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-fg-muted dark:text-fg-muted-dark">Cấu hình</legend>
-                    <div class="form-group my-2"><label class="label">Ebook</label>
-                        <select name="ebook" required class="select">
-                            {% for slug in ebooks %}<option value="{{ slug }}">{{ slug }}</option>{% endfor %}
+                <fieldset class="border border-surface-border dark:border-surface-border-dark rounded-lg p-4">
+                    <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-fg-muted dark:text-fg-muted-dark">Ebook</legend>
+                    <div class="form-group mt-1">
+                        <label for="ebook-search" class="label">Tìm theo tên hoặc slug</label>
+                        <input id="ebook-search" type="search" class="input mb-2" placeholder="Nhập tên ebook…" autocomplete="off" data-autofocus>
+                        <select id="automation-ebook" name="ebook" required class="select" size="4">
+                            {% for ebook in ebooks %}<option value="{{ ebook.slug }}" data-search="{{ ebook.title | lower }} {{ ebook.slug | lower }}">{{ ebook.title }}{% if ebook.title != ebook.slug %} · {{ ebook.slug }}{% endif %}</option>{% endfor %}
                         </select>
+                        <p id="ebook-search-empty" class="text-xs text-status-err-fg mt-1" hidden>Không tìm thấy ebook phù hợp.</p>
                     </div>
-                    <div class="my-2">
+                </fieldset>
+
+                <fieldset class="border border-surface-border dark:border-surface-border-dark rounded-lg p-4">
+                    <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-fg-muted dark:text-fg-muted-dark">Các bước</legend>
+                    <div class="space-y-2 mt-1">
                         {% for step in steps %}
-                        <label class="inline-flex items-center gap-1 text-sm mr-3"><input type="checkbox" name="steps" value="{{ step }}" {% if step == 'build' %}checked{% endif %}> {{ step }}</label>
+                        <div class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-surface-border dark:border-surface-border-dark px-3 py-2">
+                            <label class="inline-flex items-center gap-2 text-sm font-medium"><input type="checkbox" name="steps" value="{{ step }}" checked> {{ step }}</label>
+                            {% if step == 'crawl-new' %}
+                            <label class="inline-flex items-center gap-2 text-xs text-fg-muted dark:text-fg-muted-dark">Số crawler
+                                <input type="number" name="crawl_workers" value="4" min="1" max="64" required class="input w-20 py-1" aria-label="Số crawler">
+                            </label>
+                            {% elif step == 'translate-pending' %}
+                            <label class="inline-flex items-center gap-2 text-xs text-fg-muted dark:text-fg-muted-dark">Số luồng dịch
+                                <input type="number" name="translate_workers" value="4" min="1" max="64" required class="input w-20 py-1" aria-label="Số luồng dịch">
+                            </label>
+                            {% endif %}
+                        </div>
                         {% endfor %}
                     </div>
-                    <div class="form-group my-2"><label class="label">Lịch chạy</label>
-                        <div class="flex flex-wrap gap-1.5 mb-1" id="schedule-presets">
+                </fieldset>
+
+                <fieldset class="border border-surface-border dark:border-surface-border-dark rounded-lg p-4">
+                    <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-fg-muted dark:text-fg-muted-dark">Lịch chạy</legend>
+                    <div class="form-group mt-1">
+                        <div class="flex flex-wrap gap-1.5 mb-2" id="schedule-presets">
                             <button type="button" class="btn btn-sm btn-secondary" data-cron="*/15 * * * *">Mỗi 15p</button>
                             <button type="button" class="btn btn-sm btn-secondary" data-cron="*/30 * * * *">Mỗi 30p</button>
                             <button type="button" class="btn btn-sm btn-secondary" data-cron="0 * * * *">Mỗi giờ</button>
@@ -85,8 +107,11 @@
                             <button type="button" class="btn btn-sm btn-secondary" data-cron="0 3 * * 0">CN 03:00</button>
                             <button type="button" class="btn btn-sm btn-secondary" data-cron="manual">Thủ công</button>
                         </div>
-                        <input type="text" name="schedule" value="manual" placeholder="manual hoặc cron 5 trường: phút giờ ngày tháng thứ" class="input">
-                        <span class="text-xs text-fg-muted dark:text-fg-muted-dark">Cron 5 trường, ví dụ <code>*/30 * * * *</code> = mỗi 30 phút, <code>0 3 * * *</code> = 3h sáng hàng ngày.</span>
+                        <input id="automation-schedule" type="text" name="schedule" value="manual" required spellcheck="false" placeholder="manual hoặc cron 5 trường" class="input font-mono" aria-describedby="schedule-help schedule-status">
+                        <div class="flex items-center justify-between gap-2 mt-1">
+                            <span id="schedule-help" class="text-xs text-fg-muted dark:text-fg-muted-dark">Thứ tự: phút, giờ, ngày, tháng, thứ. Ví dụ <code>0 3 * * *</code>.</span>
+                            <span id="schedule-status" class="text-xs font-medium" aria-live="polite"></span>
+                        </div>
                     </div>
                 </fieldset>
             </div>
@@ -102,10 +127,63 @@
 document.getElementById("add-automation-btn").addEventListener("click", function () {
     openModal('add-automation-modal');
 });
-document.querySelectorAll("#schedule-presets [data-cron]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-        document.querySelector('#add-automation-modal input[name="schedule"]').value = btn.dataset.cron;
+const ebookSearch = document.getElementById("ebook-search");
+const ebookSelect = document.getElementById("automation-ebook");
+const ebookOptions = Array.from(ebookSelect.options).map(function (option) {
+    return { option: option, search: option.dataset.search };
+});
+ebookSearch.addEventListener("input", function () {
+    const query = ebookSearch.value.trim().toLocaleLowerCase("vi");
+    const matches = ebookOptions.filter(function (item) { return item.search.includes(query); });
+    ebookSelect.replaceChildren(...matches.map(function (item) { return item.option; }));
+    if (matches.length && !matches.some(function (item) { return item.option.selected; })) matches[0].option.selected = true;
+    document.getElementById("ebook-search-empty").hidden = matches.length > 0;
+});
+
+document.querySelectorAll('#add-automation-modal input[name="steps"]').forEach(function (checkbox) {
+    const workerInput = checkbox.closest("div").querySelector('input[type="number"]');
+    if (!workerInput) return;
+    checkbox.addEventListener("change", function () {
+        workerInput.disabled = !checkbox.checked;
     });
 });
+
+const scheduleInput = document.getElementById("automation-schedule");
+const scheduleStatus = document.getElementById("schedule-status");
+let scheduleValidationTimer;
+async function validateSchedule() {
+    const schedule = scheduleInput.value.trim();
+    if (!schedule) {
+        scheduleInput.setCustomValidity("Vui lòng nhập manual hoặc cron 5 trường.");
+        scheduleStatus.textContent = "Chưa nhập lịch";
+        scheduleStatus.className = "text-xs font-medium text-status-err-fg";
+        return;
+    }
+    try {
+        const response = await fetch("/api/automation/validate-schedule?schedule=" + encodeURIComponent(schedule));
+        const result = await response.json();
+        scheduleInput.setCustomValidity(result.valid ? "" : "Cron không hợp lệ. Hãy dùng manual hoặc đúng 5 trường.");
+        scheduleStatus.textContent = result.valid ? "Hợp lệ" : "Cron không hợp lệ";
+        scheduleStatus.className = "text-xs font-medium " + (result.valid ? "text-status-ok-fg" : "text-status-err-fg");
+    } catch (_) {
+        scheduleInput.setCustomValidity("");
+        scheduleStatus.textContent = "Không thể kiểm tra";
+        scheduleStatus.className = "text-xs font-medium text-status-warn-fg";
+    }
+}
+scheduleInput.addEventListener("input", function () {
+    clearTimeout(scheduleValidationTimer);
+    scheduleInput.setCustomValidity("Đang kiểm tra lịch…");
+    scheduleStatus.textContent = "Đang kiểm tra…";
+    scheduleStatus.className = "text-xs font-medium text-fg-muted dark:text-fg-muted-dark";
+    scheduleValidationTimer = setTimeout(validateSchedule, 250);
+});
+document.querySelectorAll("#schedule-presets [data-cron]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+        scheduleInput.value = btn.dataset.cron;
+        validateSchedule();
+    });
+});
+validateSchedule();
 </script>
 {% endblock %}

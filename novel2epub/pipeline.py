@@ -2213,6 +2213,12 @@ def step_publish_reader(
             reader_client.upsert_contents(
                 reader,
                 [(ids[p.index], p.content) for p in batch if p.index in ids],
+                # Neo đi CÙNG payload với content — hai lần ghi rời nhau sẽ để
+                # lại cửa sổ mà neo thuộc về bản văn khác.
+                anchors_by_id=(
+                    {ids[p.index]: p.anchors for p in batch if p.index in ids}
+                    if reader.push_anchors else None
+                ),
                 log=log,
             )
             # Ghi state NGAY sau mỗi lô: job dừng giữa chừng thì lần chạy sau

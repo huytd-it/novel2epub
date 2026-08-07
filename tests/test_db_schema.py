@@ -18,6 +18,7 @@ _EXPECTED_TABLES = {
     "job_queue_history",
     "job_queue_pending",
     "automations",
+    "wireguard_profiles",
 }
 
 
@@ -178,7 +179,48 @@ def test_characters_tables_exist():
     names = _table_names(conn)
     assert "characters" in names
     assert "character_relations" in names
-    assert SCHEMA_VERSION == 8
+    assert SCHEMA_VERSION == 9
+
+
+def test_schema_v8_has_wireguard_column_and_profiles_table():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    assert "wireguard_json" in _column_names(conn, "settings")
+    assert "wireguard_profiles" in _table_names(conn)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(wireguard_profiles)")}
+    for col in ("id", "filename", "source", "enabled", "position", "status",
+                "error", "activated_at", "last_error_at", "created_at", "updated_at"):
+        assert col in cols
+
+
+def test_v8_database_gets_wireguard_column_without_data_loss():
+    """DB v8 (settings không có wireguard_json) được ALTER TABLE vá, dữ liệu cũ
+    còn nguyên và cột mới dùng được ngay với default '{}'."""
+    conn = get_connection(":memory:")
+    with conn:
+        conn.execute("""
+            CREATE TABLE settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                novel_json TEXT NOT NULL DEFAULT '{}',
+                crawl_json TEXT NOT NULL DEFAULT '{}',
+                translate_json TEXT NOT NULL DEFAULT '{}',
+                ai_json TEXT NOT NULL DEFAULT '{}',
+                output_json TEXT NOT NULL DEFAULT '{}',
+                queue_json TEXT NOT NULL DEFAULT '{}',
+                reader_json TEXT NOT NULL DEFAULT '{}',
+                api_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("INSERT INTO settings (id, novel_json) VALUES (1, '{\"title\": \"cũ\"}')")
+
+    init_schema(conn)
+
+    assert "wireguard_json" in _column_names(conn, "settings")
+    row = conn.execute("SELECT novel_json, wireguard_json FROM settings WHERE id = 1").fetchone()
+    assert row["novel_json"] == '{"title": "cũ"}'
+    assert row["wireguard_json"] == "{}"
+    assert "wireguard_profiles" in _table_names(conn)
 
 
 def test_schema_v7_migrates_legacy_prompts_idempotently():

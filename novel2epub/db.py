@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -56,6 +56,8 @@ _SCHEMA_STATEMENTS = [
         -- KHÔNG bao giờ lưu nội dung cấu hình WireGuard/private key ở đây —
         -- chỉ chứa tham chiếu đến file ngoài trong profiles_dir.
         wireguard_json TEXT NOT NULL DEFAULT '{}',
+        oidc_json TEXT NOT NULL DEFAULT '{}',
+        session_epoch INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
@@ -121,6 +123,7 @@ _SCHEMA_STATEMENTS = [
         translate_overrides_json TEXT NOT NULL DEFAULT '{}',
         ai_overrides_json TEXT NOT NULL DEFAULT '{}',
         epub_path TEXT NOT NULL DEFAULT '',
+        revision INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -143,6 +146,9 @@ _SCHEMA_STATEMENTS = [
         translated_text TEXT,
         translated_mt_text TEXT,
         meta_json TEXT NOT NULL DEFAULT '{}',
+        revision INTEGER NOT NULL DEFAULT 1,
+        updated_by_issuer TEXT NOT NULL DEFAULT '',
+        updated_by_subject TEXT NOT NULL DEFAULT '',
         translated_updated_at REAL,
         PRIMARY KEY (ebook_slug, idx)
     ) WITHOUT ROWID
@@ -223,6 +229,9 @@ _SCHEMA_STATEMENTS = [
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
         data_json TEXT NOT NULL DEFAULT '{}',
+        revision INTEGER NOT NULL DEFAULT 1,
+        actor_issuer TEXT NOT NULL DEFAULT '',
+        actor_subject TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
@@ -250,6 +259,8 @@ _SCHEMA_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS job_queue_history (
         id TEXT PRIMARY KEY,
         data_json TEXT NOT NULL,
+        actor_issuer TEXT NOT NULL DEFAULT '',
+        actor_subject TEXT NOT NULL DEFAULT '',
         ended_at REAL,
         inserted_at REAL NOT NULL DEFAULT (unixepoch('now'))
     )
@@ -262,7 +273,9 @@ _SCHEMA_STATEMENTS = [
         step TEXT NOT NULL,
         label TEXT NOT NULL DEFAULT '',
         ebook TEXT NOT NULL DEFAULT '',
-        spec_json TEXT NOT NULL DEFAULT '{}'
+        spec_json TEXT NOT NULL DEFAULT '{}',
+        actor_issuer TEXT NOT NULL DEFAULT '',
+        actor_subject TEXT NOT NULL DEFAULT ''
     )
     """,
     # ── automation (thay automations.yaml) ───────────────────────────────
@@ -283,6 +296,38 @@ _SCHEMA_STATEMENTS = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_automations_ebook ON automations(ebook)",
+    # ── API v2 / OIDC foundation (v10) ───────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS identities (
+        issuer TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        role TEXT NOT NULL,
+        display_name TEXT NOT NULL DEFAULT '',
+        email TEXT NOT NULL DEFAULT '',
+        disabled INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (issuer, subject)
+    ) WITHOUT ROWID
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_identities_role ON identities(role, disabled)",
+    """
+    CREATE TABLE IF NOT EXISTS audit_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id TEXT NOT NULL,
+        actor_issuer TEXT NOT NULL DEFAULT '',
+        actor_subject TEXT NOT NULL DEFAULT '',
+        actor_role TEXT NOT NULL DEFAULT '',
+        action TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id TEXT NOT NULL DEFAULT '',
+        outcome TEXT NOT NULL DEFAULT 'success',
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_audit_request_action ON audit_events(request_id, action, resource_type, resource_id)",
+    "CREATE INDEX IF NOT EXISTS idx_audit_cursor ON audit_events(created_at DESC, id DESC)",
 ]
 
 # Cột thêm vào bảng ĐÃ TỒN TẠI ở các phiên bản schema sau. `_SCHEMA_STATEMENTS`
@@ -315,6 +360,20 @@ _ADDED_COLUMNS = [
     # v9: cấu hình WireGuard toàn cục (settings.wireguard_json) — chỉ tham
     # chiếu file ngoài, không phải nội dung cấu hình/private key.
     ("settings", "wireguard_json", "TEXT NOT NULL DEFAULT '{}'"),
+    # v10: nền API v2/OIDC, optimistic concurrency và actor metadata.
+    ("settings", "oidc_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ("settings", "session_epoch", "INTEGER NOT NULL DEFAULT 0"),
+    ("ebooks", "revision", "INTEGER NOT NULL DEFAULT 1"),
+    ("chapters", "revision", "INTEGER NOT NULL DEFAULT 1"),
+    ("chapters", "updated_by_issuer", "TEXT NOT NULL DEFAULT ''"),
+    ("chapters", "updated_by_subject", "TEXT NOT NULL DEFAULT ''"),
+    ("notes", "revision", "INTEGER NOT NULL DEFAULT 1"),
+    ("notes", "actor_issuer", "TEXT NOT NULL DEFAULT ''"),
+    ("notes", "actor_subject", "TEXT NOT NULL DEFAULT ''"),
+    ("job_queue_history", "actor_issuer", "TEXT NOT NULL DEFAULT ''"),
+    ("job_queue_history", "actor_subject", "TEXT NOT NULL DEFAULT ''"),
+    ("job_queue_pending", "actor_issuer", "TEXT NOT NULL DEFAULT ''"),
+    ("job_queue_pending", "actor_subject", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 
@@ -435,25 +494,67 @@ def _migrate_legacy_prompts(conn: sqlite3.Connection) -> None:
             )
 
 
+class SchemaVersionError(RuntimeError):
+    """DB được tạo bởi phiên bản mới hơn, không được tự động hạ schema."""
+
+
+def _record_schema_version(conn: sqlite3.Connection, version: int) -> None:
+    conn.execute(
+        """
+        INSERT INTO _meta (key, value) VALUES ('schema_version', ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """,
+        (str(version),),
+    )
+
+
+def _migration_v10(conn: sqlite3.Connection) -> None:
+    """Thêm nền identity/audit/revision; ALTER giữ nguyên toàn bộ dữ liệu v9."""
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+    _ensure_columns(conn)
+
+
+_MIGRATIONS = {10: _migration_v10}
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
-    """Tạo toàn bộ bảng nếu chưa có — idempotent, an toàn gọi mỗi lần khởi
-    động app/CLI (không xóa/động tới dữ liệu đã có)."""
+    """Tạo/nâng schema tuần tự và atomic, an toàn gọi lại nhiều lần.
+
+    DB chưa có metadata được bootstrap bằng schema hiện tại. DB v9 trở lên chạy
+    từng migration theo version; chỉ ghi version sau khi migration thành công.
+    """
+    current = schema_version(conn)
+    if current is not None and current > SCHEMA_VERSION:
+        raise SchemaVersionError(
+            f"database schema v{current} is newer than supported v{SCHEMA_VERSION}"
+        )
+
     with conn:
+        # Giữ khả năng nâng các DB rất cũ vốn chưa có migration ledger.
         for stmt in _SCHEMA_STATEMENTS:
             conn.execute(stmt)
         _ensure_columns(conn)
         _migrate_legacy_prompts(conn)
-        conn.execute(
-            """
-            INSERT INTO _meta (key, value) VALUES ('schema_version', ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            """,
-            (str(SCHEMA_VERSION),),
-        )
+
+        start = current if current is not None else SCHEMA_VERSION
+        for version in range(start + 1, SCHEMA_VERSION + 1):
+            migration = _MIGRATIONS.get(version)
+            if migration is None:
+                raise SchemaVersionError(f"missing migration for schema v{version}")
+            migration(conn)
+            _record_schema_version(conn, version)
+        if current is None:
+            _record_schema_version(conn, SCHEMA_VERSION)
 
 
 def schema_version(conn: sqlite3.Connection) -> int | None:
-    """Trả schema_version hiện tại của DB, hoặc None nếu chưa init_schema."""
+    """Trả schema_version hiện tại, kể cả trước khi `_meta` được tạo."""
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='_meta'"
+    ).fetchone()
+    if not exists:
+        return None
     row = conn.execute(
         "SELECT value FROM _meta WHERE key = 'schema_version'"
     ).fetchone()

@@ -3,7 +3,14 @@ import sqlite3
 
 import pytest
 
-from novel2epub.db import SCHEMA_VERSION, get_connection, init_schema, schema_version
+import novel2epub.db as db_module
+from novel2epub.db import (
+    SCHEMA_VERSION,
+    SchemaVersionError,
+    get_connection,
+    init_schema,
+    schema_version,
+)
 
 _EXPECTED_TABLES = {
     "_meta",
@@ -19,6 +26,8 @@ _EXPECTED_TABLES = {
     "job_queue_pending",
     "automations",
     "wireguard_profiles",
+    "identities",
+    "audit_events",
 }
 
 
@@ -179,7 +188,7 @@ def test_characters_tables_exist():
     names = _table_names(conn)
     assert "characters" in names
     assert "character_relations" in names
-    assert SCHEMA_VERSION == 9
+    assert SCHEMA_VERSION >= 9
 
 
 def test_schema_v8_has_wireguard_column_and_profiles_table():
@@ -318,3 +327,59 @@ def test_v5_database_gets_new_columns_without_data_loss():
         "SELECT a_calls_b, a_self, to_chapter FROM character_relations"
     ).fetchone()
     assert row[0] == "sư phụ" and row[1] == "đồ nhi" and row[2] is None
+
+
+def test_v9_database_migrates_to_v10_without_data_loss():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        conn.execute("INSERT INTO settings (id, api_json) VALUES (1, ?)", ('{"token":"legacy"}',))
+        conn.execute("INSERT INTO ebooks (slug, title) VALUES ('old', 'Dữ liệu cũ')")
+        conn.execute(
+            "INSERT INTO chapters (ebook_slug, idx, translated_text) VALUES ('old', 1, 'Nội dung')"
+        )
+        conn.execute("UPDATE _meta SET value = '9' WHERE key = 'schema_version'")
+
+    init_schema(conn)
+    init_schema(conn)
+
+    assert schema_version(conn) == 10
+    ebook = conn.execute("SELECT title, revision FROM ebooks WHERE slug='old'").fetchone()
+    assert (ebook["title"], ebook["revision"]) == ("Dữ liệu cũ", 1)
+    chapter = conn.execute(
+        "SELECT translated_text, revision FROM chapters WHERE ebook_slug='old' AND idx=1"
+    ).fetchone()
+    assert (chapter["translated_text"], chapter["revision"]) == ("Nội dung", 1)
+    assert json.loads(conn.execute("SELECT api_json FROM settings").fetchone()[0])["token"] == "legacy"
+    assert "oidc_json" in _column_names(conn, "settings")
+    assert {"identities", "audit_events"} <= _table_names(conn)
+
+
+def test_future_schema_is_rejected_without_downgrade():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        conn.execute("UPDATE _meta SET value = ? WHERE key = 'schema_version'", (str(SCHEMA_VERSION + 1),))
+
+    with pytest.raises(SchemaVersionError):
+        init_schema(conn)
+    assert schema_version(conn) == SCHEMA_VERSION + 1
+
+
+def test_failed_migration_does_not_advance_version(monkeypatch):
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        conn.execute("UPDATE _meta SET value = '9' WHERE key = 'schema_version'")
+        conn.execute("INSERT INTO ebooks (slug, title) VALUES ('kept', 'Không mất')")
+
+    def fail_after_write(connection):
+        connection.execute("UPDATE ebooks SET title = 'không được commit' WHERE slug = 'kept'")
+        raise RuntimeError("simulated migration failure")
+
+    monkeypatch.setitem(db_module._MIGRATIONS, 10, fail_after_write)
+    with pytest.raises(RuntimeError, match="simulated migration failure"):
+        init_schema(conn)
+
+    assert schema_version(conn) == 9
+    assert conn.execute("SELECT title FROM ebooks WHERE slug='kept'").fetchone()[0] == "Không mất"

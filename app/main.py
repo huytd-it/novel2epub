@@ -141,6 +141,7 @@ app.state.job = JobRunner(
 app.state.job.queue.register_kind("batch-translate", chapters.batch_translate_job_factory)
 app.state.job.queue.register_kind("publish-reader", ebooks.publish_reader_job_factory)
 app.state.job.queue.register_kind("glossary-approve", glossary.glossary_approve_job_factory)
+app.state.job.queue.register_kind("opds-autobuild", opds.autobuild_job_factory)
 app.state.job.queue.load_pending()
 app.state.scheduler = AutomationScheduler(deps.DB_PATH, WORKSPACE_PATH, app.state.job.queue)
 

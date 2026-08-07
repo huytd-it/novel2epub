@@ -51,6 +51,19 @@
     </div>
 </details>
 
+<details class="border border-border-light dark:border-border-dark rounded-lg my-3 bg-surface-alt-light dark:bg-surface-alt-dark" open>
+    <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">Tự động build EPUB</summary>
+    <div class="grid grid-cols-1 gap-3 px-3 pb-3">
+        <label class="flex items-start gap-2 text-sm min-w-0">
+            <input type="checkbox" name="auto_build" value="1" {% if api.auto_build %}checked{% endif %} class="mt-0.5">
+            <span class="flex flex-col gap-1">
+                <span>auto_build</span>
+                <span class="text-xs italic text-muted-light dark:text-muted-dark">Khi readest gọi catalog OPDS, tự đẩy job build <strong>nền</strong> cho ebook chưa build hoặc có bản dịch mới hơn file EPUB. Chỉ đóng gói chương <strong>đã dịch</strong>. Feed trả về ngay, không chờ build — sách mới xuất hiện ở lần làm mới sau. Ebook đang có job dịch chạy được để yên. Mỗi ebook nghỉ 5 phút giữa hai lần build.</span>
+            </span>
+        </label>
+    </div>
+</details>
+
 <div class="flex flex-wrap gap-2 items-center mt-3 pt-3 border-t border-border-light dark:border-border-dark">
     <button type="submit" class="px-3 py-1.5 text-sm rounded-md bg-link-light dark:bg-link-dark text-white hover:opacity-90">Lưu</button>
 </div>

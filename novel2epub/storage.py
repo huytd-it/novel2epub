@@ -218,6 +218,28 @@ class Storage:
             (self.slug, ch.index),
         ).fetchone()
 
+    def translated_stats(self) -> tuple[int, float]:
+        """`(số chương có bản dịch, mốc thời gian dịch mới nhất)` bằng MỘT query.
+
+        Dùng cho quyết định "EPUB đã cũ chưa" ở `epub_autobuild` — gọi
+        `has_translated` cho từng chương sẽ là 2907 round-trip DB trên MỖI
+        request OPDS.
+
+        Khác `has_translated` ở một điểm: không đọc `meta_json` nên chương
+        đang dịch dở cũng được đếm. Chấp nhận được — kết quả chỉ dùng để
+        quyết định CÓ build hay không, còn bản thân `step_build_selected`
+        vẫn lọc bằng `has_translated` nên chương dở không lọt vào EPUB.
+        """
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS n, COALESCE(MAX(translated_updated_at), 0.0) AS ts "
+            "FROM chapters WHERE ebook_slug = ? "
+            "AND translated_text IS NOT NULL AND translated_text != ''",
+            (self.slug,),
+        ).fetchone()
+        if row is None:
+            return 0, 0.0
+        return int(row["n"] or 0), float(row["ts"] or 0.0)
+
     def bulk_chapter_stats(self) -> dict[int, dict]:
         rows = self.conn.execute(
             "SELECT idx,"

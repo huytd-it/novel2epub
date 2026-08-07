@@ -489,6 +489,10 @@ class ApiConfig:
     """
     token: str = ""
     cors_origins: list[str] = field(default_factory=list)
+    # Khi catalog OPDS được gọi, tự đẩy job build NỀN cho ebook chưa build
+    # hoặc có bản dịch mới hơn file EPUB. Request feed KHÔNG chờ job — sách
+    # mới sẽ có mặt ở lần làm mới sau. Tắt cờ này thì quay về build tay.
+    auto_build: bool = True
 
 
 # Các field của `reader` CHỈ đọc từ `defaults:` — override per-ebook bị bỏ đi
@@ -929,6 +933,9 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     api = ApiConfig(
         token=str(api_raw.get("token", "")).strip(),
         cors_origins=cors_origins,
+        # Mặc định BẬT: DB đã có từ trước schema v8 không có khoá này, mà
+        # hành vi mong muốn cho người dùng sẵn có là catalog tự cập nhật.
+        auto_build=bool(api_raw.get("auto_build", True)),
     )
 
     return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, reader=reader, api=api, source=source_name, warnings=warnings)

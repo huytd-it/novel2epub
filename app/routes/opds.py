@@ -1,13 +1,17 @@
 """Catalog OPDS cho trình đọc ngoài (readest) + phục vụ file EPUB và ảnh bìa.
 
 Chỉ liệt kê ebook ĐÃ BUILD EPUB. Ebook chưa build thì vắng mặt hẳn — thà
-không thấy còn hơn thấy rồi bấm tải về báo lỗi. EPUB cũ hơn bản dịch vẫn
-được phục vụ nguyên trạng: build lại là việc của trang Tự động hoá, không
-phải của một request HTTP (ebook lớn nhất 2907 chương, build trong request
-sẽ treo).
+không thấy còn hơn thấy rồi bấm tải về báo lỗi.
+
+Việc gọi catalog KÍCH HOẠT build, nhưng build chạy NỀN: request phát hiện
+ebook thiếu file EPUB hoặc có bản dịch mới hơn file, đẩy job vào JobQueue rồi
+trả feed ngay. Feed KHÔNG BAO GIỜ chờ build xong — ebook lớn nhất 2907 chương,
+build trong request sẽ làm readest timeout và người dùng chỉ thấy "Failed to
+load OPDS feed". Sách vừa được đẩy job sẽ xuất hiện ở lần làm mới sau.
 """
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 
@@ -15,15 +19,28 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from novel2epub import opds
+from novel2epub import epub_autobuild, opds
 from novel2epub.notes import replace_para, split_paras
+from novel2epub.pipeline import step_build_selected
 from novel2epub.storage import Storage
 
 from .. import deps
 from ..auth import require_api_auth
 from ..library_state import archived_slugs
+from ..logging_config import logger
 
 router = APIRouter(dependencies=[Depends(require_api_auth)])
+
+# Thời gian nghỉ giữa hai lần kích hoạt build cho CÙNG một ebook. readest hỏi
+# lại catalog rất thường xuyên (mỗi lần mở app, mỗi lần kéo-để-làm-mới); không
+# có mốc nghỉ này thì mỗi cú kéo lại đẻ thêm một job build cho cùng cuốn sách.
+_AUTOBUILD_COOLDOWN_SECONDS = 300.0
+
+# slug -> lúc kích hoạt gần nhất. Cố ý để trong RAM chứ không vào DB: mất khi
+# restart chỉ tốn thêm đúng một lần build dư, mà đổi lại không phải thêm bảng
+# và không ghi DB trên đường phục vụ feed.
+_last_autobuild: dict[str, float] = {}
+_autobuild_lock = threading.Lock()
 
 _MEDIA_BY_EXT = {
     "jpg": "image/jpeg",
@@ -94,9 +111,95 @@ def _collect_books() -> list[opds.OpdsBook]:
     return books
 
 
+def autobuild_job_factory(params: dict):
+    """Tái tạo `target(log)` của job tự-build từ spec — cho phép job pending
+    sống sót qua restart (xem JobQueue.register_kind/load_pending)."""
+    slug = str(params.get("slug", ""))
+
+    def _target(log):
+        step_build_selected(deps.resolved_cfg(slug), log, translated_only=True)
+
+    return _target
+
+
+def _build_states() -> list[epub_autobuild.BuildState]:
+    """Trạng thái build của mọi ebook chưa archive."""
+    archived = archived_slugs(deps.LIBRARY_STATE_PATH)
+    states: list[epub_autobuild.BuildState] = []
+    for slug in deps.library().ebooks:
+        if slug in archived:
+            continue
+        cfg = deps.resolved_cfg(slug)
+        epub = _epub_path(cfg)
+        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+        count, latest = storage.translated_stats()
+        states.append(
+            epub_autobuild.BuildState(
+                slug=slug,
+                translated_count=count,
+                latest_translated_at=latest,
+                epub_mtime=epub.stat().st_mtime if epub.exists() else None,
+            )
+        )
+    return states
+
+
+def _has_queued_build(job, slug: str) -> bool:
+    """Ebook đã có job build đang chạy HOẶC đang chờ trong hàng đợi chưa.
+
+    `is_ebook_busy` chỉ thấy job đang CHẠY; phải soi cả pending, nếu không thì
+    mỗi request OPDS lại chồng thêm một job build cho cuốn sách đang xếp hàng.
+    """
+    if job.is_ebook_busy("build", slug):
+        return True
+    pending = job.queue.snapshot().get("pending", {})
+    return any(j.get("ebook") == slug for j in pending.get("build", []))
+
+
+def _maybe_autobuild(request: Request) -> None:
+    """Đẩy job build nền cho ebook thiếu file EPUB hoặc có bản dịch mới hơn.
+
+    KHÔNG BAO GIỜ được ném ra ngoài: catalog phải trả về được ngay cả khi việc
+    tự build hỏng. Lỗi ở đây chỉ khiến sách cập nhật chậm, còn ném lên thì
+    readest mất luôn cả feed.
+    """
+    try:
+        job = getattr(request.app.state, "job", None)
+        if job is None or not deps.cfg().api.auto_build:
+            return
+        now = _now()
+        for state in epub_autobuild.pending_builds(_build_states()):
+            slug = state.slug
+            # Đang dịch dở thì để yên: bản dịch còn đang chảy vào DB, build
+            # bây giờ chỉ tốn công cho một ảnh chụp sẽ cũ ngay lập tức.
+            if job.is_ebook_busy("translate", slug) or _has_queued_build(job, slug):
+                continue
+            with _autobuild_lock:
+                if not epub_autobuild.due_for_trigger(
+                    _last_autobuild.get(slug, 0.0), now, _AUTOBUILD_COOLDOWN_SECONDS
+                ):
+                    continue
+                _last_autobuild[slug] = now
+            spec = {"kind": "opds-autobuild", "params": {"slug": slug}}
+            job.start_custom(
+                f"opds-autobuild:{slug}",
+                autobuild_job_factory(spec["params"]),
+                category="build",
+                ebook=slug,
+                spec=spec,
+            )
+            logger.info(
+                "[opds] tự build %s (%s) — %d chương đã dịch",
+                slug, epub_autobuild.decide(state), state.translated_count,
+            )
+    except Exception:  # noqa: BLE001 - feed phải sống sót mọi lỗi ở đây
+        logger.exception("[opds] tự build thất bại, bỏ qua và vẫn trả feed")
+
+
 @router.get("/opds")
 def opds_root(request: Request) -> Response:
     """Feed điều hướng gốc — URL người dùng dán vào readest."""
+    _maybe_autobuild(request)
     base = str(request.base_url).rstrip("/")
     body = opds.navigation_feed(base_url=base, updated=opds.iso_utc(_now()))
     return _xml(body, opds.NAV_TYPE)
@@ -104,7 +207,12 @@ def opds_root(request: Request) -> Response:
 
 @router.get("/opds/books")
 def opds_books(request: Request) -> Response:
-    """Feed acquisition — mỗi ebook đã build một entry."""
+    """Feed acquisition — mỗi ebook đã build một entry.
+
+    Sách vừa được đẩy job build ở đây chưa có file nên chưa lên feed lần này;
+    nó xuất hiện ở lần readest làm mới kế tiếp.
+    """
+    _maybe_autobuild(request)
     base = str(request.base_url).rstrip("/")
     books = _collect_books()
     updated = max((b.updated for b in books), default=opds.iso_utc(_now()))

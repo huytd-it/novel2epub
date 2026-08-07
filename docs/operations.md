@@ -99,7 +99,26 @@ readest sẽ hiện danh sách ebook đã build, kèm bìa và metadata (tiêu �
 
 **4. Ebook phải được build trước**
 
-Chỉ ebook đã build EPUB (có file `.epub` tồn tại) mới xuất hiện trong catalog. Ebook mới tạo hoặc chưa build sẽ không hiện. Khi dịch thêm chương mới cho một ebook đã có trong catalog, phải build lại (thủ công qua nút Build hoặc qua Automation) thì readest mới thấy bản EPUB mới — catalog không tự cập nhật theo tiến độ dịch, chỉ theo file EPUB đã ghi ra đĩa.
+Chỉ ebook đã build EPUB (có file `.epub` tồn tại) mới xuất hiện trong catalog. Ebook mới tạo hoặc chưa build sẽ không hiện.
+
+### Tự Động Build Khi Gọi Catalog
+
+Mặc định **bật** (Cài đặt > API > `auto_build`). Mỗi lần readest gọi `/opds` hoặc `/opds/books`, novel2epub soi mọi ebook chưa archive và đẩy job build **nền** cho ebook nào:
+
+- chưa từng build EPUB, hoặc
+- có bản dịch mới hơn file EPUB hiện có.
+
+Bốn điều cần biết về hành vi này:
+
+**Feed không chờ build.** Request trả về ngay lập tức; job chạy trong hàng đợi category `build`. Ebook vừa được đẩy job chưa có file nên **chưa lên feed lần này** — nó xuất hiện ở lần readest làm mới kế tiếp. Đây là cố ý: ebook lớn nhất 2907 chương, build ngay trong request sẽ khiến readest timeout và người dùng chỉ thấy "Failed to load OPDS feed".
+
+**EPUB tự build chỉ chứa chương ĐÃ DỊCH.** Khác đường build tay (nút Build, CLI `build`) vốn rơi về `raw_text` chữ Hán khi chương chưa dịch. Chương rơi-về-raw không được gắn neo `data-n2e-p` nên cũng không sửa được từ readest — đưa vào chỉ tổ làm bẩn sách.
+
+**Ebook đang có job dịch chạy thì được để yên.** Build giữa lúc bản dịch còn đang chảy vào DB chỉ đóng gói một ảnh chụp cũ ngay lập tức.
+
+**Mỗi ebook nghỉ 5 phút giữa hai lần build.** readest hỏi lại catalog mỗi lần mở app và mỗi lần kéo-để-làm-mới; không có mốc nghỉ này thì mỗi cú kéo lại đẻ thêm một job cho cùng cuốn sách. Mốc nghỉ giữ trong RAM nên restart server sẽ xoá — cùng lắm tốn thêm một lần build dư.
+
+Theo dõi tiến độ ở `/queue` (job tên `opds-autobuild:<slug>`) và `/logs`. Tắt cờ `auto_build` thì quay về build tay hoàn toàn qua nút Build hoặc Automation.
 
 ## Xử Lý Sự Cố
 

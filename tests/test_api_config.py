@@ -25,6 +25,19 @@ def test_api_doc_duoc_tu_defaults(tmp_path):
     assert cfg.api.cors_origins == ["http://localhost:3000"]
 
 
+def test_auto_build_mac_dinh_bat_khi_db_chua_co_khoa(tmp_path):
+    """DB tạo trước khi có tính năng này không có khoá `auto_build`. Mặc định
+    phải là BẬT — người dùng sẵn có mong catalog tự cập nhật, không phải tự
+    đi bật một cờ họ chưa biết là có."""
+    db = write_db_config(tmp_path / "n.db", defaults={"api": {"token": "abc"}})
+    assert load_config(db).api.auto_build is True
+
+
+def test_auto_build_tat_duoc(tmp_path):
+    db = write_db_config(tmp_path / "n.db", defaults={"api": {"auto_build": False}})
+    assert load_config(db).api.auto_build is False
+
+
 def test_token_bi_strip_khoang_trang(tmp_path):
     db = write_db_config(tmp_path / "n.db", defaults={"api": {"token": "  abc  "}})
     assert load_config(db).api.token == "abc"

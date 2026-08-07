@@ -753,11 +753,20 @@ def settings_api(request: Request):
 def settings_api_save(
     token: str = Form(""),
     cors_origins: str = Form(""),
+    auto_build: str = Form(""),
 ):
     origins = [line.strip() for line in cors_origins.splitlines() if line.strip()]
     update_defaults(
         deps.WORKSPACE_PATH,
-        {"api": {"token": token.strip(), "cors_origins": origins}},
+        {
+            "api": {
+                "token": token.strip(),
+                "cors_origins": origins,
+                # Checkbox không tick thì trình duyệt KHÔNG gửi field — chuỗi
+                # rỗng nghĩa là tắt.
+                "auto_build": bool(auto_build),
+            }
+        },
     )
     return RedirectResponse(url="/settings/api", status_code=303)
 

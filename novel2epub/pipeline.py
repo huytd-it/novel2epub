@@ -2029,8 +2029,17 @@ def step_build_selected(
     log: LogFn = _print,
     *,
     selected_indexes: list[int] | None = None,
+    translated_only: bool = False,
     should_cancel: CancelFn | None = None,
 ) -> str:
+    """Đóng gói EPUB.
+
+    `translated_only=True` bỏ hẳn chương chưa dịch thay vì rơi về `raw_text`.
+    Dùng cho EPUB phục vụ qua OPDS: bản rơi-về-raw là chữ Hán gốc, đọc trên
+    readest thì vô nghĩa, mà lại KHÔNG được gắn neo `data-n2e-p` nên cũng
+    không sửa được. Đường build tay (nút Build, CLI `build`) giữ nguyên hành
+    vi cũ — xem `step_build`.
+    """
     _emit_build_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -2058,7 +2067,7 @@ def step_build_selected(
             md, fns = _footnotes.annotate(md, notes)
             if fns:
                 footnotes_by_stem[ch.stem] = fns
-        elif storage.has_raw(ch):
+        elif not translated_only and storage.has_raw(ch):
             md = storage.read_raw(ch)
             title = ch.title or f"Chương {ch.index}"
         else:
@@ -2066,7 +2075,12 @@ def step_build_selected(
         chapters_html.append((ch, title, md))
 
     if not chapters_html:
+        if translated_only:
+            raise RuntimeError("Không có chương nào đã dịch để build.")
         raise RuntimeError("Không có chương nào để build. Hãy crawl/dịch trước.")
+
+    if translated_only:
+        log(f"[build] Chỉ đóng gói chương đã dịch: {len(chapters_html)}/{len(chapters)} chương.")
 
     _download_cover(storage, manifest, log, proxy=cfg.crawl.scrapling.proxy)
     if manifest.cover_file:

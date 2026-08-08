@@ -555,6 +555,7 @@ def ebook_settings(slug: str):
             "batch_size": tr.batch_size,
             "prompt_max_chars": tr.prompt_max_chars,
             "auto_cleanup_han": tr.auto_cleanup_han,
+            "cleanup_han_engine": tr.cleanup_han.engine,
             "cleanup_han_max_chars": tr.cleanup_han.max_chars,
             "cleanup_han_retries": tr.cleanup_han.retries,
         },

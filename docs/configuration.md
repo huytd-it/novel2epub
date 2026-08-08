@@ -50,18 +50,18 @@ Retry dùng `attempts`, `delay_seconds`, `backoff`, `max_delay_seconds` và `res
 
 ## Dịch
 
-`translate.type` nhận `openai`, `hachimimt`, `google`, `libretranslate` hoặc `none`.
+`translate.type` nhận `openai`, `localmt` hoặc `none`. (`google`/`libretranslate` đã gỡ; `hachimimt`/`moxhimt` cũ được migrate → `localmt`.)
 
 Thiết lập chung gồm:
 
 - `source_language`, `target_language`, `genre` và `style`.
 - `chunk.max_chars`, `prompt_max_chars`, `batch_size`, `max_workers`.
 - `auto_glossary`, `ai_glossary_analysis`, `use_idioms`.
-- `auto_cleanup_han` và `cleanup_han`.
+- `auto_cleanup_han` và `cleanup_han` (`cleanup_han.engine`: `local_mt` mặc định | `openai`).
 
 OpenAI-compatible cần `base_url`, `api_key`, `model`, `timeout_seconds`, `temperature`. URL phải trỏ đến API root hỗ trợ `/chat/completions`; ví dụ local gateway thường dùng `http://localhost:20128/v1`.
 
-HachimiMT chọn model qua `translate.model` hoặc `hachimimt.model_key`. Model được tải ở lần chạy đầu nếu chưa có cache.
+Local MT chọn model qua `translate.model` hoặc `translate.hachimimt.model_key` (khoá config engine cục bộ giữ tên `hachimimt`). Model được tải ở lần chạy đầu nếu chưa có cache.
 
 `ai.openai` là backend riêng cho review, rewrite, glossary, nhân vật và cleanup. Nếu không cấu hình, hệ thống fallback về `translate.openai`.
 

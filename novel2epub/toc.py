@@ -17,6 +17,52 @@ def count_han_chars(text: str) -> int:
     return len(_HAN_RE.findall(text))
 
 
+# ── Dọn từ rác kêu gọi độc giả trong tiêu đề chương ──────────────────────
+# Nhiều site nhét cụm "cầu nguyệt phiếu / cầu vé tháng / 求月票..." vào cuối
+# tiêu đề chương. Dùng chung cho _clean_title (tự động khi dịch tiêu đề) và
+# hành động "Clear TOC" thủ công.
+
+# Bản Việt: (cầu|xin...) NGAY trước một cụm kêu gọi cụ thể, ở CUỐI tiêu đề, có
+# thể bọc trong ngoặc. Bắt buộc cầu/xin đứng sát cụm đích để không cắt nhầm
+# tiêu đề thường (vd "Xin một vé về tuổi thơ" KHÔNG khớp vì sau "xin" là "một").
+_TOC_JUNK_VI_RE = re.compile(
+    r"\s*[（(【\[]?\s*"
+    r"(?:cầu|xin|kính\s*xin|khẩn\s*cầu|quỳ\s*cầu|cầu\s*xin)\s+"
+    r"(?:"
+    r"nguyệt\s*phiếu|phiếu\s*tháng|vé\s*tháng|phiếu\s*đề\s*cử|phiếu\s*giới\s*thiệu|"
+    r"đề\s*cử|giới\s*thiệu|ủng\s*hộ|bình\s*chọn|thu\s*tàng|đánh\s*giá|"
+    r"phiếu|vé"
+    r")"
+    r"\s*[!！~～.。]*\s*[）)】\]]?\s*$",
+    re.IGNORECASE,
+)
+
+# Bản Hán thô còn sót: (跪求|日更|求) + danh từ kêu gọi (月票/推荐票/订阅...),
+# strip ở BẤT KỲ vị trí nào, có thể bọc ngoặc.
+_TOC_JUNK_ZH_RE = re.compile(
+    r"[（(【\[]?\s*"
+    r"(?:跪求|日更|求)\s*"
+    r"(?:月票|推荐票|推薦票|订阅|訂閱|收藏|打赏|打賞|评价|評價|鲜花|鮮花|推荐|推薦|票)+"
+    r"[!！~～]*\s*[）)】\]]?"
+)
+
+
+def strip_toc_junk(title: str) -> str:
+    """Loại bỏ từ rác kêu gọi độc giả (cầu nguyệt phiếu, cầu vé tháng, 求月票…)
+    khỏi tiêu đề chương, giữ nguyên phần nội dung thật.
+
+    An toàn với chuỗi rỗng; trả về chuỗi đã strip. Không đụng tới số chương.
+    """
+    if not title:
+        return title
+    out = _TOC_JUNK_ZH_RE.sub("", title)
+    out = _TOC_JUNK_VI_RE.sub("", out)
+    # Dọn cặp ngoặc rỗng và separator thừa còn lại ở cuối.
+    out = re.sub(r"\s*[（(【\[]\s*[）)】\]]\s*$", "", out)
+    out = re.sub(r"\s*[:：\-–—,，;；]+\s*$", "", out)
+    return out.strip()
+
+
 @dataclass
 class ChapterRow:
     index: int

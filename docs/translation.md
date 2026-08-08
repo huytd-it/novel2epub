@@ -10,28 +10,40 @@ Mỗi chương có ba lớp nội dung:
 
 Biên tập không ghi đè snapshot MT. Có thể so sánh nguồn, bản máy và bản sửa trong trình đọc ba cột.
 
-## Chọn Backend
+## Hai Con Đường Dịch
+
+Chỉ còn **hai** backend dịch (`translate.type`):
 
 | Backend | Phù hợp |
 | --- | --- |
-| `openai` | Chất lượng văn phong, prompt/ngữ cảnh phong phú |
-| `hachimimt` | Offline, chi phí thấp, xử lý số lượng lớn |
-| `google` | Thử nhanh, không ưu tiên văn phong |
-| `libretranslate` | Hạ tầng self-hosted |
-| `none` | Nguồn tiếng Việt hoặc kiểm thử pipeline |
+| `localmt` | Local MT cục bộ (CTranslate2). Nhanh, miễn phí, offline; ~90% đúng với tiên hiệp/huyền huyễn. |
+| `openai` | AI qua API OpenAI-Compatible. Chất lượng văn phong cao, prompt/ngữ cảnh phong phú, tự trích glossary. |
+| `none` | Nguồn tiếng Việt hoặc kiểm thử pipeline (passthrough). |
 
-Với nguồn tiếng Việt, đặt `source_language=vi`; hệ thống tự passthrough và không gọi model.
+Với nguồn tiếng Việt, đặt `source_language=vi`; hệ thống tự passthrough và không gọi model. `google` và `libretranslate` đã bị gỡ — ebook cũ dùng chúng được tự chuyển sang `openai` khi load (kèm cảnh báo).
 
-### Model dịch nhanh, ít tham số
+### Workflow A — Local MT rồi OpenAI biên tập
 
-Nếu ưu tiên tốc độ như Google Dịch thay vì biên tập văn phong bằng LLM, dùng model NMT/seq2seq đã lượng tử hóa qua CTranslate2. Các lựa chọn thực tế cần benchmark trên vài chương đại diện:
+Điểm mạnh của Local MT là nhanh và miễn phí; điểm yếu là ~10% dịch sai/không hợp ngữ cảnh đô thị hiện đại và không tự trích glossary. Quy trình an toàn:
+
+1. Dịch bằng `localmt` (ghi vào nhánh `local_mt`).
+2. Dùng **AI biên tập** (hành động `ai-edit-draft`, engine rewrite chỉ đọc nhánh `local_mt`) để nắn văn phong/xưng hô và **trích glossary** từ chính bản dịch.
+3. Duyệt bản nháp AI trước khi áp.
+
+Vì AI chỉ *biên tập* (không dịch trực tiếp từ bản gốc), workflow này **không có rủi ro bản quyền**.
+
+### Workflow B — OpenAI dịch rồi Local MT clear Hán
+
+Dịch thẳng bằng `openai` cho chất lượng tốt với đa số ngữ cảnh (tùy model), nhưng đôi khi sót ký tự Hán. Bước clear Hán mặc định dùng **Local MT** (miễn phí, offline) thay vì tốn token OpenAI — xem [Clear Hán](#clear-hán-chữ-hán-còn-sót). Khi API gặp giới hạn, tận dụng **export/import** (`bulk_transfer`) để dịch/biên tập qua web chat AI miễn phí rồi nạp ngược.
+
+### Model Local MT
+
+Local MT dùng model NMT/seq2seq lượng tử hóa qua CTranslate2, chọn qua `translate.model` (preset) hoặc `translate.hachimimt.model_key`:
 
 - **HachimiMT/MoxhiMT CT2**: tích hợp sẵn, phù hợp truyện Trung → Việt và glossary hậu xử lý.
-- **OPUS-MT `zh-vi`**: model nhỏ, chạy CPU nhanh; phù hợp truyện hiện đại, câu ngắn nhưng cần kiểm tra tên riêng và xưng hô.
-- **NLLB-200 distilled 600M**: đa thể loại/ngôn ngữ hơn, nặng hơn OPUS-MT nhưng vẫn nhẹ hơn LLM sinh văn bản; nên chuyển sang CT2 và int8.
-- **M2M100 418M**: phương án đa ngôn ngữ nhỏ; chất lượng Trung → Việt tùy thể loại, cần benchmark trước khi dịch hàng loạt.
+- **HirashibaMT (Medium/Tiny)**: nhẹ hơn, benchmark trước khi dùng hàng loạt.
 
-Số tham số thấp không tự đảm bảo nhanh: backend, int8/int8-float16, chiều dài câu và CPU/GPU quyết định throughput. Không dùng model nhỏ để tự suy luận glossary phức tạp; hãy dịch thẳng, sau đó duyệt tên riêng và biên tập theo thể loại.
+Không dùng model nhỏ để tự suy luận glossary phức tạp; hãy dịch thẳng, sau đó duyệt tên riêng và biên tập theo thể loại.
 
 ## Ngữ Cảnh Dịch
 
@@ -50,10 +62,26 @@ Backend `ai.openai` phục vụ:
 - Review và rewrite bản dịch.
 - Đề xuất glossary và xử lý thay đổi cần duyệt.
 - Trích nhân vật/quan hệ theo nhóm chương.
-- Cleanup chữ Hán còn sót.
+- Clear Hán còn sót (khi `cleanup_han.engine=openai`; mặc định dùng Local MT).
 - Sửa đoạn, giải thích và ghi chú chất lượng.
 
 Đề xuất thay đổi glossary hoặc quan hệ nên được duyệt trước khi lan truyền. Các thao tác hàng loạt chạy qua job queue để có log và khả năng hủy/retry.
+
+## Clear Hán (chữ Hán còn sót)
+
+Sau khi dịch, bản Việt đôi khi còn sót ký tự Hán. Bước clear Hán quét và sửa các vùng đó, có hai engine (`translate.cleanup_han.engine`):
+
+- **`local_mt` (mặc định)**: dịch riêng từng vùng Hán bằng Local MT cục bộ, giữ nguyên phần Việt. Miễn phí, offline, không tốn token — chạy được cả với ebook dịch bằng `openai`.
+- **`openai`**: nhờ AI biên tập (`ai.openai`) sửa vùng Hán trong ngữ cảnh câu; chất lượng cao hơn nhưng tốn token và cần cấu hình AI biên tập.
+
+Bật tự động sau mỗi chương bằng `translate.auto_cleanup_han`, hoặc chạy tay: CLI `cleanup-han [--engine local_mt|openai]`, hoặc nút Clear Hán trên trình đọc/chương.
+
+## Dọn tiêu đề TOC
+
+Tiêu đề chương đôi khi dính từ rác kêu gọi độc giả ("(Cầu nguyệt phiếu)", "cầu vé tháng", `求月票`...). Hàm `toc.strip_toc_junk` loại chúng mà giữ nguyên số chương:
+
+- **Tự động**: chạy trong `_clean_title` mỗi khi dịch/dịch lại tiêu đề.
+- **Thủ công**: nút "Dọn TOC (từ rác)" trong SPA (`batch/clean-toc`) hoặc CLI `clean-toc [--apply]` (mặc định chỉ preview) để dọn dữ liệu tiêu đề cũ.
 
 ### Trích xuất tên riêng từ raw
 

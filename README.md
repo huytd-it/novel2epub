@@ -36,7 +36,7 @@ python scripts/init_db.py
 
 Linux/macOS dùng `source .venv/bin/activate` thay cho lệnh kích hoạt PowerShell.
 
-HachimiMT là backend tùy chọn:
+Local MT (`translate.type=localmt`) là backend cục bộ tùy chọn:
 
 ```sh
 pip install ctranslate2 sentencepiece huggingface_hub

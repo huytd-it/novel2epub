@@ -1,9 +1,12 @@
 """Các bộ dịch Trung -> Việt (pluggable).
 
-- OpenAITranslator: gọi AI qua HTTP theo chuẩn OpenAI-Compatible (OpenAI,
-  OpenRouter, Ollama, LM Studio, vLLM, llama.cpp server, ...).
-- GoogleTranslator: Google Translate miễn phí qua deep-translator (chunk 4500 ký tự).
-- NoopTranslator: trả nguyên văn (dùng để test pipeline mà không tốn chi phí).
+Chỉ còn HAI con đường dịch có giá trị:
+
+- OpenAITranslator (type=openai): gọi AI qua HTTP theo chuẩn OpenAI-Compatible
+  (OpenAI, OpenRouter, Ollama, LM Studio, vLLM, llama.cpp server, ...).
+- LocalMTTranslator (type=localmt): dịch cục bộ bằng NMT (CTranslate2 +
+  SentencePiece) qua package novel2epub.hachimimt — nhanh, miễn phí, offline.
+- NoopTranslator (type=none / source_language=vi): trả nguyên văn.
 """
 from __future__ import annotations
 
@@ -17,7 +20,7 @@ from . import characters as characters_mod
 from . import genre as genre_mod
 from . import idioms as idioms_mod
 from . import openai_client
-from .config import LibreTranslateConfig, TranslateConfig
+from .config import TranslateConfig
 from .idioms import Idiom
 from .storage import Storage, normalize_glossary_pending, parse_glossary_line
 
@@ -183,15 +186,6 @@ def _apply_glossary(text: str, glossary: dict[str, str]) -> str:
         if zh and vi:
             text = text.replace(zh, vi)
     return text
-
-
-def _merge_glossaries(*parts: dict[str, str]) -> dict[str, str]:
-    merged: dict[str, str] = {}
-    for part in parts:
-        for zh, vi in part.items():
-            if zh and vi:
-                merged[zh] = vi
-    return merged
 
 
 def load_glossary_dict(cfg: TranslateConfig, storage: "Storage | None" = None) -> dict[str, str]:
@@ -716,56 +710,7 @@ class OpenAITranslator:
         return result
 
 
-class GoogleTranslator:
-    MAX_CHARS = 4500
-
-    def __init__(self, cfg: TranslateConfig, storage: "Storage | None" = None):
-        self.cfg = cfg
-        self.glossary = load_glossary_dict(cfg, storage) if storage is not None else _merge_glossaries(cfg.glossary)
-        try:
-            from deep_translator import GoogleTranslator as _G
-        except ImportError as e:  # pragma: no cover
-            raise ImportError(
-                "Chưa cài deep-translator. Chạy: pip install deep-translator"
-            ) from e
-        self._engine = _G(source="zh-CN", target="vi")
-
-    def _chunks(self, text: str):
-        buf = ""
-        for para in text.split("\n"):
-            # +1 cho ký tự xuống dòng sẽ nối lại
-            if len(buf) + len(para) + 1 > self.MAX_CHARS and buf:
-                yield buf
-                buf = ""
-            buf = f"{buf}\n{para}" if buf else para
-        if buf:
-            yield buf
-
-    def translate(
-        self,
-        text: str,
-        *,
-        chapter_idx: int | None = None,
-        on_chunk: Callable[[int, int, str, bool], None] | None = None,
-        on_glossary: Callable[[list[dict]], None] | None = None,
-    ) -> str:
-        if not text.strip():
-            return text
-        chunks = list(self._chunks(text))
-        total = len(chunks)
-        parts: list[str] = []
-        for i, chunk in enumerate(chunks, 1):
-            part = self._engine.translate(chunk) or ""
-            parts.append(part)
-            if on_chunk is not None:
-                on_chunk(i, total, part, i == total)
-        return _apply_glossary("\n".join(parts), self.glossary)
-
-    def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
-        return self.translate(text), ""
-
-
-class HachimiMTTranslator:
+class LocalMTTranslator:
     """Dịch Trung→Việt cục bộ bằng NMT (CTranslate2 + SentencePiece).
 
     Wrapper xung quanh HachimiTranslator từ novel2epub.hachimimt, cung cấp
@@ -838,60 +783,9 @@ class HachimiMTTranslator:
         return result
 
 
-class LibreTranslateTranslator:
-    """Dịch bằng LibreTranslate API (self-hosted).
-
-    Gọi `POST /translate` của LibreTranslate server. Phù hợp cho dịch metadata
-    ngắn (title, author, description) — nhanh, không tốn token LLM.
-    """
-
-    def __init__(self, cfg: TranslateConfig, storage: "Storage | None" = None):
-        self.cfg = cfg
-        self.lt = cfg.libretranslate
-        self.glossary = load_glossary_dict(cfg, storage) if storage is not None else _merge_glossaries(cfg.glossary)
-
-    def _translate_text(self, text: str) -> str:
-        import requests
-
-        url = f"{self.lt.base_url.rstrip('/')}/translate"
-        payload: dict[str, Any] = {
-            "q": text,
-            "source": self.lt.source_language,
-            "target": self.lt.target_language,
-            "format": "text",
-        }
-        headers: dict[str, str] = {}
-        if self.lt.api_key:
-            headers["Authorization"] = f"Bearer {self.lt.api_key}"
-
-        resp = requests.post(url, json=payload, headers=headers, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        return data.get("translatedText", "")
-
-    def translate(
-        self,
-        text: str,
-        *,
-        chapter_idx: int | None = None,
-        on_chunk: Callable[[int, int, str, bool], None] | None = None,
-        on_glossary: Callable[[list[dict]], None] | None = None,
-    ) -> str:
-        if not text.strip():
-            if on_chunk is not None:
-                on_chunk(1, 1, text, True)
-            return text
-        translated = self._translate_text(text)
-        out = _apply_glossary(translated, self.glossary)
-        if on_chunk is not None:
-            on_chunk(1, 1, out, True)
-        return out
-
-    def translate_title(self, text: str, kind: str = "tên chương") -> tuple[str, str]:
-        if not text.strip():
-            return text, ""
-        translated = self._translate_text(text)
-        return _apply_glossary(translated, self.glossary), ""
+# Alias tương thích ngược: tên cũ khi engine cục bộ còn gọi là "hachimimt".
+# Code mới nên dùng LocalMTTranslator.
+HachimiMTTranslator = LocalMTTranslator
 
 
 def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = None, storage: "Storage | None" = None) -> Translator:
@@ -905,15 +799,13 @@ def make_translator(cfg: TranslateConfig, log: Callable[[str], None] | None = No
         return NoopTranslator()
     if kind == "openai":
         return OpenAITranslator(cfg, log=log, storage=storage)
-    if kind == "google":
-        return GoogleTranslator(cfg, storage=storage)
-    if kind in ("hachimimt", "moxhimt"):
-        return HachimiMTTranslator(cfg, log=log, storage=storage)
-    if kind == "libretranslate":
-        return LibreTranslateTranslator(cfg, storage=storage)
+    # `localmt` là tên chính thức; `hachimimt`/`moxhimt` giữ như alias phòng thủ
+    # cho config cũ chưa migrate (load_config + migration v12 chuẩn hóa về localmt).
+    if kind in ("localmt", "hachimimt", "moxhimt"):
+        return LocalMTTranslator(cfg, log=log, storage=storage)
     if kind == "none":
         return NoopTranslator()
-    raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (openai|google|hachimimt|none)")
+    raise ValueError(f"translate.type không hợp lệ: {cfg.type!r} (openai|localmt|none)")
 
 
 class RateLimited:

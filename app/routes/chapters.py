@@ -220,7 +220,7 @@ def ebook_chapter_save(slug: str, index: int, translated: str = Form(...)):
 
 
 @router.post("/ebooks/{slug}/chapters/{index}/action")
-def ebook_chapter_action(request: Request, slug: str, index: int, action: str = Form(...), override: bool = Form(False), translate_backend: str = Form("hachimimt")):
+def ebook_chapter_action(request: Request, slug: str, index: int, action: str = Form(...), override: bool = Form(False), translate_backend: str = Form("localmt")):
     cfg = deps.resolved_cfg(slug)
     if action == "translate" and translate_backend:
         cfg.translate.type = translate_backend
@@ -619,6 +619,24 @@ async def api_batch_clean_raw(slug: str, indexes: str = Form(...)):
             storage.write_raw(ch, "")
             deleted += 1
     return JSONResponse({"deleted": deleted})
+
+
+@router.post("/api/ebooks/{slug}/batch/clean-toc")
+async def api_batch_clean_toc(slug: str, indexes: str = Form(""), apply: bool = Form(True)):
+    """Dọn từ rác kêu gọi độc giả (cầu nguyệt phiếu, 求月票…) khỏi tiêu đề chương.
+
+    Đồng bộ, không gọi model. `indexes` trống = quét toàn bộ manifest.
+    apply=True (mặc định): ghi manifest; apply=False: chỉ preview."""
+    from novel2epub.pipeline import step_clean_toc_titles
+
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    result = step_clean_toc_titles(
+        cfg,
+        selected_indexes=index_list or None,
+        apply=apply,
+    )
+    return JSONResponse(result)
 
 
 @router.post("/api/ebooks/{slug}/batch/update-skip")

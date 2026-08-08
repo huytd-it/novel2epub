@@ -192,14 +192,9 @@
         {% if cfg.translate.type == "openai" %}
             <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded" title="base_url: {{ cfg.translate.openai.base_url }}&#10;model: {{ cfg.translate.openai.model }}">{{ cfg.translate.openai.model or "(chưa chọn)" }}</code>
             {% if cfg.translate.openai.base_url %}<span class="text-fg-muted dark:text-fg-muted-dark"> @ {{ cfg.translate.openai.base_url | short_host }}</span>{% endif %}
-        {% elif cfg.translate.type in ("hachimimt", "moxhimt") %}
-            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded" title="Local NMT model_key: {{ cfg.translate.hachimimt.model_key }}&#10;backend: {{ cfg.translate.hachimimt.backend }}">{{ cfg.translate.model or cfg.translate.hachimimt.model_key }}</code>
-            <span class="text-fg-muted dark:text-fg-muted-dark">(local NMT)</span>
-        {% elif cfg.translate.type == "google" %}
-            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">Google Translate</code>
-        {% elif cfg.translate.type == "libretranslate" %}
-            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">LibreTranslate</code>
-            {% if cfg.translate.libretranslate.base_url %}<span class="text-fg-muted dark:text-fg-muted-dark"> @ {{ cfg.translate.libretranslate.base_url | short_host }}</span>{% endif %}
+        {% elif cfg.translate.type in ("localmt", "hachimimt", "moxhimt") %}
+            <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded" title="Local MT model_key: {{ cfg.translate.hachimimt.model_key }}&#10;backend: {{ cfg.translate.hachimimt.backend }}">{{ cfg.translate.model or cfg.translate.hachimimt.model_key }}</code>
+            <span class="text-fg-muted dark:text-fg-muted-dark">(Local MT)</span>
         {% elif cfg.translate.type == "none" %}
             <code class="bg-surface-muted dark:bg-surface-muted-dark px-1 py-0.5 rounded">noop</code>
         {% else %}
@@ -511,7 +506,7 @@
                 <span class="label">Backend</span>
                 <select id="selected-ai-backend" class="select">
                     <option value="openai">OpenAI</option>
-                    <option value="hachimimt">Local NMT</option>
+                    <option value="localmt">Local MT</option>
                 </select>
             </label>
             <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" id="selected-ai-override" class="rounded border-surface-border dark:border-surface-border-dark"> Ghi đè dữ liệu hiện có</label>

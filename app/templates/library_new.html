@@ -222,7 +222,7 @@
                             <td class="pv-cell-value">
                                 <code>{{ cfg.translate.type }}</code>
                                 {% if cfg.translate.type == "openai" %} — {{ cfg.translate.openai.model }} @ {{ cfg.translate.openai.base_url|short_host }}
-                                {% elif cfg.translate.type in ("hachimimt", "moxhimt") %} — {{ cfg.translate.hachimimt.model_key }} (local, offline)
+                                {% elif cfg.translate.type in ("localmt", "hachimimt", "moxhimt") %} — {{ cfg.translate.hachimimt.model_key }} (Local MT, offline)
                                 {% endif %}
                                 · workers: {{ cfg.translate.max_workers }} · batch: {{ cfg.translate.batch_size }}
                             </td>

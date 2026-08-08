@@ -13,7 +13,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Any, Callable
 
 from .bulk_transfer import ensure_title_number
 from .config import Config, CrawlRetryConfig
@@ -21,7 +21,7 @@ from .crawl_throttle import AdaptiveConcurrency, DomainRateLimiter
 from .crawler import ScraplingCrawler, is_rate_limited
 from .epub_builder import build_epub
 from .storage import Chapter, Manifest, Storage
-from .toc import chapter_title_key, mark_duplicate_chapters
+from .toc import chapter_title_key, mark_duplicate_chapters, strip_toc_junk
 from .translator import RateLimited, make_translator
 from . import han_cleanup
 from . import revisions
@@ -119,9 +119,9 @@ def _emit_translate_config(cfg: Config, log: LogFn, *, feature: str = "DỊCH") 
         f"(chờ {t.retry.delay_seconds}s)")
     log(f"[config] {feature} glossary: names={_fmt(t.glossary_files.names)} "
         f"| vietphrase={_fmt(t.glossary_files.vietphrase)}")
-    if t.type.lower() in ("hachimimt", "moxhimt"):
+    if t.type.lower() in ("localmt", "hachimimt", "moxhimt"):
         m = t.hachimimt
-        log(f"[config] {feature} hachimimt: model_key={m.model_key} | beam={m.beam_size} "
+        log(f"[config] {feature} localmt: model_key={m.model_key} | beam={m.beam_size} "
             f"| backend={m.backend} | chunk_mode={m.chunk_mode}")
 
 
@@ -169,7 +169,8 @@ def _log_chapter_done(log: LogFn, prefix: str, title: str, elapsed: float, trans
 
 
 def _clean_title(vi: str) -> str:
-    """Chuẩn hóa tiền tố số chương bị LLM bỏ sót dạng Hán (第N章/卷/回).
+    """Chuẩn hóa tiền tố số chương bị LLM bỏ sót dạng Hán (第N章/卷/回) và bỏ
+    từ rác kêu gọi độc giả (cầu nguyệt phiếu, 求月票...).
 
     Dịch số chương bằng regex cho chắc chắn, không phụ thuộc LLM. Hỗ trợ chữ số
     Ả Rập (第2章) — đủ cho phần lớn site. Các nhãn đặc biệt cũng được Việt hóa.
@@ -181,15 +182,8 @@ def _clean_title(vi: str) -> str:
     vi = re.sub(r"第\s*(\d+)\s*卷", r"Quyển \1", vi)
     vi = re.sub(r"第\s*(\d+)\s*回", r"Hồi \1", vi)
     vi = vi.replace("楔子", "Mở đầu").replace("序章", "Khúc dạo đầu")
-    vi = re.sub(
-        r"\s*(?:[（(【\[]\s*)?"
-        r"(?:cầu|xin)\s+(?:(?:vé|phiếu)\s+)?"
-        r"(?:tháng|đề\s*cử|giới\s*thiệu|ủng\s*hộ|bình\s*chọn|phiếu|vé)"
-        r"(?:\s*[!！~～]*)\s*(?:[）)】\]])?\s*$",
-        "",
-        vi,
-        flags=re.IGNORECASE,
-    )
+    # Bỏ từ rác cầu phiếu/đề cử (bản Việt lẫn Hán thô) — xem toc.strip_toc_junk.
+    vi = strip_toc_junk(vi)
     vi = re.sub(r"\s*[:：\-–—,，;；]+\s*$", "", vi)
     return vi.strip()
 
@@ -287,21 +281,14 @@ def _resolve_translator_model(cfg: Config) -> str:
     """Tên model/backend thực sự dùng để dịch, gắn với translator type hiện tại.
 
     - openai: trả về model id thật (vd opencode-go/kimi-k2.6)
-    - hachimimt/moxhimt: trả về hachimimt.model_key (vd HachimiMT-60)
-    - libretranslate: trả về tên + base_url nếu có
-    - google: "google-translate"
+    - localmt (legacy hachimimt/moxhimt): trả về hachimimt.model_key (vd HachimiMT-60)
     - none: "noop"
     """
     t = (cfg.translate.type or "").lower()
     if t == "openai":
         return cfg.translate.openai.model
-    if t in ("hachimimt", "moxhimt"):
+    if t in ("localmt", "hachimimt", "moxhimt"):
         return cfg.translate.hachimimt.model_key
-    if t == "libretranslate":
-        base = cfg.translate.libretranslate.base_url or ""
-        return f"libretranslate@{base}" if base else "libretranslate"
-    if t == "google":
-        return "google-translate"
     if t == "none":
         return "noop"
     return t or "unknown"
@@ -802,6 +789,44 @@ def _batch_translate_titles(
     return dict(zip(indexes, translated))
 
 
+# Cache Local MT translator cho clear Hán — model CT2 nặng, tải một lần và
+# dùng lại cho mọi chương trong job (kể cả khi backend dịch chính là OpenAI).
+_han_local_mt_lock = threading.Lock()
+_han_local_mt_cache: dict[str, Any] = {}
+
+
+def _get_han_local_mt(cfg: Config, storage: Storage):
+    """Trả (và cache) một LocalMTTranslator để clear Hán, theo model_key + slug."""
+    from .translator import LocalMTTranslator
+
+    key = f"{cfg.translate.hachimimt.model_key}:{cfg.novel.slug}"
+    with _han_local_mt_lock:
+        translator = _han_local_mt_cache.get(key)
+        if translator is None:
+            translator = LocalMTTranslator(cfg.translate, storage=storage)
+            _han_local_mt_cache[key] = translator
+        return translator
+
+
+def _run_han_cleanup(
+    cfg: Config, storage: Storage, ch: Chapter, raw: str, translated: str, log: LogFn
+) -> tuple[str, int, list[str]]:
+    """Clear Hán theo engine cấu hình (`cfg.translate.cleanup_han.engine`).
+
+    - local_mt (mặc định): dịch riêng từng vùng Hán bằng Local MT cục bộ.
+    - openai: nhờ AI biên tập (ai.openai) sửa vùng Hán trong ngữ cảnh câu.
+    Trả (bản đã sửa, số chỗ sửa, warnings)."""
+    cleanup_cfg = cfg.translate.cleanup_han
+    if cleanup_cfg.engine == "openai":
+        return han_cleanup.cleanup_chapter(
+            raw, translated, cfg.ai.openai, log,
+            max_chars=cleanup_cfg.max_chars,
+            retries=cleanup_cfg.retries,
+        )
+    cleaner = _get_han_local_mt(cfg, storage)
+    return han_cleanup.cleanup_han_with_local_mt(translated, cleaner.translate, log)
+
+
 def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, *, should_cancel: CancelFn | None = None, branch: str = revisions.BRANCH_AI) -> tuple[str, bool]:
     """Dịch 1 chương: tiêu đề được prepend vào đầu content và dịch CHUNG trong
     cùng lời gọi AI (giống bulk-transfer `## idx:N: title` + body) — tiêu đề
@@ -935,20 +960,22 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
         _maybe_extract_chapter_glossary(cfg, translator, storage, ch, chapter_glossary, log, i, total)
 
     # Auto-cleanup Hán: rà soát bản dịch, sửa chữ Hán còn sót.
-    # Dùng config AI biên tập (ai.openai) — chạy được với mọi backend dịch.
+    # Engine mặc định là Local MT (miễn phí, offline); có thể đổi sang openai.
     # EN source: meaningless (source has no Chinese characters).
+    _cleanup_engine = cfg.translate.cleanup_han.engine
+    _cleanup_ready = (
+        _cleanup_engine != "openai"
+        or (cfg.ai.openai.base_url or cfg.ai.openai.api_key)
+    )
     if (
         cfg.translate.auto_cleanup_han
         and not is_noop
         and cfg.translate.source_language != "en"
-        and (cfg.ai.openai.base_url or cfg.ai.openai.api_key)
+        and _cleanup_ready
     ):
         try:
-            cleanup_cfg = cfg.translate.cleanup_han
-            cleaned, fixed_count, cleanup_warnings = han_cleanup.cleanup_chapter(
-                raw, translated, cfg.ai.openai, log,
-                max_chars=cleanup_cfg.max_chars,
-                retries=cleanup_cfg.retries,
+            cleaned, fixed_count, cleanup_warnings = _run_han_cleanup(
+                cfg, storage, ch, raw, translated, log
             )
             han_before_cleanup = han_cleanup.count_han(translated)
             han_after_cleanup = han_cleanup.count_han(cleaned)
@@ -1030,8 +1057,8 @@ def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Mani
 def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool, should_cancel: CancelFn | None = None, branch: str = revisions.BRANCH_AI) -> tuple[int, int, int, bool]:
     """Dịch nhiều chương song song. Translator được dùng chung giữa các luồng:
     OpenAITranslator chỉ gửi 1 HTTP request riêng mỗi lần gọi (không state dùng
-    chung), GoogleTranslator gọi HTTP riêng mỗi lần — cả hai an toàn gọi đồng
-    thời. Không dừng sớm khi 1 chương lỗi (các chương khác đã đang chạy song
+    chung) nên an toàn gọi đồng thời (Local MT chạy tuần tự, workers=1).
+    Không dừng sớm khi 1 chương lỗi (các chương khác đã đang chạy song
     song); chỉ raise nếu TẤT CẢ chương trong batch đều lỗi.
 
     Streaming: mỗi worker chỉ xử lý 1 chapter tại 1 thời điểm (`pool.map`
@@ -1139,7 +1166,7 @@ def step_translate_selected(
     # Local NMT song song hóa qua CT2 inter/intra threads + translate_batch nội
     # bộ mỗi chương; không fan-out luồng Python mỗi chương để tránh
     # oversubscription nhân CPU.
-    if cfg.translate.type.lower() in ("hachimimt", "moxhimt"):
+    if cfg.translate.type.lower() in ("localmt", "hachimimt", "moxhimt"):
         workers = 1
     else:
         workers = max(1, int(cfg.translate.max_workers))
@@ -1251,13 +1278,26 @@ def step_cleanup_han_selected(
     force: bool = False,
     selected_indexes: list[int] | None = None,
     should_cancel: CancelFn | None = None,
+    engine: str | None = None,
 ) -> Manifest:
     """Rà soát các chương đã dịch, phát hiện và sửa chữ Hán còn sót.
 
-    Dùng config AI biên tập (ai.openai) — không phụ thuộc backend dịch, nên
-    chạy được cả khi dịch bằng moxhimt/hachimimt. Bỏ qua chương chưa có bản dịch.
-    Nếu force=True, quét lại cả chương đã được cleanup trước đó.
+    `engine` (mặc định lấy `cfg.translate.cleanup_han.engine`, mặc định
+    `local_mt`): `local_mt` → dịch riêng vùng Hán bằng Local MT cục bộ (miễn
+    phí, offline) qua `step_cleanup_han_local_mt_selected`; `openai` → nhờ AI
+    biên tập (ai.openai). Bỏ qua chương chưa có bản dịch. force=True quét lại
+    cả chương đã cleanup.
     """
+    resolved_engine = (engine or cfg.translate.cleanup_han.engine or "local_mt").lower()
+    if resolved_engine != "openai":
+        # Local MT không cần ai.openai; ủy quyền cho implementation cục bộ.
+        return step_cleanup_han_local_mt_selected(
+            cfg, log,
+            chapter=chapter,
+            selected_indexes=selected_indexes,
+            should_cancel=should_cancel,
+        )
+
     _emit_config_warnings(cfg, log)
     ai_cfg = cfg.ai.openai
     log(f"[config] CLEANUP HÁN dùng AI biên tập: base_url={ai_cfg.base_url!r} "
@@ -1356,15 +1396,15 @@ def step_cleanup_han_local_mt_selected(
     selected_indexes: list[int] | None = None,
     should_cancel: CancelFn | None = None,
 ) -> Manifest:
-    """Clear vùng chữ Hán bằng HachimiMT/MoxhiMT cục bộ, không sửa phần Việt."""
-    from .translator import HachimiMTTranslator
+    """Clear vùng chữ Hán bằng Local MT cục bộ, không sửa phần Việt."""
+    from .translator import LocalMTTranslator
 
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
         raise RuntimeError("Chưa có manifest.")
     selected = _chapter_selection(manifest.chapters, chapter, None, None, selected_indexes)
-    translator = HachimiMTTranslator(cfg.translate, storage=storage)
+    translator = LocalMTTranslator(cfg.translate, storage=storage)
     total_fixed = 0
     for position, ch in enumerate(selected, 1):
         if should_cancel and should_cancel():
@@ -1452,6 +1492,58 @@ def step_translate_toc_selected(
     else:
         log("[toc] Không có tiêu đề nào thay đổi.")
     return manifest
+
+
+def step_clean_toc_titles(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    selected_indexes: list[int] | None = None,
+    apply: bool = False,
+    should_cancel: CancelFn | None = None,
+) -> dict:
+    """Quét tiêu đề chương, loại từ rác kêu gọi độc giả (cầu nguyệt phiếu,
+    cầu vé tháng, 求月票…) bằng `toc.strip_toc_junk`, không đụng số chương.
+
+    `apply=False` (mặc định): CHỈ preview — trả danh sách thay đổi, không ghi.
+    `apply=True`: ghi manifest cho những tiêu đề thực sự đổi.
+
+    Trả `{scanned, changed, changes: [{index, old, new}], applied}`.
+    """
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    selected = _chapter_selection(manifest.chapters, None, None, None, selected_indexes)
+    changes: list[dict] = []
+    for ch in selected:
+        if should_cancel and should_cancel():
+            log(f"[clean-toc] Đã dừng theo yêu cầu — đã quét {len(changes)} thay đổi.")
+            break
+        old = ch.title or ""
+        new = strip_toc_junk(old)
+        if new != old:
+            changes.append({"index": ch.index, "old": old, "new": new})
+
+    applied = 0
+    if apply and changes:
+        by_index = {c["index"]: c["new"] for c in changes}
+        for ch in selected:
+            if ch.index in by_index:
+                ch.title = by_index[ch.index]
+                storage.save_chapter(ch)
+                applied += 1
+
+    verb = "Đã dọn" if apply else "Preview"
+    log(f"[clean-toc] {verb}: {len(changes)} tiêu đề dính từ rác / {len(selected)} chương quét"
+        + (f", ghi {applied}." if apply else "."))
+    return {
+        "scanned": len(selected),
+        "changed": len(changes),
+        "changes": changes,
+        "applied": applied,
+    }
 
 
 def step_rewrite_chapters(
@@ -1879,10 +1971,13 @@ def step_confirm_revisions_bulk(cfg: Config, log: LogFn = _print, *, revision_id
 
 
 def _classify_translate_type(translate_type: str) -> str:
-    """Phân loại engine dịch của ebook: `local_mt` (hachimimt/moxhimt),
-    `ai` (openai/google/libretranslate), còn lại `legacy_unclassified`."""
+    """Phân loại engine dịch của ebook: `local_mt` (localmt; legacy
+    hachimimt/moxhimt), `ai` (openai), còn lại `legacy_unclassified`.
+
+    google/libretranslate đã gỡ; DB cũ còn giá trị đó được migrate → openai
+    nên xếp vào nhóm `ai`."""
     t = (translate_type or "").lower()
-    if t in ("hachimimt", "moxhimt"):
+    if t in ("localmt", "hachimimt", "moxhimt"):
         return "local_mt"
     if t in ("openai", "google", "libretranslate", "ai"):
         return "ai"
@@ -1893,8 +1988,8 @@ def step_migrate_legacy_revisions(cfg: Config, log: LogFn = _print, *, selected_
     """Nâng bản nháp legacy (meta['ai_rewrite'] chưa có `revision_id`) thành
     candidate trong `ai_revisions` — KHÔNG xoá dữ liệu gốc. Idempotent.
 
-    Ngoài ra phân loại engine (`hachimimt`/`moxhimt` → local_mt, các engine
-    cloud → ai) và — khi an toàn (nhánh local_mt rỗng) — copy bản dịch máy/
+    Ngoài ra phân loại engine (`localmt` → local_mt, `openai` → ai) và — khi
+    an toàn (nhánh local_mt rỗng) — copy bản dịch máy/
     nội dung/title legacy vào nhánh local_mt để workflow nhánh mới có dữ liệu.
     Trả báo cáo `{chapters, legacy, migrated, remaining, unclassified}`."""
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -2174,8 +2269,7 @@ def step_retranslate_title(
     """Dịch lại tiêu đề chương dùng nội dung đã dịch làm ngữ cảnh.
 
     Trả dict {title_vi, title_note, title, title_description}.
-    engine: "openai" | "google" | "hachimimt" | "moxhimt" | "libretranslate"
-    (default: cfg.translate.type)
+    engine: "openai" | "localmt" (default: cfg.translate.type)
     """
 
     from .openai_client import run_chat
@@ -2254,9 +2348,9 @@ def step_retranslate_title(
             cfg.translate.openai.model = orig_model
         title_vi, title_note = _parse_title_response(raw)
         title_vi = _clean_title(title_vi)
-    elif selected_engine in ("google", "hachimimt", "moxhimt", "libretranslate"):
-        # MT không hiểu instruction: chỉ gửi nguyên văn tiêu đề nguồn, tương tự
-        # Google Translate. Config phải dùng đúng engine người dùng đã chọn.
+    elif selected_engine in ("localmt", "hachimimt", "moxhimt"):
+        # Local MT không hiểu instruction: chỉ gửi nguyên văn tiêu đề nguồn.
+        # Config phải dùng đúng engine người dùng đã chọn.
         mt_cfg = replace(cfg.translate, type=selected_engine)
         translator = make_translator(mt_cfg, storage=storage)
         title_vi, title_note = translator.translate_title(zh_title)

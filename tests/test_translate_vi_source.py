@@ -47,7 +47,7 @@ def test_make_translator_vi_source_returns_noop():
 
 
 def test_make_translator_vi_source_case_insensitive():
-    cfg = TranslateConfig(type="google", source_language=" VI ")
+    cfg = TranslateConfig(type="localmt", source_language=" VI ")
     assert isinstance(make_translator(cfg), NoopTranslator)
 
 

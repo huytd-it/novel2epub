@@ -8,12 +8,12 @@
         <label class="flex flex-col gap-1 text-sm min-w-0"> Loại backend
             <select name="type"
                 class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.type, 'translate', 'type') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
-                {% for opt in ["hachimimt", "openai"] %}
-                <option value="{{ opt }}" {% if cfg.translate.type == opt %}selected{% endif %}>{{ opt }}</option>
+                {% for opt in [["localmt", "Local MT (cục bộ)"], ["openai", "OpenAI (API)"]] %}
+                <option value="{{ opt[0] }}" {% if cfg.translate.type == opt[0] %}selected{% endif %}>{{ opt[1] }}</option>
                 {% endfor %}
             </select>
             {% if is_default(cfg.translate.type, 'translate', 'type') %}
-            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: hachimimt</span>
+            <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: {{ cfg.translate.type }}</span>
             {% endif %}
         </label>
         <label class="flex flex-col gap-1 text-sm min-w-0"> delay_seconds
@@ -291,7 +291,14 @@
             <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: tắt</span>
             {% endif %}
         </label>
-        <label class="flex flex-col gap-1 text-sm min-w-0"> cleanup_han max_chars (0 = không giới hạn)
+        <label class="flex flex-col gap-1 text-sm min-w-0"> cleanup_han engine
+            <select name="cleanup_han_engine"
+                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+                <option value="local_mt" {% if cfg.translate.cleanup_han.engine != "openai" %}selected{% endif %}>Local MT (miễn phí, offline)</option>
+                <option value="openai" {% if cfg.translate.cleanup_han.engine == "openai" %}selected{% endif %}>OpenAI (AI biên tập)</option>
+            </select>
+        </label>
+        <label class="flex flex-col gap-1 text-sm min-w-0"> cleanup_han max_chars (0 = không giới hạn, chỉ OpenAI)
             <input type="number" name="cleanup_han_max_chars" value="{{ cfg.translate.cleanup_han.max_chars }}" min="0"
                 class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
             <span class="text-xs italic text-muted-light dark:text-muted-dark">Mặc định: 15000</span>
@@ -303,7 +310,7 @@
         </label>
     </div>
     <p class="text-sm text-muted-light dark:text-muted-dark px-3 pb-2">
-        <strong>auto_cleanup_han</strong>: sau mỗi chương dịch xong, tự phát hiện chữ Hán còn sót và gọi AI biên tập (<code>ai.openai</code>) sửa lại — hoạt động với mọi backend dịch.
+        <strong>auto_cleanup_han</strong>: sau mỗi chương dịch xong, tự phát hiện chữ Hán còn sót và dọn lại. <strong>engine</strong>: Local MT (mặc định, miễn phí, offline) dịch riêng từng vùng Hán; hoặc OpenAI (<code>ai.openai</code>) biên tập trong ngữ cảnh câu (tốn token).
     </p>
 </details>
 
@@ -342,6 +349,7 @@
   prompt_max_chars: {{ cfg.translate.prompt_max_chars }}
   auto_cleanup_han: {{ cfg.translate.auto_cleanup_han }}
   cleanup_han:
+    engine: {{ cfg.translate.cleanup_han.engine }}
     max_chars: {{ cfg.translate.cleanup_han.max_chars }}
     retries: {{ cfg.translate.cleanup_han.retries }}</code></pre>
 </div>

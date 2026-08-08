@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -675,11 +675,70 @@ def _migration_noop(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
 
+# Ánh xạ đổi tên/gỡ engine dịch: google/libretranslate (đã gỡ) → openai;
+# hachimimt/moxhimt → localmt (tên chính thức của Local MT).
+_TRANSLATE_TYPE_REWRITE = {
+    "google": "openai",
+    "libretranslate": "openai",
+    "hachimimt": "localmt",
+    "moxhimt": "localmt",
+}
+
+
+def _rewrite_translate_type(json_text: str | None) -> str | None:
+    """Rewrite khoá `type` trong một khối translate JSON. Trả JSON mới nếu có
+    thay đổi, ngược lại trả None (caller bỏ qua để không ghi thừa)."""
+    if not json_text:
+        return None
+    try:
+        data = json.loads(json_text)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    old = data.get("type")
+    new = _TRANSLATE_TYPE_REWRITE.get(str(old or "").lower())
+    changed = False
+    if new and new != old:
+        data["type"] = new
+        changed = True
+    # `libretranslate` sub-block cũng đã gỡ khỏi config — dọn luôn nếu còn.
+    if data.pop("libretranslate", None) is not None:
+        changed = True
+    return json.dumps(data, ensure_ascii=False) if changed else None
+
+
+def _migration_v12(conn: sqlite3.Connection) -> None:
+    """Đổi tên engine dịch đã lưu: google/libretranslate → openai,
+    hachimimt/moxhimt → localmt. Rewrite `settings.translate_json` (id=1) và
+    `ebooks.translate_overrides_json`. Giữ nguyên mọi field khác."""
+    _ensure_columns(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+    row = conn.execute("SELECT translate_json FROM settings WHERE id = 1").fetchone()
+    if row is not None:
+        new_text = _rewrite_translate_type(row["translate_json"] if hasattr(row, "keys") else row[0])
+        if new_text is not None:
+            conn.execute("UPDATE settings SET translate_json = ? WHERE id = 1", (new_text,))
+
+    for r in conn.execute("SELECT slug, translate_overrides_json FROM ebooks").fetchall():
+        slug = r["slug"] if hasattr(r, "keys") else r[0]
+        current = r["translate_overrides_json"] if hasattr(r, "keys") else r[1]
+        new_text = _rewrite_translate_type(current)
+        if new_text is not None:
+            conn.execute(
+                "UPDATE ebooks SET translate_overrides_json = ? WHERE slug = ?",
+                (new_text, slug),
+            )
+
+
 _MIGRATIONS = {
     8: _migration_noop,
     9: _migration_noop,
     10: _migration_v10,
     11: _migration_v11,
+    12: _migration_v12,
 }
 
 

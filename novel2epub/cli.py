@@ -10,6 +10,7 @@ from .config import load_config, load_library, CrawlConfig
 from .pipeline import (
     run_all,
     step_build,
+    step_clean_toc_titles,
     step_cleanup_han_selected,
     step_crawl,
     step_crawl_selected,
@@ -221,6 +222,8 @@ def main(argv: list[str] | None = None) -> int:
     crawl_parser.add_argument("--range", dest="visible_range", default="", help="Chọn range theo danh sách đang sort/filter, ví dụ 1:3")
     sub.add_parser("translate", help="Dịch các chương đã crawl sang tiếng Việt")
     sub.add_parser("toc", help="Lấy mục lục, không crawl nội dung chương")
+    clean_toc_parser = sub.add_parser("clean-toc", help="Dọn từ rác kêu gọi độc giả (cầu nguyệt phiếu, 求月票…) khỏi tiêu đề chương")
+    clean_toc_parser.add_argument("--apply", action="store_true", help="Ghi thay đổi (mặc định chỉ preview, không sửa)")
     chapters_parser = sub.add_parser("chapters", help="Liệt kê chương với sort/search/filter")
     chapters_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Khóa sắp xếp")
     chapters_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort")
@@ -238,7 +241,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("reindex", help="Đánh lại index theo thứ tự chapters trong manifest")
     sub.add_parser("build", help="Đóng gói EPUB từ các chương đã dịch")
     sub.add_parser("run", help="Chạy toàn bộ: crawl -> translate -> build")
-    cleanup_parser = sub.add_parser("cleanup-han", help="Phát hiện và sửa chữ Hán còn sót trong bản dịch (chỉ openai)")
+    cleanup_parser = sub.add_parser("cleanup-han", help="Phát hiện và sửa chữ Hán còn sót trong bản dịch (mặc định Local MT)")
+    cleanup_parser.add_argument("--engine", default="", choices=["", "local_mt", "openai"], help="Engine dọn Hán: local_mt (mặc định) hoặc openai. Trống = theo cấu hình ebook")
     cleanup_parser.add_argument("--force", action="store_true", help="Chạy lại dù chương đã được cleanup trước đó")
     cleanup_parser.add_argument("--chapter", type=int, default=None, help="Cleanup một chương cụ thể")
     cleanup_parser.add_argument("--from", dest="start", type=int, default=None, help="Cleanup từ chương số")
@@ -508,6 +512,7 @@ def main(argv: list[str] | None = None) -> int:
                 end=args.end,
                 force=args.force,
                 selected_indexes=selected_indexes,
+                engine=(args.engine or None),
             )
         elif args.command == "translate":
             selected_indexes = _selected_indexes_from_args(cfg, args)
@@ -525,6 +530,12 @@ def main(argv: list[str] | None = None) -> int:
                 step_translate(cfg)
         elif args.command == "toc":
             step_fetch_toc(cfg)
+        elif args.command == "clean-toc":
+            result = step_clean_toc_titles(cfg, apply=args.apply)
+            for c in result["changes"]:
+                print(f"  [{c['index']}] {c['old']!r} -> {c['new']!r}")
+            verb = "Đã ghi" if args.apply else "Preview (dùng --apply để ghi)"
+            print(f"{verb}: {result['changed']}/{result['scanned']} tiêu đề dính từ rác.")
         elif args.command == "chapters":
             _print_chapters(cfg, args)
         elif args.command == "evaluate":

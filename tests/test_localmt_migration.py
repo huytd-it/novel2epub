@@ -115,6 +115,32 @@ def test_cleanup_han_engine_defaults_local_mt():
     assert CleanupHanConfig().engine == "local_mt"
 
 
+def test_cleanup_han_default_delegates_to_local_mt(tmp_path, monkeypatch):
+    """step_cleanup_han_selected mặc định (engine=local_mt) ủy quyền cho bản
+    Local MT, KHÔNG cần ai.openai."""
+    from novel2epub import pipeline
+    from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig
+
+    cfg = Config(
+        novel=NovelConfig(slug="t"),
+        crawl=CrawlConfig(toc_url="http://x/", delay_seconds=0),
+        translate=TranslateConfig(type="openai", delay_seconds=0),  # backend dịch là AI
+        output=OutputConfig(data_dir=str(tmp_path)),
+    )
+    # ai.openai để trống → nếu đi nhánh openai sẽ bị bỏ qua; phải đi nhánh local_mt.
+    cfg.ai.openai.base_url = ""
+    cfg.ai.openai.api_key = ""
+
+    called = {"local_mt": False}
+
+    def _fake_local(cfg2, log=None, **kw):
+        called["local_mt"] = True
+        return None
+
+    monkeypatch.setattr(pipeline, "step_cleanup_han_local_mt_selected", _fake_local)
+    pipeline.step_cleanup_han_selected(cfg, lambda m: None, selected_indexes=[1])
+    assert called["local_mt"] is True
+
 def test_cleanup_han_engine_parsed_from_config(tmp_path):
     path = write_db_config(
         tmp_path / "novel2epub.db",
@@ -126,6 +152,35 @@ def test_cleanup_han_engine_parsed_from_config(tmp_path):
 
 
 # ── Dọn từ rác TOC ────────────────────────────────────────────────────────
+
+def test_step_clean_toc_titles_preview_and_apply(tmp_path):
+    from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig
+    from novel2epub.pipeline import step_clean_toc_titles
+    from novel2epub.storage import Chapter, Manifest, Storage
+
+    cfg = Config(
+        novel=NovelConfig(slug="t"),
+        crawl=CrawlConfig(toc_url="http://x/", delay_seconds=0),
+        translate=TranslateConfig(type="localmt", delay_seconds=0),
+        output=OutputConfig(data_dir=str(tmp_path)),
+    )
+    storage = Storage(str(tmp_path), "t")
+    storage.save_manifest(Manifest(slug="t", chapters=[
+        Chapter(index=1, url="http://x/1", title="Chương 1: Khởi đầu (Cầu nguyệt phiếu)"),
+        Chapter(index=2, url="http://x/2", title="Chương 2: Bình thường"),
+    ]))
+
+    # Preview: KHÔNG ghi.
+    preview = step_clean_toc_titles(cfg, lambda m: None, apply=False)
+    assert preview["changed"] == 1
+    assert preview["applied"] == 0
+    assert storage.load_manifest().chapters[0].title.endswith("(Cầu nguyệt phiếu)")
+
+    # Apply: ghi manifest.
+    result = step_clean_toc_titles(cfg, lambda m: None, apply=True)
+    assert result["applied"] == 1
+    assert storage.load_manifest().chapters[0].title == "Chương 1: Khởi đầu"
+    assert storage.load_manifest().chapters[1].title == "Chương 2: Bình thường"
 
 @pytest.mark.parametrize(
     "title,expected",

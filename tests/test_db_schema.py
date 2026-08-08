@@ -28,6 +28,7 @@ _EXPECTED_TABLES = {
     "wireguard_profiles",
     "identities",
     "audit_events",
+    "ai_revisions",
 }
 
 
@@ -329,7 +330,7 @@ def test_v5_database_gets_new_columns_without_data_loss():
     assert row[0] == "sư phụ" and row[1] == "đồ nhi" and row[2] is None
 
 
-def test_v9_database_migrates_to_v10_without_data_loss():
+def test_v9_database_migrates_to_v11_without_data_loss():
     conn = get_connection(":memory:")
     init_schema(conn)
     with conn:
@@ -343,7 +344,7 @@ def test_v9_database_migrates_to_v10_without_data_loss():
     init_schema(conn)
     init_schema(conn)
 
-    assert schema_version(conn) == 10
+    assert schema_version(conn) == 11
     ebook = conn.execute("SELECT title, revision FROM ebooks WHERE slug='old'").fetchone()
     assert (ebook["title"], ebook["revision"]) == ("Dữ liệu cũ", 1)
     chapter = conn.execute(
@@ -352,7 +353,44 @@ def test_v9_database_migrates_to_v10_without_data_loss():
     assert (chapter["translated_text"], chapter["revision"]) == ("Nội dung", 1)
     assert json.loads(conn.execute("SELECT api_json FROM settings").fetchone()[0])["token"] == "legacy"
     assert "oidc_json" in _column_names(conn, "settings")
-    assert {"identities", "audit_events"} <= _table_names(conn)
+    assert {"identities", "audit_events", "ai_revisions"} <= _table_names(conn)
+
+
+def test_v10_database_migrates_to_v11_preserving_data():
+    """DB v10 chưa có bảng `ai_revisions`; nâng lên v11 thêm bảng, dữ liệu cũ còn nguyên."""
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        conn.execute("INSERT INTO ebooks (slug, title) VALUES ('old', 'Bản cũ')")
+        conn.execute(
+            "INSERT INTO chapters (ebook_slug, idx, translated_text, revision) VALUES ('old', 1, 'Dịch', 3)"
+        )
+        conn.execute("UPDATE _meta SET value = '10' WHERE key = 'schema_version'")
+
+    init_schema(conn)
+
+    assert schema_version(conn) == 11
+    chapter = conn.execute(
+        "SELECT translated_text, revision FROM chapters WHERE ebook_slug='old' AND idx=1"
+    ).fetchone()
+    assert (chapter["translated_text"], chapter["revision"]) == ("Dịch", 3)
+    assert _column_names(conn, "ai_revisions") >= {
+        "engine", "status", "base_rev", "base_translated_text",
+        "payload_json", "has_raw", "expires_at",
+    }
+
+
+def test_ai_revisions_cascade_delete_with_ebook():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        conn.execute("INSERT INTO ebooks (slug) VALUES ('demo')")
+        conn.execute(
+            "INSERT INTO ai_revisions (ebook_slug, idx, engine, base_rev) VALUES ('demo', 1, 'rewrite', 1)"
+        )
+    with conn:
+        conn.execute("DELETE FROM ebooks WHERE slug = 'demo'")
+    assert conn.execute("SELECT COUNT(*) AS c FROM ai_revisions").fetchone()["c"] == 0
 
 
 def test_future_schema_is_rejected_without_downgrade():

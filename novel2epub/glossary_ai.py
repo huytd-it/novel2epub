@@ -61,6 +61,7 @@ EDIT_HAY_GUIDELINES = """Nguyên tắc "edit hay" (biên tập lại bản dịc
 REWRITE_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt. Nhiệm vụ của bạn là BIÊN TẬP LẠI bản dịch hiện tại cho hay hơn, KHÔNG dịch lại từ đầu.
 
 {guidelines}
+{genre_rules}
 {glossary}
 
 --- Bản gốc (Trung), dùng để đối chiếu khi cần ---
@@ -71,6 +72,22 @@ REWRITE_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt.
 
 Chỉ trả về toàn văn bản đã biên tập lại (giữ nguyên cách chia đoạn). KHÔNG thêm lời mở đầu, ghi chú, giải thích, hay code fence.
 """
+
+
+def _format_genre_block(genre: str) -> str:
+    """Khối luật xưng hô/văn phong theo thể loại, chèn vào prompt biên tập.
+
+    Rỗng khi thể loại là `auto` VÀ preset không có luật nào — không nhét một
+    tiêu đề trống vào prompt. Local MT dịch tiên hiệp/cổ đại khá sát nhưng hay
+    lệch hệ xưng hô; nêu đích danh thể loại lúc biên tập là chỗ rẻ nhất để
+    nắn lại mà không phải dịch lại từ đầu.
+    """
+    from .genre import format_pronoun_rules
+
+    rules = format_pronoun_rules(genre).strip()
+    if not rules:
+        return ""
+    return f'\nThể loại truyện: {genre}. Luật xưng hô và văn phong theo thể loại:\n{rules}\n'
 
 EVALUATE_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, nhiệm vụ là ĐÁNH GIÁ (review) chứ KHÔNG sửa.
 
@@ -187,8 +204,13 @@ def rewrite_chapter(
     glossary: dict[str, str],
     *,
     filter_glossary: bool = True,
+    genre: str = "auto",
 ) -> str:
-    """Biên tập lại 1 chương đã dịch theo glossary + nguyên tắc 'edit hay'."""
+    """Biên tập lại 1 chương đã dịch theo glossary + nguyên tắc 'edit hay'.
+
+    `genre` nắn hệ xưng hô và mức Hán Việt theo thể loại (xem `genre.py`).
+    Mặc định `auto` = trung tính, giữ nguyên hành vi cũ.
+    """
     if not current_translation.strip():
         return current_translation
     prompt_glossary = (
@@ -198,6 +220,7 @@ def rewrite_chapter(
     )
     prompt = REWRITE_PROMPT.format(
         guidelines=EDIT_HAY_GUIDELINES,
+        genre_rules=_format_genre_block(genre),
         glossary=_format_glossary(prompt_glossary),
         raw=raw,
         translated=current_translation,

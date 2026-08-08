@@ -163,7 +163,7 @@ def test_delete_route_success_redirects_to_library(monkeypatch, tmp_path):
     )
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/"
+    assert response.headers["location"] == "/library"
     assert row_count(db, "ebooks", "slug = ?", ("book-a",)) == 0
 
 
@@ -209,7 +209,7 @@ def test_library_renders_per_ebook_delete_trigger_and_no_bulk_delete(monkeypatch
     db, _epub = make_ebook_db(tmp_path)
     client = make_client(monkeypatch, db)
 
-    response = client.get("/")
+    response = client.get("/library")
 
     assert response.status_code == 200
     assert 'data-delete-ebook="book-a"' in response.text

@@ -101,6 +101,128 @@ song song: route Jinja2 cũ giữ nguyên đường dẫn, SPA phục vụ tại
   lý. Response kèm `indexes` (toàn bộ index khớp) để nút chọn-tất-cả không
   phải tải hết từng dòng.
 
+### Nguồn, Lưu Trữ, Automation, WireGuard, Dashboard
+
+Năm trang này khác nhóm Glossary/Nhân vật/Idioms ở chỗ hầu hết CHƯA có JSON
+API — route cũ chỉ render Jinja2 và nhận `Form(...)` trả `RedirectResponse`.
+`app/routes/webui.py` bổ sung một khối `GET/POST /api/ui/{storage,automation,
+wireguard,sources}` cho mỗi trang, theo đúng pattern đã lập ở mục Cài Đặt: gọi
+THẲNG hàm xử lý thuần đã có (`purge_raw`, `add_automation`, `wg.activate_profile`,
+`save_preset`, ...) thay vì viết lại logic, và tái dùng cả helper riêng
+(`_preset_usage`, `_load_validation` từ `sources.py`) — route cũ vẫn chạy y
+nguyên. Riêng **Dashboard không cần gì mới**: `/api/dashboard` đã là JSON đầy
+đủ (`app/routes/dashboard.py`) từ trước khi có SPA, nằm sẵn dưới `/api` nên đã
+CORS + auth-eligible.
+
+WireGuard's `import` là multipart (`UploadFile`) — client gọi thẳng `fetch`
+với `FormData` (xem `useImportWireGuardProfile` trong `frontend/src/lib/
+wireguard.ts`) vì lớp `api.post()` dùng chung chỉ hỗ trợ JSON/form-urlencoded.
+
+**Sources bị thu hẹp phạm vi có chủ đích**: form preset legacy có ~30 trường
+(gồm cả selector AI-detect và prompt AI-glossary/cleanup/eval); SPA chỉ port
+đúng bộ trường mà form `Form(...)` cũ THỰC SỰ nhận (`_SOURCE_EDITABLE_FIELDS`
+trong `webui.py`, khớp `BASIC_FIELDS`/`SELECTOR_FIELDS`/`CRAWL_FIELDS` trong
+`SourcesPage.tsx`) — CRUD, test dry-run, nhân bản, xóa đầy đủ. Wizard "Phân
+tích bằng AI" (đề xuất selector) và nhập YAML hàng loạt vẫn ở giao diện cũ,
+link rõ trên trang.
+
+### Trang Chương — Một Trang Cho Mọi Việc Của Một Chương
+
+`/app/ebooks/{slug}/chapters/{index}` gộp cả bốn thứ từng nằm rải rác: đọc,
+sửa từng đoạn, đối chiếu 3 cột, và duyệt bản nháp AI. Trước đây là hai trang
+riêng (`ReaderPage` + `ChapterComparePage`) trỏ vào hai endpoint khác nhau —
+mở cùng một chương ở hai chỗ, mỗi chỗ thấy một nửa sự thật. `/read/:index`
+cũ redirect sang đây để link đã lưu không chết.
+
+`GET /api/ui/ebooks/{slug}/chapters/{index}` trả TẤT CẢ trong một request:
+nội dung đọc/sửa, khung đối chiếu, trạng thái hai nhánh, và danh sách bản
+nháp AI.
+
+**Ba luồng tách bạch trên UI** (`BranchBar`), vì chúng đọc nguồn khác nhau và
+hành xử khác nhau:
+
+| Luồng | Đọc từ | Ghi vào | Hoàn tác |
+| --- | --- | --- | --- |
+| Dịch Local MT | bản gốc | thẳng vào nhánh `local_mt` | không |
+| Dịch AI | bản gốc | thẳng vào nhánh `ai` | không |
+| Biên tập AI | bản dịch đang có | bản nháp chờ duyệt | có — bỏ nháp |
+
+Gộp chúng vào một nút "AI" là chỗ dễ mất dữ liệu nhất: "dịch" ghi đè thẳng
+còn "biên tập" thì không, nên hai việc phải nằm ở hai nhóm nút có nhãn khác
+nhau. Bulk action ở trang Ebook (`BatchBar`) chia đúng ba nhóm này.
+
+**Đánh số đoạn của khung đọc là `notes.split_paras`** (từng DÒNG không rỗng) —
+KHÁC với `app/chapter_compare.py` (theo KHỐI, xem mục bên dưới). Payload trả
+CẢ HAI (`translated_paras` và `paragraphs`); đây là chỗ dễ lẫn nhất trong
+codebase nên hai khoá được đặt tên khác hẳn nhau và có comment ở cả hai đầu.
+
+**Sửa tại chỗ**: bấm một đoạn (chế độ Sửa) đổi `<p>` thành `<textarea>`, lưu
+qua `POST .../para/save` khi rời ô. `commit()` đọc giá trị THẲNG từ
+`e.target.value` tại thời điểm blur, không tin vào state React đóng gói
+trong closure — gõ xong rồi rời ô ngay trong cùng một khung xử lý sự kiện có
+thể khiến closure của `onBlur` còn thấy state CŨ vì React chưa kịp
+re-render giữa hai sự kiện `input` và `blur`. Cùng lý do, ô sửa tiêu đề
+chương và ô sửa nội dung ghi chú trong `NotesPanel` cũng đọc trực tiếp từ
+event thay vì state.
+
+**Ghi chú lỗi dịch**: bôi đen văn bản → popover tạo ghi chú qua
+`POST /api/ebooks/{slug}/notes` (đã là JSON từ trước, không cần API mới).
+Đánh dấu `<mark>` trong văn bản đọc bằng cách tìm `note.selected_text` như
+substring trong đoạn tương ứng (`para_index`) — đơn giản hơn cách legacy
+dùng Range API thao tác trực tiếp DOM, đủ dùng cho phần lớn trường hợp
+nhưng không xử lý được đoạn văn bản trùng lặp nhiều lần trong cùng đoạn.
+
+**Highlight khác biệt**: `lib/diff.ts` diff theo TỪ (LCS), không theo ký tự —
+tiếng Việt có dấu nên diff mức ký tự vỡ vụn giữa chữ và đọc không ra gì. Khung
+đối chiếu tô cột "Dịch máy" phần bị bỏ và cột "Bản hiện tại" phần được thêm;
+mỗi cột chỉ tô phần của mình để đọc dọc vẫn thành câu hoàn chỉnh. Bất biến
+quan trọng nhất: ghép `same`+`del` phải ra đúng chuỗi trước, `same`+`add` ra
+đúng chuỗi sau — hiển thị diff không được làm mất chữ nào.
+
+**Chưa port từ trang Jinja2 cũ** (link "Công cụ khác" trỏ sang bản cũ):
+TTS (Edge TTS), dịch nhanh bằng NMT cục bộ (HachimiMT chọn-để-dịch), dọn Hán
+tự bằng Local MT, các thao tác AI theo đoạn (`parapolish`, `paraexplain`,
+`ai-edit`), tìm-và-thay-thế hàng loạt trong toàn sách, dịch lại tiêu đề.
+
+### Thể Loại Trong Prompt Biên Tập
+
+`glossary_ai.rewrite_chapter(..., genre=...)` chèn luật xưng hô/mức Hán Việt
+của thể loại (`novel2epub/genre.py`) vào `REWRITE_PROMPT`. `POST
+/api/ui/ebooks/{slug}/rewrite` nhận `genre` để ghi đè cho RIÊNG lần chạy đó,
+không đụng `translate.genre` của ebook.
+
+Lý do tồn tại: Local MT dịch tiên hiệp/cổ đại khá sát nghĩa nhưng hay lệch hệ
+xưng hô (ra "tôi/cậu" thay vì "ta/ngươi"). Nắn lại ở bước biên tập rẻ hơn
+nhiều so với đổi cấu hình rồi dịch lại cả truyện.
+
+### Giao Diện Mặc Định
+
+`/` redirect sang `/app/` khi bundle SPA đã build (`app/main.py`, đăng ký
+TRƯỚC `ebooks.router` vì router đó cũng khai báo `/` và FastAPI khớp theo thứ
+tự đăng ký). Trang Thư viện của Jinja2 lùi về `/library` — đúng tên cũ của nó
+trước khi được gộp vào trang chủ — nên UI cũ vẫn vào được đầy đủ cho các tính
+năng chưa port. Không chuyển cả Jinja2 xuống một tiền tố riêng: SPA còn link
+sang nhiều trang cũ, và mọi href trong template đều là đường dẫn tuyệt đối.
+
+### Trang Cài Đặt — Gọi Thẳng Hàm Xử Lý Form Cũ
+
+`GET/POST /api/ui/ebooks/{slug}/settings[/{section}]` không viết lại logic lưu
+cấu hình. Đọc thì phẳng hoá `cfg` theo ĐÚNG tên tham số `Form(...)` của
+`save_novel`/`save_source`/`save_translate`/`save_ai`/`save_reader`/`save_output`
+trong `app/routes/settings.py` — 83 trường, khoá JSON = tên tham số Form 1-1.
+Ghi thì gọi THẲNG các hàm đó bằng Python (`fn(slug=slug, **payload)`), không
+HTTP round-trip: những endpoint cũ trả `RedirectResponse` 303 sang trang
+Jinja2, mà `fetch` mặc định đi theo redirect rồi tải cả trang HTML chỉ để vứt
+đi, và nếu SPA chạy khác origin thì trang đích nằm ngoài `_CORS_PREFIXES` nên
+bị chặn CORS. `Form(...)` chỉ là giá trị mặc định lúc FastAPI parse HTTP —
+gọi hàm trực tiếp với keyword argument bỏ qua lớp đó hoàn toàn, không ảnh
+hưởng gì tới route cũ.
+
+`tests/test_ui_settings_contract.py` khoá lại sự khớp tên trường bằng
+`inspect.signature` — thêm field vào form mà quên thêm vào API (hoặc ngược
+lại) là ô đó hiện rỗng rồi ghi đè giá trị thật bằng rỗng lúc người dùng bấm
+Lưu, không có lỗi nào nổ ra, nên bất biến này bắt buộc phải test.
+
 ### Hai Cách Đánh Số Đoạn — Đừng Trộn
 
 Có HAI cách chia đoạn trong hệ thống, và chúng không tương đương:
@@ -119,6 +241,31 @@ muốn sửa thì hoặc ghi toàn văn qua
 `POST /api/ui/ebooks/{slug}/chapters/{index}/translated` (giữ nguyên từng ký tự
 xuống dòng), hoặc mở Reader để sửa theo đoạn bằng đúng cách đánh số của nó.
 `tests/test_chapter_compare.py` chốt lại sự khác biệt này.
+
+### Glossary, Nhân Vật, Từ Điển Chung — Không Cần API Mới
+
+Ba trang này port THUẦN FRONTEND: `app/routes/glossary.py`, `characters.py`,
+`idioms.py` đã là JSON API đầy đủ từ trước khi port (chỉ route `GET` render
+HTML là còn Jinja2), nằm dưới `/api/...` nên đã CORS + auth-eligible sẵn,
+không cần chỉnh gì ở backend.
+
+- **Glossary** (`/app/ebooks/{slug}/glossary`) — bảng autosave-per-ô, đề xuất
+  đang chờ duyệt (từ auto-glossary lúc dịch) hiện thành hàng tô vàng ở TRANG
+  ĐẦU của bảng chính (không phải tab riêng — khớp hành vi legacy), tab "Nghi
+  vấn" hiển thị 3 nhóm đáng ngờ (`glossary_review.find_suspects`). Duyệt đề
+  xuất enqueue MỘT job nền (category=translate) lan truyền thay đổi vào bản
+  dịch cũ — kết quả xem ở trang Hàng đợi, không polling tại chỗ.
+- **Nhân vật** (`/app/ebooks/{slug}/characters`) — bảng nhân vật + quan hệ CÓ
+  HƯỚNG mở rộng dưới mỗi hàng (bấm mũi tên). Danh sách không phân trang phía
+  server (ebook hiếm khi có quá vài trăm nhân vật) nên tìm kiếm lọc phía
+  client. Tab "Đề xuất" duyệt nhân vật TRƯỚC quan hệ SAU — thứ tự bắt buộc,
+  xem docstring `characters_pending_approve`.
+- **Từ điển chung** (`/app/idioms`) — kho thành ngữ dùng chung MỌI truyện
+  (không gắn slug), cùng pattern autosave với Glossary.
+
+Cả ba dùng chung một pattern autosave: input cục bộ đồng bộ từ server qua
+`useEffect`, lưu khi `onBlur` đọc thẳng `e.target.value` (không tin state
+đóng gói closure — xem lý do ở mục Trang Đọc phía trên, cùng loại bug).
 
 ### Bản Desktop (Tauri)
 

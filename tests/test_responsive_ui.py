@@ -110,7 +110,9 @@ def test_drawer_and_desktop_nav_expose_the_same_route_set():
     desktop_start = BASE.index('<nav class="hidden md:flex')
     desktop_nav = BASE[desktop_start:BASE.index("</nav>", desktop_start)]
 
-    expected = {"/", "/sources", "/storage", "/wireguard", "/automation",
+    # `/library` chứ không phải `/`: trang chủ đã nhường cho SPA, Thư viện của
+    # giao diện Jinja2 lùi về đúng tên cũ của nó (xem `app/main.py`).
+    expected = {"/library", "/sources", "/storage", "/wireguard", "/automation",
                 "/idioms", "/dashboard", "/queue", "/logs"}
     assert _routes_in(drawer_nav) == expected
     assert _routes_in(desktop_nav) == expected

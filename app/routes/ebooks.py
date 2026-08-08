@@ -47,8 +47,14 @@ def _chapter_rows(
     )
 
 
-@router.get("/")
+@router.get("/library")
 def index(request: Request, show_archived: bool = False):
+    """Trang Thư viện của giao diện Jinja2.
+
+    Từng nằm ở `/`; đã nhường chỗ đó cho SPA (xem `app/main.py`). Giữ lại
+    dưới `/library` — đúng tên cũ của nó trước khi gộp vào trang chủ — để các
+    tính năng chưa port sang SPA vẫn có đường vào.
+    """
     library = deps.library()
     archived = archived_slugs(deps.LIBRARY_STATE_PATH)
     ebooks = []
@@ -99,13 +105,13 @@ def index(request: Request, show_archived: bool = False):
 @router.post("/library/ebooks/{slug}/archive")
 def archive_ebook(slug: str):
     set_archived(deps.LIBRARY_STATE_PATH, slug, True)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/library", status_code=303)
 
 
 @router.post("/library/ebooks/{slug}/unarchive")
 def unarchive_ebook(slug: str):
     set_archived(deps.LIBRARY_STATE_PATH, slug, False)
-    return RedirectResponse(url="/?show_archived=1", status_code=303)
+    return RedirectResponse(url="/library?show_archived=1", status_code=303)
 
 
 @router.post("/library/ebooks/bulk-action")
@@ -127,7 +133,7 @@ def bulk_action(
             _fn(_cfg, log)
 
         request.app.state.job.queue.enqueue(category, action, _target, label=f"{action}:{slug}", ebook=slug)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/library", status_code=303)
 
 
 @router.get("/ebooks/{slug}/config/export")

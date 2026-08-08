@@ -24,6 +24,8 @@ from novel2epub.pipeline import (
     step_suggest_chapter,
     step_translate_selected,
 )
+from novel2epub.pipeline import step_apply_ai_revision, step_discard_ai_revision
+from novel2epub import revisions
 from novel2epub.notes import insert_para, replace_para, split_paras
 from novel2epub.storage import Chapter, Storage
 from novel2epub.toc import count_words
@@ -330,20 +332,25 @@ def _load_chapter_or_404(cfg, index: int):
 
 
 @router.post("/ebooks/{slug}/chapters/{index}/ai/rewrite/apply")
-def ebook_chapter_ai_rewrite_apply(slug: str, index: int):
-    """Người review chấp nhận bản nháp AI: chuyển bản dịch hiện tại sang
-    before_rewrite (để khôi phục), ghi bản nháp thành bản dịch, xóa preview."""
+def ebook_chapter_ai_rewrite_apply(request: Request, slug: str, index: int):
+    """Người review chấp nhận bản nháp AI — optimistic lock trên `revision`.
+
+    Bản nháp chỉ áp dụng khi bản dịch hoạt động vẫn khớp snapshot lúc sinh; nếu
+    đã đổi/hết hạn → 409, không ghi đè mù. Trả 303 quay về trang chương bình
+    thường (form) hoặc 409 kèm lý do khi còn cần xử lý tay."""
     cfg = deps.resolved_cfg(slug)
     storage, ch = _load_chapter_or_404(cfg, index)
     meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-    preview = (meta.get("ai_rewrite") or {}).get("text", "")
-    if not preview.strip():
-        raise HTTPException(status_code=400, detail="Không có bản nháp AI để áp dụng.")
-    current = storage.read_translated(ch) if storage.has_translated(ch) else ""
-    meta["before_rewrite"] = current
-    meta.pop("ai_rewrite", None)
-    storage.write_translated(ch, preview)
-    storage.write_meta(ch, meta)
+    revision_id = (meta.get("ai_rewrite") or {}).get("revision_id", 0)
+    if not revision_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Bản nháp AI cũ chưa có snapshot — hãy chạy lại 'AI rewrite' cho chương này.",
+        )
+    try:
+        step_apply_ai_revision(cfg, lambda m: None, revision_id=revision_id)
+    except revisions.RevisionError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
 
 
@@ -352,8 +359,13 @@ def ebook_chapter_ai_rewrite_discard(slug: str, index: int):
     cfg = deps.resolved_cfg(slug)
     storage, ch = _load_chapter_or_404(cfg, index)
     meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-    if meta.pop("ai_rewrite", None) is not None:
-        storage.write_meta(ch, meta)
+    revision_id = (meta.get("ai_rewrite") or {}).get("revision_id", 0)
+    if revision_id:
+        step_discard_ai_revision(cfg, lambda m: None, revision_id=revision_id)
+    else:
+        # Bản nháp legacy không có revision_id: chỉ xóa meta cho sạch.
+        if meta.pop("ai_rewrite", None) is not None:
+            storage.write_meta(ch, meta)
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{index}", status_code=303)
 
 

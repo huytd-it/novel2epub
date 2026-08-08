@@ -24,6 +24,7 @@ from .storage import Chapter, Manifest, Storage
 from .toc import chapter_title_key, mark_duplicate_chapters
 from .translator import RateLimited, make_translator
 from . import han_cleanup
+from . import revisions
 
 # Kiểu hàm ghi log; mặc định in ra stdout, UI truyền callback riêng để stream.
 LogFn = Callable[[str], None]
@@ -801,13 +802,16 @@ def _batch_translate_titles(
     return dict(zip(indexes, translated))
 
 
-def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, *, should_cancel: CancelFn | None = None) -> tuple[str, bool]:
+def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, *, should_cancel: CancelFn | None = None, branch: str = revisions.BRANCH_AI) -> tuple[str, bool]:
     """Dịch 1 chương: tiêu đề được prepend vào đầu content và dịch CHUNG trong
     cùng lời gọi AI (giống bulk-transfer `## idx:N: title` + body) — tiêu đề
     dịch đồng bộ văn phong với nội dung, không tốn thêm lời gọi riêng. Nguồn
     tiêu đề luôn là `title_zh or title` (dịch lại content cũng refresh tiêu đề
     từ bản ZH gốc); "Dịch TOC"/"Dịch lại tiêu đề" vẫn là đường title-only cho
     chương chưa dịch nội dung.
+
+    `branch` là nhánh bản dịch nhận kết quả (`ai` mặc định — giữ nguyên hành vi
+    cũ; `local_mt` ghi vào cột `local_mt_*` với title/workspace/revision riêng).
 
     Trả (status, title_changed) với status 'completed'/'replaced'/'failed'.
     Raise lại exception sau khi đã log + đánh dấu failed, để caller (nhánh
@@ -822,9 +826,11 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     `mark_translated_complete` set `complete: true` trong meta — phân biệt
     với partial do job bị crash. Xem spec `translate-chunk-streaming`.
     """
-    had_translated = storage.has_translated(ch)
+    branch = revisions.normalize_branch(branch)
+    complete_meta_key = storage._BRANCH_COMPLETE_META[branch]
+    had_translated = storage.has_branch_text(ch, branch)
     raw = storage.read_raw(ch)
-    log(f"[dịch] ({i}/{total}) → {ch.title or ch.stem} ({len(raw)} ký tự)")
+    log(f"[dịch] ({i}/{total}) → {ch.title or ch.stem} ({len(raw)} ký tự) [nhánh {revisions.branch_label(branch)}]")
     started = time.monotonic()
     title_changed = False
     pieces: list[str] = []
@@ -833,7 +839,7 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     def _on_chunk(index: int, total_chunks: int, chunk_text: str, is_final: bool) -> None:
         log(f"[dịch]   ({i}/{total}) → đang lưu chunk {index}/{total_chunks} vào file "
             f"({len(chunk_text)} ký tự)")
-        storage.append_translated_chunk(ch, chunk_text, is_first=(index == 1))
+        storage.append_branch_chunk(ch, branch, chunk_text, is_first=(index == 1))
         pieces.append(chunk_text)
 
     def _on_glossary(entries: list[dict]) -> None:
@@ -862,7 +868,7 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
         # False ở lần chạy kế (cache đúng: chapter partial sẽ được dịch lại
         # từ đầu thay vì bị coi là đã xong — xem spec translate-chunk-streaming).
         partial_meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-        partial_meta["complete"] = False
+        partial_meta[complete_meta_key] = False
         partial_meta["last_error"] = str(e)
         storage.write_meta(ch, partial_meta)
         # Gắn title_changed vào exception để caller biết tiêu đề đã dịch
@@ -879,19 +885,24 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     ):
         if send_title and not ch.title_zh:
             ch.title_zh = ch.title
-        ch.title = ensure_title_number(zh_title or "", _clean_title(vi_line))
-        ch.title_note = ""
+        title = ensure_title_number(zh_title or "", _clean_title(vi_line))
         title_changed = True
         translated = body
         # Chunk đầu đã stream dòng tiêu đề vào file — ghi đè lại body-only
         # để tiêu đề không bị lặp với H1 do epub_builder sinh từ ch.title.
-        storage.write_translated(ch, translated)
+        if branch == revisions.BRANCH_AI:
+            ch.title = title
+            ch.title_note = ""
+            storage.write_translated(ch, translated)
+        else:
+            storage.write_branch_titles(ch, branch, title, ch.title_zh or zh_title or "")
+            storage.write_branch_text(ch, branch, translated)
     elif send_title:
         log(f"[dịch]   ({i}/{total}) ⚠ không tách được tiêu đề từ dòng đầu — giữ tiêu đề hiện tại")
     # Snapshot bản dịch máy (cột "VI" editor 3 cột): ghi bản máy gốc tách khỏi
     # `translated` (cột "Biên tập" — sẽ bị sửa tay/AI rewrite về sau). Cho phép
     # luôn đối chiếu "máy dịch ra gì" kể cả sau khi đã biên tập nhiều.
-    storage.write_translated_mt(ch, translated)
+    storage.write_branch_mt_snapshot(ch, branch, translated)
     warnings = _quality_warnings(raw, translated)
     meta = _build_meta(cfg, ch, translated, warnings)
     # Capture cost/latency từ OmniRoute (nếu response có header X-OmniRoute-Version).
@@ -908,9 +919,9 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
                 f"{omni_meta.get('latency_ms', 0)}ms"
                 + (" · cache HIT" if omni_meta.get("cache_hit") else "")
             )
-    meta["complete"] = True
+    meta[complete_meta_key] = True
     # File đã được _on_chunk ghi từng phần rồi; chỉ cần đánh dấu complete.
-    storage.mark_translated_complete(ch, meta_extra=meta)
+    storage.mark_branch_complete(ch, branch, meta_extra=meta)
     ch.last_action_status = "replaced" if had_translated and force else "completed"
     _log_chapter_done(log, f"[dịch]   ({i}/{total})", ch.title or ch.stem, elapsed, translated, warnings)
 
@@ -993,14 +1004,14 @@ def _maybe_extract_chapter_glossary(
         )
 
 
-def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool, should_cancel: CancelFn | None = None) -> tuple[int, int, int, bool]:
+def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, changed: bool, should_cancel: CancelFn | None = None, branch: str = revisions.BRANCH_AI) -> tuple[int, int, int, bool]:
     translated_count = failed = replaced = 0
     for i, ch in enumerate(chapters, 1):
         if should_cancel and should_cancel():
             log(f"[dịch] Đã dừng theo yêu cầu — còn {total - i + 1} chương chưa xử lý.")
             break
         try:
-            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, should_cancel=should_cancel)
+            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, should_cancel=should_cancel, branch=branch)
         except Exception as e:
             failed += 1
             changed = changed or getattr(e, "title_changed", False)
@@ -1016,7 +1027,7 @@ def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Mani
     return translated_count, failed, replaced, changed
 
 
-def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool, should_cancel: CancelFn | None = None) -> tuple[int, int, int, bool]:
+def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manifest, translator, is_noop: bool, chapters: list[Chapter], force: bool, log: LogFn, total: int, workers: int, changed: bool, should_cancel: CancelFn | None = None, branch: str = revisions.BRANCH_AI) -> tuple[int, int, int, bool]:
     """Dịch nhiều chương song song. Translator được dùng chung giữa các luồng:
     OpenAITranslator chỉ gửi 1 HTTP request riêng mỗi lần gọi (không state dùng
     chung), GoogleTranslator gọi HTTP riêng mỗi lần — cả hai an toàn gọi đồng
@@ -1042,7 +1053,7 @@ def _translate_chapters_parallel(cfg: Config, storage: Storage, manifest: Manife
             progress["done"] += 1
             i = progress["done"]
         try:
-            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, should_cancel=should_cancel)
+            status, title_changed = _translate_one(cfg, storage, translator, is_noop, ch, force, log, i, total, should_cancel=should_cancel, branch=branch)
         except Exception as e:  # noqa: BLE001 - đã log trong _translate_one, gom lại để quyết định ở cuối
             with counters_lock:
                 counters["failed"] += 1
@@ -1076,6 +1087,7 @@ def step_translate_selected(
     missing: bool = False,
     selected_indexes: list[int] | None = None,
     should_cancel: CancelFn | None = None,
+    branch: str = revisions.BRANCH_AI,
 ) -> Manifest:
     """translate.max_workers > 1 trong config sẽ dịch nhiều chương song song
     bằng 1 translator dùng chung (xem _translate_chapters_parallel).
@@ -1083,7 +1095,11 @@ def step_translate_selected(
     Tiêu đề chương được dịch CHUNG với nội dung trong cùng lời gọi AI (prepend
     tiêu đề ZH làm dòng đầu — xem _translate_one). 'Dịch TOC' / 'Dịch lại
     tiêu đề' vẫn là đường dịch title-only cho chương chưa dịch nội dung.
+
+    `branch='local_mt'` dịch vào nhánh Local NMT (cột `local_mt_*`) — nhánh
+    độc lập với `ai`, không đụng bản dịch AI hiện hành.
     """
+    branch = revisions.normalize_branch(branch)
     _emit_config_warnings(cfg, log)
     _emit_translate_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -1113,7 +1129,7 @@ def step_translate_selected(
             ch.last_action_status = "skipped"
             storage.save_chapter(ch)
             continue
-        if not force and storage.has_translated(ch):
+        if not force and storage.has_branch_text(ch, branch):
             skipped += 1
             ch.last_action_status = "skipped"
             storage.save_chapter(ch)
@@ -1131,11 +1147,11 @@ def step_translate_selected(
     changed = 0
     if workers > 1 and len(to_translate) > 1:
         translated_count, failed, replaced, changed = _translate_chapters_parallel(
-            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed, should_cancel
+            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, workers, changed, should_cancel, branch
         )
     else:
         translated_count, failed, replaced, changed = _translate_chapters_sequential(
-            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, changed, should_cancel
+            cfg, storage, manifest, translator, is_noop, to_translate, force, log, total, changed, should_cancel, branch
         )
 
     if cfg.translate.auto_glossary and cfg.translate.type.lower() == "openai":
@@ -1444,11 +1460,19 @@ def step_rewrite_chapters(
     *,
     start: int | None = None,
     end: int | None = None,
+    indexes: list[int] | None = None,
+    genre: str = "",
 ) -> Manifest:
     """Biên tập lại (rewrite) các chương đã dịch theo glossary + nguyên tắc 'edit hay'.
 
     Ghi đè translated/{stem}.md; bản trước khi rewrite được lưu vào meta
     (key 'before_rewrite') để có thể xem lại/khôi phục.
+
+    `genre` rỗng = dùng `cfg.translate.genre` của ebook. Truyền giá trị khác để
+    nắn hệ xưng hô cho riêng lần biên tập này mà không phải sửa cấu hình ebook
+    — hữu ích khi Local MT dịch tiên hiệp/cổ đại xong cần chỉnh lại xưng hô.
+
+    `indexes` chọn đúng tập chương (ưu tiên hơn `start`/`end`).
     """
     from . import glossary_ai
 
@@ -1459,32 +1483,45 @@ def step_rewrite_chapters(
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
 
     glossary = glossary_ai.load_glossary(cfg.translate, storage)
-    selected = _chapter_range(manifest.chapters, None, start, end)
+    if indexes:
+        wanted = set(indexes)
+        selected = [c for c in manifest.chapters if c.index in wanted]
+    else:
+        selected = _chapter_range(manifest.chapters, None, start, end)
     selected = [c for c in selected if storage.has_translated(c)]
     total = len(selected)
     if total == 0:
         log("[rewrite] Không có chương đã dịch nào trong phạm vi đã chọn.")
         return manifest
 
+    effective_genre = (genre or "").strip() or cfg.translate.genre or "auto"
+    log(f"[rewrite] Thể loại áp dụng: {effective_genre}")
+
     for i, ch in enumerate(selected, 1):
-        log(f"[rewrite] ({i}/{total}) {ch.title or ch.stem}")
-        raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
-        current = storage.read_translated(ch)
+        branch = storage.active_branch(ch)
+        log(f"[rewrite] ({i}/{total}) {ch.title or ch.stem} (nhánh {revisions.branch_label(branch)})")
+        # Engine rewrite không được phép dùng raw_text (chống rò rỉ raw vào AI edit).
+        raw = ""
+        current = storage.read_branch_text(ch, branch)
+        workspace, restore_map = _branch_edit_workspace(storage, ch, branch)
         try:
             rewritten = glossary_ai.rewrite_chapter(
-                cfg.ai.openai, raw, current, glossary,
+                cfg.ai.openai, raw, workspace, glossary,
                 filter_glossary=cfg.translate.glossary_filter,
+                genre=effective_genre,
             )
         except Exception as e:
             log(f"[rewrite]   ! Lỗi chương {ch.stem}: {e}")
             continue
+        rewritten = _restore_edit_workspace(rewritten, restore_map)
         if not rewritten.strip():
             log(f"[rewrite]   ! Kết quả rỗng, giữ nguyên chương {ch.stem}.")
             continue
         meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
         meta["before_rewrite"] = current
         storage.write_meta(ch, meta)
-        storage.write_translated(ch, rewritten)
+        storage.write_branch_text(ch, branch, rewritten)
+        storage.invalidate_preview_tokens(ch, branch)
 
     log("[rewrite] Hoàn tất.")
     return manifest
@@ -1626,6 +1663,25 @@ def _update_chapter_meta(storage: Storage, ch: "Chapter", **changes) -> dict:
     return meta
 
 
+def _load_entities(storage: Storage) -> list:
+    """Entity hợp nhất (global + override ebook) dạng list[Entity]."""
+    return storage.read_merged_entities()
+
+
+def _branch_edit_workspace(storage: Storage, ch: "Chapter", branch: str) -> tuple[str, dict]:
+    """Workspace bản dịch mà AI edit đọc — bản dịch CỦA NHÁNH với literal của
+    entity `protect` được che bằng placeholder. AI KHÔNG thấy literal entity nên
+    không đổi tên riêng; `restore_map` khôi phục literal sau khi AI trả kết quả."""
+    from .entities import protect_entities
+    text = storage.read_branch_text(ch, branch)
+    return protect_entities(text, _load_entities(storage))
+
+
+def _restore_edit_workspace(payload: str, restore_map: dict) -> str:
+    from .entities import restore_entities
+    return restore_entities(payload, restore_map)
+
+
 def step_review_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> dict:
     """AI review 1 chương (read-only) — lưu báo cáo vào meta['ai_review']."""
     from . import glossary_ai
@@ -1666,31 +1722,185 @@ def step_suggest_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> lis
     return suggestions
 
 
-def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> str:
-    """AI biên tập lại 1 chương nhưng KHÔNG ghi đè — lưu bản nháp vào
-    meta['ai_rewrite'] để người review xem diff rồi quyết định áp dụng."""
+def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> int:
+    """AI biên tập lại 1 chương nhưng KHÔNG ghi đè — lưu candidate vào
+    `ai_revisions` (status `pending`, có snapshot + hạn dùng) để người review
+    xem diff rồi quyết định áp dụng. Trả id candidate (0 nếu không tạo được).
+
+    Hoạt động trên NHÁNH ĐANG HOẠT ĐỘNG của chương: AI chỉ đọc bản dịch của
+    nhánh đó (workspace đã che entity protect), không bao giờ thấy raw. Engine
+    `rewrite` thuộc nhóm **không** được cấp raw (`allows_raw=False`).
+    """
     from . import glossary_ai
 
     storage, _manifest, ch = _require_chapter(cfg, index)
-    if not storage.has_translated(ch):
-        log("[rewrite] Chương chưa có bản dịch, không có gì để biên tập.")
-        return ""
+    branch = storage.active_branch(ch)
+    if not storage.has_branch_text(ch, branch):
+        log("[rewrite] Chương chưa có bản dịch ở nhánh này, không có gì để biên tập.")
+        return 0
 
     _emit_translate_config(cfg, log, feature="REWRITE PREVIEW")
-    raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
-    current = storage.read_translated(ch)
+    # Engine rewrite không được phép dùng raw_text (chống rò rỉ raw vào AI edit).
+    raw = "" if not revisions.ENGINES.allows_raw("rewrite") else (storage.read_raw(ch) if storage.has_raw(ch) else "")
+    current = storage.read_branch_text(ch, branch)
+    workspace, restore_map = _branch_edit_workspace(storage, ch, branch)
+    base_rev = storage.read_branch_revision(ch, branch)
     glossary = glossary_ai.load_glossary(cfg.translate, storage)
-    log(f"[rewrite] Đang biên tập lại chương {ch.index}: {ch.title or ch.stem}")
+    log(f"[rewrite] Đang biên tập lại chương {ch.index} (nhánh {revisions.branch_label(branch)}): {ch.title or ch.stem}")
     rewritten = glossary_ai.rewrite_chapter(
-        cfg.ai.openai, raw, current, glossary,
+        cfg.ai.openai, raw, workspace, glossary,
         filter_glossary=cfg.translate.glossary_filter,
     )
+    rewritten = _restore_edit_workspace(rewritten, restore_map)
     if not rewritten.strip():
         log("[rewrite] AI trả về rỗng — giữ nguyên, không tạo bản nháp.")
-        return ""
-    _update_chapter_meta(storage, ch, ai_rewrite={"text": rewritten, "generated_at": _now_iso()})
-    log("[rewrite] Đã tạo bản nháp. Mở lại trang chương để xem diff và áp dụng.")
-    return rewritten
+        return 0
+    cand = revisions.create_revision(
+        engine="rewrite",
+        idx=ch.index,
+        payload=rewritten,
+        base_translated_text=current,
+        base_rev=base_rev,
+        has_raw=False,
+        branch=branch,
+    )
+    revision_id = storage.create_ai_revision(cand)
+    # Back-compat: vẫn ghi meta cho giao diện Jinja/SPA cũ đọc được bản nháp.
+    _update_chapter_meta(
+        storage, ch,
+        ai_rewrite={
+            "text": rewritten,
+            "revision_id": revision_id,
+            "branch": branch,
+            "generated_at": _now_iso(),
+        },
+    )
+    log("[rewrite] Đã tạo bản nháp. Mở lại trang chương để xem diff và chấp nhận.")
+    return revision_id
+
+
+def step_apply_ai_revision(cfg: Config, log: LogFn = _print, *, revision_id: int) -> str:
+    """Người review CHẤP NHẬN một candidate: optimistic lock trên revision của
+    NHÁNH mà candidate thuộc về.
+
+    Chỉ ghi khi bản dịch của nhánh vẫn khớp snapshot lúc sinh và candidate chưa
+    hết hạn. Nếu lệch/hết hạn → raise RevisionError (route dịch sang 409). Bản
+    nháp KHÔNG bao giờ tự áp dụng — luôn đi qua đây và chỉ khi được chấp nhận.
+    """
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    idx = storage.revision_chapter(revision_id)
+    if idx < 0:
+        raise revisions.RevisionError("Không tìm thấy bản nháp AI để áp dụng.")
+    _s, _manifest, ch = _require_chapter(cfg, idx)
+    storage.expire_stale_revisions(ch)
+    cand = storage.read_ai_revision(ch, revision_id)
+    if cand is None or not cand.payload.strip():
+        raise revisions.RevisionError("Không tìm thấy bản nháp AI để áp dụng.")
+
+    if not revisions.ENGINES.applies_to_translation(cand.engine):
+        raise revisions.RevisionError(
+            f"Bản nháp engine {cand.engine!r} không áp dụng lên bản dịch."
+        )
+
+    branch = revisions.normalize_branch(cand.branch)
+    current = storage.read_branch_text(ch, branch)
+    cur_rev = storage.read_branch_revision(ch, branch)
+    reason = revisions.check_still_valid(
+        cand, current_rev=cur_rev, current_translated_text=current
+    )
+    if reason:
+        raise revisions.RevisionError(reason)
+
+    ok = storage.compare_and_swap_branch(
+        ch, branch, expected_rev=cur_rev, new_text=cand.payload
+    )
+    if not ok:
+        raise revisions.RevisionError("Bản dịch đã đổi đồng thời — tải lại trang.")
+    storage.mark_ai_revision(ch, revision_id, status=revisions.STATUS_APPLIED)
+    # Token preview duyệt bản này hết hiệu lực (bản dịch nhánh vừa đổi).
+    storage.invalidate_preview_tokens(ch, branch)
+    # Voucher cũ: giữ bản trước rewrite để khôi phục, xóa preview.
+    _update_chapter_meta(
+        storage, ch,
+        before_rewrite=current,
+        ai_rewrite=None,
+    )
+    log(f"[rewrite] Đã áp dụng bản nháp #{revision_id} vào chương {ch.index} (nhánh {revisions.branch_label(branch)}).")
+    return cand.payload
+
+
+def step_discard_ai_revision(cfg: Config, log: LogFn = _print, *, revision_id: int) -> bool:
+    """Người dùng BỎ một candidate: đánh dấu `discarded`, KHÔNG đụng bản dịch."""
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    idx = storage.revision_chapter(revision_id)
+    if idx < 0:
+        return False
+    _s, _manifest, ch = _require_chapter(cfg, idx)
+    cand = storage.read_ai_revision(ch, revision_id)
+    ok = storage.mark_ai_revision(ch, revision_id, status=revisions.STATUS_DISCARDED)
+    if ok:
+        if cand is not None:
+            storage.invalidate_preview_tokens(ch, revisions.normalize_branch(cand.branch))
+        meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+        if (meta.get("ai_rewrite") or {}).get("revision_id") == revision_id:
+            meta.pop("ai_rewrite", None)
+            storage.write_meta(ch, meta)
+    log(f"[rewrite] Đã bỏ bản nháp #{revision_id}.")
+    return ok
+
+
+def step_preview_revisions_bulk(cfg: Config, log: LogFn = _print, *, selected_indexes: list[int]) -> list[int]:
+    """Tạo candidate rewrite cho NHIỀU chương (bulk preview). Mỗi chương đi qua
+    `step_rewrite_preview` — luôn bắt đầu ở `pending`, KHÔNG tự áp dụng. Trả
+    list id candidate đã tạo (chương lỗi bị bỏ qua, đã log)."""
+    created: list[int] = []
+    for idx in selected_indexes:
+        try:
+            rid = step_rewrite_preview(cfg, log, index=idx)
+            if rid:
+                created.append(rid)
+        except RuntimeError as e:
+            log(f"[preview-bulk] Lỗi chương {idx}: {e}")
+    log(f"[preview-bulk] Đã tạo {len(created)}/{len(selected_indexes)} bản nháp.")
+    return created
+
+
+def step_confirm_revisions_bulk(cfg: Config, log: LogFn = _print, *, revision_ids: list[int]) -> list[dict]:
+    """Áp đồng loạt các candidate ĐÃ ĐƯỢC DUYỆT. Mỗi candidate vẫn qua đủ
+    optimistic lock như apply đơn (snapshot khớp + chưa hết hạn) — candidate
+    lệch/hết hạn bị từ chối, không kéo theo các candidate khác. Trả kết quả
+    từng cái `{id, ok, error}`."""
+    results: list[dict] = []
+    for rid in revision_ids:
+        try:
+            step_apply_ai_revision(cfg, log, revision_id=rid)
+            results.append({"id": rid, "ok": True, "error": ""})
+        except Exception as e:  # noqa: BLE001 - báo từng cái, không chặn cả lô
+            results.append({"id": rid, "ok": False, "error": str(e)})
+    ok_count = sum(1 for r in results if r["ok"])
+    log(f"[confirm-bulk] Đã áp {ok_count}/{len(results)} bản nháp.")
+    return results
+
+
+def step_migrate_legacy_revisions(cfg: Config, log: LogFn = _print, *, selected_indexes: list[int] | None = None) -> dict:
+    """Nâng bản nháp legacy (meta['ai_rewrite'] chưa có `revision_id`) thành
+    candidate trong `ai_revisions` — KHÔNG xoá dữ liệu gốc. Idempotent; trả
+    báo cáo `{chapters, legacy, migrated, remaining}`."""
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+    selected = manifest.chapters
+    if selected_indexes is not None:
+        wanted = set(selected_indexes)
+        selected = [c for c in selected if c.index in wanted]
+    migrated = 0
+    for ch in selected:
+        if storage.migrate_legacy_ai_rewrite(ch):
+            migrated += 1
+    report = storage.legacy_ai_rewrite_report()
+    log(f"[migrate-legacy] Đã nâng {migrated} bản nháp legacy. Báo cáo: {report}")
+    return report
 
 
 def step_delete_translation_selected(
@@ -2058,58 +2268,69 @@ def step_build_selected(
     if manifest is None:
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
 
+    # Blocker: chỉ 1 build ebook tại một thời điểm. Snapshot fingerprint các
+    # nhánh đang hoạt động để sau này phát hiện build stale.
+    if not storage.acquire_build("job", manifest_snapshot=storage.branch_chapter_snapshots()):
+        raise RuntimeError("Đang có build khác chạy cho ebook này — chờ xong rồi thử lại.")
+
     from . import footnotes as _footnotes
 
-    if selected_indexes is not None:
-        wanted = set(selected_indexes)
-        chapters = [c for c in manifest.chapters if c.index in wanted]
-        log(f"[build] Phạm vi: {len(chapters)} chương được chọn (tổng {len(manifest.chapters)}).")
-    else:
-        chapters = [c for c in manifest.chapters if not c.skipped]
-
-    notes = storage.read_glossary_notes()
-    chapters_html = []
-    footnotes_by_stem: dict[str, list[dict]] = {}
-    anchored_stems: set[str] = set()
-    for ch in chapters:
-        if storage.has_translated(ch):
-            md = storage.read_translated(ch)
-            anchored_stems.add(ch.stem)
-            title = ch.title or f"Chương {ch.index}"
-            md, fns = _footnotes.annotate(md, notes)
-            if fns:
-                footnotes_by_stem[ch.stem] = fns
-        elif not translated_only and storage.has_raw(ch):
-            md = storage.read_raw(ch)
-            title = ch.title or f"Chương {ch.index}"
+    try:
+        if selected_indexes is not None:
+            wanted = set(selected_indexes)
+            chapters = [c for c in manifest.chapters if c.index in wanted]
+            log(f"[build] Phạm vi: {len(chapters)} chương được chọn (tổng {len(manifest.chapters)}).")
         else:
-            continue
-        chapters_html.append((ch, title, md))
+            chapters = [c for c in manifest.chapters if not c.skipped]
 
-    if not chapters_html:
+        notes = storage.read_glossary_notes()
+        chapters_html = []
+        footnotes_by_stem: dict[str, list[dict]] = {}
+        anchored_stems: set[str] = set()
+        for ch in chapters:
+            branch = storage.active_branch(ch)
+            if storage.has_branch_text(ch, branch):
+                md = storage.read_branch_text(ch, branch)
+                anchored_stems.add(ch.stem)
+                title = storage.read_branch_title(ch, branch) or ch.title or f"Chương {ch.index}"
+                md, fns = _footnotes.annotate(md, notes)
+                if fns:
+                    footnotes_by_stem[ch.stem] = fns
+            elif not translated_only and storage.has_raw(ch):
+                md = storage.read_raw(ch)
+                title = ch.title or f"Chương {ch.index}"
+            else:
+                continue
+            chapters_html.append((ch, title, md))
+
+        if not chapters_html:
+            if translated_only:
+                raise RuntimeError("Không có chương nào đã dịch để build.")
+            raise RuntimeError("Không có chương nào để build. Hãy crawl/dịch trước.")
+
         if translated_only:
-            raise RuntimeError("Không có chương nào đã dịch để build.")
-        raise RuntimeError("Không có chương nào để build. Hãy crawl/dịch trước.")
+            log(f"[build] Chỉ đóng gói chương đã dịch: {len(chapters_html)}/{len(chapters)} chương.")
 
-    if translated_only:
-        log(f"[build] Chỉ đóng gói chương đã dịch: {len(chapters_html)}/{len(chapters)} chương.")
-
-    _download_cover(storage, manifest, log, proxy=cfg.crawl.scrapling.proxy)
-    if manifest.cover_file:
-        storage.save_manifest(manifest)
-    cover_path = storage.cover_fs_path(manifest)
-    out = build_epub(
-        manifest,
-        chapters_html,
-        cfg.epub_path,
-        cfg.novel.language,
-        cover_path=cover_path,
-        footnotes_by_stem=footnotes_by_stem,
-        metadata=cfg.novel,
-        anchored_stems=anchored_stems,
-    )
-    log(f"[build] Đã tạo EPUB: {out}  ({len(chapters_html)} chương)")
-    return str(out)
+        _download_cover(storage, manifest, log, proxy=cfg.crawl.scrapling.proxy)
+        if manifest.cover_file:
+            storage.save_manifest(manifest)
+        cover_path = storage.cover_fs_path(manifest)
+        out = build_epub(
+            manifest,
+            chapters_html,
+            cfg.epub_path,
+            cfg.novel.language,
+            cover_path=cover_path,
+            footnotes_by_stem=footnotes_by_stem,
+            metadata=cfg.novel,
+            anchored_stems=anchored_stems,
+        )
+        storage.release_build(status="done", manifest_snapshot=storage.branch_chapter_snapshots())
+        log(f"[build] Đã tạo EPUB: {out}  ({len(chapters_html)} chương)")
+        return str(out)
+    except Exception as e:  # noqa: BLE001
+        storage.release_build(status="failed", error=str(e)[:500], manifest_snapshot=storage.branch_chapter_snapshots())
+        raise
 
 
 def _collect_publishable(storage: Storage, manifest: Manifest) -> list[tuple[int, str, str, dict]]:
@@ -2266,6 +2487,69 @@ def _peek_book_id(reader, book_slug: str, log: LogFn) -> str:
         log(f"[đẩy-reader] Sách {book_slug!r} chưa có trên Reader — sẽ tạo mới khi đẩy thật.")
         return ""
     return str(book["id"])
+
+
+def readiness_blockers(cfg: Config) -> dict:
+    """Trả danh sách blockers ngăn build và trạng thái tổng quan workflow.
+
+    Blocker cứng (hard): chương không skip nhưng thiếu active-branch workspace.
+    Build bị chặn hoàn toàn nếu có bất kỳ blocker cứng nào.
+
+    Trả {
+      "has_manifest": bool,
+      "total": int,
+      "skipped": int,
+      "ready": int,              -- không skip VÀ có active-branch text
+      "blocked": int,            -- không skip, KHÔNG có active-branch text
+      "blocked_indexes": [...],  -- tối đa 50 index đầu
+      "pending_candidates": int, -- số candidate chưa áp
+      "build_stale": bool,
+      "build_blocked": bool,     -- True nếu blocked > 0
+      "branches": { branch: {"count": int, "label": str} }
+    }
+    """
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        return {
+            "has_manifest": False, "total": 0, "skipped": 0, "ready": 0,
+            "blocked": 0, "blocked_indexes": [], "pending_candidates": 0,
+            "build_stale": False, "build_blocked": True, "branches": {},
+        }
+    chapters = manifest.chapters
+    total = len(chapters)
+    skipped = sum(1 for ch in chapters if ch.skipped)
+    blocked_indexes: list[int] = []
+    ready = 0
+    for ch in chapters:
+        if ch.skipped:
+            continue
+        branch = storage.active_branch(ch)
+        if storage.has_branch_text(ch, branch):
+            ready += 1
+        else:
+            blocked_indexes.append(ch.index)
+    blocked = len(blocked_indexes)
+    branches: dict[str, dict] = {}
+    for b in revisions.BRANCHES:
+        count = sum(1 for ch in chapters if storage.has_branch_text(ch, b))
+        branches[b] = {"count": count, "label": revisions.branch_label(b)}
+    pending_candidates = storage.conn.execute(
+        "SELECT COUNT(*) AS c FROM ai_revisions WHERE ebook_slug=? AND status='pending'",
+        (storage.slug,)
+    ).fetchone()["c"]
+    return {
+        "has_manifest": True,
+        "total": total,
+        "skipped": skipped,
+        "ready": ready,
+        "blocked": blocked,
+        "blocked_indexes": blocked_indexes[:50],
+        "pending_candidates": int(pending_candidates),
+        "build_stale": storage.build_stale(),
+        "build_blocked": blocked > 0,
+        "branches": branches,
+    }
 
 
 def run_all(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> str:

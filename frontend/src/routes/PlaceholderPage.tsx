@@ -8,7 +8,9 @@ import { legacyUrl } from "@/lib/api";
 /** Trang chưa port: chỉ đường sang bản Jinja2 tương ứng thay vì để trống. */
 export function PlaceholderPage({ title }: { title: string }) {
   const { pathname } = useLocation();
-  const legacy = legacyUrl(pathname === "/" ? "/" : pathname);
+  // `/` của backend giờ redirect về chính SPA — trỏ thẳng `/library` (trang
+  // Thư viện Jinja2) để nút "Mở bản cũ" không quay ngược vào đây.
+  const legacy = legacyUrl(pathname === "/" ? "/library" : pathname);
 
   return (
     <Page title={title}>

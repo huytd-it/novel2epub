@@ -1,4 +1,4 @@
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 
 export interface EbookDetail {
@@ -85,6 +85,27 @@ export interface Paragraph {
   edited: string;
 }
 
+export interface AiRevision {
+  id: number;
+  engine: string;
+  status: "pending" | "applied" | "discarded" | "expired";
+  base_rev: number;
+  base_translated_text: string;
+  payload_json: string;
+  payload_preview?: string;
+  has_raw: boolean;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface BranchState {
+  label: string;
+  has_text: boolean;
+  revision: number;
+  title: string;
+  active: boolean;
+}
+
 export interface ChapterCompare {
   index: number;
   title: string;
@@ -94,9 +115,18 @@ export interface ChapterCompare {
   has_raw: boolean;
   has_translated: boolean;
   has_mt_snapshot: boolean;
+  /** Số phiên bản bản dịch — optimistic lock cho các thao tác ghi. */
+  revision: number;
+  /** Nhánh đang hoạt động — bản dịch của nhánh này là thứ đi vào EPUB. */
+  active_branch: "ai" | "local_mt";
+  branches: Record<"ai" | "local_mt", BranchState>;
+  ai_revisions: AiRevision[];
   raw: string;
   translated: string;
   translated_mt: string;
+  /** Chia theo DÒNG — khớp `para/save` và ghi chú. Dùng cho khung đọc/sửa. */
+  translated_paras: string[];
+  /** Chia theo KHỐI — chỉ để gióng 3 cột đối chiếu. KHÔNG dùng cho para/save. */
   paragraphs: Paragraph[];
   raw_char_count: number;
   word_count: number;
@@ -160,4 +190,39 @@ export function rowLabel(row: ChapterRow): string {
   if (!row.has_raw) return "Chưa crawl";
   if (!row.has_translated) return "Có bản gốc";
   return row.bientap ? "Đã biên tập" : "Đã dịch máy";
+}
+
+/* ── Ba luồng xử lý hàng loạt, độc lập nhau ──────────────────────────────
+   "Dịch" đọc BẢN GỐC, ghi thẳng vào nhánh (`ai` hoặc `local_mt`).
+   "Biên tập AI" đọc BẢN DỊCH đang có, sinh BẢN NHÁP chờ duyệt từng chương.
+   Đừng gộp hai thứ này vào một nút: chúng đọc nguồn khác nhau và một cái ghi
+   đè thẳng còn một cái thì không.                                          */
+
+export function useTranslateSelected(slug: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { indexes: number[]; branch: "ai" | "local_mt"; force?: boolean }) =>
+      api.post<{ started: boolean; branch: string }>(`/api/ui/ebooks/${slug}/translate`, {
+        body: { indexes: vars.indexes, branch: vars.branch, force: vars.force ?? false },
+      }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["chapters", slug] });
+      client.invalidateQueries({ queryKey: ebookKey(slug) });
+      client.invalidateQueries({ queryKey: ["queue"] });
+    },
+  });
+}
+
+export function useRewriteSelected(slug: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { indexes: number[]; genre: string }) =>
+      api.post<{ started: boolean; genre: string }>(`/api/ui/ebooks/${slug}/rewrite`, {
+        body: { indexes: vars.indexes, genre: vars.genre },
+      }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["chapters", slug] });
+      client.invalidateQueries({ queryKey: ["queue"] });
+    },
+  });
 }

@@ -42,7 +42,7 @@ def _parse_optional_int(value: str) -> int | None:
 def start_job(request: Request, step: str):
     cfg = deps.cfg()
     request.app.state.job.start(step, cfg)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/library", status_code=303)
 
 
 @router.post("/ebooks/{slug}/jobs/crawl-range")

@@ -99,12 +99,6 @@ def _fetch_meta(toc_url: str, scrapling_mode: str = "") -> dict:
     }
 
 
-@router.get("/library")
-def library_page():
-    # Trang Thư viện đã gộp vào trang chủ.
-    return RedirectResponse(url="/", status_code=302)
-
-
 @router.get("/library/ebooks/new")
 def new_ebook_page(request: Request):
     """Trang riêng Thêm ebook: nhập URL → preview TOÀN BỘ thông tin + config
@@ -385,4 +379,4 @@ def delete_ebook(request: Request, slug: str, confirm_slug: str = Form(...)):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except EpubDeleteFailed as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/library", status_code=303)

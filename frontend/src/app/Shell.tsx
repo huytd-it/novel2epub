@@ -51,19 +51,26 @@ const SYSTEM: Item[] = [
   { to: "/connection", label: "Kết nối", icon: IconPlug },
 ];
 
-/** Trang của một truyện đã port sang SPA. */
+/** Trang của một truyện đã port sang SPA.
+ *
+ * `end: false` cho "Chương": trang chương thật nằm ở `/chapters/:index` (route
+ * anh em, không phải route con của `/chapters`), nên phải khớp theo tiền tố
+ * mới giữ được mục này sáng khi đang mở dở một chương.
+ */
 function bookRoutes(slug: string) {
-  return [{ to: `/ebooks/${slug}`, label: "Tổng quan", icon: IconOverview }];
+  return [
+    { to: `/ebooks/${slug}`, label: "Tổng quan", icon: IconOverview, end: true },
+    { to: `/ebooks/${slug}/chapters`, label: "Chương", icon: IconRead, end: false },
+    { to: `/ebooks/${slug}/glossary`, label: "Glossary", icon: IconGlossary, end: true },
+    { to: `/ebooks/${slug}/characters`, label: "Nhân vật", icon: IconCharacters, end: true },
+    { to: `/ebooks/${slug}/settings`, label: "Cài đặt", icon: IconSettings, end: true },
+  ];
 }
 
-/** Phần còn lại vẫn là giao diện Jinja2 cũ — đánh dấu bằng icon rời trang. */
-function bookLegacyLinks(slug: string) {
-  return [
-    { href: `/ebooks/${slug}/read`, label: "Đọc", icon: IconRead },
-    { href: `/ebooks/${slug}/glossary`, label: "Glossary", icon: IconGlossary },
-    { href: `/ebook/${slug}/characters`, label: "Nhân vật", icon: IconCharacters },
-    { href: `/ebooks/${slug}/settings`, label: "Cài đặt", icon: IconSettings },
-  ];
+/** Phần trang Jinja2 cũ chưa port — hiện không còn mục nào, giữ hàm để dễ
+ * thêm lại khi có trang mới cần đánh dấu "mở ở tab khác". */
+function bookLegacyLinks(_slug: string): { href: string; label: string; icon: typeof IconRead }[] {
+  return [];
 }
 
 const navItem = "group gap-2.5 rounded-field text-[13px]";
@@ -147,11 +154,11 @@ function BookSection() {
             <p className="px-3 pt-1 pb-2 text-[11px] opacity-50">Chưa có mục lục.</p>
           )}
           <ul>
-            {bookRoutes(book.slug).map(({ to, label, icon: Icon }) => (
+            {bookRoutes(book.slug).map(({ to, label, icon: Icon, end }) => (
               <li key={to}>
                 <NavLink
                   to={to}
-                  end
+                  end={end}
                   className={({ isActive }) =>
                     clsx(
                       navItem,

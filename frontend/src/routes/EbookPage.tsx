@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 
@@ -16,17 +16,27 @@ import {
   rowTone,
   useChapters,
   useEbook,
+  useRewriteSelected,
+  useTranslateSelected,
   type ChapterFilters,
   type ChapterRow,
 } from "@/lib/ebook";
+import { useGenres } from "@/lib/chapter";
 import { ChapterLegend, ChapterStrip } from "@/components/ChapterStrip";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
 import { Button, Spinner } from "@/components/ui/Button";
 import { Dot } from "@/components/ui/Badge";
 import { Checkbox, InputWithIcon, Select } from "@/components/ui/Field";
-import { ConfirmDialog } from "@/components/ui/Modal";
+import { ConfirmDialog, Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { IconExternal, IconRead, IconSearch, IconSettings } from "@/components/icons";
+import {
+  IconCaretDown,
+  IconExternal,
+  IconRead,
+  IconSearch,
+  IconSettings,
+  IconSparkle,
+} from "@/components/icons";
 
 const PAGE_SIZE = 100;
 
@@ -161,6 +171,7 @@ function FilterBar({
 
 /* ── Hành động hàng loạt ─────────────────────────────────────────────── */
 
+/** Thao tác chạy qua các endpoint `batch/*` cũ (form-encoded, không theo nhánh). */
 interface BatchAction {
   key: string;
   label: string;
@@ -170,14 +181,13 @@ interface BatchAction {
   confirm?: (count: number) => string;
 }
 
-const BATCH_ACTIONS: BatchAction[] = [
-  { key: "translate", label: "Dịch", path: "batch/translate" },
+/** Nhóm "Khác" — ít dùng, gom vào menu để thanh hành động không dài ra. */
+const OTHER_ACTIONS: BatchAction[] = [
   { key: "titles", label: "Dịch tiêu đề", path: "batch/translate-titles" },
-  { key: "rewrite", label: "AI viết lại", path: "batch/ai-rewrite" },
   { key: "glossary", label: "Gợi ý glossary", path: "batch/suggest-glossary" },
   { key: "characters", label: "Trích nhân vật", path: "batch/extract-characters" },
-  { key: "skip", label: "Bỏ qua", path: "batch/update-skip", form: { skip: "true" } },
-  { key: "unskip", label: "Hiện lại", path: "batch/update-skip", form: { skip: "false" } },
+  { key: "skip", label: "Bỏ qua chương", path: "batch/update-skip", form: { skip: "true" } },
+  { key: "unskip", label: "Hiện lại chương", path: "batch/update-skip", form: { skip: "false" } },
   {
     key: "delete-translation",
     label: "Xóa bản dịch",
@@ -195,6 +205,97 @@ const BATCH_ACTIONS: BatchAction[] = [
   },
 ];
 
+/** Hộp thoại biên tập AI hàng loạt — chọn lại thể loại cho riêng lần chạy này. */
+function BulkRewriteDialog({
+  open,
+  onClose,
+  slug,
+  selected,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  slug: string;
+  selected: number[];
+  onDone: () => void;
+}) {
+  const { data: genreData } = useGenres();
+  const rewrite = useRewriteSelected(slug);
+  const [genre, setGenre] = useState("");
+  const toast = useToast();
+
+  useEffect(() => {
+    if (open) setGenre("");
+  }, [open]);
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Biên tập AI ${selected.length} chương`}
+      footer={
+        <>
+          <Button onClick={onClose}>Hủy</Button>
+          <Button
+            variant="primary"
+            loading={rewrite.isPending}
+            onClick={() =>
+              rewrite.mutate(
+                { indexes: selected, genre },
+                {
+                  onSuccess: () => {
+                    toast(`Đã xếp biên tập ${selected.length} chương vào hàng đợi.`);
+                    onDone();
+                    onClose();
+                  },
+                  onError: (err) =>
+                    toast(err instanceof Error ? err.message : String(err), "error"),
+                },
+              )
+            }
+          >
+            Chạy biên tập
+          </Button>
+        </>
+      }
+    >
+      <p className="mb-3 text-[13px] opacity-70">
+        AI đọc <strong>bản dịch đang có</strong> của từng chương và viết lại cho mượt hơn — không
+        đọc bản gốc, không dịch lại. Mỗi chương sinh một <strong>bản nháp</strong> để bạn duyệt
+        trong trang chương.
+      </p>
+      <label className="text-[13px]">
+        Thể loại áp dụng cho lần biên tập này
+        <Select value={genre} onChange={(e) => setGenre(e.target.value)} className="mt-1 w-full">
+          <option value="">Theo cấu hình của truyện</option>
+          {(genreData?.genres ?? []).map((g) => (
+            <option key={g.value} value={g.value}>
+              {g.label}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <p className="mt-2 text-xs opacity-60">
+        Thể loại quyết định hệ xưng hô và mức Hán Việt. Local MT dịch tiên hiệp/cổ đại khá sát
+        nhưng hay lệch xưng hô — chọn <em>Tiên hiệp / Huyền huyễn / Cổ trang</em> ở đây để nắn lại
+        mà không phải sửa cấu hình truyện.
+      </p>
+    </Modal>
+  );
+}
+
+/**
+ * Thanh hành động hàng loạt — CỐ ĐỊNH ở đáy màn hình.
+ *
+ * Trước đây thanh này `sticky` bên trong panel bảng: chọn xong ở cuối danh
+ * sách 100 dòng thì phải cuộn ngược lên đầu mới bấm được. Đưa hẳn ra
+ * `fixed bottom` để chọn ở đâu cũng thao tác được ngay tại chỗ.
+ *
+ * Ba nhóm tách hẳn nhau vì chúng KHÔNG cùng một loại việc:
+ * - "Dịch": đọc bản gốc, ghi thẳng vào nhánh đã chọn.
+ * - "Biên tập AI": đọc bản dịch đang có, sinh bản nháp chờ duyệt.
+ * - "Khác": các thao tác phụ trợ, gom vào menu cho gọn.
+ */
 function BatchBar({
   slug,
   selected,
@@ -208,6 +309,9 @@ function BatchBar({
 }) {
   const toast = useToast();
   const [pending, setPending] = useState<BatchAction | null>(null);
+  const [confirmTranslate, setConfirmTranslate] = useState<"ai" | "local_mt" | null>(null);
+  const [rewriteOpen, setRewriteOpen] = useState(false);
+  const translate = useTranslateSelected(slug);
 
   const run = useMutation({
     mutationFn: (action: BatchAction) =>
@@ -235,28 +339,117 @@ function BatchBar({
     else run.mutate(action);
   };
 
+  const runTranslate = (branch: "ai" | "local_mt") =>
+    translate.mutate(
+      { indexes: selected, branch, force: false },
+      {
+        onSuccess: () => {
+          setConfirmTranslate(null);
+          onDone();
+          toast(`Đã xếp dịch ${selected.length} chương vào hàng đợi.`);
+        },
+        onError: (err) => {
+          setConfirmTranslate(null);
+          toast(err instanceof Error ? err.message : String(err), "error");
+        },
+      },
+    );
+
   return (
     <>
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-base-300 bg-warning/10 px-3 py-2">
-        <span className="text-[13px] font-medium">
-          <span data-numeric>{num(selected.length)}</span> chương đã chọn
-        </span>
-        <Button size="sm" variant="ghost" onClick={onClear}>
-          Bỏ chọn
-        </Button>
-        <span className="mx-1 h-4 w-px bg-base-300" aria-hidden="true" />
-        {BATCH_ACTIONS.map((action) => (
-          <Button
-            key={action.key}
-            size="sm"
-            variant={action.destructive ? "danger" : "neutral"}
-            disabled={run.isPending}
-            onClick={() => trigger(action)}
-          >
-            {action.label}
-          </Button>
-        ))}
+      {/* Chừa chỗ để thanh cố định không che mất dòng cuối bảng. */}
+      <div className="h-20" aria-hidden="true" />
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-base-300 bg-base-100/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:left-64">
+        <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-medium">
+              <span data-numeric>{num(selected.length)}</span> chương
+            </span>
+            <Button size="sm" variant="ghost" onClick={onClear}>
+              Bỏ chọn
+            </Button>
+          </div>
+
+          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Dịch</span>
+            <Button
+              size="sm"
+              disabled={translate.isPending}
+              onClick={() => setConfirmTranslate("local_mt")}
+            >
+              Local MT
+            </Button>
+            <Button
+              size="sm"
+              disabled={translate.isPending}
+              onClick={() => setConfirmTranslate("ai")}
+            >
+              AI
+            </Button>
+          </div>
+
+          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Biên tập</span>
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<IconSparkle size={13} />}
+              onClick={() => setRewriteOpen(true)}
+            >
+              Biên tập AI…
+            </Button>
+          </div>
+
+          <div className="ml-auto dropdown dropdown-top dropdown-end">
+            <div tabIndex={0} role="button" className="btn btn-sm gap-1.5">
+              Khác <IconCaretDown size={12} />
+            </div>
+            <ul className="dropdown-content menu menu-sm z-50 w-56 rounded-box border border-base-300 bg-base-100 shadow-lg">
+              {OTHER_ACTIONS.map((action) => (
+                <li key={action.key}>
+                  <button
+                    type="button"
+                    disabled={run.isPending}
+                    className={clsx(action.destructive && "text-error")}
+                    onClick={() => trigger(action)}
+                  >
+                    {action.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmTranslate !== null}
+        onCancel={() => setConfirmTranslate(null)}
+        onConfirm={() => confirmTranslate && runTranslate(confirmTranslate)}
+        title={confirmTranslate === "local_mt" ? "Dịch bằng Local MT" : "Dịch bằng AI"}
+        body={
+          <>
+            Dịch {selected.length} chương đã chọn vào nhánh{" "}
+            <strong>{confirmTranslate === "local_mt" ? "Local MT" : "AI"}</strong>. Chương nào đã
+            có bản dịch trong nhánh đó sẽ được <strong>bỏ qua</strong>, không ghi đè.
+          </>
+        }
+        confirmLabel="Xếp vào hàng đợi"
+        pending={translate.isPending}
+      />
+
+      <BulkRewriteDialog
+        open={rewriteOpen}
+        onClose={() => setRewriteOpen(false)}
+        slug={slug}
+        selected={selected}
+        onDone={onDone}
+      />
 
       <ConfirmDialog
         open={pending !== null}
@@ -325,12 +518,12 @@ function ChapterTableRow({
         {row.word_count ? num(row.word_count) : "—"}
       </td>
       <td className="w-24 px-2 py-1 text-right">
-        <a
-          href={legacyUrl(`/ebooks/${slug}/read/${row.index}`)}
+        <Link
+          to={`/ebooks/${slug}/chapters/${row.index}`}
           className="text-[11px] opacity-60 hover:text-primary hover:opacity-100"
         >
           Đọc
-        </a>
+        </Link>
       </td>
     </tr>
   );
@@ -340,6 +533,7 @@ function ChapterTableRow({
 
 export function EbookPage() {
   const { slug = "" } = useParams();
+  const navigate = useNavigate();
   const client = useQueryClient();
   const [, selectBook] = useCurrentBook();
   const [filters, setFilters] = useState<ChapterFilters>(DEFAULT_FILTERS);
@@ -440,9 +634,7 @@ export function EbookPage() {
           <Button
             variant="primary"
             icon={<IconRead size={15} />}
-            onClick={() => {
-              window.location.href = legacyUrl(`/ebooks/${slug}/read`);
-            }}
+            onClick={() => navigate(`/ebooks/${slug}/chapters`)}
           >
             Đọc
           </Button>
@@ -521,15 +713,6 @@ export function EbookPage() {
             ) : null
           }
         />
-
-        {selected.size > 0 ? (
-          <BatchBar
-            slug={slug}
-            selected={[...selected]}
-            onDone={refresh}
-            onClear={() => setSelected(new Set())}
-          />
-        ) : null}
 
         <FilterBar filters={filters} onChange={setFilters} />
 
@@ -627,6 +810,15 @@ export function EbookPage() {
         vẫn còn các thao tác chưa được port: thêm chương thủ công, nhập/xuất CSV mục lục, sắp
         xếp lại index.
       </p>
+
+      {selected.size > 0 ? (
+        <BatchBar
+          slug={slug}
+          selected={[...selected]}
+          onDone={refresh}
+          onClear={() => setSelected(new Set())}
+        />
+      ) : null}
     </Page>
   );
 }

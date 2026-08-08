@@ -101,20 +101,32 @@ def reader_search(slug: str, q: str, regex: bool = False, case: bool = False):
     return JSONResponse(results)
 
 
-@router.get("/ebooks/{slug}/read")
-def reader_root(request: Request, slug: str):
-    """Redirect tới chương đầu tiên (hoặc bookmark gần nhất)."""
+def _first_reading_index(slug: str) -> int:
+    """Chương đầu tiên có bản dịch, hoặc chương đầu mục lục nếu chưa dịch gì."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None or not manifest.chapters:
         raise HTTPException(status_code=404, detail="Chưa có chương nào.")
-    # Tìm chương đầu tiên có bản dịch
     for ch in manifest.chapters:
         if storage.has_translated(ch):
-            return RedirectResponse(url=f"/ebooks/{slug}/read/{ch.index}", status_code=302)
-    # Không có bản dịch nào → redirect chương đầu
-    return RedirectResponse(url=f"/ebooks/{slug}/read/{manifest.chapters[0].index}", status_code=302)
+            return ch.index
+    return manifest.chapters[0].index
+
+
+@router.get("/ebooks/{slug}/read")
+def reader_root(request: Request, slug: str):
+    """Redirect tới chương đầu tiên có bản dịch (bookmark là client-side)."""
+    return RedirectResponse(
+        url=f"/ebooks/{slug}/read/{_first_reading_index(slug)}", status_code=302
+    )
+
+
+@router.get("/api/ebooks/{slug}/read/first-index")
+def reader_first_index(slug: str):
+    """Bản JSON của `reader_root`, cho SPA tự điều hướng — bookmark (client-side,
+    localStorage) vẫn được ưu tiên hơn giá trị này khi có."""
+    return JSONResponse({"index": _first_reading_index(slug)})
 
 
 def _chapter_context(slug: str, index: int) -> dict:
@@ -190,12 +202,16 @@ def reader_chapter_data(slug: str, index: int):
     return JSONResponse({
         "index": ch.index,
         "title": ch.title or f"Chương {ch.index}",
+        "title_zh": getattr(ch, "title_zh", "") or "",
+        "skipped": bool(getattr(ch, "skipped", False)),
         "has_translated": ctx["has_translated"],
         "has_raw": ctx["has_raw"],
         "has_mt_snapshot": ctx["has_mt_snapshot"],
         "translated_paras": ctx["translated_paras"],
         "raw_paras": ctx["raw_paras"],
         "edit_paras": ctx["edit_paras"],
+        "raw_char_count": ctx["raw_char_count"],
+        "word_count": ctx["translated_word_count"],
         "prev_index": ctx["prev_ch"].index if ctx["prev_ch"] else None,
         "next_index": ctx["next_ch"].index if ctx["next_ch"] else None,
         "notes": ctx["notes"],

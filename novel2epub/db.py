@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -130,6 +130,10 @@ _SCHEMA_STATEMENTS = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_ebooks_archived ON ebooks(archived)",
     # ── chương: manifest fields + nội dung raw/translated/translated_mt ──
+    # `translated_text`/`translated_mt_text`/`revision`/`title`/`title_zh` là
+    # nhánh AI (ai_translation); `local_mt_*` là nhánh Local NMT độc lập. Mỗi
+    # chương có `active_branch` — bản dịch của nhánh đang hoạt động là thứ đi
+    # vào EPUB/Reader. Hai nhánh có revision/tiêu đề/workspace RIÊNG.
     """
     CREATE TABLE IF NOT EXISTS chapters (
         ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
@@ -145,6 +149,12 @@ _SCHEMA_STATEMENTS = [
         raw_text TEXT,
         translated_text TEXT,
         translated_mt_text TEXT,
+        active_branch TEXT NOT NULL DEFAULT 'ai',
+        local_mt_text TEXT,
+        local_mt_revision INTEGER NOT NULL DEFAULT 1,
+        local_mt_title TEXT NOT NULL DEFAULT '',
+        local_mt_title_zh TEXT NOT NULL DEFAULT '',
+        local_mt_mt_snapshot TEXT,
         meta_json TEXT NOT NULL DEFAULT '{}',
         revision INTEGER NOT NULL DEFAULT 1,
         updated_by_issuer TEXT NOT NULL DEFAULT '',
@@ -328,6 +338,98 @@ _SCHEMA_STATEMENTS = [
     """,
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_audit_request_action ON audit_events(request_id, action, resource_type, resource_id)",
     "CREATE INDEX IF NOT EXISTS idx_audit_cursor ON audit_events(created_at DESC, id DESC)",
+    # ── candidate revisions — hộp bản nháp AI (v11) ──────────────────────
+    # Mỗi bản nháp AI (rewrite/han-cleanup/fix) là một hàng, luôn bắt đầu ở
+    # `status='pending'` (candidate CHƯA kích hoạt). `base_rev` + 
+    # `base_translated_text` là snapshot "exact set" lúc sinh — dùng làm
+    # optimistic lock khi người dùng "chấp nhận" (áp). `has_raw` cho biết engine
+    # đó có được cấp raw_text không (chống rò rỉ raw vào AI edit). `expires_at`
+    # là hạn để refresh snapshot: quá hạn thì không còn áp được nữa.
+    """
+    CREATE TABLE IF NOT EXISTS ai_revisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        idx INTEGER NOT NULL,
+        branch TEXT NOT NULL DEFAULT 'ai',
+        engine TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        base_rev INTEGER NOT NULL DEFAULT 1,
+        base_translated_text TEXT NOT NULL DEFAULT '',
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        has_raw INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        expires_at TEXT NOT NULL DEFAULT '',
+        applied_at TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_ai_revisions_ebook_status ON ai_revisions(ebook_slug, idx, status)",
+    "CREATE INDEX IF NOT EXISTS idx_ai_revisions_status_expiry ON ai_revisions(status, expires_at)",
+    # `idx_ai_revisions_branch_status` KHÔNG được đặt ở đây dù cùng bảng: cột
+    # `branch` không nằm trong CREATE TABLE ai_revisions phía trên — nó chỉ
+    # được thêm qua `_ADDED_COLUMNS`/ALTER TABLE. Trên database MỚI, bảng vừa
+    # được CREATE TABLE ở đây chưa có cột đó, nên index này phải đợi tới sau
+    # khi `_ensure_columns` chạy LẦN HAI (xem `init_schema`) mới được tạo —
+    # xem `_POST_COLUMN_INDEXES` bên dưới.
+    # ── từ điển entity (v11 mở rộng) ─────────────────────────────────────
+    # Entity (tên riêng nhân vật, địa danh, ...) được bảo vệ trong AI edit:
+    # `protect=1` ⇒ AI chỉ được nhìn `ENT<prefix>` placeholder chứ không thấy
+    # literal; sau khi AI trả kết quả ta khôi phục literal từ placeholder.
+    # Bảng này là toàn cục; per-ebook override nằm ở `ebook_entity_overrides`.
+    """
+    CREATE TABLE IF NOT EXISTS entity_dictionary (
+        source TEXT NOT NULL PRIMARY KEY,
+        target TEXT NOT NULL DEFAULT '',
+        protect INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS ebook_entity_overrides (
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        source TEXT NOT NULL,
+        target TEXT NOT NULL DEFAULT '',
+        protect INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (ebook_slug, source)
+    )
+    """,
+    # ── preview token chính xác (v11 mở rộng) ────────────────────────────────────
+    # Token phát ra để review "bản nháp sắp áp" — xác thực bằng chính snapshot
+    # nội dung tại thời điểm cấp token (base_rev + base_text), nên UI không thể
+    # nhầm lẫn bản khác với bản được duyệt. Một token chỉ dùng được 1 lần,
+    # có hạn, và bị vô hiệu hoá khi chương thay đổi.
+    """
+    CREATE TABLE IF NOT EXISTS preview_tokens (
+        token TEXT NOT NULL PRIMARY KEY,
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        idx INTEGER NOT NULL,
+        branch TEXT NOT NULL DEFAULT 'ai',
+        revision_id INTEGER NOT NULL,
+        base_rev INTEGER NOT NULL DEFAULT 1,
+        base_text TEXT NOT NULL DEFAULT '',
+        expires_at TEXT NOT NULL DEFAULT '',
+        consumed INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_preview_tokens_ebook ON preview_tokens(ebook_slug, idx, branch)",
+    # ── trạng thái build artifact (v11 mở rộng) ──────────────────────────────────
+    # 1 hàng mỗi ebook. `lock_owner` ghi chủ đang build (blocker — không cho
+    # build chồng); `manifest_snapshot` là fingerprint các nhánh đang hoạt
+    # động lúc build — thay đổi bản dịch sau đó ⇒ build stale. `finished_at`
+    # phân biệt "đang chạy" (đang build) với "xong".
+    """
+    CREATE TABLE IF NOT EXISTS build_artifacts (
+        ebook_slug TEXT NOT NULL PRIMARY KEY REFERENCES ebooks(slug) ON DELETE CASCADE,
+        lock_owner TEXT NOT NULL DEFAULT '',
+        started_at TEXT NOT NULL DEFAULT '',
+        finished_at TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'none',
+        error TEXT NOT NULL DEFAULT '',
+        manifest_snapshot TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
 ]
 
 # Cột thêm vào bảng ĐÃ TỒN TẠI ở các phiên bản schema sau. `_SCHEMA_STATEMENTS`
@@ -374,6 +476,17 @@ _ADDED_COLUMNS = [
     ("job_queue_history", "actor_subject", "TEXT NOT NULL DEFAULT ''"),
     ("job_queue_pending", "actor_issuer", "TEXT NOT NULL DEFAULT ''"),
     ("job_queue_pending", "actor_subject", "TEXT NOT NULL DEFAULT ''"),
+    # v11 (mở rộng): nhánh local_mt + ai_translation độc lập (title/workspace/
+    # revisions riêng) và `ai_revisions.branch` đánh dấu nhánh mà candidate
+    # thuộc về. `_SCHEMA_STATEMENTS`/`_ensure_columns` chạy trên MỌI lần mở DB
+    # nên bảng/column mới cũng xuất hiện trên DB v11 đã tồn tại.
+    ("chapters", "active_branch", "TEXT NOT NULL DEFAULT 'ai'"),
+    ("chapters", "local_mt_text", "TEXT"),
+    ("chapters", "local_mt_revision", "INTEGER NOT NULL DEFAULT 1"),
+    ("chapters", "local_mt_title", "TEXT NOT NULL DEFAULT ''"),
+    ("chapters", "local_mt_title_zh", "TEXT NOT NULL DEFAULT ''"),
+    ("chapters", "local_mt_mt_snapshot", "TEXT"),
+    ("ai_revisions", "branch", "TEXT NOT NULL DEFAULT 'ai'"),
 ]
 
 
@@ -427,8 +540,9 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
     """Thêm các cột của `_ADDED_COLUMNS` còn thiếu vào DB cũ (ALTER TABLE).
 
     SQLite không có `ADD COLUMN IF NOT EXISTS` nên phải tự dò bằng
-    `PRAGMA table_info`. Idempotent; bảng chưa tồn tại thì bỏ qua (vòng
-    `_SCHEMA_STATEMENTS` ở trên đã tạo rồi nên trường hợp này không xảy ra).
+    `PRAGMA table_info`. Idempotent; bảng chưa tồn tại thì bỏ qua — gọi hàm
+    này LẦN HAI sau khi `_SCHEMA_STATEMENTS` chạy (xem `init_schema`) mới
+    thật sự vá được cột trên các bảng vừa được CREATE TABLE ở đó.
     """
     for table, column, decl in _ADDED_COLUMNS:
         rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
@@ -436,6 +550,15 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
             continue
         if column not in {r["name"] for r in rows}:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
+# Index tham chiếu cột chỉ tồn tại nhờ `_ADDED_COLUMNS`/ALTER TABLE (không nằm
+# trong CREATE TABLE gốc của bảng trong `_SCHEMA_STATEMENTS`) — phải tạo SAU
+# lần `_ensure_columns` thứ hai, nếu không CREATE INDEX sẽ thất bại trên
+# database MỚI (bảng vừa CREATE TABLE chưa có cột đó cho tới khi ALTER chạy).
+_POST_COLUMN_INDEXES = [
+    "CREATE INDEX IF NOT EXISTS idx_ai_revisions_branch_status ON ai_revisions(ebook_slug, branch, status)",
+]
 
 
 def _upgrade_prompt_text(prompt: str) -> str:
@@ -510,12 +633,33 @@ def _record_schema_version(conn: sqlite3.Connection, version: int) -> None:
 
 def _migration_v10(conn: sqlite3.Connection) -> None:
     """Thêm nền identity/audit/revision; ALTER giữ nguyên toàn bộ dữ liệu v9."""
+    _ensure_columns(conn)
     for stmt in _SCHEMA_STATEMENTS:
         conn.execute(stmt)
+
+
+def _migration_v11(conn: sqlite3.Connection) -> None:
+    """Thêm hộp bản nháp AI (`ai_revisions`), nhánh local_mt/ai_translation,
+    từ điển entity, preview token và trạng thái build artifact; ALTER giữ
+    nguyên dữ liệu v10."""
     _ensure_columns(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
 
 
-_MIGRATIONS = {10: _migration_v10}
+def _migration_noop(conn: sqlite3.Connection) -> None:
+    """Stub cho các phiên bản cũ đã được xử lý bằng _ensure_columns + CREATE TABLE IF NOT EXISTS."""
+    _ensure_columns(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+
+_MIGRATIONS = {
+    8: _migration_noop,
+    9: _migration_noop,
+    10: _migration_v10,
+    11: _migration_v11,
+}
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
@@ -532,9 +676,19 @@ def init_schema(conn: sqlite3.Connection) -> None:
 
     with conn:
         # Giữ khả năng nâng các DB rất cũ vốn chưa có migration ledger.
+        # `_ensure_columns` chạy TRƯỚC `_SCHEMA_STATEMENTS` để vá cột cho các
+        # bảng ĐÃ TỒN TẠI từ phiên bản trước khi index của chúng chạy.
+        _ensure_columns(conn)
         for stmt in _SCHEMA_STATEMENTS:
             conn.execute(stmt)
+        # Gọi lại LẦN HAI: bảng nào vừa được CREATE TABLE ở vòng trên (database
+        # hoàn toàn mới) chưa có mặt lúc lần gọi đầu nên bị bỏ qua — giờ bảng
+        # đã tồn tại, `_ensure_columns` mới vá được cột `_ADDED_COLUMNS` của
+        # nó. Phải chạy trước `_POST_COLUMN_INDEXES` vì index đó cần đúng cột
+        # này (`ai_revisions.branch`, không nằm trong CREATE TABLE gốc).
         _ensure_columns(conn)
+        for stmt in _POST_COLUMN_INDEXES:
+            conn.execute(stmt)
         _migrate_legacy_prompts(conn)
 
         start = current if current is not None else SCHEMA_VERSION

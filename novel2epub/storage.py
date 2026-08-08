@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .db import get_thread_connection, resolve_db_path
+from . import entities, preview, revisions
 
 
 def parse_glossary_line(line: str) -> tuple[str, str, str] | None:
@@ -213,8 +214,11 @@ class Storage:
 
     def _chapter_row(self, ch: Chapter) -> sqlite3.Row | None:
         return self.conn.execute(
-            "SELECT raw_text, translated_text, translated_mt_text, meta_json, "
-            "translated_updated_at FROM chapters WHERE ebook_slug=? AND idx=?",
+            "SELECT raw_text, translated_text, translated_mt_text, active_branch, "
+            "title, title_zh, "
+            "local_mt_text, local_mt_revision, local_mt_title, local_mt_title_zh, "
+            "local_mt_mt_snapshot, meta_json, translated_updated_at "
+            "FROM chapters WHERE ebook_slug=? AND idx=?",
             (self.slug, ch.index),
         ).fetchone()
 
@@ -528,6 +532,738 @@ class Storage:
             return row["translated_mt_text"]
         return row["translated_text"] if row and row["translated_text"] else ""
 
+    # ----- candidate revisions (hộp bản nháp AI) + optimistic lock -----
+    def read_revision(self, ch: Chapter) -> int:
+        """Số phiên bản `chapters.revision` — khoá optimistic cho `translated_text`."""
+        row = self.conn.execute(
+            "SELECT revision FROM chapters WHERE ebook_slug=? AND idx=?",
+            (self.slug, ch.index),
+        ).fetchone()
+        return int(row["revision"]) if row and row["revision"] is not None else 0
+
+    def create_ai_revision(self, cand: "revisions.RevisionCandidate") -> int:
+        """Ghi một candidate (bản nháp AI) vào `ai_revisions`, trả id.
+
+        Candidate luôn bắt đầu ở `status='pending'` (chưa kích hoạt)."""
+        self.ensure_dirs()
+        with self.conn:
+            self._ensure_chapter_row(Chapter(index=cand.idx, url=""))
+            cur = self.conn.execute(
+                """
+                INSERT INTO ai_revisions (
+                    ebook_slug, idx, branch, engine, status, base_rev,
+                    base_translated_text, payload_json, has_raw,
+                    created_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    self.slug, cand.idx, cand.branch, cand.engine, cand.status, cand.base_rev,
+                    cand.base_translated_text, cand.payload, int(cand.has_raw),
+                    cand.created_at, cand.expires_at,
+                ),
+            )
+        return int(cur.lastrowid)
+
+    def read_ai_revision(self, ch: Chapter, revision_id: int) -> "revisions.RevisionCandidate | None":
+        row = self.conn.execute(
+            "SELECT * FROM ai_revisions WHERE ebook_slug=? AND idx=? AND id=?",
+            (self.slug, ch.index, revision_id),
+        ).fetchone()
+        return revisions.from_row(row) if row else None
+
+    def list_ai_revisions(self, ch: Chapter, *, status: str | None = None) -> list[dict]:
+        """Liệt kê bản nháp AI của chương (mới nhất trước), filter theo status."""
+        sql = (
+            "SELECT id, branch, engine, status, base_rev, base_translated_text, "
+            "payload_json, has_raw, created_at, expires_at, applied_at "
+            "FROM ai_revisions WHERE ebook_slug=? AND idx=?"
+        )
+        params: list = [self.slug, ch.index]
+        if status:
+            sql += " AND status=?"
+            params.append(status)
+        sql += " ORDER BY id DESC"
+        rows = self.conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def mark_ai_revision(self, ch: Chapter, revision_id: int, *, status: str) -> bool:
+        """Đổi status một candidate; trả False nếu không có hàng để đổi."""
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE ai_revisions SET status=?, applied_at="
+                "CASE WHEN ? = 'applied' THEN datetime('now') ELSE applied_at END "
+                "WHERE ebook_slug=? AND idx=? AND id=?",
+                (status, status, self.slug, ch.index, revision_id),
+            )
+        return cur.rowcount > 0
+
+    def revision_chapter(self, revision_id: int) -> int:
+        """Trả `idx` chương của một candidate; -1 nếu không tồn tại."""
+        row = self.conn.execute(
+            "SELECT idx FROM ai_revisions WHERE id=?", (revision_id,)
+        ).fetchone()
+        return int(row["idx"]) if row else -1
+
+    def expire_stale_revisions(self, ch: Chapter) -> int:
+        """Đánh dấu `expired` các candidate `pending` đã quá hạn (`expires_at`)."""
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE ai_revisions SET status='expired', applied_at=datetime('now') "
+                "WHERE ebook_slug=? AND idx=? AND status='pending' "
+                "AND expires_at != '' AND expires_at <= datetime('now')",
+                (self.slug, ch.index),
+            )
+        return cur.rowcount
+
+    def compare_and_swap_translation(
+        self, ch: Chapter, *, expected_rev: int, new_text: str
+    ) -> bool:
+        """Ghi `translated_text` CÓ ĐIỀU KIỆN — optimistic lock trên `revision`.
+
+        Chỉ ghi khi `chapters.revision == expected_rev`; nếu thành công thì tăng
+        `revision` lên 1 (bản nháp ai khác sinh từ bản cũ sẽ bị từ chối). Trả
+        False nếu revision đã đổi (bản dịch bị sửa xen giữa) — không ghi gì.
+        """
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE chapters SET translated_text=?, translated_updated_at=unixepoch('now'), "
+                "revision=revision+1 "
+                "WHERE ebook_slug=? AND idx=? AND revision=?",
+                (new_text, self.slug, ch.index, expected_rev),
+            )
+        return cur.rowcount == 1
+
+    # ----- nhánh bản dịch (ai_translation vs local_mt) -----
+    # Mỗi chương có 2 nhánh độc lập: `ai` (cột `translated_*`) và `local_mt`
+    # (cột `local_mt_*`). Mỗi nhánh có title/workspace/revision/edit RIÊNG.
+    # `active_branch` quyết định bản nào đi vào EPUB/Reader. So sánh dùng
+    # compare-and-swap theo revision CỦA NHÁNH đó.
+    _BRANCH_COLUMNS = {
+        "ai": {
+            "text": "translated_text",
+            "revision": "revision",
+            "title": "title",
+            "title_zh": "title_zh",
+            "mt": "translated_mt_text",
+        },
+        "local_mt": {
+            "text": "local_mt_text",
+            "revision": "local_mt_revision",
+            "title": "local_mt_title",
+            "title_zh": "local_mt_title_zh",
+            "mt": "local_mt_mt_snapshot",
+        },
+    }
+    # Key meta đánh dấu "đã dịch xong" cho từng nhánh (độc lập, không share).
+    _BRANCH_COMPLETE_META = {"ai": "complete", "local_mt": "local_mt_complete"}
+
+    def active_branch(self, ch: Chapter) -> str:
+        row = self._chapter_row(ch)
+        return revisions.normalize_branch(row["active_branch"] if row else None)
+
+    def set_active_branch(self, ch: Chapter, branch: str) -> str:
+        """Đổi nhánh đang hoạt động của chương (thứ đi vào EPUB/Reader)."""
+        branch = revisions.normalize_branch(branch)
+        self.ensure_dirs()
+        with self.conn:
+            self._ensure_chapter_row(ch)
+            self.conn.execute(
+                "UPDATE chapters SET active_branch=? WHERE ebook_slug=? AND idx=?",
+                (branch, self.slug, ch.index),
+            )
+        return branch
+
+    def read_branch_text(self, ch: Chapter, branch: str) -> str:
+        branch = revisions.normalize_branch(branch)
+        row = self._chapter_row(ch)
+        if row is None:
+            return ""
+        return row[self._BRANCH_COLUMNS[branch]["text"]] or ""
+
+    def write_branch_text(self, ch: Chapter, branch: str, content: str) -> None:
+        """Ghi bản dịch vào nhánh và TĂNG revision của nhánh đó."""
+        branch = revisions.normalize_branch(branch)
+        col = self._BRANCH_COLUMNS[branch]["text"]
+        self.ensure_dirs()
+        with self.conn:
+            self._ensure_chapter_row(ch)
+            self.conn.execute(
+                f"UPDATE chapters SET {col}=?, translated_updated_at=unixepoch('now'), "
+                f"{self._BRANCH_COLUMNS[branch]['revision']}={self._BRANCH_COLUMNS[branch]['revision']}+1 "
+                "WHERE ebook_slug=? AND idx=?",
+                (content, self.slug, ch.index),
+            )
+
+    def has_branch_text(self, ch: Chapter, branch: str) -> bool:
+        """Nhánh `ai` tôn trọng `meta.complete` (job dịch dở không lọt vào);
+        nhánh `local_mt` tôn trọng `meta.local_mt_complete`."""
+        branch = revisions.normalize_branch(branch)
+        row = self._chapter_row(ch)
+        if row is None or not row[self._BRANCH_COLUMNS[branch]["text"]]:
+            return False
+        try:
+            meta = json.loads(row["meta_json"] or "{}")
+        except json.JSONDecodeError:
+            meta = {}
+        return bool(meta.get(self._BRANCH_COMPLETE_META[branch], True))
+
+    def mark_branch_complete(self, ch: Chapter, branch: str, *, meta_extra: dict | None = None) -> None:
+        """Đánh dấu nhánh đã dịch xong (key complete riêng cho từng nhánh)."""
+        branch = revisions.normalize_branch(branch)
+        meta = self.read_meta(ch) if self.has_meta(ch) else {}
+        if meta_extra:
+            meta.update(meta_extra)
+        meta[self._BRANCH_COMPLETE_META[branch]] = True
+        self.write_meta(ch, meta)
+
+    def read_branch_revision(self, ch: Chapter, branch: str) -> int:
+        branch = revisions.normalize_branch(branch)
+        col = self._BRANCH_COLUMNS[branch]["revision"]
+        row = self.conn.execute(
+            f"SELECT {col} AS rev FROM chapters WHERE ebook_slug=? AND idx=?",
+            (self.slug, ch.index),
+        ).fetchone()
+        return int(row["rev"]) if row and row["rev"] is not None else 0
+
+    def compare_and_swap_branch(
+        self, ch: Chapter, branch: str, *, expected_rev: int, new_text: str
+    ) -> bool:
+        """CAS trên revision CỦA NHÁNH — áp bản nháp chỉ khi nhánh còn khớp
+        snapshot; nếu chương được sửa (ở nhánh nào) giữa chừng → từ chối."""
+        branch = revisions.normalize_branch(branch)
+        text_col = self._BRANCH_COLUMNS[branch]["text"]
+        rev_col = self._BRANCH_COLUMNS[branch]["revision"]
+        with self.conn:
+            cur = self.conn.execute(
+                f"UPDATE chapters SET {text_col}=?, translated_updated_at=unixepoch('now'), "
+                f"{rev_col}={rev_col}+1 "
+                f"WHERE ebook_slug=? AND idx=? AND {rev_col}=?",
+                (new_text, self.slug, ch.index, expected_rev),
+            )
+        return cur.rowcount == 1
+
+    def read_branch_title(self, ch: Chapter, branch: str) -> str:
+        branch = revisions.normalize_branch(branch)
+        row = self._chapter_row(ch)
+        if row is None:
+            return ""
+        return row[self._BRANCH_COLUMNS[branch]["title"]] or ""
+
+    def read_branch_title_zh(self, ch: Chapter, branch: str) -> str:
+        branch = revisions.normalize_branch(branch)
+        row = self._chapter_row(ch)
+        if row is None:
+            return ""
+        return row[self._BRANCH_COLUMNS[branch]["title_zh"]] or ""
+
+    def write_branch_titles(self, ch: Chapter, branch: str, title: str, title_zh: str = "") -> None:
+        """Ghi tiêu đề của RIÊNG nhánh đó (title/title_zh độc lập mỗi nhánh)."""
+        branch = revisions.normalize_branch(branch)
+        title_col = self._BRANCH_COLUMNS[branch]["title"]
+        zh_col = self._BRANCH_COLUMNS[branch]["title_zh"]
+        self.ensure_dirs()
+        with self.conn:
+            self._ensure_chapter_row(ch)
+            self.conn.execute(
+                f"UPDATE chapters SET {title_col}=?, {zh_col}=? "
+                "WHERE ebook_slug=? AND idx=?",
+                (title, title_zh, self.slug, ch.index),
+            )
+
+    def read_branch_mt_snapshot(self, ch: Chapter, branch: str) -> str:
+        branch = revisions.normalize_branch(branch)
+        row = self._chapter_row(ch)
+        if row is None:
+            return ""
+        return row[self._BRANCH_COLUMNS[branch]["mt"]] or ""
+
+    def write_branch_mt_snapshot(self, ch: Chapter, branch: str, content: str) -> None:
+        """Snapshot bản dịch máy của RIÊNG nhánh (cột "VI" cho editor 3 cột)."""
+        branch = revisions.normalize_branch(branch)
+        col = self._BRANCH_COLUMNS[branch]["mt"]
+        self.ensure_dirs()
+        with self.conn:
+            self._ensure_chapter_row(ch)
+            self.conn.execute(
+                f"UPDATE chapters SET {col}=? WHERE ebook_slug=? AND idx=?",
+                (content, self.slug, ch.index),
+            )
+
+    def branch_chapter_snapshots(self) -> dict[int, dict]:
+        """Fingerprint nội dung đi vào build: {idx: {branch, revision, has_text}}
+        cho mọi chương có bản dịch ở nhánh ĐANG HOẠT ĐỘNG. Dùng để phát hiện
+        build stale (bản dịch đổi sau khi build → snapshot lệch)."""
+        rows = self.conn.execute(
+            "SELECT idx, active_branch, revision, local_mt_revision, "
+            "translated_text, local_mt_text FROM chapters WHERE ebook_slug=?",
+            (self.slug,),
+        ).fetchall()
+        out: dict[int, dict] = {}
+        for row in rows:
+            branch = revisions.normalize_branch(row["active_branch"])
+            if branch == "ai":
+                text = row["translated_text"] or ""
+                rev = row["revision"]
+            else:
+                text = row["local_mt_text"] or ""
+                rev = row["local_mt_revision"]
+            out[int(row["idx"])] = {"branch": branch, "revision": int(rev or 0), "has_text": bool(text)}
+        return out
+
+    # ----- từ điển entity (global + override theo ebook) -----
+    def read_entity_entries(self) -> list[tuple[str, str, int]]:
+        """Toàn bộ entity global → list `(source, target, protect)` theo source."""
+        rows = self.conn.execute(
+            "SELECT source, target, protect FROM entity_dictionary ORDER BY source COLLATE NOCASE"
+        ).fetchall()
+        return [(r["source"], r["target"], int(r["protect"])) for r in rows]
+
+    def count_entities(self, query: str = "") -> int:
+        query = (query or "").strip()
+        if query:
+            like = f"%{query}%"
+            row = self.conn.execute(
+                "SELECT COUNT(*) AS c FROM entity_dictionary "
+                "WHERE source LIKE ? OR target LIKE ?",
+                (like, like),
+            ).fetchone()
+        else:
+            row = self.conn.execute("SELECT COUNT(*) AS c FROM entity_dictionary").fetchone()
+        return int(row["c"])
+
+    _ENTITY_SORT_COLS = {"source": "source", "target": "target"}
+
+    def read_entities_page(
+        self,
+        offset: int,
+        limit: int,
+        query: str = "",
+        sort_field: str | None = None,
+        sort_dir: str = "asc",
+    ) -> list[tuple[str, str, int]]:
+        col = self._ENTITY_SORT_COLS.get(sort_field or "", "") or "source"
+        direction = "DESC" if str(sort_dir).lower() == "desc" else "ASC"
+        order = f"{col} COLLATE NOCASE {direction}"
+        where = "1=1"
+        params: list = []
+        query = (query or "").strip()
+        if query:
+            like = f"%{query}%"
+            where += " AND (source LIKE ? OR target LIKE ?)"
+            params += [like, like]
+        params += [int(limit), int(offset)]
+        rows = self.conn.execute(
+            f"SELECT source, target, protect FROM entity_dictionary WHERE {where} "
+            f"ORDER BY {order} LIMIT ? OFFSET ?",
+            params,
+        ).fetchall()
+        return [(r["source"], r["target"], int(r["protect"])) for r in rows]
+
+    def upsert_entity(self, source: str, target: str, protect: int = 0) -> bool:
+        source = (source or "").strip()
+        target = (target or "").strip()
+        protect = 1 if protect else 0
+        if not source or not target:
+            return False
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO entity_dictionary (source, target, protect)
+                VALUES (?, ?, ?)
+                ON CONFLICT(source) DO UPDATE SET
+                    target = excluded.target, protect = excluded.protect,
+                    updated_at = datetime('now')
+                """,
+                (source, target, protect),
+            )
+        return True
+
+    def delete_entity(self, source: str) -> bool:
+        source = (source or "").strip()
+        if not source:
+            return False
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM entity_dictionary WHERE source=?", (source,))
+        return cur.rowcount > 0
+
+    def write_entity_entries(self, entries: list[tuple[str, str, int]]) -> None:
+        seen: dict[str, tuple[str, int]] = {}
+        order: list[str] = []
+        for entry in entries:
+            source = (entry[0] or "").strip()
+            target = (entry[1] or "").strip()
+            protect = 1 if (len(entry) > 2 and entry[2]) else 0
+            if not source or not target:
+                continue
+            if source not in seen:
+                order.append(source)
+            seen[source] = (target, protect)
+        with self.conn:
+            self.conn.execute("DELETE FROM entity_dictionary")
+            for source in order:
+                target, protect = seen[source]
+                self.conn.execute(
+                    "INSERT INTO entity_dictionary (source, target, protect) VALUES (?, ?, ?)",
+                    (source, target, protect),
+                )
+
+    def seed_entities_if_empty(self, entries: list[tuple[str, str, int]]) -> int:
+        if self.count_entities() > 0:
+            return 0
+        self.write_entity_entries(entries)
+        return self.count_entities()
+
+    def export_entities(self) -> list[dict]:
+        """Xuất toàn bộ entity global dạng list[{source,target,protect}]."""
+        return [
+            {"source": s, "target": t, "protect": bool(p)}
+            for s, t, p in self.read_entity_entries()
+        ]
+
+    def import_entities(self, rows: list[dict], *, merge: bool = False) -> dict:
+        """Import entity global từ list[{source,target,protect?}].
+
+        `merge=True`: upsert từng mục (giữ mục hiện có không có trong import).
+        `merge=False` (mặc định): thay thế toàn bộ bảng.
+        Trả {imported, skipped, total}.
+        """
+        imported = skipped = 0
+        if merge:
+            for row in rows:
+                source = (row.get("source") or "").strip()
+                target = (row.get("target") or "").strip()
+                if source and target:
+                    self.upsert_entity(source, target, int(bool(row.get("protect", False))))
+                    imported += 1
+                else:
+                    skipped += 1
+        else:
+            clean = []
+            for row in rows:
+                source = (row.get("source") or "").strip()
+                target = (row.get("target") or "").strip()
+                if source and target:
+                    clean.append((source, target, int(bool(row.get("protect", False)))))
+                    imported += 1
+                else:
+                    skipped += 1
+            self.write_entity_entries(clean)
+        return {"imported": imported, "skipped": skipped, "total": self.count_entities()}
+
+    # ----- override entity theo ebook (thắng mục global cùng source) -----
+    def read_entity_overrides(self) -> list[tuple[str, str, int]]:
+        rows = self.conn.execute(
+            "SELECT source, target, protect FROM ebook_entity_overrides "
+            "WHERE ebook_slug=? ORDER BY source COLLATE NOCASE",
+            (self.slug,),
+        ).fetchall()
+        return [(r["source"], r["target"], int(r["protect"])) for r in rows]
+
+    def count_entity_overrides(self, query: str = "") -> int:
+        query = (query or "").strip()
+        if query:
+            like = f"%{query}%"
+            row = self.conn.execute(
+                "SELECT COUNT(*) AS c FROM ebook_entity_overrides "
+                "WHERE ebook_slug=? AND (source LIKE ? OR target LIKE ?)",
+                (self.slug, like, like),
+            ).fetchone()
+        else:
+            row = self.conn.execute(
+                "SELECT COUNT(*) AS c FROM ebook_entity_overrides WHERE ebook_slug=?",
+                (self.slug,),
+            ).fetchone()
+        return int(row["c"])
+
+    def read_entity_overrides_page(
+        self,
+        offset: int,
+        limit: int,
+        query: str = "",
+        sort_field: str | None = None,
+        sort_dir: str = "asc",
+    ) -> list[tuple[str, str, int]]:
+        col = self._ENTITY_SORT_COLS.get(sort_field or "", "") or "source"
+        direction = "DESC" if str(sort_dir).lower() == "desc" else "ASC"
+        order = f"{col} COLLATE NOCASE {direction}"
+        where = "ebook_slug=?"
+        params: list = [self.slug]
+        query = (query or "").strip()
+        if query:
+            like = f"%{query}%"
+            where += " AND (source LIKE ? OR target LIKE ?)"
+            params += [like, like]
+        params += [int(limit), int(offset)]
+        rows = self.conn.execute(
+            f"SELECT source, target, protect FROM ebook_entity_overrides WHERE {where} "
+            f"ORDER BY {order} LIMIT ? OFFSET ?",
+            params,
+        ).fetchall()
+        return [(r["source"], r["target"], int(r["protect"])) for r in rows]
+
+    def upsert_entity_override(self, source: str, target: str, protect: int = 0) -> bool:
+        source = (source or "").strip()
+        target = (target or "").strip()
+        protect = 1 if protect else 0
+        if not source or not target:
+            return False
+        self.ensure_dirs()
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO ebook_entity_overrides (ebook_slug, source, target, protect)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(ebook_slug, source) DO UPDATE SET
+                    target = excluded.target, protect = excluded.protect,
+                    updated_at = datetime('now')
+                """,
+                (self.slug, source, target, protect),
+            )
+        return True
+
+    def delete_entity_override(self, source: str) -> bool:
+        source = (source or "").strip()
+        if not source:
+            return False
+        with self.conn:
+            cur = self.conn.execute(
+                "DELETE FROM ebook_entity_overrides WHERE ebook_slug=? AND source=?",
+                (self.slug, source),
+            )
+        return cur.rowcount > 0
+
+    def read_merged_entities(self) -> list["entities.Entity"]:
+        """Entity hợp nhất (override ebook thắng mục global cùng `source`)."""
+        return entities.merge_entries(self.read_entity_entries(), self.read_entity_overrides())
+
+    def export_entity_overrides(self) -> list[dict]:
+        """Xuất toàn bộ override entity của ebook dạng list[{source,target,protect}]."""
+        return [
+            {"source": s, "target": t, "protect": bool(p)}
+            for s, t, p in self.read_entity_overrides()
+        ]
+
+    def import_entity_overrides(self, rows: list[dict], *, merge: bool = False) -> dict:
+        """Import override entity cho ebook từ list[{source,target,protect?}].
+
+        `merge=True`: upsert từng mục.  `merge=False`: xóa toàn bộ override cũ rồi insert.
+        Trả {imported, skipped, total}.
+        """
+        imported = skipped = 0
+        if not merge:
+            with self.conn:
+                self.conn.execute(
+                    "DELETE FROM ebook_entity_overrides WHERE ebook_slug=?", (self.slug,)
+                )
+        for row in rows:
+            source = (row.get("source") or "").strip()
+            target = (row.get("target") or "").strip()
+            if source and target:
+                self.upsert_entity_override(source, target, int(bool(row.get("protect", False))))
+                imported += 1
+            else:
+                skipped += 1
+        return {"imported": imported, "skipped": skipped, "total": self.count_entity_overrides()}
+
+    # ----- preview token chính xác (duyệt bản nháp) -----
+    def issue_preview_token(
+        self, ch: Chapter, *, branch: str, revision_id: int,
+        ttl_seconds: int = preview.DEFAULT_TOKEN_TTL_SECONDS,
+    ) -> str:
+        """Cấp token duyệt bản nháp — snapshot `base_rev`/`base_text` là trạng
+        thái HIỆN TẠI của nhánh. Token một lần, có hạn."""
+        import secrets as _secrets
+        branch = revisions.normalize_branch(branch)
+        token = _secrets.token_urlsafe(32)
+        base_rev = self.read_branch_revision(ch, branch)
+        base_text = self.read_branch_text(ch, branch)
+        from .revisions import _expires_at
+        self.ensure_dirs()
+        with self.conn:
+            self._ensure_chapter_row(ch)
+            self.conn.execute(
+                """
+                INSERT INTO preview_tokens (
+                    token, ebook_slug, idx, branch, revision_id, base_rev,
+                    base_text, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (token, self.slug, ch.index, branch, revision_id, base_rev,
+                 base_text, _expires_at(ttl_seconds)),
+            )
+        return token
+
+    def read_preview_token(self, token: str) -> "preview.PreviewToken | None":
+        row = self.conn.execute(
+            "SELECT * FROM preview_tokens WHERE token=?", (token,)
+        ).fetchone()
+        if row is None:
+            return None
+        return preview.PreviewToken(
+            token=row["token"], idx=row["idx"], branch=revisions.normalize_branch(row["branch"]),
+            revision_id=row["revision_id"], base_rev=row["base_rev"], base_text=row["base_text"],
+            expires_at=row["expires_at"], consumed=bool(row["consumed"]), created_at=row["created_at"],
+        )
+
+    def validate_preview_token(self, token: str, *, branch: str, revision_id: int) -> str | None:
+        """Trả None nếu token còn dùng được, hoặc lý do từ chối (hết hạn / đã
+        dùng / snapshot lệch khỏi bản dịch hiện tại của nhánh)."""
+        tok = self.read_preview_token(token)
+        if tok is None:
+            return "Token không hợp lệ."
+        if revisions.normalize_branch(tok.branch) != revisions.normalize_branch(branch):
+            return "Token không thuộc nhánh này."
+        if tok.revision_id != revision_id:
+            return "Token không khớp bản nháp đang duyệt."
+        ch = Chapter(index=tok.idx, url="")
+        return preview.validate_token(
+            tok,
+            current_rev=self.read_branch_revision(ch, tok.branch),
+            current_text=self.read_branch_text(ch, tok.branch),
+        )
+
+    def consume_preview_token(self, token: str, *, branch: str, revision_id: int) -> None:
+        """Xác thực rồi đánh dấu token đã dùng (atomic với việc áp bản nháp)."""
+        reason = self.validate_preview_token(token, branch=branch, revision_id=revision_id)
+        if reason:
+            raise preview.PreviewTokenError(reason)
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE preview_tokens SET consumed=1 WHERE token=? AND consumed=0", (token,)
+            )
+        if cur.rowcount != 1:
+            raise preview.PreviewTokenError("Token đã được dùng.")
+
+    def invalidate_preview_tokens(self, ch: Chapter, branch: str) -> int:
+        """Vô hiệu hoá token CHƯA DÙNG của chương+nhánh (bản dịch đổi → token
+        cũ hết hiệu lực ngay, không cần chờ hết hạn). Trả số token đã xoá."""
+        branch = revisions.normalize_branch(branch)
+        with self.conn:
+            cur = self.conn.execute(
+                "DELETE FROM preview_tokens WHERE ebook_slug=? AND idx=? AND branch=? AND consumed=0",
+                (self.slug, ch.index, branch),
+            )
+        return cur.rowcount
+
+    # ----- trạng thái build artifact + blocker -----
+    def read_build(self) -> dict:
+        row = self.conn.execute(
+            "SELECT * FROM build_artifacts WHERE ebook_slug=?", (self.slug,)
+        ).fetchone()
+        if row is None:
+            return {
+                "lock_owner": "", "started_at": "", "finished_at": "",
+                "status": "none", "error": "", "manifest_snapshot": "[]",
+            }
+        return dict(row)
+
+    def acquire_build(self, owner: str, *, manifest_snapshot: list) -> bool:
+        """Giành quyền build (blocker). Chỉ thành công khi chưa có ai đang build
+        (status none/done/failed/stale → building). Trả False nếu đang bận."""
+        snapshot = json.dumps(manifest_snapshot, ensure_ascii=False)
+        self.ensure_dirs()
+        with self.conn:
+            cur = self.conn.execute(
+                "INSERT INTO build_artifacts (ebook_slug, lock_owner, started_at, status, "
+                "finished_at, manifest_snapshot) VALUES (?, ?, datetime('now'), 'building', '', ?) "
+                "ON CONFLICT(ebook_slug) DO UPDATE SET "
+                "lock_owner = excluded.lock_owner, started_at = datetime('now'), "
+                "status = 'building', finished_at = '', manifest_snapshot = excluded.manifest_snapshot "
+                "WHERE build_artifacts.status NOT IN ('building')",
+                (self.slug, owner, snapshot),
+            )
+        return cur.rowcount == 1
+
+    def release_build(self, *, status: str, error: str = "", manifest_snapshot: list | None = None) -> None:
+        """Trả quyền build sau khi xong (status 'done'/'failed'), lưu fingerprint."""
+        snapshot = json.dumps(manifest_snapshot, ensure_ascii=False) if manifest_snapshot is not None else None
+        with self.conn:
+            if snapshot is not None:
+                self.conn.execute(
+                    "UPDATE build_artifacts SET status=?, error=?, finished_at=datetime('now'), "
+                    "lock_owner='', manifest_snapshot=? WHERE ebook_slug=?",
+                    (status, error, snapshot, self.slug),
+                )
+            else:
+                self.conn.execute(
+                    "UPDATE build_artifacts SET status=?, error=?, finished_at=datetime('now'), "
+                    "lock_owner='' WHERE ebook_slug=?",
+                    (status, error, self.slug),
+                )
+
+    def build_stale(self) -> bool:
+        """True nếu bản dịch của nhánh đang hoạt động đã đổi khỏi fingerprint
+        lúc build (EPUB cũ so với workspace hiện tại)."""
+        build = self.read_build()
+        if build["status"] == "building" or not build["finished_at"]:
+            return False
+        try:
+            stored = json.loads(build["manifest_snapshot"] or "[]")
+        except json.JSONDecodeError:
+            stored = []
+        if isinstance(stored, list):
+            stored = {
+                int(item["idx"]): {k: v for k, v in item.items() if k != "idx"}
+                for item in stored if isinstance(item, dict) and "idx" in item
+            }
+        current = self.branch_chapter_snapshots()
+        return json.dumps(current, sort_keys=True) != json.dumps(
+            {int(k): v for k, v in stored.items()}, sort_keys=True
+        )
+
+    # ----- legacy migration: meta['ai_rewrite'] cũ (v10 trở về trước) -----
+    def migrate_legacy_ai_rewrite(self, ch: Chapter) -> int:
+        """Nâng bản nháp cũ nhét trong `meta['ai_rewrite']` (chưa có
+        `revision_id`) thành candidate trong `ai_revisions` — KHÔNG xoá dữ liệu
+        gốc, chỉ ghi `revision_id` vào meta. Idempotent; trả 0 nếu không có gì
+        để nâng (đã migrate hoặc không phải draft rewrite)."""
+        meta = self.read_meta(ch) if self.has_meta(ch) else {}
+        draft = meta.get("ai_rewrite")
+        if not isinstance(draft, dict) or not (draft.get("text") or "").strip():
+            return 0
+        if draft.get("revision_id"):
+            return int(draft["revision_id"])
+        current = self.read_translated(ch)
+        if not current.strip():
+            return 0
+        cand = revisions.create_revision(
+            engine="rewrite",
+            idx=ch.index,
+            payload=draft["text"],
+            base_translated_text=current,
+            base_rev=self.read_revision(ch),
+            has_raw=False,
+        )
+        revision_id = self.create_ai_revision(cand)
+        draft["revision_id"] = revision_id
+        meta["ai_rewrite"] = draft
+        self.write_meta(ch, meta)
+        return revision_id
+
+    def legacy_ai_rewrite_report(self) -> dict:
+        """Báo cáo bản nháp legacy: {chapters, legacy, migrated, remaining}."""
+        manifest = self.load_manifest()
+        if manifest is None:
+            return {"chapters": 0, "legacy": 0, "migrated": 0, "remaining": 0}
+        legacy = migrated = remaining = 0
+        for ch in manifest.chapters:
+            if not self.has_meta(ch):
+                continue
+            draft = self.read_meta(ch).get("ai_rewrite")
+            if not isinstance(draft, dict) or not (draft.get("text") or "").strip():
+                continue
+            legacy += 1
+            if draft.get("revision_id"):
+                migrated += 1
+            else:
+                remaining += 1
+        return {
+            "chapters": len(manifest.chapters),
+            "legacy": legacy,
+            "migrated": migrated,
+            "remaining": remaining,
+        }
+
     # ----- meta dịch (complete flag, warnings, cost...) -----
     def has_meta(self, ch: Chapter) -> bool:
         row = self._chapter_row(ch)
@@ -591,13 +1327,38 @@ class Storage:
                 )
 
     def delete_translated(self, ch: Chapter) -> None:
-        """Xóa toàn bộ dữ liệu bản dịch: translated, translated_mt, meta."""
+        """Xóa toàn bộ dữ liệu bản dịch: translated, translated_mt, local_mt,
+        meta và reset active_branch về 'ai'."""
         with self.conn:
             self.conn.execute(
                 "UPDATE chapters SET translated_text=NULL, translated_mt_text=NULL, "
-                "meta_json='{}', translated_updated_at=NULL WHERE ebook_slug=? AND idx=?",
+                "local_mt_text=NULL, local_mt_mt_snapshot=NULL, "
+                "local_mt_title='', local_mt_title_zh='', "
+                "active_branch='ai', meta_json='{}', translated_updated_at=NULL "
+                "WHERE ebook_slug=? AND idx=?",
                 (self.slug, ch.index),
             )
+
+    def append_branch_chunk(self, ch: Chapter, branch: str, chunk_text: str, *, is_first: bool) -> None:
+        """Ghi 1 chunk của bản dịch vào NHÁNH chỉ định (chunk đầu tạo, các chunk
+        sau nối thêm với `\n` ngăn cách). Stream cho `_translate_one`."""
+        branch = revisions.normalize_branch(branch)
+        col = self._BRANCH_COLUMNS[branch]["text"]
+        self.ensure_dirs()
+        with self.conn:
+            self._ensure_chapter_row(ch)
+            if is_first:
+                self.conn.execute(
+                    f"UPDATE chapters SET {col} = ?, translated_updated_at = unixepoch('now') "
+                    "WHERE ebook_slug=? AND idx=?",
+                    (chunk_text, self.slug, ch.index),
+                )
+            else:
+                self.conn.execute(
+                    f"UPDATE chapters SET {col} = COALESCE({col}, '') || ? || ?, "
+                    "translated_updated_at = unixepoch('now') WHERE ebook_slug=? AND idx=?",
+                    ("\n", chunk_text, self.slug, ch.index),
+                )
 
     # ----- ảnh bìa -----
     def write_cover(self, content: bytes, ext: str) -> str:

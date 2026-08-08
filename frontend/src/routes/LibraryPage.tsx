@@ -61,7 +61,7 @@ function EbookRow({ book }: { book: EbookSummary }) {
             variant="primary"
             onClick={() => {
               selectBook(book.slug);
-              window.location.href = legacyUrl(`/ebooks/${book.slug}/read`);
+              navigate(`/ebooks/${book.slug}/chapters`);
             }}
           >
             Đọc
@@ -87,7 +87,7 @@ function EbookRow({ book }: { book: EbookSummary }) {
               height={26}
               onSelect={(index) => {
                 selectBook(book.slug);
-                window.location.href = legacyUrl(`/ebooks/${book.slug}/read/${index + 1}`);
+                navigate(`/ebooks/${book.slug}/chapters/${index + 1}`);
               }}
             />
           </div>

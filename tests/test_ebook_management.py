@@ -57,7 +57,7 @@ def test_index_hides_archived_by_default(monkeypatch, tmp_path):
     app, client, _job = _client(monkeypatch, tmp_path)
     set_archived(tmp_path / "library_state.json", "a", True)
 
-    res = client.get("/")
+    res = client.get("/library")
     assert res.status_code == 200
     assert "Truyện a" not in res.text
     assert "Truyện b" in res.text
@@ -69,7 +69,7 @@ def test_index_shows_archived_with_query_param(monkeypatch, tmp_path):
     app, client, _job = _client(monkeypatch, tmp_path)
     set_archived(tmp_path / "library_state.json", "a", True)
 
-    res = client.get("/?show_archived=1")
+    res = client.get("/library?show_archived=1")
     assert res.status_code == 200
     assert "Truyện a" in res.text
     assert "Truyện b" in res.text

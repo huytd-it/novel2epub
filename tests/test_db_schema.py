@@ -344,7 +344,7 @@ def test_v9_database_migrates_to_v11_without_data_loss():
     init_schema(conn)
     init_schema(conn)
 
-    assert schema_version(conn) == 11
+    assert schema_version(conn) == SCHEMA_VERSION
     ebook = conn.execute("SELECT title, revision FROM ebooks WHERE slug='old'").fetchone()
     assert (ebook["title"], ebook["revision"]) == ("Dữ liệu cũ", 1)
     chapter = conn.execute(
@@ -369,7 +369,7 @@ def test_v10_database_migrates_to_v11_preserving_data():
 
     init_schema(conn)
 
-    assert schema_version(conn) == 11
+    assert schema_version(conn) == SCHEMA_VERSION
     chapter = conn.execute(
         "SELECT translated_text, revision FROM chapters WHERE ebook_slug='old' AND idx=1"
     ).fetchone()

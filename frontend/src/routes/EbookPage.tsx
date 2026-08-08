@@ -184,6 +184,13 @@ interface BatchAction {
 /** Nhóm "Khác" — ít dùng, gom vào menu để thanh hành động không dài ra. */
 const OTHER_ACTIONS: BatchAction[] = [
   { key: "titles", label: "Dịch tiêu đề", path: "batch/translate-titles" },
+  {
+    key: "clean-toc",
+    label: "Dọn TOC (từ rác)",
+    path: "batch/clean-toc",
+    confirm: (n) =>
+      `Dọn từ rác kêu gọi độc giả (cầu nguyệt phiếu, 求月票…) khỏi tiêu đề ${n} chương đã chọn? Chỉ sửa tiêu đề dính từ rác, giữ nguyên số chương.`,
+  },
   { key: "glossary", label: "Gợi ý glossary", path: "batch/suggest-glossary" },
   { key: "characters", label: "Trích nhân vật", path: "batch/extract-characters" },
   { key: "skip", label: "Bỏ qua chương", path: "batch/update-skip", form: { skip: "true" } },

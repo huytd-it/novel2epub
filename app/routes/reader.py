@@ -229,7 +229,7 @@ def _quick_mt_translator(slug: str):
     Model CT2 nặng nên cache theo model và ebook; glossary/storage là dữ liệu
     riêng từng ebook nên không được dùng nhầm instance giữa các sách.
     """
-    from novel2epub.translator import HachimiMTTranslator
+    from novel2epub.translator import LocalMTTranslator
 
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -237,7 +237,7 @@ def _quick_mt_translator(slug: str):
     with _quick_mt_lock:
         translator = _quick_mt_cache.get(key)
         if translator is None:
-            translator = HachimiMTTranslator(cfg.translate, storage=storage)
+            translator = LocalMTTranslator(cfg.translate, storage=storage)
             _quick_mt_cache[key] = translator
         return translator
 

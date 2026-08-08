@@ -170,7 +170,13 @@ class CleanupHanConfig:
 
     Kích hoạt: translate.auto_cleanup_han: true
     """
-    # Số ký tự tối đa gửi AI mỗi lần (0 = không giới hạn).
+    # Engine dùng để clear Hán:
+    #   "local_mt" (mặc định): dịch riêng từng vùng Hán bằng Local MT cục bộ —
+    #     miễn phí, offline, không tốn token OpenAI.
+    #   "openai": nhờ AI biên tập (ai.openai) sửa vùng Hán trong ngữ cảnh câu —
+    #     chất lượng cao hơn nhưng tốn token và cần cấu hình ai.openai.
+    engine: str = "local_mt"
+    # Số ký tự tối đa gửi AI mỗi lần (0 = không giới hạn). Chỉ áp dụng engine=openai.
     max_chars: int = 18000
     # Số lần thử lại nếu vẫn còn Hán sau cleanup.
     retries: int = 1
@@ -363,21 +369,8 @@ class HachimiMTConfig:
 
 
 @dataclass
-class LibreTranslateConfig:
-    """Cấu hình backend LibreTranslate (self-hosted translation API).
-
-    Gọi HTTP API `POST /translate` của LibreTranslate server.
-    Tương thích với LibreTranslate community instance hoặc self-hosted.
-    """
-    base_url: str = "http://localhost:5000"
-    api_key: str = ""
-    source_language: str = ""
-    target_language: str = "vi"
-
-
-@dataclass
 class TranslateConfig:
-    type: str = "openai"  # openai | hachimimt | google | libretranslate | none
+    type: str = "openai"  # openai | localmt | none
     preset: str = ""
     # Local NMT model: "hachimimt-60" | "hachimimt-30" | "moxhimt-60" | ...
     # Khi set, tự động gán model_key cho HachimiMTConfig.
@@ -393,11 +386,12 @@ class TranslateConfig:
     retry: TranslationRetryConfig = field(default_factory=TranslationRetryConfig)
     chunk: TranslationChunkConfig = field(default_factory=TranslationChunkConfig)
     openai: OpenAIConfig = field(default_factory=OpenAIConfig)
+    # Config engine Local MT (CTranslate2). Giữ khoá `hachimimt` (tên
+    # implementation trong package novel2epub.hachimimt) — type dùng "localmt".
     hachimimt: HachimiMTConfig = field(default_factory=HachimiMTConfig)
-    libretranslate: LibreTranslateConfig = field(default_factory=LibreTranslateConfig)
     delay_seconds: float = 0.5
     # Số chương dịch song song (luồng riêng, dùng chung 1 translator — HTTP
-    # request/Google request đều an toàn gọi đồng thời). 1 = tuần tự như trước.
+    # request an toàn gọi đồng thời). 1 = tuần tự như trước.
     max_workers: int = 1
     # Khi True + translate.type=openai: sau khi dịch xong từng chương, AI sẽ
     # rút glossary mới từ chính chương đó và merge vào names.txt/vietphrase.txt
@@ -708,6 +702,26 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
     return {"defaults": defaults, "sources": sources, "ebooks": ebooks}
 
 
+def _normalize_translate_type(value: str) -> str:
+    """Chuẩn hóa `translate.type` về tập hợp lệ hiện tại (openai | localmt | none).
+
+    Alias/legacy: hachimimt/moxhimt → localmt; google/libretranslate (đã gỡ) →
+    openai. Giá trị lạ được giữ nguyên để make_translator báo lỗi rõ ràng.
+    """
+    v = (value or "").strip().lower()
+    if v in ("hachimimt", "moxhimt"):
+        return "localmt"
+    if v in ("google", "libretranslate"):
+        return "openai"
+    return v
+
+
+def _normalize_cleanup_engine(value: str) -> str:
+    """Chuẩn hóa engine clear Hán: chỉ 'local_mt' | 'openai', mặc định local_mt."""
+    v = str(value or "").strip().lower()
+    return "openai" if v == "openai" else "local_mt"
+
+
 def _build_style(raw: dict[str, Any]) -> TranslationStyleConfig:
     style = _as_dict(raw.get("style"))
     return TranslationStyleConfig(
@@ -824,7 +838,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     preset_name = translate_raw.get("preset", "")
     openai_raw = translate_raw.pop("openai", None) or {}
     hachimimt_raw = _as_dict(translate_raw.pop("hachimimt", None))
-    libretranslate_raw = _as_dict(translate_raw.pop("libretranslate", None))
+    translate_raw.pop("libretranslate", None)  # deprecated: engine đã gỡ
     style = _build_style(translate_raw)
     translate_raw.pop("glossary_files", None)  # deprecated: glossary is SQLite-only
     retry_raw = _as_dict(translate_raw.pop("retry", None))
@@ -862,9 +876,25 @@ def load_config(path: str | Path, slug: str = "") -> Config:
                 f"(chọn: {', '.join(LOCAL_MT_MODEL_PRESETS)}). Dùng raw config."
             )
 
+    # Migrate legacy engine names: google/libretranslate đã gỡ → openai;
+    # hachimimt/moxhimt → localmt (tên chính thức của Local MT). Ghi warning để
+    # hiện trên job log; DB migration v12 (db.py) rewrite giá trị đã lưu.
+    _raw_type = str(translate_raw.get("type", TranslateConfig.type) or "").lower()
+    translate_type = _normalize_translate_type(_raw_type)
+    if translate_type != _raw_type and _raw_type:
+        if _raw_type in ("google", "libretranslate"):
+            warnings.append(
+                f"translate.type={_raw_type!r} đã bị gỡ — dùng 'openai' thay thế. "
+                "Chỉnh lại backend dịch trong Cài đặt nếu muốn Local MT."
+            )
+        else:
+            warnings.append(
+                f"translate.type={_raw_type!r} đã đổi tên thành 'localmt'."
+            )
+
     cleanup_han_raw = _as_dict(translate_raw.pop("cleanup_han", None))
     translate = TranslateConfig(
-        type=translate_raw.get("type", TranslateConfig.type),
+        type=translate_type,
         model=translate_model,
         preset=preset_name,
         profile=translate_raw.get("profile", "traditional_cn_novel"),
@@ -884,7 +914,6 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         ),
         openai=OpenAIConfig(**openai_raw),
         hachimimt=hachimimt,
-        libretranslate=LibreTranslateConfig(**libretranslate_raw) if libretranslate_raw else LibreTranslateConfig(),
         delay_seconds=translate_raw.get("delay_seconds", 0.5),
         max_workers=int(translate_raw.get("max_workers", 1)),
         auto_glossary=bool(translate_raw.get("auto_glossary", True)),
@@ -895,6 +924,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         auto_cleanup_han=bool(translate_raw.get("auto_cleanup_han", False)),
         ai_glossary_analysis=bool(translate_raw.get("ai_glossary_analysis", False)),
         cleanup_han=CleanupHanConfig(
+            engine=_normalize_cleanup_engine(cleanup_han_raw.get("engine", CleanupHanConfig.engine)),
             max_chars=int(cleanup_han_raw.get("max_chars", CleanupHanConfig.max_chars)),
             retries=int(cleanup_han_raw.get("retries", CleanupHanConfig.retries)),
         ),

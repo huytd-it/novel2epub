@@ -55,15 +55,15 @@ Pipeline bổ sung rate limiter theo domain, adaptive concurrency, retry/backoff
 
 ## Dịch
 
-`translator.py` chọn backend từ cấu hình:
+`translator.py` chọn backend từ cấu hình (`make_translator`):
 
-- `openai`: API tương thích OpenAI.
-- `hachimimt`: model CTranslate2 cục bộ.
-- `google`: deep-translator.
-- `libretranslate`: LibreTranslate HTTP API.
+- `openai`: API tương thích OpenAI (`OpenAITranslator`).
+- `localmt`: model CTranslate2 cục bộ (`LocalMTTranslator`, package `novel2epub.hachimimt`).
 - `none`: giữ nguyên nội dung.
 
-Nếu `source_language=vi`, pipeline dùng passthrough bất kể backend đã chọn. OpenAI translator kết hợp glossary, idiom, genre, nhân vật và quan hệ theo mốc chương vào prompt.
+`google` và `libretranslate` đã gỡ; config cũ được migrate → `openai` khi load và bởi DB migration v12 (`hachimimt`/`moxhimt` → `localmt`). Legacy `hachimimt`/`moxhimt` vẫn được `make_translator` nhận như alias phòng thủ.
+
+Nếu `source_language=vi`, pipeline dùng passthrough bất kể backend đã chọn. OpenAI translator kết hợp glossary, idiom, genre, nhân vật và quan hệ theo mốc chương vào prompt. Sau dịch, clear Hán mặc định dùng Local MT (`cleanup_han.engine=local_mt`), có thể đổi sang `openai`.
 
 ## Web UI Và Job Queue
 

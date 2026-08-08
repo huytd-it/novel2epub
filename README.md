@@ -12,7 +12,7 @@ Mỗi bước ghi kết quả vào DB nên có thể dừng, chạy tiếp hoặ
 
 - Crawl bằng Scrapling với ba mode: `fetcher`, `stealthy`, `dynamic`.
 - Hỗ trợ mục lục và chương phân trang, retry/backoff, giới hạn song song theo nguồn.
-- Dịch bằng OpenAI-compatible API, HachimiMT cục bộ, Google, LibreTranslate hoặc passthrough.
+- Dịch bằng OpenAI-compatible API hoặc Local MT cục bộ (CTranslate2), hoặc passthrough nguồn tiếng Việt.
 - Quản lý glossary theo ebook, từ điển thành ngữ dùng chung và bảng nhân vật/xưng hô.
 - Biên tập từng đoạn, AI review/rewrite, cleanup chữ Hán còn sót và xử lý hàng loạt.
 - Job queue theo nhóm crawl/translate, automation bằng cron và lịch sử thực thi.
@@ -36,7 +36,7 @@ python scripts/init_db.py
 
 Linux/macOS dùng `source .venv/bin/activate` thay cho lệnh kích hoạt PowerShell.
 
-HachimiMT là backend tùy chọn:
+Local MT (`translate.type=localmt`) là backend cục bộ tùy chọn:
 
 ```sh
 pip install ctranslate2 sentencepiece huggingface_hub

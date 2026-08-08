@@ -258,13 +258,16 @@ def start_ebook_translate_toc_selected(
     if not checked_indexes:
         raise HTTPException(status_code=400, detail="Không có chương nào được chọn.")
     backend = (backend or "openai").lower()
-    if backend not in ("openai", "hachimimt"):
+    # Chấp nhận "localmt" (chính thức) + "hachimimt" (legacy alias).
+    if backend in ("hachimimt", "moxhimt"):
+        backend = "localmt"
+    if backend not in ("openai", "localmt"):
         raise HTTPException(status_code=400, detail=f"backend không hợp lệ: {backend!r}")
 
-    if backend == "hachimimt":
+    if backend == "localmt":
         mod_cfg = dataclasses.replace(
             cfg,
-            translate=dataclasses.replace(cfg.translate, type="hachimimt"),
+            translate=dataclasses.replace(cfg.translate, type="localmt"),
         )
     else:
         mod_cfg = cfg
@@ -274,7 +277,7 @@ def start_ebook_translate_toc_selected(
             mod_cfg, log, force=override, selected_indexes=checked_indexes
         )
 
-    label = "translate-toc-selected" if backend == "openai" else "translate-toc-selected-local-nmt"
+    label = "translate-toc-selected" if backend == "openai" else "translate-toc-selected-local-mt"
     request.app.state.job.start_custom(label, _target, category="translate")
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 

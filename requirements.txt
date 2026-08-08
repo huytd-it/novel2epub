@@ -1,5 +1,4 @@
 ebooklib>=0.18
-deep-translator>=1.11.4
 PyYAML>=6.0.1
 ruamel.yaml>=0.18.0
 fastapi>=0.110.0

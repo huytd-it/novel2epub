@@ -141,9 +141,8 @@ details[open] > summary.no-marker .dd-caret { transform: rotate(180deg); }
             <input type="hidden" name="override" value="true">
             <span class="inline-flex items-stretch">
                 <select name="translate_backend" class="select select-sm !w-auto !rounded-r-none !border-r-0" title="Backend dịch">
-                    <option value="hachimimt">HachimiMT</option>
+                    <option value="localmt">Local MT</option>
                     <option value="openai">OpenAI</option>
-                    <option value="google">Google</option>
                 </select>
                 <button type="submit" class="btn btn-sm btn-primary !rounded-l-none">Dịch</button>
             </span>
@@ -164,8 +163,7 @@ details[open] > summary.no-marker .dd-caret { transform: rotate(180deg); }
                 <div class="flex flex-wrap items-center gap-2">
                     <select id="retranslate-engine" title="Chọn engine dịch tiêu đề" class="select select-sm !w-auto">
                         <option value="openai">OpenAI</option>
-                        <option value="google">Google</option>
-                        <option value="hachimimt">HachimiMT</option>
+                        <option value="localmt">Local MT</option>
                     </select>
                     <select id="retranslate-model" title="Chọn model" style="display:none" class="select select-sm !w-auto"></select>
                     <label class="inline-flex items-center gap-1.5 text-sm text-fg-muted dark:text-fg-muted-dark cursor-pointer" title="Tạo description giải thích tên chương">
@@ -869,8 +867,7 @@ document.getElementById("retranslate-title-btn")?.addEventListener("click", asyn
 
 const ENGINE_MODELS = {
     openai: ["gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"],
-    google: [],
-    hachimimt: []
+    localmt: []
 };
 
 document.getElementById("retranslate-engine")?.addEventListener("change", function() {

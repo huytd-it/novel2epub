@@ -280,9 +280,8 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
       label: "Backend dịch",
       kind: "select",
       options: [
-        { value: "openai", label: "openai (API tương thích OpenAI)" },
-        { value: "hachimimt", label: "hachimimt (local)" },
-        { value: "libretranslate", label: "libretranslate" },
+        { value: "openai", label: "OpenAI (API tương thích OpenAI)" },
+        { value: "localmt", label: "Local MT (cục bộ, offline)" },
       ],
     },
     {
@@ -347,11 +346,21 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
     { key: "chunk_max_chars", label: "Cắt chunk tại (ký tự)", kind: "number", hint: "0 = không cắt" },
     { key: "chunk_overlap_paragraphs", label: "Số đoạn chồng lấn giữa chunk", kind: "number" },
     { key: "auto_cleanup_han", label: "Tự dọn Hán tự sót lại", kind: "checkbox" },
-    { key: "cleanup_han_max_chars", label: "Giới hạn ký tự khi dọn Hán tự", kind: "number" },
-    { key: "cleanup_han_retries", label: "Số lần thử lại khi dọn Hán tự", kind: "number" },
+    {
+      key: "cleanup_han_engine",
+      label: "Engine dọn Hán tự",
+      kind: "select",
+      hint: "Local MT: miễn phí, offline. OpenAI: chất lượng cao, tốn token (cần cấu hình AI biên tập).",
+      options: [
+        { value: "local_mt", label: "Local MT (mặc định, miễn phí)" },
+        { value: "openai", label: "OpenAI (AI biên tập)" },
+      ],
+    },
+    { key: "cleanup_han_max_chars", label: "Giới hạn ký tự khi dọn Hán tự (OpenAI)", kind: "number" },
+    { key: "cleanup_han_retries", label: "Số lần thử lại khi dọn Hán tự (OpenAI)", kind: "number" },
     {
       key: "hachimimt_model_key",
-      label: "HachimiMT — model",
+      label: "Local MT — model",
       kind: "select",
       options: [
         { value: "HachimiMT-60", label: "HachimiMT-60" },
@@ -364,17 +373,17 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
     },
     {
       key: "hachimimt_backend",
-      label: "HachimiMT — backend",
+      label: "Local MT — backend",
       kind: "select",
       options: [
         { value: "ctranslate2", label: "ctranslate2" },
         { value: "transformers", label: "transformers" },
       ],
     },
-    { key: "hachimimt_beam_size", label: "HachimiMT — beam size", kind: "number" },
+    { key: "hachimimt_beam_size", label: "Local MT — beam size", kind: "number" },
     {
       key: "hachimimt_chunk_mode",
-      label: "HachimiMT — chia chunk theo",
+      label: "Local MT — chia chunk theo",
       kind: "select",
       options: [
         { value: "sentence", label: "Câu" },

@@ -79,6 +79,7 @@ export interface TranslateSettings {
   batch_size: number;
   prompt_max_chars: number;
   auto_cleanup_han: boolean;
+  cleanup_han_engine: string;
   cleanup_han_max_chars: number;
   cleanup_han_retries: number;
 }

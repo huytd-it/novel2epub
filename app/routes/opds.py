@@ -270,7 +270,7 @@ def _chapter_or_404(slug: str, idx: int):
 def api_chapter(slug: str, idx: int) -> dict:
     """Các đoạn của một chương kèm chỉ số — nguồn `expected` cho PATCH."""
     storage, ch = _chapter_or_404(slug, idx)
-    translated = storage.read_translated(ch)
+    translated = storage.read_active_branch_text(ch)
     paras = split_paras(translated)
     return {
         "slug": slug,
@@ -294,15 +294,15 @@ def api_patch_paragraph(slug: str, idx: int, para_index: int, body: ParagraphPat
             status_code=400,
             detail="Không xoá đoạn qua API — dùng trang biên tập trên web.",
         )
-    if not storage.has_translated(ch):
+    if not storage.has_active_branch_text(ch):
         raise HTTPException(status_code=404, detail="Chương chưa có bản dịch.")
 
-    translated = storage.read_translated(ch)
+    translated = storage.read_active_branch_text(ch)
     updated, error = replace_para(translated, para_index, body.expected, body.text)
     if updated is None:
         paras = split_paras(translated)
         current = paras[para_index] if 0 <= para_index < len(paras) else ""
         raise HTTPException(status_code=409, detail={"error": error, "current": current})
 
-    storage.write_translated(ch, updated)
+    storage.write_branch_text(ch, storage.active_branch(ch), updated)
     return {"ok": True, "index": para_index, "text": split_paras(updated)[para_index]}

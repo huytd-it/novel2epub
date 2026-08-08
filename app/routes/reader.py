@@ -82,9 +82,9 @@ def reader_search(slug: str, q: str, regex: bool = False, case: bool = False):
 
     results = []
     for ch in manifest.chapters:
-        if not storage.has_translated(ch):
+        if not storage.has_active_branch_text(ch):
             continue
-        text = storage.read_translated(ch)
+        text = storage.read_active_branch_text(ch)
         matches = list(pattern.finditer(text))
         if not matches:
             continue
@@ -109,7 +109,7 @@ def _first_reading_index(slug: str) -> int:
     if manifest is None or not manifest.chapters:
         raise HTTPException(status_code=404, detail="Chưa có chương nào.")
     for ch in manifest.chapters:
-        if storage.has_translated(ch):
+        if storage.has_active_branch_text(ch):
             return ch.index
     return manifest.chapters[0].index
 

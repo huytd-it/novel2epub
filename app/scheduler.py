@@ -70,7 +70,7 @@ def _count_progress(cfg) -> dict:
     if manifest is None:
         return {"chapters_total": 0, "raw": 0, "translated": 0, "han_fixed": 0}
     raw = sum(1 for ch in manifest.chapters if storage.has_raw(ch))
-    translated = sum(1 for ch in manifest.chapters if storage.has_translated(ch))
+    translated = sum(1 for ch in manifest.chapters if storage.has_active_branch_text(ch))
     han_fixed = sum(
         storage.read_meta(ch).get("han_cleanup", {}).get("fixed_count", 0)
         for ch in manifest.chapters

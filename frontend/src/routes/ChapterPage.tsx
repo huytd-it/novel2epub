@@ -15,11 +15,10 @@ import {
   useCreateNote,
   useDiscardDraft,
   useGenres,
-  useInsertParagraph,
-  useReaderFontSize,
+  useReaderPreferences,
   useRevertEdits,
   useRewriteChapter,
-  useSaveParagraph,
+  useSaveChapterText,
   useSetActiveBranch,
   useTranslateChapter,
   useUpdateChapterTitle,
@@ -112,11 +111,13 @@ function NoteComposer({
   onCancel,
   onSubmit,
   pending,
+  onFind,
 }: {
   selection: SelectionState;
   onCancel: () => void;
   onSubmit: (note: string) => void;
   pending: boolean;
+  onFind: (text: string) => void;
 }) {
   const [text, setText] = useState("");
   return (
@@ -135,7 +136,9 @@ function NoteComposer({
         rows={2}
         className="mt-1.5 w-full text-[13px]"
       />
-      <div className="mt-1.5 flex justify-end gap-1.5">
+      <div className="mt-1.5 flex flex-wrap justify-end gap-1.5">
+        <Button size="sm" onClick={() => navigator.clipboard.writeText(selection.selectedText)}>Sao chép</Button>
+        <Button size="sm" onClick={() => onFind(selection.selectedText)}>Tìm/thay</Button>
         <Button size="sm" onClick={onCancel}>
           Hủy
         </Button>
@@ -497,8 +500,7 @@ export function ChapterPage() {
 
   const { data, isPending, error } = useChapter(slug, chapterIndex);
   const { data: notes } = useChapterNotes(slug, chapterIndex);
-  const saveParagraph = useSaveParagraph(slug, chapterIndex);
-  const insertParagraph = useInsertParagraph(slug, chapterIndex);
+  const saveChapterText = useSaveChapterText(slug, chapterIndex);
   const updateTitle = useUpdateChapterTitle(slug, chapterIndex);
   const revertEdits = useRevertEdits(slug, chapterIndex);
   const createNote = useCreateNote(slug, chapterIndex);
@@ -512,14 +514,47 @@ export function ChapterPage() {
   }, []);
 
   const [view, setView] = useState<"read" | "compare">("read");
-  const [fontSize, setFontSize] = useReaderFontSize();
+  const [readerPrefs, setReaderPrefs] = useReaderPreferences();
+  const { fontSize } = readerPrefs;
   const [bookmark, setBookmark] = useBookmark(slug);
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [rewriteOpen, setRewriteOpen] = useState(false);
   const [selection, setSelection] = useState<SelectionState | null>(null);
+  const [documentDraft, setDocumentDraft] = useState("");
+  const [documentRevision, setDocumentRevision] = useState(0);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findText, setFindText] = useState("");
+  const [replaceText, setReplaceText] = useState("");
+  const [matchCase, setMatchCase] = useState(false);
+  const [useRegex, setUseRegex] = useState(false);
+  const [wholeWord, setWholeWord] = useState(false);
+  const [replaceScope, setReplaceScope] = useState<"selection" | "chapter" | "book">("chapter");
   const contentRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const [loadedKey, setLoadedKey] = useState("");
+
+  const dirty = Boolean(data && loadedKey === `${slug}:${chapterIndex}` && documentDraft !== data.translated);
+
+  useEffect(() => {
+    if (!data) return;
+    const key = `${slug}:${chapterIndex}`;
+    if (loadedKey !== key) {
+      setLoadedKey(key);
+      setDocumentDraft(data.translated);
+      setDocumentRevision(data.revision);
+    }
+  }, [slug, chapterIndex, data, loadedKey]);
+
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
 
   useEffect(() => {
     if (slug) selectBook(slug);
@@ -567,8 +602,81 @@ export function ChapterPage() {
     });
   };
 
+  const saveDocument = () => {
+    if (!dirty || saveChapterText.isPending) return;
+    saveChapterText.mutate(
+      { translated: documentDraft, expectedRev: documentRevision },
+      {
+        onSuccess: (result) => {
+          setDocumentRevision(result.revision);
+          toast("Đã lưu toàn bộ chương.");
+        },
+        onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+      },
+    );
+  };
+
   const go = (target: number | null) => {
-    if (target !== null) navigate(`/ebooks/${slug}/chapters/${target}`);
+    if (target === null) return;
+    if (dirty && !window.confirm("Chương có thay đổi chưa lưu. Rời chương và bỏ thay đổi?")) return;
+    navigate(`/ebooks/${slug}/chapters/${target}`);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        saveDocument();
+      } else if (modifier && ["f", "h"].includes(event.key.toLowerCase())) {
+        event.preventDefault();
+        setFindOpen(true);
+      } else if (event.altKey && event.key === "1") setView("read");
+      else if (event.altKey && event.key === "2") {
+        setView("read");
+        setEditMode(true);
+      } else if (event.altKey && event.key === "3") setView("compare");
+      else if (event.altKey && event.key === "ArrowLeft") go(data?.prev_index ?? null);
+      else if (event.altKey && event.key === "ArrowRight") go(data?.next_index ?? null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [dirty, saveChapterText.isPending, documentDraft, documentRevision, data]);
+
+  const findPattern = () => {
+    if (!findText) return null;
+    try {
+      const source = useRegex ? findText : findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(wholeWord ? `\\b(?:${source})\\b` : source, matchCase ? "g" : "gi");
+    } catch {
+      return null;
+    }
+  };
+
+  const replaceAllInDocument = () => {
+    const pattern = findPattern();
+    if (!pattern) return toast("Biểu thức tìm kiếm không hợp lệ.", "error");
+    if (replaceScope === "book") {
+      setSearchOpen(true);
+      return toast("Đã mở tìm toàn sách. Chọn kết quả cần thay để xem trước trước khi ghi.");
+    }
+    const editor = editorRef.current;
+    if (replaceScope === "selection") {
+      if (!editor || editor.selectionStart === editor.selectionEnd) {
+        return toast("Hãy chọn một vùng trong editor trước.", "error");
+      }
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      const selected = documentDraft.slice(start, end);
+      const replaced = selected.replace(pattern, replaceText);
+      setDocumentDraft(documentDraft.slice(0, start) + replaced + documentDraft.slice(end));
+      requestAnimationFrame(() => {
+        editor.focus();
+        editor.setSelectionRange(start, start + replaced.length);
+      });
+      return;
+    }
+    setDocumentDraft((text) => text.replace(pattern, replaceText));
   };
 
   if (isPending) {
@@ -596,7 +704,7 @@ export function ChapterPage() {
   const isBookmarked = bookmark === chapterIndex;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen lg:pl-72">
       {/* ── Thanh công cụ ─────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 border-b border-base-300 bg-base-100/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1100px] flex-wrap items-center justify-between gap-2 px-3 py-2">
@@ -685,7 +793,7 @@ export function ChapterPage() {
                 size="sm"
                 variant="ghost"
                 icon={<IconMinus size={13} />}
-                onClick={() => setFontSize(fontSize - 1)}
+                onClick={() => setReaderPrefs({ fontSize: fontSize - 1 })}
                 aria-label="Giảm cỡ chữ"
               />
               <span data-numeric className="w-5 text-center text-[11px] opacity-60">
@@ -695,10 +803,38 @@ export function ChapterPage() {
                 size="sm"
                 variant="ghost"
                 icon={<IconPlus size={13} />}
-                onClick={() => setFontSize(fontSize + 1)}
+                onClick={() => setReaderPrefs({ fontSize: fontSize + 1 })}
                 aria-label="Tăng cỡ chữ"
               />
             </div>
+            <Select
+              aria-label="Font đọc"
+              value={readerPrefs.fontFamily}
+              onChange={(e) => setReaderPrefs({ fontFamily: e.target.value as "serif" | "sans" | "mono" })}
+              className="select-sm w-24"
+            >
+              <option value="serif">Serif</option>
+              <option value="sans">Sans</option>
+              <option value="mono">Mono</option>
+            </Select>
+            <Select
+              aria-label="Giãn dòng"
+              value={readerPrefs.lineHeight}
+              onChange={(e) => setReaderPrefs({ lineHeight: Number(e.target.value) })}
+              className="select-sm w-20"
+            >
+              <option value="1.5">1.5×</option>
+              <option value="1.8">1.8×</option>
+              <option value="2.1">2.1×</option>
+            </Select>
+            <Button
+              size="sm"
+              variant={findOpen ? "primary" : "ghost"}
+              onClick={() => setFindOpen((value) => !value)}
+              title="Tìm/thay (Ctrl+F / Ctrl+H)"
+            >
+              Tìm/thay
+            </Button>
             <Button
               size="sm"
               variant={editMode ? "primary" : "ghost"}
@@ -710,6 +846,25 @@ export function ChapterPage() {
           </div>
         </div>
       </div>
+
+      {findOpen ? (
+        <div className="sticky top-[3.25rem] z-20 border-b border-base-300 bg-base-100 px-3 py-2 shadow-sm">
+          <div className="mx-auto flex max-w-[1100px] flex-wrap items-center gap-2">
+            <input className="input input-sm min-w-48 flex-1" value={findText} onChange={(e) => setFindText(e.target.value)} placeholder="Tìm trong chương" autoFocus />
+            <input className="input input-sm min-w-48 flex-1" value={replaceText} onChange={(e) => setReplaceText(e.target.value)} placeholder="Thay bằng" />
+            <Select aria-label="Phạm vi tìm thay" value={replaceScope} onChange={(e) => setReplaceScope(e.target.value as "selection" | "chapter" | "book")} className="select-sm w-36">
+              <option value="selection">Vùng chọn</option>
+              <option value="chapter">Chương hiện tại</option>
+              <option value="book">Toàn sách</option>
+            </Select>
+            <label className="label cursor-pointer gap-1 text-xs"><input type="checkbox" className="checkbox checkbox-xs" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />Aa</label>
+            <label className="label cursor-pointer gap-1 text-xs"><input type="checkbox" className="checkbox checkbox-xs" checked={wholeWord} onChange={(e) => setWholeWord(e.target.checked)} />Từ</label>
+            <label className="label cursor-pointer gap-1 text-xs"><input type="checkbox" className="checkbox checkbox-xs" checked={useRegex} onChange={(e) => setUseRegex(e.target.checked)} />Regex</label>
+            <Button size="sm" onClick={replaceAllInDocument}>{replaceScope === "selection" ? "Thay trong vùng chọn" : replaceScope === "book" ? "Xem trước toàn sách" : "Thay tất cả trong chương"}</Button>
+            <Button size="sm" variant="ghost" onClick={() => setFindOpen(false)}>Đóng</Button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mx-auto max-w-[1100px] px-4 py-5">
         <BranchBar slug={slug} data={data} onRewrite={() => setRewriteOpen(true)} />
@@ -758,7 +913,8 @@ export function ChapterPage() {
         </div>
       ) : (
         <div
-          className="mx-auto max-w-[720px] px-4 pb-10"
+          className="mx-auto px-4 pb-10"
+          style={{ maxWidth: `${readerPrefs.contentWidth}px` }}
           ref={contentRef}
           onMouseUp={handleMouseUp}
         >
@@ -770,7 +926,29 @@ export function ChapterPage() {
             }
           />
 
-          {!data.has_translated ? (
+          {editMode ? (
+            <div className="mb-5">
+              <div className="mb-2 flex items-center justify-between text-xs">
+                <span className={dirty ? "text-warning" : "opacity-50"}>{dirty ? "Có thay đổi chưa lưu" : "Đã đồng bộ"}</span>
+                <Button size="sm" variant="primary" disabled={!dirty} loading={saveChapterText.isPending} onClick={saveDocument}>Lưu chương <span className="opacity-60">Ctrl+S</span></Button>
+              </div>
+              <textarea
+                ref={editorRef}
+                value={documentDraft}
+                onChange={(e) => setDocumentDraft(e.target.value)}
+                className={clsx(
+                  "textarea textarea-bordered min-h-[70vh] w-full resize-y",
+                  readerPrefs.fontFamily === "serif" && "font-read",
+                  readerPrefs.fontFamily === "mono" && "font-mono",
+                  readerPrefs.fontFamily === "sans" && "font-sans",
+                )}
+                style={{ fontSize: `${fontSize}px`, lineHeight: readerPrefs.lineHeight }}
+                spellCheck
+                aria-label="Biên tập toàn bộ chương"
+              />
+              <p className="mt-2 text-xs opacity-50">Bạn có thể thêm, bớt hoặc xóa đoạn trực tiếp bằng xuống dòng. Lưu dùng khóa revision để tránh ghi đè thay đổi mới hơn.</p>
+            </div>
+          ) : !data.has_translated ? (
             <div className="rounded-box border border-base-300 bg-base-200/40 px-6 py-14 text-center">
               <p className="font-display text-base">Chương này chưa có bản dịch</p>
               <p className="mt-2 text-sm opacity-60">
@@ -784,10 +962,10 @@ export function ChapterPage() {
               paragraphs={data.translated_paras}
               editMode={editMode}
               fontSize={fontSize}
+              fontFamily={readerPrefs.fontFamily}
+              lineHeight={readerPrefs.lineHeight}
               notesByPara={notesByPara}
               onOpenNote={() => setNotesOpen(true)}
-              saveParagraph={saveParagraph}
-              insertParagraph={insertParagraph}
             />
           )}
 
@@ -830,6 +1008,12 @@ export function ChapterPage() {
           selection={selection}
           pending={createNote.isPending}
           onCancel={() => setSelection(null)}
+          onFind={(text) => {
+            setFindText(text);
+            setFindOpen(true);
+            setReplaceScope("chapter");
+            setSelection(null);
+          }}
           onSubmit={(note) => {
             const s = selection;
             window.getSelection()?.removeAllRanges();
@@ -932,109 +1116,30 @@ function ChapterTitle({
 
 function ChapterBody({
   paragraphs,
-  editMode,
   fontSize,
+  fontFamily,
+  lineHeight,
   notesByPara,
   onOpenNote,
-  saveParagraph,
-  insertParagraph,
 }: {
   paragraphs: string[];
   editMode: boolean;
   fontSize: number;
+  fontFamily: "serif" | "sans" | "mono";
+  lineHeight: number;
   notesByPara: Map<number, Note[]>;
   onOpenNote: () => void;
-  saveParagraph: ReturnType<typeof useSaveParagraph>;
-  insertParagraph: ReturnType<typeof useInsertParagraph>;
 }) {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [draft, setDraft] = useState("");
-  const toast = useToast();
-
-  const startEdit = (i: number) => {
-    setEditingIndex(i);
-    setDraft(paragraphs[i]);
-  };
-
-  // Đọc giá trị THẲNG từ event thay vì tin vào state `draft` đóng gói trong
-  // closure: `input` rồi `blur` bắn liên tiếp trong cùng một tick có thể khiến
-  // closure của `onBlur` vẫn còn thấy `draft` CŨ vì React chưa kịp re-render.
-  const commit = (value: string) => {
-    if (editingIndex === null) return;
-    const i = editingIndex;
-    const original = paragraphs[i];
-    setEditingIndex(null);
-    if (value === original) return;
-    saveParagraph.mutate(
-      { paraIndex: i, paraText: original, newText: value },
-      { onError: (err) => toast(err instanceof Error ? err.message : String(err), "error") },
-    );
-  };
-
-  const insertAfter = (i: number) => {
-    insertParagraph.mutate(
-      { afterIndex: i, text: "" },
-      {
-        onSuccess: (res) => setEditingIndex(res.para_index),
-        onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
-      },
-    );
-  };
-
   return (
-    <div className="font-read" style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}>
-      {editMode ? <InsertGap onInsert={() => insertAfter(-1)} /> : null}
+    <div
+      className={clsx(fontFamily === "serif" && "font-read", fontFamily === "mono" && "font-mono", fontFamily === "sans" && "font-sans")}
+      style={{ fontSize: `${fontSize}px`, lineHeight }}
+    >
       {paragraphs.map((text, i) => (
-        <div key={i}>
-          {editingIndex === i ? (
-            <Textarea
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={(e) => commit(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  setEditingIndex(null);
-                }
-              }}
-              placeholder="Để trống rồi rời khỏi ô để xóa đoạn này"
-              className="mb-3 w-full border-primary text-[length:inherit] leading-[inherit]"
-              style={{ fontFamily: "inherit" }}
-              rows={Math.max(2, Math.ceil(draft.length / 60))}
-            />
-          ) : (
-            <p
-              data-para-index={i}
-              className={clsx(
-                "mb-3 text-justify",
-                editMode &&
-                  "cursor-text rounded-field outline-1 outline-transparent hover:outline-dashed hover:outline-base-300",
-              )}
-              onClick={() => editMode && startEdit(i)}
-            >
-              {renderWithNotes(text, notesByPara.get(i) ?? [], onOpenNote)}
-            </p>
-          )}
-          {editMode ? <InsertGap onInsert={() => insertAfter(i)} /> : null}
-        </div>
+        <p key={i} data-para-index={i} className="mb-3 text-justify">
+          {renderWithNotes(text, notesByPara.get(i) ?? [], onOpenNote)}
+        </p>
       ))}
-    </div>
-  );
-}
-
-/** Dải mỏng giữa hai đoạn — hover hiện nút "+" để chèn đoạn mới vào đó. */
-function InsertGap({ onInsert }: { onInsert: () => void }) {
-  return (
-    <div className="group/gap relative -my-1.5 flex h-3 items-center justify-center">
-      <button
-        type="button"
-        onClick={onInsert}
-        className="btn btn-ghost btn-xs gap-1 rounded-full border border-base-300 bg-base-100 px-2 py-0 text-[10px] opacity-0 shadow-sm transition-opacity group-hover/gap:opacity-100"
-        title="Chèn đoạn mới ở đây"
-      >
-        <IconPlus size={10} /> Chèn đoạn
-      </button>
     </div>
   );
 }

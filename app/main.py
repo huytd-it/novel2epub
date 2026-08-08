@@ -72,7 +72,20 @@ def _cors_origins(path: str | None = None) -> list[str]:
     return [o for o in cfg.api.cors_origins if o and o != "*"]
 
 
-app = FastAPI(title="novel2epub")
+app = FastAPI(
+    title="novel2epub API",
+    version="1.0.0",
+    description=(
+        "API crawl, dịch, biên tập và xuất EPUB. Swagger UI hỗ trợ thử các "
+        "endpoint JSON; khi truy cập từ máy khác localhost, gửi token trong "
+        "header `Authorization: Bearer <token>`."
+    ),
+    openapi_tags=[
+        {"name": "Glossary", "description": "Glossary, hàng chờ duyệt và trích xuất tên riêng."},
+        {"name": "Reader", "description": "Đọc, tìm kiếm và biên tập chương."},
+        {"name": "Translation", "description": "Dịch AI và Local MT."},
+    ],
+)
 
 
 def _load_oidc_validator():

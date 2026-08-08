@@ -22,6 +22,17 @@ Biên tập không ghi đè snapshot MT. Có thể so sánh nguồn, bản máy 
 
 Với nguồn tiếng Việt, đặt `source_language=vi`; hệ thống tự passthrough và không gọi model.
 
+### Model dịch nhanh, ít tham số
+
+Nếu ưu tiên tốc độ như Google Dịch thay vì biên tập văn phong bằng LLM, dùng model NMT/seq2seq đã lượng tử hóa qua CTranslate2. Các lựa chọn thực tế cần benchmark trên vài chương đại diện:
+
+- **HachimiMT/MoxhiMT CT2**: tích hợp sẵn, phù hợp truyện Trung → Việt và glossary hậu xử lý.
+- **OPUS-MT `zh-vi`**: model nhỏ, chạy CPU nhanh; phù hợp truyện hiện đại, câu ngắn nhưng cần kiểm tra tên riêng và xưng hô.
+- **NLLB-200 distilled 600M**: đa thể loại/ngôn ngữ hơn, nặng hơn OPUS-MT nhưng vẫn nhẹ hơn LLM sinh văn bản; nên chuyển sang CT2 và int8.
+- **M2M100 418M**: phương án đa ngôn ngữ nhỏ; chất lượng Trung → Việt tùy thể loại, cần benchmark trước khi dịch hàng loạt.
+
+Số tham số thấp không tự đảm bảo nhanh: backend, int8/int8-float16, chiều dài câu và CPU/GPU quyết định throughput. Không dùng model nhỏ để tự suy luận glossary phức tạp; hãy dịch thẳng, sau đó duyệt tên riêng và biên tập theo thể loại.
+
 ## Ngữ Cảnh Dịch
 
 Glossary theo ebook dùng để cố định tên riêng và thuật ngữ đặc thù. Không đưa từ đời thường vào glossary. Matching ưu tiên source dài để tên dài không bị mục ngắn thay trước.
@@ -43,6 +54,12 @@ Backend `ai.openai` phục vụ:
 - Sửa đoạn, giải thích và ghi chú chất lượng.
 
 Đề xuất thay đổi glossary hoặc quan hệ nên được duyệt trước khi lan truyền. Các thao tác hàng loạt chạy qua job queue để có log và khả năng hủy/retry.
+
+### Trích xuất tên riêng từ raw
+
+`POST /api/ebooks/{slug}/glossary/proper-names/extract` quét raw bằng heuristic họ người Trung Quốc, tần suất và ngữ cảnh hội thoại. Vì tiếng Trung không viết hoa và không tách từ như tiếng Việt, kết quả chỉ là **ứng viên**, không phải nhận diện chắc chắn.
+
+Endpoint có thể dịch từng ứng viên bằng Local MT rồi đưa vào `glossary_pending`. Nó không ghi trực tiếp vào `names.txt`: source đã tồn tại trong glossary hoặc hàng chờ được bỏ qua, và thao tác merge hàng chờ dùng transaction `BEGIN IMMEDIATE` để không ghi đè snapshot mới hơn. Hãy mở trang Glossary, kiểm tra context/confidence, sửa bản dịch rồi mới duyệt.
 
 ## Checklist Chất Lượng
 

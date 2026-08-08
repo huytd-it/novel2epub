@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import time
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -304,14 +305,11 @@ def ebook_chapter_compare(slug: str, index: int):
         raise HTTPException(status_code=404, detail=f"Không có chương {index}.")
 
     raw = storage.read_raw(chapter) if storage.has_raw(chapter) else ""
-    translated = storage.read_translated(chapter) if storage.has_translated(chapter) else ""
-    # Chương cũ chưa có snapshot bản máy thì degrade về bản hiện hành: cột giữa
-    # hiển thị đúng thứ đang có, chỉ là không còn đối chiếu được với bản sửa.
-    translated_mt = (
-        storage.read_translated_mt(chapter)
-        if storage.has_translated_mt(chapter)
-        else translated
-    )
+    active = storage.active_branch(chapter)
+    translated = storage.read_branch_text(chapter, active) if storage.has_branch_text(chapter, active) else ""
+    # Snapshot và workspace phải thuộc cùng nhánh active; nếu dữ liệu legacy
+    # chưa có snapshot thì degrade về workspace hiện tại.
+    translated_mt = storage.read_branch_mt_snapshot(chapter, active) or translated
     meta = storage.read_meta(chapter) if storage.has_meta(chapter) else {}
     storage.expire_stale_revisions(chapter)
 
@@ -324,7 +322,6 @@ def ebook_chapter_compare(slug: str, index: int):
         if item["status"] == "pending":
             item["payload_preview"] = (item.get("payload_json") or "")[:2000]
 
-    active = storage.active_branch(chapter)
     branches = {
         branch: {
             "label": revisions.branch_label(branch),
@@ -344,8 +341,8 @@ def ebook_chapter_compare(slug: str, index: int):
         "skipped": bool(getattr(chapter, "skipped", False)),
         "has_raw": bool(raw),
         "has_translated": bool(translated),
-        "has_mt_snapshot": storage.has_translated_mt(chapter),
-        "revision": storage.read_revision(chapter),
+        "has_mt_snapshot": bool(storage.read_branch_mt_snapshot(chapter, active)),
+        "revision": storage.read_branch_revision(chapter, active),
         "active_branch": active,
         "branches": branches,
         "ai_revisions": ai_revisions,
@@ -397,18 +394,24 @@ def ebook_chapter_save(slug: str, index: int, payload: dict = Body(...)):
     # Optimistic lock: nếu client gửi `expected_rev` (bản dịch nó đang xem), chỉ
     # ghi khi chưa ai sửa; lệch → 409, không ghi đè mù. Không gửi = ghi thẳng
     # (luồng cũ, không ai xung đột khi editor đang offline).
+    branch = storage.active_branch(chapter)
     expected_rev = payload.get("expected_rev")
     if isinstance(expected_rev, int):
-        if not storage.compare_and_swap_translation(
-            chapter, expected_rev=expected_rev, new_text=translated
+        if not storage.compare_and_swap_branch(
+            chapter, branch, expected_rev=expected_rev, new_text=translated
         ):
             raise HTTPException(
                 status_code=409,
                 detail="Bản dịch đã thay đổi sau khi mở trang — tải lại trước khi ghi.",
             )
     else:
-        storage.write_translated(chapter, translated)
-    return {"saved": True, "word_count": count_words(translated), "revision": storage.read_revision(chapter)}
+        storage.write_branch_text(chapter, branch, translated)
+    return {
+        "saved": True,
+        "branch": branch,
+        "word_count": count_words(translated),
+        "revision": storage.read_branch_revision(chapter, branch),
+    }
 
 
 @router.post("/ebooks/{slug}/chapters/{index}/ai/rewrite/confirm")
@@ -690,6 +693,7 @@ def ebook_readiness(slug: str):
         "branches": branches,
         "build": build,
         "build_stale": storage.build_stale(),
+        "build_blockers": storage.build_blockers(chapters),
         "legacy_report": storage.legacy_ai_rewrite_report(),
     }
 
@@ -700,31 +704,22 @@ def ebook_build_status(slug: str):
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     build = storage.read_build()
-    return {"build": build, "build_stale": storage.build_stale()}
+    manifest = storage.load_manifest()
+    blockers = storage.build_blockers(manifest.chapters) if manifest is not None else []
+    return {"build": build, "build_stale": storage.build_stale(), "build_blockers": blockers}
 
 
 @router.post("/ebooks/{slug}/build")
 def ebook_build_start(request: Request, slug: str, payload: dict = Body(...)):
-    """Xếp hàng build EPUB (job nền). `indexes` (tuỳ chọn) build đúng tập chương.
-    Trả 409 nếu ebook đang có job build/translate chạy."""
-    from novel2epub.pipeline import step_build_selected
-
-    cfg = deps.resolved_cfg(slug)
-    indexes = payload.get("indexes")
-    index_list: list[int] | None = None
-    if isinstance(indexes, list) and indexes:
-        index_list = [int(i) for i in indexes]
-    translated_only = bool(payload.get("translated_only", False))
-
-    def _target(log):
-        step_build_selected(cfg, log, selected_indexes=index_list, translated_only=translated_only)
-
-    started = request.app.state.job.start_custom(
-        f"build-{slug}", _target, category="build"
+    """Build là bulk action và bắt buộc đi qua preview + confirm."""
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "reason": "Build phải preview readiness và tập chương trước khi xác nhận.",
+            "preview_url": f"/api/ui/ebooks/{slug}/chapters/bulk-preview",
+            "action": "build",
+        },
     )
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
-    return {"started": True}
 
 
 # ── nhánh bản dịch (ai_translation vs local_mt) ──────────────────────────
@@ -782,35 +777,15 @@ def ebook_chapter_set_branch(slug: str, index: int, payload: dict = Body(...)):
 
 @router.post("/ebooks/{slug}/translate")
 def ebook_translate_branch(request: Request, slug: str, payload: dict = Body(...)):
-    """Xếp hàng dịch NHIỀU chương vào một NHÁNH (mặc định `ai`; `local_mt` cho
-    nhánh Local NMT độc lập). `indexes` hoặc `range` (start/end)."""
-    from novel2epub.pipeline import step_translate_selected
-
-    cfg = deps.resolved_cfg(slug)
-    branch = payload.get("branch", revisions.BRANCH_AI)
-    if branch not in revisions.BRANCHES:
-        raise HTTPException(status_code=400, detail=f"branch không hợp lệ: {branch!r}")
-    indexes = payload.get("indexes")
-    start = payload.get("start")
-    end = payload.get("end")
-    force = bool(payload.get("force", False))
-
-    selected_indexes: list[int] | None = None
-    if isinstance(indexes, list) and indexes:
-        selected_indexes = [int(i) for i in indexes]
-
-    def _target(log):
-        step_translate_selected(
-            cfg, log, selected_indexes=selected_indexes, start=start, end=end,
-            force=force, branch=branch,
-        )
-
-    started = request.app.state.job.start_custom(
-        f"translate-{branch}-{slug}", _target, category="translate"
+    """Endpoint bulk dịch cũ đã đóng; dùng bulk-preview + bulk-confirm."""
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "reason": "Dịch hàng loạt phải preview tập chương/config trước.",
+            "preview_url": f"/api/ui/ebooks/{slug}/chapters/bulk-preview",
+            "actions": ["translate", "local-mt"],
+        },
     )
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
-    return {"started": True, "branch": branch, "total": len(selected_indexes) if selected_indexes else None}
 
 
 @router.get("/genres")
@@ -827,34 +802,15 @@ def list_genres():
 
 @router.post("/ebooks/{slug}/rewrite")
 def ebook_rewrite_selected(request: Request, slug: str, payload: dict = Body(...)):
-    """Xếp hàng BIÊN TẬP AI cho các chương đã chọn.
-
-    Khác `/translate` ở chỗ đây KHÔNG dịch lại từ bản gốc — chỉ sửa lại bản
-    dịch đang hoạt động của nhánh. `genre` rỗng = dùng thể loại cấu hình sẵn
-    của ebook; truyền giá trị khác để nắn xưng hô riêng cho lần chạy này.
-    """
-    from novel2epub.genre import GENRE_KEYS
-    from novel2epub.pipeline import step_rewrite_chapters
-
-    cfg = deps.resolved_cfg(slug)
-    indexes = payload.get("indexes")
-    genre = str(payload.get("genre", "") or "").strip()
-    if genre and genre not in GENRE_KEYS:
-        raise HTTPException(status_code=400, detail=f"Thể loại không hợp lệ: {genre!r}")
-
-    selected_indexes = [int(i) for i in indexes] if isinstance(indexes, list) and indexes else None
-    if not selected_indexes:
-        raise HTTPException(status_code=400, detail="Chưa chọn chương nào để biên tập.")
-
-    def _target(log):
-        step_rewrite_chapters(cfg, log, indexes=selected_indexes, genre=genre)
-
-    started = request.app.state.job.start_custom(
-        f"rewrite-{slug}", _target, category="translate", ebook=slug,
+    """Endpoint bulk AI edit cũ đã đóng; draft bắt buộc preview + confirm."""
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "reason": "AI edit hàng loạt phải preview eligibility Local MT trước.",
+            "preview_url": f"/api/ui/ebooks/{slug}/chapters/bulk-preview",
+            "action": "ai-edit-draft",
+        },
     )
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
-    return {"started": True, "total": len(selected_indexes), "genre": genre or cfg.translate.genre}
 
 
 # ── preview token chính xác + bulk preview/confirm ────────────────────────
@@ -933,42 +889,27 @@ def webui_ai_rewrite_confirm_token(slug: str, index: int, payload: dict = Body(.
 
 @router.post("/ebooks/{slug}/chapters/ai/preview")
 def ebook_ai_preview_bulk(request: Request, slug: str, payload: dict = Body(...)):
-    """Bulk preview: tạo candidate rewrite cho nhiều chương (job nền). Trả ngay
-    `started`; trạng thái theo dõi qua job log. Candidate KHÔNG tự áp dụng."""
-    from novel2epub.pipeline import step_preview_revisions_bulk
-
-    indexes = payload.get("indexes")
-    if not (isinstance(indexes, list) and indexes):
-        raise HTTPException(status_code=400, detail="Thiếu 'indexes'.")
-    index_list = [int(i) for i in indexes]
-    cfg = deps.resolved_cfg(slug)
-
-    def _target(log):
-        step_preview_revisions_bulk(cfg, log, selected_indexes=index_list)
-
-    started = request.app.state.job.start_custom(
-        f"ai-preview-bulk-{len(index_list)}", _target, category="translate"
+    """Endpoint bulk draft cũ đã đóng; preview mới không được gọi model."""
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "reason": "Hãy preview eligibility trước; model chỉ chạy sau confirm.",
+            "preview_url": f"/api/ui/ebooks/{slug}/chapters/bulk-preview",
+            "action": "ai-edit-draft",
+        },
     )
-    if not started:
-        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
-    return {"started": True, "total": len(index_list)}
 
 
 @router.post("/ebooks/{slug}/chapters/ai/confirm")
 def ebook_ai_confirm_bulk(slug: str, payload: dict = Body(...)):
-    """Bulk confirm: áp đồng loạt các candidate đã duyệt (đồng bộ). Mỗi cái
-    vẫn qua optimistic lock; trả kết quả từng cái `{id, ok, error}`."""
-    from novel2epub.pipeline import step_confirm_revisions_bulk
-
-    revision_ids = payload.get("revision_ids")
-    if not (isinstance(revision_ids, list) and revision_ids):
-        raise HTTPException(status_code=400, detail="Thiếu 'revision_ids'.")
-    cfg = deps.resolved_cfg(slug)
-    results = step_confirm_revisions_bulk(cfg, lambda m: None, revision_ids=[int(r) for r in revision_ids])
-    ok_count = sum(1 for r in results if r["ok"])
-    if ok_count == 0:
-        raise HTTPException(status_code=409, detail="Không có bản nháp nào áp được.")
-    return {"results": results, "ok": ok_count, "total": len(results)}
+    """Không auto-approve candidate hàng loạt; accept từng draft bằng token."""
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "reason": "AI edit draft phải được review và accept chọn lọc từng bản.",
+            "chapter_confirm_url": f"/api/ui/ebooks/{slug}/chapters/{{index}}/ai/rewrite/confirm-token",
+        },
+    )
 
 
 # ── legacy migration (non-destructive) ───────────────────────────────────
@@ -1587,93 +1528,159 @@ def ebook_chapter_revisions(slug: str, index: int, status: str = ""):
 
 @router.post("/ebooks/{slug}/chapters/bulk")
 def ebook_chapters_bulk(request: Request, slug: str, payload: dict = Body(...)):
-    """Hành động hàng loạt trên các chương được chọn.
-
-    `action`: translate | local-mt | delete-translation | skip | unskip | set-branch
-    `indexes`: list[int] (bắt buộc)
-    `branch`: tên nhánh (cho translate/set-branch)
-    `force`: bool (cho translate, mặc định False)
-    """
-    from novel2epub.pipeline import (
-        step_delete_translation_selected,
-        step_translate_selected,
+    """Endpoint bulk cũ đã đóng: mọi bulk action bắt buộc preview + confirm."""
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "reason": "Mọi hành động hàng loạt phải preview trước khi xác nhận.",
+            "preview_url": f"/api/ui/ebooks/{slug}/chapters/bulk-preview",
+            "confirm_url": f"/api/ui/ebooks/{slug}/chapters/bulk-confirm",
+        },
     )
+
+
+@router.post("/ebooks/{slug}/chapters/bulk-preview")
+def ebook_chapters_bulk_preview(request: Request, slug: str, payload: dict = Body(...)):
+    """Preview hành động hàng loạt — KHÔNG đổi trạng thái, không gọi model.
+
+    Trả token có hạn (snapshot đánh giá + vân tay config/workspace từng chương)
+    để UI hiển thị rồi mới gọi `/bulk-confirm`. Xem `novel2epub/bulk_contract.py`.
+    """
+    from novel2epub import bulk_contract
 
     cfg = deps.resolved_cfg(slug)
     action = str(payload.get("action", "")).strip()
+    if action == "set-branch":
+        action = "switch-branch"
+    if action not in bulk_contract.BULK_ACTIONS:
+        raise HTTPException(status_code=400, detail=f"action không hợp lệ: {action!r}")
     indexes = payload.get("indexes")
     if not isinstance(indexes, list) or not indexes:
         raise HTTPException(status_code=400, detail="Thiếu 'indexes'.")
-    index_list = [int(i) for i in indexes]
-    force = bool(payload.get("force", False))
+    try:
+        index_list = [int(i) for i in indexes]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="'indexes' phải là list số.")
     branch = str(payload.get("branch") or revisions.BRANCH_AI).strip()
+    force = bool(payload.get("force", False))
 
-    if action in ("translate", "local-mt"):
-        effective_branch = revisions.BRANCH_LOCAL_MT if action == "local-mt" else revisions.normalize_branch(branch)
-        if effective_branch not in revisions.BRANCHES:
-            raise HTTPException(status_code=400, detail=f"branch không hợp lệ: {effective_branch!r}")
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+    plan = bulk_contract.preview_plan(
+        storage, manifest, action=action, indexes=index_list, branch=branch, force=force,
+    )
+    if plan["total"] == 0:
+        raise HTTPException(status_code=400, detail="Không có chương nào khớp danh sách.")
 
-        def _target(log):
-            step_translate_selected(cfg, log, selected_indexes=index_list, force=force, branch=effective_branch)
+    config_hash = bulk_contract.config_fingerprint(cfg)
+    principal = getattr(request.state, "principal", None)
+    actor = {
+        "issuer": str(getattr(principal, "issuer", "") or ""),
+        "subject": str(getattr(principal, "subject", "") or ""),
+        "role": str(getattr(principal, "role", "") or ""),
+    }
+    token = storage.issue_bulk_token(
+        action=action,
+        options={
+            "branch": branch, "force": force, "indexes": index_list,
+            "actor": actor,
+        },
+        config_hash=config_hash,
+        chapters=plan["chapters"],
+        eligibility={"eligible": plan["eligible"], "blocked": plan["blocked"]},
+        estimates=plan["estimates"],
+    )
+    return {
+        "token": token,
+        "action": action,
+        "branch": branch,
+        "force": force,
+        "config_hash": config_hash,
+        "total": plan["total"],
+        "eligible": plan["eligible"],
+        "blocked": plan["blocked"],
+        "chapters": plan["chapters"],
+        "estimates": plan["estimates"],
+        "expires_at": time.time() + bulk_contract.BULK_TOKEN_TTL_SECONDS,
+    }
 
-        started = request.app.state.job.start_custom(
-            f"bulk-translate-{effective_branch}-{slug}", _target, category="translate", ebook=slug,
+
+@router.post("/ebooks/{slug}/chapters/bulk-confirm")
+def ebook_chapters_bulk_confirm(request: Request, slug: str, payload: dict = Body(...)):
+    """Xác nhận hành động đã preview — xác thực token rồi mới thực thi.
+
+    Token hết hạn/đã dùng/config đổi/workspace chương đổi giữa chừng → 409,
+    phải `/bulk-preview` lại. Action dài đẩy job nền, action nhanh chạy ngay."""
+    from novel2epub import bulk_contract
+    from novel2epub.pipeline import step_bulk_confirm
+
+    cfg = deps.resolved_cfg(slug)
+    token = str(payload.get("token", "")).strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Thiếu 'token'.")
+
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    row = storage.read_bulk_token(token)
+    if row is None:
+        raise HTTPException(status_code=400, detail="Token không tồn tại.")
+    ok, reason, options = storage.validate_bulk_token(
+        token, config_hash=bulk_contract.config_fingerprint(cfg),
+    )
+    if not ok:
+        raise HTTPException(status_code=409, detail=reason)
+    action = row["action"]
+
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+    try:
+        plan_chapters = json.loads(row["chapters_json"] or "[]")
+    except json.JSONDecodeError:
+        plan_chapters = []
+    plan = {"action": action, "branch": options.get("branch", ""), "chapters": plan_chapters}
+    changed = bulk_contract.verify_fingerprints(plan, storage, manifest)
+    if changed:
+        raise HTTPException(
+            status_code=409,
+            detail={"reason": "Dữ liệu đã thay đổi kể từ khi preview — hãy preview lại.",
+                    "changed_indexes": changed},
         )
-        if not started:
-            raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
-        return {"started": True, "action": action, "branch": effective_branch, "total": len(index_list)}
 
-    elif action == "delete-translation":
-        def _del(log):
-            step_delete_translation_selected(cfg, log, selected_indexes=index_list)
+    eligible_indexes = [int(i["index"]) for i in plan_chapters if i.get("ok")]
+    if not eligible_indexes:
+        raise HTTPException(status_code=409, detail="Preview không có chương đủ điều kiện để thực thi.")
 
-        started = request.app.state.job.start_custom(
-            f"bulk-delete-{slug}", _del, category="translate", ebook=slug,
+    def _dispatch(name, category, fn):
+        return request.app.state.job.start_custom(
+            name, fn, category=category, ebook=slug,
+            chapter_indexes=eligible_indexes,
         )
-        if not started:
-            raise HTTPException(status_code=409, detail="Đang có job khác chạy.")
-        return {"started": True, "action": action, "total": len(index_list)}
 
-    elif action in ("skip", "unskip"):
-        skip_val = action == "skip"
-        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-        manifest = storage.load_manifest()
-        if manifest is None:
-            raise HTTPException(status_code=404, detail="Chưa có mục lục.")
-        changed = 0
-        for ch in manifest.chapters:
-            if ch.index in set(index_list):
-                ch.skipped = skip_val
-                storage.save_chapter(ch)
-                changed += 1
-        return {"changed": changed, "action": action}
+    try:
+        result = step_bulk_confirm(
+            cfg, lambda m: None, action=action, indexes=eligible_indexes,
+            branch=options.get("branch", ""), force=bool(options.get("force", False)),
+            dispatch=_dispatch,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
-    elif action == "set-branch":
-        if branch not in revisions.BRANCHES:
-            raise HTTPException(status_code=400, detail=f"branch không hợp lệ: {branch!r}")
-        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-        manifest = storage.load_manifest()
-        if manifest is None:
-            raise HTTPException(status_code=404, detail="Chưa có mục lục.")
-        wanted = set(index_list)
-        changed = 0
-        for ch in manifest.chapters:
-            if ch.index in wanted:
-                storage.set_active_branch(ch, branch)
-                changed += 1
-        return {"changed": changed, "action": action, "branch": branch}
-
-    else:
-        raise HTTPException(status_code=400, detail=f"action không hợp lệ: {action!r}")
+    # Consume chỉ sau khi thao tác nhanh thành công hoặc job đã được enqueue.
+    storage.consume_bulk_token(token)
+    storage.invalidate_bulk_tokens(action=action)
+    return {**result, "token": token, "consumed": True, "exact_indexes": eligible_indexes}
 
 
 @router.get("/queue")
 def queue_status(request: Request):
     """Trạng thái queue theo category: running / pending / workers / history gần nhất."""
     snap = request.app.state.job.queue.snapshot()
+    pending_by_cat: dict[str, list] = snap.get("pending", {}) or {}
     by_cat: dict[str, dict] = {}
-    for cat in ("crawl", "translate", "build"):
-        pending_for_cat = [j for j in snap.get("pending", []) if j.get("category") == cat]
+    for cat in ("crawl", "local-mt", "ai-translate", "ai-edit", "build"):
+        pending_for_cat = pending_by_cat.get(cat, [])
         running_for_cat = [j for j in snap.get("running", []) if j.get("category") == cat]
         by_cat[cat] = {
             "running": running_for_cat,
@@ -1681,8 +1688,9 @@ def queue_status(request: Request):
             "pending": pending_for_cat[:20],
         }
     return {
+        "categories": snap.get("categories", []),
         "running": snap.get("running", []),
-        "pending": snap.get("pending", []),
+        "pending": snap.get("pending", {}),
         "history": snap.get("history", [])[:50],
         "by_category": by_cat,
     }

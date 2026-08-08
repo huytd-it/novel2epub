@@ -37,12 +37,12 @@ export function ChapterListDrawer({
           type="button"
           aria-label="Đóng danh sách chương"
           onClick={onClose}
-          className="fixed inset-0 z-40 bg-black/30"
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
         />
       ) : null}
       <aside
         className={clsx(
-          "fixed inset-y-0 left-0 z-50 flex w-80 max-w-[88vw] flex-col border-r border-base-300 bg-base-100 shadow-xl transition-transform",
+          "fixed inset-y-0 left-0 z-50 flex w-80 max-w-[88vw] flex-col border-r border-base-300 bg-base-100 shadow-xl transition-transform lg:left-64 lg:w-72 lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -51,7 +51,7 @@ export function ChapterListDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="btn btn-ghost btn-xs btn-square"
+            className="btn btn-ghost btn-xs btn-square lg:hidden"
             aria-label="Đóng"
           >
             <IconClose size={14} />

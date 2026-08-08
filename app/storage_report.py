@@ -70,8 +70,8 @@ def build_archive_bundle(
             for ch in manifest.chapters:
                 if storage.has_raw(ch):
                     zf.writestr(f"{root_name}/raw/{ch.stem}.md", storage.read_raw(ch))
-                if storage.read_translated(ch):
-                    zf.writestr(f"{root_name}/translated/{ch.stem}.md", storage.read_translated(ch))
+                if storage.read_active_branch_text(ch):
+                    zf.writestr(f"{root_name}/translated/{ch.stem}.md", storage.read_active_branch_text(ch))
                 if storage.has_translated_mt(ch):
                     zf.writestr(f"{root_name}/translated_mt/{ch.stem}.md", storage.read_translated_mt(ch))
                 if storage.has_meta(ch):

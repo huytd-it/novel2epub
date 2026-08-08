@@ -11,6 +11,16 @@ Quy trình khuyến nghị trên Web UI:
 5. Chọn backend dịch, dịch thử và kiểm tra glossary/xưng hô.
 6. Bỏ giới hạn chương và chạy pipeline đầy đủ.
 
+## Swagger Và OpenAPI
+
+FastAPI tạo tài liệu API trực tiếp từ route/schema:
+
+- Swagger UI: `/docs`
+- ReDoc: `/redoc`
+- OpenAPI JSON: `/openapi.json`
+
+Khi gọi từ localhost, middleware cho phép thao tác không cần token. Khi backend được truy cập từ máy khác, gửi `Authorization: Bearer <token>`; không dán token vào URL hoặc log. Endpoint trích tên riêng có schema đầy đủ trong nhóm **Glossary** tại `POST /api/ebooks/{slug}/glossary/proper-names/extract`.
+
 ## CLI
 
 Mọi lệnh theo ebook dùng `-e <slug>`; DB khác mặc định dùng `-c <path>`.
@@ -141,6 +151,26 @@ Bốn điều cần biết về hành vi này:
 **Mỗi ebook nghỉ 5 phút giữa hai lần build.** readest hỏi lại catalog mỗi lần mở app và mỗi lần kéo-để-làm-mới; không có mốc nghỉ này thì mỗi cú kéo lại đẻ thêm một job cho cùng cuốn sách. Mốc nghỉ giữ trong RAM nên restart server sẽ xoá — cùng lắm tốn thêm một lần build dư.
 
 Theo dõi tiến độ ở `/queue` (job tên `opds-autobuild:<slug>`) và `/logs`. Tắt cờ `auto_build` thì quay về build tay hoàn toàn qua nút Build hoặc Automation.
+
+## Hành Động Hàng Loạt Chương (Bulk)
+
+Web UI thao tác nhiều chương qua hai bước *preview → confirm* thay vì ghi thẳng:
+
+- `POST /api/ui/ebooks/{slug}/chapters/bulk-preview` — KHÔNG đổi trạng thái, không gọi
+  model. Trả token có hạn (30 phút, dùng một lần) kèm danh sách từng chương đủ điều
+  kiện/lý do từ chối và vân tay workspace (`config_hash` + fingerprint mỗi chương).
+- `POST /api/ui/ebooks/{slug}/chapters/bulk-confirm` — nhận token, xác thực rồi mới
+  thực thi. Token hết hạn/đã dùng, hoặc config/chương đổi kể từ lúc preview → `409`,
+  phải preview lại. Action dài (`translate`, `local-mt`, `ai-edit-draft`, `build`) chạy
+  qua job nền; `switch-branch`, `skip`, `unskip`, `delete-translation` chạy đồng bộ.
+
+`action` nhận: `translate`, `local-mt`, `ai-edit-draft` (chỉ biên tập bản dịch Local
+MT), `switch-branch`, `skip`, `unskip`, `delete-translation`, `build` (build strict —
+chặn chương chưa có bản dịch ở nhánh đang hoạt động). Logic đánh giá nằm trong
+`novel2epub/bulk_contract.py`; token lưu bảng `bulk_tokens`.
+
+Endpoint `/chapters/bulk` cũ (ghi thẳng) vẫn chạy nhưng **deprecated** — client mới
+nên dùng preview/confirm. `set-branch` của nó map sang `switch-branch` của hợp đồng mới.
 
 ## Tách Giao Diện Khỏi Máy Chạy Backend
 

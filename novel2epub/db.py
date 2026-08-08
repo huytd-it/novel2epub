@@ -430,6 +430,27 @@ _SCHEMA_STATEMENTS = [
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
+    # ── bulk preview token (hợp đồng bulk-preview / bulk-confirm) ─────────────────
+    # Token phát ra khi user preview hành động hàng loạt chương. Confirm xác
+    # thực bằng chính snapshot đánh giá (config_hash + fingerprint workspace
+    # từng chương) nên hành động chỉ chạy đúng trên trạng thái đã được duyệt.
+    # Một token chỉ dùng được 1 lần và có hạn.
+    """
+    CREATE TABLE IF NOT EXISTS bulk_tokens (
+        token TEXT NOT NULL PRIMARY KEY,
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        action TEXT NOT NULL DEFAULT '',
+        options_json TEXT NOT NULL DEFAULT '{}',
+        config_hash TEXT NOT NULL DEFAULT '',
+        chapters_json TEXT NOT NULL DEFAULT '[]',
+        eligibility_json TEXT NOT NULL DEFAULT '{}',
+        estimates_json TEXT NOT NULL DEFAULT '{}',
+        expires_at TEXT NOT NULL DEFAULT '',
+        consumed INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_bulk_tokens_ebook ON bulk_tokens(ebook_slug, action)",
 ]
 
 # Cột thêm vào bảng ĐÃ TỒN TẠI ở các phiên bản schema sau. `_SCHEMA_STATEMENTS`

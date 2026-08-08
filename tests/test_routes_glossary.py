@@ -9,7 +9,7 @@ from novel2epub.config import (
     TranslateConfig,
 )
 from novel2epub.storage import Chapter, Manifest, Storage
-from app.routes.glossary import _append_glossary_entry
+from app.routes.glossary import _append_glossary_entry, extract_proper_name_candidates
 
 
 def _cfg(tmp_path):
@@ -49,6 +49,21 @@ def _client(cfg, monkeypatch):
 
     app.state.job = _FakeJob()
     return TestClient(app)
+
+
+def test_extract_proper_names_uses_frequency_and_context():
+    rows = extract_proper_name_candidates(
+        [
+            (1, "张无忌说道：我会回来。赵敏看着张无忌。"),
+            (2, "张无忌问道：赵敏在哪里？"),
+        ],
+        min_frequency=2,
+    )
+    by_source = {row["source"]: row for row in rows}
+    assert "张无忌" in by_source
+    assert by_source["张无忌"]["frequency"] >= 2
+    assert by_source["张无忌"]["confidence"] > 0.5
+    assert "什么" not in by_source
 
 
 def test_append_new_entry_writes_line(tmp_path):

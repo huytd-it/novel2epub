@@ -24,6 +24,7 @@ Không commit `novel2epub.db`, API key, EPUB, log hoặc dữ liệu truyện.
 | `novel2epub/translator.py` | Backend dịch và dựng prompt |
 | `novel2epub/pipeline.py` | Điều phối các bước |
 | `novel2epub/epub_builder.py` | Đóng gói EPUB |
+| `novel2epub/bulk_contract.py` | Logic thuần hợp đồng bulk-preview/bulk-confirm (đánh giá đủ điều kiện, vân tay config/chương) |
 | `app/routes/` | Route HTML/API theo domain |
 | `app/queue.py` | Job queue đa nhóm worker |
 | `app/scheduler.py` | Automation cron |

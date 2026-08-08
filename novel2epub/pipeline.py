@@ -1488,42 +1488,25 @@ def step_rewrite_chapters(
         selected = [c for c in manifest.chapters if c.index in wanted]
     else:
         selected = _chapter_range(manifest.chapters, None, start, end)
-    selected = [c for c in selected if storage.has_translated(c)]
+    selected = [c for c in selected if storage.has_branch_text(c, revisions.BRANCH_LOCAL_MT)]
     total = len(selected)
     if total == 0:
-        log("[rewrite] Không có chương đã dịch nào trong phạm vi đã chọn.")
+        log("[rewrite] Không có chương Local MT nào trong phạm vi — bỏ qua, không gọi AI.")
         return manifest
 
+    # Luồng batch legacy không được ghi đè workspace. Mỗi kết quả là draft
+    # pending để review/accept chọn lọc; genre được giữ trong config hiệu lực.
     effective_genre = (genre or "").strip() or cfg.translate.genre or "auto"
-    log(f"[rewrite] Thể loại áp dụng: {effective_genre}")
-
+    log(f"[rewrite] Tạo draft AI edit từ Local MT · thể loại: {effective_genre}")
+    created = 0
     for i, ch in enumerate(selected, 1):
-        branch = storage.active_branch(ch)
-        log(f"[rewrite] ({i}/{total}) {ch.title or ch.stem} (nhánh {revisions.branch_label(branch)})")
-        # Engine rewrite không được phép dùng raw_text (chống rò rỉ raw vào AI edit).
-        raw = ""
-        current = storage.read_branch_text(ch, branch)
-        workspace, restore_map = _branch_edit_workspace(storage, ch, branch)
+        log(f"[rewrite] ({i}/{total}) {ch.title or ch.stem} (nhánh Local MT)")
         try:
-            rewritten = glossary_ai.rewrite_chapter(
-                cfg.ai.openai, raw, workspace, glossary,
-                filter_glossary=cfg.translate.glossary_filter,
-                genre=effective_genre,
-            )
+            if step_rewrite_preview(cfg, log, index=ch.index, require_local_mt=True):
+                created += 1
         except Exception as e:
             log(f"[rewrite]   ! Lỗi chương {ch.stem}: {e}")
-            continue
-        rewritten = _restore_edit_workspace(rewritten, restore_map)
-        if not rewritten.strip():
-            log(f"[rewrite]   ! Kết quả rỗng, giữ nguyên chương {ch.stem}.")
-            continue
-        meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-        meta["before_rewrite"] = current
-        storage.write_meta(ch, meta)
-        storage.write_branch_text(ch, branch, rewritten)
-        storage.invalidate_preview_tokens(ch, branch)
-
-    log("[rewrite] Hoàn tất.")
+    log(f"[rewrite] Hoàn tất. Đã tạo {created}/{total} draft, chưa tự áp dụng.")
     return manifest
 
 
@@ -1722,7 +1705,7 @@ def step_suggest_chapter(cfg: Config, log: LogFn = _print, *, index: int) -> lis
     return suggestions
 
 
-def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> int:
+def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int, require_local_mt: bool = True) -> int:
     """AI biên tập lại 1 chương nhưng KHÔNG ghi đè — lưu candidate vào
     `ai_revisions` (status `pending`, có snapshot + hạn dùng) để người review
     xem diff rồi quyết định áp dụng. Trả id candidate (0 nếu không tạo được).
@@ -1730,13 +1713,21 @@ def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int) -> int
     Hoạt động trên NHÁNH ĐANG HOẠT ĐỘNG của chương: AI chỉ đọc bản dịch của
     nhánh đó (workspace đã che entity protect), không bao giờ thấy raw. Engine
     `rewrite` thuộc nhóm **không** được cấp raw (`allows_raw=False`).
+
+    `require_local_mt=True` (hành động ai-edit-draft trong bulk mới): AI CHỈ
+    đọc nhánh `local_mt` — nếu chưa có bản dịch Local NMT thì bỏ qua với lý do
+    rõ ràng, không gọi model, không bê raw vào bất kỳ bước nào. Candidate mang
+    branch=`local_mt` và stale theo revision của RIÊNG nhánh đó.
     """
     from . import glossary_ai
 
     storage, _manifest, ch = _require_chapter(cfg, index)
-    branch = storage.active_branch(ch)
+    # AI edit luôn dựa trên Local MT workspace. `require_local_mt` chỉ còn giữ
+    # trong signature để không phá caller cũ; không có đường fallback sang raw
+    # hoặc nhánh AI/active.
+    branch = revisions.BRANCH_LOCAL_MT
     if not storage.has_branch_text(ch, branch):
-        log("[rewrite] Chương chưa có bản dịch ở nhánh này, không có gì để biên tập.")
+        log("[rewrite] Chương chưa có bản dịch Local MT — bỏ qua (không gọi AI).")
         return 0
 
     _emit_translate_config(cfg, log, feature="REWRITE PREVIEW")
@@ -1849,14 +1840,19 @@ def step_discard_ai_revision(cfg: Config, log: LogFn = _print, *, revision_id: i
     return ok
 
 
-def step_preview_revisions_bulk(cfg: Config, log: LogFn = _print, *, selected_indexes: list[int]) -> list[int]:
+def step_preview_revisions_bulk(cfg: Config, log: LogFn = _print, *, selected_indexes: list[int], require_local_mt: bool = False) -> list[int]:
     """Tạo candidate rewrite cho NHIỀU chương (bulk preview). Mỗi chương đi qua
     `step_rewrite_preview` — luôn bắt đầu ở `pending`, KHÔNG tự áp dụng. Trả
-    list id candidate đã tạo (chương lỗi bị bỏ qua, đã log)."""
+    list id candidate đã tạo (chương lỗi bị bỏ qua, đã log).
+
+    `require_local_mt=True`: chỉ biên tập bản dịch Local NMT (nhánh `local_mt`),
+    chương chưa có Local MT bị bỏ qua có lý do — dùng cho hành động
+    `ai-edit-draft` của hợp đồng bulk-preview/confirm.
+    """
     created: list[int] = []
     for idx in selected_indexes:
         try:
-            rid = step_rewrite_preview(cfg, log, index=idx)
+            rid = step_rewrite_preview(cfg, log, index=idx, require_local_mt=require_local_mt)
             if rid:
                 created.append(rid)
         except RuntimeError as e:
@@ -1882,10 +1878,25 @@ def step_confirm_revisions_bulk(cfg: Config, log: LogFn = _print, *, revision_id
     return results
 
 
+def _classify_translate_type(translate_type: str) -> str:
+    """Phân loại engine dịch của ebook: `local_mt` (hachimimt/moxhimt),
+    `ai` (openai/google/libretranslate), còn lại `legacy_unclassified`."""
+    t = (translate_type or "").lower()
+    if t in ("hachimimt", "moxhimt"):
+        return "local_mt"
+    if t in ("openai", "google", "libretranslate", "ai"):
+        return "ai"
+    return "legacy_unclassified"
+
+
 def step_migrate_legacy_revisions(cfg: Config, log: LogFn = _print, *, selected_indexes: list[int] | None = None) -> dict:
     """Nâng bản nháp legacy (meta['ai_rewrite'] chưa có `revision_id`) thành
-    candidate trong `ai_revisions` — KHÔNG xoá dữ liệu gốc. Idempotent; trả
-    báo cáo `{chapters, legacy, migrated, remaining}`."""
+    candidate trong `ai_revisions` — KHÔNG xoá dữ liệu gốc. Idempotent.
+
+    Ngoài ra phân loại engine (`hachimimt`/`moxhimt` → local_mt, các engine
+    cloud → ai) và — khi an toàn (nhánh local_mt rỗng) — copy bản dịch máy/
+    nội dung/title legacy vào nhánh local_mt để workflow nhánh mới có dữ liệu.
+    Trả báo cáo `{chapters, legacy, migrated, remaining, unclassified}`."""
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -1894,12 +1905,24 @@ def step_migrate_legacy_revisions(cfg: Config, log: LogFn = _print, *, selected_
     if selected_indexes is not None:
         wanted = set(selected_indexes)
         selected = [c for c in selected if c.index in wanted]
+    classification = _classify_translate_type(cfg.translate.type)
     migrated = 0
+    copied_local_mt = 0
     for ch in selected:
         if storage.migrate_legacy_ai_rewrite(ch):
             migrated += 1
+        if classification == "local_mt" and storage.migrate_legacy_local_mt(ch):
+            copied_local_mt += 1
     report = storage.legacy_ai_rewrite_report()
-    log(f"[migrate-legacy] Đã nâng {migrated} bản nháp legacy. Báo cáo: {report}")
+    report["unclassified"] = (
+        len(selected) if classification == "legacy_unclassified" else 0
+    )
+    report["classification"] = classification
+    report["local_mt_filled"] = copied_local_mt
+    log(
+        f"[migrate-legacy] Đã nâng {migrated} bản nháp legacy (engine={classification!r}, "
+        f"lấp nhánh local_mt {copied_local_mt} chương). Báo cáo: {report}"
+    )
     return report
 
 
@@ -1933,6 +1956,115 @@ def step_delete_translation_selected(
         storage.save_manifest(manifest)
     log(f"[xóa-dịch] Hoàn tất. Đã xóa {deleted} chương.")
     return manifest
+
+
+def step_bulk_confirm(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    action: str,
+    indexes: list[int],
+    branch: str = "",
+    force: bool = False,
+    dispatch: Callable[[str, str, Callable[[LogFn], None]], bool] | None = None,
+    should_cancel: CancelFn | None = None,
+) -> dict:
+    """Thực thi action hàng loạt đã được preview/confirm (hợp đồng bulk).
+
+    Action dài (`translate`/`local-mt`/`ai-edit-draft`/`build`) chạy qua callback
+    `dispatch(name, category, fn)` — route WebUI gắn vào job queue, CLI/test
+    không truyền sẽ chạy đồng bộ. Action nhanh (`skip`/`unskip`/`set-branch`/
+    `delete-translation`) chạy ngay. Trả `{status, action, ...}` — `status` là
+    `"queued"` (đã đẩy job) hoặc `"done"` (đã chạy xong đồng bộ)."""
+    from . import bulk_contract
+
+    if action not in bulk_contract.BULK_ACTIONS:
+        raise RuntimeError(f"Action không hợp lệ: {action!r}.")
+    index_list = list(indexes)
+    wanted = set(index_list)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    def _target_branch() -> str:
+        if action in ("local-mt", "ai-edit-draft"):
+            return revisions.BRANCH_LOCAL_MT
+        return revisions.normalize_branch(branch)
+
+    if action in ("translate", "local-mt"):
+        effective_branch = _target_branch()
+        if effective_branch not in revisions.BRANCHES:
+            raise RuntimeError(f"branch không hợp lệ: {effective_branch!r}")
+
+        def _translate(log: LogFn) -> None:
+            step_translate_selected(cfg, log, selected_indexes=index_list, force=force, branch=effective_branch)
+
+        if dispatch is not None:
+            ok = dispatch(f"bulk-{action}-{cfg.novel.slug}", "ai-translate" if action == "translate" else "local-mt", _translate)
+            if not ok:
+                raise RuntimeError("Đang có job khác chạy, vui lòng đợi.")
+            return {"status": "queued", "action": action, "branch": effective_branch, "total": len(index_list)}
+        _translate(log)
+        return {"status": "done", "action": action, "branch": effective_branch, "total": len(index_list)}
+
+    if action == "ai-edit-draft":
+        def _draft(log: LogFn) -> None:
+            step_preview_revisions_bulk(cfg, log, selected_indexes=index_list, require_local_mt=True)
+
+        if dispatch is not None:
+            ok = dispatch(f"bulk-ai-edit-draft-{cfg.novel.slug}", "ai-edit", _draft)
+            if not ok:
+                raise RuntimeError("Đang có job khác chạy, vui lòng đợi.")
+            return {"status": "queued", "action": action, "branch": revisions.BRANCH_LOCAL_MT, "total": len(index_list)}
+        _draft(log)
+        return {"status": "done", "action": action, "branch": revisions.BRANCH_LOCAL_MT, "total": len(index_list)}
+
+    if action == "build":
+        def _build(log: LogFn) -> None:
+            step_build_selected(cfg, log, selected_indexes=index_list, strict_translated=True, should_cancel=should_cancel)
+
+        if dispatch is not None:
+            ok = dispatch(f"bulk-build-{cfg.novel.slug}", "build", _build)
+            if not ok:
+                raise RuntimeError("Đang có job khác chạy, vui lòng đợi.")
+            return {"status": "queued", "action": action, "total": len(index_list)}
+        _build(log)
+        return {"status": "done", "action": action, "total": len(index_list)}
+
+    if action == "delete-translation":
+        if dispatch is not None:
+            def _del(log: LogFn) -> None:
+                step_delete_translation_selected(cfg, log, selected_indexes=index_list)
+
+            ok = dispatch(f"bulk-delete-{cfg.novel.slug}", "translate", _del)
+            if not ok:
+                raise RuntimeError("Đang có job khác chạy.")
+            return {"status": "queued", "action": action, "total": len(index_list)}
+        step_delete_translation_selected(cfg, log, selected_indexes=index_list)
+        return {"status": "done", "action": action, "total": len(index_list)}
+
+    if action in ("skip", "unskip"):
+        skip_val = action == "skip"
+        changed = 0
+        for ch in manifest.chapters:
+            if ch.index in wanted:
+                ch.skipped = skip_val
+                storage.save_chapter(ch)
+                changed += 1
+        return {"status": "done", "action": action, "changed": changed}
+
+    if action == "switch-branch":
+        if _target_branch() not in revisions.BRANCHES:
+            raise RuntimeError(f"branch không hợp lệ: {_target_branch()!r}")
+        changed = 0
+        for ch in manifest.chapters:
+            if ch.index in wanted:
+                storage.set_active_branch(ch, _target_branch())
+                changed += 1
+        return {"status": "done", "action": action, "changed": changed, "branch": _target_branch()}
+
+    raise RuntimeError(f"Action không hợp lệ: {action!r}.")
 
 
 _RETRANSLATE_TITLE_PROMPT = """Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt.
@@ -2251,7 +2383,8 @@ def step_build_selected(
     log: LogFn = _print,
     *,
     selected_indexes: list[int] | None = None,
-    translated_only: bool = False,
+    translated_only: bool = True,
+    strict_translated: bool = True,
     should_cancel: CancelFn | None = None,
 ) -> str:
     """Đóng gói EPUB.
@@ -2261,12 +2394,35 @@ def step_build_selected(
     readest thì vô nghĩa, mà lại KHÔNG được gắn neo `data-n2e-p` nên cũng
     không sửa được. Đường build tay (nút Build, CLI `build`) giữ nguyên hành
     vi cũ — xem `step_build`.
+
+    `strict_translated=True` CHẶN CỨNG (trước khi ghi bất cứ thứ gì) nếu có
+    chương non-skipped thiếu bản dịch ở nhánh đang hoạt động — dùng cho hành
+    động build từ bulk-confirm: không được âm thầm dựng EPUB có chương bản
+    gốc. Danh sách blocker trả trong lỗi; lỗi dạng RuntimeError với message
+    có `Chương N ...`.
     """
     _emit_build_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+
+    if selected_indexes is not None:
+        wanted = set(selected_indexes)
+        scoped = [c for c in manifest.chapters if c.index in wanted]
+    else:
+        scoped = [c for c in manifest.chapters if not c.skipped]
+
+    if strict_translated:
+        blockers = storage.build_blockers(scoped)
+        if blockers:
+            detail = "; ".join(
+                f"Chương {b['index']}: {b['reason']}" for b in blockers
+            )
+            raise RuntimeError(
+                "Không build được — còn chương chưa có bản dịch ở nhánh đang hoạt "
+                f"động ({len(blockers)} chương): {detail}"
+            )
 
     # Blocker: chỉ 1 build ebook tại một thời điểm. Snapshot fingerprint các
     # nhánh đang hoạt động để sau này phát hiện build stale.
@@ -2277,8 +2433,7 @@ def step_build_selected(
 
     try:
         if selected_indexes is not None:
-            wanted = set(selected_indexes)
-            chapters = [c for c in manifest.chapters if c.index in wanted]
+            chapters = scoped
             log(f"[build] Phạm vi: {len(chapters)} chương được chọn (tổng {len(manifest.chapters)}).")
         else:
             chapters = [c for c in manifest.chapters if not c.skipped]
@@ -2296,10 +2451,9 @@ def step_build_selected(
                 md, fns = _footnotes.annotate(md, notes)
                 if fns:
                     footnotes_by_stem[ch.stem] = fns
-            elif not translated_only and storage.has_raw(ch):
-                md = storage.read_raw(ch)
-                title = ch.title or f"Chương {ch.index}"
             else:
+                # Workflow mới tuyệt đối không đưa raw vào EPUB. Blocker đã
+                # được kiểm tra trước vòng lặp; nhánh này chỉ bảo vệ race hiếm.
                 continue
             chapters_html.append((ch, title, md))
 
@@ -2336,16 +2490,21 @@ def step_build_selected(
 def _collect_publishable(storage: Storage, manifest: Manifest) -> list[tuple[int, str, str, dict]]:
     """`(index, title, markdown, meta)` của các chương ĐỦ ĐIỀU KIỆN đẩy.
 
-    Bỏ chương bị skip và chương chưa dịch xong — `has_translated` đã chặn bản
-    dịch dở (meta['complete'] is False) nên job dịch đang chạy song song không
-    làm rò bản nửa vời lên Reader.
+    Đọc NHÁNH ĐANG HOẠT ĐỘNG của từng chương (bản đi vào Reader phải trùng bản
+    đi vào EPUB). Bỏ chương bị skip và chương chưa dịch xong — `has_branch_text`
+    đã chặn bản dịch dở (meta complete = False) nên job dịch đang chạy song song
+    không làm rò bản nửa vời lên Reader.
     """
     items: list[tuple[int, str, str, dict]] = []
     for ch in manifest.chapters:
-        if ch.skipped or not storage.has_translated(ch):
+        if ch.skipped:
+            continue
+        branch = storage.active_branch(ch)
+        if not storage.has_branch_text(ch, branch):
             continue
         meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-        items.append((ch.index, ch.title, storage.read_translated(ch), meta))
+        title = storage.read_branch_title(ch, branch) or ch.title
+        items.append((ch.index, title, storage.read_branch_text(ch, branch), meta))
     return items
 
 
@@ -2464,9 +2623,16 @@ def step_publish_reader(
                 ch = by_index.get(p.index)
                 if ch is None:
                     continue
+                active_branch = storage.active_branch(ch)
                 _update_chapter_meta(
                     storage, ch,
-                    reader={"hash": p.hash, "remote_id": remote_id, "pushed_at": now},
+                    reader={
+                        "hash": p.hash,
+                        "remote_id": remote_id,
+                        "pushed_at": now,
+                        "branch": active_branch,
+                        "revision": storage.read_branch_revision(ch, active_branch),
+                    },
                 )
             done = min(start + size, len(pushes))
             log(f"[đẩy-reader]   ({done}/{len(pushes)}) chương {label} đã đẩy.")

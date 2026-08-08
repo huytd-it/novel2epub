@@ -11,6 +11,8 @@ import json
 import re
 import sqlite3
 import tempfile
+import time
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -673,6 +675,25 @@ class Storage:
             )
         return branch
 
+    def read_active_branch_text(self, ch: Chapter) -> str:
+        """Bản dịch của nhánh ĐANG HOẠT ĐỘNG (thứ đi vào EPUB/Reader)."""
+        return self.read_branch_text(ch, self.active_branch(ch))
+
+    def has_active_branch_text(self, ch: Chapter) -> bool:
+        """Nhánh đang hoạt động có bản dịch hoàn tất? (giống `has_translated`
+        nhưng theo `active_branch` chứ không cứng theo nhánh AI.)"""
+        branch = self.active_branch(ch)
+        row = self._chapter_row(ch)
+        if row is None:
+            return False
+        if not (row[self._BRANCH_COLUMNS[branch]["text"]] or ""):
+            return False
+        try:
+            meta = json.loads(row["meta_json"] or "{}")
+        except json.JSONDecodeError:
+            meta = {}
+        return bool(meta.get(self._BRANCH_COMPLETE_META[branch], True))
+
     def read_branch_text(self, ch: Chapter, branch: str) -> str:
         branch = revisions.normalize_branch(branch)
         row = self._chapter_row(ch)
@@ -790,12 +811,17 @@ class Storage:
             )
 
     def branch_chapter_snapshots(self) -> dict[int, dict]:
-        """Fingerprint nội dung đi vào build: {idx: {branch, revision, has_text}}
-        cho mọi chương có bản dịch ở nhánh ĐANG HOẠT ĐỘNG. Dùng để phát hiện
-        build stale (bản dịch đổi sau khi build → snapshot lệch)."""
+        """Fingerprint nội dung đi vào build: {idx: {branch, revision, has_text,
+        title, content_hash}} cho mọi chương có bản dịch ở nhánh ĐANG HOẠT ĐỘNG.
+        Dùng để phát hiện build stale (bản dịch đổi sau khi build → snapshot
+        lệch). `content_hash` = hash tiêu đề+nội dung bản dịch đúng thứ sẽ đi
+        vào EPUB (`reader_sync.content_hash`)."""
+        from .reader_sync import content_hash as _content_hash
+
         rows = self.conn.execute(
             "SELECT idx, active_branch, revision, local_mt_revision, "
-            "translated_text, local_mt_text FROM chapters WHERE ebook_slug=?",
+            "translated_text, local_mt_text, title, local_mt_title "
+            "FROM chapters WHERE ebook_slug=?",
             (self.slug,),
         ).fetchall()
         out: dict[int, dict] = {}
@@ -804,10 +830,18 @@ class Storage:
             if branch == "ai":
                 text = row["translated_text"] or ""
                 rev = row["revision"]
+                title = row["title"] or ""
             else:
                 text = row["local_mt_text"] or ""
                 rev = row["local_mt_revision"]
-            out[int(row["idx"])] = {"branch": branch, "revision": int(rev or 0), "has_text": bool(text)}
+                title = row["local_mt_title"] or ""
+            out[int(row["idx"])] = {
+                "branch": branch,
+                "revision": int(rev or 0),
+                "has_text": bool(text),
+                "title": title,
+                "content_hash": _content_hash(title, text) if text else "",
+            }
         return out
 
     # ----- từ điển entity (global + override theo ebook) -----
@@ -1145,6 +1179,103 @@ class Storage:
             )
         return cur.rowcount
 
+    # ----- token bulk-preview / bulk-confirm (hợp đồng hành động hàng loạt) -----
+    def issue_bulk_token(
+        self,
+        *,
+        action: str,
+        options: dict,
+        config_hash: str,
+        chapters: list[dict],
+        eligibility: dict,
+        estimates: dict,
+        ttl_seconds: int = 1800,
+    ) -> str:
+        """Cấp token dùng MỘT lần cho một bản preview hành động hàng loạt.
+        Token chứa snapshot đánh giá + vân tay config; hết hạn sau `ttl`."""
+        token = uuid.uuid4().hex
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO bulk_tokens (token, ebook_slug, action, options_json, "
+                "config_hash, chapters_json, eligibility_json, estimates_json, "
+                "expires_at, consumed) VALUES (?,?,?,?,?,?,?,?,?,0)",
+                (
+                    token,
+                    self.slug,
+                    action,
+                    json.dumps(options, ensure_ascii=False, sort_keys=True),
+                    config_hash,
+                    json.dumps(chapters, ensure_ascii=False, sort_keys=True),
+                    json.dumps(eligibility, ensure_ascii=False, sort_keys=True),
+                    json.dumps(estimates, ensure_ascii=False, sort_keys=True),
+                    str(time.time() + ttl_seconds),
+                ),
+            )
+        return token
+
+    def read_bulk_token(self, token: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM bulk_tokens WHERE token=?", (token,)
+        ).fetchone()
+
+    def validate_bulk_token(self, token: str, *, config_hash: str) -> tuple[bool, str, dict]:
+        """Kiểm tra token còn dùng được với `config_hash` hiện tại. Trả
+        `(ok, reason, options)` — options rỗng nếu không ok."""
+        tok = self.read_bulk_token(token)
+        if tok is None:
+            return False, "Token không hợp lệ hoặc không tồn tại.", {}
+        if tok["consumed"]:
+            return False, "Token đã được dùng — hãy preview lại.", {}
+        try:
+            if float(tok["expires_at"]) < time.time():
+                return False, "Token đã hết hạn — hãy preview lại.", {}
+        except (TypeError, ValueError):
+            return False, "Token hết hạn — hãy preview lại.", {}
+        if tok["ebook_slug"] != self.slug:
+            return False, "Token không thuộc ebook này.", {}
+        if config_hash and tok["config_hash"] and config_hash != tok["config_hash"]:
+            return False, "Cấu hình đã thay đổi — hãy preview lại.", {}
+        try:
+            options = json.loads(tok["options_json"] or "{}")
+        except json.JSONDecodeError:
+            options = {}
+        return True, "", options
+
+    def consume_bulk_token(self, token: str) -> None:
+        """Đánh dấu token đã dùng (one-use)."""
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE bulk_tokens SET consumed=1 WHERE token=? AND consumed=0", (token,)
+            )
+        if cur.rowcount != 1:
+            raise RuntimeError("Token đã được dùng.")
+
+    def chapters_from_bulk_token(self, token: str) -> list[dict]:
+        row = self.read_bulk_token(token)
+        if row is None:
+            return []
+        try:
+            return json.loads(row["chapters_json"] or "[]")
+        except json.JSONDecodeError:
+            return []
+
+    def invalidate_bulk_tokens(self, *, action: str = "") -> int:
+        """Xoá token bulk CHƯA DÙNG của ebook (config/dữ liệu đổi → token cũ
+        hết hiệu lực). Lọc theo action nếu có; trả số token đã xoá."""
+        if action:
+            with self.conn:
+                cur = self.conn.execute(
+                    "DELETE FROM bulk_tokens WHERE ebook_slug=? AND consumed=0 AND action=?",
+                    (self.slug, action),
+                )
+        else:
+            with self.conn:
+                cur = self.conn.execute(
+                    "DELETE FROM bulk_tokens WHERE ebook_slug=? AND consumed=0",
+                    (self.slug,),
+                )
+        return cur.rowcount
+
     # ----- trạng thái build artifact + blocker -----
     def read_build(self) -> dict:
         row = self.conn.execute(
@@ -1193,7 +1324,14 @@ class Storage:
 
     def build_stale(self) -> bool:
         """True nếu bản dịch của nhánh đang hoạt động đã đổi khỏi fingerprint
-        lúc build (EPUB cũ so với workspace hiện tại)."""
+        lúc build (EPUB cũ so với workspace hiện tại). So trên tập key chung
+        `{branch, revision, content_hash}` để chấp nhận snapshot cũ (chưa có
+        title/content_hash) mà không phát âm thầm thành stale."""
+        _STALE_KEYS = ("branch", "revision", "content_hash")
+
+        def _subset(mapping: dict) -> dict:
+            return {k: v for k, v in mapping.items() if k in _STALE_KEYS}
+
         build = self.read_build()
         if build["status"] == "building" or not build["finished_at"]:
             return False
@@ -1203,13 +1341,31 @@ class Storage:
             stored = []
         if isinstance(stored, list):
             stored = {
-                int(item["idx"]): {k: v for k, v in item.items() if k != "idx"}
+                int(item["idx"]): _subset(item)
                 for item in stored if isinstance(item, dict) and "idx" in item
             }
-        current = self.branch_chapter_snapshots()
+        current = {int(k): _subset(v) for k, v in self.branch_chapter_snapshots().items()}
         return json.dumps(current, sort_keys=True) != json.dumps(
             {int(k): v for k, v in stored.items()}, sort_keys=True
         )
+
+    def build_blockers(self, chapters: list[Chapter]) -> list[dict]:
+        """Chương nào trong danh sách (non-skipped) THIẾU bản dịch ở nhánh đang
+        hoạt động — build strict phải chặn (không rơi về raw). Trả
+        `[{index, title, branch, reason}]`."""
+        blockers: list[dict] = []
+        for ch in chapters:
+            if ch.skipped:
+                continue
+            branch = self.active_branch(ch)
+            if not self.has_branch_text(ch, branch):
+                blockers.append({
+                    "index": ch.index,
+                    "title": ch.title or f"Chương {ch.index}",
+                    "branch": branch,
+                    "reason": f"Nhánh '{revisions.branch_label(branch)}' chưa có bản dịch.",
+                })
+        return blockers
 
     # ----- legacy migration: meta['ai_rewrite'] cũ (v10 trở về trước) -----
     def migrate_legacy_ai_rewrite(self, ch: Chapter) -> int:
@@ -1239,6 +1395,37 @@ class Storage:
         meta["ai_rewrite"] = draft
         self.write_meta(ch, meta)
         return revision_id
+
+    def migrate_legacy_local_mt(self, ch: Chapter) -> bool:
+        """Fill nhánh `local_mt` từ dữ liệu legacy của nhánh AI — CHỈ khi nhánh
+        local_mt còn rỗng (an toàn, không đè dữ liệu mới đã dịch). Nguồn:
+        `translated_mt_text` (snapshot bản dịch máy) làm `local_mt_mt_snapshot`,
+        `translated_text` làm `local_mt_text`, title/title_zh theo. Đánh dấu
+        `local_mt_complete=True` để nhánh mới dùng được ngay. Idempotent."""
+        row = self._chapter_row(ch)
+        if row is None or (row["local_mt_text"] or "").strip():
+            return False
+        if not (row["translated_text"] or "").strip():
+            return False
+        with self.conn:
+            self._ensure_chapter_row(ch)
+            self.conn.execute(
+                "UPDATE chapters SET local_mt_text=?, local_mt_mt_snapshot=?, "
+                "local_mt_title=?, local_mt_title_zh=?, local_mt_revision=1 "
+                "WHERE ebook_slug=? AND idx=?",
+                (
+                    row["translated_text"],
+                    row["translated_mt_text"] or row["translated_text"],
+                    row["title"] or "",
+                    row["title_zh"] or "",
+                    self.slug,
+                    ch.index,
+                ),
+            )
+        meta = self.read_meta(ch) if self.has_meta(ch) else {}
+        meta["local_mt_complete"] = True
+        self.write_meta(ch, meta)
+        return True
 
     def legacy_ai_rewrite_report(self) -> dict:
         """Báo cáo bản nháp legacy: {chapters, legacy, migrated, remaining}."""

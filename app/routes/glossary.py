@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 
 from fastapi import APIRouter, Body, Form, HTTPException, Request
+from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import bulk_transfer, glossary_review
@@ -19,6 +21,62 @@ from .. import deps
 router = APIRouter()
 
 INVALID_SOURCE_DETAIL = "Source phải chứa chữ Hán, không nhập tiếng Việt."
+
+
+class ProperNameExtractRequest(BaseModel):
+    """Yêu cầu dò tên riêng trong raw và đưa ứng viên vào hàng chờ glossary."""
+
+    chapter_indexes: list[int] | None = Field(default=None, description="Giới hạn chương; bỏ trống để quét toàn sách.")
+    min_frequency: int = Field(default=2, ge=1, le=100)
+    max_candidates: int = Field(default=100, ge=1, le=500)
+    translate: bool = Field(default=True, description="Dịch ứng viên bằng Local MT trước khi xếp hàng.")
+
+
+_SURNAME = set("赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴宋茅庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田樊胡凌霍虞万支柯管卢莫经房裘缪干解应宗丁宣邓郁单杭洪包诸左石崔吉龚程邢裴陆荣翁荀羊於惠甄曲封芮储靳汲邴糜松井段富巫乌焦巴弓牧隗山谷车侯宓蓬全郗班仰秋仲伊宫宁仇栾暴甘钭厉戎祖武符刘景詹束龙叶幸司韶郜黎蓟薄印宿白怀蒲台从鄂索咸籍赖卓蔺屠蒙池乔阴胥能苍双闻莘党翟谭贡劳逄姬申扶堵冉宰郦雍却璩桑桂濮牛寿通边扈燕冀郏浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终暨居衡步都耿满弘匡国文寇广禄阙东欧殳沃利蔚越夔隆师巩厍聂晁勾敖融冷訾辛阚那简饶空曾毋沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公")
+_NAME_CONTEXT = re.compile(r"(?:说道|问道|笑道|喝道|叫道|看着|望向|对|向|与|跟|被|将|让)([\u3400-\u9fff]{2,4})")
+_HAN_TOKEN = re.compile(r"[\u3400-\u9fff]{2,4}")
+_NAME_STOP = {"什么", "怎么", "这个", "那个", "自己", "他们", "我们", "你们", "现在", "时候", "因为", "所以", "但是", "如果", "没有", "一个", "已经", "可以", "知道", "说道", "问道", "看着", "起来", "出来", "进去", "这里", "那里"}
+
+
+def extract_proper_name_candidates(texts: list[tuple[int, str]], *, min_frequency: int = 2, max_candidates: int = 100) -> list[dict]:
+    """Dò ứng viên tên người từ raw bằng surname + ngữ cảnh hội thoại.
+
+    Đây là recognizer bảo thủ, không khẳng định entity: kết quả luôn phải qua
+    hàng chờ duyệt trước khi thành glossary.
+    """
+    counts: Counter[str] = Counter()
+    contexts: dict[str, str] = {}
+    chapters: dict[str, int] = {}
+    contextual: Counter[str] = Counter()
+    for chapter_index, text in texts:
+        for match in _HAN_TOKEN.finditer(text):
+            token = match.group(0)
+            if token in _NAME_STOP or token[0] not in _SURNAME:
+                continue
+            counts[token] += 1
+            chapters.setdefault(token, chapter_index)
+            contexts.setdefault(token, text[max(0, match.start() - 18): match.end() + 18].replace("\n", " "))
+        for token in _NAME_CONTEXT.findall(text):
+            if token not in _NAME_STOP:
+                contextual[token] += 1
+                counts[token] += 1
+                chapters.setdefault(token, chapter_index)
+    rows = []
+    for source, frequency in counts.most_common():
+        if frequency < min_frequency:
+            continue
+        context_hits = contextual[source]
+        confidence = min(0.98, 0.45 + min(frequency, 10) * 0.035 + min(context_hits, 3) * 0.1)
+        rows.append({
+            "source": source,
+            "frequency": frequency,
+            "confidence": round(confidence, 2),
+            "chapter_index": chapters[source],
+            "context": contexts.get(source, ""),
+        })
+        if len(rows) >= max_candidates:
+            break
+    return rows
 
 
 def _validate_glossary_source(source: str) -> None:
@@ -162,6 +220,81 @@ def ebook_glossary_clean(slug: str):
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     before, after = storage.clean_glossary()
     return JSONResponse({"before": before, "after": after, "removed": before - after})
+
+
+@router.post(
+    "/api/ebooks/{slug}/glossary/proper-names/extract",
+    tags=["Glossary"],
+    summary="Trích xuất tên riêng từ raw",
+)
+def ebook_glossary_extract_proper_names(slug: str, payload: ProperNameExtractRequest):
+    """Dò tên người từ raw, tùy chọn dịch Local MT, rồi xếp hàng chờ duyệt.
+
+    Entry glossary đã tồn tại và source đã có trong pending đều được bỏ qua;
+    endpoint không bao giờ ghi trực tiếp vào glossary chuẩn.
+    """
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+    selected = set(payload.chapter_indexes or [])
+    texts = [
+        (chapter.index, storage.read_raw(chapter))
+        for chapter in manifest.chapters
+        if (not selected or chapter.index in selected) and storage.has_raw(chapter)
+    ]
+    candidates = extract_proper_name_candidates(
+        texts, min_frequency=payload.min_frequency, max_candidates=payload.max_candidates
+    )
+    existing = {source for source, _target, _note in storage.read_glossary_entries_merged()}
+    pending_before = _read_pending(storage)
+    pending_sources = {row["source"] for row in pending_before}
+    translator = None
+    if payload.translate and candidates:
+        try:
+            from .reader import _quick_mt_lock, _quick_mt_translator
+            translator = _quick_mt_translator(slug)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"Không tải được Local MT: {exc}")
+
+    additions: list[dict] = []
+    skipped_existing = 0
+    for row in candidates:
+        source = row["source"]
+        if source in existing or source in pending_sources:
+            skipped_existing += 1
+            continue
+        target = source
+        if translator is not None:
+            try:
+                with _quick_mt_lock:
+                    target = translator.translate(source).strip()
+            except Exception as exc:
+                raise HTTPException(status_code=503, detail=f"Local MT lỗi khi dịch '{source}': {exc}")
+        if not target:
+            continue
+        additions.append({
+            "source": source,
+            "existing_target": "",
+            "target": target,
+            "chapter_index": row["chapter_index"],
+            "note": f"Raw NER · tần suất {row['frequency']} · tin cậy {row['confidence']:.0%} · {row['context']}",
+        })
+
+    def _merge(current):
+        pending = _normalize_pending(current)
+        seen = {row["source"] for row in pending}
+        return pending + [row for row in additions if row["source"] not in seen and row["source"] not in existing]
+
+    merged = storage.update_extra_json("glossary_pending", _merge)
+    return {
+        "scanned_chapters": len(texts),
+        "detected": len(candidates),
+        "queued": len(merged) - len(pending_before),
+        "skipped_existing": skipped_existing,
+        "candidates": candidates,
+    }
 
 
 @router.get("/api/ebooks/{slug}/glossary/pending")
@@ -669,7 +802,7 @@ def ebook_glossary_apply_selected(
     if manifest is None:
         raise HTTPException(status_code=404, detail="Chưa có manifest.")
 
-    by_chapter: dict[int, set[int]] = {}
+    by_chapter: dict[int, dict[int, str | None]] = {}
     for sel in sel_list:
         if not isinstance(sel, dict):
             continue
@@ -678,22 +811,28 @@ def ebook_glossary_apply_selected(
             pi = int(sel["para_index"])
         except (KeyError, TypeError, ValueError):
             continue
-        by_chapter.setdefault(ci, set()).add(pi)
+        expected = sel.get("expected")
+        by_chapter.setdefault(ci, {})[pi] = str(expected) if expected is not None else None
 
     total_replaced = 0
+    stale = 0
     chapters_touched = 0
     for ch in manifest.chapters:
-        para_indexes = by_chapter.get(ch.index)
-        if not para_indexes or not storage.has_translated(ch):
+        selected_paras = by_chapter.get(ch.index)
+        if not selected_paras or not storage.has_translated(ch):
             continue
         translated = storage.read_translated(ch)
         lines = translated.split("\n")
         para_line_indexes = [i for i, line in enumerate(lines) if line.strip()]
         changed = False
-        for pi in para_indexes:
+        for pi, expected in selected_paras.items():
             if not (0 <= pi < len(para_line_indexes)):
+                stale += 1
                 continue
             line_idx = para_line_indexes[pi]
+            if expected is not None and lines[line_idx].strip() != expected.strip():
+                stale += 1
+                continue
             new_line, count = pattern.subn(replace, lines[line_idx])
             if count:
                 lines[line_idx] = new_line
@@ -706,4 +845,4 @@ def ebook_glossary_apply_selected(
             storage.write_translated(ch, "\n".join(lines))
             chapters_touched += 1
 
-    return JSONResponse({"replaced": total_replaced, "chapters": chapters_touched})
+    return JSONResponse({"replaced": total_replaced, "chapters": chapters_touched, "stale": stale})

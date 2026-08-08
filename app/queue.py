@@ -1,7 +1,11 @@
-"""Hàng đợi job FIFO theo category (crawl/translate/build) với N worker thread
-mỗi category, chạy song song trong giới hạn cấu hình. Step "run" là job
-"both" — chiếm quyền độc quyền trên tất cả category (đợi tất cả rỗng rồi mới
-chạy, chặn job mới bắt đầu trong lúc nó chạy).
+"""Hàng đợi job FIFO theo category (crawl/local-mt/ai-translate/ai-edit/build)
+với N worker thread mỗi category, chạy song song trong giới hạn cấu hình. Step
+"run" là job "both" — chiếm quyền độc quyền trên tất cả category (đợi tất cả
+rỗng rồi mới chạy, chặn job mới bắt đầu trong lúc nó chạy).
+
+Category cũ `translate` được giữ làm alias của `ai-translate` để job đã lưu
+trong DB và route cũ (start_custom(... category="translate")) vẫn chạy nguyên
+vẹn — xem `_CATEGORY_ALIASES`/`_normalize_category`.
 
 `JobRunner` (app/job.py) giữ làm shim mỏng gọi vào đây để các route cũ không
 phải đổi ngay (xem design.md D1/D2 của change pro-management-suite).
@@ -22,14 +26,37 @@ from novel2epub.db import get_thread_connection
 
 from .logging_config import job_log_capture, logger
 
-CATEGORIES = ("crawl", "translate", "build")
+# Category vật lý. `translate` (category cũ) được ánh xạ về `ai-translate`.
+CATEGORIES = ("crawl", "local-mt", "ai-translate", "ai-edit", "build")
+# Alias cũ → category mới. Giữ job cũ (persisted trong DB) và route cũ hoạt động.
+_CATEGORY_ALIASES = {"translate": "ai-translate"}
+# Category "both" chiếm độc quyền mọi category (job `run`/`reindex`/automation).
 DEFAULT_HISTORY_LIMIT = 5000
+
+# Artifact mà mỗi category GHI vào. Hai job CÙNG EBOOK chỉ đụng nhau khi tập
+# artifact họ ghi giao nhau (write-write). Đọc (raw, bản dịch) KHÔNG chặn nhau
+# và KHÔNG chặn writer — ví dụ crawl (ghi raw) chạy song song ai-translate (đọc
+# raw), còn hai ai-translate cùng ebook (cùng ghi `ai`) phải nối đuôi.
+CATEGORY_WRITES: dict[str, frozenset[str]] = {
+    "crawl": frozenset({"raw"}),
+    "local-mt": frozenset({"local_mt"}),
+    "ai-translate": frozenset({"ai"}),
+    "ai-edit": frozenset({"edit"}),
+    # Build đọc active workspace của cả hai nhánh; xem như giữ read-lock trên
+    # chúng để writer không đổi input giữa snapshot và đóng gói EPUB.
+    "build": frozenset({"build", "ai", "local_mt"}),
+}
+
+
+def _normalize_category(category: str) -> str:
+    """Chuẩn hoá category; alias cũ (`translate`) → category mới (`ai-translate`)."""
+    return _CATEGORY_ALIASES.get(category, category)
 
 
 @dataclass
 class Job:
     id: str
-    category: str  # "crawl" | "translate" | "build" | "both"
+    category: str  # "crawl" | "local-mt" | "ai-translate" | "ai-edit" | "build" | "both"
     step: str
     label: str = ""
     ebook: str = ""
@@ -72,6 +99,7 @@ class Job:
 
 
 def _categories_for(category: str) -> tuple[str, ...]:
+    category = _normalize_category(category)
     return CATEGORIES if category == "both" else (category,)
 
 
@@ -90,7 +118,12 @@ class JobQueue:
         self._lock = threading.RLock()
         self._cv = threading.Condition(self._lock)
         # Allow 0 workers (paused state)
-        self._workers = {c: max(0, int((workers or {}).get(c, 1))) for c in CATEGORIES}
+        norm_workers = {_normalize_category(k): v for k, v in (workers or {}).items()}
+        self._workers = {c: max(0, int(norm_workers.get(c, 1))) for c in CATEGORIES}
+        # Legacy alias (translate → ai-translate) được phản chiếu để route/test cũ
+        # đọc `_workers["translate"]` vẫn ra đúng giá trị hiện hành.
+        for alias, target in _CATEGORY_ALIASES.items():
+            self._workers[alias] = self._workers.get(target, 1)
         self._extra_workers: dict[str, int] = {c: 0 for c in CATEGORIES}
         # Số thread thực tế đã spawn cho mỗi category (tránh spawn thừa khi toggle pause)
         self._spawned: dict[str, int] = {c: 0 for c in CATEGORIES}
@@ -135,11 +168,12 @@ class JobQueue:
         chapter_indexes: list | None = None,
         spec: dict | None = None,
     ) -> Job:
-        if category not in (*CATEGORIES, "both"):
+        if _normalize_category(category) not in (*CATEGORIES, "both"):
             raise ValueError(f"category không hợp lệ: {category!r}")
+        normalized = _normalize_category(category)
         job = Job(
             id=str(uuid.uuid4()),
-            category=category,
+            category=normalized,
             step=step,
             label=label,
             target=target,
@@ -153,7 +187,7 @@ class JobQueue:
         with self._cv:
             if ebook and ebook in self._retired_ebooks:
                 raise ValueError(f"ebook '{ebook}' đã bị xóa")
-            self._pending[category].append(job)
+            self._pending[normalized].append(job)
             self._jobs[job.id] = job
             self._cv.notify_all()
         self._save_pending()
@@ -266,11 +300,15 @@ class JobQueue:
 
     def update_workers(self, category: str, count: int) -> int:
         """Cập nhật số worker của category tại chỗ. 0 = tạm dừng."""
+        category = _normalize_category(category)
         if category not in CATEGORIES:
             raise ValueError(f"category không hợp lệ: {category!r}")
         count = max(0, int(count))
         with self._cv:
             self._workers[category] = count
+            for alias, target in _CATEGORY_ALIASES.items():
+                if target == category:
+                    self._workers[alias] = count
             # Chỉ spawn thread mới nếu count vượt quá số thread đã spawn
             if count > self._spawned[category]:
                 delta = count - self._spawned[category]
@@ -320,6 +358,7 @@ class JobQueue:
 
     def bulk_clear_failed(self, category: str) -> int:
         """Xóa tất cả job failed trong 1 category. Trả số job đã xóa."""
+        category = "all" if category == "all" else _normalize_category(category)
         with self._lock:
             failed_ids = [
                 j.id for j in self._jobs.values()
@@ -329,6 +368,7 @@ class JobQueue:
 
     def bulk_retry_failed(self, category: str) -> int:
         """Retry tất cả job failed trong 1 category. Trả số job đã retry."""
+        category = "all" if category == "all" else _normalize_category(category)
         with self._lock:
             failed = [
                 j for j in self._jobs.values()
@@ -345,13 +385,30 @@ class JobQueue:
             running = [j.to_dict() for j in self._running.values()]
             pending = {cat: [j.to_dict() for j in q] for cat, q in self._pending.items()}
             history = [j.to_dict() for j in list(self._history)]
+            for alias, target in _CATEGORY_ALIASES.items():
+                pending[alias] = pending.get(target, [])
         return {
             "categories": list(CATEGORIES),
             "running": running,
             "pending": pending,
             "history": history,
             "workers": dict(self._workers),
+            "locks": self.artifact_locks(),
         }
+
+    def artifact_locks(self) -> list[dict]:
+        """Artifact lock đang giữ: `[{category, ebook, artifacts}]` cho job đang
+        chạy (write-set từ `CATEGORY_WRITES`). Đọc để UI hiển thị lý do chờ."""
+        with self._lock:
+            return [
+                {
+                    "category": j.category,
+                    "step": j.step,
+                    "ebook": j.ebook,
+                    "artifacts": sorted(CATEGORY_WRITES.get(j.category, set())),
+                }
+                for j in self._running.values()
+            ]
 
     def has_pending_step(self, step: str, ebook: str = "") -> bool:
         """Kiểm tra có job pending/running với step và ebook cho trước không."""
@@ -419,6 +476,7 @@ class JobQueue:
     # ----- shim cho JobRunner cũ (status theo "crawl"/"translate"/"build") -----
 
     def request_cancel_category(self, category: str) -> bool:
+        category = _normalize_category(category)
         with self._lock:
             running = [j for j in self._running.values() if category in _categories_for(j.category)]
             for j in running:
@@ -426,6 +484,7 @@ class JobQueue:
         return bool(running)
 
     def category_status(self, category: str) -> dict:
+        category = _normalize_category(category)
         with self._lock:
             running_jobs = [j for j in self._running.values() if category in _categories_for(j.category)]
             current = running_jobs[0] if running_jobs else None
@@ -441,12 +500,18 @@ class JobQueue:
                 "cancelling": current.cancel_event.is_set(),
                 "ebook_slug": current.ebook,
                 "running_ebooks": [j.ebook for j in running_jobs if j.ebook],
+                "locks": [
+                    {"category": j.category, "step": j.step, "ebook": j.ebook,
+                     "artifacts": sorted(CATEGORY_WRITES.get(j.category, set()))}
+                    for j in running_jobs
+                ],
             }
 
     # ---------- worker loop ----------
 
     def is_ebook_busy(self, category: str, ebook: str) -> bool:
         """Kiểm tra có job đang chạy cho ebook cụ thể trong category này không."""
+        category = _normalize_category(category)
         with self._lock:
             return any(
                 j.ebook == ebook and category in _categories_for(j.category)
@@ -474,11 +539,45 @@ class JobQueue:
             }
         ebook_locks = self._ebook_locks.get(category, set())
         for candidate in self._pending[category]:
-            cat_blocked = candidate.lock_ebook and candidate.ebook and candidate.ebook in ebook_locks
+            # Chapter-scoped jobs dùng artifact lock bên dưới; ebook lock cũ chỉ
+            # dành cho job không khai phạm vi (toàn ebook).
+            whole_ebook = candidate.lock_ebook and not candidate.chapter_indexes
+            cat_blocked = whole_ebook and candidate.ebook and candidate.ebook in ebook_locks
             both_blocked = candidate.lock_ebook and candidate.ebook and candidate.ebook in both_ebooks
-            if not cat_blocked and not both_blocked:
-                return candidate
+            if cat_blocked or both_blocked:
+                continue
+            if self._artifact_conflict(candidate):
+                continue
+            return candidate
         return None
+
+    def _artifact_conflict(self, job: Job) -> bool:
+        """True khi writer đụng cùng `(ebook, chapter, artifact)`.
+
+        `chapter_indexes=[]` nghĩa là phạm vi toàn ebook/không biết rõ nên xung
+        đột với mọi writer cùng artifact. Hai job cùng artifact nhưng tập chapter
+        rời nhau được chạy song song; Local MT và AI translate luôn ghi artifact
+        khác nhau nên có thể cùng đọc raw.
+        """
+        if not job.ebook or not job.lock_ebook:
+            return False
+        writes = CATEGORY_WRITES.get(job.category, set())
+        if not writes:
+            return False
+        job_indexes = {int(i) for i in job.chapter_indexes}
+        for other in self._running.values():
+            if other.ebook != job.ebook:
+                continue
+            if other.category == "both":
+                return True
+            if not other.lock_ebook:
+                continue
+            if not (writes & CATEGORY_WRITES.get(other.category, set())):
+                continue
+            other_indexes = {int(i) for i in other.chapter_indexes}
+            if not job_indexes or not other_indexes or job_indexes & other_indexes:
+                return True
+        return False
 
     def _worker_loop(self, category: str) -> None:
         while True:
@@ -511,10 +610,15 @@ class JobQueue:
                 self._running[job.id] = job
             self._save_pending()
 
-            self._execute(job)
+            final_state = self._execute(job)
 
             stop_worker = False
             with self._cv:
+                # Ghi state/ended_at TRONG critical section, ngay trước
+                # _push_history — snapshot() đọc cả hai dưới cùng self._lock nên
+                # không thể quan sát "done nhưng chưa vào history" (race cũ).
+                job.state = final_state
+                job.ended_at = time.time()
                 self._running.pop(job.id, None)
                 if category == "both":
                     self._both_active = False
@@ -536,7 +640,12 @@ class JobQueue:
             if stop_worker:
                 return
 
-    def _execute(self, job: Job) -> None:
+    def _execute(self, job: Job) -> str:
+        """Chạy `job.target`, tích luỹ log/outcome/error. Trả TRẠNG THÁI cuối
+        (done/failed/cancelled) — caller ghi `job.state` + `job.ended_at` TRONG
+        critical section trước `_push_history` để `snapshot()` không bao giờ
+        thấy trạng thái done nhưng chưa có trong history (race xem ghép
+        test_start_now_job_finishes_without_deadlocking_queue)."""
         def log_fn(msg: str) -> None:
             job.log.append(msg)
             logger.info(msg)
@@ -550,15 +659,14 @@ class JobQueue:
                 result = job.target(log_fn)
             if isinstance(result, dict):
                 job.outcome = result
-            job.state = "cancelled" if job.cancel_event.is_set() else "done"
             logger.info("Job %r hoàn tất", job.step)
+            return "cancelled" if job.cancel_event.is_set() else "done"
         except Exception as e:  # noqa: BLE001 - hiển thị lỗi bất kỳ lên UI
-            job.state = "failed"
             job.error = str(e)
             log_fn(f"[lỗi] {e}")
             log_fn(traceback.format_exc())
             logger.exception("Job %r thất bại: %s", job.step, e)
-        job.ended_at = time.time()
+            return "failed"
 
     def _push_history(self, job: Job) -> None:
         """Chỉ đụng deque trong bộ nhớ (gọi khi đang giữ self._cv). Caller phải

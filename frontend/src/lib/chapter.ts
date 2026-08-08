@@ -22,6 +22,15 @@ export interface Note {
   suggestion: NoteSuggestion | null;
 }
 
+export interface FindReplacePreviewItem {
+  chapter_index: number;
+  chapter_title: string;
+  para_index: number;
+  count: number;
+  before: string;
+  after: string;
+}
+
 export interface SearchHit {
   chapter_index: number;
   title: string;
@@ -39,6 +48,18 @@ export async function firstReadingIndex(slug: string): Promise<number> {
 function invalidateChapter(client: ReturnType<typeof useQueryClient>, slug: string, index: number) {
   client.invalidateQueries({ queryKey: chapterKey(slug, index) });
   client.invalidateQueries({ queryKey: ["chapters", slug] });
+}
+
+export function useSaveChapterText(slug: string, index: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { translated: string; expectedRev: number }) =>
+      api.post<{ saved: boolean; word_count: number; revision: number }>(
+        `/api/ui/ebooks/${slug}/chapters/${index}/translated`,
+        { body: { translated: vars.translated, expected_rev: vars.expectedRev } },
+      ),
+    onSuccess: () => invalidateChapter(client, slug, index),
+  });
 }
 
 export function useSaveParagraph(slug: string, index: number) {
@@ -166,6 +187,37 @@ export function useAiFixNotes(slug: string, index: number) {
 
 /* ── Tìm kiếm toàn văn ───────────────────────────────────────────────── */
 
+export async function previewBookReplace(slug: string, find: string, replace: string, regex: boolean) {
+  const params = new URLSearchParams({ find, replace, regex: String(regex), scope: "all" });
+  return api.get<{ items: FindReplacePreviewItem[]; truncated: boolean }>(
+    `/api/ebooks/${slug}/glossary/find-preview?${params}`,
+  );
+}
+
+export async function applyBookReplace(
+  slug: string,
+  find: string,
+  replace: string,
+  regex: boolean,
+  items: FindReplacePreviewItem[],
+) {
+  return api.post<{ replaced: number; chapters: number; stale: number }>(
+    `/api/ebooks/${slug}/glossary/apply-selected`,
+    {
+      form: {
+        find,
+        replace,
+        regex,
+        selections: JSON.stringify(items.map((item) => ({
+          chapter_index: item.chapter_index,
+          para_index: item.para_index,
+          expected: item.before,
+        }))),
+      },
+    },
+  );
+}
+
 export function useBookSearch(slug: string, query: string, regex: boolean, caseSensitive: boolean) {
   const q = query.trim();
   return useQuery({
@@ -225,6 +277,60 @@ const FONT_DEFAULT = 18;
 function readFontSize(): number {
   const raw = Number(localStorage.getItem(FONT_KEY));
   return raw >= FONT_MIN && raw <= FONT_MAX ? raw : FONT_DEFAULT;
+}
+
+export interface ReaderPreferences {
+  fontSize: number;
+  fontFamily: "serif" | "sans" | "mono";
+  lineHeight: number;
+  contentWidth: number;
+}
+
+const PREFS_KEY = "n2e-reader-preferences-v2";
+const DEFAULT_PREFS: ReaderPreferences = { fontSize: 18, fontFamily: "serif", lineHeight: 1.8, contentWidth: 720 };
+
+let cachedReaderPreferences: ReaderPreferences | null = null;
+
+function readReaderPreferences(): ReaderPreferences {
+  let parsed: ReaderPreferences;
+  try {
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as Partial<ReaderPreferences>;
+    parsed = {
+      fontSize: Math.min(28, Math.max(14, Number(saved.fontSize) || DEFAULT_PREFS.fontSize)),
+      fontFamily: ["serif", "sans", "mono"].includes(saved.fontFamily || "") ? saved.fontFamily! : "serif",
+      lineHeight: Math.min(2.2, Math.max(1.4, Number(saved.lineHeight) || DEFAULT_PREFS.lineHeight)),
+      contentWidth: Math.min(1000, Math.max(560, Number(saved.contentWidth) || DEFAULT_PREFS.contentWidth)),
+    };
+  } catch {
+    parsed = DEFAULT_PREFS;
+  }
+  const prev = cachedReaderPreferences;
+  if (
+    prev &&
+    prev.fontSize === parsed.fontSize &&
+    prev.fontFamily === parsed.fontFamily &&
+    prev.lineHeight === parsed.lineHeight &&
+    prev.contentWidth === parsed.contentWidth
+  ) {
+    return prev;
+  }
+  cachedReaderPreferences = parsed;
+  return parsed;
+}
+
+export function useReaderPreferences(): [ReaderPreferences, (patch: Partial<ReaderPreferences>) => void] {
+  const subscribe = useCallback((fn: () => void) => {
+    fontListeners.add(fn);
+    return () => fontListeners.delete(fn);
+  }, []);
+  const preferences = useSyncExternalStore(subscribe, readReaderPreferences, () => DEFAULT_PREFS);
+  const set = useCallback((patch: Partial<ReaderPreferences>) => {
+    const next = { ...readReaderPreferences(), ...patch };
+    cachedReaderPreferences = next;
+    localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+    fontListeners.forEach((fn) => fn());
+  }, []);
+  return [preferences, set];
 }
 
 export function useReaderFontSize(): [number, (size: number) => void] {

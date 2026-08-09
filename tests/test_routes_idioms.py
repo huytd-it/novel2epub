@@ -32,11 +32,8 @@ def _client(cfg, monkeypatch):
     return TestClient(app)
 
 
-def test_idioms_page_seeds_and_lists(tmp_path, monkeypatch):
+def test_idioms_api_seeds_and_lists(tmp_path, monkeypatch):
     client = _client(_cfg(tmp_path), monkeypatch)
-    # GET trang seed bộ mẫu khi trống
-    r = client.get("/idioms")
-    assert r.status_code == 200
     data = client.get("/api/idioms/list").json()
     assert data["total"] == len(idioms_mod.DEFAULT_IDIOM_SEED)
     sources = {e["source"] for e in data["entries"]}
@@ -45,7 +42,7 @@ def test_idioms_page_seeds_and_lists(tmp_path, monkeypatch):
 
 def test_idioms_crud_and_protect(tmp_path, monkeypatch):
     client = _client(_cfg(tmp_path), monkeypatch)
-    client.get("/idioms")  # seed
+    client.get("/api/idioms/list")  # seed
     # add mới
     r = client.post("/api/idioms/entry", data={
         "source": "画蛇添足", "target": "Vẽ rắn thêm chân", "literals": "Thêm chân cho rắn", "protect": "",
@@ -66,7 +63,7 @@ def test_idioms_crud_and_protect(tmp_path, monkeypatch):
 
 def test_idioms_export_import_roundtrip(tmp_path, monkeypatch):
     client = _client(_cfg(tmp_path), monkeypatch)
-    client.get("/idioms")
+    client.get("/api/idioms/list")
     text = client.post("/api/idioms/export").json()["text"]
     assert "千方百计 = Trăm phương nghìn kế | Ngàn phương trăm kế" in text
     # import bản mới đè + thêm

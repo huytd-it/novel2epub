@@ -62,23 +62,6 @@ def _preset_usage(presets, library):
     return usage
 
 
-@router.get("/sources")
-def sources_page(request: Request, edit: str = ""):
-    presets = deps.presets()
-    return deps.templates.TemplateResponse(
-        request,
-        "sources.html",
-        {
-            "sources_path": deps.SOURCES_PATH,
-            "presets": presets,
-            "edit": presets.get(edit),
-            "usage": _preset_usage(presets, deps.library()),
-            "validation": _load_validation(),
-            "job": request.app.state.job.status(),
-        },
-    )
-
-
 @router.post("/sources")
 def save_source_preset(
     name: str = Form(""),

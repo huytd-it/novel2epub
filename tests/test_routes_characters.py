@@ -40,11 +40,11 @@ def _client(cfg, monkeypatch):
     return TestClient(app)
 
 
-def test_characters_page_renders(tmp_path, monkeypatch):
+def test_characters_api_starts_empty(tmp_path, monkeypatch):
     client = _client(_cfg(tmp_path), monkeypatch)
-    resp = client.get(f"/ebook/{SLUG}/characters")
+    resp = client.get(f"/api/ebook/{SLUG}/characters/list")
     assert resp.status_code == 200
-    assert "Nhân vật" in resp.text
+    assert resp.json()["entries"] == []
 
 
 def test_upsert_and_list_character(tmp_path, monkeypatch):

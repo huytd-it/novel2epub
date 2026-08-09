@@ -47,61 +47,6 @@ def _chapter_rows(
     )
 
 
-@router.get("/library")
-def index(request: Request, show_archived: bool = False):
-    """Trang Thư viện của giao diện Jinja2.
-
-    Từng nằm ở `/`; đã nhường chỗ đó cho SPA (xem `app/main.py`). Giữ lại
-    dưới `/library` — đúng tên cũ của nó trước khi gộp vào trang chủ — để các
-    tính năng chưa port sang SPA vẫn có đường vào.
-    """
-    library = deps.library()
-    archived = archived_slugs(deps.LIBRARY_STATE_PATH)
-    ebooks = []
-    if library.ebooks:
-        entries = library.ebooks.items()
-    else:
-        entries = [("default", None)]
-    for slug, entry in entries:
-        is_archived = slug in archived
-        if is_archived and not show_archived:
-            continue
-        if entry is None:
-            cfg = deps.cfg()
-            name = cfg.novel.title or cfg.novel.slug
-        else:
-            cfg = deps.resolved_cfg(slug)
-            name = entry.name or cfg.novel.title or slug
-        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-        manifest = storage.load_manifest()
-        progress = chapter_progress(storage, manifest, stats_map=storage.bulk_chapter_stats())
-        ebooks.append(
-            {
-                "slug": slug,
-                "name": name,
-                "cfg": cfg,
-                "manifest": manifest,
-                "raw_count": progress["raw_count"],
-                "translated_count": progress["translated_count"],
-                "epub_exists": Path(cfg.epub_path).exists(),
-                "in_library": entry is not None,
-                "archived": is_archived,
-            }
-        )
-    return deps.templates.TemplateResponse(
-        request,
-        "index.html",
-        {
-            "config_path": deps.CONFIG_PATH,
-            "library_path": deps.LIBRARY_PATH,
-            "ebooks": ebooks,
-            "job": request.app.state.job.status(),
-            "show_archived": show_archived,
-            "archived_count": len(archived),
-        },
-    )
-
-
 @router.post("/library/ebooks/{slug}/archive")
 def archive_ebook(slug: str):
     set_archived(deps.LIBRARY_STATE_PATH, slug, True)
@@ -171,63 +116,6 @@ async def import_ebook_config(request: Request, slug: str = Form(...), file: Upl
     update_ebook(deps.WORKSPACE_PATH, slug, data)
     request.app.state.job.queue.restore_ebook(slug)
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
-
-
-@router.get("/ebooks/{slug}")
-def ebook_home(
-    request: Request,
-    slug: str,
-    sort: str = "source",
-    direction: str = "asc",
-    search: str = "",
-    filter_raw: str = "any",
-    filter_translated: str = "any",
-    filter_missing: str = "any",
-    filter_skipped: str = "no",
-):
-    from novel2epub.toc import crawl_problem_indexes
-
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    epub_path = Path(cfg.epub_path)
-    stats_map = storage.bulk_chapter_stats()
-    crawl_problems = (
-        crawl_problem_indexes(manifest.chapters, storage, stats_map=stats_map)
-        if manifest
-        else []
-    )
-    all_chapters = _chapter_rows(cfg, stats_map=stats_map)
-    chapters_json = [dataclasses.asdict(r) for r in all_chapters]
-    cost_summary = read_cost_summary(storage)
-    return deps.templates.TemplateResponse(
-        request,
-        "ebook.html",
-        {
-            "slug": slug,
-            "config_path": deps.ebook_config_path(slug),
-            "cfg": cfg,
-            "manifest": manifest,
-            "crawl_problems": crawl_problems,
-            "chapters": all_chapters,
-            "chapters_json": chapters_json,
-            "controls": {
-                "sort": sort,
-                "direction": direction,
-                "search": search,
-                "filter_raw": filter_raw,
-                "filter_translated": filter_translated,
-                "filter_missing": filter_missing,
-                "filter_skipped": filter_skipped,
-            },
-            "epub_exists": epub_path.exists(),
-            "epub_path": str(epub_path),
-            "epub_size": epub_path.stat().st_size if epub_path.exists() else None,
-            "job": request.app.state.job.status(),
-            "cost_summary": cost_summary,
-            "reader_configured": cfg.reader.configured,
-        },
-    )
 
 
 # ───────────────────────── đẩy lên app đọc novel-reader ─────────────────────

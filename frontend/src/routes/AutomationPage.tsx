@@ -15,9 +15,10 @@ import {
 import { useJobLog, useQueue, type Job } from "@/lib/queue";
 import { Panel, EmptyState } from "@/components/ui/Panel";
 import { Button, Spinner } from "@/components/ui/Button";
-import { Input, InputWithIcon } from "@/components/ui/Field";
+import { Input } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { Badge, Dot, type Tone } from "@/components/ui/Badge";
+import { Combobox } from "@/components/ui/Combobox";
 import { useToast } from "@/components/ui/Toast";
 import {
   IconCheck,
@@ -27,7 +28,6 @@ import {
   IconNoteAdd,
   IconPlay,
   IconPlus,
-  IconSearch,
   IconTrash,
 } from "@/components/icons";
 
@@ -85,7 +85,6 @@ function FormModal({
   automation: Automation | null;
 }) {
   const [ebook, setEbook] = useState("");
-  const [search, setSearch] = useState("");
   const [selectedSteps, setSelectedSteps] = useState<string[]>([]);
   const [crawlWorkers, setCrawlWorkers] = useState("4");
   const [translateWorkers, setTranslateWorkers] = useState("4");
@@ -99,7 +98,6 @@ function FormModal({
   useEffect(() => {
     if (!open) return;
     setEbook(automation?.ebook ?? ebooks[0]?.slug ?? "");
-    setSearch("");
     setSelectedSteps(automation?.steps ?? steps);
     setCrawlWorkers(String(automation?.crawl_workers ?? 4));
     setTranslateWorkers(String(automation?.translate_workers ?? 4));
@@ -110,11 +108,6 @@ function FormModal({
     if (open) validate.mutate(schedule);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schedule, open]);
-
-  const filteredEbooks = ebooks.filter((e) => {
-    const q = search.trim().toLowerCase();
-    return !q || e.title.toLowerCase().includes(q);
-  });
 
   const toggleStep = (step: string) =>
     setSelectedSteps((current) =>
@@ -133,8 +126,9 @@ function FormModal({
   };
 
   const submit = () => {
-    if (!ebook || selectedSteps.length === 0) {
-      toast(!ebook ? "Chưa chọn truyện." : "Cần chọn ít nhất một bước.", "error");
+    const hasEbook = ebooks.some((e) => e.slug === ebook);
+    if (!hasEbook || selectedSteps.length === 0) {
+      toast(!hasEbook ? "Chọn truyện từ danh sách." : "Cần chọn ít nhất một bước.", "error");
       return;
     }
     if (validate.data && !validate.data.valid) {
@@ -183,23 +177,16 @@ function FormModal({
         <div className="space-y-5">
           <fieldset>
             <legend className="mb-2 text-sm font-semibold">1. Chọn truyện</legend>
-            <InputWithIcon
-              icon={<IconSearch size={14} />}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo tên truyện"
-              className="mb-2 w-full"
+            <Combobox
+              value={ebook}
+              onChange={setEbook}
+              options={ebooks.map((e) => ({ label: e.title, value: e.slug }))}
+              placeholder="Tìm và chọn truyện..."
               disabled={editing}
             />
-            <select
-              value={ebook}
-              onChange={(e) => setEbook(e.target.value)}
-              size={4}
-              className="select w-full"
-              disabled={editing}
-            >
-              {filteredEbooks.map((e) => <option key={e.slug} value={e.slug}>{e.title}</option>)}
-            </select>
+            <p className="mt-1.5 text-[11px] opacity-50">
+              {ebook ? `Đã chọn: ${ebooks.find((e) => e.slug === ebook)?.title ?? ""}` : "Chưa chọn truyện nào."}
+            </p>
           </fieldset>
 
           <fieldset>

@@ -38,6 +38,9 @@ def _entry_dict(source: str, target: str, literals: str, protect: int) -> dict:
 @router.get("/api/idioms/list")
 def idioms_list(page: int = 1, per_page: int = 50, q: str = "", sort: str = "", dir: str = "asc"):
     storage = _storage()
+    # SPA là giao diện duy nhất; seed mặc định khi API được đọc lần đầu thay vì
+    # phụ thuộc side effect của route HTML `/idioms` đã bị loại bỏ.
+    storage.seed_idioms_if_empty(idioms_mod.DEFAULT_IDIOM_SEED)
     per_page = max(1, min(int(per_page), 500))
     total = storage.count_idioms(q)
     pages = max(1, (total + per_page - 1) // per_page)

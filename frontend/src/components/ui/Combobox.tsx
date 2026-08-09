@@ -1,12 +1,26 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 
+export type ComboOption = string | { label: string; value: string };
+
+interface Normalized {
+  label: string;
+  value: string;
+}
+
+function normalize(o: ComboOption): Normalized {
+  return typeof o === "string" ? { label: o, value: o } : o;
+}
+
 /**
  * Combobox autocomplete thay thế `<datalist>` (native không cho lọc, không
  * bấm phím mũi tên, tuỳ trình duyệt nên hành vi khác nhau). Hỗ trợ:
  * - Lọc danh sách theo từ khoá gõ vào.
  * - Phím ↑/↓ chọn, Enter xác nhận, Escape đóng, click chọn.
  * - Click ngoài / blur đóng dropdown.
+ *
+ * `options` là chuỗi đơn (label = value) hoặc cặp `{ label, value }` để hiển
+ * thị label trong ô nhập nhưng trả về value qua `onChange`.
  */
 export function Combobox({
   value,
@@ -15,24 +29,33 @@ export function Combobox({
   placeholder,
   className,
   onFocus,
+  disabled,
 }: {
   value: string;
   onChange: (next: string) => void;
-  options: string[];
+  options: ComboOption[];
   placeholder?: string;
   className?: string;
   onFocus?: () => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
 
+  const normalized = useMemo(() => options.map(normalize), [options]);
+
+  const display = useMemo(() => {
+    const hit = normalized.find((o) => o.value === value);
+    return hit ? hit.label : value;
+  }, [normalized, value]);
+
   const filtered = useMemo(() => {
-    const q = value.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((o) => o.toLowerCase().includes(q));
-  }, [options, value]);
+    const q = display.trim().toLowerCase();
+    if (!q) return normalized;
+    return normalized.filter((o) => o.label.toLowerCase().includes(q));
+  }, [normalized, display]);
 
   useEffect(() => {
     if (!open) return;
@@ -45,8 +68,8 @@ export function Combobox({
 
   useEffect(() => setHighlighted(-1), [value, open]);
 
-  const select = (next: string) => {
-    onChange(next);
+  const select = (o: Normalized) => {
+    onChange(o.value);
     setOpen(false);
   };
 
@@ -79,7 +102,9 @@ export function Combobox({
         role="combobox"
         aria-expanded={open}
         aria-controls={listId}
-        value={value}
+        aria-disabled={disabled}
+        disabled={disabled}
+        value={display}
         onChange={(e) => {
           onChange(e.target.value);
           setOpen(true);
@@ -96,9 +121,10 @@ export function Combobox({
       {open && filtered.length ? (
         <ul id={listId} className="scroll-slim absolute z-40 mt-1 max-h-60 w-full overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 shadow-lg">
           {filtered.map((o, i) => (
-            <li key={o}>
+            <li key={o.value}>
               <button
                 type="button"
+                disabled={disabled}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   select(o);
@@ -109,7 +135,7 @@ export function Combobox({
                   i === highlighted ? "bg-base-200 font-medium" : "hover:bg-base-200/70",
                 )}
               >
-                {o}
+                {o.label}
               </button>
             </li>
           ))}

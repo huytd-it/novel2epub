@@ -40,42 +40,6 @@ DEFAULT_EPUB_PATH = ""
 router = APIRouter()
 
 
-@router.get("/ebooks/{slug}/settings")
-def settings_page(request: Request, slug: str):
-    cfg = deps.resolved_cfg(slug)
-    # Source preset context: resolved preset + overridden fields. Ebook chưa
-    # gắn nguồn nhưng toc_url khớp domain một preset → vẫn hiện banner nguồn
-    # (dạng "tự nhận diện") để nút Lưu vào nguồn/Reset dùng được.
-    source_preset = None
-    source_detected = False
-    overridden_fields: set[str] = set()
-    presets = load_presets(deps.SOURCES_PATH)
-    source_name = getattr(cfg, "source", "") or ""
-    if not source_name:
-        toc_url = getattr(cfg.crawl, "toc_url", "")
-        source_name = (detect_preset(toc_url, presets) or "") if toc_url else ""
-        source_detected = bool(source_name)
-    if source_name:
-        source_preset = presets.get(source_name)
-        # Đọc crawl_overrides_json từ DB để xác định field ebook đã override
-        if source_preset:
-            overridden_fields = set(_read_crawl_overrides(deps.DB_PATH, slug).keys())
-    return deps.templates.TemplateResponse(
-        request,
-        "settings.html",
-        {
-            "slug": slug,
-            "config_path": deps.ebook_config_path(slug),
-            "cfg": cfg,
-            "source_preset": source_preset,
-            "source_detected": source_detected,
-            "overridden_fields": overridden_fields,
-            "job": request.app.state.job.status(),
-            "genre_presets": GENRE_PRESETS,
-        },
-    )
-
-
 @router.post("/ebooks/{slug}/settings/novel")
 def save_novel(
     slug: str,
@@ -748,24 +712,6 @@ def save_reader(
         "published": published,
     }})
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
-
-
-@router.get("/settings/api")
-def settings_api(request: Request):
-    """Khối cấu hình truy cập ngoài: token, CORS, URL catalog OPDS."""
-    cfg = deps.cfg()
-    return deps.templates.TemplateResponse(
-        request,
-        "settings_api.html",
-        {
-            "api": cfg.api,
-            # Địa chỉ đúng như client đang gọi — nếu người dùng mở trang này
-            # bằng IP LAN thì URL hiện ra cũng là IP LAN, dán vào readest trên
-            # điện thoại là chạy. Hiện "localhost" ở đây là bẫy: trên điện
-            # thoại nó trỏ về chính cái điện thoại.
-            "opds_url": str(request.base_url).rstrip("/") + "/opds",
-        },
-    )
 
 
 @router.post("/settings/api")

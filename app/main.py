@@ -108,9 +108,6 @@ app.state.oidc_validator = _load_oidc_validator()
 from fastapi.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-
-
 # Đường dẫn được phép nhận CORS — CHỈ nhóm API thuần JSON, không bao giờ mở
 # rộng ra /settings hay bất kỳ route web UI nào khác (token bị lộ ở
 # /settings/api dạng cleartext, xem finding review nhánh readest-opds-integration).
@@ -210,9 +207,7 @@ async def opds_api_cors(request: Request, call_next):
 @app.middleware("http")
 async def cache_policy(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith("/static/"):
-        response.headers["Cache-Control"] = "no-cache"
-    elif response.headers.get("content-type", "").startswith("text/html"):
+    if response.headers.get("content-type", "").startswith("text/html"):
         response.headers["Cache-Control"] = "no-store"
     return response
 

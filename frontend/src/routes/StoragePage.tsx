@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 
 import { Page } from "@/app/Shell";
-import { legacyUrl } from "@/lib/api";
+import { apiUrl } from "@/lib/api";
 import { bytes, num } from "@/lib/format";
 import {
   usePurgeMt,
@@ -67,7 +67,7 @@ function StorageRowCard({ row, onAsk }: { row: StorageRow; onAsk: (c: Confirm) =
           Xóa EPUB
         </Button>
         <a
-          href={legacyUrl(`/storage/${row.slug}/archive`)}
+          href={apiUrl(`/storage/${row.slug}/archive`)}
           className="btn btn-sm btn-primary inline-flex items-center gap-1.5"
         >
           <IconDownload size={13} /> Archive (.zip)

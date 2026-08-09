@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 
 import { Page } from "@/app/Shell";
-import { legacyUrl } from "@/lib/api";
+import { apiUrl } from "@/lib/api";
 import { ago } from "@/lib/format";
 import {
   EMPTY_PRESET,
@@ -401,7 +401,7 @@ export function SourcesPage() {
             placeholder="Tìm theo tên / domain"
             className="w-56"
           />
-          <a href={legacyUrl("/sources/export")} className="btn btn-sm inline-flex items-center gap-1.5">
+          <a href={apiUrl("/sources/export")} className="btn btn-sm inline-flex items-center gap-1.5">
             Xuất YAML <IconExternal size={12} />
           </a>
           <Button variant="primary" icon={<IconPlus size={14} />} onClick={() => setEditing(null)}>
@@ -435,14 +435,6 @@ export function SourcesPage() {
           ))}
         </div>
       )}
-
-      <p className="mt-3 text-xs opacity-50">
-        Nhập YAML và "Phân tích bằng AI" (đề xuất selector tự động) vẫn ở{" "}
-        <a href={legacyUrl("/sources")} className="inline-flex items-center gap-1 hover:text-primary">
-          giao diện cũ <IconExternal size={11} />
-        </a>
-        .
-      </p>
 
       <PresetModal open={editing !== undefined} onClose={() => setEditing(undefined)} preset={editing ?? null} />
       {testing ? <TestModal open onClose={() => setTesting(null)} name={testing} /> : null}

@@ -117,23 +117,6 @@ def _append_glossary_entry(
     return True
 
 
-@router.get("/ebooks/{slug}/glossary")
-def ebook_glossary(request: Request, slug: str):
-    cfg = deps.resolved_cfg(slug)
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    storage.migrate_glossary_queue()
-    # Trang tải dữ liệu theo trang qua ajax (/glossary/list) — không nhúng toàn
-    # bộ mục vào HTML nữa.
-    return deps.templates.TemplateResponse(
-        request,
-        "glossary.html",
-        {
-            "slug": slug,
-            "job": request.app.state.job.status(),
-        },
-    )
-
-
 @router.get("/api/ebooks/{slug}/glossary/list")
 def ebook_glossary_list(
     slug: str,

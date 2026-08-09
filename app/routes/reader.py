@@ -193,13 +193,6 @@ def _chapter_context(slug: str, index: int) -> dict:
     }
 
 
-@router.get("/ebooks/{slug}/read/{index}")
-def reader_chapter(request: Request, slug: str, index: int):
-    """Trang đọc chương với giao diện sách."""
-    ctx = _chapter_context(slug, index)
-    return deps.templates.TemplateResponse(request, "reader.html", ctx)
-
-
 @router.get("/api/ebooks/{slug}/read/{index}/data")
 def reader_chapter_data(slug: str, index: int):
     """Dữ liệu JSON của 1 chương cho điều hướng AJAX trên trang đọc.

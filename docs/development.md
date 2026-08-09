@@ -13,6 +13,21 @@ pytest tests -v
 
 Không commit `novel2epub.db`, API key, EPUB, log hoặc dữ liệu truyện.
 
+## Frontend (React + Vite)
+
+```sh
+cd frontend
+npm install
+npm run dev        # dev server http://localhost:5183/app/ (proxy API → 8011)
+npm run build      # bản web → app/webui/ (kèm PWA: sw.js, manifest, icons)
+npm run tauri:build  # bản desktop → src-tauri/target/release/bundle/
+```
+
+- Bản web chạy dưới `/app/`; bản Tauri dùng base `./` (đường dẫn tương đối vì nạp từ `tauri://`). Hai lệnh build cùng ghi vào `app/webui/`, lệnh chạy sau cùng sẽ quyết định nội dung ở đó.
+- PWA: `vite-plugin-pwa` generateSW — precache toàn bộ asset (đã hash), `navigateFallback` trỏ `index.html`, không cache `/api/*`. Service worker chỉ có scope `/app/` nên không hoạt động trên `tauri://`.
+- Build Tauri cần Rust toolchain (`rustup` + MSVC): `npm run tauri:icon` để sinh đủ bộ icon từ một ảnh nguồn; `bundle.icon` trong `src-tauri/tauri.conf.json` phải liệt kê `.ico`/`.icns`/PNG tương ứng.
+
+
 ## Cấu Trúc Mã
 
 | Khu vực | Trách nhiệm |

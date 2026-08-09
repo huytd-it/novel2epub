@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { VitePWA } from "vite-plugin-pwa";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig(({ mode }) => {
@@ -15,7 +16,48 @@ export default defineConfig(({ mode }) => {
     // Pages phải biết backend ở đâu ngay từ lần tải đầu, không thể chờ người
     // dùng nhập vào trang Kết nối.
     envPrefix: ["VITE_", "N2E_"],
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      // Service worker không chạy được trên `tauri://` nên bỏ hẳn khỏi bản
+      // desktop. Bản web lấy scope `/app/` (cùng nơi FastAPI phục vụ SPA).
+      isTauri
+        ? null
+        : VitePWA({
+            registerType: "autoUpdate",
+            includeAssets: ["icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png"],
+            manifest: {
+              name: "novel2epub",
+              short_name: "novel2epub",
+              description: "Xưởng crawl, dịch và đóng gói EPUB",
+              lang: "vi",
+              start_url: "/app/",
+              scope: "/app/",
+              display: "standalone",
+              orientation: "portrait",
+              background_color: "#0e1116",
+              theme_color: "#0e1116",
+              icons: [
+                { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
+                { src: "icons/icon-512.png", sizes: "512x512", type: "image/png" },
+                {
+                  src: "icons/maskable-512.png",
+                  sizes: "512x512",
+                  type: "image/png",
+                  purpose: "maskable",
+                },
+              ],
+            },
+            workbox: {
+              // Asset đã hash nên cache vĩnh viễn là an toàn; font + ảnh nằm
+              // trong danh sách precache. Không cache API — dữ liệu luôn mới.
+              globPatterns: ["**/*.{js,css,html,svg,png,woff2,woff,eot,ttf,ico}"],
+              navigateFallback: "/app/index.html",
+              navigateFallbackDenylist: [/^\/app\/api\//],
+            },
+            devOptions: { enabled: false },
+          }),
+    ],
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),

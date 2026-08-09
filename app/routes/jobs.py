@@ -436,23 +436,6 @@ def api_status(request: Request):
     return request.app.state.job.status()
 
 
-@router.get("/queue")
-def queue_page(request: Request):
-    from ..deps import library
-
-    lib = library()
-    ebook_list = sorted(lib.ebooks.keys()) if lib.ebooks else []
-    return deps.templates.TemplateResponse(
-        request,
-        "queue.html",
-        {
-            "queue": request.app.state.job.queue.snapshot(),
-            "steps": list(_STEPS.keys()),
-            "ebooks": ebook_list,
-        },
-    )
-
-
 @router.get("/api/queue")
 def api_queue(request: Request):
     return request.app.state.job.queue.snapshot()
@@ -580,22 +563,6 @@ def api_logs_delete(source: str):
     if log_path.exists():
         log_path.write_text("")
     return {"ok": True, "source": source}
-
-
-@router.get("/logs")
-def logs_page(request: Request):
-    from ..deps import library
-
-    lib = library()
-    ebook_list = sorted(lib.ebooks.keys()) if lib.ebooks else []
-    return deps.templates.TemplateResponse(
-        request,
-        "logs.html",
-        {
-            "ebooks": ebook_list,
-            "steps": list(_STEPS.keys()),
-        },
-    )
 
 
 @router.get("/download")

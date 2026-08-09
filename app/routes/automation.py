@@ -41,22 +41,6 @@ def _ebook_options() -> list[dict[str, str]]:
     return sorted(options, key=lambda ebook: ebook["title"].casefold())
 
 
-@router.get("/automation")
-def automation_page(request: Request):
-    automations = load_automations(deps.AUTOMATIONS_PATH)
-    now = datetime.now()
-    next_runs = {}
-    for a in automations.values():
-        nxt = next_run_at(a, now)
-        next_runs[a.id] = nxt.strftime("%Y-%m-%d %H:%M") if nxt else ""
-    return deps.templates.TemplateResponse(
-        request,
-        "automation.html",
-        {"automations": automations.values(), "ebooks": _ebook_options(),
-         "steps": STEPS, "next_runs": next_runs},
-    )
-
-
 @router.get("/api/automation/validate-schedule")
 def automation_validate_schedule(schedule: str):
     return {"valid": validate_schedule(schedule.strip())}

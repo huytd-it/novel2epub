@@ -105,22 +105,6 @@ def _fetch_meta(toc_url: str, scrapling_mode: str = "", source_name: str = "") -
     }
 
 
-@router.get("/library/ebooks/new")
-def new_ebook_page(request: Request):
-    """Trang riêng Thêm ebook: nhập URL → preview TOÀN BỘ thông tin + config
-    hiệu lực (metadata truyện, source preset, config crawl, config global
-    Dịch/AI biên tập) trước khi lưu."""
-    return deps.templates.TemplateResponse(
-        request,
-        "library_new.html",
-        {
-            "cfg": deps.cfg(),  # defaults global — hiển thị khối Dịch/AI dùng chung
-            "ebook_count": len(deps.library().ebooks),
-            "presets": load_presets(deps.SOURCES_PATH),
-        },
-    )
-
-
 def _crawl_preview(crawl_cfg: CrawlConfig) -> dict:
     """Config crawl hiệu lực (preset + mặc định) mà ebook sẽ dùng — cho UI
     preview trước khi lưu. Cùng nguồn với config fetch metadata nên preview

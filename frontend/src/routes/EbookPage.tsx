@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 
 import { Page } from "@/app/Shell";
-import { api, legacyUrl } from "@/lib/api";
+import { api, apiUrl } from "@/lib/api";
 import { bytes, num, percent } from "@/lib/format";
 import { decodeStrip, stripCounts } from "@/lib/strip";
 import { queueKey } from "@/lib/queue";
@@ -29,7 +29,7 @@ import { ConfirmDialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import {
   IconCaretDown,
-  IconExternal,
+  IconDownload,
   IconRead,
   IconSearch,
   IconSettings,
@@ -587,9 +587,7 @@ export function EbookPage() {
           <Button
             variant="ghost"
             icon={<IconSettings size={15} />}
-            onClick={() => {
-              window.location.href = legacyUrl(`/ebooks/${slug}/settings`);
-            }}
+            onClick={() => navigate(`/ebooks/${slug}/settings`)}
             aria-label="Cài đặt truyện"
           />
         </>
@@ -748,13 +746,12 @@ export function EbookPage() {
       <p className="mt-3 text-xs opacity-50">
         Giữ Shift khi bấm ô chọn để chọn cả dải chương.{" "}
         <a
-          href={legacyUrl(`/ebooks/${slug}`)}
+          href={apiUrl(`/ebooks/${slug}/toc.csv`)}
           className="inline-flex items-center gap-1 hover:text-primary"
         >
-          Bản giao diện cũ <IconExternal size={11} />
+          <IconDownload size={11} /> Xuất CSV mục lục
         </a>{" "}
-        vẫn còn các thao tác chưa được port: thêm chương thủ công, nhập/xuất CSV mục lục, sắp
-        xếp lại index.
+        để sửa tiêu đề bằng bảng tính.
       </p>
 
       {selected.size > 0 ? (

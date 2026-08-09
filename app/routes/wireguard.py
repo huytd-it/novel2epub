@@ -76,22 +76,6 @@ def _ui_config(cfg) -> dict:
     }
 
 
-# ── GET: cấu hình toàn cục (đã sanitized) + metadata profile ──────────────
-
-
-@router.get("/wireguard")
-def wireguard_page(request: Request):
-    cfg = deps.cfg().wireguard
-    return deps.templates.TemplateResponse(
-        request,
-        "wireguard.html",
-        {
-            "config": _ui_config(cfg),
-            "profiles": wg.list_profiles(_db()),
-        },
-    )
-
-
 # ── Cấu hình toàn cục ──────────────────────────────────────────────────────
 
 

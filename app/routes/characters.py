@@ -23,15 +23,6 @@ def _storage(slug: str) -> Storage:
     return Storage(cfg.output.data_dir, cfg.novel.slug)
 
 
-@router.get("/ebook/{slug}/characters")
-def characters_page(request: Request, slug: str):
-    return deps.templates.TemplateResponse(
-        request,
-        "characters.html",
-        {"slug": slug, "job": request.app.state.job.status()},
-    )
-
-
 @router.get("/api/ebook/{slug}/characters/list")
 def characters_list(slug: str):
     storage = _storage(slug)

@@ -4,7 +4,6 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 
-import { legacyUrl } from "@/lib/api";
 import { useCurrentBook } from "@/lib/books";
 import { num } from "@/lib/format";
 import { hasRealDiff } from "@/lib/diff";
@@ -53,7 +52,6 @@ import {
   IconChapters,
   IconChevronLeft,
   IconChevronRight,
-  IconExternal,
   IconMinus,
   IconNote,
   IconPlus,
@@ -135,7 +133,7 @@ function NoteComposer({
   const [text, setText] = useState("");
   return (
     <div
-      className="fixed z-50 w-72 rounded-box border border-base-300 bg-base-100 p-2.5 shadow-xl"
+      className="fixed z-50 w-72 rounded-box border border-base-300 bg-base-100 p-3 shadow-xl"
       style={{ left: selection.x, top: selection.y }}
     >
       <blockquote className="line-clamp-2 border-l-2 border-base-300 pl-2 text-xs italic opacity-60">
@@ -186,76 +184,58 @@ function BranchBar({
   const branchLabel = translateAction === "local-mt" ? "Local MT" : "AI";
 
   return (
-    <Panel className="mb-4 p-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <div>
-          <p className="mb-1 text-[10px] tracking-[0.1em] uppercase opacity-50">Nguồn bản dịch</p>
-          <div role="tablist" className="tabs tabs-box tabs-sm">
-            {(["ai", "local_mt"] as Branch[]).map((branch) => {
-              const state = data.branches[branch];
-              return (
-                <button
-                  key={branch}
-                  role="tab"
-                  type="button"
-                  className={clsx("tab gap-1.5", state.active && "tab-active")}
-                  disabled={setBranch.isPending}
-                  onClick={() => setBranch.mutate(branch, { onError })}
-                  title={
-                    state.has_text
-                      ? `${state.label} — bản ${state.revision}`
-                      : `${state.label} — chưa có bản dịch`
-                  }
-                >
-                  {state.label}
-                  {state.has_text ? null : <span className="opacity-40">·</span>}
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-1 text-[11px] opacity-50">
-            Nhánh đang chọn là bản đi vào EPUB. Hai nhánh có bản dịch riêng.
-          </p>
+    <Panel className="mb-4 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div role="tablist" className="tabs tabs-box tabs-sm">
+          {(["ai", "local_mt"] as Branch[]).map((branch) => {
+            const state = data.branches[branch];
+            return (
+              <button
+                key={branch}
+                role="tab"
+                type="button"
+                className={clsx("tab gap-1.5", state.active && "tab-active")}
+                disabled={setBranch.isPending}
+                onClick={() => setBranch.mutate(branch, { onError })}
+                title={
+                  state.has_text
+                    ? `${state.label} — bản ${state.revision}`
+                    : `${state.label} — chưa có bản dịch`
+                }
+              >
+                {state.label}
+                {state.has_text ? null : <span className="opacity-40">·</span>}
+              </button>
+            );
+          })}
         </div>
 
-        <div className="h-10 w-px bg-base-300" aria-hidden="true" />
+        <div className="h-7 w-px bg-base-300" aria-hidden="true" />
 
-        <div>
-          <p className="mb-1 text-[10px] tracking-[0.1em] uppercase opacity-50">
-            Dịch lại từ bản gốc
-          </p>
-          <div className="flex gap-1.5">
-            <Button size="sm" disabled={!data.has_raw} onClick={() => setTranslateAction("translate")}>
-              Dịch AI
-            </Button>
-            <Button
-              size="sm"
-              disabled={!data.has_raw}
-              onClick={() => setTranslateAction("local-mt")}
-            >
-              Dịch Local MT
-            </Button>
-          </div>
-          <p className="mt-1 text-[11px] opacity-50">Ghi thẳng vào nhánh, không hỏi lại.</p>
-        </div>
-
-        <div className="h-10 w-px bg-base-300" aria-hidden="true" />
-
-        <div>
-          <p className="mb-1 text-[10px] tracking-[0.1em] uppercase opacity-50">
-            Biên tập bản dịch hiện có
-          </p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button size="sm" disabled={!data.has_raw} onClick={() => setTranslateAction("translate")}>
+            Dịch AI
+          </Button>
           <Button
             size="sm"
-            variant="primary"
-            icon={<IconSparkle size={13} />}
-            disabled={!data.has_translated}
-            onClick={onRewrite}
+            disabled={!data.has_raw}
+            onClick={() => setTranslateAction("local-mt")}
           >
-            Biên tập AI…
+            Dịch Local MT
           </Button>
-          <p className="mt-1 text-[11px] opacity-50">Sinh bản nháp, bạn duyệt rồi mới áp.</p>
         </div>
+
+        <div className="h-7 w-px bg-base-300" aria-hidden="true" />
+
+        <Button
+          size="sm"
+          variant="primary"
+          icon={<IconSparkle size={13} />}
+          disabled={!data.has_translated}
+          onClick={onRewrite}
+        >
+          Biên tập AI
+        </Button>
       </div>
 
       <BulkPreviewDialog
@@ -1003,7 +983,7 @@ export function ChapterPage() {
     >
       {/* ── Thanh công cụ ─────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 border-b border-base-300 bg-base-100/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1100px] flex-wrap items-center justify-between gap-2 px-3 py-2">
+        <div className="mx-auto flex max-w-[1100px] flex-wrap items-center gap-2 px-3 py-2 sm:justify-between">
           <div className="flex items-center gap-1">
             <Button
               size="sm"
@@ -1063,7 +1043,7 @@ export function ChapterPage() {
             </button>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-1">
             <Button
               size="sm"
               variant="ghost"
@@ -1119,7 +1099,7 @@ export function ChapterPage() {
               aria-label="Font đọc"
               value={readerPrefs.fontFamily}
               onChange={(e) => setReaderPrefs({ fontFamily: e.target.value as "serif" | "sans" | "mono" })}
-              className="select-sm w-24"
+              className="hidden select-sm w-24 sm:block"
             >
               <option value="serif">Serif</option>
               <option value="sans">Sans</option>
@@ -1129,7 +1109,7 @@ export function ChapterPage() {
               aria-label="Giãn dòng"
               value={readerPrefs.lineHeight}
               onChange={(e) => setReaderPrefs({ lineHeight: Number(e.target.value) })}
-              className="select-sm w-20"
+              className="hidden select-sm w-20 sm:block"
             >
               <option value="1.5">1.5×</option>
               <option value="1.8">1.8×</option>
@@ -1296,12 +1276,6 @@ export function ChapterPage() {
                   Khôi phục bản dịch máy
                 </Button>
               ) : null}
-              <a
-                href={legacyUrl(`/ebooks/${slug}/read/${chapterIndex}`)}
-                className="btn btn-sm inline-flex items-center gap-1.5"
-              >
-                Công cụ khác (TTS, dịch nhanh) <IconExternal size={12} />
-              </a>
             </div>
             <Button disabled={data.next_index === null} onClick={() => go(data.next_index)}>
               Chương sau →

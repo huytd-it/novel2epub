@@ -5,7 +5,6 @@ import clsx from "clsx";
 import { useTheme } from "@/lib/theme";
 import { pendingCount, useQueue } from "@/lib/queue";
 import { useCurrentBook, useLibrary } from "@/lib/books";
-import { legacyUrl } from "@/lib/api";
 import { num } from "@/lib/format";
 import { ChapterStrip } from "@/components/ChapterStrip";
 import { decodeStrip } from "@/lib/strip";
@@ -16,7 +15,6 @@ import {
   IconChevronRight,
   IconClock,
   IconDisk,
-  IconExternal,
   IconGauge,
   IconGlossary,
   IconLibrary,
@@ -65,12 +63,6 @@ function bookRoutes(slug: string) {
     { to: `/ebooks/${slug}/characters`, label: "Nhân vật", icon: IconCharacters, end: true },
     { to: `/ebooks/${slug}/settings`, label: "Cài đặt", icon: IconSettings, end: true },
   ];
-}
-
-/** Phần trang Jinja2 cũ chưa port — hiện không còn mục nào, giữ hàm để dễ
- * thêm lại khi có trang mới cần đánh dấu "mở ở tab khác". */
-function bookLegacyLinks(_slug: string): { href: string; label: string; icon: typeof IconRead }[] {
-  return [];
 }
 
 const navItem =
@@ -195,17 +187,6 @@ function BookSection({ collapsed }: { collapsed: boolean }) {
                 collapsed={collapsed}
               />
             ))}
-            {!collapsed
-              ? bookLegacyLinks(book.slug).map(({ href, label, icon: Icon }) => (
-                  <li key={href} className="px-1.5 py-0.5">
-                    <a href={legacyUrl(href)} className={navItem} title={label}>
-                      <Icon size={17} className="shrink-0 opacity-75" />
-                      <span className="min-w-0 flex-1 truncate">{label}</span>
-                      <IconExternal size={11} className="shrink-0 opacity-35" />
-                    </a>
-                  </li>
-                ))
-              : null}
           </ul>
         </>
       ) : null}

@@ -1,13 +1,10 @@
-"""Helper dùng chung giữa các router: đọc config (global hoặc theo ebook trong
-library.yaml), resolve đường dẫn, và Jinja2 templates.
-"""
+"""Helper dùng chung giữa các router: đọc config và resolve đường dẫn."""
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
 from fastapi import HTTPException
-from fastapi.templating import Jinja2Templates
 
 from novel2epub.config import load_config, load_library
 from novel2epub.sources import load_presets
@@ -35,18 +32,6 @@ WORKSPACE_DIR = DB_PATH.parent / ".n2e"
 AUTOMATIONS_PATH = DB_PATH
 LIBRARY_STATE_PATH = DB_PATH
 
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-
-
-def static_version(name: str) -> str:
-    """Return a deployment-safe cache key for a static asset."""
-    try:
-        return str((BASE_DIR / "static" / name).stat().st_mtime_ns)
-    except OSError:
-        return "0"
-
-
-templates.env.globals["static_version"] = static_version
 
 # ── Config default values ───────────────────────────────────────────
 # Mirrors dataclass defaults from novel2epub/config.py for UI display.
@@ -157,12 +142,6 @@ def short_host(url: str) -> str:
         s = s[:-3]
     return s.rstrip("/")
 
-
-templates.env.filters["default_value"] = defaults_for
-templates.env.filters["is_default"] = is_default
-templates.env.filters["short_host"] = short_host
-templates.env.globals["default_value"] = defaults_for
-templates.env.globals["is_default"] = is_default
 
 
 def cfg():

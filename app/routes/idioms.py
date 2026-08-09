@@ -35,19 +35,6 @@ def _entry_dict(source: str, target: str, literals: str, protect: int) -> dict:
     }
 
 
-@router.get("/idioms")
-def idioms_page(request: Request):
-    storage = _storage()
-    # Seed bộ mẫu (test.md) CHỈ khi kho còn trống — idempotent, không đè dữ liệu
-    # người dùng đã có.
-    storage.seed_idioms_if_empty(idioms_mod.DEFAULT_IDIOM_SEED)
-    return deps.templates.TemplateResponse(
-        request,
-        "idioms.html",
-        {"job": request.app.state.job.status()},
-    )
-
-
 @router.get("/api/idioms/list")
 def idioms_list(page: int = 1, per_page: int = 50, q: str = "", sort: str = "", dir: str = "asc"):
     storage = _storage()

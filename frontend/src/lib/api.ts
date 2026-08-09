@@ -24,16 +24,6 @@ export function builtInApiBase(): string {
   return BUILT_IN_BASE;
 }
 
-/**
- * URL sang trang Jinja2 chưa được port.
- *
- * Phải tuyệt đối: khi SPA nằm trên Vercel còn backend ở tailnet, đường dẫn
- * tương đối sẽ trỏ vào chính Vercel và trả 404.
- */
-export function legacyUrl(path: string): string {
-  return `${apiBase()}${path}`;
-}
-
 export function setApiBase(value: string) {
   const trimmed = value.trim().replace(/\/+$/, "");
   if (trimmed) localStorage.setItem(BASE_KEY, trimmed);

@@ -1,33 +1,12 @@
 import { Page } from "@/app/Shell";
 import { Panel, EmptyState } from "@/components/ui/Panel";
-import { Button } from "@/components/ui/Button";
-import { IconExternal } from "@/components/icons";
-import { useLocation } from "react-router";
-import { legacyUrl } from "@/lib/api";
 
-/** Trang chưa port: chỉ đường sang bản Jinja2 tương ứng thay vì để trống. */
+/** Trang chưa port: hiển thị trạng thái trống thay vì để trắng. */
 export function PlaceholderPage({ title }: { title: string }) {
-  const { pathname } = useLocation();
-  // `/` của backend giờ redirect về chính SPA — trỏ thẳng `/library` (trang
-  // Thư viện Jinja2) để nút "Mở bản cũ" không quay ngược vào đây.
-  const legacy = legacyUrl(pathname === "/" ? "/library" : pathname);
-
   return (
     <Page title={title}>
       <Panel>
-        <EmptyState
-          title="Trang này chưa chuyển sang giao diện mới"
-          hint="Bản cũ vẫn hoạt động đầy đủ trong lúc chờ port. Mở nó trong tab khác để làm tiếp."
-          action={
-            <Button
-              variant="neutral"
-              icon={<IconExternal />}
-              onClick={() => window.open(legacy, "_blank", "noopener")}
-            >
-              Mở bản cũ
-            </Button>
-          }
-        />
+        <EmptyState title="Trang này chưa chuyển sang giao diện mới" />
       </Panel>
     </Page>
   );

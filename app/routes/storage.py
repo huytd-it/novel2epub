@@ -23,28 +23,6 @@ def _ebook_slugs() -> list[str]:
     return list(library.ebooks.keys()) if library.ebooks else []
 
 
-@router.get("/storage")
-def storage_page(request: Request):
-    rows = []
-    grand_total = 0
-    for slug in (_ebook_slugs() or ["default"]):
-        cfg = deps.resolved_cfg(slug)
-        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-        report = ebook_storage_report(storage, cfg.epub_path)
-        grand_total += report["total"]
-        # Số đếm chỉ trang này cần → lấy riêng, không nhét vào ebook_storage_report
-        # (dashboard cũng gọi hàm đó và không dùng tới). Map tên rõ ràng vì
-        # content_counts trả key trùng tên với key dung lượng của report.
-        counts = storage.content_counts()
-        report["raw_chapters"] = counts["raw"]
-        report["translated_chapters"] = counts["translated"]
-        report["glossary_entries"] = counts["glossary"]
-        rows.append({"slug": slug, "name": cfg.novel.title or slug, "report": report})
-    return deps.templates.TemplateResponse(
-        request, "storage.html", {"rows": rows, "grand_total": grand_total}
-    )
-
-
 @router.post("/storage/{slug}/purge-raw")
 def storage_purge_raw(slug: str):
     cfg = deps.resolved_cfg(slug)

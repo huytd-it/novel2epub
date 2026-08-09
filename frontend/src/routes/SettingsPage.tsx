@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import clsx from "clsx";
 
 import { Page } from "@/app/Shell";
-import { api, apiUrl, legacyUrl } from "@/lib/api";
+import { api, apiUrl } from "@/lib/api";
 import {
   useEbookSettings,
   useSaveSettings,
@@ -17,7 +17,6 @@ import { Badge } from "@/components/ui/Badge";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
 import { useToast } from "@/components/ui/Toast";
-import { IconExternal, IconSettings } from "@/components/icons";
 
 /* ── Mô tả field dùng chung cho mọi tab ──────────────────────────────── */
 
@@ -745,12 +744,6 @@ export function SettingsPage() {
       {data.meta.overridden_fields.length > 0 ? (
         <Badge tone="gold">{data.meta.overridden_fields.length} trường đã ghi đè nguồn</Badge>
       ) : null}
-      <a
-        href={legacyUrl(`/ebooks/${slug}/settings`)}
-        className="ml-auto inline-flex items-center gap-1 text-[11px] opacity-60 hover:text-primary hover:opacity-100"
-      >
-        Lưu vào nguồn / Reset (giao diện cũ) <IconExternal size={11} />
-      </a>
     </div>
   ) : null;
 
@@ -758,17 +751,6 @@ export function SettingsPage() {
     <Page
       title="Cài đặt"
       hint={<>{slug} · lưu theo từng mục, không cần lưu tất cả cùng lúc</>}
-      actions={
-        <Button
-          variant="ghost"
-          icon={<IconSettings size={15} />}
-          onClick={() => {
-            window.location.href = legacyUrl(`/ebooks/${slug}/settings`);
-          }}
-        >
-          Giao diện cài đặt cũ
-        </Button>
-      }
     >
       <div role="tablist" className="tabs tabs-border mb-4">
         {TABS.map((t) => (
@@ -830,11 +812,8 @@ export function SettingsPage() {
       ) : null}
 
       <p className="mt-3 text-xs opacity-50">
-        Tải ảnh bìa từ máy, đồng bộ vào nguồn dùng chung và các thao tác nâng cao khác vẫn ở{" "}
-        <a href={legacyUrl(`/ebooks/${slug}/settings`)} className="inline-flex items-center gap-1 hover:text-primary">
-          giao diện cũ <IconExternal size={11} />
-        </a>
-        .
+        Đồng bộ vào nguồn dùng chung, tải ảnh bìa từ máy và reset override vẫn chưa có mặt
+        trong giao diện mới — tạm thời chỉnh thẳng trong file cấu hình nếu cần.
       </p>
     </Page>
   );

@@ -175,12 +175,6 @@ def _build_dashboard_data(request: Request) -> dict:
     return {"rows": rows, "summary": summary}
 
 
-@router.get("/dashboard")
-def dashboard_page(request: Request):
-    data = _build_dashboard_data(request)
-    return deps.templates.TemplateResponse(request, "dashboard.html", data)
-
-
 @router.get("/api/dashboard")
 def dashboard_api(request: Request):
     return JSONResponse(_build_dashboard_data(request))

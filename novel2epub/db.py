@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -160,6 +160,8 @@ _SCHEMA_STATEMENTS = [
         updated_by_issuer TEXT NOT NULL DEFAULT '',
         updated_by_subject TEXT NOT NULL DEFAULT '',
         translated_updated_at REAL,
+        ai_content_hash TEXT NOT NULL DEFAULT '',
+        local_mt_content_hash TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (ebook_slug, idx)
     ) WITHOUT ROWID
     """,
@@ -451,6 +453,54 @@ _SCHEMA_STATEMENTS = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_bulk_tokens_ebook ON bulk_tokens(ebook_slug, action)",
+    # ── chapter_operations / chapter_revisions — ledger hai chiều (v13) ─────
+    # Nhật ký append-only các thao tác thay đổi nội dung chương (translate,
+    # ai-edit, pull-edits, ...) và mỗi revision nội dung theo nhánh. Baseline
+    # migration (kind='migration_baseline') là snapshot nguyên trạng của từng
+    # nhánh được khởi tạo — nền để sau này "dựng lại trạng thái" và đối chiếu
+    # với bản hiện hành. `client_operation_id` NULL-free để idempotency theo
+    # client (gửi lại không sinh trùng).
+    """
+    CREATE TABLE IF NOT EXISTS chapter_operations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        message TEXT NOT NULL DEFAULT '',
+        actor_issuer TEXT NOT NULL DEFAULT '',
+        actor_subject TEXT NOT NULL DEFAULT '',
+        client_operation_id TEXT NOT NULL DEFAULT '',
+        request_hash TEXT NOT NULL DEFAULT '',
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_chapter_operations_client_id ON chapter_operations(client_operation_id)",
+    "CREATE INDEX IF NOT EXISTS idx_chapter_operations_ebook ON chapter_operations(ebook_slug)",
+    # `content_hash` là full SHA-256 (64 ký tự hex) của canonical `title` +
+    # `content_blob` đã giải nén — bất biến sản phẩm, không cắt gọn. Baseline
+    # có `parent_revision_id` NULL và `base_content_hash` NULL (mốc gốc).
+    """
+    CREATE TABLE IF NOT EXISTS chapter_revisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id INTEGER NOT NULL REFERENCES chapter_operations(id) ON DELETE CASCADE,
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        chapter_index INTEGER NOT NULL,
+        branch TEXT NOT NULL CHECK (branch IN ('ai', 'local_mt')),
+        revision_number INTEGER NOT NULL,
+        parent_revision_id INTEGER REFERENCES chapter_revisions(id),
+        title TEXT NOT NULL DEFAULT '',
+        content_blob BLOB,
+        content_encoding TEXT NOT NULL DEFAULT 'zlib',
+        content_hash TEXT NOT NULL DEFAULT '' CHECK (
+            content_hash = '' OR (length(content_hash) = 64)
+        ),
+        base_content_hash TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_chapter_revisions_unique ON chapter_revisions(ebook_slug, chapter_index, branch, revision_number)",
+    "CREATE INDEX IF NOT EXISTS idx_chapter_revisions_branch ON chapter_revisions(ebook_slug, chapter_index, branch, revision_number DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_chapter_revisions_operation ON chapter_revisions(operation_id)",
 ]
 
 # Cột thêm vào bảng ĐÃ TỒN TẠI ở các phiên bản schema sau. `_SCHEMA_STATEMENTS`
@@ -508,6 +558,11 @@ _ADDED_COLUMNS = [
     ("chapters", "local_mt_title_zh", "TEXT NOT NULL DEFAULT ''"),
     ("chapters", "local_mt_mt_snapshot", "TEXT"),
     ("ai_revisions", "branch", "TEXT NOT NULL DEFAULT 'ai'"),
+    ("chapter_operations", "request_hash", "TEXT NOT NULL DEFAULT ''"),
+    # v13: per-branch content hash — mốc đối chiếu "bản hiện hành" của nhánh
+    # với revision gần nhất (bất biến sản phẩm: full SHA-256 canonical).
+    ("chapters", "ai_content_hash", "TEXT NOT NULL DEFAULT ''"),
+    ("chapters", "local_mt_content_hash", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 
@@ -579,6 +634,8 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
 # database MỚI (bảng vừa CREATE TABLE chưa có cột đó cho tới khi ALTER chạy).
 _POST_COLUMN_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_ai_revisions_branch_status ON ai_revisions(ebook_slug, branch, status)",
+    "CREATE INDEX IF NOT EXISTS idx_chapters_ai_content_hash ON chapters(ebook_slug, ai_content_hash)",
+    "CREATE INDEX IF NOT EXISTS idx_chapters_local_mt_content_hash ON chapters(ebook_slug, local_mt_content_hash)",
 ]
 
 
@@ -733,12 +790,22 @@ def _migration_v12(conn: sqlite3.Connection) -> None:
             )
 
 
+def _migration_v13(conn: sqlite3.Connection) -> None:
+    """Thêm ledger hai chiều (`chapter_operations`/`chapter_revisions`) và cột
+    hash theo nhánh (`chapters.ai_content_hash`/`local_mt_content_hash`);
+    ALTER giữ nguyên toàn bộ dữ liệu v12."""
+    _ensure_columns(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+
 _MIGRATIONS = {
     8: _migration_noop,
     9: _migration_noop,
     10: _migration_v10,
     11: _migration_v11,
     12: _migration_v12,
+    13: _migration_v13,
 }
 
 

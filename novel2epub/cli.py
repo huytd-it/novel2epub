@@ -271,6 +271,17 @@ def main(argv: list[str] | None = None) -> int:
     service_parser.add_argument("action", choices=["install", "uninstall", "status"])
     service_parser.add_argument("--host", default="127.0.0.1", help="Host uvicorn (mặc định 127.0.0.1)")
     service_parser.add_argument("--port", type=int, default=8010, help="Port uvicorn (mặc định 8010)")
+    baseline_parser = sub.add_parser(
+        "baseline-backfill",
+        help="Tạo baseline ledger hai chiều cho các nhánh chương đã khởi tạo (idempotent)",
+    )
+    baseline_parser.add_argument(
+        "--branch",
+        action="append",
+        default=[],
+        choices=["ai", "local_mt"],
+        help="Chỉ backfill một nhánh; không truyền thì chạy cả hai.",
+    )
 
     # ── WireGuard / wgcf — hoạt động ĐỘC LẬP, không cần ebook ─────────────
     wg = sub.add_parser(
@@ -546,6 +557,16 @@ def main(argv: list[str] | None = None) -> int:
             step_build(cfg)
         elif args.command == "run":
             run_all(cfg)
+        elif args.command == "baseline-backfill":
+            from .ops_baseline import initialize_branch_revisions
+
+            storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+            result = initialize_branch_revisions(storage, branches=args.branch or None)
+            print(
+                f"Baseline: {result['revisions']} revision cho {result['chapters']} "
+                f"chương, branches={','.join(result['branches']) or '-'}, "
+                f"operations={result['operations']}"
+            )
     except (RuntimeError, ValueError, ImportError) as e:
         print(f"Lỗi: {e}", file=sys.stderr)
         return 1

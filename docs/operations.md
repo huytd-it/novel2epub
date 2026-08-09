@@ -43,7 +43,18 @@ python -m novel2epub -e book crawl --filter raw:no --range 1:20
 python -m novel2epub -e book translate --search "Chương 10" --range 1:5
 ```
 
-Các lệnh bổ sung: `evaluate`, `reindex`, `search`, `models`, `backup`, `restore`, `service`.
+Các lệnh bổ sung: `evaluate`, `reindex`, `search`, `models`, `backup`, `restore`, `service`, `baseline-backfill`.
+
+`baseline-backfill` tạo baseline cho ledger hai chiều (schema v13): snapshot
+từng nhánh chương đã khởi tạo vào `chapter_revisions` với `revision_number` =
+revision hiện hành của nhánh, hash canonical full SHA-256, không đổi dữ liệu
+hiện hành. Idempotent — chạy lại không sinh trùng, có thể chạy theo nhánh:
+
+```sh
+python -m novel2epub -e book baseline-backfill            # cả hai nhánh
+python -m novel2epub -e book baseline-backfill --branch ai
+python -m novel2epub -e book baseline-backfill --branch local_mt
+```
 
 ### WireGuard / wgcf (không cần ebook)
 

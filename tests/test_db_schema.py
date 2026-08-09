@@ -29,6 +29,8 @@ _EXPECTED_TABLES = {
     "identities",
     "audit_events",
     "ai_revisions",
+    "chapter_operations",
+    "chapter_revisions",
 }
 
 

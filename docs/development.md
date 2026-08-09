@@ -23,6 +23,7 @@ Không commit `novel2epub.db`, API key, EPUB, log hoặc dữ liệu truyện.
 | `novel2epub/crawler.py` | Scrapling crawl và pagination |
 | `novel2epub/translator.py` | Backend dịch và dựng prompt |
 | `novel2epub/pipeline.py` | Điều phối các bước |
+| `novel2epub/blocks.py` | Logic thuần thao tác KHỐI trong khung đối chiếu 3 cột (sửa/xóa, map block → dòng gốc) |
 | `novel2epub/epub_builder.py` | Đóng gói EPUB |
 | `novel2epub/bulk_contract.py` | Logic thuần hợp đồng bulk-preview/bulk-confirm (đánh giá đủ điều kiện, vân tay config/chương) |
 | `app/routes/` | Route HTML/API theo domain |

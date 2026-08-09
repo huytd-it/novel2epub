@@ -522,6 +522,112 @@ def ebook_chapter_save(slug: str, index: int, payload: dict = Body(...)):
     }
 
 
+@router.post("/ebooks/{slug}/chapters/{index}/compare/block")
+def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)):
+    """Sửa/xóa KHỐI trong khung đối chiếu 3 cột (bản gốc | dịch máy | bản hiện tại).
+
+    Body JSON:
+    - `op`:
+      - `"edit_raw"` — sửa cột Bản gốc. `raw_expected` = nội dung khối raw lúc
+        preview (raw không revision nên đây là khóa chống stale), `new_text`.
+      - `"edit_translated"` — sửa cột Bản hiện tại. `block_expected` = nội dung
+        khối hiện tại, `new_text`, `revision` = revision nhánh active (CAS).
+      - `"delete"` — xóa khối raw + khối MT + khối bản dịch active ĐỒNG BỘ
+        trong MỘT transaction (xem `Storage.delete_aligned_block`). Cần
+        `raw_expected` + `revision`.
+    - `block`: index KHỐI trong khung đối chiếu (`align_paragraphs`), KHÔNG phải
+      chỉ số dòng của `split_paras`.
+
+    `edit_raw`/`edit_translated` không đụng nhánh/khối khác: sửa raw chỉ sửa raw,
+    sửa bản hiện tại chỉ sửa bản dịch của nhánh active (MT snapshot giữ nguyên).
+    Dịch máy chỉ đọc — không có op nào sửa trực tiếp cột MT.
+
+    Trả `{"saved"/"deleted", "revision", "reason"}` — `reason` rỗng khi thành
+    công; 409 khi stale/conflict (không ghi gì).
+    """
+    from novel2epub.blocks import replace_block
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+    chapter = next((c for c in manifest.chapters if c.index == index), None)
+    if chapter is None:
+        raise HTTPException(status_code=404, detail=f"Không có chương {index}.")
+
+    op = payload.get("op")
+    block = payload.get("block")
+    if op not in ("edit_raw", "edit_translated", "delete"):
+        raise HTTPException(status_code=400, detail="op phải là edit_raw/edit_translated/delete.")
+    if not isinstance(block, int) or block < 0:
+        raise HTTPException(status_code=400, detail="block phải là số nguyên ≥ 0.")
+
+    branch = storage.active_branch(chapter)
+    revision = payload.get("revision")
+    if not isinstance(revision, int):
+        raise HTTPException(status_code=400, detail="Thiếu 'revision' (revision nhánh đang hoạt động).")
+
+    if op == "delete":
+        raw_expected = payload.get("raw_expected")
+        if not isinstance(raw_expected, str):
+            raise HTTPException(status_code=400, detail="Thiếu 'raw_expected' cho thao tác xóa.")
+        result = storage.delete_aligned_block(
+            chapter,
+            branch=branch,
+            raw_expected=raw_expected,
+            block_index=block,
+            expected_rev=revision,
+        )
+        if not result["deleted"]:
+            raise HTTPException(status_code=409, detail=result["reason"])
+        return {
+            "deleted": True,
+            "revision": result["revision"],
+            "reason": "",
+            "blocks_removed": ["raw", "mt", "translated"],
+        }
+
+    new_text = payload.get("new_text")
+    if not isinstance(new_text, str):
+        raise HTTPException(status_code=400, detail="Thiếu 'new_text'.")
+
+    if op == "edit_raw":
+        raw_expected = payload.get("raw_expected")
+        if not isinstance(raw_expected, str):
+            raise HTTPException(status_code=400, detail="Thiếu 'raw_expected'.")
+        if not storage.has_raw(chapter):
+            raise HTTPException(status_code=404, detail="Chương chưa có bản gốc.")
+        current_raw = storage.read_raw(chapter)
+        new_raw, reason = replace_block(current_raw, block, raw_expected, new_text)
+        if reason:
+            raise HTTPException(status_code=409, detail=reason)
+        if not storage.write_raw_conditional(chapter, current_raw, new_raw):
+            raise HTTPException(
+                status_code=409, detail="Bản gốc đã thay đổi — tải lại trang."
+            )
+        return {"saved": True, "revision": revision, "reason": ""}
+
+    # op == "edit_translated"
+    block_expected = payload.get("block_expected")
+    if not isinstance(block_expected, str):
+        raise HTTPException(status_code=400, detail="Thiếu 'block_expected'.")
+    if not storage.has_branch_text(chapter, branch):
+        raise HTTPException(status_code=404, detail="Chương chưa có bản dịch.")
+    current = storage.read_branch_text(chapter, branch)
+    new_block, reason = replace_block(current, block, block_expected, new_text)
+    if reason:
+        raise HTTPException(status_code=409, detail=reason)
+    if not storage.compare_and_swap_branch(
+        chapter, branch, expected_rev=revision, new_text=new_block
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Bản dịch đã thay đổi — tải lại trang.",
+        )
+    return {"saved": True, "revision": storage.read_branch_revision(chapter, branch), "reason": ""}
+
+
 @router.post("/ebooks/{slug}/chapters/{index}/ai/rewrite/confirm")
 def webui_ai_rewrite_confirm(slug: str, index: int, payload: dict = Body(...)):
     """Chấp nhận một candidate (bản nháp AI) — optimistic lock, JSON.
@@ -1243,7 +1349,13 @@ def automation_update_api(automation_id: str, payload: dict = Body(...)):
         update_automation(
             deps.AUTOMATIONS_PATH,
             automation_id,
-            {"steps": steps, "schedule": schedule, "enabled": bool(payload.get("enabled", True))},
+            {
+                "steps": steps,
+                "schedule": schedule,
+                "enabled": bool(payload.get("enabled", True)),
+                "crawl_workers": max(1, int(payload.get("crawl_workers", 4) or 4)),
+                "translate_workers": max(1, int(payload.get("translate_workers", 4) or 4)),
+            },
         )
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

@@ -65,6 +65,11 @@ Local MT chọn model qua `translate.model` hoặc `translate.hachimimt.model_ke
 
 `ai.openai` là backend riêng cho review, rewrite, glossary, nhân vật và cleanup. Nếu không cấu hình, hệ thống fallback về `translate.openai`.
 
+## Output
+
+- `output.epub_path`: đường dẫn file EPUB do người dùng đặt. Để trống thì mặc định là `<data_dir>/data/<slug>/<tựa đề> - <tác giả>.epub` (thiếu tác giả thì chỉ còn `<tựa đề>.epub`).
+- `output.data_dir` luôn được ép về thư mục chứa file DB — không nên đổi qua cấu hình.
+
 ## Queue
 
 - `queue.crawl_workers`: số job crawl chạy đồng thời.

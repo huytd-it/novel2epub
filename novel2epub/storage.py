@@ -848,6 +848,172 @@ class Storage:
             }
         return out
 
+    # ----- sửa/xóa KHỐI trong khung đối chiếu 3 cột -----
+    # Khung đối chiếu chia theo KHỐI (cách bởi dòng trống), KHÁC `notes.split_paras`
+    # theo TỪNG DÒNG — mọi thao tác ở đây map block → dòng gốc qua `blocks.py`.
+
+    def write_raw_conditional(self, ch: Chapter, expected: str, new_text: str) -> bool:
+        """Ghi `raw_text` CÓ ĐIỀU KIỆN — optimistic protection cho bản gốc vốn
+        không có revision: chỉ ghi khi `raw_text` hiện tại khớp `expected`
+        (normalize `\r\n` → `\n` để chống lệch sai do đổi newline). Trả False
+        khi lệch (stale) — không ghi gì."""
+        expected = (expected or "").replace("\r\n", "\n")
+        self.ensure_dirs()
+        with self.conn:
+            self._ensure_chapter_row(ch)
+            cur = self.conn.execute(
+                "UPDATE chapters SET raw_text=? WHERE ebook_slug=? AND idx=? "
+                "AND raw_text IS NOT NULL AND replace(raw_text, char(13)||char(10), char(10)) = ?",
+                (new_text, self.slug, ch.index, expected),
+            )
+        return cur.rowcount == 1
+
+    def delete_aligned_block(
+        self,
+        ch: Chapter,
+        *,
+        branch: str,
+        raw_expected: str,
+        block_index: int,
+        expected_rev: int,
+    ) -> dict:
+        """Xóa ĐỒNG BỘ khối `block_index` khỏi raw, snapshot MT và bản dịch
+        hoạt động của nhánh — MỘT transaction.
+
+        Semantics theo thiết kế: xóa đoạn gốc thì xóa luôn đoạn dịch máy và đoạn
+        dịch hiện tại (cùng hàng trong khung đối chiếu). Chỉ đụng nhánh đang
+        hoạt động; nhánh không active giữ nguyên. Có stale protection kép:
+        `raw_expected` (nội dung raw khối) và `expected_rev` (revision nhánh).
+
+        Trả `{"deleted": bool, "revision": int, "reason": str}` — `reason` rỗng
+        khi thành công, khác rỗng khi stale/không hợp lệ (không ghi gì).
+        """
+        from . import blocks as _blocks
+
+        branch = revisions.normalize_branch(branch)
+        text_col = self._BRANCH_COLUMNS[branch]["text"]
+        rev_col = self._BRANCH_COLUMNS[branch]["revision"]
+        mt_col = self._BRANCH_COLUMNS[branch]["mt"]
+        conn = self.conn
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT raw_text, translated_text, translated_mt_text, active_branch, "
+                "local_mt_text, local_mt_mt_snapshot, local_mt_revision, revision "
+                "FROM chapters WHERE ebook_slug=? AND idx=?",
+                (self.slug, ch.index),
+            ).fetchone()
+            if row is None:
+                conn.rollback()
+                return {"deleted": False, "revision": expected_rev, "reason": "Chương không tồn tại."}
+
+            raw = (row["raw_text"] or "").replace("\r\n", "\n")
+            if not raw.strip():
+                conn.rollback()
+                return {"deleted": False, "revision": expected_rev, "reason": "Chương không có bản gốc."}
+
+            blocks = _blocks.split_blocks(raw)
+            if not (0 <= block_index < len(blocks)):
+                conn.rollback()
+                return {"deleted": False, "revision": expected_rev, "reason": "Đoạn đã thay đổi — tải lại trang."}
+            if blocks[block_index] != (raw_expected or "").replace("\r\n", "\n"):
+                conn.rollback()
+                return {"deleted": False, "revision": expected_rev, "reason": "Bản gốc đã thay đổi — tải lại trang."}
+
+            cur_rev = int(row[rev_col] or 0)
+            if cur_rev != expected_rev:
+                conn.rollback()
+                return {"deleted": False, "revision": cur_rev, "reason": "Bản dịch đã thay đổi — tải lại trang."}
+
+            new_raw, raw_reason = _blocks.delete_block(raw, block_index, blocks[block_index])
+            if raw_reason:
+                conn.rollback()
+                return {"deleted": False, "revision": cur_rev, "reason": raw_reason}
+
+            # Đối tác MT/translated: cùng index block trong cột tương ứng (nếu có).
+            mt_blocks = _blocks.split_blocks(row[mt_col] or "")
+            edited_blocks = _blocks.split_blocks(row[text_col] or "")
+            new_mt = row[mt_col]
+            if 0 <= block_index < len(mt_blocks):
+                new_mt, _ = _blocks.delete_block(row[mt_col] or "", block_index, mt_blocks[block_index])
+            new_edited = row[text_col]
+            if 0 <= block_index < len(edited_blocks):
+                new_edited, _ = _blocks.delete_block(row[text_col] or "", block_index, edited_blocks[block_index])
+
+            conn.execute(
+                f"UPDATE chapters SET raw_text=?, {text_col}=?, {rev_col}={rev_col}+1, "
+                f"{mt_col}=?, translated_updated_at=unixepoch('now') "
+                "WHERE ebook_slug=? AND idx=?",
+                (new_raw, new_edited, new_mt, self.slug, ch.index),
+            )
+            conn.commit()
+            return {"deleted": True, "revision": expected_rev + 1, "reason": ""}
+        except Exception:
+            conn.rollback()
+            raise
+
+    def edit_block_text(
+        self,
+        ch: Chapter,
+        *,
+        branch: str,
+        target: str,
+        block_index: int,
+        expected_text: str,
+        new_text: str,
+        expected_rev: int,
+    ) -> dict:
+        """Sửa KHỐI của đúng một cột trong khung đối chiếu.
+
+        - `target="raw"`: sửa `raw_text` (không đụng MT/translated). Expected là
+          nội dung raw khối (raw không revision).
+        - `target="translated"`: sửa bản dịch của nhánh `branch`. Expected là
+          revision nhánh (đúng CAS của `compare_and_swap_branch`).
+
+        Trả `{"saved": bool, "revision": int, "reason": str}` — `reason` rỗng
+        khi thành công, khác rỗng khi stale (không ghi gì)."""
+        from . import blocks as _blocks
+
+        branch = revisions.normalize_branch(branch)
+        if target == "raw":
+            # Raw không revision — dùng expected_text (nội dung khối) làm lock.
+            new_raw, reason = _blocks.replace_block(
+                self.read_raw(ch), block_index, expected_text, new_text
+            )
+            if reason:
+                return {"saved": False, "revision": expected_rev, "reason": reason}
+            ok = self.write_raw_conditional(ch, self.read_raw(ch), new_raw)
+            if not ok:
+                return {
+                    "saved": False,
+                    "revision": expected_rev,
+                    "reason": "Bản gốc đã thay đổi — tải lại trang.",
+                }
+            return {"saved": True, "revision": expected_rev, "reason": ""}
+
+        if target == "translated":
+            current = self.read_branch_text(ch, branch)
+            new_text_block, reason = _blocks.replace_block(
+                current, block_index, expected_text, new_text
+            )
+            if reason:
+                return {"saved": False, "revision": expected_rev, "reason": reason}
+            if not self.compare_and_swap_branch(
+                ch, branch, expected_rev=expected_rev, new_text=new_text_block
+            ):
+                return {
+                    "saved": False,
+                    "revision": self.read_branch_revision(ch, branch),
+                    "reason": "Bản dịch đã thay đổi — tải lại trang.",
+                }
+            return {
+                "saved": True,
+                "revision": self.read_branch_revision(ch, branch),
+                "reason": "",
+            }
+
+        return {"saved": False, "revision": expected_rev, "reason": f"target không hợp lệ: {target!r}"}
+
     # ----- từ điển entity (global + override theo ebook) -----
     def read_entity_entries(self) -> list[tuple[str, str, int]]:
         """Toàn bộ entity global → list `(source, target, protect)` theo source."""

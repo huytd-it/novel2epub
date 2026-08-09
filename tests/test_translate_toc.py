@@ -221,3 +221,28 @@ def test_retranslate_title_uses_selected_mt_backend_not_global_type(tmp_path, mo
 
     assert seen_types == ["hachimimt"]
     assert tr.single_calls == ["第一章 新名"]
+
+
+def test_retranslate_title_works_without_translation(tmp_path, monkeypatch):
+    """Dịch lại tiêu đề không bắt buộc chương đã dịch — chưa dịch thì dùng raw
+    làm ngữ cảnh, không báo 'chưa có bản dịch'."""
+    from novel2epub import translator as translator_module
+
+    tr = _FakeTitleTranslator()
+    monkeypatch.setattr(translator_module, "make_translator", lambda c, log=None, **kw: tr)
+
+    ch = Chapter(index=1, url="http://x/1", title="第一章")
+    storage = _seed(tmp_path, [ch])
+    storage.write_raw(ch, "# 第一章\n\n原nội dung chưa dịch。")
+
+    cfg = _cfg(tmp_path)
+    cfg.translate.type = "hachimimt"
+    result = pipeline.step_retranslate_title(
+        cfg, lambda m: None, slug="t", index=1,
+        engine="hachimimt", generate_description=False,
+    )
+
+    assert tr.single_calls == ["第一章"]
+    ch2 = storage.load_manifest().chapters[0]
+    assert ch2.title_zh == "第一章"
+    assert result["title"] == ch2.title

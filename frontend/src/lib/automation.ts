@@ -34,6 +34,7 @@ export function useAutomationOverview() {
   return useQuery({
     queryKey: key,
     queryFn: () => api.get<AutomationOverview>("/api/ui/automation"),
+    refetchInterval: 3000,
   });
 }
 
@@ -61,7 +62,7 @@ export function useCreateAutomation() {
 export function useUpdateAutomation() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (vars: { id: string; steps: string[]; schedule: string; enabled: boolean }) =>
+    mutationFn: (vars: AutomationInput & { id: string; enabled: boolean }) =>
       api.post<{ ok: boolean }>(`/api/ui/automation/${vars.id}/update`, { body: vars }),
     onSuccess: invalidate,
   });

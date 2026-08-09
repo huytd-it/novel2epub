@@ -42,6 +42,7 @@ export {
   PiShieldCheck as IconShield,
   PiStack as IconQueue,
   PiSun as IconSun,
+  PiSwap as IconReplace,
   PiTrash as IconTrash,
   PiX as IconClose,
 } from "react-icons/pi";

@@ -552,6 +552,13 @@ class ReaderConfig:
         return bool(self.url and self.service_key)
 
 
+def _safe_filename(value: str) -> str:
+    """Loại bỏ ký tự không hợp lệ cho tên file trên Windows (< > : " / \ | ? *)."""
+    value = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", value)
+    value = re.sub(r"\s+", " ", value).strip(" .")
+    return value or "untitled"
+
+
 @dataclass
 class Config:
     novel: NovelConfig
@@ -572,7 +579,16 @@ class Config:
 
     @property
     def epub_path(self) -> str:
-        return self.output.epub_path or f"{self.novel.slug}.epub"
+        """Đường dẫn file EPUB mặc định: `<data_dir>/data/<slug>/<tựa đề> - <tác giả>.epub`.
+
+        Người dùng đặt `output.epub_path` riêng sẽ thắng mặc định.
+        """
+        if self.output.epub_path:
+            return self.output.epub_path
+        title = (self.novel.title or self.novel.slug).strip()
+        author = (self.novel.author or "").strip()
+        name = f"{title} - {author}" if author else title
+        return str(Path(self.output.data_dir) / "data" / self.novel.slug / (_safe_filename(name) + ".epub"))
 
 
 @dataclass

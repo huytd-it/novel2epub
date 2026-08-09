@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 
 export interface EbookDetail {
@@ -169,6 +169,41 @@ export function useChapters(
 }
 
 export const chapterKey = (slug: string, index: number) => ["chapter", slug, index] as const;
+
+/** Cỡ trang mặc định cho danh sách chương theo kiểu "cuộn để tải thêm". */
+export const CHAPTERS_PAGE_SIZE = 40;
+
+/**
+ * Danh sách chương theo kiểu cuộn để tải thêm (infinite scroll).
+ *
+ * Dùng `useInfiniteQuery` TanStack v5 với API offset/limit hiện có. Query key
+ * giữ tiền tố `["chapters", slug]` nên các lệnh invalidation đang có
+ * (`lib/chapter.invalidateChapter` và `invalidateBookSearch`) vẫn làm mới danh
+ * sách như trước — chỉ khác là `fetchNextPage` sẽ tải lại từ trang đầu.
+ *
+ * Lưu ý `getNextPageParam` so sánh với `matched` (số khớp bộ lọc), không phải
+ * `total`, để không lãng phí một request thừa khi bộ lọc loại bớt chương.
+ */
+export function useInfiniteChapters(slug: string, filters: ChapterFilters, pageSize = CHAPTERS_PAGE_SIZE) {
+  const params = new URLSearchParams({
+    ...filters,
+    limit: String(pageSize),
+  });
+  return useInfiniteQuery({
+    queryKey: ["chapters", slug, filters, pageSize],
+    queryFn: ({ pageParam }) =>
+      api.get<ChapterPage>(
+        `/api/ui/ebooks/${slug}/chapters?${params.toString()}&offset=${String(pageParam)}`,
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.rows.length, 0);
+      return loaded < lastPage.matched ? loaded : undefined;
+    },
+    enabled: Boolean(slug),
+    placeholderData: keepPreviousData,
+  });
+}
 
 export function useChapter(slug: string, index: number) {
   return useQuery({

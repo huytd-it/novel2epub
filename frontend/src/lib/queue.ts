@@ -41,6 +41,15 @@ export function useQueue(pollMs = 2000) {
   });
 }
 
+export function useJobLog(jobId: string | null, poll = false) {
+  return useQuery({
+    queryKey: ["queue", "log", jobId],
+    queryFn: () => api.get<{ log: string[] }>(`/api/queue/${jobId}/log`),
+    enabled: Boolean(jobId),
+    refetchInterval: poll ? 2000 : false,
+  });
+}
+
 export function pendingCount(snapshot: QueueSnapshot | undefined): number {
   if (!snapshot) return 0;
   return Object.values(snapshot.pending).reduce((sum, list) => sum + list.length, 0);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 
 import { legacyUrl } from "@/lib/api";
@@ -9,8 +10,15 @@ import { num } from "@/lib/format";
 import { hasRealDiff } from "@/lib/diff";
 import { useChapter, type AiRevision, type ChapterCompare } from "@/lib/ebook";
 import {
+  applyBookReplace,
+  invalidateBookSearch,
+  loadFindState,
+  previewBookReplace,
+  saveFindState,
   useBookmark,
+  useBookSearch,
   useChapterNotes,
+  useCompareBlockEdit,
   useConfirmDraft,
   useCreateNote,
   useDiscardDraft,
@@ -20,6 +28,8 @@ import {
   useSetActiveBranch,
   useUpdateChapterTitle,
   type Branch,
+  type FindReplacePreviewItem,
+  type FindSource,
   type Note,
 } from "@/lib/chapter";
 import { Button, Spinner } from "@/components/ui/Button";
@@ -28,8 +38,13 @@ import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { DiffText } from "@/components/DiffText";
-import { ChapterListDrawer } from "@/components/chapter/ChapterListDrawer";
-import { SearchDialog } from "@/components/chapter/SearchDialog";
+import {
+  ChapterListDrawer,
+  findPreviewKeyOf,
+  type ChapterFindState,
+  type ChapterPreviewState,
+  type FindMode,
+} from "@/components/chapter/ChapterListDrawer";
 import { NotesPanel } from "@/components/chapter/NotesPanel";
 import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
 import {
@@ -45,6 +60,7 @@ import {
   IconRevert,
   IconSearch,
   IconSparkle,
+  IconTrash,
 } from "@/components/icons";
 
 /* ── Bôi đen văn bản trong đoạn -> đánh dấu ghi chú ─────────────────── */
@@ -337,10 +353,95 @@ function DraftCard({
   );
 }
 
-/* ── Khung đối chiếu 3 cột ───────────────────────────────────────────── */
+/* ── Khung đối chiếu 3 cột — cho phép sửa đoạn ───────────────────────── */
 
-function CompareView({ data }: { data: ChapterCompare }) {
+function EditableCompareView({
+  slug,
+  index,
+  data,
+  onError,
+}: {
+  slug: string;
+  index: number;
+  data: ChapterCompare;
+  onError: (err: unknown) => void;
+}) {
   const rows = data.paragraphs;
+  const edit = useCompareBlockEdit(slug, index);
+  const toast = useToast();
+
+  // Ô nào đang được sửa (block index → cột).
+  const [editing, setEditing] = useState<Record<number, "raw" | "translated">>({});
+  // Revision mới nhất đã biết — mutation thành công trả revision mới trước khi
+  // refetch chapter về, nên dùng nó cho các thao tác kế để khỏi dính stale 409.
+  const [latestRevision, setLatestRevision] = useState(data.revision);
+  useEffect(() => {
+    setLatestRevision(data.revision);
+  }, [data.revision]);
+
+  const finishEdit = (block: number) => {
+    setEditing((prev) => {
+      const next = { ...prev };
+      delete next[block];
+      return next;
+    });
+  };
+
+  const commit = (block: number, col: "raw" | "translated", rawValue: string) => {
+    const row = rows[block];
+    if (!row) return;
+    finishEdit(block);
+    const value = rawValue.trim();
+    const before = col === "raw" ? row.raw : row.edited;
+    if (value === before) return; // không đổi gì cả
+
+    edit.mutate(
+      {
+        op: col === "raw" ? "edit_raw" : "edit_translated",
+        block,
+        revision: latestRevision,
+        raw_expected: row.raw,
+        block_expected: col === "translated" ? row.edited : undefined,
+        new_text: value,
+      },
+      {
+        onSuccess: (res) => {
+          setLatestRevision(res.revision);
+          toast(col === "raw" ? "Đã sửa bản gốc." : "Đã sửa bản hiện tại.");
+        },
+        onError,
+      },
+    );
+  };
+
+  const requestDelete = (block: number) => {
+    const row = rows[block];
+    if (!row) return;
+    if (
+      !window.confirm(
+        `Xóa đoạn này khỏi cả 3 cột (bản gốc, dịch máy, bản hiện tại)?\n\n«${row.raw.slice(0, 120)}»\n\nThao tác này không thể hoàn tác.`,
+      )
+    )
+      return;
+    edit.mutate(
+      {
+        op: "delete",
+        block,
+        revision: latestRevision,
+        raw_expected: row.raw,
+      },
+      {
+        onSuccess: (res) => {
+          setLatestRevision(res.revision);
+          toast("Đã xóa đồng bộ khối gốc + dịch máy + bản hiện tại.");
+        },
+        onError,
+      },
+    );
+  };
+
+  const pending = edit.isPending;
+
   return (
     <div className="scroll-slim overflow-x-auto">
       <table className="w-full min-w-[60rem] border-collapse">
@@ -355,17 +456,39 @@ function CompareView({ data }: { data: ChapterCompare }) {
                 {h}
               </th>
             ))}
+            <th className="w-10 px-2 py-1.5" />
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => {
             const changed = hasRealDiff(row.mt, row.edited);
+            const editingCol = editing[i];
             return (
               <tr key={i} className="border-b border-base-300 align-top last:border-b-0">
                 <td data-numeric className="w-10 px-2 py-2 text-[11px] opacity-30">
                   {i + 1}
                 </td>
-                <td className="w-1/3 px-2 py-2 text-[13px] leading-relaxed opacity-70">{row.raw}</td>
+                <td className="w-1/3 px-2 py-2 text-[13px] leading-relaxed opacity-70">
+                  {editingCol === "raw" ? (
+                    <CompareCellEditor
+                      autoFocus
+                      defaultValue={row.raw}
+                      disabled={pending}
+                      onCommit={(v) => commit(i, "raw", v)}
+                      onCancel={() => finishEdit(i)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="block w-full cursor-text rounded-field px-1 text-left hover:bg-base-200"
+                      onClick={() => setEditing((p) => ({ ...p, [i]: "raw" }))}
+                      disabled={pending}
+                      title="Sửa bản gốc"
+                    >
+                      {row.raw}
+                    </button>
+                  )}
+                </td>
                 <td className="w-1/3 px-2 py-2 text-[13px] leading-relaxed opacity-70">
                   {row.mt ? (
                     changed ? (
@@ -378,21 +501,123 @@ function CompareView({ data }: { data: ChapterCompare }) {
                   )}
                 </td>
                 <td className="w-1/3 px-2 py-2 text-[13px] leading-relaxed">
-                  {row.edited ? (
-                    changed ? (
-                      <DiffText before={row.mt} after={row.edited} />
-                    ) : (
-                      row.edited
-                    )
+                  {editingCol === "translated" ? (
+                    <CompareCellEditor
+                      autoFocus
+                      defaultValue={row.edited}
+                      disabled={pending}
+                      onCommit={(v) => commit(i, "translated", v)}
+                      onCancel={() => finishEdit(i)}
+                    />
+                  ) : row.edited ? (
+                    <button
+                      type="button"
+                      className={clsx(
+                        "block w-full cursor-text rounded-field px-1 text-left hover:bg-base-200",
+                        changed && "bg-success/5",
+                      )}
+                      onClick={() => setEditing((p) => ({ ...p, [i]: "translated" }))}
+                      disabled={pending}
+                      title="Sửa bản hiện tại"
+                    >
+                      {changed ? <DiffText before={row.mt} after={row.edited} /> : row.edited}
+                    </button>
                   ) : (
                     <span className="opacity-40">—</span>
                   )}
+                </td>
+                <td className="w-10 px-2 py-2">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs btn-square text-error"
+                    disabled={pending}
+                    onClick={() => requestDelete(i)}
+                    aria-label={`Xóa đoạn ${i + 1}`}
+                    title="Xóa đoạn khỏi cả 3 cột"
+                  >
+                    <IconTrash size={14} />
+                  </button>
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** Ô sửa nội tuyến cho khung đối chiếu — commit khi rời ô, đọc thẳng
+    `e.target.value` (không tin state closure), Escape để hủy. */
+function CompareCellEditor({
+  defaultValue,
+  onCommit,
+  onCancel,
+  autoFocus,
+  disabled,
+}: {
+  defaultValue: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+  autoFocus?: boolean;
+  disabled?: boolean;
+}) {
+  const [value, setValue] = useState(defaultValue);
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) {
+      const el = ref.current;
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
+    }
+  }, [autoFocus]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      disabled={disabled}
+      onBlur={(e) => onCommit(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) e.currentTarget.blur();
+        if (e.key === "Escape") {
+          onCancel();
+          e.preventDefault();
+        }
+      }}
+      className="textarea textarea-bordered textarea-sm w-full font-read text-[13px]"
+      aria-label="Sửa đoạn"
+    />
+  );
+}
+
+/** Tab Gốc — render bản gốc theo khối, có empty state rõ ràng. */
+function RawContentView({ text }: { text: string }) {
+  if (!text.trim()) {
+    return (
+      <p className="px-4 py-10 text-center text-sm opacity-50">
+        Chương chưa có nội dung gốc.
+      </p>
+    );
+  }
+  const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  return (
+    <div className="scroll-slim max-h-[75vh] overflow-y-auto px-4 py-3">
+      <div className="space-y-3">
+        {blocks.map((block, i) => (
+          <p
+            key={i}
+            data-numeric
+            className="whitespace-pre-wrap font-read text-[15px] leading-relaxed text-base-content/80"
+          >
+            {block}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }
@@ -406,6 +631,7 @@ export function ChapterPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const [, selectBook] = useCurrentBook();
+  const queryClient = useQueryClient();
 
   const { data, isPending, error } = useChapter(slug, chapterIndex);
   const { data: notes } = useChapterNotes(slug, chapterIndex);
@@ -422,7 +648,7 @@ export function ChapterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ chạy 1 lần lúc mount
   }, []);
 
-  const [view, setView] = useState<"read" | "compare">("read");
+  const [view, setView] = useState<"read" | "compare" | "raw">("read");
   const [readerPrefs, setReaderPrefs] = useReaderPreferences();
   const { fontSize } = readerPrefs;
   const [bookmark, setBookmark] = useBookmark(slug);
@@ -454,19 +680,11 @@ export function ChapterPage() {
       return next;
     });
   };
-  const [searchOpen, setSearchOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [rewriteOpen, setRewriteOpen] = useState(false);
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const [documentDraft, setDocumentDraft] = useState("");
   const [documentRevision, setDocumentRevision] = useState(0);
-  const [findOpen, setFindOpen] = useState(false);
-  const [findText, setFindText] = useState("");
-  const [replaceText, setReplaceText] = useState("");
-  const [matchCase, setMatchCase] = useState(false);
-  const [useRegex, setUseRegex] = useState(false);
-  const [wholeWord, setWholeWord] = useState(false);
-  const [replaceScope, setReplaceScope] = useState<"selection" | "chapter" | "book">("chapter");
   const contentRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const [loadedKey, setLoadedKey] = useState("");
@@ -497,6 +715,181 @@ export function ChapterPage() {
   }, [slug, selectBook]);
 
   useEffect(() => setSelection(null), [slug, chapterIndex]);
+
+  /* ── Tìm/thay tích hợp trong drawer Danh sách chương ─────────────────
+     State sở hữu ở đây (ChapterPage) nên không mất khi đổi chương: route giữ
+     component mount khi điều hướng giữa `/chapters/:index`. Query, replacement,
+     regex được persist theo slug trong localStorage. Search, preview, chọn lựa
+     áp dụng đều tự động hiển thị "chapter thật" của kết quả đang xem. */
+
+  const [findMode, setFindMode] = useState<FindMode>("list");
+  const [findState, setFindState] = useState<ChapterFindState>(() => loadFindState(slug));
+  const [findSubmitted, setFindSubmitted] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+
+  const updateFind = (patch: Partial<ChapterFindState>) => {
+    setFindState((prev) => {
+      const next = { ...prev, ...patch };
+      saveFindState(slug, next);
+      return next;
+    });
+  };
+
+  const { data: findHits, isFetching: findLoading, error: findError } = useBookSearch(
+    slug,
+    findQuery,
+    findState.regex,
+    findState.source,
+  );
+
+  // Khi chuyển sang truyện khác, đừng mang theo kết quả tìm của truyện cũ;
+  // nạp lại query/replacement đã lưu riêng cho truyện mới.
+  useEffect(() => {
+    setFindState(loadFindState(slug));
+    setFindQuery("");
+    setFindSubmitted(false);
+    setPreviewChapter(null);
+    setPreviewItems([]);
+    setPreviewSelected(new Set());
+  }, [slug]);
+
+  const runFind = () => {
+    const q = findState.query.trim();
+    if (!q) return;
+    setFindQuery(q);
+    setFindSubmitted(true);
+  };
+
+  const clearSearchResults = () => {
+    setFindQuery("");
+    setFindSubmitted(false);
+  };
+
+  // Đổi nguồn (Bản dịch ↔ Gốc) làm kết quả cũ vô nghĩa — ẩn ngay cho tới khi
+  // bấm Tìm lại trên nguồn mới.
+  const changeFindSource = (source: FindSource) => {
+    if (source === findState.source) return;
+    updateFind({ source });
+    setFindQuery("");
+    setFindSubmitted(false);
+    setPreviewChapter(null);
+    setPreviewItems([]);
+    setPreviewSelected(new Set());
+  };
+
+  // Kết quả chỉ hiển thị khi chuỗi đang gõ khớp đúng chuỗi đã submit — sửa
+  // query giữa chừng là ẩn ngay thay vì hiện kết quả cũ lệch chuỗi.
+  const findReady =
+    findSubmitted && !findLoading && !findError && findState.query.trim() === findQuery;
+  const searchCount = findReady ? (findHits?.length ?? 0) : 0;
+
+  /* Preview thay thế theo chương — bấm icon trên từng hit, không điều hướng.
+     Dùng đúng query đã submit (findQuery) để khớp danh sách hit đang hiện;
+     replacement luôn lấy giá trị mới nhất vì nó không đổi danh sách hit. */
+  const [previewChapter, setPreviewChapter] = useState<number | null>(null);
+  const [previewItems, setPreviewItems] = useState<FindReplacePreviewItem[]>([]);
+  const [previewSelected, setPreviewSelected] = useState<Set<string>>(new Set());
+  const [previewApplying, setPreviewApplying] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const loadChapterPreview = async (chapterIndex: number) => {
+    const q = findQuery.trim();
+    if (!q) return;
+    setPreviewChapter(chapterIndex);
+    setPreviewItems([]);
+    setPreviewSelected(new Set());
+    setPreviewError(null);
+    setPreviewLoading(true);
+    try {
+      const result = await previewBookReplace(
+        slug,
+        q,
+        findState.replacement,
+        findState.regex,
+        "chapter",
+        chapterIndex,
+        findState.source,
+      );
+      setPreviewItems(result.items);
+      setPreviewSelected(new Set(result.items.map(findPreviewKeyOf)));
+      if (result.truncated) toast("Preview giới hạn 300 đoạn; hãy thu hẹp chuỗi tìm.", "error");
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const applyPreview = async () => {
+    if (!previewChapter || previewItems.length === 0) return;
+    const selectedItems = previewItems.filter((item) => previewSelected.has(findPreviewKeyOf(item)));
+    if (selectedItems.length === 0) return;
+    setPreviewApplying(true);
+    try {
+      const result = await applyBookReplace(
+        slug,
+        findQuery.trim(),
+        findState.replacement,
+        findState.regex,
+        selectedItems,
+        findState.source,
+      );
+      toast(
+        `Đã thay ${result.replaced} chỗ trong ${result.chapters} chương${
+          result.stale ? `; bỏ qua ${result.stale} đoạn đã đổi` : ""
+        }.`,
+      );
+      const appliedKeys = new Set(selectedItems.map((item) => findPreviewKeyOf(item)));
+      setPreviewItems((items) =>
+        items.filter((item) => !appliedKeys.has(findPreviewKeyOf(item))),
+      );
+      setPreviewSelected((prev) => {
+        const next = new Set(prev);
+        for (const key of appliedKeys) next.delete(key);
+        return next;
+      });
+      // Nội dung đang xem có thể đã đổi — cập nhật chapter/chapter list ngay.
+      invalidateBookSearch(queryClient, slug);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setPreviewApplying(false);
+    }
+  };
+
+  const togglePreviewItem = (key: string, checked: boolean) => {
+    setPreviewSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  };
+
+  const previewSelectAll = () => {
+    setPreviewSelected(new Set(previewItems.map(findPreviewKeyOf)));
+  };
+
+  const previewSelectNone = () => {
+    setPreviewSelected(new Set());
+  };
+
+  const previewState: ChapterPreviewState = {
+    loading: previewLoading,
+    error: previewError,
+    chapterIndex: previewChapter,
+    items: previewItems,
+    selected: previewSelected,
+    applying: previewApplying,
+  };
+
+  const openFindMode = (query?: string) => {
+    setFindMode("search");
+    setChaptersCollapsed(false);
+    if (query) updateFind({ query });
+    setChaptersOpen(true);
+  };
 
   const notesByPara = useMemo(() => {
     const map = new Map<number, Note[]>();
@@ -566,54 +959,19 @@ export function ChapterPage() {
         saveDocument();
       } else if (modifier && ["f", "h"].includes(event.key.toLowerCase())) {
         event.preventDefault();
-        setFindOpen(true);
+        openFindMode();
       } else if (event.altKey && event.key === "1") setView("read");
       else if (event.altKey && event.key === "2") {
         setView("read");
         setEditMode(true);
       } else if (event.altKey && event.key === "3") setView("compare");
+      else if (event.altKey && event.key === "4") setView("raw");
       else if (event.altKey && event.key === "ArrowLeft") go(data?.prev_index ?? null);
       else if (event.altKey && event.key === "ArrowRight") go(data?.next_index ?? null);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [dirty, saveChapterText.isPending, documentDraft, documentRevision, data]);
-
-  const findPattern = () => {
-    if (!findText) return null;
-    try {
-      const source = useRegex ? findText : findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return new RegExp(wholeWord ? `\\b(?:${source})\\b` : source, matchCase ? "g" : "gi");
-    } catch {
-      return null;
-    }
-  };
-
-  const replaceAllInDocument = () => {
-    const pattern = findPattern();
-    if (!pattern) return toast("Biểu thức tìm kiếm không hợp lệ.", "error");
-    if (replaceScope === "book") {
-      setSearchOpen(true);
-      return toast("Đã mở tìm toàn sách. Chọn kết quả cần thay để xem trước trước khi ghi.");
-    }
-    const editor = editorRef.current;
-    if (replaceScope === "selection") {
-      if (!editor || editor.selectionStart === editor.selectionEnd) {
-        return toast("Hãy chọn một vùng trong editor trước.", "error");
-      }
-      const start = editor.selectionStart;
-      const end = editor.selectionEnd;
-      const selected = documentDraft.slice(start, end);
-      const replaced = selected.replace(pattern, replaceText);
-      setDocumentDraft(documentDraft.slice(0, start) + replaced + documentDraft.slice(end));
-      requestAnimationFrame(() => {
-        editor.focus();
-        editor.setSelectionRange(start, start + replaced.length);
-      });
-      return;
-    }
-    setDocumentDraft((text) => text.replace(pattern, replaceText));
-  };
+  }, [dirty, saveChapterText.isPending, documentDraft, documentRevision, data, openFindMode]);
 
   if (isPending) {
     return (
@@ -695,6 +1053,14 @@ export function ChapterPage() {
             >
               Đối chiếu
             </button>
+            <button
+              role="tab"
+              type="button"
+              className={clsx("tab", view === "raw" && "tab-active")}
+              onClick={() => setView("raw")}
+            >
+              Gốc
+            </button>
           </div>
 
           <div className="flex items-center gap-1">
@@ -702,8 +1068,9 @@ export function ChapterPage() {
               size="sm"
               variant="ghost"
               icon={<IconSearch size={15} />}
-              onClick={() => setSearchOpen(true)}
-              aria-label="Tìm trong truyện"
+              onClick={() => openFindMode()}
+              aria-label="Tìm/thay trong truyện"
+              title="Tìm/thay trong truyện (Ctrl+F / Ctrl+H)"
             />
             <div className="relative">
               <Button
@@ -770,14 +1137,6 @@ export function ChapterPage() {
             </Select>
             <Button
               size="sm"
-              variant={findOpen ? "primary" : "ghost"}
-              onClick={() => setFindOpen((value) => !value)}
-              title="Tìm/thay (Ctrl+F / Ctrl+H)"
-            >
-              Tìm/thay
-            </Button>
-            <Button
-              size="sm"
               variant={editMode ? "primary" : "ghost"}
               disabled={view !== "read"}
               onClick={() => setEditMode((v) => !v)}
@@ -787,25 +1146,6 @@ export function ChapterPage() {
           </div>
         </div>
       </div>
-
-      {findOpen ? (
-        <div className="sticky top-[3.25rem] z-20 border-b border-base-300 bg-base-100 px-3 py-2 shadow-sm">
-          <div className="mx-auto flex max-w-[1100px] flex-wrap items-center gap-2">
-            <input className="input input-sm min-w-48 flex-1" value={findText} onChange={(e) => setFindText(e.target.value)} placeholder="Tìm trong chương" autoFocus />
-            <input className="input input-sm min-w-48 flex-1" value={replaceText} onChange={(e) => setReplaceText(e.target.value)} placeholder="Thay bằng" />
-            <Select aria-label="Phạm vi tìm thay" value={replaceScope} onChange={(e) => setReplaceScope(e.target.value as "selection" | "chapter" | "book")} className="select-sm w-36">
-              <option value="selection">Vùng chọn</option>
-              <option value="chapter">Chương hiện tại</option>
-              <option value="book">Toàn sách</option>
-            </Select>
-            <label className="label cursor-pointer gap-1 text-xs"><input type="checkbox" className="checkbox checkbox-xs" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />Aa</label>
-            <label className="label cursor-pointer gap-1 text-xs"><input type="checkbox" className="checkbox checkbox-xs" checked={wholeWord} onChange={(e) => setWholeWord(e.target.checked)} />Từ</label>
-            <label className="label cursor-pointer gap-1 text-xs"><input type="checkbox" className="checkbox checkbox-xs" checked={useRegex} onChange={(e) => setUseRegex(e.target.checked)} />Regex</label>
-            <Button size="sm" onClick={replaceAllInDocument}>{replaceScope === "selection" ? "Thay trong vùng chọn" : replaceScope === "book" ? "Xem trước toàn sách" : "Thay tất cả trong chương"}</Button>
-            <Button size="sm" variant="ghost" onClick={() => setFindOpen(false)}>Đóng</Button>
-          </div>
-        </div>
-      ) : null}
 
       <div className="mx-auto max-w-[1100px] px-4 py-5">
         <BranchBar slug={slug} data={data} onRewrite={() => setRewriteOpen(true)} />
@@ -840,7 +1180,12 @@ export function ChapterPage() {
               hint={`${num(data.paragraphs.length)} đoạn · phần tô là chỗ bản hiện tại khác bản dịch máy`}
             />
             {data.has_raw ? (
-              <CompareView data={data} />
+              <EditableCompareView
+                slug={slug}
+                index={chapterIndex}
+                data={data}
+                onError={(err) => toast(err instanceof Error ? err.message : String(err), "error")}
+              />
             ) : (
               <p className="px-4 py-10 text-center text-sm opacity-50">
                 Chương chưa có bản gốc để đối chiếu.
@@ -849,8 +1194,29 @@ export function ChapterPage() {
           </Panel>
           <p className="mt-3 text-xs opacity-50">
             Khung này gộp các dòng trong cùng một khối nên số hàng ở đây không trùng số đoạn của
-            chế độ Đọc. Sửa từng đoạn thì chuyển sang tab Đọc.
+            chế độ Đọc. Sửa trực tiếp: bấm vào cột Bản gốc hoặc Bản hiện tại để sửa; nút xóa
+            trên hàng sẽ xóa đồng bộ khối gốc + dịch máy + bản hiện tại (có xác nhận).
           </p>
+        </div>
+      ) : view === "raw" ? (
+        <div className="mx-auto max-w-[1100px] px-4 pb-10">
+          <Panel className="overflow-hidden">
+            <PanelHeader
+              title="Bản gốc"
+              hint={
+                data.has_raw
+                  ? `${num(data.raw_char_count)} ký tự · chương chưa dịch vẫn xem được`
+                  : "Chương chưa crawl được nội dung gốc."
+              }
+            />
+            {data.has_raw ? (
+              <RawContentView text={data.raw} />
+            ) : (
+              <p className="px-4 py-10 text-center text-sm opacity-50">
+                Chương chưa có bản gốc. Chạy bước Crawl ở trang truyện trước.
+              </p>
+            )}
+          </Panel>
         </div>
       ) : (
         <div
@@ -950,9 +1316,7 @@ export function ChapterPage() {
           pending={createNote.isPending}
           onCancel={() => setSelection(null)}
           onFind={(text) => {
-            setFindText(text);
-            setFindOpen(true);
-            setReplaceScope("chapter");
+            openFindMode(text);
             setSelection(null);
           }}
           onSubmit={(note) => {
@@ -997,8 +1361,24 @@ export function ChapterPage() {
         onSelect={go}
         collapsed={chaptersCollapsed}
         onToggleCollapsed={toggleChaptersCollapsed}
+        mode={findMode}
+        onModeChange={setFindMode}
+        find={findState}
+        onFindChange={updateFind}
+        onChangeSource={changeFindSource}
+        findReady={findReady}
+        onFind={runFind}
+        searchState={{ loading: findLoading, error: findError ? (findError instanceof Error ? findError.message : String(findError)) : null }}
+        onPreviewChapter={loadChapterPreview}
+        previewState={previewState}
+        onApplySelected={applyPreview}
+        onTogglePreviewItem={togglePreviewItem}
+        onPreviewSelectAll={previewSelectAll}
+        onPreviewSelectNone={previewSelectNone}
+        searchHits={findHits ?? []}
+        searchCount={searchCount}
+        onClearSearch={clearSearchResults}
       />
-      <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} slug={slug} onJump={go} />
       <NotesPanel
         open={notesOpen}
         onClose={() => setNotesOpen(false)}

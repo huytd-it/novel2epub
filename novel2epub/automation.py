@@ -18,7 +18,16 @@ from croniter import croniter
 
 from .db import get_thread_connection
 
-STEPS = ("fetch-toc", "crawl-new", "translate-pending", "cleanup-han", "build", "publish-reader")
+STEPS = (
+    "fetch-toc",
+    "crawl-new",
+    "translate-local-mt",
+    "translate-pending",
+    "llm-edit",
+    "cleanup-han",
+    "build",
+    "publish-reader",
+)
 
 
 def validate_schedule(s: str) -> bool:

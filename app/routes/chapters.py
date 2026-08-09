@@ -296,9 +296,9 @@ def api_ebook_chapter_retranslate_title(
     custom_prompt: str = Form(None),
     generate_description: bool = Form(True),
 ):
-    """Dịch lại tiêu đề chương dùng nội dung đã dịch làm ngữ cảnh.
+    """Dịch lại tiêu đề chương. Ngữ cảnh lấy từ bản dịch nếu có, ngược lại
+    dùng nội dung gốc (raw) — không bắt buộc chương đã dịch.
 
-    Yêu cầu chương đã có bản dịch.
     Trả JSON {title_vi, title_note, title, title_description}.
     """
     cfg = deps.resolved_cfg(slug)

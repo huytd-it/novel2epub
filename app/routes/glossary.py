@@ -16,6 +16,8 @@ from novel2epub.notes import split_paras
 from novel2epub.pipeline import _chapter_range, step_find_replace
 from novel2epub.storage import Storage, normalize_glossary_pending
 
+from app.chapter_compare import split_blocks
+
 from .. import deps
 
 router = APIRouter()
@@ -712,17 +714,25 @@ def ebook_glossary_find_preview(
     regex: bool = False,
     scope: str = "chapter",
     chapter_index: int = 0,
+    source: str = "translated",
 ):
     """Xem trước các ĐOẠN (không phải từng chỗ khớp) chứa `find`, phục vụ
     modal thay thế cho phép chọn áp dụng theo từng đoạn tìm thấy hoặc tất cả.
-    `scope=chapter` chỉ quét 1 chương, `scope=all` quét mọi chương đã dịch.
-    Giới hạn 300 đoạn để tránh trả về quá nặng với truyện dài.
+    `scope=chapter` chỉ quét 1 chương, `scope=all` quét mọi chương.
+
+    `source=translated` (mặc định) quét bản dịch của nhánh active, chia đoạn
+    theo DÒNG (`split_paras`) — khớp `para/save`; `source=raw` quét bản gốc đã
+    crawl (kể cả chương chưa dịch), chia đoạn theo KHỐI (`split_blocks`) —
+    `para_index` khi đó là index KHỐI trong `app.chapter_compare`, không phải
+    dòng. Giới hạn 300 đoạn để tránh trả về quá nặng với truyện dài.
     """
     find = find.strip()
     if not find:
         raise HTTPException(status_code=400, detail="Chuỗi cần tìm đang rỗng.")
     if scope not in ("chapter", "all"):
         raise HTTPException(status_code=400, detail="scope phải là 'chapter' hoặc 'all'.")
+    if source not in ("translated", "raw"):
+        raise HTTPException(status_code=400, detail="source phải là 'translated' hoặc 'raw'.")
     pattern = _compile_find(find, regex)
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -739,12 +749,24 @@ def ebook_glossary_find_preview(
     else:
         chapters = manifest.chapters
 
+    def _read(ch):
+        if source == "raw":
+            return storage.read_raw(ch) if storage.has_raw(ch) else ""
+        return storage.read_active_branch_text(ch) if storage.has_active_branch_text(ch) else ""
+
+    def _split(text):
+        if source == "raw":
+            from app.chapter_compare import split_blocks as _sb
+            return _sb(text)
+        return split_paras(text)
+
     items: list[dict] = []
     truncated = False
     for ch in chapters:
-        if not storage.has_active_branch_text(ch):
+        text = _read(ch)
+        if not text:
             continue
-        paras = split_paras(storage.read_active_branch_text(ch))
+        paras = _split(text)
         for i, para in enumerate(paras):
             count = len(pattern.findall(para))
             if not count:
@@ -773,21 +795,29 @@ def ebook_glossary_find_preview(
 def ebook_glossary_apply_selected(
     slug: str,
     find: str = Form(...),
-    replace: str = Form(...),
+    replace: str = Form(""),
     regex: bool = Form(False),
     selections: str = Form(...),
+    source: str = Form("translated"),
 ):
     """Áp dụng thay thế CHỈ cho các đoạn client đã chọn (từ `/find-preview`).
 
-    `selections` là JSON list `[{"chapter_index": N, "para_index": N}, ...]`.
-    Mỗi đoạn được chọn: thay mọi chỗ khớp `find` NGAY trong đoạn đó (giống
-    hành vi propagate hiện có, chỉ khác là giới hạn phạm vi theo đoạn thay vì
-    cả chương/cả sách). Backup `before_find_replace` vào meta cho các chương
-    có thay đổi thật, giống `/glossary/propagate`.
+    `selections` là JSON list `[{"chapter_index": N, "para_index": N,
+    "expected": "..."}, ...]`. `expected` chứa nội dung đoạn lúc preview — dùng
+    làm stale protection: đoạn đã đổi sau khi preview thì bỏ qua (đếm vào
+    `stale`), không ghi đè mù.
+
+    `source=translated` (mặc định) sửa bản dịch của nhánh active — `para_index`
+    theo DÒNG (`split_paras`), backup `before_find_replace[_branch]`.
+    `source=raw` sửa bản gốc — `para_index` theo KHỐI (`split_blocks`), backup
+    `before_find_replace_raw`. Raw không revision nên `expected` (nội dung khối)
+    là khóa duy nhất chống ghi đè.
     """
     find, replace = find.strip(), replace.strip()
     if not find:
         raise HTTPException(status_code=400, detail="Cần chuỗi cần tìm.")
+    if source not in ("translated", "raw"):
+        raise HTTPException(status_code=400, detail="source phải là 'translated' hoặc 'raw'.")
     try:
         sel_list = json.loads(selections)
     except (TypeError, ValueError):
@@ -819,7 +849,53 @@ def ebook_glossary_apply_selected(
     chapters_touched = 0
     for ch in manifest.chapters:
         selected_paras = by_chapter.get(ch.index)
-        if not selected_paras or not storage.has_active_branch_text(ch):
+        if not selected_paras:
+            continue
+
+        if source == "raw":
+            if not storage.has_raw(ch):
+                continue
+            text = storage.read_raw(ch)
+            from novel2epub.blocks import delete_block as _delete_block
+            from novel2epub.blocks import edit_block as _edit_block
+            paras = split_blocks(text)
+            # Xử lý theo index giảm dần để xóa khối (replace rỗng) không làm
+            # dịch chuyển các khối phía trước còn phải xử lý.
+            selected = sorted(
+                (pi for pi in selected_paras if 0 <= pi < len(paras)),
+                reverse=True,
+            )
+            changed = False
+            new_text = text
+            for pi in selected:
+                expected = selected_paras[pi]
+                if expected is not None and paras[pi] != expected:
+                    stale += 1
+                    continue
+                count = len(pattern.findall(paras[pi]))
+                if not count:
+                    continue
+                replaced_block = pattern.sub(replace, paras[pi])
+                if replaced_block.strip():
+                    new_full, reason = _edit_block(new_text, pi, replaced_block)
+                else:
+                    # Thay bằng rỗng = xóa khối hẳn (kèm dòng trống ngăn cách).
+                    new_full, reason = _delete_block(new_text, pi, paras[pi])
+                if reason or new_full is None:
+                    stale += 1
+                    continue
+                new_text = new_full
+                total_replaced += count
+                changed = True
+            if changed:
+                meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+                meta["before_find_replace_raw"] = text
+                storage.write_meta(ch, meta)
+                storage.write_raw(ch, new_text)
+                chapters_touched += 1
+            continue
+
+        if not storage.has_active_branch_text(ch):
             continue
         branch = storage.active_branch(ch)
         translated = storage.read_branch_text(ch, branch)

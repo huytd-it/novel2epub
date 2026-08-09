@@ -383,6 +383,41 @@ def test_default_zh_and_en_prompts_allow_contextual_pronouns():
         assert "máy móc" in prompt or "mechanically" in prompt
 
 
+def test_epub_path_default_nam_trong_data_slug(tmp_path):
+    """Mặc định `epub_path` = `<data_dir>/data/<slug>/<tựa đề> - <tác giả>.epub`,
+    và đặt `output.epub_path` thủ công sẽ thắng mặc định."""
+    path = write_db_config(
+        tmp_path / "novel2epub.db",
+        defaults={"translate": {"type": "none"}, "output": {"data_dir": "data"}},
+        ebooks={
+            "a": {
+                "novel": {"slug": "a", "title": "Truyện A", "author": "Tác giả"},
+                "crawl": {"toc_url": "https://a"},
+            },
+        },
+    )
+    cfg = load_config(path, "a")
+    assert cfg.epub_path == str(tmp_path / "data" / "a" / "Truyện A - Tác giả.epub")
+
+    cfg.output.epub_path = str(tmp_path / "tu-dat.epub")
+    assert cfg.epub_path == str(tmp_path / "tu-dat.epub")
+
+
+def test_epub_path_default_thieu_tac_gia_va_ky_tu_khong_hop_le(tmp_path):
+    path = write_db_config(
+        tmp_path / "novel2epub.db",
+        defaults={"translate": {"type": "none"}, "output": {"data_dir": "data"}},
+        ebooks={
+            "a": {
+                "novel": {"slug": "a", "title": 'Truyện: A/B', "author": ""},
+                "crawl": {"toc_url": "https://a"},
+            },
+        },
+    )
+    cfg = load_config(path, "a")
+    assert cfg.epub_path == str(tmp_path / "data" / "a" / "Truyện AB.epub")
+
+
 def test_default_prompts_define_pronoun_priority_and_avoid_overuse():
     from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT
     assert "BẢNG NHÂN VẬT > ngôi kể thực tế của đoạn > quan hệ/ngữ cảnh > gợi ý thể loại" in DEFAULT_PROMPT

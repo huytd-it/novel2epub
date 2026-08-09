@@ -37,6 +37,26 @@ import {
 } from "@/components/icons";
 
 const PAGE_SIZE = 100;
+const FILTERS_KEY = (slug: string) => `ebooks.${slug}.chapterFilters`;
+
+/** Nạp bộ lọc + sắp xếp đã lưu cho truyện, hợp nhất với mặc định để khỏi vỡ schema. */
+function loadFilters(slug: string): ChapterFilters {
+  try {
+    const raw = window.localStorage.getItem(FILTERS_KEY(slug));
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const merged = { ...DEFAULT_FILTERS };
+      for (const key of Object.keys(merged) as (keyof ChapterFilters)[]) {
+        const value = parsed[key];
+        if (typeof value === "string") merged[key] = value;
+      }
+      return merged;
+    }
+  } catch {
+    // Mất localStorage là không đáng kể — dùng mặc định.
+  }
+  return DEFAULT_FILTERS;
+}
 
 /* ── Thanh chạy pipeline ─────────────────────────────────────────────── */
 
@@ -453,7 +473,7 @@ export function EbookPage() {
   const navigate = useNavigate();
   const client = useQueryClient();
   const [, selectBook] = useCurrentBook();
-  const [filters, setFilters] = useState<ChapterFilters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<ChapterFilters>(() => loadFilters(slug));
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [lastToggled, setLastToggled] = useState<number | null>(null);
@@ -471,6 +491,15 @@ export function EbookPage() {
     setOffset(0);
     setSelected(new Set());
   }, [filters]);
+
+  // Giữ bộ lọc + sắp xếp qua các lần vào lại trang truyện này.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(FILTERS_KEY(slug), JSON.stringify(filters));
+    } catch {
+      // Quota đầy hoặc ẩn danh — bỏ qua, chỉ mất lần lưu này.
+    }
+  }, [slug, filters]);
 
   const states = useMemo(() => decodeStrip(book?.strip ?? ""), [book?.strip]);
   const counts = useMemo(() => stripCounts(book?.counts ?? {}), [book?.counts]);

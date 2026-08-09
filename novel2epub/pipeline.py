@@ -1659,6 +1659,9 @@ def step_find_replace(
             raw = storage.read_raw(ch)
             new_raw, raw_count = _apply(raw)
             if raw_count:
+                meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+                meta["before_find_replace_raw"] = raw
+                storage.write_meta(ch, meta)
                 storage.write_raw(ch, new_raw)
                 total_replacements += raw_count
                 log(f"[find-replace] Chương {ch.index}: thay {raw_count} chỗ (bản gốc).")
@@ -2175,7 +2178,7 @@ def step_bulk_confirm(
 
 _RETRANSLATE_TITLE_PROMPT = """Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt.
 
-Tôi cần bạn dịch lại tiêu đề chương sau, dựa vào nội dung đã dịch của chương đó để có ngữ cảnh, giúp bản dịch tiêu đề HAY, CÓ HỒN, phù hợp với nội dung bên trong.
+Tôi cần bạn dịch lại tiêu đề chương sau, dựa vào nội dung của chương đó để có ngữ cảnh, giúp bản dịch tiêu đề HAY, CÓ HỒN, phù hợp với nội dung bên trong.
 
 Nguyên tắc bắt buộc:
 1. Không bê nguyên âm Hán Việt nếu người đọc Việt không hiểu nghĩa.
@@ -2191,7 +2194,7 @@ GIẢI THÍCH: <để trống nếu tên đã rõ nghĩa, tự nhiên; chỉ đi
 --- Tiêu đề gốc (chữ Hán) ---
 {title}
 
---- Tóm tắt nội dung đã dịch (để tham khảo ngữ cảnh) ---
+--- Tóm tắt nội dung chương (để tham khảo ngữ cảnh) ---
 {summary}"""
 
 _RETRANSLATE_TITLE_SIMPLE_PROMPT = """Dịch tiêu đề sau sang tiếng Việt. Chỉ trả về bản dịch, không giải thích:
@@ -2277,7 +2280,7 @@ def step_retranslate_title(
     custom_prompt: str | None = None,
     generate_description: bool = True,
 ) -> dict:
-    """Dịch lại tiêu đề chương dùng nội dung đã dịch làm ngữ cảnh.
+    """Dịch lại tiêu đề chương, dùng bản dịch (hoặc raw nếu chưa dịch) làm ngữ cảnh.
 
     Trả dict {title_vi, title_note, title, title_description}.
     engine: "openai" | "localmt" (default: cfg.translate.type)
@@ -2312,18 +2315,20 @@ def step_retranslate_title(
     if not ch.title and not ch.title_zh:
         raise RuntimeError(f"Chương {index} không có tiêu đề (title).")
 
-    if not storage.has_translated(ch):
-        raise RuntimeError(f"Chương {index} chưa có bản dịch. Hãy dịch chương trước.")
-
     # Luôn dịch từ tiêu đề gốc chữ Hán (title_zh) nếu chương đã từng dịch tiêu
     # đề trước đó — `title` lúc này đã là bản dịch tiếng Việt, gửi cho AI
     # "dịch lại" tiếng Việt là sai. Chưa dịch lần nào thì title_zh còn rỗng,
     # dùng chính title (vẫn là ZH gốc từ crawl).
     zh_title = ch.title_zh or ch.title
 
-    translated = storage.read_translated(ch)
-    summary = translated.strip()[:summary_max_chars]
-    if len(translated) > summary_max_chars:
+    # Ngữ cảnh: ưu tiên bản dịch đã có; chưa dịch thì dùng raw (chữ Hán gốc)
+    # làm ngữ cảnh để dịch tiêu đề được ngay sau crawl. Không bắt buộc phải
+    # dịch chương trước.
+    summary_source = storage.read_translated(ch)
+    if not summary_source.strip():
+        summary_source = storage.read_raw(ch)
+    summary = summary_source.strip()[:summary_max_chars]
+    if len(summary_source) > summary_max_chars:
         summary = summary.rsplit("\n", 1)[0] or summary
 
     glossary = load_glossary_dict(cfg.translate, storage)
@@ -2382,7 +2387,7 @@ def step_retranslate_title(
     # Generate description if requested
     if generate_description and selected_engine == "openai":
         description = _generate_title_description(
-            cfg, ch.title_zh or ch.title, title_vi, translated, glossary, log
+            cfg, ch.title_zh or ch.title, title_vi, summary_source, glossary, log
         )
         if description:
             ch.title_note = description

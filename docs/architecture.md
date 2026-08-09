@@ -198,7 +198,27 @@ quan trọng nhất: ghép `same`+`del` phải ra đúng chuỗi trước, `same
 **Chưa port từ trang Jinja2 cũ** (link "Công cụ khác" trỏ sang bản cũ):
 TTS (Edge TTS), dịch nhanh bằng NMT cục bộ (HachimiMT chọn-để-dịch), dọn Hán
 tự bằng Local MT, các thao tác AI theo đoạn (`parapolish`, `paraexplain`,
-`ai-edit`), tìm-và-thay-thế hàng loạt trong toàn sách, dịch lại tiêu đề.
+`ai-edit`), dịch lại tiêu đề.
+
+### Tìm/Thay — Nguồn Bản Dịch Hoặc Gốc
+
+Tìm/thay toàn sách nằm trong drawer Danh sách chương (tab "Tìm/thay"). Đầu panel
+có selector đúng MỘT nguồn đang hoạt động:
+
+- **Bản dịch** (mặc định): `/search` + `/find-preview` + `/apply-selected` quét
+  bản dịch của nhánh active, đoạn chia theo DÒNG (`split_paras`) — khớp
+  `para/save`.
+- **Gốc** (`source=raw`): quét `raw_text`, **gồm cả chương chưa dịch**; đoạn
+  chia theo KHỐI (`app.chapter_compare.split_blocks`). Apply có backup meta
+  `before_find_replace_raw` (riêng khỏi `before_find_replace` của bản dịch) và
+  yêu cầu `expected` là nội dung khối lúc preview — khối đã đổi thì bỏ qua, trả
+  `stale`. Raw không có revision nên `expected` là khóa duy nhất chống ghi đè.
+
+State tìm/thay (`query`/`replacement`/`regex`/`source`) được persist theo slug
+trong localStorage (`n2e-find-v1:<slug>`). Đổi nguồn xóa kết quả cũ ngay (không
+hiện kết quả của nguồn khác). Cả hai nguồn đều không phân biệt hoa/thường —
+`/search` API có `case` nhưng `/find-preview` không nhận, nên UI không cung cấp
+nút đó để khỏi hứa điều không có.
 
 ### Thể Loại Trong Prompt Biên Tập
 
@@ -246,17 +266,28 @@ Có HAI cách chia đoạn trong hệ thống, và chúng không tương đươn
 | Nơi dùng | Hàm | Đơn vị |
 | --- | --- | --- |
 | Reader, ghi chú, `para/save` | `notes.split_paras` | từng DÒNG không rỗng |
-| Khung so sánh 3 cột | `app/chapter_compare.align_paragraphs` | KHỐI (cách bởi dòng trống), các dòng trong khối gộp lại |
+| Khung so sánh 3 cột, tìm/thay bản gốc | `app/chapter_compare.split_blocks` (qua `align_paragraphs`) | KHỐI (cách bởi dòng trống), các dòng trong khối gộp lại |
 
 Một khối "lời dẫn + lời thoại" là **1 hàng** ở khung so sánh nhưng là **2 đoạn**
 với `para/save`. Lấy chỉ số hàng của khung so sánh gọi sang `para/save` sẽ ghi
 đè nhầm dòng và không có lỗi nào nổ ra.
 
-Vì vậy trang so sánh (`/app/ebooks/{slug}/chapters/{index}`) chỉ ĐỌC ở ba cột;
-muốn sửa thì hoặc ghi toàn văn qua
-`POST /api/ui/ebooks/{slug}/chapters/{index}/translated` (giữ nguyên từng ký tự
-xuống dòng), hoặc mở Reader để sửa theo đoạn bằng đúng cách đánh số của nó.
-`tests/test_chapter_compare.py` chốt lại sự khác biệt này.
+**Sửa KHỐI trong khung so sánh** đi qua endpoint riêng
+`POST /api/ui/ebooks/{slug}/chapters/{index}/compare/block`
+(`novel2epub/blocks.py` + `Storage.delete_aligned_block`/`edit_block_text`),
+không dùng `para/save` — các hàm này map block index → dải dòng gốc nên không
+bao giờ nhầm với line index của `split_paras`:
+
+- `edit_raw` sửa cột Bản gốc — stale-protection bằng `raw_expected` (nội dung
+  khối lúc preview, vì raw không có revision). Không đụng MT/bản dịch.
+- `edit_translated` sửa cột Bản hiện tại — CAS theo revision nhánh active; MT
+  snapshot giữ nguyên, nhánh không active giữ nguyên.
+- `delete` xóa ĐỒNG BỘ khối raw + khối MT + khối bản dịch của nhánh active
+  trong MỘT transaction. Có confirm trước ở UI. Chỉ đụng nhánh đang hoạt động
+  ("bản hiện tại" = active branch).
+
+Cột "Dịch máy" luôn chỉ đọc. `tests/test_raw_source_and_compare_blocks.py` chốt
+lại toàn bộ các đường sửa/xóa này (kể cả stale/conflict không ghi đè).
 
 ### Glossary, Nhân Vật, Từ Điển Chung — Không Cần API Mới
 

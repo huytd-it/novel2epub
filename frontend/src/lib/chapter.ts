@@ -187,8 +187,32 @@ export function useAiFixNotes(slug: string, index: number) {
 
 /* ── Tìm kiếm toàn văn ───────────────────────────────────────────────── */
 
-export async function previewBookReplace(slug: string, find: string, replace: string, regex: boolean) {
-  const params = new URLSearchParams({ find, replace, regex: String(regex), scope: "all" });
+/** Nguồn tìm/thay: bản dịch (mặc định) hoặc bản gốc raw. */
+export type FindSource = "translated" | "raw";
+
+/** Cả `/search` lẫn `/find-preview` đều không có chế độ phân biệt hoa/thường —
+    API phía sau (`reader.py`, `glossary.py`) không nhận option case. UI không
+    cung cấp nút đó để khỏi hứa điều không có. */
+
+export async function previewBookReplace(
+  slug: string,
+  find: string,
+  replace: string,
+  regex: boolean,
+  scope: "chapter" | "all" = "all",
+  chapterIndex?: number,
+  source: FindSource = "translated",
+) {
+  const params = new URLSearchParams({
+    find,
+    replace,
+    regex: String(regex),
+    scope,
+    source,
+  });
+  if (scope === "chapter" && chapterIndex !== undefined) {
+    params.set("chapter_index", String(chapterIndex));
+  }
   return api.get<{ items: FindReplacePreviewItem[]; truncated: boolean }>(
     `/api/ebooks/${slug}/glossary/find-preview?${params}`,
   );
@@ -200,6 +224,7 @@ export async function applyBookReplace(
   replace: string,
   regex: boolean,
   items: FindReplacePreviewItem[],
+  source: FindSource = "translated",
 ) {
   return api.post<{ replaced: number; chapters: number; stale: number }>(
     `/api/ebooks/${slug}/glossary/apply-selected`,
@@ -208,6 +233,7 @@ export async function applyBookReplace(
         find,
         replace,
         regex,
+        source,
         selections: JSON.stringify(items.map((item) => ({
           chapter_index: item.chapter_index,
           para_index: item.para_index,
@@ -218,16 +244,60 @@ export async function applyBookReplace(
   );
 }
 
-export function useBookSearch(slug: string, query: string, regex: boolean, caseSensitive: boolean) {
+export function useBookSearch(slug: string, query: string, regex: boolean, source: FindSource) {
   const q = query.trim();
   return useQuery({
-    queryKey: ["book-search", slug, q, regex, caseSensitive],
+    queryKey: ["book-search", slug, q, regex, source],
     queryFn: () =>
       api.get<SearchHit[]>(
-        `/api/ebooks/${slug}/search?q=${encodeURIComponent(q)}&regex=${regex}&case=${caseSensitive}`,
+        `/api/ebooks/${slug}/search?q=${encodeURIComponent(q)}&regex=${regex}&case=false&source=${source}`,
       ),
     enabled: Boolean(slug) && q.length > 0,
   });
+}
+
+/** Sau khi áp dụng thay thế — cập nhật mọi thứ đang hiển thị nội dung chương.
+    `["chapter", slug]` là tiền tố của `chapterKey(slug, index)` nên làm mới mọi
+    chương của truyện, kể cả chương đang xem. */
+export function invalidateBookSearch(client: ReturnType<typeof useQueryClient>, slug: string) {
+  client.invalidateQueries({ queryKey: ["book-search", slug] });
+  client.invalidateQueries({ queryKey: ["find-preview", slug] });
+  client.invalidateQueries({ queryKey: ["chapter", slug] });
+  client.invalidateQueries({ queryKey: ["chapters", slug] });
+}
+
+/** Previews nằm trong drawer; owner state nên được lưu vào localStorage theo slug. */
+export interface ChapterFindState {
+  query: string;
+  replacement: string;
+  regex: boolean;
+  source: FindSource;
+}
+
+const FIND_KEY_PREFIX = "n2e-find-v1";
+
+export function loadFindState(slug: string): ChapterFindState {
+  try {
+    const raw = localStorage.getItem(`${FIND_KEY_PREFIX}:${slug}`);
+    if (!raw) return { query: "", replacement: "", regex: false, source: "translated" };
+    const parsed = JSON.parse(raw) as Partial<ChapterFindState>;
+    return {
+      query: typeof parsed.query === "string" ? parsed.query : "",
+      replacement: typeof parsed.replacement === "string" ? parsed.replacement : "",
+      regex: Boolean(parsed.regex),
+      source: parsed.source === "raw" ? "raw" : "translated",
+    };
+  } catch {
+    return { query: "", replacement: "", regex: false, source: "translated" };
+  }
+}
+
+export function saveFindState(slug: string, state: ChapterFindState) {
+  try {
+    localStorage.setItem(`${FIND_KEY_PREFIX}:${slug}`, JSON.stringify(state));
+  } catch {
+    /* bỏ qua khi không truy cập được localStorage */
+  }
 }
 
 /* ── Bookmark (client-side, không đụng backend) ─────────────────────── */
@@ -361,6 +431,29 @@ export function useSetActiveBranch(slug: string, index: number) {
       api.post<{ index: number; active: Branch }>(
         `/api/ui/ebooks/${slug}/chapters/${index}/branches`,
         { body: { branch } },
+      ),
+    onSuccess: () => invalidateChapter(client, slug, index),
+  });
+}
+
+/** Sửa/xóa KHỐI trong khung đối chiếu 3 cột. Xóa đồng bộ raw+MT+bản dịch
+    active phía server trong một transaction; trả về revision mới. */
+export interface CompareBlockEdit {
+  op: "edit_raw" | "edit_translated" | "delete";
+  block: number;
+  raw_expected?: string;
+  block_expected?: string;
+  new_text?: string;
+  revision: number;
+}
+
+export function useCompareBlockEdit(slug: string, index: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: CompareBlockEdit) =>
+      api.post<{ saved?: boolean; deleted?: boolean; revision: number; reason: string }>(
+        `/api/ui/ebooks/${slug}/chapters/${index}/compare/block`,
+        { body: vars },
       ),
     onSuccess: () => invalidateChapter(client, slug, index),
   });

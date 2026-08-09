@@ -160,6 +160,14 @@ def test_cleanup_han_is_a_valid_step_mapped_in_step_fn():
     assert "cleanup-han" in scheduler_mod._STEP_FN
 
 
+def test_translation_and_edit_steps_are_mapped():
+    from app import scheduler as scheduler_mod
+
+    assert "translate-local-mt" in scheduler_mod._STEP_FN
+    assert "translate-pending" in scheduler_mod._STEP_FN
+    assert "llm-edit" in scheduler_mod._STEP_FN
+
+
 def test_run_automation_steps_invokes_cleanup_han_step(tmp_path, monkeypatch):
     from app import scheduler as scheduler_mod
 

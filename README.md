@@ -44,11 +44,40 @@ pip install ctranslate2 sentencepiece huggingface_hub
 
 ## Khởi động
 
+### Web UI (Jinja2)
+
 ```sh
 uvicorn app.main:app --reload --port 8010
 ```
 
 Mở `http://127.0.0.1:8010`, tạo ebook ở trang Thư viện, chọn source preset hoặc điền URL mục lục, sau đó chạy lần lượt TOC, crawl, translate và build.
+
+### SPA React (`frontend/`)
+
+Giao diện mới là SPA React, phục vụ tại `/app` khi bundle đã build; bản dev chạy qua Vite.
+
+Yêu cầu Node.js và npm.
+
+```sh
+cd frontend
+npm install            # lần đầu
+npm run dev            # http://localhost:5183
+```
+
+Backend phải chạy ở cổng `8011` để Vite proxy `/api/*` sang đúng địa chỉ:
+
+```sh
+uvicorn app.main:app --reload --port 8011
+```
+
+Build production (xuất ra `app/webui/`, FastAPI phục vụ tại `/app`):
+
+```sh
+npm run build          # bản web
+npm run build:tauri    # bundle cho Tauri desktop
+```
+
+Desktop Tauri: `npm run tauri:dev`. Khi mở bản web, SPA dùng chung origin với backend nên không cần cấu hình; chỉ nhập base/token ở trang Kết nối khi SPA chạy ngoài origin backend (Tauri hoặc deploy tách host).
 
 Luồng CLI tương đương:
 
@@ -80,6 +109,8 @@ $env:NOVEL2EPUB_DB = "D:\data\novel2epub.db"
 uvicorn app.main:app --port 8010
 ```
 
+Đổi sang cổng khác (ví dụ `8011`) cho SPA dev cũng chạy tương tự: `uvicorn app.main:app --port 8011`.
+
 `NOVEL2EPUB_FILE` và `NOVEL2EPUB_CONFIG` chỉ còn là fallback tương thích, nhưng giá trị vẫn phải trỏ đến file `.db`.
 
 ## Backup
@@ -98,6 +129,7 @@ Không copy trực tiếp DB đang chạy nếu muốn bảo đảm snapshot nh�
 - [Hướng dẫn vận hành](docs/operations.md)
 - [Dịch và biên tập](docs/translation.md)
 - [Phát triển và kiểm thử](docs/development.md)
+- [Giao diện SPA](docs/architecture.md#giao-diện-spa-frontend)
 
 ## Giới Hạn
 

@@ -14,12 +14,14 @@ from croniter import croniter
 
 from novel2epub.automation import Automation, load_automations, update_automation
 from novel2epub.config import load_config
+from novel2epub import revisions
 from novel2epub.pipeline import (
     step_build,
     step_cleanup_han_selected,
     step_crawl_selected,
     step_fetch_toc,
     step_publish_reader,
+    step_rewrite_chapters,
     step_translate_selected,
 )
 from novel2epub.storage import Storage
@@ -30,7 +32,11 @@ from .queue import JobQueue
 _STEP_FN = {
     "fetch-toc": lambda cfg, log: step_fetch_toc(cfg, log),
     "crawl-new": lambda cfg, log: step_crawl_selected(cfg, log),
+    "translate-local-mt": lambda cfg, log: step_translate_selected(
+        cfg, log, branch=revisions.BRANCH_LOCAL_MT
+    ),
     "translate-pending": lambda cfg, log: step_translate_selected(cfg, log),
+    "llm-edit": lambda cfg, log: step_rewrite_chapters(cfg, log),
     "cleanup-han": lambda cfg, log: step_cleanup_han_selected(cfg, log),
     "build": lambda cfg, log: step_build(cfg, log),
     "publish-reader": lambda cfg, log: step_publish_reader(cfg, log),
@@ -102,6 +108,7 @@ def run_automation_steps(workspace_path, automation: Automation, log) -> dict:
         if fn is None:
             log(f"[automation] step không hợp lệ: {step!r}, bỏ qua.")
             continue
+        log(f"[automation:step:start] {step}")
         try:
             if step == "crawl-new" and hasattr(cfg, "crawl"):
                 cfg.crawl.max_workers = automation.crawl_workers
@@ -109,7 +116,9 @@ def run_automation_steps(workspace_path, automation: Automation, log) -> dict:
                 cfg.translate.max_workers = automation.translate_workers
             fn(cfg, log)
             succeeded += 1
+            log(f"[automation:step:done] {step}")
         except Exception as e:  # noqa: BLE001 - log lỗi, dừng chuỗi step
+            log(f"[automation:step:failed] {step}")
             log(f"[automation] ! Lỗi ở step {step!r}: {e}")
             error = f"{step}: {e}"
             break
@@ -191,8 +200,13 @@ class AutomationScheduler:
                     "last_run_stats": result["stats"],
                 },
             )
+            return result
 
         job = self.queue.enqueue(
-            "both", "automation", _target, label=f"automation:{automation.ebook}", ebook=automation.ebook
+            "both",
+            "automation",
+            _target,
+            label=f"automation:{automation.id}:{automation.ebook}",
+            ebook=automation.ebook,
         )
         return job.id

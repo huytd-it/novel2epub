@@ -366,35 +366,8 @@ export function useSetActiveBranch(slug: string, index: number) {
   });
 }
 
-/** Dịch lại chương này vào một nhánh (`force` để ghi đè bản đã có). */
-export function useTranslateChapter(slug: string, index: number) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (vars: { branch: Branch; force?: boolean }) =>
-      api.post<{ started: boolean; branch: Branch }>(`/api/ui/ebooks/${slug}/translate`, {
-        body: { branch: vars.branch, indexes: [index], force: vars.force ?? true },
-      }),
-    onSuccess: () => {
-      invalidateChapter(client, slug, index);
-      client.invalidateQueries({ queryKey: ["queue"] });
-    },
-  });
-}
-
-/** Biên tập AI chương này — sinh bản nháp, KHÔNG tự ghi đè bản dịch. */
-export function useRewriteChapter(slug: string, index: number) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (genre: string) =>
-      api.post<{ started: boolean; genre: string }>(`/api/ui/ebooks/${slug}/rewrite`, {
-        body: { indexes: [index], genre },
-      }),
-    onSuccess: () => {
-      invalidateChapter(client, slug, index);
-      client.invalidateQueries({ queryKey: ["queue"] });
-    },
-  });
-}
+/** Dịch lại / biên tập AI một chương đi qua hợp đồng bulk-preview + confirm:
+    UI mở `BulkPreviewDialog` (xem `components/chapter/BulkPreviewDialog.tsx`). */
 
 /* ── Bản nháp AI (candidate) ─────────────────────────────────────────── */
 

@@ -51,6 +51,8 @@ export interface SourceSettings {
 
 export interface TranslateSettings {
   type: string;
+  preset: string;
+  profile: string;
   base_url: string;
   api_key: string;
   model: string;
@@ -67,6 +69,7 @@ export interface TranslateSettings {
   delay_seconds: number;
   max_workers: number;
   source_language: string;
+  target_language: string;
   local_model: string;
   retry_attempts: number;
   retry_delay_seconds: number;
@@ -78,6 +81,9 @@ export interface TranslateSettings {
   hachimimt_chunk_mode: string;
   batch_size: number;
   prompt_max_chars: number;
+  auto_glossary: boolean;
+  use_idioms: boolean;
+  ai_glossary_analysis: boolean;
   auto_cleanup_han: boolean;
   cleanup_han_engine: string;
   cleanup_han_max_chars: number;

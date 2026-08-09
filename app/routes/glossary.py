@@ -742,9 +742,9 @@ def ebook_glossary_find_preview(
     items: list[dict] = []
     truncated = False
     for ch in chapters:
-        if not storage.has_translated(ch):
+        if not storage.has_active_branch_text(ch):
             continue
-        paras = split_paras(storage.read_translated(ch))
+        paras = split_paras(storage.read_active_branch_text(ch))
         for i, para in enumerate(paras):
             count = len(pattern.findall(para))
             if not count:
@@ -819,9 +819,10 @@ def ebook_glossary_apply_selected(
     chapters_touched = 0
     for ch in manifest.chapters:
         selected_paras = by_chapter.get(ch.index)
-        if not selected_paras or not storage.has_translated(ch):
+        if not selected_paras or not storage.has_active_branch_text(ch):
             continue
-        translated = storage.read_translated(ch)
+        branch = storage.active_branch(ch)
+        translated = storage.read_branch_text(ch, branch)
         lines = translated.split("\n")
         para_line_indexes = [i for i, line in enumerate(lines) if line.strip()]
         changed = False
@@ -840,9 +841,10 @@ def ebook_glossary_apply_selected(
                 changed = True
         if changed:
             meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-            meta["before_find_replace"] = translated
+            backup_key = "before_find_replace" if branch == "ai" else f"before_find_replace_{branch}"
+            meta[backup_key] = translated
             storage.write_meta(ch, meta)
-            storage.write_translated(ch, "\n".join(lines))
+            storage.write_branch_text(ch, branch, "\n".join(lines))
             chapters_touched += 1
 
     return JSONResponse({"replaced": total_replaced, "chapters": chapters_touched, "stale": stale})

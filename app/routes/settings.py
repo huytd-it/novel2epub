@@ -13,6 +13,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import openai_client
+from novel2epub.config import LOCAL_MT_MODEL_PRESETS
 from novel2epub.genre import GENRE_PRESETS
 from novel2epub.config_writer import (
     clean_prompt_text,
@@ -559,6 +560,8 @@ def get_default_prompts(source_language: str = ""):
 def save_translate(
     slug: str,
     type: str = Form("openai"),
+    preset: str = Form(""),
+    profile: str = Form("traditional_cn_novel"),
     base_url: str = Form("http://localhost:20128/v1"),
     api_key: str = Form(""),
     model: str = Form("free-stack"),
@@ -575,6 +578,7 @@ def save_translate(
     delay_seconds: float = Form(0.5),
     max_workers: int = Form(1),
     source_language: str = Form(""),
+    target_language: str = Form("vi"),
     # Local NMT model selector
     local_model: str = Form(""),
     retry_attempts: int = Form(1),
@@ -588,10 +592,13 @@ def save_translate(
     hachimimt_chunk_mode: str = Form("sentence"),
     # Glossary / batch / cleanup Hán
     batch_size: int = Form(1),
-    prompt_max_chars: int = Form(0),
+    prompt_max_chars: int = Form(20000),
+    auto_glossary: bool = Form(True),
+    use_idioms: bool = Form(True),
+    ai_glossary_analysis: bool = Form(False),
     auto_cleanup_han: bool = Form(False),
     cleanup_han_engine: str = Form("local_mt"),
-    cleanup_han_max_chars: int = Form(15000),
+    cleanup_han_max_chars: int = Form(18000),
     cleanup_han_retries: int = Form(1),
 ):
     openai_cfg: dict = {
@@ -606,16 +613,20 @@ def save_translate(
     if title_prompt_template.strip():
         openai_cfg["title_prompt_template"] = clean_prompt_text(title_prompt_template)
 
+    preset_model_key = (LOCAL_MT_MODEL_PRESETS.get(local_model) or {}).get("model_key")
     hachimimt_cfg: dict = {
-        "model_key": hachimimt_model_key,
-        "backend": hachimimt_backend,
+        "model_key": preset_model_key or hachimimt_model_key,
+        "backend": "ctranslate2",
         "beam_size": hachimimt_beam_size,
         "chunk_mode": hachimimt_chunk_mode,
     }
 
     translate: dict = {
         "type": type,
+        "preset": preset,
+        "profile": profile,
         "source_language": source_language,
+        "target_language": target_language,
         "model": local_model,
         "genre": genre,
         "openai": openai_cfg,
@@ -636,6 +647,9 @@ def save_translate(
         "max_workers": max(1, max_workers),
         "batch_size": max(1, batch_size),
         "prompt_max_chars": max(0, prompt_max_chars),
+        "auto_glossary": auto_glossary,
+        "use_idioms": use_idioms,
+        "ai_glossary_analysis": ai_glossary_analysis,
         "auto_cleanup_han": auto_cleanup_han,
         "cleanup_han": {
             "engine": "openai" if cleanup_han_engine == "openai" else "local_mt",

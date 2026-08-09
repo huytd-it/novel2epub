@@ -57,6 +57,9 @@ class _FakeTranslator:
             on_chunk(1, 1, self.output, True)
         return self.output
 
+    def translate_title(self, text, kind="tên chương"):
+        return f"MT:{text}", ""
+
 
 def _run(tmp_path, monkeypatch, translator, *, force=False, translate_type="openai"):
     cfg = _cfg(tmp_path, translate_type)
@@ -154,3 +157,21 @@ def test_streamed_title_chunk_rewritten_to_body_only(tmp_path, monkeypatch):
     assert ch.title == "Chương 12: Gió Nổi"
     assert storage.read_translated(ch) == "Đoạn 1.\nĐoạn 2.\nĐoạn 3."
     assert storage.read_translated_mt(ch) == "Đoạn 1.\nĐoạn 2.\nĐoạn 3."
+
+
+def test_local_mt_translates_title_separately_from_body(tmp_path, monkeypatch):
+    storage, _ch = _seed(tmp_path)
+    tr = _FakeTranslator("Nội dung dịch Local MT.")
+
+    cfg = _cfg(tmp_path, "localmt")
+    monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
+    pipeline.step_translate_selected(
+        cfg, lambda m: None, selected_indexes=[1], branch="local_mt"
+    )
+
+    ch = _reload_chapter(storage)
+    assert tr.seen == ["正文第一段。\n\n正文第二段。"]
+    assert storage.read_branch_title(ch, "local_mt") == "Chương 12: MT:Chương 12 起风"
+    assert storage.read_branch_title_zh(ch, "local_mt") == "第12章 起风"
+    assert storage.read_branch_text(ch, "local_mt") == "Nội dung dịch Local MT."
+    assert storage.read_branch_mt_snapshot(ch, "local_mt") == "Nội dung dịch Local MT."

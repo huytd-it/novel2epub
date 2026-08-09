@@ -499,13 +499,19 @@ def api_ebook_chapter_revert_edits(slug: str, index: int):
     ghi đè translated bằng chính nó là vô nghĩa và gây hiểu lầm đã khôi phục).
     """
     storage, _manifest, ch = _load_chapter_json_or_404(slug, index)
-    if not storage.has_translated_mt(ch):
+    branch = storage.active_branch(ch)
+    snapshot = storage.read_branch_mt_snapshot(ch, branch)
+    if not snapshot:
         raise HTTPException(
             status_code=400,
             detail="Chương không có snapshot bản dịch máy để khôi phục.",
         )
-    storage.write_translated(ch, storage.read_translated_mt(ch))
-    return JSONResponse({"reverted": True})
+    storage.write_branch_text(ch, branch, snapshot)
+    return JSONResponse({
+        "reverted": True,
+        "branch": branch,
+        "revision": storage.read_branch_revision(ch, branch),
+    })
 
 
 @router.post("/api/ebooks/{slug}/chapters/{index}/para/save")
@@ -522,13 +528,14 @@ def api_ebook_chapter_para_save(
     bản dịch đã đổi). KHÔNG đụng snapshot `translated_mt/`.
     """
     storage, _manifest, ch = _load_chapter_json_or_404(slug, index)
-    if not storage.has_translated(ch):
+    branch = storage.active_branch(ch)
+    if not storage.has_branch_text(ch, branch):
         raise HTTPException(status_code=409, detail="Chương không còn bản dịch.")
-    translated = storage.read_translated(ch)
+    translated = storage.read_branch_text(ch, branch)
     new_translated, err = replace_para(translated, para_index, para_text, new_text)
     if new_translated is None:
         raise HTTPException(status_code=409, detail=err)
-    storage.write_translated(ch, new_translated)
+    storage.write_branch_text(ch, branch, new_translated)
     if not new_text.strip():
         return JSONResponse({"saved": True, "deleted": True})
     # Đoạn đã chuẩn hoá (gộp dòng) để client render lại đúng.
@@ -548,13 +555,14 @@ def api_ebook_chapter_para_insert(
     Trả đoạn mới + index của nó để client chèn đúng chỗ trong DOM.
     """
     storage, _manifest, ch = _load_chapter_json_or_404(slug, index)
-    if not storage.has_translated(ch):
+    branch = storage.active_branch(ch)
+    if not storage.has_branch_text(ch, branch):
         raise HTTPException(status_code=409, detail="Chương không còn bản dịch.")
-    translated = storage.read_translated(ch)
+    translated = storage.read_branch_text(ch, branch)
     new_translated, err = insert_para(translated, after_index, text)
     if new_translated is None:
         raise HTTPException(status_code=409, detail=err)
-    storage.write_translated(ch, new_translated)
+    storage.write_branch_text(ch, branch, new_translated)
     new_index = after_index + 1
     paras = split_paras(new_translated)
     return JSONResponse({"saved": True, "para": paras[new_index], "para_index": new_index})

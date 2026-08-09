@@ -5,6 +5,7 @@ import time
 import pytest
 
 from app.queue import JobQueue
+from novel2epub.db import get_connection, init_schema
 
 
 def _wait_until(predicate, timeout=5.0):
@@ -22,6 +23,31 @@ def test_has_active_ebook_detects_pending_and_ignores_other_ebook():
 
     assert queue.has_active_ebook("book-a") is True
     assert queue.has_active_ebook("book-b") is False
+
+
+def test_job_snapshot_and_log_use_stable_chapter_codes(tmp_path):
+    db_path = tmp_path / "codes.db"
+    conn = get_connection(db_path)
+    init_schema(conn)
+    with conn:
+        conn.execute("INSERT INTO sources (name, code) VALUES ('Source', 'SDR')")
+        conn.execute(
+            "INSERT INTO ebooks (slug, code, source_preset) VALUES ('book-a', 'SDR-QBCC', 'Source')"
+        )
+        conn.execute(
+            "INSERT INTO chapters (ebook_slug, idx, code) VALUES ('book-a', 1, 'SDR-QBCC-0001')"
+        )
+    conn.close()
+
+    queue = JobQueue(workers={"crawl": 0}, db_path=db_path)
+    job = queue.enqueue(
+        "crawl", "crawl", lambda log: None, ebook="book-a", chapter_indexes=[1]
+    )
+
+    payload = job.to_dict()
+    assert payload["ebook"] == "book-a"
+    assert payload["ebook_code"] == "SDR-QBCC"
+    assert payload["chapter_codes"] == ["SDR-QBCC-0001"]
 
 
 def test_has_active_ebook_detects_running_job():

@@ -41,6 +41,7 @@ from ..library_state import archived_slugs
 from ..scheduler import next_run_at
 from ..storage_report import ebook_storage_report, purge_raw, purge_translated_mt, remove_epub
 from . import settings as settings_routes
+from . import library as library_routes
 from .sources import _load_validation, _preset_usage
 
 router = APIRouter(prefix="/api/ui")
@@ -175,6 +176,113 @@ def library_list(show_archived: bool = False):
             _ebook_summary(slug, name, cfg, archived=is_archived, in_library=entry is not None)
         )
     return {"ebooks": items, "archived_count": len(archived)}
+
+
+def _required_toc_url(payload: dict) -> str:
+    toc_url = str(payload.get("toc_url") or "").strip()
+    if not toc_url:
+        raise HTTPException(status_code=400, detail="Thiếu URL mục lục.")
+    return toc_url
+
+
+@router.post("/library/ebooks/preview")
+def library_ebook_preview(payload: dict = Body(...)):
+    toc_url = _required_toc_url(payload)
+    mode = str(payload.get("scrapling_mode") or "").strip()
+    source = str(payload.get("source") or "").strip()
+    try:
+        data = library_routes._fetch_meta(toc_url, mode, source)
+        crawl_cfg, actual_source = library_routes._build_meta_crawl_cfg(toc_url, mode, source)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    data["source"] = actual_source
+    data["crawl_preview"] = library_routes._crawl_preview(crawl_cfg)
+    return data
+
+
+@router.post("/library/ebooks")
+def library_ebook_create(request: Request, payload: dict = Body(...)):
+    toc_url = _required_toc_url(payload)
+    source = str(payload.get("source") or "").strip()
+    mode = str(payload.get("scrapling_mode") or "").strip()
+    name = str(payload.get("name") or "").strip()
+    author = str(payload.get("author") or "").strip()
+    slug = str(payload.get("slug") or "").strip()
+    description = str(payload.get("description") or "")
+    cover_url = str(payload.get("cover_url") or "")
+
+    if not name:
+        try:
+            fetched = library_routes._fetch_meta(toc_url, mode, source)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        name = str(fetched.get("name") or "")
+        author = author or str(fetched.get("author") or "")
+        slug = slug or str(fetched.get("slug") or "")
+        description = description or str(fetched.get("description") or "")
+        cover_url = cover_url or str(fetched.get("cover_url") or "")
+
+    created = library_routes._write_new_ebook(
+        toc_url, slug, name, author, scrapling_mode=mode, source_name=source,
+    )
+    library_routes._save_ebook_metadata(created["slug"], description, cover_url)
+    if bool(payload.get("fetch_toc")):
+        toc_job = library_routes._enqueue_fetch_toc(request, created["slug"])
+    else:
+        request.app.state.job.queue.restore_ebook(created["slug"])
+        toc_job = None
+    return {"status": "created", **created, "toc_job": toc_job}
+
+
+@router.post("/library/ebooks/bulk")
+def library_ebooks_bulk(request: Request, payload: dict = Body(...)):
+    raw_urls = payload.get("toc_urls", [])
+    if isinstance(raw_urls, str):
+        urls = [url.strip() for url in raw_urls.splitlines() if url.strip()]
+    elif isinstance(raw_urls, list):
+        urls = [str(url).strip() for url in raw_urls if str(url).strip()]
+    else:
+        raise HTTPException(status_code=400, detail="toc_urls phải là danh sách hoặc chuỗi nhiều dòng.")
+    if not urls:
+        raise HTTPException(status_code=400, detail="Thiếu URL mục lục.")
+    if len(urls) > library_routes.MAX_BULK_URLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tối đa {library_routes.MAX_BULK_URLS} URL mỗi lần nhập.",
+        )
+
+    fetch_toc = bool(payload.get("fetch_toc"))
+    results = []
+    for url in urls:
+        try:
+            fetched = library_routes._fetch_meta(url)
+            created = library_routes._write_new_ebook(
+                url,
+                str(fetched.get("slug") or ""),
+                str(fetched.get("name") or ""),
+                str(fetched.get("author") or ""),
+            )
+            library_routes._save_ebook_metadata(
+                created["slug"],
+                str(fetched.get("description") or ""),
+                str(fetched.get("cover_url") or ""),
+            )
+            if fetch_toc:
+                toc_job = library_routes._enqueue_fetch_toc(request, created["slug"])
+            else:
+                request.app.state.job.queue.restore_ebook(created["slug"])
+                toc_job = None
+            results.append({"url": url, "status": "created", **created, "toc_job": toc_job})
+        except HTTPException as exc:
+            status = "skipped-duplicate" if exc.status_code == 409 else "failed"
+            results.append({"url": url, "status": status, "reason": str(exc.detail)})
+        except Exception as exc:
+            results.append({"url": url, "status": "failed", "reason": str(exc)})
+    return {"results": results}
 
 
 @router.get("/ebooks/{slug}")
@@ -527,6 +635,8 @@ def ebook_settings(slug: str):
         },
         "translate": {
             "type": tr.type,
+            "preset": tr.preset,
+            "profile": tr.profile,
             "base_url": oa.base_url,
             "api_key": oa.api_key,
             "model": oa.model,
@@ -543,6 +653,7 @@ def ebook_settings(slug: str):
             "delay_seconds": tr.delay_seconds,
             "max_workers": tr.max_workers,
             "source_language": tr.source_language,
+            "target_language": tr.target_language,
             "local_model": tr.model,
             "retry_attempts": tr.retry.attempts,
             "retry_delay_seconds": tr.retry.delay_seconds,
@@ -554,6 +665,9 @@ def ebook_settings(slug: str):
             "hachimimt_chunk_mode": tr.hachimimt.chunk_mode,
             "batch_size": tr.batch_size,
             "prompt_max_chars": tr.prompt_max_chars,
+            "auto_glossary": tr.auto_glossary,
+            "use_idioms": tr.use_idioms,
+            "ai_glossary_analysis": tr.ai_glossary_analysis,
             "auto_cleanup_han": tr.auto_cleanup_han,
             "cleanup_han_engine": tr.cleanup_han.engine,
             "cleanup_han_max_chars": tr.cleanup_han.max_chars,

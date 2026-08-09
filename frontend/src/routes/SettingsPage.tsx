@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import clsx from "clsx";
 
 import { Page } from "@/app/Shell";
-import { api, legacyUrl } from "@/lib/api";
+import { api, apiUrl, legacyUrl } from "@/lib/api";
 import {
   useEbookSettings,
   useSaveSettings,
@@ -15,12 +15,13 @@ import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
 import { Button, Spinner } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { Combobox } from "@/components/ui/Combobox";
 import { useToast } from "@/components/ui/Toast";
 import { IconExternal, IconSettings } from "@/components/icons";
 
 /* ── Mô tả field dùng chung cho mọi tab ──────────────────────────────── */
 
-type Kind = "text" | "password" | "textarea" | "number" | "checkbox" | "select";
+type Kind = "text" | "password" | "textarea" | "number" | "checkbox" | "select" | "model" | "base_url";
 
 interface FieldSpec<T> {
   key: keyof T & string;
@@ -36,10 +37,12 @@ interface FieldSpec<T> {
 function FieldControl({
   spec,
   value,
+  values,
   onChange,
 }: {
   spec: FieldSpec<any>;
   value: unknown;
+  values: Record<string, unknown>;
   onChange: (next: unknown) => void;
 }) {
   switch (spec.kind) {
@@ -96,6 +99,26 @@ function FieldControl({
           />
         </Field>
       );
+    case "model":
+      return (
+        <ModelField
+          label={spec.label}
+          hint={spec.hint}
+          value={String(value ?? "")}
+          baseUrl={String(values.base_url ?? "")}
+          onChange={onChange}
+        />
+      );
+    case "base_url":
+      return (
+        <BaseUrlField
+          label={spec.label}
+          hint={spec.hint}
+          value={String(value ?? "")}
+          apiKey={String(values.api_key ?? "")}
+          onChange={onChange}
+        />
+      );
     default:
       return (
         <Field label={spec.label} hint={spec.hint}>
@@ -110,7 +133,159 @@ function FieldControl({
   }
 }
 
-/** Một tab cài đặt: draft cục bộ + theo dõi thay đổi + lưu qua đúng endpoint cũ. */
+const MODELS_CACHE_KEY = "n2e-models-cache";
+const MODELS_UPDATED_EVENT = "n2e:models-updated";
+
+function readModelsCache(): Record<string, string[]> {
+  try {
+    return JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeModelsCache(cache: Record<string, string[]>) {
+  try {
+    localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    /* localStorage không có sẵn (private mode) — bỏ qua */
+  }
+}
+
+/** Tải model từ {base_url}/models, merge vào cache theo base_url rồi báo cho mọi
+ * Combobox model đang mở nạp lại. Trả {count, total, error?}. */
+async function fetchAndMergeModels(
+  baseUrl: string,
+  apiKey: string,
+): Promise<{ count: number; total: number; error?: string }> {
+  const url = baseUrl.trim();
+  if (!url) return { count: 0, total: 0, error: "Nhập base_url trước." };
+  try {
+    const resp = await fetch(
+      apiUrl(`/settings/ai/models?base_url=${encodeURIComponent(url)}&api_key=${encodeURIComponent(apiKey.trim())}`),
+    );
+    const data = (await resp.json()) as { models?: string[]; error?: string };
+    if (data.error) return { count: 0, total: 0, error: `Lỗi: ${data.error}` };
+    const fresh = data.models ?? [];
+    const cache = readModelsCache();
+    const existing = Array.isArray(cache[url]) ? cache[url] : [];
+    const merged = Array.from(new Set(existing.concat(fresh)));
+    cache[url] = merged;
+    writeModelsCache(cache);
+    window.dispatchEvent(new CustomEvent(MODELS_UPDATED_EVENT, { detail: url }));
+    return { count: fresh.length, total: merged.length };
+  } catch (e) {
+    return { count: 0, total: 0, error: `Lỗi: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+/** Nạp models đã cache cho một base_url (rỗng nếu chưa có). */
+function cachedModelsFor(baseUrl: string): string[] {
+  const url = baseUrl.trim();
+  if (!url) return [];
+  const cached = readModelsCache()[url];
+  return Array.isArray(cached) ? cached : [];
+}
+
+/** Ô base_url gắn liền nút "Tải models": click sẽ tải model về cache theo url. */
+function BaseUrlField({
+  label,
+  hint,
+  value,
+  apiKey,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  apiKey: string;
+  onChange: (next: unknown) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    setStatus("Đang tải...");
+    const r = await fetchAndMergeModels(value, apiKey);
+    setStatus(r.error ?? `Đã tải ${r.count} model (cache ${r.total}).`);
+    setLoading(false);
+  };
+
+  return (
+    <Field label={label} hint={hint}>
+      <div className="join w-full">
+        <Input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          spellCheck={false}
+          className="join-item flex-1 min-w-0"
+        />
+        <Button
+          size="sm"
+          loading={loading}
+          onClick={load}
+          className="join-item shrink-0"
+          title="Lấy danh sách model từ {base_url}/models và tự lưu cache theo url"
+        >
+          Tải models
+        </Button>
+      </div>
+      {status ? <span className="block text-xs italic opacity-60">{status}</span> : null}
+    </Field>
+  );
+}
+
+/** Ô model: combobox đọc từ cache theo base_url, tự nạp lại khi có models mới. */
+function ModelField({
+  label,
+  hint,
+  value,
+  baseUrl,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  baseUrl: string;
+  onChange: (next: unknown) => void;
+}) {
+  const [models, setModels] = useState<string[]>([]);
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    const url = baseUrl.trim();
+    const cached = cachedModelsFor(url);
+    setModels(cached);
+    setStatus(cached.length ? `Đã nạp ${cached.length} model từ cache.` : "");
+  }, [baseUrl]);
+
+  useEffect(() => {
+    const onUpdated = (e: Event) => {
+      const url = (e as CustomEvent<string>).detail;
+      if (url === baseUrl.trim()) {
+        const cached = cachedModelsFor(url);
+        setModels(cached);
+        setStatus(cached.length ? `Đã nạp ${cached.length} model từ cache.` : "");
+      }
+    };
+    window.addEventListener(MODELS_UPDATED_EVENT, onUpdated);
+    return () => window.removeEventListener(MODELS_UPDATED_EVENT, onUpdated);
+  }, [baseUrl]);
+
+  return (
+    <Field label={label} hint={hint}>
+      <Combobox
+        value={value}
+        onChange={(v) => onChange(v)}
+        options={models}
+        placeholder="Chọn model..."
+      />
+      {status ? <span className="block text-xs italic opacity-60">{status}</span> : null}
+    </Field>
+  );
+}
 function SectionForm<S extends SettingsSection>({
   slug,
   section,
@@ -176,6 +351,7 @@ function SectionForm<S extends SettingsSection>({
             <FieldControl
               spec={spec}
               value={draft[spec.key]}
+              values={draft as unknown as Record<string, unknown>}
               onChange={(v) => set(spec.key, v)}
             />
           </div>
@@ -238,8 +414,8 @@ const SOURCE_FIELDS: FieldSpec<EbookSettings["source"]>[] = [
 ];
 
 const AI_FIELDS: FieldSpec<EbookSettings["ai"]>[] = [
-  { key: "base_url", label: "Base URL", kind: "text" },
-  { key: "model", label: "Model", kind: "text" },
+  { key: "base_url", label: "Base URL", kind: "base_url" },
+  { key: "model", label: "Model", kind: "model" },
   { key: "api_key", label: "API key", kind: "password" },
   { key: "timeout_seconds", label: "Timeout (giây)", kind: "number" },
   { key: "temperature", label: "Temperature", kind: "number", step: 0.1 },
@@ -263,7 +439,21 @@ const OUTPUT_FIELDS: FieldSpec<EbookSettings["output"]>[] = [
   { key: "translate_max_workers", label: "Số luồng dịch (toàn hàng đợi)", kind: "number" },
 ];
 
-/* ── Tab Dịch: nhiều field nhất + banner thử kết nối ────────────────── */
+/* ── Dịch API / Local MT / AI biên tập ─────────────────────────────── */
+
+const LOCAL_MT_MODELS = [
+  { value: "hachimimt-60", label: "HachimiMT-60" },
+  { value: "hachimimt-30", label: "HachimiMT-30" },
+  { value: "moxhimt-60", label: "MoxhiMT-60" },
+  { value: "moxhimt-30", label: "MoxhiMT-30" },
+  { value: "hirashiba-medium", label: "HirashibaMT-Medium" },
+  { value: "hirashiba-tiny", label: "HirashibaMT-Tiny" },
+];
+
+const LOCAL_MT_KEYS = LOCAL_MT_MODELS.map((item) => ({
+  value: item.label,
+  label: item.label,
+}));
 
 function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSettings["translate"]; meta: EbookSettings["meta"] }) {
   const test = useMutation({
@@ -280,8 +470,19 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
       label: "Backend dịch",
       kind: "select",
       options: [
-        { value: "openai", label: "OpenAI (API tương thích OpenAI)" },
-        { value: "localmt", label: "Local MT (cục bộ, offline)" },
+        { value: "openai", label: "Dịch API OpenAI-compatible" },
+        { value: "localmt", label: "Local MT làm backend mặc định" },
+        { value: "none", label: "Không dịch" },
+      ],
+    },
+    {
+      key: "preset",
+      label: "Preset prompt",
+      kind: "select",
+      options: [
+        { value: "", label: "Không dùng preset" },
+        { value: "go", label: "Go" },
+        { value: "omniroute", label: "OmniRoute" },
       ],
     },
     {
@@ -294,16 +495,16 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
         { value: "vi", label: "Việt (không cần dịch)" },
       ],
     },
+    { key: "target_language", label: "Ngôn ngữ đích", kind: "text", hint: "Mặc định: vi" },
     {
       key: "genre",
       label: "Thể loại",
       kind: "select",
       options: meta.genres.length ? meta.genres : [{ value: "auto", label: "auto" }],
     },
-    { key: "base_url", label: "Base URL (openai)", kind: "text" },
-    { key: "model", label: "Model (openai)", kind: "text" },
-    { key: "api_key", label: "API key (openai)", kind: "password" },
-    { key: "local_model", label: "Model (local, config.translate.model)", kind: "text" },
+    { key: "base_url", label: "Base URL dịch API", kind: "base_url", wide: true },
+    { key: "model", label: "Model dịch API", kind: "model" },
+    { key: "api_key", label: "API key dịch API", kind: "password" },
     { key: "tone", label: "Tông giọng", kind: "text" },
     {
       key: "pronoun_policy",
@@ -339,67 +540,26 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
     { key: "temperature", label: "Temperature", kind: "number", step: 0.1 },
     { key: "delay_seconds", label: "Delay giữa các chương (giây)", kind: "number", step: 0.1 },
     { key: "max_workers", label: "Số luồng dịch song song", kind: "number" },
-    { key: "batch_size", label: "Số chương / lần gọi AI", kind: "number" },
-    { key: "prompt_max_chars", label: "Giới hạn ký tự prompt", kind: "number", hint: "0 = không giới hạn" },
+    { key: "batch_size", label: "Số chương / lần gọi API", kind: "number" },
+    { key: "prompt_max_chars", label: "Giới hạn ký tự prompt", kind: "number", hint: "Mặc định hiệu lực: 20000" },
     { key: "retry_attempts", label: "Số lần thử lại", kind: "number" },
     { key: "retry_delay_seconds", label: "Delay thử lại (giây)", kind: "number", step: 0.1 },
     { key: "chunk_max_chars", label: "Cắt chunk tại (ký tự)", kind: "number", hint: "0 = không cắt" },
     { key: "chunk_overlap_paragraphs", label: "Số đoạn chồng lấn giữa chunk", kind: "number" },
-    { key: "auto_cleanup_han", label: "Tự dọn Hán tự sót lại", kind: "checkbox" },
-    {
-      key: "cleanup_han_engine",
-      label: "Engine dọn Hán tự",
-      kind: "select",
-      hint: "Local MT: miễn phí, offline. OpenAI: chất lượng cao, tốn token (cần cấu hình AI biên tập).",
-      options: [
-        { value: "local_mt", label: "Local MT (mặc định, miễn phí)" },
-        { value: "openai", label: "OpenAI (AI biên tập)" },
-      ],
-    },
-    { key: "cleanup_han_max_chars", label: "Giới hạn ký tự khi dọn Hán tự (OpenAI)", kind: "number" },
-    { key: "cleanup_han_retries", label: "Số lần thử lại khi dọn Hán tự (OpenAI)", kind: "number" },
-    {
-      key: "hachimimt_model_key",
-      label: "Local MT — model",
-      kind: "select",
-      options: [
-        { value: "HachimiMT-60", label: "HachimiMT-60" },
-        { value: "HachimiMT-30", label: "HachimiMT-30" },
-        { value: "MoxhiMT-60", label: "MoxhiMT-60" },
-        { value: "MoxhiMT-30", label: "MoxhiMT-30" },
-        { value: "HirashibaMT-Medium", label: "HirashibaMT-Medium" },
-        { value: "HirashibaMT-Tiny", label: "HirashibaMT-Tiny" },
-      ],
-    },
-    {
-      key: "hachimimt_backend",
-      label: "Local MT — backend",
-      kind: "select",
-      options: [
-        { value: "ctranslate2", label: "ctranslate2" },
-        { value: "transformers", label: "transformers" },
-      ],
-    },
-    { key: "hachimimt_beam_size", label: "Local MT — beam size", kind: "number" },
-    {
-      key: "hachimimt_chunk_mode",
-      label: "Local MT — chia chunk theo",
-      kind: "select",
-      options: [
-        { value: "sentence", label: "Câu" },
-        { value: "paragraph", label: "Đoạn" },
-      ],
-    },
-    { key: "prompt_template", label: "Prompt dịch (mẫu)", kind: "textarea", wide: true },
-    { key: "title_prompt_template", label: "Prompt dịch tiêu đề (mẫu)", kind: "textarea", wide: true },
+    { key: "auto_glossary", label: "Tự cập nhật glossary sau khi dịch API", kind: "checkbox" },
+    { key: "use_idioms", label: "Dùng từ điển thành ngữ chung", kind: "checkbox" },
+    { key: "ai_glossary_analysis", label: "Cho AI phân tích glossary từng chương", kind: "checkbox", hint: "Chậm hơn; chỉ bật khi cần học domain mới" },
+    { key: "profile", label: "Profile dịch", kind: "text", hint: "Mặc định: traditional_cn_novel" },
+    { key: "prompt_template", label: "Prompt dịch chương", kind: "textarea", wide: true },
+    { key: "title_prompt_template", label: "Prompt dịch tiêu đề", kind: "textarea", wide: true },
   ];
 
   return (
     <SectionForm
       slug={slug}
       section="translate"
-      title="Dịch"
-      hint="Backend dịch, phong cách văn phong và prompt"
+      title="Dịch API"
+      hint="Backend dịch OpenAI-compatible, văn phong, glossary và giới hạn prompt"
       fields={fields}
       server={server}
       extraActions={
@@ -413,27 +573,124 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
       }
       banner={
         test.data ? (
-          <div
-            className={clsx(
-              "flex flex-wrap items-center gap-2 border-b border-base-300 px-4 py-2 text-[13px]",
-              test.data.ok ? "bg-success/10" : "bg-error/10",
-            )}
-          >
-            {test.data.ok ? (
-              <>
-                <Badge tone="celadon">Kết nối OK</Badge>
-                <span data-numeric className="opacity-70">
-                  {test.data.model_count} model · {test.data.latency_ms}ms
-                </span>
-              </>
-            ) : (
-              <>
-                <Badge tone="vermilion">Lỗi kết nối</Badge>
-                <span className="opacity-70">{test.data.error}</span>
-              </>
-            )}
+          <div className={clsx(
+            "flex flex-wrap items-center gap-2 border-b border-base-300 px-4 py-2 text-[13px]",
+            test.data.ok ? "bg-success/10" : "bg-error/10",
+          )}>
+            <Badge tone={test.data.ok ? "celadon" : "vermilion"}>
+              {test.data.ok ? "Kết nối OK" : "Lỗi kết nối"}
+            </Badge>
+            <span className="opacity-70">
+              {test.data.ok ? `${test.data.model_count} model · ${test.data.latency_ms}ms` : test.data.error}
+            </span>
           </div>
         ) : null
+      }
+    />
+  );
+}
+
+function LocalMtTab({ slug, server }: { slug: string; server: EbookSettings["translate"] }) {
+  const fields: FieldSpec<EbookSettings["translate"]>[] = [
+    {
+      key: "local_model",
+      label: "Preset model",
+      kind: "select",
+      hint: "Chọn preset sẽ quyết định model thực tế bên dưới",
+      options: [{ value: "", label: "Dùng model key thủ công" }, ...LOCAL_MT_MODELS],
+    },
+    {
+      key: "hachimimt_model_key",
+      label: "Model key",
+      kind: "select",
+      options: LOCAL_MT_KEYS,
+    },
+    {
+      key: "hachimimt_backend",
+      label: "Runtime",
+      kind: "select",
+      hint: "Runtime hiện hỗ trợ CTranslate2",
+      options: [{ value: "ctranslate2", label: "CTranslate2" }],
+    },
+    { key: "hachimimt_beam_size", label: "Beam size", kind: "number" },
+    {
+      key: "hachimimt_chunk_mode",
+      label: "Chia nội dung theo",
+      kind: "select",
+      options: [
+        { value: "sentence", label: "Câu" },
+        { value: "paragraph", label: "Đoạn" },
+      ],
+    },
+    { key: "source_language", label: "Ngôn ngữ nguồn", kind: "text", hint: "Để trống cho Trung văn" },
+    { key: "target_language", label: "Ngôn ngữ đích", kind: "text", hint: "Mặc định: vi" },
+    { key: "delay_seconds", label: "Delay giữa các chương (giây)", kind: "number", step: 0.1 },
+    { key: "max_workers", label: "Số chương chạy song song", kind: "number" },
+    { key: "retry_attempts", label: "Số lần thử lại", kind: "number" },
+    { key: "retry_delay_seconds", label: "Delay thử lại (giây)", kind: "number", step: 0.1 },
+    { key: "auto_cleanup_han", label: "Tự dọn Hán tự sót lại", kind: "checkbox" },
+    {
+      key: "cleanup_han_engine",
+      label: "Engine dọn Hán tự",
+      kind: "select",
+      options: [
+        { value: "local_mt", label: "Local MT offline" },
+        { value: "openai", label: "AI biên tập" },
+      ],
+    },
+    { key: "cleanup_han_max_chars", label: "Giới hạn ký tự dọn Hán", kind: "number", hint: "Mặc định: 18000" },
+    { key: "cleanup_han_retries", label: "Số lần thử lại dọn Hán", kind: "number" },
+  ];
+
+  return (
+    <SectionForm
+      slug={slug}
+      section="translate"
+      title="Local MT"
+      hint="Dịch hoàn toàn offline; không gọi Base URL hoặc API key của AI"
+      fields={fields}
+      server={server}
+      banner={
+        <div className="flex flex-wrap items-center gap-2 border-b border-base-300 bg-success/10 px-4 py-2 text-[13px]">
+          <Badge tone="celadon">Offline</Badge>
+          <span className="opacity-70">Action “Local MT” luôn ép engine Local MT, bất kể backend mặc định ở tab Dịch API.</span>
+        </div>
+      }
+    />
+  );
+}
+
+function AiEditingTab({ slug, server }: { slug: string; server: EbookSettings["ai"] }) {
+  const test = useMutation({
+    mutationFn: () => api.post<{ ok: boolean; latency_ms?: number; model_count?: number; error?: string }>(
+      `/ebooks/${slug}/settings/translate/test`,
+      { form: { base_url: server.base_url, api_key: server.api_key, timeout_seconds: 15 } },
+    ),
+  });
+
+  return (
+    <SectionForm
+      slug={slug}
+      section="ai"
+      title="AI biên tập"
+      hint="Backend riêng cho rewrite, sửa ghi chú, glossary, nhân vật và đánh giá bản dịch"
+      fields={AI_FIELDS}
+      server={server}
+      extraActions={<Button size="sm" loading={test.isPending} onClick={() => test.mutate()}>Thử kết nối</Button>}
+      banner={
+        <div className={clsx(
+          "flex flex-wrap items-center gap-2 border-b border-base-300 px-4 py-2 text-[13px]",
+          test.data ? (test.data.ok ? "bg-success/10" : "bg-error/10") : "bg-base-200/50",
+        )}>
+          <Badge tone={test.data ? (test.data.ok ? "celadon" : "vermilion") : "neutral"}>
+            {test.data ? (test.data.ok ? "Kết nối OK" : "Lỗi kết nối") : "Backend riêng"}
+          </Badge>
+          <span className="opacity-70">
+            {test.data
+              ? (test.data.ok ? `${test.data.model_count} model · ${test.data.latency_ms}ms` : test.data.error)
+              : "Nếu chưa có override AI, backend sẽ kế thừa cấu hình OpenAI ở tab Dịch API."}
+          </span>
+        </div>
       }
     />
   );
@@ -444,7 +701,8 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
 const TABS = [
   { key: "novel", label: "Truyện" },
   { key: "source", label: "Nguồn" },
-  { key: "translate", label: "Dịch" },
+  { key: "translate", label: "Dịch API" },
+  { key: "localmt", label: "Local MT" },
   { key: "ai", label: "AI biên tập" },
   { key: "reader", label: "Reader" },
   { key: "output", label: "Đầu ra" },
@@ -548,16 +806,8 @@ export function SettingsPage() {
         />
       ) : null}
       {tab === "translate" ? <TranslateTab slug={slug} server={data.translate} meta={data.meta} /> : null}
-      {tab === "ai" ? (
-        <SectionForm
-          slug={slug}
-          section="ai"
-          title="AI biên tập"
-          hint="Backend AI dùng cho viết lại, trích nhân vật, gợi ý glossary"
-          fields={AI_FIELDS}
-          server={data.ai}
-        />
-      ) : null}
+      {tab === "localmt" ? <LocalMtTab slug={slug} server={data.translate} /> : null}
+      {tab === "ai" ? <AiEditingTab slug={slug} server={data.ai} /> : null}
       {tab === "reader" ? (
         <SectionForm
           slug={slug}

@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 
 export interface EbookSummary {
@@ -34,6 +34,90 @@ export function useLibrary(showArchived = false) {
     queryKey: libraryKey(showArchived),
     queryFn: () =>
       api.get<LibraryResponse>(`/api/ui/library?show_archived=${showArchived ? 1 : 0}`),
+  });
+}
+
+export interface CrawlPreview {
+  chapter_link_pattern: string;
+  content_selector: string;
+  delay_seconds: number;
+  scrapling_mode: string;
+  solve_cloudflare: boolean;
+  network_idle: boolean;
+  proxy: string;
+  strip_patterns: string[];
+  [key: string]: unknown;
+}
+
+export interface EbookPreview {
+  name: string;
+  author: string;
+  description: string;
+  slug: string;
+  cover_url: string;
+  chapter_count: number;
+  source: string;
+  scrapling_mode: string;
+  crawl_preview: CrawlPreview;
+}
+
+export interface CreateEbookInput {
+  toc_url: string;
+  slug?: string;
+  name?: string;
+  author?: string;
+  description?: string;
+  cover_url?: string;
+  source?: string;
+  scrapling_mode?: string;
+  fetch_toc?: boolean;
+}
+
+export interface EbookCreateResult {
+  status: "created";
+  slug: string;
+  name: string;
+  source: string;
+  toc_job: { job_id: string; category: string } | null;
+}
+
+export interface BulkEbookResult {
+  url: string;
+  status: "created" | "skipped-duplicate" | "failed";
+  slug?: string;
+  name?: string;
+  source?: string;
+  reason?: string;
+  toc_job?: { job_id: string; category: string } | null;
+}
+
+function useInvalidateLibrary() {
+  const client = useQueryClient();
+  return () => client.invalidateQueries({ queryKey: ["library"] });
+}
+
+export function usePreviewEbook() {
+  return useMutation({
+    mutationFn: (input: Pick<CreateEbookInput, "toc_url" | "source" | "scrapling_mode">) =>
+      api.post<EbookPreview>("/api/ui/library/ebooks/preview", { body: input }),
+  });
+}
+
+export function useCreateEbook() {
+  const invalidate = useInvalidateLibrary();
+  return useMutation({
+    mutationFn: (input: CreateEbookInput) =>
+      api.post<EbookCreateResult>("/api/ui/library/ebooks", { body: input }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useCreateEbooksBulk() {
+  const invalidate = useInvalidateLibrary();
+  return useMutation({
+    mutationFn: (input: { toc_urls: string[]; fetch_toc: boolean }) =>
+      api.post<{ results: BulkEbookResult[] }>("/api/ui/library/ebooks/bulk", { body: input }),
+    onSuccess: invalidate,
   });
 }
 

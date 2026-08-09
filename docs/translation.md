@@ -26,6 +26,8 @@ Với nguồn tiếng Việt, đặt `source_language=vi`; hệ thống tự pas
 
 Điểm mạnh của Local MT là nhanh và miễn phí; điểm yếu là ~10% dịch sai/không hợp ngữ cảnh đô thị hiện đại và không tự trích glossary. Quy trình an toàn:
 
+Trong SPA, hai hành động dịch là tường minh và không phụ thuộc `translate.type`: **Local MT** luôn dùng engine Local MT và ghi nhánh `local_mt`; **Dịch AI** luôn dùng OpenAI-compatible và ghi nhánh `ai`. Vì vậy Local MT không gọi `ai.openai` hoặc endpoint `/chat/completions`. `translate.type` chỉ còn là backend mặc định cho CLI/automation cũ.
+
 1. Dịch bằng `localmt` (ghi vào nhánh `local_mt`).
 2. Dùng **AI biên tập** (hành động `ai-edit-draft`, engine rewrite chỉ đọc nhánh `local_mt`) để nắn văn phong/xưng hô và **trích glossary** từ chính bản dịch.
 3. Duyệt bản nháp AI trước khi áp.
@@ -39,6 +41,8 @@ Dịch thẳng bằng `openai` cho chất lượng tốt với đa số ngữ c�
 ### Model Local MT
 
 Local MT dùng model NMT/seq2seq lượng tử hóa qua CTranslate2, chọn qua `translate.model` (preset) hoặc `translate.hachimimt.model_key`:
+
+Các cấu hình được tách trong SPA: **Cài đặt > Local MT** chứa model offline, beam/chunk và clear Hán; **Cài đặt > Dịch API** chứa OpenAI-compatible dùng để dịch; **Cài đặt > AI biên tập** là backend riêng cho rewrite, sửa ghi chú, glossary và nhân vật.
 
 - **HachimiMT/MoxhiMT CT2**: tích hợp sẵn, phù hợp truyện Trung → Việt và glossary hậu xử lý.
 - **HirashibaMT (Medium/Tiny)**: nhẹ hơn, benchmark trước khi dùng hàng loạt.

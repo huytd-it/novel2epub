@@ -33,6 +33,10 @@ Các nhóm dữ liệu chính:
 - `glossary_entries`, `idioms`, `characters`, `character_relations`: ngữ cảnh dịch.
 - Bảng queue, automation và trạng thái thư viện: vận hành Web UI.
 
+Source, ebook và chapter có mã vận hành bền vững để đối chiếu log/job. Mã được
+sinh một lần theo acronym ASCII viết hoa, ví dụ source `SDR`, ebook
+`SDR-QBCC`, chapter `SDR-QBCC-0001`; `slug` và `idx` vẫn là khóa kỹ thuật.
+
 EPUB và file backup là output bên ngoài DB.
 
 ## Cấu Hình Hiệu Lực
@@ -63,7 +67,12 @@ Pipeline bổ sung rate limiter theo domain, adaptive concurrency, retry/backoff
 
 `google` và `libretranslate` đã gỡ; config cũ được migrate → `openai` khi load và bởi DB migration v12 (`hachimimt`/`moxhimt` → `localmt`). Legacy `hachimimt`/`moxhimt` vẫn được `make_translator` nhận như alias phòng thủ.
 
-Nếu `source_language=vi`, pipeline dùng passthrough bất kể backend đã chọn. OpenAI translator kết hợp glossary, idiom, genre, nhân vật và quan hệ theo mốc chương vào prompt. Sau dịch, clear Hán mặc định dùng Local MT (`cleanup_han.engine=local_mt`), có thể đổi sang `openai`.
+Nếu `source_language=vi`, pipeline dùng passthrough bất kể backend đã chọn. OpenAI dịch tiêu đề cùng nội dung trong một request; Local MT dịch riêng tiêu đề bằng title path rồi mới dịch phần thân. OpenAI translator kết hợp glossary, idiom, genre, nhân vật và quan hệ theo mốc chương vào prompt. Sau dịch, clear Hán mặc định dùng Local MT (`cleanup_han.engine=local_mt`), có thể đổi sang `openai`.
+
+Thông tin sách dùng dịch vụ riêng `metadata_translation.py`, không phụ thuộc ebook
+đã được tạo. Tại trang Thêm ebook, Local MT dịch nhanh `title`/`description` bằng
+model cục bộ; lựa chọn AI dùng `ai.openai` chung để trau chuốt. Cả hai chỉ trả kết
+quả về form để người dùng duyệt, không tự ghi metadata vào DB.
 
 ## Web UI Và Job Queue
 
@@ -95,6 +104,13 @@ song song: route Jinja2 cũ giữ nguyên đường dẫn, SPA phục vụ tại
 - Dải chương (`GET /api/ui/library`) gửi trạng thái từng chương dạng run-length
   (`e120,m40,n1500`): trạng thái gần như luôn liên tục theo lô crawl/dịch nên
   payload nhỏ hơn hai bậc so với gửi cả mảng, mà vẫn chính xác từng chương.
+- `/app/library/new` là luồng thêm truyện native của SPA. `POST
+  /api/ui/library/ebooks/preview` cho phép tự nhận diện hoặc ép source preset để
+  xem metadata và config crawl; `POST /api/ui/library/ebooks` tạo một truyện;
+  endpoint `/bulk` tạo độc lập tối đa 20 URL và luôn tự nhận diện nguồn từng
+  URL. Hai luồng chỉ enqueue `fetch-toc` khi người dùng bật tùy chọn, mặc định
+  tắt; bulk SPA không tạo automation. Các form Jinja2 cũ vẫn giữ nguyên hành vi
+  automation của chúng và dùng cùng giới hạn 20 URL.
 - Bảng chương (`GET /api/ui/ebooks/{slug}/chapters`) lọc và phân trang phía
   server, uỷ quyền cho `apply_chapter_query` — cùng hàm mà thao tác hàng loạt
   dùng, nên "chọn tất cả kết quả đang lọc" trỏ đúng tập chương backend sẽ xử

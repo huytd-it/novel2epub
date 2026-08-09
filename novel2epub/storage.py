@@ -370,6 +370,8 @@ class Storage:
                 )
             else:
                 self.conn.execute("DELETE FROM chapters WHERE ebook_slug = ?", (self.slug,))
+            from .codes import backfill_codes
+            backfill_codes(self.conn)
 
     def insert_chapter(self, ch: Chapter) -> None:
         with self.conn:
@@ -415,6 +417,8 @@ class Storage:
                     ch.last_action_status, int(ch.skipped),
                 ),
             )
+            from .codes import backfill_codes
+            backfill_codes(self.conn)
 
     def save_chapter(self, ch: Chapter) -> None:
         """Lưu hoặc cập nhật thông tin chi tiết của 1 chương (metadata, status, skipped...)."""

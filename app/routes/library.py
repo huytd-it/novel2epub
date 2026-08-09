@@ -13,10 +13,11 @@ from novel2epub.automation import add_automation, validate_schedule
 from novel2epub.config import CrawlConfig, ScraplingConfig
 from novel2epub.config_writer import add_ebook, update_ebook
 from novel2epub.crawler import ScraplingCrawler
+from novel2epub.metadata_translation import translate_ebook_metadata
 from novel2epub.search import search_all, search_all_stream
 from novel2epub.sources import detect_preset, load_presets
 
-MAX_BULK_URLS = 5
+MAX_BULK_URLS = 20
 CONTINUOUS_STEPS = ["crawl-new", "translate-pending", "cleanup-han", "build"]
 
 from .. import deps
@@ -50,7 +51,9 @@ def slugify(value: str) -> str:
     return vn_slugify(value)
 
 
-def _build_meta_crawl_cfg(toc_url: str, scrapling_mode: str = "") -> tuple[CrawlConfig, str]:
+def _build_meta_crawl_cfg(
+    toc_url: str, scrapling_mode: str = "", source_name: str = "",
+) -> tuple[CrawlConfig, str]:
     """Dựng CrawlConfig để fetch metadata khi Thêm ebook + trả tên preset khớp.
 
     Nếu URL khớp một source preset đã lưu, dùng luôn cấu hình scrapling của
@@ -59,7 +62,10 @@ def _build_meta_crawl_cfg(toc_url: str, scrapling_mode: str = "") -> tuple[Crawl
     mặc định lẫn preset.
     """
     presets = load_presets(deps.SOURCES_PATH)
-    source_name = detect_preset(toc_url, presets) or ""
+    source_name = source_name.strip()
+    if source_name and source_name not in presets:
+        raise HTTPException(status_code=400, detail=f"Nguồn '{source_name}' không tồn tại.")
+    source_name = source_name or detect_preset(toc_url, presets) or ""
     if source_name:
         crawl_cfg = presets[source_name].to_crawl_config(toc_url, mode_override=scrapling_mode)
     else:
@@ -69,9 +75,9 @@ def _build_meta_crawl_cfg(toc_url: str, scrapling_mode: str = "") -> tuple[Crawl
     return crawl_cfg, source_name
 
 
-def _fetch_meta(toc_url: str, scrapling_mode: str = "") -> dict:
+def _fetch_meta(toc_url: str, scrapling_mode: str = "", source_name: str = "") -> dict:
     """Crawl TOC URL và trả về metadata detect được + slug gợi ý."""
-    crawl_cfg, source_name = _build_meta_crawl_cfg(toc_url, scrapling_mode)
+    crawl_cfg, source_name = _build_meta_crawl_cfg(toc_url, scrapling_mode, source_name)
 
     crawler = ScraplingCrawler(crawl_cfg)
     try:
@@ -173,6 +179,28 @@ def preview_ebook_api(
         return JSONResponse({"error": str(e)}, status_code=400)
 
 
+@router.post("/library/ebooks/translate-metadata")
+def translate_ebook_metadata_api(
+    title: str = Form(""),
+    description: str = Form(""),
+    engine: str = Form("localmt"),
+):
+    """Translate preview metadata before an ebook exists.
+
+    Local MT is the fast default; AI uses the shared editorial AI config.
+    The result is returned for review and is never persisted automatically.
+    """
+    try:
+        return JSONResponse(translate_ebook_metadata(
+            deps.cfg(), title=title, description=description, engine=engine
+        ))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        label = "Local MT" if engine.strip().lower() == "localmt" else "AI"
+        raise HTTPException(status_code=503, detail=f"{label} dịch metadata lỗi: {e}") from e
+
+
 @router.get("/library/ebooks/search/sources")
 def search_sources():
     """Trả về danh sách source đã cấu hình tìm kiếm."""
@@ -217,7 +245,7 @@ def search_ebooks(
 
 def _write_new_ebook(
     toc_url: str, slug: str, name: str, author: str, scrapling_mode: str = "",
-    ai_glossary_analysis: bool = False,
+    ai_glossary_analysis: bool = False, source_name: str = "",
 ) -> dict:
     """Ghi ebook mới (đã có đủ metadata) vào config gộp. Raise HTTPException khi trùng slug.
 
@@ -238,7 +266,10 @@ def _write_new_ebook(
     # File gộp: ghi thẳng ebook (chỉ phần override) vào khối `ebooks:`.
     # Auto-detect source preset từ URL.
     presets = load_presets(deps.SOURCES_PATH)
-    source_name = detect_preset(toc_url, presets) or ""
+    source_name = source_name.strip()
+    if source_name and source_name not in presets:
+        raise HTTPException(status_code=400, detail=f"Nguồn '{source_name}' không tồn tại.")
+    source_name = source_name or detect_preset(toc_url, presets) or ""
     add_ebook(
         deps.WORKSPACE_PATH,
         slug,
@@ -260,7 +291,24 @@ def _write_new_ebook(
             slug,
             {"translate": {"ai_glossary_analysis": True}},
         )
-    return {"slug": slug, "name": name}
+    return {"slug": slug, "name": name, "source": source_name}
+
+
+def _save_ebook_metadata(slug: str, description: str = "", cover_url: str = "") -> None:
+    novel_extra = {}
+    if description.strip():
+        novel_extra["description"] = description.strip()
+    if cover_url.strip():
+        novel_extra["cover_url"] = cover_url.strip()
+    if novel_extra:
+        update_ebook(deps.WORKSPACE_PATH, slug, {"novel": novel_extra})
+
+
+def _enqueue_fetch_toc(request: Request, slug: str) -> dict | None:
+    request.app.state.job.queue.restore_ebook(slug)
+    return request.app.state.job.enqueue_step(
+        "fetch-toc", deps.resolved_cfg(slug), ebook=slug,
+    )
 
 
 @router.post("/library/ebooks")
@@ -296,13 +344,7 @@ def create_ebook(
     )
     # Metadata phụ đã duyệt ở bước preview (trang Thêm ebook) — lưu luôn để
     # không phải nhập lại trong Settings.
-    novel_extra = {}
-    if description.strip():
-        novel_extra["description"] = description.strip()
-    if cover_url.strip():
-        novel_extra["cover_url"] = cover_url.strip()
-    if novel_extra:
-        update_ebook(deps.WORKSPACE_PATH, result["slug"], {"novel": novel_extra})
+    _save_ebook_metadata(result["slug"], description, cover_url)
     request.app.state.job.queue.restore_ebook(result["slug"])
     return RedirectResponse(url=f"/ebooks/{result['slug']}/settings", status_code=303)
 
@@ -314,7 +356,7 @@ def create_ebooks_bulk(
     enable_continuous: bool = Form(True),
     cron: str = Form("*/30 * * * *"),
 ):
-    """Nhập hàng loạt tối đa 5 URL mục lục: tạo ebook + (tùy chọn) bật automation
+    """Nhập hàng loạt tối đa 20 URL mục lục: tạo ebook + (tùy chọn) bật automation
     (cào → dịch → xoá Hán → build) theo lịch cron; chạy ngay lần đầu sau khi tạo.
 
     Mỗi URL xử lý độc lập — 1 URL lỗi không chặn các URL còn lại.

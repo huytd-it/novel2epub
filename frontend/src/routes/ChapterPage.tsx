@@ -14,13 +14,10 @@ import {
   useConfirmDraft,
   useCreateNote,
   useDiscardDraft,
-  useGenres,
   useReaderPreferences,
   useRevertEdits,
-  useRewriteChapter,
   useSaveChapterText,
   useSetActiveBranch,
-  useTranslateChapter,
   useUpdateChapterTitle,
   type Branch,
   type Note,
@@ -29,12 +26,12 @@ import { Button, Spinner } from "@/components/ui/Button";
 import { Textarea, Select } from "@/components/ui/Field";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { Badge } from "@/components/ui/Badge";
-import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { DiffText } from "@/components/DiffText";
 import { ChapterListDrawer } from "@/components/chapter/ChapterListDrawer";
 import { SearchDialog } from "@/components/chapter/SearchDialog";
 import { NotesPanel } from "@/components/chapter/NotesPanel";
+import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
 import {
   IconBookmark,
   IconBookmarkFilled,
@@ -165,26 +162,12 @@ function BranchBar({
   onRewrite: () => void;
 }) {
   const setBranch = useSetActiveBranch(slug, data.index);
-  const translate = useTranslateChapter(slug, data.index);
   const toast = useToast();
-  const [confirmTranslate, setConfirmTranslate] = useState<Branch | null>(null);
+  const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
 
   const onError = (err: unknown) => toast(err instanceof Error ? err.message : String(err), "error");
 
-  const runTranslate = (branch: Branch) =>
-    translate.mutate(
-      { branch, force: true },
-      {
-        onSuccess: () => {
-          setConfirmTranslate(null);
-          toast("Đã xếp vào hàng đợi — theo dõi ở trang Hàng đợi.");
-        },
-        onError: (err) => {
-          setConfirmTranslate(null);
-          onError(err);
-        },
-      },
-    );
+  const branchLabel = translateAction === "local-mt" ? "Local MT" : "AI";
 
   return (
     <Panel className="mb-4 p-3">
@@ -226,13 +209,13 @@ function BranchBar({
             Dịch lại từ bản gốc
           </p>
           <div className="flex gap-1.5">
-            <Button size="sm" disabled={!data.has_raw} onClick={() => setConfirmTranslate("ai")}>
+            <Button size="sm" disabled={!data.has_raw} onClick={() => setTranslateAction("translate")}>
               Dịch AI
             </Button>
             <Button
               size="sm"
               disabled={!data.has_raw}
-              onClick={() => setConfirmTranslate("local_mt")}
+              onClick={() => setTranslateAction("local-mt")}
             >
               Dịch Local MT
             </Button>
@@ -259,101 +242,27 @@ function BranchBar({
         </div>
       </div>
 
-      <ConfirmDialog
-        open={confirmTranslate !== null}
-        onCancel={() => setConfirmTranslate(null)}
-        onConfirm={() => confirmTranslate && runTranslate(confirmTranslate)}
-        title={confirmTranslate === "local_mt" ? "Dịch lại bằng Local MT" : "Dịch lại bằng AI"}
+      <BulkPreviewDialog
+        open={translateAction !== null}
+        onClose={() => setTranslateAction(null)}
+        slug={slug}
+        action={translateAction === "local-mt" ? "local-mt" : "translate"}
+        branch={translateAction === "translate" ? "ai" : ""}
+        force
+        indexes={[data.index]}
+        title={`Dịch lại bằng ${branchLabel}`}
         body={
           <>
             Dịch lại chương {data.index} từ bản gốc vào nhánh{" "}
-            <strong>{confirmTranslate ? data.branches[confirmTranslate].label : ""}</strong>.
-            {confirmTranslate && data.branches[confirmTranslate].has_text ? (
-              <>
-                {" "}
-                Nhánh này <strong>đã có bản dịch</strong> — mọi chỉnh sửa tay trên nhánh đó sẽ bị
-                ghi đè.
-              </>
-            ) : null}
+            <strong>{branchLabel}</strong>. Bản dịch cũ trong nhánh sẽ bị ghi đè.
           </>
         }
         confirmLabel="Dịch lại"
-        destructive={Boolean(confirmTranslate && data.branches[confirmTranslate].has_text)}
-        pending={translate.isPending}
+        onDone={() => {
+          toast("Đã xếp vào hàng đợi — theo dõi ở trang Hàng đợi.");
+        }}
       />
     </Panel>
-  );
-}
-
-/* ── Hộp thoại biên tập AI: chọn lại thể loại ───────────────────────── */
-
-function RewriteDialog({
-  open,
-  onClose,
-  slug,
-  index,
-}: {
-  open: boolean;
-  onClose: () => void;
-  slug: string;
-  index: number;
-}) {
-  const { data: genreData } = useGenres();
-  const rewrite = useRewriteChapter(slug, index);
-  const [genre, setGenre] = useState("");
-  const toast = useToast();
-
-  useEffect(() => {
-    if (open) setGenre("");
-  }, [open]);
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Biên tập AI"
-      footer={
-        <>
-          <Button onClick={onClose}>Hủy</Button>
-          <Button
-            variant="primary"
-            loading={rewrite.isPending}
-            onClick={() =>
-              rewrite.mutate(genre, {
-                onSuccess: () => {
-                  toast("Đã xếp biên tập vào hàng đợi — bản nháp sẽ hiện ở đây khi xong.");
-                  onClose();
-                },
-                onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
-              })
-            }
-          >
-            Chạy biên tập
-          </Button>
-        </>
-      }
-    >
-      <p className="mb-3 text-[13px] opacity-70">
-        AI đọc <strong>bản dịch hiện có</strong> (không đọc bản gốc) và viết lại cho mượt hơn. Kết
-        quả là một <strong>bản nháp</strong> — bạn xem rồi mới quyết định áp vào bản dịch.
-      </p>
-      <label className="text-[13px]">
-        Thể loại áp dụng cho lần biên tập này
-        <Select value={genre} onChange={(e) => setGenre(e.target.value)} className="mt-1 w-full">
-          <option value="">Theo cấu hình của truyện</option>
-          {(genreData?.genres ?? []).map((g) => (
-            <option key={g.value} value={g.value}>
-              {g.label}
-            </option>
-          ))}
-        </Select>
-      </label>
-      <p className="mt-2 text-xs opacity-60">
-        Thể loại quyết định hệ xưng hô và mức Hán Việt. Local MT dịch tiên hiệp/cổ đại khá sát
-        nhưng hay lệch xưng hô — chọn <em>Tiên hiệp / Huyền huyễn / Cổ trang</em> ở đây để nắn lại
-        mà không phải sửa cấu hình truyện.
-      </p>
-    </Modal>
   );
 }
 
@@ -518,6 +427,33 @@ export function ChapterPage() {
   const { fontSize } = readerPrefs;
   const [bookmark, setBookmark] = useBookmark(slug);
   const [chaptersOpen, setChaptersOpen] = useState(false);
+  // Trạng thái thu gọn danh sách chương (desktop) — lưu theo slug để giữ nguyên
+  // khi chuyển chương và khi tải lại trang.
+  const [chaptersCollapsed, setChaptersCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(`n2e-chapters-collapsed:${slug}`) === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      setChaptersCollapsed(localStorage.getItem(`n2e-chapters-collapsed:${slug}`) === "1");
+    } catch {
+      setChaptersCollapsed(false);
+    }
+  }, [slug]);
+  const toggleChaptersCollapsed = () => {
+    setChaptersCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(`n2e-chapters-collapsed:${slug}`, next ? "1" : "0");
+      } catch {
+        /* bỏ qua khi không truy cập được localStorage */
+      }
+      return next;
+    });
+  };
   const [searchOpen, setSearchOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [rewriteOpen, setRewriteOpen] = useState(false);
@@ -704,7 +640,9 @@ export function ChapterPage() {
   const isBookmarked = bookmark === chapterIndex;
 
   return (
-    <div className="min-h-screen lg:pl-72">
+    <div
+      className={clsx("min-h-screen", chaptersCollapsed ? "lg:pr-10" : "lg:pr-72")}
+    >
       {/* ── Thanh công cụ ─────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 border-b border-base-300 bg-base-100/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1100px] flex-wrap items-center justify-between gap-2 px-3 py-2">
@@ -713,7 +651,10 @@ export function ChapterPage() {
               size="sm"
               variant="ghost"
               icon={<IconChapters size={15} />}
-              onClick={() => setChaptersOpen(true)}
+              onClick={() => {
+                setChaptersCollapsed(false);
+                setChaptersOpen(true);
+              }}
               aria-label="Danh sách chương"
             />
             <Button
@@ -1031,21 +972,31 @@ export function ChapterPage() {
         />
       ) : null}
 
-      <RewriteDialog
+      <BulkPreviewDialog
         open={rewriteOpen}
         onClose={() => setRewriteOpen(false)}
         slug={slug}
-        index={chapterIndex}
+        action="ai-edit-draft"
+        indexes={[chapterIndex]}
+        title="Biên tập AI"
+        body={
+          <>
+            AI đọc <strong>bản dịch Local MT</strong> của chương này (không đọc bản gốc) và viết
+            lại cho mượt hơn. Kết quả là một <strong>bản nháp</strong> — bạn xem rồi mới quyết
+            định áp vào bản dịch. Chương chưa có bản dịch Local MT sẽ bị chặn.
+          </>
+        }
+        confirmLabel="Xếp vào hàng đợi"
+        onDone={() => toast("Đã xếp biên tập vào hàng đợi — bản nháp sẽ hiện ở đây khi xong.")}
       />
       <ChapterListDrawer
         open={chaptersOpen}
         onClose={() => setChaptersOpen(false)}
         slug={slug}
         currentIndex={chapterIndex}
-        onSelect={(i) => {
-          setChaptersOpen(false);
-          go(i);
-        }}
+        onSelect={go}
+        collapsed={chaptersCollapsed}
+        onToggleCollapsed={toggleChaptersCollapsed}
       />
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} slug={slug} onJump={go} />
       <NotesPanel

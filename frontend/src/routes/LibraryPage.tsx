@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router";
 import clsx from "clsx";
 
 import { Page } from "@/app/Shell";
-import { legacyUrl } from "@/lib/api";
 import { num, percent } from "@/lib/format";
 import { decodeStrip, stripCounts } from "@/lib/strip";
 import { useCurrentBook, useLibrary, type EbookSummary } from "@/lib/books";
@@ -117,6 +116,7 @@ function EbookRow({ book }: { book: EbookSummary }) {
 }
 
 export function LibraryPage() {
+  const navigate = useNavigate();
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const { data, isPending, error } = useLibrary(showArchived);
@@ -182,9 +182,7 @@ export function LibraryPage() {
           <Button
             variant="primary"
             icon={<IconPlus />}
-            onClick={() => {
-              window.location.href = legacyUrl("/library/ebooks/new");
-            }}
+            onClick={() => navigate("/library/new")}
           >
             Thêm truyện
           </Button>

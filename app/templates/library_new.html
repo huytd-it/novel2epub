@@ -185,13 +185,31 @@
                                 <td class="pv-cell-label">Tác giả</td>
                                 <td class="pv-cell-value"><input type="text" id="pv-author-input" class="pv-input input input-sm w-full"></td>
                             </tr>
-                            <tr>
-                                <td class="pv-cell-label">Mô tả</td>
-                                <td class="pv-cell-value"><textarea id="pv-desc-input" rows="3" class="pv-input input input-sm w-full"></textarea></td>
-                            </tr>
+                             <tr>
+                                 <td class="pv-cell-label">Mô tả</td>
+                                 <td class="pv-cell-value"><textarea id="pv-desc-input" rows="3" class="pv-input input input-sm w-full"></textarea></td>
+                             </tr>
                         </tbody>
-                    </table>
+                     </table>
+                     </div>
+                    <div class="flex flex-wrap items-center gap-2 mt-3">
+                        <button type="button" id="translate-meta-local-btn" class="btn btn-sm btn-primary" aria-describedby="translate-meta-status">
+                            <span class="meta-idle-label">Dịch nhanh bằng Local MT</span>
+                            <span class="meta-busy-label hidden items-center gap-1.5">
+                                <span class="inline-block size-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true"></span>
+                                Đang dịch bằng Local MT
+                            </span>
+                        </button>
+                        <button type="button" id="translate-meta-ai-btn" class="btn btn-sm btn-secondary" aria-describedby="translate-meta-status">
+                            <span class="meta-idle-label">Trau chuốt bằng AI</span>
+                            <span class="meta-busy-label hidden items-center gap-1.5">
+                                <span class="inline-block size-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden="true"></span>
+                                AI đang xử lý
+                            </span>
+                        </button>
+                        <span id="translate-meta-status" class="min-w-0 text-xs text-fg-muted dark:text-fg-muted-dark" role="status" aria-live="polite"></span>
                     </div>
+                    <p class="text-xs text-fg-muted dark:text-fg-muted-dark mt-2 mb-0">Local MT dịch nhanh, offline. AI dùng cấu hình AI biên tập chung để chuyển ngữ tự nhiên hơn. Kết quả chỉ điền vào form để bạn duyệt, chưa tự lưu.</p>
                 </div>
                 <div id="preview-placeholder" class="pv-placeholder">
                     <div class="pv-placeholder-icon">📖</div>
@@ -213,12 +231,12 @@
 
             <!-- Config dịch/AI mặc định — ebook mới kế thừa cho tới khi cấu hình riêng -->
             <fieldset class="bg-surface-muted/50 dark:bg-surface-muted-dark/50 rounded-xl">
-                <legend>Config dịch / AI ebook mới sẽ dùng (kế thừa config chung)</legend>
+                <legend>Hệ thống dịch và AI dùng chung</legend>
                 <div class="pv-table-scroll">
                 <table class="pv-table">
                     <tbody>
                         <tr>
-                            <td class="pv-cell-label">AI dịch</td>
+                            <td class="pv-cell-label">Dịch chương</td>
                             <td class="pv-cell-value">
                                 <code>{{ cfg.translate.type }}</code>
                                 {% if cfg.translate.type == "openai" %} — {{ cfg.translate.openai.model }} @ {{ cfg.translate.openai.base_url|short_host }}
@@ -226,6 +244,10 @@
                                 {% endif %}
                                 · workers: {{ cfg.translate.max_workers }} · batch: {{ cfg.translate.batch_size }}
                             </td>
+                        </tr>
+                        <tr>
+                            <td class="pv-cell-label">Dịch thông tin sách</td>
+                            <td class="pv-cell-value">Local MT <code>{{ cfg.translate.hachimimt.model_key }}</code> để dịch nhanh title/description · AI <code>{{ cfg.ai.openai.model }}</code> để trau chuốt</td>
                         </tr>
                         <tr>
                             <td class="pv-cell-label">Giọng dịch</td>
@@ -314,6 +336,10 @@ document.addEventListener("DOMContentLoaded", function () {
     var aiGlossaryCheckbox = document.getElementById("ai-glossary-checkbox");
     var aiGlossaryLabel = document.getElementById("ai-glossary-label");
     var aiGlossaryInput = document.getElementById("ai_glossary_analysis");
+    var translateMetaLocalBtn = document.getElementById("translate-meta-local-btn");
+    var translateMetaAiBtn = document.getElementById("translate-meta-ai-btn");
+    var translateMetaStatus = document.getElementById("translate-meta-status");
+    var metadataTranslationPending = false;
 
     slugEl.value = "truyen-" + (EBOOK_COUNT + 1);
 
@@ -352,6 +378,78 @@ document.addEventListener("DOMContentLoaded", function () {
     });
     pvAuthorInput.addEventListener("input", function () { authorEl.value = pvAuthorInput.value; });
     pvDescInput.addEventListener("input", function () { descriptionEl.value = pvDescInput.value; });
+
+    function setMetadataTranslationPending(engine, pending) {
+        metadataTranslationPending = pending;
+        [translateMetaLocalBtn, translateMetaAiBtn].forEach(function (button) {
+            var active = pending && button === (engine === "localmt" ? translateMetaLocalBtn : translateMetaAiBtn);
+            button.disabled = pending;
+            button.setAttribute("aria-busy", active ? "true" : "false");
+            button.querySelector(".meta-idle-label").classList.toggle("hidden", active);
+            var busyLabel = button.querySelector(".meta-busy-label");
+            busyLabel.classList.toggle("hidden", !active);
+            busyLabel.classList.toggle("inline-flex", active);
+        });
+    }
+
+    function metadataErrorMessage(engine, status, detail) {
+        if (status === 400) return detail || "Thông tin sách chưa hợp lệ. Hãy kiểm tra title và description rồi thử lại.";
+        if (status === 401 || status === 403) return "Không có quyền gọi dịch vụ dịch. Hãy kiểm tra cấu hình truy cập.";
+        if (status === 429) return "Dịch vụ đang nhận quá nhiều yêu cầu. Vui lòng đợi một lát rồi thử lại.";
+        if (status === 503) {
+            if (engine === "localmt") {
+                return "Local MT chưa sẵn sàng. Hãy kiểm tra model và gói CTranslate2, sau đó thử lại.";
+            }
+            return detail || "Dịch vụ AI chưa sẵn sàng. Hãy kiểm tra cấu hình AI rồi thử lại.";
+        }
+        if (status >= 500) return "Máy chủ chưa thể xử lý bản dịch. Nội dung của bạn vẫn được giữ nguyên; hãy thử lại sau.";
+        return detail || "Không thể dịch thông tin sách. Hãy thử lại.";
+    }
+
+    async function translateMetadata(engine) {
+        if (metadataTranslationPending) return;
+        var title = pvTitleInput.value.trim();
+        var description = pvDescInput.value.trim();
+        if (!title && !description) {
+            translateMetaStatus.textContent = "Hãy nhập title hoặc description trước khi dịch.";
+            return;
+        }
+        setMetadataTranslationPending(engine, true);
+        translateMetaStatus.textContent = engine === "localmt" ? "Local MT đang dịch title và description. Lần đầu có thể lâu hơn do tải model." : "AI đang trau chuốt title và description.";
+        try {
+            var formData = new FormData();
+            formData.append("title", title);
+            formData.append("description", description);
+            formData.append("engine", engine);
+            var res = await fetch("/library/ebooks/translate-metadata", { method: "POST", body: formData });
+            var data = await res.json().catch(function () { return {}; });
+            if (!res.ok) {
+                var requestError = new Error(metadataErrorMessage(engine, res.status, data.detail));
+                requestError.isFriendly = true;
+                throw requestError;
+            }
+            if (data.title) {
+                pvTitleInput.value = data.title;
+                nameEl.value = data.title;
+                if (!slugEl.dataset.userEdited) {
+                    slugEl.value = (slugify(data.title) || "truyen") + "-" + (EBOOK_COUNT + 1);
+                }
+            }
+            if (data.description) {
+                pvDescInput.value = data.description;
+                descriptionEl.value = data.description;
+            }
+            translateMetaStatus.textContent = engine === "localmt" ? "Đã dịch bằng Local MT. Hãy kiểm tra trước khi tạo." : "AI đã trau chuốt. Hãy kiểm tra trước khi tạo.";
+        } catch (e) {
+            translateMetaStatus.textContent = e.isFriendly
+                ? e.message
+                : "Không kết nối được tới máy chủ. Nội dung của bạn vẫn được giữ nguyên; hãy kiểm tra mạng và thử lại.";
+        } finally {
+            setMetadataTranslationPending(engine, false);
+        }
+    }
+    translateMetaLocalBtn.addEventListener("click", function () { translateMetadata("localmt"); });
+    translateMetaAiBtn.addEventListener("click", function () { translateMetadata("ai"); });
 
     function resetPreview() {
         previewBox.style.display = "none";

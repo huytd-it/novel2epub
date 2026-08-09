@@ -125,13 +125,13 @@ def test_bulk_create_duplicate_slug_within_batch_is_skipped_not_overwritten(monk
     assert len(automations) == 1
 
 
-def test_bulk_create_rejects_more_than_five_urls(monkeypatch, tmp_path):
+def test_bulk_create_rejects_more_than_twenty_urls(monkeypatch, tmp_path):
     from app.routes import library
 
     app, client = _client(monkeypatch, tmp_path)
     monkeypatch.setattr(library, "_fetch_meta", lambda url, preset_name="": _meta_for(url))
 
-    urls = "\n".join(f"https://a.com/truyen-{i}" for i in range(6))
+    urls = "\n".join(f"https://a.com/truyen-{i}" for i in range(21))
     res = client.post("/library/ebooks/bulk", data={"toc_urls": urls})
     assert res.status_code == 400
 

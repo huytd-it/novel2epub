@@ -167,6 +167,29 @@ def test_apply_happy_path_keeps_mt_snapshot(tmp_path, monkeypatch):
     assert client.post(f"/api/ebooks/t/notes/{note['id']}/apply").status_code == 409
 
 
+def test_apply_writes_active_local_mt_branch(tmp_path, monkeypatch):
+    storage, ch = _seed(tmp_path, translated="AI giữ nguyên.")
+    local_text = "Mở đầu.\n\nRồi hắn nói một câu.\n\nKết thúc."
+    storage.write_branch_text(ch, "local_mt", local_text)
+    storage.mark_branch_complete(ch, "local_mt")
+    storage.set_active_branch(ch, "local_mt")
+    revision = storage.read_branch_revision(ch, "local_mt")
+    client = _client(tmp_path, monkeypatch)
+    note = _create_note(client)
+
+    monkeypatch.setattr(
+        glossary_ai, "fix_passages",
+        lambda *a, **k: [{"id": note["id"], "fixed_text": "anh ta nói", "explanation": ""}],
+    )
+    client.post("/api/ebooks/t/notes/ai-fix", data={"note_ids": note["id"], "chapter_index": 7})
+    res = client.post(f"/api/ebooks/t/notes/{note['id']}/apply")
+
+    assert res.status_code == 200, res.text
+    assert storage.read_branch_text(ch, "local_mt") == local_text.replace("hắn nói", "anh ta nói")
+    assert storage.read_branch_revision(ch, "local_mt") == revision + 1
+    assert storage.read_branch_text(ch, "ai") == "AI giữ nguyên."
+
+
 def test_apply_stale_after_external_edit(tmp_path, monkeypatch):
     storage, ch = _seed(tmp_path)
     client = _client(tmp_path, monkeypatch)

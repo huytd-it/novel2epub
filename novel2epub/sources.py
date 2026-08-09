@@ -341,6 +341,8 @@ def save_preset(path: str | Path, preset: SourcePreset) -> None:
     data = {k: v for k, v in asdict(preset).items() if k != "name"}
     with conn:
         conn.execute(_UPSERT_SOURCE_SQL, (preset.name, json.dumps(data, ensure_ascii=False)))
+        from .codes import backfill_codes
+        backfill_codes(conn)
 
 
 def delete_preset(path: str | Path, name: str) -> None:
@@ -373,3 +375,5 @@ def save_presets(path: str | Path, presets: dict[str, SourcePreset]) -> None:
             )
         else:
             conn.execute("DELETE FROM sources")
+        from .codes import backfill_codes
+        backfill_codes(conn)

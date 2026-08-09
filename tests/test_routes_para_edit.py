@@ -60,6 +60,26 @@ def test_para_save_happy_path_keeps_mt_snapshot(tmp_path, monkeypatch):
     assert storage.read_translated_mt(ch) == "A.\n\nB.\n\nC."
 
 
+def test_para_save_writes_active_local_mt_branch(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage, ch = _seed(tmp_path, translated="AI giữ nguyên.")
+    storage.write_branch_text(ch, "local_mt", "A.\n\nB.\n\nC.")
+    storage.mark_branch_complete(ch, "local_mt")
+    storage.set_active_branch(ch, "local_mt")
+    revision = storage.read_branch_revision(ch, "local_mt")
+    client = _client(tmp_path, monkeypatch, cfg)
+
+    res = client.post(
+        "/api/ebooks/t/chapters/7/para/save",
+        data={"para_index": 1, "para_text": "B.", "new_text": "B local."},
+    )
+
+    assert res.status_code == 200, res.text
+    assert storage.read_branch_text(ch, "local_mt") == "A.\n\nB local.\n\nC."
+    assert storage.read_branch_revision(ch, "local_mt") == revision + 1
+    assert storage.read_branch_text(ch, "ai") == "AI giữ nguyên."
+
+
 def test_para_save_stale_conflict(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     _storage, _ch = _seed(tmp_path)

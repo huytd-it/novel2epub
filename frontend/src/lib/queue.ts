@@ -11,6 +11,8 @@ export interface Job {
   ebook: string;
   lock_ebook: boolean;
   chapter_indexes: number[];
+  ebook_code: string;
+  chapter_codes: string[];
   state: JobState;
   enqueued_at: number | null;
   started_at: number | null;

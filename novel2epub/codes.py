@@ -1,0 +1,82 @@
+"""Stable, human-readable codes used to identify sources, ebooks and chapters."""
+from __future__ import annotations
+
+import re
+import sqlite3
+import unicodedata
+
+
+def acronym(value: str, fallback: str, *, max_length: int = 8) -> str:
+    """Return an uppercase ASCII acronym suitable for operational identifiers."""
+    normalized = unicodedata.normalize("NFKD", (value or "").replace("Đ", "D").replace("đ", "d"))
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    words = re.findall(r"[A-Za-z0-9]+", ascii_text)
+    code = "".join(word[0] for word in words if word).upper()
+    if not code and words:
+        code = "".join(words).upper()
+    return (code or fallback).upper()[:max_length]
+
+
+def chapter_code(ebook_code: str, index: int) -> str:
+    return f"{ebook_code}-{int(index):04d}"
+
+
+def _unique(base: str, used: set[str]) -> str:
+    candidate = base
+    suffix = 2
+    while candidate in used:
+        candidate = f"{base}{suffix}"
+        suffix += 1
+    used.add(candidate)
+    return candidate
+
+
+def backfill_codes(conn: sqlite3.Connection) -> None:
+    """Fill missing codes without changing codes that have already been assigned."""
+    source_rows = conn.execute("SELECT name, code FROM sources ORDER BY name").fetchall()
+    used_sources = {row["code"] for row in source_rows if row["code"]}
+    for row in source_rows:
+        if not row["code"]:
+            code = _unique(acronym(row["name"], "SRC"), used_sources)
+            conn.execute("UPDATE sources SET code = ? WHERE name = ?", (code, row["name"]))
+
+    source_codes = {
+        row["name"]: row["code"]
+        for row in conn.execute("SELECT name, code FROM sources").fetchall()
+    }
+    ebook_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(ebooks)").fetchall()
+    }
+    select = ["slug", "code"]
+    for column in ("name", "title", "source_preset"):
+        select.append(column if column in ebook_columns else f"'' AS {column}")
+    ebook_rows = conn.execute(
+        f"SELECT {', '.join(select)} FROM ebooks ORDER BY slug"
+    ).fetchall()
+    used_ebooks = {row["code"] for row in ebook_rows if row["code"]}
+    for row in ebook_rows:
+        if row["code"]:
+            continue
+        source_code = source_codes.get(row["source_preset"], "SRC")
+        book_code = acronym(row["title"] or row["name"] or row["slug"], "BOOK")
+        code = _unique(f"{source_code}-{book_code}", used_ebooks)
+        conn.execute("UPDATE ebooks SET code = ? WHERE slug = ?", (code, row["slug"]))
+
+    for row in conn.execute("SELECT slug, code FROM ebooks").fetchall():
+        conn.execute(
+            "UPDATE chapters SET code = printf('%s-%04d', ?, idx) WHERE ebook_slug = ?",
+            (row["code"], row["slug"]),
+        )
+
+
+def ebook_identity(conn: sqlite3.Connection, slug: str) -> tuple[str, dict[int, str]]:
+    """Resolve operational ebook/chapter codes for a queue job."""
+    row = conn.execute("SELECT code FROM ebooks WHERE slug = ?", (slug,)).fetchone()
+    ebook_code = row["code"] if row and row["code"] else slug
+    chapters = {
+        int(row["idx"]): row["code"]
+        for row in conn.execute(
+            "SELECT idx, code FROM chapters WHERE ebook_slug = ?", (slug,)
+        ).fetchall()
+    }
+    return ebook_code, chapters

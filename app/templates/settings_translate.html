@@ -95,8 +95,11 @@
     <summary class="cursor-pointer font-semibold text-sm px-3 py-2 flex items-center gap-1 list-none hover:text-link-light dark:hover:text-link-dark before:content-['▶'] before:text-xs before:text-muted-light dark:before:text-muted-dark before:transition-transform before:duration-150 before:flex-shrink-0 open:before:rotate-90">OpenAI-Compatible</summary>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-3 pb-3">
         <label class="flex flex-col gap-1 text-sm min-w-0"> base_url
-            <input type="text" id="ai-base-url" name="base_url" value="{{ cfg.translate.openai.base_url }}" list="base-url-options"
-                class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.openai.base_url, 'translate', 'openai') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+            <div class="flex items-stretch">
+                <input type="text" id="ai-base-url" name="base_url" value="{{ cfg.translate.openai.base_url }}" list="base-url-options"
+                    class="flex-1 min-w-0 rounded-l-md border border-r-0 border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40 {% if not is_default(cfg.translate.openai.base_url, 'translate', 'openai') %}border-blue-500 bg-blue-50 dark:bg-slate-800 dark:border-blue-400{% endif %}">
+                <button type="button" id="ai-load-models" class="px-2.5 py-1 text-xs rounded-r-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-autosave" title="Lấy danh sách model từ {base_url}/models và tự lưu cache theo url">Tải models</button>
+            </div>
         </label>
         <label class="flex flex-col gap-1 text-sm min-w-0"> api_key
             <input type="password" id="ai-api-key" name="api_key" value="{{ cfg.translate.openai.api_key }}" autocomplete="off" class="rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
@@ -104,9 +107,9 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 px-3 pb-3">
         <label class="flex flex-col gap-1.5 text-sm min-w-0 md:col-span-4"> model
-            <div class="flex gap-1.5 items-stretch">
-                <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" list="model-options" class="flex-1 min-w-0 rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
-                <button type="button" id="ai-load-models" class="px-2.5 py-1 text-xs rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark no-autosave">Tải models</button>
+            <div class="relative">
+                <input type="text" id="ai-model" name="model" value="{{ cfg.translate.openai.model }}" autocomplete="off" class="w-full rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-link-light/40">
+                <ul id="ai-model-menu" class="hidden absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shadow-lg" role="listbox"></ul>
             </div>
             <span id="ai-models-status" class="text-xs italic text-muted-light dark:text-muted-dark"></span>
         </label>
@@ -131,18 +134,6 @@
         <option value="http://localhost:11434/v1">
         <option value="http://localhost:1234/v1">
         <option value="http://localhost:20128/v1">
-    </datalist>
-    <datalist id="model-options">
-        <option value="free-stack">
-        <option value="gpt-4o-mini">
-        <option value="gpt-4o">
-        <option value="gpt-4.1-mini">
-        <option value="gpt-4.1">
-        <option value="o4-mini">
-        <option value="claude-sonnet-4-20250514">
-        <option value="claude-3-5-haiku-20241022">
-        <option value="deepseek-chat">
-        <option value="deepseek-reasoner">
     </datalist>
     <label class="flex flex-col gap-1 text-sm min-w-0 px-3 pb-3"> prompt_template (để trống = giữ nguyên)
         <div class="flex gap-1.5 mb-1">
@@ -385,33 +376,118 @@
 </script>
 
 <script>
-document.getElementById("ai-load-models").addEventListener("click", async function () {
-    const baseUrl = document.getElementById("ai-base-url").value.trim();
-    const apiKey = document.getElementById("ai-api-key").value.trim();
+(function () {
+    const CACHE_KEY = "n2e-translate-models-cache";
+    const baseUrlInput = document.getElementById("ai-base-url");
+    const apiKeyInput = document.getElementById("ai-api-key");
+    const modelInput = document.getElementById("ai-model");
     const status = document.getElementById("ai-models-status");
-    const datalist = document.getElementById("model-options");
-    if (!baseUrl) { status.textContent = "Nhập base_url trước."; return; }
-    status.textContent = "Đang tải...";
-    try {
-        const url = "/settings/ai/models?base_url=" + encodeURIComponent(baseUrl) + "&api_key=" + encodeURIComponent(apiKey);
-        const resp = await fetch(url);
-        const data = await resp.json();
-        if (data.error) {
-            status.textContent = "Lỗi: " + data.error;
-            return;
-        }
-        datalist.innerHTML = "";
-        (data.models || []).forEach(function (m) {
-            const opt = document.createElement("option");
-            opt.value = m;
-            datalist.appendChild(opt);
-        });
-        status.textContent = "Đã tải " + (data.models || []).length + " model.";
-    } catch (e) {
-        status.textContent = "Lỗi: " + e;
-    }
-});
+    const menu = document.getElementById("ai-model-menu");
 
+    function readCache() {
+        try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "{}"); }
+        catch (e) { return {}; }
+    }
+    function writeCache(cache) {
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); }
+        catch (e) {}
+    }
+    function setStatus(msg) { status.textContent = msg || ""; }
+    function currentBaseUrl() { return baseUrlInput.value.trim(); }
+
+    // Custom autocomplete (không dùng datalist vì native khó lọc/điều hướng).
+    let models = [];
+    let highlighted = -1;
+
+    function renderMenu() {
+        const q = modelInput.value.trim().toLowerCase();
+        const shown = q ? models.filter(function (m) { return m.toLowerCase().includes(q); }) : models;
+        menu.innerHTML = "";
+        if (!shown.length) { menu.classList.add("hidden"); return; }
+        shown.forEach(function (m, i) {
+            const li = document.createElement("li");
+            li.className = "px-2.5 py-1.5 text-[13px] cursor-pointer truncate rounded-sm hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark" + (i === highlighted ? " bg-surface-alt-light dark:bg-surface-alt-dark font-medium" : "");
+            li.textContent = m;
+            li.setAttribute("role", "option");
+            li.addEventListener("mousedown", function (e) {
+                e.preventDefault();
+                modelInput.value = m;
+                modelInput.dispatchEvent(new Event("input", { bubbles: true }));
+                hideMenu();
+            });
+            menu.appendChild(li);
+        });
+        menu.classList.remove("hidden");
+    }
+    function showMenu() { highlighted = -1; renderMenu(); }
+    function hideMenu() { menu.classList.add("hidden"); }
+
+    modelInput.addEventListener("input", showMenu);
+    modelInput.addEventListener("focus", showMenu);
+    modelInput.addEventListener("keydown", function (e) {
+        const shown = Array.from(menu.children);
+        if (e.key === "ArrowDown" && shown.length) {
+            e.preventDefault();
+            highlighted = (highlighted + 1) % shown.length;
+            renderMenu();
+        } else if (e.key === "ArrowUp" && shown.length) {
+            e.preventDefault();
+            highlighted = (highlighted - 1 + shown.length) % shown.length;
+            renderMenu();
+        } else if (e.key === "Enter" && highlighted >= 0 && shown[highlighted]) {
+            e.preventDefault();
+            modelInput.value = shown[highlighted].textContent;
+            hideMenu();
+        } else if (e.key === "Escape") {
+            hideMenu();
+        }
+    });
+    modelInput.addEventListener("blur", function () { setTimeout(hideMenu, 150); });
+
+    function applyCachedModels() {
+        const baseUrl = currentBaseUrl();
+        if (!baseUrl) { models = []; return; }
+        const cached = readCache()[baseUrl];
+        if (Array.isArray(cached) && cached.length) {
+            models = cached;
+            setStatus("Đã nạp " + models.length + " model từ cache.");
+        } else {
+            models = [];
+            setStatus("");
+        }
+    }
+
+    document.getElementById("ai-load-models").addEventListener("click", async function () {
+        const baseUrl = currentBaseUrl();
+        const apiKey = apiKeyInput.value.trim();
+        if (!baseUrl) { setStatus("Nhập base_url trước."); return; }
+        setStatus("Đang tải...");
+        try {
+            const url = "/settings/ai/models?base_url=" + encodeURIComponent(baseUrl) + "&api_key=" + encodeURIComponent(apiKey);
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (data.error) {
+                setStatus("Lỗi: " + data.error);
+                return;
+            }
+            const fresh = data.models || [];
+            const cache = readCache();
+            const existing = Array.isArray(cache[baseUrl]) ? cache[baseUrl] : [];
+            models = Array.from(new Set(existing.concat(fresh)));
+            cache[baseUrl] = models;
+            writeCache(cache);
+            setStatus("Đã tải " + fresh.length + " model (cache " + models.length + ").");
+        } catch (e) {
+            setStatus("Lỗi: " + e);
+        }
+    });
+
+    applyCachedModels();
+    baseUrlInput.addEventListener("change", applyCachedModels);
+})();
+</script>
+
+<script>
 document.getElementById("ai-test-conn")?.addEventListener("click", async function () {
     const baseUrl = document.getElementById("ai-base-url").value.trim();
     const apiKey = document.getElementById("ai-api-key").value.trim();

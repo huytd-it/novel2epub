@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from app import deps
@@ -905,6 +907,39 @@ def test_propagate_all_regex_runs_job(tmp_path, monkeypatch):
     )
     assert res.status_code == 200
     assert storage.read_translated(chapters[0]) == "Hồi 1 xong."
+
+
+def test_apply_selected_writes_active_local_mt_branch(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_translated(ch, "AI giữ nguyên.")
+    storage.write_branch_text(ch, "local_mt", "Trương Tam đi chợ.")
+    storage.mark_branch_complete(ch, "local_mt")
+    storage.set_active_branch(ch, "local_mt")
+    revision = storage.read_branch_revision(ch, "local_mt")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/apply-selected",
+        data={
+            "find": "Trương Tam",
+            "replace": "Trần Tam",
+            "regex": "false",
+            "selections": json.dumps([{
+                "chapter_index": 1,
+                "para_index": 0,
+                "expected": "Trương Tam đi chợ.",
+            }]),
+        },
+    )
+
+    assert res.status_code == 200, res.text
+    assert storage.read_branch_text(ch, "local_mt") == "Trần Tam đi chợ."
+    assert storage.read_branch_revision(ch, "local_mt") == revision + 1
+    assert storage.read_branch_text(ch, "ai") == "AI giữ nguyên."
+    assert storage.read_meta(ch)["before_find_replace_local_mt"] == "Trương Tam đi chợ."
 
 
 def test_propagate_rejects_bad_scope_and_missing_chapter(tmp_path, monkeypatch):

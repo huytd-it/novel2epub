@@ -126,10 +126,11 @@ def ai_fix_notes(slug: str, note_ids: str = Form(...), chapter_index: int = Form
             )
         selected.append(note)
 
-    if not storage.has_translated(ch):
+    branch = storage.active_branch(ch)
+    if not storage.has_branch_text(ch, branch):
         raise HTTPException(status_code=400, detail="Chương chưa có bản dịch.")
     raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
-    translated = storage.read_translated(ch)
+    translated = storage.read_branch_text(ch, branch)
     glossary = glossary_ai.load_glossary(cfg.translate, storage)
 
     try:
@@ -168,17 +169,18 @@ def apply_note(slug: str, note_id: str):
         raise HTTPException(status_code=409, detail="Ghi chú chưa có đề xuất AI hoặc đã xử lý.")
 
     ch = _find_chapter(manifest, note.get("chapter_index"))
-    if not storage.has_translated(ch):
+    branch = storage.active_branch(ch)
+    if not storage.has_branch_text(ch, branch):
         raise HTTPException(status_code=409, detail="Chương không còn bản dịch.")
 
-    translated = storage.read_translated(ch)
+    translated = storage.read_branch_text(ch, branch)
     new_text, err = apply_note_fix(translated, note, suggestion["fixed_text"])
     if new_text is None:
         note["status"] = "stale"
         storage.write_notes(notes)
         raise HTTPException(status_code=409, detail=err)
 
-    storage.write_translated(ch, new_text)
+    storage.write_branch_text(ch, branch, new_text)
     note["status"] = "resolved"
     note["resolved_at"] = _now_iso()
     storage.write_notes(notes)

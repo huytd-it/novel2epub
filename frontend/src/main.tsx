@@ -15,6 +15,7 @@ import "@/styles/theme.css";
 import { Shell } from "@/app/Shell";
 import { ToastProvider } from "@/components/ui/Toast";
 import { LibraryPage } from "@/routes/LibraryPage";
+import { AddBookPage } from "@/routes/AddBookPage";
 import { EbookPage } from "@/routes/EbookPage";
 import { SettingsPage } from "@/routes/SettingsPage";
 import { ChapterEntryPage } from "@/routes/ChapterEntryPage";
@@ -56,6 +57,7 @@ createRoot(document.getElementById("root")!).render(
           <Routes>
             <Route element={<Shell />}>
               <Route index element={<LibraryPage />} />
+              <Route path="library/new" element={<AddBookPage />} />
               <Route path="ebooks/:slug" element={<EbookPage />} />
               {/* Một trang duy nhất cho mỗi chương: đọc, sửa, đối chiếu, duyệt
                   bản nháp AI. `/read` cũ giữ lại để link đã lưu không chết. */}

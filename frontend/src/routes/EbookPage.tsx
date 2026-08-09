@@ -16,18 +16,16 @@ import {
   rowTone,
   useChapters,
   useEbook,
-  useRewriteSelected,
-  useTranslateSelected,
   type ChapterFilters,
   type ChapterRow,
 } from "@/lib/ebook";
-import { useGenres } from "@/lib/chapter";
+import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
 import { ChapterLegend, ChapterStrip } from "@/components/ChapterStrip";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
 import { Button, Spinner } from "@/components/ui/Button";
 import { Dot } from "@/components/ui/Badge";
 import { Checkbox, InputWithIcon, Select } from "@/components/ui/Field";
-import { ConfirmDialog, Modal } from "@/components/ui/Modal";
+import { ConfirmDialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import {
   IconCaretDown,
@@ -212,85 +210,6 @@ const OTHER_ACTIONS: BatchAction[] = [
   },
 ];
 
-/** Hộp thoại biên tập AI hàng loạt — chọn lại thể loại cho riêng lần chạy này. */
-function BulkRewriteDialog({
-  open,
-  onClose,
-  slug,
-  selected,
-  onDone,
-}: {
-  open: boolean;
-  onClose: () => void;
-  slug: string;
-  selected: number[];
-  onDone: () => void;
-}) {
-  const { data: genreData } = useGenres();
-  const rewrite = useRewriteSelected(slug);
-  const [genre, setGenre] = useState("");
-  const toast = useToast();
-
-  useEffect(() => {
-    if (open) setGenre("");
-  }, [open]);
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={`Biên tập AI ${selected.length} chương`}
-      footer={
-        <>
-          <Button onClick={onClose}>Hủy</Button>
-          <Button
-            variant="primary"
-            loading={rewrite.isPending}
-            onClick={() =>
-              rewrite.mutate(
-                { indexes: selected, genre },
-                {
-                  onSuccess: () => {
-                    toast(`Đã xếp biên tập ${selected.length} chương vào hàng đợi.`);
-                    onDone();
-                    onClose();
-                  },
-                  onError: (err) =>
-                    toast(err instanceof Error ? err.message : String(err), "error"),
-                },
-              )
-            }
-          >
-            Chạy biên tập
-          </Button>
-        </>
-      }
-    >
-      <p className="mb-3 text-[13px] opacity-70">
-        AI đọc <strong>bản dịch đang có</strong> của từng chương và viết lại cho mượt hơn — không
-        đọc bản gốc, không dịch lại. Mỗi chương sinh một <strong>bản nháp</strong> để bạn duyệt
-        trong trang chương.
-      </p>
-      <label className="text-[13px]">
-        Thể loại áp dụng cho lần biên tập này
-        <Select value={genre} onChange={(e) => setGenre(e.target.value)} className="mt-1 w-full">
-          <option value="">Theo cấu hình của truyện</option>
-          {(genreData?.genres ?? []).map((g) => (
-            <option key={g.value} value={g.value}>
-              {g.label}
-            </option>
-          ))}
-        </Select>
-      </label>
-      <p className="mt-2 text-xs opacity-60">
-        Thể loại quyết định hệ xưng hô và mức Hán Việt. Local MT dịch tiên hiệp/cổ đại khá sát
-        nhưng hay lệch xưng hô — chọn <em>Tiên hiệp / Huyền huyễn / Cổ trang</em> ở đây để nắn lại
-        mà không phải sửa cấu hình truyện.
-      </p>
-    </Modal>
-  );
-}
-
 /**
  * Thanh hành động hàng loạt — CỐ ĐỊNH ở đáy màn hình.
  *
@@ -316,9 +235,8 @@ function BatchBar({
 }) {
   const toast = useToast();
   const [pending, setPending] = useState<BatchAction | null>(null);
-  const [confirmTranslate, setConfirmTranslate] = useState<"ai" | "local_mt" | null>(null);
+  const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
   const [rewriteOpen, setRewriteOpen] = useState(false);
-  const translate = useTranslateSelected(slug);
 
   const run = useMutation({
     mutationFn: (action: BatchAction) =>
@@ -346,21 +264,7 @@ function BatchBar({
     else run.mutate(action);
   };
 
-  const runTranslate = (branch: "ai" | "local_mt") =>
-    translate.mutate(
-      { indexes: selected, branch, force: false },
-      {
-        onSuccess: () => {
-          setConfirmTranslate(null);
-          onDone();
-          toast(`Đã xếp dịch ${selected.length} chương vào hàng đợi.`);
-        },
-        onError: (err) => {
-          setConfirmTranslate(null);
-          toast(err instanceof Error ? err.message : String(err), "error");
-        },
-      },
-    );
+  const branchLabel = translateAction === "local-mt" ? "Local MT" : "AI";
 
   return (
     <>
@@ -382,18 +286,10 @@ function BatchBar({
 
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Dịch</span>
-            <Button
-              size="sm"
-              disabled={translate.isPending}
-              onClick={() => setConfirmTranslate("local_mt")}
-            >
+            <Button size="sm" onClick={() => setTranslateAction("local-mt")}>
               Local MT
             </Button>
-            <Button
-              size="sm"
-              disabled={translate.isPending}
-              onClick={() => setConfirmTranslate("ai")}
-            >
+            <Button size="sm" onClick={() => setTranslateAction("translate")}>
               AI
             </Button>
           </div>
@@ -434,27 +330,41 @@ function BatchBar({
         </div>
       </div>
 
-      <ConfirmDialog
-        open={confirmTranslate !== null}
-        onCancel={() => setConfirmTranslate(null)}
-        onConfirm={() => confirmTranslate && runTranslate(confirmTranslate)}
-        title={confirmTranslate === "local_mt" ? "Dịch bằng Local MT" : "Dịch bằng AI"}
+      <BulkPreviewDialog
+        open={translateAction !== null}
+        onClose={() => setTranslateAction(null)}
+        slug={slug}
+        action={translateAction === "local-mt" ? "local-mt" : "translate"}
+        branch={translateAction === "translate" ? "ai" : ""}
+        force={false}
+        indexes={selected}
+        title={`Dịch bằng ${branchLabel}`}
         body={
           <>
             Dịch {selected.length} chương đã chọn vào nhánh{" "}
-            <strong>{confirmTranslate === "local_mt" ? "Local MT" : "AI"}</strong>. Chương nào đã
-            có bản dịch trong nhánh đó sẽ được <strong>bỏ qua</strong>, không ghi đè.
+            <strong>{branchLabel}</strong>. Chương nào đã có bản dịch trong nhánh đó sẽ được{" "}
+            <strong>bỏ qua</strong>, không ghi đè.
           </>
         }
         confirmLabel="Xếp vào hàng đợi"
-        pending={translate.isPending}
+        onDone={onDone}
       />
 
-      <BulkRewriteDialog
+      <BulkPreviewDialog
         open={rewriteOpen}
         onClose={() => setRewriteOpen(false)}
         slug={slug}
-        selected={selected}
+        action="ai-edit-draft"
+        indexes={selected}
+        title={`Biên tập AI ${selected.length} chương`}
+        body={
+          <>
+            AI đọc <strong>bản dịch Local MT</strong> của từng chương và viết lại cho mượt hơn —
+            không đọc bản gốc, không dịch lại. Mỗi chương sinh một <strong>bản nháp</strong> để
+            bạn duyệt trong trang chương. Chương chưa có bản dịch Local MT sẽ bị chặn.
+          </>
+        }
+        confirmLabel="Xếp vào hàng đợi"
         onDone={onDone}
       />
 

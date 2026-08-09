@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -86,6 +86,7 @@ _SCHEMA_STATEMENTS = [
     """
     CREATE TABLE IF NOT EXISTS sources (
         name TEXT PRIMARY KEY,
+        code TEXT NOT NULL DEFAULT '',
         data_json TEXT NOT NULL DEFAULT '{}',
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -94,6 +95,7 @@ _SCHEMA_STATEMENTS = [
     """
     CREATE TABLE IF NOT EXISTS ebooks (
         slug TEXT PRIMARY KEY,
+        code TEXT NOT NULL DEFAULT '',
         name TEXT NOT NULL DEFAULT '',
         -- KHÔNG dùng FOREIGN KEY tới sources(name): ebook có thể tham chiếu
         -- 1 preset đã bị xóa (cố ý — _resolve_source_overrides xử lý bằng
@@ -138,6 +140,7 @@ _SCHEMA_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS chapters (
         ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
         idx INTEGER NOT NULL,
+        code TEXT NOT NULL DEFAULT '',
         url TEXT NOT NULL DEFAULT '',
         title TEXT NOT NULL DEFAULT '',
         title_zh TEXT NOT NULL DEFAULT '',
@@ -167,6 +170,9 @@ _SCHEMA_STATEMENTS = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_chapters_skipped ON chapters(ebook_slug, skipped)",
     "CREATE INDEX IF NOT EXISTS idx_chapters_status ON chapters(ebook_slug, last_action_status)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_code ON sources(code) WHERE code <> ''",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_ebooks_code ON ebooks(code) WHERE code <> ''",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_chapters_code ON chapters(code) WHERE code <> ''",
     # ── glossary (names.txt / vietphrase.txt) ────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS glossary_entries (
@@ -563,6 +569,10 @@ _ADDED_COLUMNS = [
     # với revision gần nhất (bất biến sản phẩm: full SHA-256 canonical).
     ("chapters", "ai_content_hash", "TEXT NOT NULL DEFAULT ''"),
     ("chapters", "local_mt_content_hash", "TEXT NOT NULL DEFAULT ''"),
+    # v14: human-readable operational identity (SRC-EBOOK-0001).
+    ("sources", "code", "TEXT NOT NULL DEFAULT ''"),
+    ("ebooks", "code", "TEXT NOT NULL DEFAULT ''"),
+    ("chapters", "code", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 
@@ -799,6 +809,16 @@ def _migration_v13(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
 
+def _migration_v14(conn: sqlite3.Connection) -> None:
+    """Add and backfill stable source/ebook/chapter operational codes."""
+    from .codes import backfill_codes
+
+    _ensure_columns(conn)
+    backfill_codes(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+
 _MIGRATIONS = {
     8: _migration_noop,
     9: _migration_noop,
@@ -806,6 +826,7 @@ _MIGRATIONS = {
     11: _migration_v11,
     12: _migration_v12,
     13: _migration_v13,
+    14: _migration_v14,
 }
 
 
@@ -834,6 +855,8 @@ def init_schema(conn: sqlite3.Connection) -> None:
         # nó. Phải chạy trước `_POST_COLUMN_INDEXES` vì index đó cần đúng cột
         # này (`ai_revisions.branch`, không nằm trong CREATE TABLE gốc).
         _ensure_columns(conn)
+        from .codes import backfill_codes
+        backfill_codes(conn)
         for stmt in _POST_COLUMN_INDEXES:
             conn.execute(stmt)
         _migrate_legacy_prompts(conn)

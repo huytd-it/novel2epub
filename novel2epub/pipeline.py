@@ -828,12 +828,12 @@ def _run_han_cleanup(
 
 
 def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch: Chapter, force: bool, log: LogFn, i: int, total: int, *, should_cancel: CancelFn | None = None, branch: str = revisions.BRANCH_AI) -> tuple[str, bool]:
-    """Dịch 1 chương: tiêu đề được prepend vào đầu content và dịch CHUNG trong
-    cùng lời gọi AI (giống bulk-transfer `## idx:N: title` + body) — tiêu đề
-    dịch đồng bộ văn phong với nội dung, không tốn thêm lời gọi riêng. Nguồn
-    tiêu đề luôn là `title_zh or title` (dịch lại content cũng refresh tiêu đề
-    từ bản ZH gốc); "Dịch TOC"/"Dịch lại tiêu đề" vẫn là đường title-only cho
-    chương chưa dịch nội dung.
+    """Dịch 1 chương và tiêu đề vào nhánh được chọn.
+
+    Nhánh AI prepend tiêu đề vào content để dịch chung trong một lời gọi. Nhánh
+    Local MT dịch tiêu đề bằng `translate_title()` riêng rồi chỉ gửi phần thân
+    vào `translate()`; model NMT không có prompt instruction để bảo đảm dòng đầu
+    luôn được giữ nguyên như một tiêu đề.
 
     `branch` là nhánh bản dịch nhận kết quả (`ai` mặc định — giữ nguyên hành vi
     cũ; `local_mt` ghi vào cột `local_mt_*` với title/workspace/revision riêng).
@@ -870,13 +870,17 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     def _on_glossary(entries: list[dict]) -> None:
         chapter_glossary.extend(entries)
 
-    # Dịch tiêu đề chung với content: prepend tiêu đề ZH làm dòng đầu — prompt
-    # đã có sẵn hint "Nếu dòng đầu là tiêu đề chương, dịch tiêu đề cho hay, gọn".
     zh_title = ch.title_zh or ch.title
-    send_title = bool(zh_title) and not is_noop and bool(raw.strip())
+    separate_title = branch == revisions.BRANCH_LOCAL_MT and not is_noop
+    send_title = bool(zh_title) and not is_noop and bool(raw.strip()) and not separate_title
     source_text = f"{zh_title}\n\n{raw}" if send_title else raw
 
     try:
+        if separate_title and zh_title:
+            vi_title, _title_note = translator.translate_title(zh_title)
+            title = ensure_title_number(zh_title, _clean_title(vi_title))
+            storage.write_branch_titles(ch, branch, title, zh_title)
+            title_changed = True
         _run_with_heartbeat(
             log, f"[dịch]   ({i}/{total})",
             lambda: translator.translate(
@@ -1119,9 +1123,8 @@ def step_translate_selected(
     """translate.max_workers > 1 trong config sẽ dịch nhiều chương song song
     bằng 1 translator dùng chung (xem _translate_chapters_parallel).
 
-    Tiêu đề chương được dịch CHUNG với nội dung trong cùng lời gọi AI (prepend
-    tiêu đề ZH làm dòng đầu — xem _translate_one). 'Dịch TOC' / 'Dịch lại
-    tiêu đề' vẫn là đường dịch title-only cho chương chưa dịch nội dung.
+    Nhánh AI dịch tiêu đề chung với nội dung (prepend tiêu đề ZH). Nhánh Local
+    MT dịch tiêu đề bằng lời gọi riêng rồi dịch phần thân — xem `_translate_one`.
 
     `branch='local_mt'` dịch vào nhánh Local NMT (cột `local_mt_*`) — nhánh
     độc lập với `ai`, không đụng bản dịch AI hiện hành.
@@ -2091,9 +2094,17 @@ def step_bulk_confirm(
         effective_branch = _target_branch()
         if effective_branch not in revisions.BRANCHES:
             raise RuntimeError(f"branch không hợp lệ: {effective_branch!r}")
+        engine = "localmt" if action == "local-mt" else "openai"
+        effective_cfg = replace(cfg, translate=replace(cfg.translate, type=engine))
 
         def _translate(log: LogFn) -> None:
-            step_translate_selected(cfg, log, selected_indexes=index_list, force=force, branch=effective_branch)
+            step_translate_selected(
+                effective_cfg,
+                log,
+                selected_indexes=index_list,
+                force=force,
+                branch=effective_branch,
+            )
 
         if dispatch is not None:
             ok = dispatch(f"bulk-{action}-{cfg.novel.slug}", "ai-translate" if action == "translate" else "local-mt", _translate)

@@ -6,13 +6,14 @@ import { useTheme } from "@/lib/theme";
 import { pendingCount, useQueue } from "@/lib/queue";
 import { useCurrentBook, useLibrary } from "@/lib/books";
 import { legacyUrl } from "@/lib/api";
-import { num, percent } from "@/lib/format";
+import { num } from "@/lib/format";
 import { ChapterStrip } from "@/components/ChapterStrip";
 import { decodeStrip } from "@/lib/strip";
 import {
   IconBook,
   IconCharacters,
-  IconCheck,
+  IconChevronLeft,
+  IconChevronRight,
   IconClock,
   IconDisk,
   IconExternal,
@@ -30,7 +31,6 @@ import {
   IconShield,
   IconSource,
   IconSun,
-  IconSwitch,
 } from "@/components/icons";
 
 type Item = { to: string; label: string; icon: typeof IconLibrary; end?: boolean };
@@ -73,56 +73,88 @@ function bookLegacyLinks(_slug: string): { href: string; label: string; icon: ty
   return [];
 }
 
-const navItem = "group gap-2.5 rounded-field text-[13px]";
+const navItem =
+  "group min-h-9 w-full gap-2.5 rounded-field px-3 py-2 text-[13px] transition-colors duration-150 hover:bg-base-200/80";
 
-function GroupTitle({ children }: { children: React.ReactNode }) {
+function GroupTitle({ children, collapsed }: { children: React.ReactNode; collapsed?: boolean }) {
   return (
-    <h2 className="menu-title px-3 pb-1 text-[10px] tracking-[0.12em] uppercase">{children}</h2>
+    <h2
+      className={clsx(
+        "menu-title px-2 pt-2 pb-1.5 text-[10px] tracking-[0.12em] uppercase opacity-55",
+        collapsed && "sr-only",
+      )}
+    >
+      {children}
+    </h2>
+  );
+}
+
+/** Mục điều hướng dùng chung: khi `collapsed` bọc icon trong nút tròn + tooltip. */
+function SidebarLink({
+  to,
+  end,
+  label,
+  icon: Icon,
+  collapsed,
+  trailing,
+}: {
+  to: string;
+  end?: boolean;
+  label: string;
+  icon: typeof IconLibrary;
+  collapsed: boolean;
+  trailing?: React.ReactNode;
+}) {
+  if (collapsed) {
+    return (
+      <li className="relative flex flex-row items-center justify-center py-1">
+        <NavLink
+          to={to}
+          end={end}
+          title={label}
+          aria-label={label}
+          className={({ isActive }) =>
+            clsx(
+              "flex size-10 items-center justify-center rounded-full ring-1 transition-[background-color,color,box-shadow] duration-150",
+              isActive
+                ? "bg-primary/15 text-primary ring-primary/30 shadow-sm"
+                : "text-base-content/65 ring-transparent hover:bg-base-200 hover:text-base-content hover:ring-base-300",
+            )
+          }
+        >
+          <Icon size={18} className="shrink-0" />
+        </NavLink>
+        {trailing}
+      </li>
+    );
+  }
+
+  return (
+    <li className="px-1.5 py-0.5">
+      <NavLink
+        to={to}
+        end={end}
+        title={label}
+        className={({ isActive }) =>
+          clsx(
+            navItem,
+            isActive
+              ? "bg-base-200 font-medium text-base-content shadow-[inset_0_0_0_1px_var(--color-base-300)]"
+              : "text-base-content/72",
+          )
+        }
+      >
+        <Icon size={17} className="shrink-0 opacity-75 transition-opacity group-hover:opacity-100" />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {trailing}
+      </NavLink>
+    </li>
   );
 }
 
 /* ── Truyện đang làm ─────────────────────────────────────────────────── */
 
-function BookSwitcher() {
-  const [slug, select] = useCurrentBook();
-  const { data } = useLibrary();
-  const books = data?.ebooks ?? [];
-  const active = books.find((b) => b.slug === slug);
-
-  return (
-    <div className="dropdown dropdown-bottom w-full">
-      <div
-        tabIndex={0}
-        role="button"
-        className="btn btn-sm w-full justify-between border-base-300 bg-base-200 font-normal"
-      >
-        <span className="truncate">{active ? active.name : "Chọn truyện"}</span>
-        <IconSwitch size={14} className="shrink-0 opacity-60" />
-      </div>
-      <ul className="dropdown-content menu menu-sm scroll-slim z-50 max-h-80 w-64 flex-nowrap overflow-y-auto rounded-box border border-base-300 bg-base-100 shadow-lg">
-        {books.length === 0 ? (
-          <li className="px-3 py-2 text-xs opacity-60">Thư viện đang trống</li>
-        ) : (
-          books.map((b) => (
-            <li key={b.slug}>
-              <button type="button" onClick={() => select(b.slug)} className="justify-between">
-                <span className="truncate">{b.name}</span>
-                <span className="flex shrink-0 items-center gap-1.5">
-                  <span data-numeric className="text-[11px] opacity-50">
-                    {percent(b.translated_count, b.total)}%
-                  </span>
-                  {b.slug === slug ? <IconCheck size={13} className="text-primary" /> : null}
-                </span>
-              </button>
-            </li>
-          ))
-        )}
-      </ul>
-    </div>
-  );
-}
-
-function BookSection() {
+function BookSection({ collapsed }: { collapsed: boolean }) {
   const [slug] = useCurrentBook();
   const { data } = useLibrary();
   const book = data?.ebooks.find((b) => b.slug === slug);
@@ -130,57 +162,50 @@ function BookSection() {
 
   return (
     <li>
-      <GroupTitle>Đang làm</GroupTitle>
-      <div className="px-2 pb-1">
-        <BookSwitcher />
-      </div>
+      <GroupTitle collapsed={collapsed}>Đang làm</GroupTitle>
 
       {book ? (
         <>
-          {book.total > 0 ? (
-            <div className="px-3 pt-1 pb-2">
-              <ChapterStrip states={states} height={8} />
-              <p className="mt-1.5 text-[11px] opacity-60">
-                <span data-numeric className="font-medium opacity-100">
-                  {num(book.translated_count)}
-                </span>
-                <span data-numeric className="opacity-70">
-                  /{num(book.total)}
-                </span>{" "}
-                chương đã dịch
-              </p>
-            </div>
-          ) : (
-            <p className="px-3 pt-1 pb-2 text-[11px] opacity-50">Chưa có mục lục.</p>
-          )}
-          <ul>
+          {!collapsed ? (
+            book.total > 0 ? (
+              <div className="px-3 pt-1 pb-2">
+                <ChapterStrip states={states} height={8} />
+                <p className="mt-1.5 text-[11px] opacity-60">
+                  <span data-numeric className="font-medium opacity-100">
+                    {num(book.translated_count)}
+                  </span>
+                  <span data-numeric className="opacity-70">
+                    /{num(book.total)}
+                  </span>{" "}
+                  chương đã dịch
+                </p>
+              </div>
+            ) : (
+              <p className="px-3 pt-1 pb-2 text-[11px] opacity-50">Chưa có mục lục.</p>
+            )
+          ) : null}
+          <ul className="!ms-0 !ps-0">
             {bookRoutes(book.slug).map(({ to, label, icon: Icon, end }) => (
-              <li key={to}>
-                <NavLink
-                  to={to}
-                  end={end}
-                  className={({ isActive }) =>
-                    clsx(
-                      navItem,
-                      "border-l-2",
-                      isActive ? "menu-active border-primary font-medium" : "border-transparent",
-                    )
-                  }
-                >
-                  <Icon size={16} className="shrink-0 opacity-70" />
-                  <span className="truncate">{label}</span>
-                </NavLink>
-              </li>
+              <SidebarLink
+                key={to}
+                to={to}
+                end={end}
+                label={label}
+                icon={Icon}
+                collapsed={collapsed}
+              />
             ))}
-            {bookLegacyLinks(book.slug).map(({ href, label, icon: Icon }) => (
-              <li key={href}>
-                <a href={legacyUrl(href)} className={navItem}>
-                  <Icon size={16} className="shrink-0 opacity-70" />
-                  <span className="truncate">{label}</span>
-                  <IconExternal size={11} className="ml-auto shrink-0 opacity-25" />
-                </a>
-              </li>
-            ))}
+            {!collapsed
+              ? bookLegacyLinks(book.slug).map(({ href, label, icon: Icon }) => (
+                  <li key={href} className="px-1.5 py-0.5">
+                    <a href={legacyUrl(href)} className={navItem} title={label}>
+                      <Icon size={17} className="shrink-0 opacity-75" />
+                      <span className="min-w-0 flex-1 truncate">{label}</span>
+                      <IconExternal size={11} className="shrink-0 opacity-35" />
+                    </a>
+                  </li>
+                ))
+              : null}
           </ul>
         </>
       ) : null}
@@ -191,11 +216,24 @@ function BookSection() {
 /* ── Điều hướng toàn cục ─────────────────────────────────────────────── */
 
 /** Đếm việc chạy/chờ ngay trên mục Hàng đợi — không cần ô đo riêng nữa. */
-function QueueCount() {
+function QueueCount({ collapsed }: { collapsed: boolean }) {
   const { data } = useQueue();
   const running = data?.running.length ?? 0;
   const waiting = pendingCount(data);
   if (!running && !waiting) return null;
+
+  if (collapsed) {
+    return (
+      <span className="absolute right-1 top-1.5" aria-hidden="true">
+        <span
+          className={clsx(
+            "block size-1.5 rounded-full",
+            running ? "bg-warning pulse-run" : "bg-base-300",
+          )}
+        />
+      </span>
+    );
+  }
 
   return (
     <span className="ml-auto flex shrink-0 items-center gap-1">
@@ -210,60 +248,44 @@ function QueueCount() {
   );
 }
 
-function WorkshopSection() {
+function WorkshopSection({ collapsed }: { collapsed: boolean }) {
   return (
     <li>
-      <GroupTitle>Xưởng</GroupTitle>
-      <ul>
+      <GroupTitle collapsed={collapsed}>Xưởng</GroupTitle>
+      <ul className="!ms-0 !ps-0">
         {WORKSHOP.map(({ to, label, icon: Icon, end }) => (
-          <li key={to}>
-            <NavLink
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                clsx(
-                  navItem,
-                  "border-l-2",
-                  isActive ? "menu-active border-primary font-medium" : "border-transparent",
-                )
-              }
-            >
-              <Icon size={16} className="shrink-0 opacity-70" />
-              <span className="truncate">{label}</span>
-              {to === "/queue" ? <QueueCount /> : null}
-            </NavLink>
-          </li>
+          <SidebarLink
+            key={to}
+            to={to}
+            end={end}
+            label={label}
+            icon={Icon}
+            collapsed={collapsed}
+            trailing={to === "/queue" ? <QueueCount collapsed={collapsed} /> : undefined}
+          />
         ))}
       </ul>
     </li>
   );
 }
 
-function SystemSection({ open }: { open: boolean }) {
+function SystemSection({ open, collapsed }: { open: boolean; collapsed: boolean }) {
   return (
     <li>
       {/* Nhóm này hiếm khi dùng — thu lại để phần "đang làm" luôn nằm trên nếp gấp. */}
-      <details open={open}>
-        <summary className="px-3 text-[10px] font-semibold tracking-[0.12em] uppercase opacity-60">
+      <details open={open || collapsed}>
+        <summary
+          title="Mở hoặc đóng nhóm Hệ thống"
+          className={clsx(
+            "mx-1.5 mt-2 rounded-field px-2 py-1.5 text-[10px] font-semibold tracking-[0.12em] uppercase opacity-55 transition-colors hover:bg-base-200 hover:opacity-80",
+            collapsed && "sr-only",
+          )}
+        >
           Hệ thống
         </summary>
-        <ul>
+        <ul className="!ms-0 !ps-0">
           {SYSTEM.map(({ to, label, icon: Icon }) => (
-            <li key={to}>
-              <NavLink
-                to={to}
-                className={({ isActive }) =>
-                  clsx(
-                    navItem,
-                    "border-l-2",
-                    isActive ? "menu-active border-primary font-medium" : "border-transparent",
-                  )
-                }
-              >
-                <Icon size={16} className="shrink-0 opacity-70" />
-                <span className="truncate">{label}</span>
-              </NavLink>
-            </li>
+            <SidebarLink key={to} to={to} label={label} icon={Icon} collapsed={collapsed} />
           ))}
         </ul>
       </details>
@@ -274,10 +296,29 @@ function SystemSection({ open }: { open: boolean }) {
 export function Shell() {
   const [theme, toggleTheme] = useTheme();
   const [drawer, setDrawer] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("n2e-sidebar-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
   const location = useLocation();
   const inSystem = SYSTEM.some((item) => location.pathname.startsWith(item.to));
 
   useEffect(() => setDrawer(false), [location.pathname]);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("n2e-sidebar-collapsed", next ? "1" : "0");
+      } catch {
+        /* bỏ qua khi không truy cập được localStorage */
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="drawer md:drawer-open">
@@ -307,28 +348,60 @@ export function Shell() {
 
       <div className="drawer-side z-90">
         <label htmlFor="n2e-drawer" className="drawer-overlay" aria-label="Đóng menu" />
-        <aside className="flex h-full min-h-screen w-64 flex-col border-r border-base-300 bg-base-100">
-          <div className="flex h-12 shrink-0 items-center gap-2 px-4">
-            <span className="font-display text-[15px] font-semibold tracking-tight">
-              novel2epub
-            </span>
-            <span className="badge badge-xs badge-ghost">xưởng</span>
+        <aside
+          className={clsx(
+            "flex h-full min-h-screen flex-col border-r border-base-300 bg-base-100 transition-[width] duration-200",
+            collapsed ? "w-16" : "w-64",
+          )}
+        >
+          <div
+            className={clsx(
+              "flex h-13 shrink-0 items-center",
+              collapsed ? "justify-center px-2" : "gap-2 px-3.5",
+            )}
+          >
+            {!collapsed ? (
+              <>
+                <span className="font-display text-[15px] font-semibold tracking-tight">
+                  novel2epub
+                </span>
+                <span className="badge badge-xs badge-ghost">xưởng</span>
+              </>
+            ) : null}
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              title={collapsed ? "Mở rộng menu bên" : "Thu gọn menu bên"}
+              aria-label={collapsed ? "Mở rộng menu bên" : "Thu gọn menu bên"}
+              className={clsx(
+                "btn btn-ghost btn-sm btn-circle text-base-content/60 hover:bg-base-200 hover:text-base-content",
+                !collapsed && "ml-auto",
+              )}
+            >
+              {collapsed ? <IconChevronRight size={14} /> : <IconChevronLeft size={14} />}
+            </button>
           </div>
 
-          <ul className="menu menu-sm scroll-slim w-full flex-1 flex-nowrap overflow-y-auto">
-            <BookSection />
-            <div className="divider my-1 h-px" />
-            <WorkshopSection />
-            <SystemSection open={inSystem} />
+          <ul className="menu menu-sm scroll-slim w-full flex-1 flex-nowrap overflow-y-auto px-1 py-1">
+            <BookSection collapsed={collapsed} />
+            <li role="separator" aria-hidden="true" className="mx-2 my-2 h-px bg-base-300/70" />
+            <WorkshopSection collapsed={collapsed} />
+            <SystemSection open={inSystem} collapsed={collapsed} />
           </ul>
 
-          <div className="flex shrink-0 items-center justify-between border-t border-base-300 px-4 py-2">
-            <span className="text-[11px] opacity-60">Giao diện</span>
+          <div
+            className={clsx(
+              "mx-2 mb-2 flex shrink-0 items-center rounded-field bg-base-200/55 py-1.5",
+              collapsed ? "justify-center" : "justify-between px-2",
+            )}
+          >
+            {!collapsed ? <span className="text-[11px] opacity-55">Giao diện</span> : null}
             <button
               type="button"
               onClick={toggleTheme}
-              className="btn btn-ghost btn-xs btn-square"
+              title={theme === "dark" ? "Chuyển sang nền sáng" : "Chuyển sang nền tối"}
               aria-label={theme === "dark" ? "Chuyển sang nền sáng" : "Chuyển sang nền tối"}
+              className="btn btn-ghost btn-sm btn-circle text-base-content/65 hover:bg-base-300/70 hover:text-base-content"
             >
               {theme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
             </button>

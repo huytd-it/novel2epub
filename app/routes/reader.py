@@ -135,8 +135,8 @@ def _chapter_context(slug: str, index: int) -> dict:
     tải lại toàn trang khi đang biên tập."""
     cfg, storage, manifest, ch = _load_chapter_or_404(slug, index)
 
-    has_translated = storage.has_translated(ch)
-    translated = storage.read_translated(ch) if has_translated else ""
+    has_translated = storage.has_active_branch_text(ch)
+    translated = storage.read_active_branch_text(ch) if has_translated else ""
     translated_paras = split_paras(translated) if translated else []
     has_raw = storage.has_raw(ch)
     raw = storage.read_raw(ch) if has_raw else ""
@@ -150,7 +150,7 @@ def _chapter_context(slug: str, index: int) -> dict:
         chapters_info.append({
             "index": c.index,
             "title": c.title or f"Chương {c.index}",
-            "has_translated": storage.has_translated(c),
+            "has_translated": storage.has_active_branch_text(c),
         })
 
     prev_ch = None

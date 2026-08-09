@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 
 export interface EbookDetail {
@@ -192,37 +192,6 @@ export function rowLabel(row: ChapterRow): string {
   return row.bientap ? "Đã biên tập" : "Đã dịch máy";
 }
 
-/* ── Ba luồng xử lý hàng loạt, độc lập nhau ──────────────────────────────
-   "Dịch" đọc BẢN GỐC, ghi thẳng vào nhánh (`ai` hoặc `local_mt`).
-   "Biên tập AI" đọc BẢN DỊCH đang có, sinh BẢN NHÁP chờ duyệt từng chương.
-   Đừng gộp hai thứ này vào một nút: chúng đọc nguồn khác nhau và một cái ghi
-   đè thẳng còn một cái thì không.                                          */
-
-export function useTranslateSelected(slug: string) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (vars: { indexes: number[]; branch: "ai" | "local_mt"; force?: boolean }) =>
-      api.post<{ started: boolean; branch: string }>(`/api/ui/ebooks/${slug}/translate`, {
-        body: { indexes: vars.indexes, branch: vars.branch, force: vars.force ?? false },
-      }),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["chapters", slug] });
-      client.invalidateQueries({ queryKey: ebookKey(slug) });
-      client.invalidateQueries({ queryKey: ["queue"] });
-    },
-  });
-}
-
-export function useRewriteSelected(slug: string) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (vars: { indexes: number[]; genre: string }) =>
-      api.post<{ started: boolean; genre: string }>(`/api/ui/ebooks/${slug}/rewrite`, {
-        body: { indexes: vars.indexes, genre: vars.genre },
-      }),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["chapters", slug] });
-      client.invalidateQueries({ queryKey: ["queue"] });
-    },
-  });
-}
+/* ── Hành động hàng loạt qua hợp đồng bulk-preview / bulk-confirm ──────
+   Dịch (nhánh `ai`/`local_mt`) và biên tập AI (`ai-edit-draft`) bắt buộc
+   preview trước rồi mới confirm; xem `components/chapter/BulkPreviewDialog`. */

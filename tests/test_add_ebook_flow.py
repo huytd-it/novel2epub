@@ -76,6 +76,41 @@ def test_preview_fetch_error_returns_400(monkeypatch):
     assert "Lỗi mạng" in res.json()["error"]
 
 
+def test_translate_metadata_endpoint(monkeypatch):
+    from app.routes import library
+
+    app, client = _client(monkeypatch)
+    monkeypatch.setattr(library, "translate_ebook_metadata", lambda cfg, **kwargs: {
+        "title": "Tên Việt", "description": "Mô tả Việt", "engine": kwargs["engine"],
+    })
+
+    res = client.post("/library/ebooks/translate-metadata", data={
+        "title": "中文书名", "description": "中文简介", "engine": "localmt",
+    })
+
+    assert res.status_code == 200
+    assert res.json() == {
+        "title": "Tên Việt", "description": "Mô tả Việt", "engine": "localmt",
+    }
+
+
+def test_translate_metadata_endpoint_reports_model_error(monkeypatch):
+    from app.routes import library
+
+    app, client = _client(monkeypatch)
+    monkeypatch.setattr(
+        library, "translate_ebook_metadata",
+        lambda cfg, **kwargs: (_ for _ in ()).throw(RuntimeError("model missing")),
+    )
+
+    res = client.post("/library/ebooks/translate-metadata", data={
+        "title": "中文书名", "engine": "localmt",
+    })
+
+    assert res.status_code == 503
+    assert "Local MT" in res.json()["detail"]
+
+
 # ---------------- create endpoint ----------------
 
 
@@ -125,6 +160,11 @@ def test_new_ebook_page_renders(monkeypatch, tmp_path):
     assert res.status_code == 200
     assert "Thêm ebook mới" in res.text
     assert "model-xem-truoc" in res.text  # config global hiển thị trong preview
+    assert "Hệ thống dịch và AI dùng chung" in res.text
+    assert "Dịch nhanh bằng Local MT" in res.text
+    assert 'aria-live="polite"' in res.text
+    assert "metadataTranslationPending" in res.text
+    assert "Local MT chưa sẵn sàng" in res.text
 
 
 def test_preview_returns_crawl_preview(monkeypatch, tmp_path):

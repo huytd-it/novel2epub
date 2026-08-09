@@ -282,6 +282,8 @@ def add_ebook(
                 json.dumps(crawl_over, ensure_ascii=False),
             ),
         )
+        from .codes import backfill_codes
+        backfill_codes(conn)
 
 
 def ensure_identifier(path: str | Path, slug: str, current: str) -> str:

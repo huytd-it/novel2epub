@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from novel2epub.codes import ebook_identity
 from novel2epub.db import get_thread_connection
 
 from .logging_config import job_log_capture, logger
@@ -60,8 +61,10 @@ class Job:
     step: str
     label: str = ""
     ebook: str = ""
+    ebook_code: str = ""
     lock_ebook: bool = True  # False = cho phép nhiều job song song cùng ebook
     chapter_indexes: list = field(default_factory=list)  # Chapters job này xử lý
+    chapter_codes: list = field(default_factory=list)
     target: Callable[[Callable[[str], None]], object] | None = None
     state: str = "pending"  # pending|running|done|failed|cancelled
     enqueued_at: float = field(default_factory=time.time)
@@ -82,8 +85,10 @@ class Job:
             "step": self.step,
             "label": self.label or self.step,
             "ebook": self.ebook,
+            "ebook_code": self.ebook_code or self.ebook,
             "lock_ebook": self.lock_ebook,
             "chapter_indexes": self.chapter_indexes,
+            "chapter_codes": self.chapter_codes,
             "state": self.state,
             "enqueued_at": self.enqueued_at,
             "started_at": self.started_at,
@@ -182,6 +187,10 @@ class JobQueue:
             chapter_indexes=chapter_indexes or [],
             spec=spec,
         )
+        if ebook and self._db_path:
+            code, chapters = ebook_identity(get_thread_connection(self._db_path), ebook)
+            job.ebook_code = code
+            job.chapter_codes = [chapters.get(int(i), f"{code}-{int(i):04d}") for i in job.chapter_indexes]
         if cancel_event is not None:
             job.cancel_event = cancel_event
         with self._cv:
@@ -650,7 +659,8 @@ class JobQueue:
             job.log.append(msg)
             logger.info(msg)
 
-        logger.info("Bắt đầu job %r (%s)", job.step, job.id)
+        identity = ", ".join(job.chapter_codes) or job.ebook_code or job.ebook or "global"
+        logger.info("Bắt đầu job %r [%s] (%s)", job.step, identity, job.id)
         try:
             assert job.target is not None
             # Log nội bộ của novel2epub.* (crawler, search...) chảy vào job.log
@@ -659,13 +669,13 @@ class JobQueue:
                 result = job.target(log_fn)
             if isinstance(result, dict):
                 job.outcome = result
-            logger.info("Job %r hoàn tất", job.step)
+            logger.info("Job %r [%s] hoàn tất", job.step, identity)
             return "cancelled" if job.cancel_event.is_set() else "done"
         except Exception as e:  # noqa: BLE001 - hiển thị lỗi bất kỳ lên UI
             job.error = str(e)
             log_fn(f"[lỗi] {e}")
             log_fn(traceback.format_exc())
-            logger.exception("Job %r thất bại: %s", job.step, e)
+            logger.exception("Job %r [%s] thất bại: %s", job.step, identity, e)
             return "failed"
 
     def _push_history(self, job: Job) -> None:
@@ -822,8 +832,10 @@ class JobQueue:
                 step=item.get("step", ""),
                 label=item.get("label", item.get("step", "")),
                 ebook=item.get("ebook", ""),
+                ebook_code=item.get("ebook_code", ""),
                 lock_ebook=item.get("lock_ebook", True),
                 chapter_indexes=item.get("chapter_indexes", []),
+                chapter_codes=item.get("chapter_codes", []),
                 outcome=item.get("outcome"),
             )
             job.state = item.get("state", "done")

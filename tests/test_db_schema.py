@@ -11,6 +11,7 @@ from novel2epub.db import (
     init_schema,
     schema_version,
 )
+from novel2epub.codes import acronym
 
 _EXPECTED_TABLES = {
     "_meta",
@@ -58,6 +59,24 @@ def test_schema_version_recorded():
     conn = get_connection(":memory:")
     init_schema(conn)
     assert schema_version(conn) == SCHEMA_VERSION
+
+
+def test_operational_codes_are_backfilled_and_stable():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        conn.execute("INSERT INTO sources (name) VALUES ('Sáng Đạo Reader')")
+        conn.execute(
+            "INSERT INTO ebooks (slug, title, source_preset) VALUES (?, ?, ?)",
+            ("quy-bi-chi-chu", "Quỷ Bí Chi Chủ", "Sáng Đạo Reader"),
+        )
+        conn.execute("INSERT INTO chapters (ebook_slug, idx) VALUES ('quy-bi-chi-chu', 1)")
+    init_schema(conn)
+
+    assert acronym("Sáng Đạo Reader", "SRC") == "SDR"
+    assert conn.execute("SELECT code FROM sources").fetchone()["code"] == "SDR"
+    assert conn.execute("SELECT code FROM ebooks").fetchone()["code"] == "SDR-QBCC"
+    assert conn.execute("SELECT code FROM chapters").fetchone()["code"] == "SDR-QBCC-0001"
 
 
 def test_settings_is_single_row_table():

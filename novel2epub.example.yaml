@@ -60,7 +60,7 @@ defaults:
       respect_retry_after: true
 
   translate:
-    type: hachimimt            # hachimimt | openai | google | libretranslate | none
+    type: localmt              # localmt | openai | none
     # Nguồn tiếng Việt (truyện VN, không cần dịch): source_language: vi
     # → bước dịch chỉ copy nguyên văn raw → translated, không gọi AI/model.
     # source_language: ""       # "" = Trung (mặc định) | en | vi
@@ -87,18 +87,19 @@ defaults:
       model: "opencode-go/kimi-k2.6"
       timeout_seconds: 600
       temperature: 0.7
+    # Config engine Local MT (type=localmt). Khoá giữ tên `hachimimt` — tên
+    # implementation trong package novel2epub.hachimimt.
     hachimimt:
       model_key: "HachimiMT-60"
       backend: "ctranslate2"
       beam_size: 2
       chunk_mode: "sentence"
-    # LibreTranslate: self-hosted translation API (https://github.com/LibreTranslate/LibreTranslate)
-    # type: libretranslate
-    # libretranslate:
-    #   base_url: "http://localhost:5000"
-    #   api_key: ""
-    #   source_language: "zh"
-    #   target_language: "vi"
+    # Clear Hán còn sót sau dịch.
+    # auto_cleanup_han: false     # true = tự dọn sau mỗi chương
+    cleanup_han:
+      engine: "local_mt"         # local_mt (mặc định, miễn phí) | openai (AI biên tập)
+      max_chars: 18000           # chỉ áp dụng engine=openai (0 = không giới hạn)
+      retries: 1
 
     # ---- OmniRoute gateway ----
     # Khi preset=omniroute, trỏ base_url vào OmniRoute (mặc định chạy local

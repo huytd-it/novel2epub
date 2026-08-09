@@ -152,8 +152,9 @@ def initialize_branch_revisions(
 
     An toàn:
 
-    - MỘT transaction duy nhất — lỗi giữa chừng rollback sạch, không để lại
-      operation mồ côi.
+    - Canonicalize/hash/compress toàn bộ candidate trước khi lấy write lock.
+    - MỘT `BEGIN IMMEDIATE` transaction ngắn để xác minh exact source set rồi
+      ghi operation/revisions/current hashes; lỗi giữa chừng rollback sạch.
     - Idempotent: chạy lại chỉ bỏ qua nhánh ĐÃ CÓ baseline (nhận diện qua
       operation kind `migration_baseline` + `base_content_hash=''` + parent
       NULL — KHÔNG dựa vào revision_number). Không duplicate; tái dùng cho
@@ -179,45 +180,75 @@ def initialize_branch_revisions(
     conn = get_thread_connection(storage._db_path)
     slug = storage.slug
 
-    with conn:
-        _ensure_backfill_operation(conn, slug, message, actor_issuer, actor_subject)
-        _sync_existing_hash_columns(conn, slug, branches)
+    # Phase 1 — đọc/canonicalize/hash/compress TRƯỚC write lock. Chỉ branch chưa
+    # có history mới là candidate; transaction sẽ đọc lại và xác minh exact set.
+    existing = {
+        (int(row["chapter_index"]), row["branch"])
+        for row in conn.execute(
+            "SELECT DISTINCT chapter_index, branch FROM chapter_revisions WHERE ebook_slug=?",
+            (slug,),
+        )
+    }
+    prepared = []
+    for idx, title, text, branch, rev_number in _iter_initialized_branches(conn, slug, branches):
+        if (idx, branch) in existing:
+            continue
+        prepared.append(
+            {
+                "index": idx,
+                "title": title,
+                "text": text,
+                "branch": branch,
+                "revision": rev_number,
+                "blob": compress_content(text),
+                "hash": full_content_hash(title, text),
+            }
+        )
 
-        # Nhánh ĐÃ CÓ baseline (kind=migration_baseline, parent NULL,
-        # base_content_hash='') — bỏ qua. Nhận diện KHÔNG dựa vào
-        # revision_number.
-        baselined = {
-            (row["chapter_index"], row["branch"])
-            for row in conn.execute(
-                """
-                SELECT r.chapter_index, r.branch FROM chapter_revisions r
-                JOIN chapter_operations o ON o.id = r.operation_id
-                WHERE r.ebook_slug=? AND o.kind=?
-                  AND r.parent_revision_id IS NULL AND r.base_content_hash=''
-                """,
-                (slug, KIND_MIGRATION_BASELINE),
-            )
-        }
-        # Nhánh ĐÃ CÓ BẤT KỲ revision nào (baseline hoặc history ghi sau) —
-        # cũng bỏ qua, không ghi đè.
-        existing = {
-            (row["chapter_index"], row["branch"])
-            for row in conn.execute(
-                "SELECT DISTINCT chapter_index, branch FROM chapter_revisions "
-                "WHERE ebook_slug=?",
-                (slug,),
-            )
-        }
+    # Không có revision cần tạo thì không được sinh operation rỗng. Đây cũng là
+    # fast path idempotent; tuyệt đối không lấy write lock.
+    if not prepared:
+        return {"branches": [], "revisions": 0, "chapters": 0, "operations": 0}
 
+    created = 0
+    operation_created = False
+    affected_indexes: set[int] = set()
+    per_branch: dict[str, int] = {}
+    try:
+        _begin_immediate(conn)
+
+        # Phase 2 — dưới lock, candidate phải còn đúng title/text/revision và
+        # vẫn chưa có history. Bất kỳ drift nào rollback TOÀN batch.
+        for item in prepared:
+            title_col, text_col = branch_text_columns(item["branch"])
+            rev_col = branch_revision_column(item["branch"])
+            current = conn.execute(
+                f"SELECT {title_col} AS title, {text_col} AS text, {rev_col} AS rev "
+                "FROM chapters WHERE ebook_slug=? AND idx=?",
+                (slug, item["index"]),
+            ).fetchone()
+            history = conn.execute(
+                "SELECT 1 FROM chapter_revisions WHERE ebook_slug=? AND chapter_index=? "
+                "AND branch=? LIMIT 1",
+                (slug, item["index"], item["branch"]),
+            ).fetchone()
+            if (
+                current is None
+                or current["text"] is None
+                or (current["title"] or "") != item["title"]
+                or (current["text"] or "") != item["text"]
+                or int(current["rev"] or 1) != item["revision"]
+                or history is not None
+            ):
+                raise RuntimeError(
+                    f"baseline source changed: chapter={item['index']} branch={item['branch']}"
+                )
+
+        operation_created = _ensure_backfill_operation(
+            conn, slug, message, actor_issuer, actor_subject
+        )
         operation_id = _find_backfill_operation_id(conn, slug)
-        created = 0
-        affected_indexes: set[int] = set()
-        per_branch: dict[str, int] = {}
-        for idx, title, text, branch, rev_number in _iter_initialized_branches(conn, slug, branches):
-            if (idx, branch) in baselined or (idx, branch) in existing:
-                continue
-            blob = compress_content(text)
-            digest = full_content_hash(title, text)
+        for item in prepared:
             conn.execute(
                 """
                 INSERT INTO chapter_revisions (
@@ -226,22 +257,34 @@ def initialize_branch_revisions(
                     content_encoding, content_hash, base_content_hash
                 ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, '')
                 """,
-                (operation_id, slug, idx, branch, rev_number, title, blob, ENCODING_ZLIB, digest),
+                (
+                    operation_id, slug, item["index"], item["branch"],
+                    item["revision"], item["title"], item["blob"],
+                    ENCODING_ZLIB, item["hash"],
+                ),
             )
-            hash_col = branch_hash_column(branch)
-            conn.execute(
-                f"UPDATE chapters SET {hash_col}=? WHERE ebook_slug=? AND idx=?",
-                (digest, slug, idx),
+            hash_col = branch_hash_column(item["branch"])
+            current_rev_col = branch_revision_column(item["branch"])
+            cur = conn.execute(
+                f"UPDATE chapters SET {hash_col}=? WHERE ebook_slug=? AND idx=? "
+                f"AND {current_rev_col}=?",
+                (item["hash"], slug, item["index"], item["revision"]),
             )
+            if cur.rowcount != 1:
+                raise RuntimeError("baseline current hash CAS failed")
             created += 1
-            affected_indexes.add(idx)
-            per_branch[branch] = per_branch.get(branch, 0) + 1
+            affected_indexes.add(item["index"])
+            per_branch[item["branch"]] = per_branch.get(item["branch"], 0) + 1
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
     return {
         "branches": sorted(per_branch),
         "revisions": created,
         "chapters": len(affected_indexes),
-        "operations": 1,
+        "operations": 1 if operation_created else 0,
     }
 
 
@@ -266,19 +309,33 @@ def _find_backfill_operation_id(conn: sqlite3.Connection, slug: str) -> int:
     return int(row["id"])
 
 
+def _begin_immediate(conn: sqlite3.Connection) -> None:
+    """Tách helper để test xác minh lock chỉ lấy sau phase precompute."""
+    conn.execute("BEGIN IMMEDIATE")
+
+
+def baseline_request_hash(slug: str) -> str:
+    """Hash ổn định của logical baseline operation cho một ebook.
+
+    Operation có thể được resume theo branch ở nhiều lần chạy, nên request hash
+    đại diện intent toàn ebook thay vì danh sách candidate của riêng một batch.
+    """
+    return hashlib.sha256(f"chapter-revisions-backfill-v1:{slug}".encode("utf-8")).hexdigest()
+
+
 def _ensure_backfill_operation(
     conn: sqlite3.Connection,
     slug: str,
     message: str,
     actor_issuer: str,
     actor_subject: str,
-) -> None:
-    conn.execute(
+) -> bool:
+    cur = conn.execute(
         """
         INSERT INTO chapter_operations (
             ebook_slug, kind, message, actor_issuer, actor_subject,
-            client_operation_id, metadata_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            client_operation_id, request_hash, metadata_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(client_operation_id) DO NOTHING
         """,
         (
@@ -288,35 +345,23 @@ def _ensure_backfill_operation(
             actor_issuer,
             actor_subject,
             baseline_client_operation_id(slug),
+            baseline_request_hash(slug),
             "{}",
         ),
     )
-
-
-def _sync_existing_hash_columns(
-    conn: sqlite3.Connection, slug: str, branches: tuple[str, ...]
-) -> None:
-    """Khớp cột hash `chapters.*_content_hash` với revision baseline ĐÃ TỒN TẠI
-    (resume sau crash / DB được chạy lại). Không đụng text hiện hành."""
-    if not branches:
-        return
-    for branch in branches:
-        hash_col = branch_hash_column(branch)
-        conn.execute(
-            f"""
-            UPDATE chapters SET {hash_col}=COALESCE((
-                SELECT r.content_hash FROM chapter_revisions r
-                JOIN chapter_operations o ON o.id = r.operation_id
-                WHERE r.ebook_slug=chapters.ebook_slug
-                  AND r.chapter_index=chapters.idx
-                  AND r.branch=? AND o.kind=? AND r.parent_revision_id IS NULL
-                  AND r.base_content_hash=''
-                LIMIT 1
-            ), '')
-            WHERE ebook_slug=?
-            """,
-            (branch, KIND_MIGRATION_BASELINE, slug),
-        )
+    existing = conn.execute(
+        "SELECT ebook_slug, kind, request_hash FROM chapter_operations "
+        "WHERE client_operation_id=?",
+        (baseline_client_operation_id(slug),),
+    ).fetchone()
+    if (
+        existing is None
+        or existing["ebook_slug"] != slug
+        or existing["kind"] != KIND_MIGRATION_BASELINE
+        or existing["request_hash"] != baseline_request_hash(slug)
+    ):
+        raise RuntimeError("baseline idempotency operation không khớp logical request")
+    return cur.rowcount == 1
 
 
 def _iter_initialized_branches(

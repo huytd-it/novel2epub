@@ -568,7 +568,51 @@ def test_baseline_single_transaction_rolls_back_cleanly(monkeypatch):
     assert ch["ai_content_hash"] == ""
 
 
-def test_baseline_no_initialized_branches_creates_operation_but_no_revision():
+def test_baseline_source_drift_before_lock_aborts_without_operation(monkeypatch):
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    _seed_book(conn)
+    original_begin = ops._begin_immediate
+
+    def drift_then_lock(connection):
+        connection.execute(
+            "UPDATE chapters SET translated_text='đổi xen giữa' "
+            "WHERE ebook_slug='demo' AND idx=1"
+        )
+        connection.commit()
+        original_begin(connection)
+
+    monkeypatch.setattr(ops, "_begin_immediate", drift_then_lock)
+    with pytest.raises(RuntimeError, match="baseline source changed"):
+        initialize_branch_revisions(_MemStorage(conn))
+    assert conn.execute("SELECT COUNT(*) FROM chapter_operations").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM chapter_revisions").fetchone()[0] == 0
+    hashes = conn.execute(
+        "SELECT ai_content_hash, local_mt_content_hash FROM chapters WHERE idx=1"
+    ).fetchone()
+    assert tuple(hashes) == ("", "")
+
+
+def test_baseline_failure_after_operation_rolls_back_everything():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    _seed_book(conn)
+    with conn:
+        conn.execute(
+            "CREATE TRIGGER fail_second_baseline BEFORE INSERT ON chapter_revisions "
+            "WHEN NEW.chapter_index=2 BEGIN SELECT RAISE(ABORT, 'forced insert failure'); END"
+        )
+    with pytest.raises(sqlite3.IntegrityError, match="forced insert failure"):
+        initialize_branch_revisions(_MemStorage(conn))
+    assert conn.execute("SELECT COUNT(*) FROM chapter_operations").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM chapter_revisions").fetchone()[0] == 0
+    rows = conn.execute(
+        "SELECT ai_content_hash, local_mt_content_hash FROM chapters ORDER BY idx"
+    ).fetchall()
+    assert all(tuple(row) == ("", "") for row in rows)
+
+
+def test_baseline_no_initialized_branches_creates_no_operation():
     conn = get_connection(":memory:")
     init_schema(conn)
     with conn:
@@ -578,8 +622,9 @@ def test_baseline_no_initialized_branches_creates_operation_but_no_revision():
             "VALUES ('demo', 1, 'T', NULL)"
         )
     result = initialize_branch_revisions(_MemStorage(conn))
-    assert result["revisions"] == 0
+    assert result == {"branches": [], "revisions": 0, "chapters": 0, "operations": 0}
     assert conn.execute("SELECT COUNT(*) AS c FROM chapter_revisions").fetchone()["c"] == 0
+    assert conn.execute("SELECT COUNT(*) AS c FROM chapter_operations").fetchone()["c"] == 0
 
 
 def test_baseline_operation_kind_and_metadata():
@@ -588,7 +633,7 @@ def test_baseline_operation_kind_and_metadata():
     _seed_book(conn)
     initialize_branch_revisions(_MemStorage(conn), message="msg tùy biến", actor_issuer="iss", actor_subject="sub")
     op = conn.execute(
-        "SELECT kind, message, actor_issuer, actor_subject, client_operation_id, metadata_json "
+        "SELECT kind, message, actor_issuer, actor_subject, client_operation_id, request_hash, metadata_json "
         "FROM chapter_operations"
     ).fetchone()
     assert op["kind"] == "migration_baseline"
@@ -597,6 +642,8 @@ def test_baseline_operation_kind_and_metadata():
     assert op["actor_subject"] == "sub"
     assert json.loads(op["metadata_json"]) == {}
     assert op["client_operation_id"] == baseline_client_operation_id("demo")
+    assert op["request_hash"] == ops.baseline_request_hash("demo")
+    assert len(op["request_hash"]) == 64
 
 
 def test_baseline_client_operation_id_differs_per_ebook():

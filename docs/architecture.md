@@ -76,7 +76,7 @@ quả về form để người dùng duyệt, không tự ghi metadata vào DB.
 
 ## Web UI Và Job Queue
 
-FastAPI render giao diện Jinja2 và cung cấp API nội bộ. `JobQueue` chia worker thành nhóm `crawl` và `translate`; job dùng cả hai nhóm như `run` hoặc `build` chờ tài nguyên phù hợp để tránh ghi chồng trạng thái ebook.
+FastAPI render giao diện Jinja2 và cung cấp API nội bộ. `JobQueue` chia worker thành các loại `crawl`, `local-mt`, `ai-translate`, `ai-edit` và `build`; số worker từng loại được lưu trong cấu hình global. Job độc quyền như `run` chờ tài nguyên phù hợp để tránh ghi chồng trạng thái ebook.
 
 `AutomationScheduler` kiểm tra cron định kỳ và enqueue toàn bộ chuỗi bước như một job tuần tự. Lịch bị lỡ khi máy tắt được chạy bù tối đa một lần.
 

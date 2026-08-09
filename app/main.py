@@ -41,19 +41,27 @@ from .scheduler import AutomationScheduler
 setup_logging()
 
 
-# Đọc queue.translate_workers / queue.crawl_workers từ defaults: trong config.
-# Nếu file chưa tồn tại hoặc parse lỗi → dùng mặc định của QueueConfig (5/2).
+# Đọc số worker từng loại từ defaults trong config.
 def _load_queue_workers() -> dict[str, int]:
     from novel2epub.config import QueueConfig, load_config
     try:
         _cfg = load_config(WORKSPACE_PATH)
         return {
-            "translate": _cfg.queue.translate_workers,
             "crawl": _cfg.queue.crawl_workers,
+            "local-mt": _cfg.queue.local_mt_workers,
+            "ai-translate": _cfg.queue.translate_workers,
+            "ai-edit": _cfg.queue.ai_edit_workers,
+            "build": _cfg.queue.build_workers,
         }
     except Exception:
         _dq = QueueConfig()
-        return {"translate": _dq.translate_workers, "crawl": _dq.crawl_workers}
+        return {
+            "crawl": _dq.crawl_workers,
+            "local-mt": _dq.local_mt_workers,
+            "ai-translate": _dq.translate_workers,
+            "ai-edit": _dq.ai_edit_workers,
+            "build": _dq.build_workers,
+        }
 
 
 def _cors_origins(path: str | None = None) -> list[str]:

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 
@@ -10,21 +10,43 @@ import {
   jobTone,
   pendingCount,
   queueKey,
+  useJobLog,
   useQueue,
   type Job,
 } from "@/lib/queue";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
-import { Button } from "@/components/ui/Button";
+import { Button, Spinner } from "@/components/ui/Button";
 import { Badge, Dot } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { IconPlay, IconRetry, IconTrash } from "@/components/icons";
 
-function JobRow({ job, onAction }: { job: Job; onAction: (job: Job, action: string) => void }) {
+const WORKER_LABEL: Record<string, string> = {
+  crawl: "crawl",
+  "local-mt": "local-mt",
+  "ai-translate": "ai-translate",
+  "ai-edit": "ai-edit",
+  build: "build",
+};
+
+function JobRow({
+  job,
+  onAction,
+  onViewLog,
+}: {
+  job: Job;
+  onAction: (job: Job, action: string) => void;
+  onViewLog: (job: Job) => void;
+}) {
   const tone = jobTone(job.state);
   const running = job.state === "running";
 
   return (
-    <tr className="border-b border-base-300 last:border-b-0 hover:bg-base-200/50">
+    <tr
+      className="cursor-pointer border-b border-base-300 last:border-b-0 hover:bg-base-200/50"
+      title="Xem nhật ký"
+      onClick={() => onViewLog(job)}
+    >
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-2">
           <Dot tone={tone} pulse={running} />
@@ -55,7 +77,10 @@ function JobRow({ job, onAction }: { job: Job; onAction: (job: Job, action: stri
               size="sm"
               variant="ghost"
               icon={<IconPlay />}
-              onClick={() => onAction(job, "start-now")}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction(job, "start-now");
+              }}
               aria-label="Chạy ngay"
             />
           ) : null}
@@ -64,12 +89,22 @@ function JobRow({ job, onAction }: { job: Job; onAction: (job: Job, action: stri
               size="sm"
               variant="ghost"
               icon={<IconRetry />}
-              onClick={() => onAction(job, "retry")}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction(job, "retry");
+              }}
               aria-label="Chạy lại"
             />
           ) : null}
           {running || job.state === "pending" ? (
-            <Button size="sm" variant="ghost" onClick={() => onAction(job, "cancel")}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction(job, "cancel");
+              }}
+            >
               Hủy
             </Button>
           ) : (
@@ -77,7 +112,10 @@ function JobRow({ job, onAction }: { job: Job; onAction: (job: Job, action: stri
               size="sm"
               variant="ghost"
               icon={<IconTrash />}
-              onClick={() => onAction(job, "delete")}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction(job, "delete");
+              }}
               aria-label="Xóa khỏi lịch sử"
             />
           )}
@@ -87,13 +125,21 @@ function JobRow({ job, onAction }: { job: Job; onAction: (job: Job, action: stri
   );
 }
 
-function JobTable({ jobs, onAction }: { jobs: Job[]; onAction: (job: Job, action: string) => void }) {
+function JobTable({
+  jobs,
+  onAction,
+  onViewLog,
+}: {
+  jobs: Job[];
+  onAction: (job: Job, action: string) => void;
+  onViewLog: (job: Job) => void;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[46rem] border-collapse text-left">
         <thead>
           <tr className="border-b border-base-300 bg-base-200/60">
-            {["Việc", "Truyện", "Trạng thái", "Nhóm", "Thời gian", ""].map((h, i) => (
+            {["Việc", "Truyện", "Trạng thái", "Loại worker", "Thời gian", ""].map((h, i) => (
               <th
                 key={h || i}
                 className="px-3 py-1.5 text-[10px] font-semibold tracking-[0.1em] opacity-40 uppercase"
@@ -105,11 +151,30 @@ function JobTable({ jobs, onAction }: { jobs: Job[]; onAction: (job: Job, action
         </thead>
         <tbody>
           {jobs.map((job) => (
-            <JobRow key={job.id} job={job} onAction={onAction} />
+            <JobRow key={job.id} job={job} onAction={onAction} onViewLog={onViewLog} />
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function JobLogModal({ job, open, onClose }: { job: Job | null; open: boolean; onClose: () => void }) {
+  const { data, isPending } = useJobLog(open && job ? job.id : null, job?.state === "running");
+  const boxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight;
+  }, [data?.log]);
+  return (
+    <Modal open={open} onClose={onClose} title={job ? `Nhật ký · ${job.label}` : "Nhật ký"} wide footer={<Button onClick={onClose}>Đóng</Button>}>
+      {!job ? <EmptyState title="Chưa có nhật ký" hint="Chọn một việc trong hàng đợi để xem nhật ký." /> : isPending ? <div className="flex justify-center py-12"><Spinner /></div> : (
+        <div ref={boxRef} className="scroll-slim max-h-[55vh] overflow-auto bg-base-200 px-3 py-2">
+          {(data?.log ?? []).length === 0 ? <p className="py-8 text-center text-sm opacity-50">Job chưa ghi dòng log nào.</p> : (data?.log ?? []).map((line, index) => (
+            <pre key={index} className={clsx("m-0 text-[12px] leading-[1.55] break-words whitespace-pre-wrap", /ERROR|CRITICAL|Traceback|failed|Lỗi/.test(line) ? "text-error" : "opacity-65")}>{line}</pre>
+          ))}
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -118,6 +183,7 @@ export function QueuePage() {
   const client = useQueryClient();
   const toast = useToast();
   const [tab, setTab] = useState<"active" | "history">("active");
+  const [logJob, setLogJob] = useState<Job | null>(null);
 
   const act = useMutation({
     mutationFn: async ({ job, action }: { job: Job; action: string }) => {
@@ -134,6 +200,15 @@ export function QueuePage() {
       client.invalidateQueries({ queryKey: queueKey });
       toast(`Đã xử lý ${res.count} việc.`);
     },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
+  const updateWorkers = useMutation({
+    mutationFn: ({ category, count }: { category: string; count: number }) =>
+      api.post<{ count: number }>("/api/queue/workers", {
+        body: { category, count },
+      }),
+    onSuccess: () => client.invalidateQueries({ queryKey: queueKey }),
     onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
   });
 
@@ -187,29 +262,52 @@ export function QueuePage() {
         </>
       }
     >
-      <div className="mb-3 flex flex-wrap gap-2">
+      <Panel className="mb-3 overflow-hidden">
+        <PanelHeader
+          title="Số lượng worker của Hàng đợi"
+          actions={<span className="text-xs opacity-50">0 = tạm dừng loại worker</span>}
+        />
+        <div className="flex flex-wrap gap-2 p-3">
         {data
-          ? Object.entries(data.workers).map(([category, count]) => {
+          ? data.categories.map((category) => {
+              const count = data.workers[category] ?? 0;
               const runningHere = data.running.filter((j) => j.category === category).length;
               return (
                 <div
                   key={category}
-                  className="flex items-center gap-2 rounded-field border border-base-300 bg-base-100 px-2.5 py-1.5"
+                  className="flex items-center gap-3 rounded-field border border-base-300 bg-base-100 py-1 pl-2.5 pr-1"
                 >
-                  <span className="text-[11px] tracking-wide opacity-60 uppercase">
-                    {category}
+                  <span className="min-w-20 text-[11px] tracking-wide opacity-60">
+                    {WORKER_LABEL[category] ?? category}
                   </span>
-                  <span data-numeric className="text-[13px]">
-                    <span className={runningHere ? "text-warning" : "opacity-40"}>
-                      {runningHere}
-                    </span>
-                    <span className="opacity-40">/{count}</span>
-                  </span>
+                  <span data-numeric className={clsx("text-xs", runningHere ? "text-warning" : "opacity-40")}>{runningHere} chạy</span>
+                  <div className="flex items-center rounded-field border border-base-300">
+                    <button
+                      type="button"
+                      className="h-7 w-7 text-sm opacity-60 hover:bg-base-200 hover:opacity-100 disabled:opacity-25"
+                      disabled={updateWorkers.isPending || count <= 0}
+                      onClick={() => updateWorkers.mutate({ category, count: count - 1 })}
+                      aria-label={`Giảm worker ${category}`}
+                    >
+                      −
+                    </button>
+                    <span data-numeric className="w-7 text-center text-[13px] font-medium">{count}</span>
+                    <button
+                      type="button"
+                      className="h-7 w-7 text-sm opacity-60 hover:bg-base-200 hover:opacity-100 disabled:opacity-25"
+                      disabled={updateWorkers.isPending}
+                      onClick={() => updateWorkers.mutate({ category, count: count + 1 })}
+                      aria-label={`Tăng worker ${category}`}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               );
             })
           : null}
-      </div>
+        </div>
+      </Panel>
 
       <Panel className="overflow-hidden">
         <PanelHeader
@@ -243,9 +341,11 @@ export function QueuePage() {
             }
           />
         ) : (
-          <JobTable jobs={jobs} onAction={onAction} />
+          <JobTable jobs={jobs} onAction={onAction} onViewLog={setLogJob} />
         )}
       </Panel>
+
+      <JobLogModal job={logJob} open={logJob !== null} onClose={() => setLogJob(null)} />
     </Page>
   );
 }

@@ -511,6 +511,18 @@ def api_queue_update_workers(request: Request, category: str = Body(...), count:
         new_count = request.app.state.job.queue.update_workers(category, count)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    config_key = {
+        "crawl": "crawl_workers",
+        "local-mt": "local_mt_workers",
+        "ai-translate": "translate_workers",
+        "translate": "translate_workers",
+        "ai-edit": "ai_edit_workers",
+        "build": "build_workers",
+    }.get(category)
+    if config_key is None:
+        raise HTTPException(status_code=400, detail=f"category không hợp lệ: {category!r}")
+    from novel2epub.config import update_defaults
+    update_defaults(deps.WORKSPACE_PATH, {"queue": {config_key: new_count}})
     return {"ok": True, "category": category, "count": new_count}
 
 

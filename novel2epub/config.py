@@ -468,8 +468,11 @@ class OutputConfig:
 @dataclass
 class QueueConfig:
     """Số worker thread song song của job queue (app web)."""
-    translate_workers: int = 2  # job translate/batch-translate chạy song song
-    crawl_workers: int = 2      # job crawl chạy song song
+    crawl_workers: int = 2
+    local_mt_workers: int = 1
+    translate_workers: int = 2  # pool ai-translate; tên cũ giữ cho config hiện có
+    ai_edit_workers: int = 1
+    build_workers: int = 1
 
 
 @dataclass
@@ -980,8 +983,11 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     queue_raw = _as_dict(raw.get("queue"))
     defaults_q = QueueConfig()
     queue = QueueConfig(
-        translate_workers=max(1, int(queue_raw.get("translate_workers", defaults_q.translate_workers))),
-        crawl_workers=max(1, int(queue_raw.get("crawl_workers", defaults_q.crawl_workers))),
+        crawl_workers=max(0, int(queue_raw.get("crawl_workers", defaults_q.crawl_workers))),
+        local_mt_workers=max(0, int(queue_raw.get("local_mt_workers", defaults_q.local_mt_workers))),
+        translate_workers=max(0, int(queue_raw.get("translate_workers", defaults_q.translate_workers))),
+        ai_edit_workers=max(0, int(queue_raw.get("ai_edit_workers", defaults_q.ai_edit_workers))),
+        build_workers=max(0, int(queue_raw.get("build_workers", defaults_q.build_workers))),
     )
 
     reader_raw = _as_dict(raw.get("reader"))

@@ -392,9 +392,15 @@ def ebook_chapter_ai(request: Request, slug: str, index: int, op: str):
     def _target(log, _step=step, _cfg=cfg, _idx=index):
         _step(_cfg, log, index=_idx)
 
+    category = "ai-edit" if op == "rewrite" else "ai-translate"
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    ch = storage.get_chapter(index) if manifest else None
+    ch_title = ch.title if ch else ""
+
     request.app.state.job.queue.enqueue(
-        "translate", f"ai-{op}-{index}", _target,
-        label=job_label(f"ai-{op}", title=cfg.novel.title, slug=slug, detail=f"Chương {index}"),
+        category, f"ai-{op}-{index}", _target,
+        label=chapter_job_label(f"ai-{op}", title=cfg.novel.title, slug=slug, index=index, chapter_title=ch_title),
         ebook=slug, lock_ebook=False, chapter_indexes=[index],
         cancel_event=cancel_event,
     )
@@ -610,7 +616,7 @@ async def api_batch_clean_raw(slug: str, indexes: str = Form(...)):
 
 @router.post("/api/ebooks/{slug}/batch/clean-toc")
 async def api_batch_clean_toc(slug: str, indexes: str = Form(""), apply: bool = Form(True)):
-    """Dọn từ rác kêu gọi độc giả (cầu nguyệt phiếu, 求月票…) khỏi tiêu đề chương.
+    """Chuẩn hóa tiêu đề TOC và dọn từ rác kêu gọi độc giả.
 
     Đồng bộ, không gọi model. `indexes` trống = quét toàn bộ manifest.
     apply=True (mặc định): ghi manifest; apply=False: chỉ preview."""
@@ -1024,7 +1030,7 @@ async def api_batch_ai_rewrite(
                     log(f"[batch-rewrite] Lỗi chương {idx}: {e}")
 
         started = request.app.state.job.start_custom(
-            f"batch-ai-rewrite-{len(index_list)}", _target, category="translate",
+            f"batch-ai-rewrite-{len(index_list)}", _target, category="ai-edit",
             ebook=slug, chapter_indexes=index_list,
             label=batch_job_label("ai-rewrite", title=cfg.novel.title, slug=slug, count=len(index_list)),
         )

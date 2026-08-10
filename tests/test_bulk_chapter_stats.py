@@ -57,6 +57,20 @@ def test_bulk_chapter_stats_meta_json(tmp_storage):
     assert meta.get("ai_rewrite") is not None
 
 
+def test_bulk_chapter_stats_uses_active_local_mt_branch(tmp_storage):
+    s = tmp_storage
+    ch = _ch(11)
+    s.write_branch_text(ch, "local_mt", "Bản dịch Local MT")
+    s.mark_branch_complete(ch, "local_mt")
+    s.set_active_branch(ch, "local_mt")
+
+    result = s.bulk_chapter_stats()[11]
+
+    assert result["has_translated"] is True
+    assert result["translated_len"] == len("Bản dịch Local MT")
+    assert s.translated_stats()[0] == 1
+
+
 from novel2epub.toc import chapter_rows, ChapterRow
 
 

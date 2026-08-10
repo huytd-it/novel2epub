@@ -58,9 +58,6 @@ function JobRow({
           </p>
         ) : null}
       </td>
-      <td className="px-3 py-1.5 text-[13px] opacity-60">
-        {job.ebook_code || job.ebook || "—"}
-      </td>
       <td className="px-3 py-1.5">
         <Badge tone={tone}>{job.cancelling ? "Đang hủy" : JOB_STATE_LABEL[job.state]}</Badge>
       </td>
@@ -139,7 +136,7 @@ function JobTable({
       <table className="w-full min-w-[46rem] border-collapse text-left">
         <thead>
           <tr className="border-b border-base-300 bg-base-200/60">
-            {["Việc", "Truyện", "Trạng thái", "Loại worker", "Thời gian", ""].map((h, i) => (
+            {["Việc", "Trạng thái", "Loại worker", "Thời gian", ""].map((h, i) => (
               <th
                 key={h || i}
                 className="px-3 py-1.5 text-[10px] font-semibold tracking-[0.1em] opacity-40 uppercase"

@@ -238,8 +238,10 @@ class Storage:
         """
         row = self.conn.execute(
             "SELECT COUNT(*) AS n, COALESCE(MAX(translated_updated_at), 0.0) AS ts "
-            "FROM chapters WHERE ebook_slug = ? "
-            "AND translated_text IS NOT NULL AND translated_text != ''",
+            "FROM chapters WHERE ebook_slug = ? AND ("
+            " (active_branch = 'local_mt' AND local_mt_text IS NOT NULL AND local_mt_text != '') OR"
+            " (COALESCE(active_branch, 'ai') = 'ai' AND translated_text IS NOT NULL AND translated_text != '')"
+            ")",
             (self.slug,),
         ).fetchone()
         if row is None:
@@ -248,10 +250,14 @@ class Storage:
 
     def bulk_chapter_stats(self) -> dict[int, dict]:
         rows = self.conn.execute(
-            "SELECT idx,"
+            "SELECT idx, active_branch,"
             " CASE WHEN raw_text IS NOT NULL AND raw_text != '' THEN 1 ELSE 0 END AS has_raw_int,"
-            " CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END AS has_tr_int,"
-            " LENGTH(translated_text) AS translated_len,"
+            " CASE WHEN active_branch = 'local_mt'"
+            " THEN CASE WHEN local_mt_text IS NOT NULL AND local_mt_text != '' THEN 1 ELSE 0 END"
+            " ELSE CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END"
+            " END AS has_tr_int,"
+            " CASE WHEN active_branch = 'local_mt' THEN LENGTH(local_mt_text)"
+            " ELSE LENGTH(translated_text) END AS translated_len,"
             " LENGTH(raw_text) AS raw_len,"
             " meta_json"
             " FROM chapters WHERE ebook_slug = ?",
@@ -265,7 +271,8 @@ class Storage:
                     meta = json.loads(row["meta_json"] or "{}")
                 except Exception:
                     meta = {}
-                has_translated = bool(meta.get("complete", True))
+                branch = revisions.normalize_branch(row["active_branch"])
+                has_translated = bool(meta.get(self._BRANCH_COMPLETE_META[branch], True))
             else:
                 has_translated = False
             result[row["idx"]] = {
@@ -316,6 +323,27 @@ class Storage:
             metadata_missing=json.loads(row["metadata_missing_json"] or "[]"),
             curated_fields=json.loads(row["curated_fields_json"] or "[]"),
             chapters=chapters,
+        )
+
+    def get_chapter(self, index: int) -> Chapter | None:
+        row = self.conn.execute(
+            "SELECT idx, url, title, title_zh, title_note, missing_fields_json, "
+            "duplicate_of, last_action_status, skipped "
+            "FROM chapters WHERE ebook_slug = ? AND idx = ?",
+            (self.slug, index),
+        ).fetchone()
+        if row is None:
+            return None
+        return Chapter(
+            index=row["idx"],
+            url=row["url"],
+            title=row["title"],
+            title_zh=row["title_zh"],
+            title_note=row["title_note"],
+            missing_fields=json.loads(row["missing_fields_json"] or "[]"),
+            duplicate_of=row["duplicate_of"],
+            last_action_status=row["last_action_status"],
+            skipped=bool(row["skipped"]),
         )
 
     def save_manifest(self, manifest: Manifest) -> None:

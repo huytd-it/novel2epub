@@ -166,21 +166,29 @@ def test_step_clean_toc_titles_preview_and_apply(tmp_path):
     )
     storage = Storage(str(tmp_path), "t")
     storage.save_manifest(Manifest(slug="t", chapters=[
-        Chapter(index=1, url="http://x/1", title="Chương 1: Khởi đầu (Cầu nguyệt phiếu)"),
+        Chapter(
+            index=1,
+            url="http://x/1",
+            title="Chương 1: Khởi đầu (Cầu nguyệt phiếu)",
+            title_zh="1.第1章 绯红（第一更求推荐票）",
+        ),
         Chapter(index=2, url="http://x/2", title="Chương 2: Bình thường"),
+        Chapter(index=3, url="http://x/3", title="Chương 3", title_zh="3.第3章 梅丽莎（上）"),
     ]))
 
     # Preview: KHÔNG ghi.
     preview = step_clean_toc_titles(cfg, lambda m: None, apply=False)
-    assert preview["changed"] == 1
+    assert preview["changed"] == 2
     assert preview["applied"] == 0
     assert storage.load_manifest().chapters[0].title.endswith("(Cầu nguyệt phiếu)")
 
     # Apply: ghi manifest.
     result = step_clean_toc_titles(cfg, lambda m: None, apply=True)
-    assert result["applied"] == 1
+    assert result["applied"] == 2
     assert storage.load_manifest().chapters[0].title == "Chương 1: Khởi đầu"
+    assert storage.load_manifest().chapters[0].title_zh == "第1章 绯红"
     assert storage.load_manifest().chapters[1].title == "Chương 2: Bình thường"
+    assert storage.load_manifest().chapters[2].title_zh == "第3章 梅丽莎（上）"
 
 @pytest.mark.parametrize(
     "title,expected",

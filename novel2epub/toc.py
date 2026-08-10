@@ -12,9 +12,28 @@ from .storage import Chapter, Storage
 # tren toan bo raw md.
 _HAN_RE = re.compile(r"[一-鿿㐀-䶿豈-﫿]")
 
+_TOC_ORDINAL_PREFIX_RE = re.compile(r"^\s*\d+\s*[.．、]\s*")
+_TOC_TRAILING_PAREN_RE = re.compile(r"\s*[（(]([^（）()]*)[）)]\s*$")
+_TOC_PART_MARKERS = {
+    "上", "中", "下",
+    "上篇", "中篇", "下篇",
+    "上部", "中部", "下部",
+}
+
 
 def count_han_chars(text: str) -> int:
     return len(_HAN_RE.findall(text))
+
+
+def normalize_toc_title(title: str) -> str:
+    """Remove a list ordinal and trailing parenthetical note from a TOC title."""
+    if not title:
+        return title
+    out = _TOC_ORDINAL_PREFIX_RE.sub("", title)
+    trailing = _TOC_TRAILING_PAREN_RE.search(out)
+    if trailing and trailing.group(1).strip() not in _TOC_PART_MARKERS:
+        out = out[:trailing.start()]
+    return out.strip()
 
 
 # ── Dọn từ rác kêu gọi độc giả trong tiêu đề chương ──────────────────────

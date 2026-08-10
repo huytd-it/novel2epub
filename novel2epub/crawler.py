@@ -13,7 +13,7 @@ from urllib.parse import urljoin
 
 from .config import CrawlConfig
 from .storage import Chapter
-from .toc import mark_duplicate_chapters, missing_metadata
+from .toc import mark_duplicate_chapters, missing_metadata, normalize_toc_title
 
 logger = logging.getLogger(__name__)
 
@@ -560,7 +560,12 @@ class ScraplingCrawler:
         deduped = _dedupe_keep_last(all_pairs)
         dup_removed = len(all_pairs) - len(deduped)
         chapters = [
-            Chapter(index=i, url=url, title=text, title_zh=text)
+            Chapter(
+                index=i,
+                url=url,
+                title=normalize_toc_title(text),
+                title_zh=normalize_toc_title(text),
+            )
             for i, (url, text) in enumerate(deduped, 1)
         ]
         logger.info("Mục lục — tổng %s link, loại %s trùng, còn %s chương", len(all_pairs), dup_removed, len(chapters))

@@ -29,7 +29,7 @@ from novel2epub.automation import (
     validate_schedule,
 )
 from novel2epub.progress import chapter_progress
-from novel2epub.queue_labels import batch_job_label
+from novel2epub.queue_labels import batch_job_label, chapter_job_label
 from novel2epub.sources import SourcePreset, delete_preset, save_preset
 from novel2epub.storage import Storage
 from novel2epub.toc import apply_chapter_query, chapter_rows, count_words
@@ -1960,12 +1960,21 @@ def ebook_chapters_bulk_confirm(request: Request, slug: str, payload: dict = Bod
             "build": "build",
             "delete-translation": "delete-translation",
         }.get(action, action)
+        if len(eligible_indexes) == 1:
+            ch_idx = eligible_indexes[0]
+            ch = storage.get_chapter(ch_idx) if manifest else None
+            ch_title = ch.title if ch else ""
+            job_lbl = chapter_job_label(
+                action_label, title=cfg.novel.title, slug=slug, index=ch_idx, chapter_title=ch_title
+            )
+        else:
+            job_lbl = batch_job_label(
+                action_label, title=cfg.novel.title, slug=slug, count=len(eligible_indexes)
+            )
         return request.app.state.job.start_custom(
             name, fn, category=category, ebook=slug,
             chapter_indexes=eligible_indexes,
-            label=batch_job_label(
-                action_label, title=cfg.novel.title, slug=slug, count=len(eligible_indexes)
-            ),
+            label=job_lbl,
         )
 
     try:

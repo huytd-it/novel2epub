@@ -24,9 +24,7 @@ import {
   useReaderPreferences,
   useRevertEdits,
   useSaveChapterText,
-  useSetActiveBranch,
   useUpdateChapterTitle,
-  type Branch,
   type FindReplacePreviewItem,
   type FindSource,
   type Note,
@@ -175,7 +173,6 @@ function BranchBar({
   data: ChapterCompare;
   onRewrite: () => void;
 }) {
-  const setBranch = useSetActiveBranch(slug, data.index);
   const toast = useToast();
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
 
@@ -186,29 +183,9 @@ function BranchBar({
   return (
     <Panel className="mb-4 px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div role="tablist" className="tabs tabs-box tabs-sm">
-          {(["ai", "local_mt"] as Branch[]).map((branch) => {
-            const state = data.branches[branch];
-            return (
-              <button
-                key={branch}
-                role="tab"
-                type="button"
-                className={clsx("tab gap-1.5", state.active && "tab-active")}
-                disabled={setBranch.isPending}
-                onClick={() => setBranch.mutate(branch, { onError })}
-                title={
-                  state.has_text
-                    ? `${state.label} — bản ${state.revision}`
-                    : `${state.label} — chưa có bản dịch`
-                }
-              >
-                {state.label}
-                {state.has_text ? null : <span className="opacity-40">·</span>}
-              </button>
-            );
-          })}
-        </div>
+        <Badge tone={data.active_branch === "local_mt" ? "gold" : "blue"}>
+          {data.branches[data.active_branch].label}
+        </Badge>
 
         <div className="h-7 w-px bg-base-300" aria-hidden="true" />
 
@@ -669,11 +646,12 @@ export function ChapterPage() {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const [loadedKey, setLoadedKey] = useState("");
 
-  const dirty = Boolean(data && loadedKey === `${slug}:${chapterIndex}` && documentDraft !== data.translated);
+  const chapterDataKey = data ? `${slug}:${chapterIndex}:${data.active_branch}` : "";
+  const dirty = Boolean(data && loadedKey === chapterDataKey && documentDraft !== data.translated);
 
   useEffect(() => {
     if (!data) return;
-    const key = `${slug}:${chapterIndex}`;
+    const key = `${slug}:${chapterIndex}:${data.active_branch}`;
     if (loadedKey !== key) {
       setLoadedKey(key);
       setDocumentDraft(data.translated);

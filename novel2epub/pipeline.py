@@ -21,7 +21,7 @@ from .crawl_throttle import AdaptiveConcurrency, DomainRateLimiter
 from .crawler import ScraplingCrawler, is_rate_limited
 from .epub_builder import build_epub
 from .storage import Chapter, Manifest, Storage
-from .toc import chapter_title_key, mark_duplicate_chapters, strip_toc_junk
+from .toc import chapter_title_key, mark_duplicate_chapters, normalize_toc_title, strip_toc_junk
 from .translator import RateLimited, make_translator
 from . import han_cleanup
 from . import revisions
@@ -994,7 +994,7 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
             }
             storage.write_meta(ch, chapter_meta)
             if fixed_count > 0 or han_after_cleanup < han_before_cleanup:
-                storage.write_translated(ch, cleaned)
+                storage.write_branch_text(ch, branch, cleaned)
                 log(f"[dịch]   ({i}/{total}) → cleanup Hán: sửa {fixed_count} chỗ")
                 # Cập nhật translated local để quality_warnings phản ánh bản đã sửa
                 translated = cleaned
@@ -1003,6 +1003,9 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
         except Exception as e:
             log(f"[dịch]   ({i}/{total}) ! Lỗi cleanup Hán: {e}")
 
+    # Bản dịch vừa hoàn tất trở thành bản đang đọc/biên tập ngay; người dùng
+    # không cần chuyển nhánh thủ công sau một job Local MT hoặc AI.
+    storage.set_active_branch(ch, branch)
     storage.save_chapter(ch)
     return ch.last_action_status, title_changed
 
@@ -1525,16 +1528,26 @@ def step_clean_toc_titles(
             log(f"[clean-toc] Đã dừng theo yêu cầu — đã quét {len(changes)} thay đổi.")
             break
         old = ch.title or ""
-        new = strip_toc_junk(old)
-        if new != old:
-            changes.append({"index": ch.index, "old": old, "new": new})
+        old_zh = ch.title_zh or ""
+        new = strip_toc_junk(normalize_toc_title(old))
+        new_zh = strip_toc_junk(normalize_toc_title(old_zh))
+        if new != old or new_zh != old_zh:
+            changes.append({
+                "index": ch.index,
+                "old": old,
+                "new": new,
+                "old_zh": old_zh,
+                "new_zh": new_zh,
+            })
 
     applied = 0
     if apply and changes:
-        by_index = {c["index"]: c["new"] for c in changes}
+        by_index = {c["index"]: c for c in changes}
         for ch in selected:
             if ch.index in by_index:
-                ch.title = by_index[ch.index]
+                change = by_index[ch.index]
+                ch.title = change["new"]
+                ch.title_zh = change["new_zh"]
                 storage.save_chapter(ch)
                 applied += 1
 

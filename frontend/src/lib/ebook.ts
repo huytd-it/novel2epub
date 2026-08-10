@@ -171,7 +171,7 @@ export function useChapters(
 export const chapterKey = (slug: string, index: number) => ["chapter", slug, index] as const;
 
 /** Cỡ trang mặc định cho danh sách chương theo kiểu "cuộn để tải thêm". */
-export const CHAPTERS_PAGE_SIZE = 40;
+export const CHAPTERS_PAGE_SIZE = 100;
 
 /**
  * Danh sách chương theo kiểu cuộn để tải thêm (infinite scroll).

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 
-import { CHAPTERS_PAGE_SIZE, DEFAULT_FILTERS, useInfiniteChapters } from "@/lib/ebook";
+import { DEFAULT_FILTERS, useInfiniteChapters } from "@/lib/ebook";
 import type { FindReplacePreviewItem, FindSource, SearchHit } from "@/lib/chapter";
 import { num } from "@/lib/format";
 import { InputWithIcon } from "@/components/ui/Field";
@@ -112,16 +112,36 @@ export function ChapterListDrawer({
   onBulkLocalMt: () => void;
 }) {
   const [search, setSearch] = useState("");
+  const filters = useMemo(() => ({ ...DEFAULT_FILTERS, search }), [search]);
   const { data, isFetching, isPending, isError, error, fetchNextPage, hasNextPage, refetch } =
-    useInfiniteChapters(slug, { ...DEFAULT_FILTERS, search }, CHAPTERS_PAGE_SIZE);
+    useInfiniteChapters(slug, filters, 100);
 
-  const active = open && !collapsed && mode === "list";
+  const active = (open || !collapsed) && mode === "list";
   const list = (data?.pages ?? []).flatMap((p) => p.rows);
   const matched = data?.pages[0]?.matched ?? 0;
   const matchingIndexes = data?.pages[0]?.indexes ?? [];
   const allMatchingSelected =
     matchingIndexes.length > 0 && matchingIndexes.every((index) => selectedIndexes.has(index));
   const reachable = hasNextPage && !isPending;
+
+  // Tự động tải thêm trang nếu chương hiện tại nằm trong kết quả lọc nhưng chưa nạp vào danh sách
+  useEffect(() => {
+    if (!active || !hasNextPage || isFetching || isError) return;
+    if (!search && matchingIndexes.includes(currentIndex) && !list.some((r) => r.index === currentIndex)) {
+      void fetchNextPage();
+    }
+  }, [active, hasNextPage, isFetching, isError, search, matchingIndexes, currentIndex, list, fetchNextPage]);
+
+  // Cuộn chương hiện tại vào giữa tầm nhìn khi đã tải xong
+  const activeItemRef = useRef<HTMLLIElement | null>(null);
+  const hasScrolledRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${slug}:${currentIndex}`;
+    if (active && activeItemRef.current && hasScrolledRef.current !== key) {
+      hasScrolledRef.current = key;
+      activeItemRef.current.scrollIntoView({ block: "center" });
+    }
+  }, [active, slug, currentIndex, list.length]);
 
   // Tải trang kế khi người dùng cuộn gần đáy scroll container. Root là container
   // cuộn thật, còn element giữ nút thử lại/dòng trạng thái chỉ "tồn tại" khi
@@ -316,6 +336,7 @@ export function ChapterListDrawer({
                   {list.map((row) => (
                     <li
                       key={row.index}
+                      ref={row.index === currentIndex ? activeItemRef : undefined}
                       className={clsx(
                         "flex items-center border-l-2 hover:bg-base-200",
                         row.index === currentIndex

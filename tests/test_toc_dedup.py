@@ -1,6 +1,6 @@
 from novel2epub.crawler import _dedupe_keep_last
 from novel2epub.storage import Chapter
-from novel2epub.toc import mark_duplicate_chapters
+from novel2epub.toc import mark_duplicate_chapters, normalize_toc_title
 
 
 def test_dedupe_keep_last_keeps_last_exact_pair_and_order():
@@ -55,3 +55,19 @@ def test_mark_duplicate_chapters_flags_empty_title_for_seen_url():
 
     assert chapters[1].duplicate_of == 1
     assert "duplicate" in chapters[1].missing_fields
+
+
+def test_normalize_toc_title_removes_ordinal_and_trailing_note():
+    assert normalize_toc_title("3.第3章 梅丽莎（第一更求推荐票）") == "第3章 梅丽莎"
+    assert normalize_toc_title("33. 第33章 “开关”(第一更求推荐票)") == "第33章 “开关”"
+
+
+def test_normalize_toc_title_keeps_chapter_number_and_internal_parentheses():
+    assert normalize_toc_title("第29章 “职业”和住房都是严肃的事情") == "第29章 “职业”和住房都是严肃的事情"
+    assert normalize_toc_title("第3章 测试（上）正文") == "第3章 测试（上）正文"
+
+
+def test_normalize_toc_title_keeps_trailing_part_markers():
+    assert normalize_toc_title("3.第3章 梅丽莎（上）") == "第3章 梅丽莎（上）"
+    assert normalize_toc_title("第4章 仪式（中篇）") == "第4章 仪式（中篇）"
+    assert normalize_toc_title("第5章 占卜(下部)") == "第5章 占卜(下部)"

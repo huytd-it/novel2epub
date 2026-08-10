@@ -199,16 +199,23 @@ interface BatchAction {
   confirm?: (count: number) => string;
 }
 
+interface TocTitleChange {
+  index: number;
+  old: string;
+  new: string;
+  old_zh: string;
+  new_zh: string;
+}
+
+interface TocPreview {
+  scanned: number;
+  changed: number;
+  changes: TocTitleChange[];
+}
+
 /** Nhóm "Khác" — ít dùng, gom vào menu để thanh hành động không dài ra. */
 const OTHER_ACTIONS: BatchAction[] = [
   { key: "titles", label: "Dịch tiêu đề", path: "batch/translate-titles" },
-  {
-    key: "clean-toc",
-    label: "Dọn TOC (từ rác)",
-    path: "batch/clean-toc",
-    confirm: (n) =>
-      `Dọn từ rác kêu gọi độc giả (cầu nguyệt phiếu, 求月票…) khỏi tiêu đề ${n} chương đã chọn? Chỉ sửa tiêu đề dính từ rác, giữ nguyên số chương.`,
-  },
   { key: "glossary", label: "Gợi ý glossary", path: "batch/suggest-glossary" },
   { key: "characters", label: "Trích nhân vật", path: "batch/extract-characters" },
   { key: "skip", label: "Bỏ qua chương", path: "batch/update-skip", form: { skip: "true" } },
@@ -229,6 +236,14 @@ const OTHER_ACTIONS: BatchAction[] = [
     confirm: (n) => `Xóa bản gốc của ${n} chương? Phải crawl lại mới có nội dung.`,
   },
 ];
+
+const NORMALIZE_TOC_ACTION: BatchAction = {
+  key: "clean-toc",
+  label: "Chuẩn hóa TOC",
+  path: "batch/clean-toc",
+  confirm: (n) =>
+    `Chuẩn hóa tiêu đề ${n} chương đã chọn? Thao tác sẽ bỏ tiền tố thứ tự như “3.” và ghi chú quảng cáo trong ngoặc, nhưng giữ số chương cùng các phần (上), (中), (下).`,
+};
 
 /**
  * Thanh hành động hàng loạt — CỐ ĐỊNH ở đáy màn hình.
@@ -255,6 +270,7 @@ function BatchBar({
 }) {
   const toast = useToast();
   const [pending, setPending] = useState<BatchAction | null>(null);
+  const [tocPreview, setTocPreview] = useState<TocPreview | null>(null);
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
   const [rewriteOpen, setRewriteOpen] = useState(false);
 
@@ -265,6 +281,7 @@ function BatchBar({
       }),
     onSuccess: (res, action) => {
       setPending(null);
+      setTocPreview(null);
       onDone();
       const started = typeof res.started === "number" ? res.started : null;
       toast(
@@ -277,6 +294,22 @@ function BatchBar({
       setPending(null);
       toast(err instanceof Error ? err.message : String(err), "error");
     },
+  });
+
+  const previewToc = useMutation({
+    mutationFn: () =>
+      api.post<TocPreview>(`/api/ebooks/${slug}/${NORMALIZE_TOC_ACTION.path}`, {
+        form: { indexes: selected.join(","), apply: "false" },
+      }),
+    onSuccess: (preview) => {
+      if (preview.changed === 0) {
+        toast("Các tiêu đề đã chọn không cần chuẩn hóa.");
+        return;
+      }
+      setTocPreview(preview);
+      setPending(NORMALIZE_TOC_ACTION);
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
   });
 
   const trigger = (action: BatchAction) => {
@@ -327,6 +360,17 @@ function BatchBar({
               Biên tập AI…
             </Button>
           </div>
+
+          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
+
+          <Button
+            size="sm"
+            loading={previewToc.isPending}
+            disabled={run.isPending || previewToc.isPending}
+            onClick={() => previewToc.mutate()}
+          >
+            Chuẩn hóa TOC
+          </Button>
 
           <div className="ml-auto dropdown dropdown-top dropdown-end">
             <div tabIndex={0} role="button" className="btn btn-sm gap-1.5">
@@ -390,10 +434,57 @@ function BatchBar({
 
       <ConfirmDialog
         open={pending !== null}
-        onCancel={() => setPending(null)}
+        onCancel={() => {
+          setPending(null);
+          setTocPreview(null);
+        }}
         onConfirm={() => pending && run.mutate(pending)}
         title={pending?.label ?? ""}
-        body={pending?.confirm?.(selected.length) ?? ""}
+        body={
+          pending?.key === "clean-toc" && tocPreview ? (
+            <div className="space-y-3">
+              <p>
+                Tìm thấy <strong data-numeric>{num(tocPreview.changed)}</strong> tiêu đề cần chuẩn
+                hóa trong <span data-numeric>{num(tocPreview.scanned)}</span> chương đã quét.
+              </p>
+              <div>
+                <p className="mb-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase opacity-50">
+                  Xem trước {Math.min(6, tocPreview.changes.length)} thay đổi
+                </p>
+                <ol className="scroll-slim max-h-72 space-y-2 overflow-y-auto rounded-box border border-base-300 bg-base-200/40 p-3">
+                  {tocPreview.changes.slice(0, 6).map((change) => {
+                    const sourceChanged = change.old_zh !== change.new_zh;
+                    const before = sourceChanged ? change.old_zh : change.old;
+                    const after = sourceChanged ? change.new_zh : change.new;
+                    return (
+                      <li key={change.index} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2">
+                        <span data-numeric className="pt-0.5 text-right text-[11px] opacity-40">
+                          {change.index}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="break-words text-[12px] line-through opacity-50">{before || "(trống)"}</p>
+                          <p className="mt-0.5 break-words text-[13px] font-medium text-success">
+                            {after || "(trống)"}
+                          </p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+                {tocPreview.changed > 6 ? (
+                  <p className="mt-1.5 text-[11px] opacity-50">
+                    Và <span data-numeric>{num(tocPreview.changed - 6)}</span> tiêu đề khác.
+                  </p>
+                ) : null}
+              </div>
+              <p className="opacity-70">
+                Các phần (上), (中), (下) được giữ lại. Chỉ ghi dữ liệu sau khi xác nhận.
+              </p>
+            </div>
+          ) : (
+            pending?.confirm?.(selected.length) ?? ""
+          )
+        }
         confirmLabel={pending?.label}
         destructive={pending?.destructive}
         pending={run.isPending}

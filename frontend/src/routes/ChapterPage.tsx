@@ -176,14 +176,12 @@ function BranchBar({
   const toast = useToast();
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
 
-  const onError = (err: unknown) => toast(err instanceof Error ? err.message : String(err), "error");
-
   const branchLabel = translateAction === "local-mt" ? "Local MT" : "AI";
 
   return (
     <Panel className="mb-4 px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Badge tone={data.active_branch === "local_mt" ? "gold" : "blue"}>
+        <Badge tone={data.active_branch === "local_mt" ? "gold" : "indigo"}>
           {data.branches[data.active_branch].label}
         </Badge>
 
@@ -691,6 +689,7 @@ export function ChapterPage() {
   const [findState, setFindState] = useState<ChapterFindState>(() => loadFindState(slug));
   const [findSubmitted, setFindSubmitted] = useState(false);
   const [findQuery, setFindQuery] = useState("");
+  const previewRequestRef = useRef(0);
 
   const updateFind = (patch: Partial<ChapterFindState>) => {
     setFindState((prev) => {
@@ -736,12 +735,15 @@ export function ChapterPage() {
   // bấm Tìm lại trên nguồn mới.
   const changeFindSource = (source: FindSource) => {
     if (source === findState.source) return;
+    previewRequestRef.current += 1;
+    setPreviewLoading(false);
     updateFind({ source });
     setFindQuery("");
     setFindSubmitted(false);
     setPreviewChapter(null);
     setPreviewItems([]);
     setPreviewSelected(new Set());
+    setView(source === "raw" ? "raw" : "read");
   };
 
   // Kết quả chỉ hiển thị khi chuỗi đang gõ khớp đúng chuỗi đã submit — sửa
@@ -763,6 +765,7 @@ export function ChapterPage() {
   const loadChapterPreview = async (chapterIndex: number) => {
     const q = findQuery.trim();
     if (!q) return;
+    const requestId = ++previewRequestRef.current;
     setPreviewChapter(chapterIndex);
     setPreviewItems([]);
     setPreviewSelected(new Set());
@@ -778,13 +781,16 @@ export function ChapterPage() {
         chapterIndex,
         findState.source,
       );
+      if (requestId !== previewRequestRef.current) return;
       setPreviewItems(result.items);
       setPreviewSelected(new Set(result.items.map(findPreviewKeyOf)));
       if (result.truncated) toast("Preview giới hạn 300 đoạn; hãy thu hẹp chuỗi tìm.", "error");
     } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : String(err));
+      if (requestId === previewRequestRef.current) {
+        setPreviewError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
-      setPreviewLoading(false);
+      if (requestId === previewRequestRef.current) setPreviewLoading(false);
     }
   };
 
@@ -817,6 +823,34 @@ export function ChapterPage() {
         return next;
       });
       // Nội dung đang xem có thể đã đổi — cập nhật chapter/chapter list ngay.
+      invalidateBookSearch(queryClient, slug);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setPreviewApplying(false);
+    }
+  };
+
+  const applyAllMatches = async () => {
+    const q = findQuery.trim();
+    if (!q || previewApplying) return;
+    const sourceLabel = findState.source === "raw" ? "bản gốc" : "bản dịch";
+    if (!window.confirm(`Thay tất cả kết quả đang khớp trong ${sourceLabel} của toàn truyện?`)) return;
+    setPreviewApplying(true);
+    try {
+      const result = await applyBookReplace(
+        slug,
+        q,
+        findState.replacement,
+        findState.regex,
+        [],
+        findState.source,
+        true,
+      );
+      toast(`Đã thay ${result.replaced} chỗ trong ${result.chapters} chương.`);
+      setPreviewChapter(null);
+      setPreviewItems([]);
+      setPreviewSelected(new Set());
       invalidateBookSearch(queryClient, slug);
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), "error");
@@ -1369,6 +1403,7 @@ export function ChapterPage() {
         mode={findMode}
         onModeChange={setFindMode}
         find={findState}
+        activeFindQuery={findQuery}
         onFindChange={updateFind}
         onChangeSource={changeFindSource}
         findReady={findReady}
@@ -1377,6 +1412,7 @@ export function ChapterPage() {
         onPreviewChapter={loadChapterPreview}
         previewState={previewState}
         onApplySelected={applyPreview}
+        onApplyAll={applyAllMatches}
         onTogglePreviewItem={togglePreviewItem}
         onPreviewSelectAll={previewSelectAll}
         onPreviewSelectNone={previewSelectNone}

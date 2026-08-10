@@ -225,6 +225,7 @@ export async function applyBookReplace(
   regex: boolean,
   items: FindReplacePreviewItem[],
   source: FindSource = "translated",
+  allMatches = false,
 ) {
   return api.post<{ replaced: number; chapters: number; stale: number }>(
     `/api/ebooks/${slug}/glossary/apply-selected`,
@@ -234,6 +235,7 @@ export async function applyBookReplace(
         replace,
         regex,
         source,
+        all_matches: allMatches,
         selections: JSON.stringify(items.map((item) => ({
           chapter_index: item.chapter_index,
           para_index: item.para_index,

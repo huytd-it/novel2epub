@@ -192,3 +192,146 @@ def test_bulk_accepts_twenty_and_rejects_twenty_one(monkeypatch):
     response = client.post("/api/ui/library/ebooks/bulk", json={"toc_urls": twenty + ["https://x/extra"]})
     assert response.status_code == 400
     assert "20" in response.json()["detail"]
+
+
+def test_bulk_preview_per_url_and_error_isolation(monkeypatch):
+    from app.routes import library
+
+    app, client = _client(monkeypatch)
+
+    def fetch(url):
+        if "bad" in url:
+            raise RuntimeError("Lỗi mạng")
+        return _meta(url, "detected")
+
+    monkeypatch.setattr(library, "_fetch_meta", fetch)
+    monkeypatch.setattr(
+        library, "_build_meta_crawl_cfg",
+        lambda url: (type("Cfg", (), {"scrapling": type("S", (), {"mode": "stealthy"})()})(), "detected"),
+    )
+    monkeypatch.setattr(library, "_crawl_preview", lambda cfg: {"scrapling_mode": cfg.scrapling.mode})
+
+    response = client.post("/api/ui/library/ebooks/bulk-preview", json={
+        "toc_urls": ["https://x/good", "https://x/bad"],
+    })
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert len(results) == 2
+    assert results[0]["status"] == "ok"
+    assert results[0]["name"] == "Good"
+    assert results[0]["slug"] == "good"
+    assert results[0]["source"] == "detected"
+    assert results[0]["crawl_preview"]["scrapling_mode"] == "stealthy"
+    assert results[1]["status"] == "failed"
+    assert "Lỗi mạng" in results[1]["reason"]
+
+
+def test_bulk_preview_rejects_too_many_urls(monkeypatch):
+    from app.routes import library
+
+    app, client = _client(monkeypatch)
+    monkeypatch.setattr(library, "_fetch_meta", lambda url: _meta(url))
+    twenty = [f"https://x/book-{i}" for i in range(20)]
+    assert client.post("/api/ui/library/ebooks/bulk-preview", json={"toc_urls": twenty}).status_code == 200
+    response = client.post("/api/ui/library/ebooks/bulk-preview", json={"toc_urls": twenty + ["https://x/extra"]})
+    assert response.status_code == 400
+
+
+def test_bulk_create_uses_reviewed_items(monkeypatch):
+    from app.routes import library
+
+    app, client = _client(monkeypatch)
+    captured = {}
+    fetch_calls = []
+
+    def fetch(url):
+        fetch_calls.append(url)
+        return _meta(url, "detected")
+
+    def write(url, slug, name, author, **kwargs):
+        captured.update(url=url, slug=slug, name=name, author=author, kwargs=kwargs)
+        return {"slug": slug, "name": name, "source": kwargs.get("source_name", "")}
+
+    monkeypatch.setattr(library, "_fetch_meta", fetch)
+    monkeypatch.setattr(library, "_write_new_ebook", write)
+    monkeypatch.setattr(
+        library, "_save_ebook_metadata",
+        lambda slug, description="", cover_url="": captured.update(slug2=slug, description=description, cover_url=cover_url),
+    )
+
+    response = client.post("/api/ui/library/ebooks/bulk", json={
+        "toc_urls": ["https://x/edited"],
+        "items": [{
+            "url": "https://x/edited", "slug": "edited", "name": "Tên đã dịch",
+            "author": "TG MT", "description": "MT mô tả", "cover_url": "https://img/c2.jpg",
+            "source": "xdetected", "scrapling_mode": "dynamic",
+        }],
+    })
+    assert response.status_code == 200
+    result = response.json()["results"][0]
+    assert result["status"] == "created"
+    assert result["name"] == "Tên đã dịch"
+    assert fetch_calls == []  # items có name → không re-fetch
+    assert captured["slug"] == "edited"
+    assert captured["kwargs"]["source_name"] == "xdetected"
+    assert captured["kwargs"]["scrapling_mode"] == "dynamic"
+    assert captured["slug2"] == "edited"
+    assert captured["description"] == "MT mô tả"
+    assert captured["cover_url"] == "https://img/c2.jpg"
+
+
+def test_bulk_item_without_name_falls_back_to_auto_fetch(monkeypatch):
+    from app.routes import library
+
+    app, client = _client(monkeypatch)
+    fetch_calls = []
+    monkeypatch.setattr(library, "_fetch_meta", lambda url: fetch_calls.append(url) or _meta(url))
+    monkeypatch.setattr(
+        library, "_write_new_ebook",
+        lambda url, slug, name, author: {"slug": slug, "name": name, "source": ""},
+    )
+    monkeypatch.setattr(library, "_save_ebook_metadata", lambda *args: None)
+
+    response = client.post("/api/ui/library/ebooks/bulk", json={
+        "toc_urls": ["https://x/book"],
+        "items": [{"url": "https://x/book", "description": "chỉ sửa mô tả"}],
+    })
+    assert response.status_code == 200
+    assert response.json()["results"][0]["status"] == "created"
+    assert fetch_calls == ["https://x/book"]
+
+
+def test_translate_metadata_json_uses_local_mt(monkeypatch):
+    from app.routes import library
+
+    app, client = _client(monkeypatch)
+    monkeypatch.setattr(
+        library, "translate_ebook_metadata",
+        lambda cfg, **kwargs: {
+            "title": "Tên Đã Dịch", "author": "", "description": "", "subjects": [],
+            "engine": kwargs["engine"], "model": "HachimiMT-60",
+            "source_language": "zh", "errors": {},
+        },
+    )
+    response = client.post("/api/ui/library/ebooks/translate-metadata", json={
+        "title": "中文书名", "description": "中文简介",
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data["engine"] == "localmt"
+    assert data["title"] == "Tên Đã Dịch"
+
+
+def test_translate_metadata_json_reports_local_mt_error(monkeypatch):
+    from app.routes import library
+
+    app, client = _client(monkeypatch)
+    monkeypatch.setattr(
+        library, "translate_ebook_metadata",
+        lambda cfg, **kwargs: (_ for _ in ()).throw(RuntimeError("model missing")),
+    )
+    response = client.post("/api/ui/library/ebooks/translate-metadata", json={
+        "title": "中文书名",
+    })
+    assert response.status_code == 503
+    assert "Local MT" in response.json()["detail"]

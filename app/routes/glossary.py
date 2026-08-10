@@ -578,7 +578,7 @@ def _compile_find(find: str, regex: bool):
     """Biên dịch chuỗi tìm kiếm thành pattern. `regex=False` coi `find` là chuỗi
     literal (escape). Ném HTTPException(400) khi regex không hợp lệ."""
     try:
-        return re.compile(find if regex else re.escape(find))
+        return re.compile(find if regex else re.escape(find), re.IGNORECASE)
     except re.error as e:
         raise HTTPException(status_code=400, detail=f"Regex không hợp lệ: {e}")
 
@@ -749,26 +749,44 @@ def ebook_glossary_find_preview(
         text = _read(ch)
         if not text:
             continue
-        paras = _split(text)
-        for i, para in enumerate(paras):
-            count = len(pattern.findall(para))
-            if not count:
-                continue
-            try:
-                after = pattern.sub(replace, para) if replace else para
-            except re.error as e:
-                raise HTTPException(status_code=400, detail=f"Regex thay thế không hợp lệ: {e}")
-            items.append({
-                "chapter_index": ch.index,
-                "chapter_title": ch.title or f"Chương {ch.index}",
-                "para_index": i,
-                "count": count,
-                "before": para,
-                "after": after,
-            })
-            if len(items) >= _FIND_PREVIEW_LIMIT:
-                truncated = True
-                break
+        if regex:
+            for idx, m in enumerate(pattern.finditer(text)):
+                try:
+                    after_text = m.expand(replace) if replace else ""
+                except re.error as e:
+                    raise HTTPException(status_code=400, detail=f"Regex thay thế không hợp lệ: {e}")
+                items.append({
+                    "chapter_index": ch.index,
+                    "chapter_title": ch.title or f"Chương {ch.index}",
+                    "para_index": -(idx + 1),
+                    "count": 1,
+                    "before": m.group(),
+                    "after": after_text,
+                })
+                if len(items) >= _FIND_PREVIEW_LIMIT:
+                    truncated = True
+                    break
+        else:
+            paras = _split(text)
+            for i, para in enumerate(paras):
+                count = len(pattern.findall(para))
+                if not count:
+                    continue
+                try:
+                    after = pattern.sub(replace, para)
+                except re.error as e:
+                    raise HTTPException(status_code=400, detail=f"Regex thay thế không hợp lệ: {e}")
+                items.append({
+                    "chapter_index": ch.index,
+                    "chapter_title": ch.title or f"Chương {ch.index}",
+                    "para_index": i,
+                    "count": count,
+                    "before": para,
+                    "after": after,
+                })
+                if len(items) >= _FIND_PREVIEW_LIMIT:
+                    truncated = True
+                    break
         if truncated:
             break
     return JSONResponse({"items": items, "truncated": truncated})
@@ -780,8 +798,9 @@ def ebook_glossary_apply_selected(
     find: str = Form(...),
     replace: str = Form(""),
     regex: bool = Form(False),
-    selections: str = Form(...),
+    selections: str = Form("[]"),
     source: str = Form("translated"),
+    all_matches: bool = Form(False),
 ):
     """Áp dụng thay thế CHỈ cho các đoạn client đã chọn (từ `/find-preview`).
 
@@ -801,13 +820,6 @@ def ebook_glossary_apply_selected(
         raise HTTPException(status_code=400, detail="Cần chuỗi cần tìm.")
     if source not in ("translated", "raw"):
         raise HTTPException(status_code=400, detail="source phải là 'translated' hoặc 'raw'.")
-    try:
-        sel_list = json.loads(selections)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="selections không hợp lệ.")
-    if not isinstance(sel_list, list) or not sel_list:
-        raise HTTPException(status_code=400, detail="Chưa chọn đoạn nào để thay thế.")
-
     pattern = _compile_find(find, regex)
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -816,16 +828,53 @@ def ebook_glossary_apply_selected(
         raise HTTPException(status_code=404, detail="Chưa có manifest.")
 
     by_chapter: dict[int, dict[int, str | None]] = {}
-    for sel in sel_list:
-        if not isinstance(sel, dict):
-            continue
+    regex_fulltext = False
+    if all_matches:
+        if regex:
+            regex_fulltext = True
+            for ch in manifest.chapters:
+                if source == "raw":
+                    if not storage.has_raw(ch):
+                        continue
+                    text = storage.read_raw(ch)
+                else:
+                    if not storage.has_active_branch_text(ch):
+                        continue
+                    text = storage.read_active_branch_text(ch)
+                if pattern.search(text):
+                    by_chapter[ch.index] = {-1: None}
+        else:
+            for ch in manifest.chapters:
+                if source == "raw":
+                    if not storage.has_raw(ch):
+                        continue
+                    paras = split_blocks(storage.read_raw(ch))
+                else:
+                    if not storage.has_active_branch_text(ch):
+                        continue
+                    paras = split_paras(storage.read_active_branch_text(ch))
+                matches = {i: para for i, para in enumerate(paras) if pattern.search(para)}
+                if matches:
+                    by_chapter[ch.index] = matches
+    else:
         try:
-            ci = int(sel["chapter_index"])
-            pi = int(sel["para_index"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        expected = sel.get("expected")
-        by_chapter.setdefault(ci, {})[pi] = str(expected) if expected is not None else None
+            sel_list = json.loads(selections)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="selections không hợp lệ.")
+        if not isinstance(sel_list, list) or not sel_list:
+            raise HTTPException(status_code=400, detail="Chưa chọn đoạn nào để thay thế.")
+        for sel in sel_list:
+            if not isinstance(sel, dict):
+                continue
+            try:
+                ci = int(sel["chapter_index"])
+                pi = int(sel["para_index"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            expected = sel.get("expected")
+            if pi < 0:
+                regex_fulltext = True
+            by_chapter.setdefault(ci, {})[pi] = str(expected) if expected is not None else None
 
     total_replaced = 0
     stale = 0
@@ -833,6 +882,50 @@ def ebook_glossary_apply_selected(
     for ch in manifest.chapters:
         selected_paras = by_chapter.get(ch.index)
         if not selected_paras:
+            continue
+
+        if regex_fulltext:
+            if source == "raw":
+                if not storage.has_raw(ch):
+                    continue
+                text = storage.read_raw(ch)
+            else:
+                if not storage.has_active_branch_text(ch):
+                    continue
+                text = storage.read_active_branch_text(ch)
+            expected_set = {
+                exp for exp in selected_paras.values() if exp is not None
+            }
+            if expected_set:
+                replaced_count = 0
+                def _guarded_sub(m: re.Match) -> str:
+                    nonlocal replaced_count
+                    if m.group() in expected_set:
+                        replaced_count += 1
+                        return m.expand(replace) if replace else ""
+                    return m.group()
+                new_text = pattern.sub(_guarded_sub, text)
+                count = replaced_count
+                for exp in expected_set:
+                    if exp not in text:
+                        stale += 1
+            else:
+                new_text, count = pattern.subn(replace, text)
+            if count and new_text != text:
+                if source == "raw":
+                    meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+                    meta["before_find_replace_raw"] = text
+                    storage.write_meta(ch, meta)
+                    storage.write_raw(ch, new_text)
+                else:
+                    branch = storage.active_branch(ch)
+                    meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+                    backup_key = "before_find_replace" if branch == "ai" else f"before_find_replace_{branch}"
+                    meta[backup_key] = text
+                    storage.write_meta(ch, meta)
+                    storage.write_branch_text(ch, branch, new_text)
+                total_replaced += count
+                chapters_touched += 1
             continue
 
         if source == "raw":

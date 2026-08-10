@@ -206,6 +206,35 @@ def test_search_raw_rejects_bad_source(tmp_path, monkeypatch):
     assert res.status_code == 400
 
 
+def test_search_only_reports_matches_that_preview_can_apply(tmp_path, monkeypatch):
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_translated(ch, "Đoạn một.\n\nĐoạn hai.")
+    client = _client(_cfg(tmp_path), monkeypatch)
+
+    # Regex này chỉ khớp khi chạy xuyên ranh giới hai đoạn. Preview/apply sửa
+    # từng đoạn nên search cũng không được báo một hit không thể thao tác.
+    search = client.get(
+        "/api/ebooks/t/search",
+        params={"q": r"một\.\s+Đoạn", "regex": "true"},
+    )
+    preview = client.get(
+        "/api/ebooks/t/glossary/find-preview",
+        params={
+            "find": r"một\.\s+Đoạn",
+            "regex": "true",
+            "scope": "chapter",
+            "chapter_index": 1,
+        },
+    )
+
+    assert search.status_code == 200
+    assert search.json() == []
+    assert preview.status_code == 200
+    assert preview.json()["items"] == []
+
+
 # ── /find-preview?source=raw + apply ───────────────────────────────────────
 
 def test_find_preview_raw_splits_by_block(tmp_path, monkeypatch):

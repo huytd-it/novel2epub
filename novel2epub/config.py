@@ -334,6 +334,27 @@ GIẢI THÍCH: <leave blank if name is already clear/natural; only fill if extra
 {text}"""
 
 
+# Prompt mặc định cho AI biên tập (rewrite) — KHÁC prompt dịch chương. AI biên
+# tập đọc bản dịch hiện tại và VIẾT LẠI cho mượt, không dịch lại từ đầu. `ai.openai`
+# dùng `OpenAIConfig` dùng chung nên mặc định prompt_template của nó (DEFAULT_PROMPT)
+# là prompt dịch — `load_config` phải đổi sang template này khi ebook không cấu
+# hình riêng. Placeholder {guidelines}/{genre_rules}/{glossary}/{raw}/{translated}
+# được `glossary_ai.rewrite_chapter` lấp đầy.
+AI_EDIT_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt. Nhiệm vụ của bạn là BIÊN TẬP LẠI bản dịch hiện tại cho hay hơn, KHÔNG dịch lại từ đầu.
+
+{guidelines}
+{genre_rules}
+{glossary}
+
+--- Bản gốc (Trung), dùng để đối chiếu khi cần ---
+{raw}
+
+--- Bản dịch hiện tại (Việt), cần biên tập lại ---
+{translated}
+
+Chỉ trả về toàn văn bản đã biên tập lại (giữ nguyên cách chia đoạn). KHÔNG thêm lời mở đầu, ghi chú, giải thích, hay code fence."""
+
+
 @dataclass
 class OpenAIConfig:
     """Cấu hình backend AI OpenAI-Compatible — dùng chung cho dịch chương,
@@ -1017,6 +1038,13 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     if not ai_openai_raw:
         # Chưa có ai.openai → dùng translate.openai làm mặc định (backward-compat)
         ai_openai_raw = openai_raw
+    # Prompt biên tập RIÊNG, không lấy prompt dịch chương làm mặc định: prompt dịch
+    # có placeholder khác ({text}, {tone}...) — format lúc rewrite sẽ sập, và về
+    # nghĩa vụ cũng sai (dịch lại thay vì biên tập lại). Rỗng / dính prompt dịch
+    # (khi fallback từ translate.openai) → thay bằng AI_EDIT_PROMPT.
+    _ai_prompt = str(ai_openai_raw.get("prompt_template") or "").strip()
+    if not _ai_prompt or _ai_prompt in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT):
+        ai_openai_raw["prompt_template"] = AI_EDIT_PROMPT
     ai = AIConfig(openai=OpenAIConfig(**ai_openai_raw))
 
     global_ai_raw = _as_dict(raw.get("global_ai"))

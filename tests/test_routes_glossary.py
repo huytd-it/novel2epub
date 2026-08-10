@@ -942,6 +942,79 @@ def test_apply_selected_writes_active_local_mt_branch(tmp_path, monkeypatch):
     assert storage.read_meta(ch)["before_find_replace_local_mt"] == "Trương Tam đi chợ."
 
 
+def test_find_preview_and_apply_are_case_insensitive(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_translated(ch, "Trương Tam đi chợ.")
+    client = _client(cfg, monkeypatch)
+
+    preview = client.get(
+        "/api/ebooks/t/glossary/find-preview",
+        params={"find": "trương tam", "replace": "Trần Tam", "chapter_index": 1},
+    )
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["items"][0]["after"] == "Trần Tam đi chợ."
+
+    applied = client.post(
+        "/api/ebooks/t/glossary/apply-selected",
+        data={
+            "find": "trương tam",
+            "replace": "Trần Tam",
+            "selections": json.dumps([{
+                "chapter_index": 1,
+                "para_index": 0,
+                "expected": "Trương Tam đi chợ.",
+            }]),
+        },
+    )
+    assert applied.status_code == 200, applied.text
+    assert applied.json()["replaced"] == 1
+    assert storage.read_translated(ch) == "Trần Tam đi chợ."
+
+
+def test_find_preview_empty_replacement_shows_deletion(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_translated(ch, "Xóa cụm này.")
+    client = _client(cfg, monkeypatch)
+
+    preview = client.get(
+        "/api/ebooks/t/glossary/find-preview",
+        params={"find": "Xóa cụm này.", "replace": "", "chapter_index": 1},
+    )
+
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["items"][0]["after"] == ""
+
+
+def test_apply_selected_all_matches_replaces_every_chapter(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=1, url="http://x/1"), Chapter(index=2, url="http://x/2")]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    storage.write_translated(chapters[0], "Trương Tam đi chợ.")
+    storage.write_translated(chapters[1], "trương tam về nhà.")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/apply-selected",
+        data={
+            "find": "TRƯƠNG TAM",
+            "replace": "Trần Tam",
+            "all_matches": "true",
+        },
+    )
+
+    assert res.status_code == 200, res.text
+    assert res.json() == {"replaced": 2, "chapters": 2, "stale": 0}
+    assert storage.read_translated(chapters[0]) == "Trần Tam đi chợ."
+    assert storage.read_translated(chapters[1]) == "Trần Tam về nhà."
+
+
 def test_propagate_rejects_bad_scope_and_missing_chapter(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")

@@ -38,6 +38,13 @@ from novel2epub.wireguard import WireGuardProfileError
 from .. import deps
 from ..chapter_compare import align_paragraphs
 from ..cost_summary import read_cost_summary
+from ..ebook_deletion import (
+    ConfirmationMismatch,
+    EbookBusy,
+    EbookNotFound,
+    EpubDeleteFailed,
+    delete_ebook as delete_ebook_data,
+)
 from ..library_state import archived_slugs
 from ..scheduler import next_run_at
 from ..storage_report import ebook_storage_report, purge_raw, purge_translated_mt, remove_epub
@@ -239,8 +246,8 @@ def library_ebook_create(request: Request, payload: dict = Body(...)):
     return {"status": "created", **created, "toc_job": toc_job}
 
 
-@router.post("/library/ebooks/bulk")
-def library_ebooks_bulk(request: Request, payload: dict = Body(...)):
+def _bulk_urls(payload: dict) -> list[str]:
+    """Chuẩn hoá `toc_urls` từ payload (list hoặc chuỗi nhiều dòng) + giới hạn."""
     raw_urls = payload.get("toc_urls", [])
     if isinstance(raw_urls, str):
         urls = [url.strip() for url in raw_urls.splitlines() if url.strip()]
@@ -255,17 +262,102 @@ def library_ebooks_bulk(request: Request, payload: dict = Body(...)):
             status_code=400,
             detail=f"Tối đa {library_routes.MAX_BULK_URLS} URL mỗi lần nhập.",
         )
+    return urls
 
-    fetch_toc = bool(payload.get("fetch_toc"))
+
+def _bulk_items(payload: dict) -> dict[str, dict]:
+    """Metadata đã duyệt/ sửa từ bước preview, map theo URL. URL không có entry
+    (hoặc entry thiếu name) sẽ được fetch tự động như trước."""
+    raw_items = payload.get("items")
+    if raw_items is None:
+        return {}
+    if not isinstance(raw_items, list):
+        raise HTTPException(status_code=400, detail="items phải là danh sách.")
+    items_by_url: dict[str, dict] = {}
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "").strip()
+        if url:
+            items_by_url[url] = item
+    return items_by_url
+
+
+@router.post("/library/ebooks/translate-metadata")
+def library_ebooks_translate_metadata(payload: dict = Body(...)):
+    """JSON API cho SPA: dịch metadata preview (title/author/description) — Local
+    MT là engine mặc định, trả bản nháp tiếng Việt để duyệt, không lưu gì."""
+    engine = str(payload.get("engine") or "localmt").strip().lower()
+    try:
+        return library_routes.translate_ebook_metadata(
+            deps.cfg(),
+            title=str(payload.get("title") or ""),
+            author=str(payload.get("author") or ""),
+            description=str(payload.get("description") or ""),
+            engine=engine,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        label = "Local MT" if engine == "localmt" else "AI"
+        raise HTTPException(status_code=503, detail=f"{label} dịch metadata lỗi: {exc}") from exc
+
+
+@router.post("/library/ebooks/bulk-preview")
+def library_ebooks_bulk_preview(payload: dict = Body(...)):
+    """Preview hàng loạt: fetch metadata từng URL độc lập — 1 URL lỗi không chặn
+    các URL còn lại. Cho SPA duyệt/sửa metadata (kèm crawl_preview) trước khi tạo."""
+    urls = _bulk_urls(payload)
     results = []
     for url in urls:
         try:
-            fetched = library_routes._fetch_meta(url)
+            data = library_routes._fetch_meta(url)
+            crawl_cfg, actual_source = library_routes._build_meta_crawl_cfg(url)
+            data["source"] = actual_source
+            data["crawl_preview"] = library_routes._crawl_preview(crawl_cfg)
+            results.append({"url": url, "status": "ok", **data})
+        except HTTPException as exc:
+            results.append({"url": url, "status": "failed", "reason": str(exc.detail)})
+        except Exception as exc:
+            results.append({"url": url, "status": "failed", "reason": str(exc)})
+    return {"results": results}
+
+
+@router.post("/library/ebooks/bulk")
+def library_ebooks_bulk(request: Request, payload: dict = Body(...)):
+    urls = _bulk_urls(payload)
+    items_by_url = _bulk_items(payload)
+    fetch_toc = bool(payload.get("fetch_toc"))
+    results = []
+    for url in urls:
+        item = items_by_url.get(url)
+        try:
+            if item and str(item.get("name") or "").strip():
+                # Bước preview đã duyệt/sửa/dịch metadata — dùng luôn, không re-fetch.
+                fetched = {
+                    "slug": str(item.get("slug") or ""),
+                    "name": str(item.get("name") or "").strip(),
+                    "author": str(item.get("author") or "").strip(),
+                    "description": str(item.get("description") or ""),
+                    "cover_url": str(item.get("cover_url") or ""),
+                }
+                source = str(item.get("source") or "").strip()
+                mode = str(item.get("scrapling_mode") or "").strip()
+            else:
+                fetched = library_routes._fetch_meta(url)
+                source = ""
+                mode = ""
+            write_kwargs = {}
+            if mode:
+                write_kwargs["scrapling_mode"] = mode
+            if source:
+                write_kwargs["source_name"] = source
             created = library_routes._write_new_ebook(
                 url,
                 str(fetched.get("slug") or ""),
                 str(fetched.get("name") or ""),
                 str(fetched.get("author") or ""),
+                **write_kwargs,
             )
             library_routes._save_ebook_metadata(
                 created["slug"],
@@ -284,6 +376,29 @@ def library_ebooks_bulk(request: Request, payload: dict = Body(...)):
         except Exception as exc:
             results.append({"url": url, "status": "failed", "reason": str(exc)})
     return {"results": results}
+
+
+@router.post("/library/ebooks/{slug}/delete")
+def library_ebook_delete(request: Request, slug: str, confirm_slug: str = Form(...)):
+    """Xóa vĩnh viễn ebook: EPUB + mọi dữ liệu trong DB (cascade). Đồng bộ với
+    route Jinja2 cùng tên, nhưng trả JSON thay vì redirect."""
+    try:
+        delete_ebook_data(
+            deps.DB_PATH,
+            slug,
+            confirm_slug,
+            lambda: deps.resolved_cfg(slug).epub_path,
+            request.app.state.job.queue,
+        )
+    except ConfirmationMismatch as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except EbookNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except EbookBusy as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except EpubDeleteFailed as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True}
 
 
 @router.get("/ebooks/{slug}")

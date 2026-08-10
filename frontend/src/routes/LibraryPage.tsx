@@ -5,21 +5,28 @@ import clsx from "clsx";
 import { Page } from "@/app/Shell";
 import { num, percent } from "@/lib/format";
 import { decodeStrip, stripCounts } from "@/lib/strip";
-import { useCurrentBook, useLibrary, type EbookSummary } from "@/lib/books";
+import { useCurrentBook, useDeleteEbook, useLibrary, type EbookSummary } from "@/lib/books";
 import { ChapterLegend, ChapterStrip } from "@/components/ChapterStrip";
 import { Panel, EmptyState } from "@/components/ui/Panel";
 import { Button, Spinner } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { InputWithIcon } from "@/components/ui/Field";
-import { IconChevronRight, IconPlus, IconSearch } from "@/components/icons";
+import { Input, InputWithIcon } from "@/components/ui/Field";
+import { ConfirmDialog } from "@/components/ui/Modal";
+import { useToast } from "@/components/ui/Toast";
+import { IconChevronRight, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 
 function EbookRow({ book }: { book: EbookSummary }) {
   const states = useMemo(() => decodeStrip(book.strip), [book.strip]);
   const counts = useMemo(() => stripCounts(book.counts), [book.counts]);
   const [currentSlug, selectBook] = useCurrentBook();
   const navigate = useNavigate();
+  const del = useDeleteEbook();
+  const toast = useToast();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [typedSlug, setTypedSlug] = useState("");
   const done = percent(book.translated_count, book.total);
   const isCurrent = currentSlug === book.slug;
+  const canConfirm = typedSlug === book.slug;
 
   return (
     <article
@@ -75,6 +82,17 @@ function EbookRow({ book }: { book: EbookSummary }) {
             }}
             aria-label={`Mở ${book.name}`}
           />
+          <Button
+            size="sm"
+            variant="danger"
+            icon={<IconTrash size={12} />}
+            onClick={() => {
+              setTypedSlug("");
+              setConfirmDelete(true);
+            }}
+            aria-label={`Xóa ${book.name}`}
+            title="Xóa vĩnh viễn"
+          />
         </div>
       </div>
 
@@ -111,6 +129,50 @@ function EbookRow({ book }: { book: EbookSummary }) {
           Chưa có mục lục. Chạy bước TOC để nạp danh sách chương.
         </p>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() =>
+          del.mutate(book.slug, {
+            onSuccess: () => {
+              setConfirmDelete(false);
+              if (isCurrent) selectBook("");
+              toast(`Đã xóa "${book.name}".`);
+            },
+            onError: (err) => {
+              setConfirmDelete(false);
+              toast(err instanceof Error ? err.message : String(err), "error");
+            },
+          })
+        }
+        title="Xóa truyện"
+        confirmLabel="Xóa vĩnh viễn"
+        confirmDisabled={!canConfirm}
+        destructive
+        pending={del.isPending}
+        body={
+          <div className="space-y-3">
+            <p>
+              Xóa <span className="font-semibold">“{book.name}”</span> vĩnh viễn — gồm cả file
+              EPUB, bản gốc, bản dịch và dữ liệu trong DB. Không thể hoàn tác.
+            </p>
+            <label className="block">
+              <span className="text-xs opacity-70">
+                Nhập slug <span data-numeric className="font-mono">“{book.slug}”</span> để xác
+                nhận.
+              </span>
+              <Input
+                value={typedSlug}
+                onChange={(e) => setTypedSlug(e.target.value)}
+                className="mt-1.5 w-full font-mono"
+                placeholder={book.slug}
+                data-numeric
+              />
+            </label>
+          </div>
+        }
+      />
     </article>
   );
 }

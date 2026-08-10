@@ -8,7 +8,7 @@ import json
 import re
 
 from . import openai_client
-from .config import OpenAIConfig
+from .config import AI_EDIT_PROMPT, DEFAULT_PROMPT, OpenAIConfig
 from .translator import (
     _apply_glossary,
     _clean_output,
@@ -58,20 +58,8 @@ EDIT_HAY_GUIDELINES = """Nguyên tắc "edit hay" (biên tập lại bản dịc
 7. Không spoil, không chèn bình luận/nhận xét ngoài truyện, không thêm/bớt nội dung so với bản gốc.
 """
 
-REWRITE_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt. Nhiệm vụ của bạn là BIÊN TẬP LẠI bản dịch hiện tại cho hay hơn, KHÔNG dịch lại từ đầu.
-
-{guidelines}
-{genre_rules}
-{glossary}
-
---- Bản gốc (Trung), dùng để đối chiếu khi cần ---
-{raw}
-
---- Bản dịch hiện tại (Việt), cần biên tập lại ---
-{translated}
-
-Chỉ trả về toàn văn bản đã biên tập lại (giữ nguyên cách chia đoạn). KHÔNG thêm lời mở đầu, ghi chú, giải thích, hay code fence.
-"""
+# Prompt mặc định khi `ai_cfg` không mang prompt riêng (test hoặc config cũ).
+REWRITE_PROMPT = AI_EDIT_PROMPT
 
 
 def _format_genre_block(genre: str) -> str:
@@ -197,6 +185,18 @@ def suggest_glossary(
 load_glossary = load_glossary_dict
 
 
+def _rewrite_prompt_template(ai_cfg: OpenAIConfig) -> str:
+    """Prompt biên tập hiệu lực: lấy từ config nếu có, rơi về mặc định khi rỗng.
+
+    `ai.openai` là `OpenAIConfig` dùng chung — `load_config` đã đổi mặc định
+    prompt_template của nó sang `AI_EDIT_PROMPT`, nhưng config cũ/test dựng tay
+    vẫn để prompt DỊCH (DEFAULT_PROMPT) không hợp cho biên tập → bỏ qua."""
+    tpl = str(getattr(ai_cfg, "prompt_template", "") or "").strip()
+    if not tpl or tpl == DEFAULT_PROMPT:
+        return REWRITE_PROMPT
+    return tpl
+
+
 def rewrite_chapter(
     ai_cfg: OpenAIConfig,
     raw: str,
@@ -218,7 +218,7 @@ def rewrite_chapter(
         if filter_glossary
         else glossary
     )
-    prompt = REWRITE_PROMPT.format(
+    prompt = _rewrite_prompt_template(ai_cfg).format(
         guidelines=EDIT_HAY_GUIDELINES,
         genre_rules=_format_genre_block(genre),
         glossary=_format_glossary(prompt_glossary),

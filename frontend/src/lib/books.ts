@@ -91,6 +91,44 @@ export interface BulkEbookResult {
   toc_job?: { job_id: string; category: string } | null;
 }
 
+export interface BulkPreviewResult {
+  url: string;
+  status: "ok" | "failed";
+  reason?: string;
+  name?: string;
+  author?: string;
+  description?: string;
+  slug?: string;
+  cover_url?: string;
+  chapter_count?: number;
+  source?: string;
+  scrapling_mode?: string;
+  crawl_preview?: CrawlPreview;
+  [key: string]: unknown;
+}
+
+export interface BulkCreateItem {
+  url: string;
+  slug?: string;
+  name?: string;
+  author?: string;
+  description?: string;
+  cover_url?: string;
+  source?: string;
+  scrapling_mode?: string;
+}
+
+export interface TranslateMetaResult {
+  title: string;
+  author: string;
+  description: string;
+  subjects: string[];
+  engine: string;
+  model: string;
+  source_language: string;
+  errors: Record<string, string>;
+}
+
 function useInvalidateLibrary() {
   const client = useQueryClient();
   return () => client.invalidateQueries({ queryKey: ["library"] });
@@ -115,9 +153,36 @@ export function useCreateEbook() {
 export function useCreateEbooksBulk() {
   const invalidate = useInvalidateLibrary();
   return useMutation({
-    mutationFn: (input: { toc_urls: string[]; fetch_toc: boolean }) =>
+    mutationFn: (input: { toc_urls: string[]; items?: BulkCreateItem[]; fetch_toc?: boolean }) =>
       api.post<{ results: BulkEbookResult[] }>("/api/ui/library/ebooks/bulk", { body: input }),
     onSuccess: invalidate,
+  });
+}
+
+/** Xóa vĩnh viễn ebook: EPUB + mọi dữ liệu đã crawl/dịch trong DB. */
+export function useDeleteEbook() {
+  const invalidate = useInvalidateLibrary();
+  return useMutation({
+    mutationFn: (slug: string) =>
+      api.post<{ ok: boolean }>(
+        `/api/ui/library/ebooks/${encodeURIComponent(slug)}/delete`,
+        { form: { confirm_slug: slug } },
+      ),
+    onSuccess: invalidate,
+  });
+}
+
+export function usePreviewEbooksBulk() {
+  return useMutation({
+    mutationFn: (input: { toc_urls: string[] }) =>
+      api.post<{ results: BulkPreviewResult[] }>("/api/ui/library/ebooks/bulk-preview", { body: input }),
+  });
+}
+
+export function useTranslateMetadata() {
+  return useMutation({
+    mutationFn: (input: { title?: string; author?: string; description?: string; engine?: "localmt" | "ai" }) =>
+      api.post<TranslateMetaResult>("/api/ui/library/ebooks/translate-metadata", { body: input }),
   });
 }
 

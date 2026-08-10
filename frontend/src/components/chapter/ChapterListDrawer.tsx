@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import clsx from "clsx";
 
 import { DEFAULT_FILTERS, useInfiniteChapters } from "@/lib/ebook";
@@ -61,6 +62,7 @@ export function ChapterListDrawer({
   mode,
   onModeChange,
   find,
+  activeFindQuery,
   onFindChange,
   onChangeSource,
   findReady,
@@ -69,6 +71,7 @@ export function ChapterListDrawer({
   onPreviewChapter,
   previewState,
   onApplySelected,
+  onApplyAll,
   onTogglePreviewItem,
   onPreviewSelectAll,
   onPreviewSelectNone,
@@ -91,6 +94,7 @@ export function ChapterListDrawer({
   mode: FindMode;
   onModeChange: (mode: FindMode) => void;
   find: ChapterFindState;
+  activeFindQuery: string;
   onFindChange: (patch: Partial<ChapterFindState>) => void;
   onChangeSource: (source: FindSource) => void;
   findReady: boolean;
@@ -99,6 +103,7 @@ export function ChapterListDrawer({
   onPreviewChapter: (index: number) => void;
   previewState: ChapterPreviewState;
   onApplySelected: () => void;
+  onApplyAll: () => void;
   onTogglePreviewItem: (key: string, checked: boolean) => void;
   onPreviewSelectAll: () => void;
   onPreviewSelectNone: () => void;
@@ -306,6 +311,7 @@ export function ChapterListDrawer({
             {mode === "search" ? (
               <FindReplacePanel
                 find={find}
+                activeFindQuery={activeFindQuery}
                 onFindChange={onFindChange}
                 onChangeSource={onChangeSource}
                 findReady={findReady}
@@ -314,6 +320,7 @@ export function ChapterListDrawer({
                 onPreviewChapter={onPreviewChapter}
                 previewState={previewState}
                 onApplySelected={onApplySelected}
+                onApplyAll={onApplyAll}
                 onTogglePreviewItem={onTogglePreviewItem}
                 onPreviewSelectAll={onPreviewSelectAll}
                 onPreviewSelectNone={onPreviewSelectNone}
@@ -409,6 +416,7 @@ export function ChapterListDrawer({
 
 function FindReplacePanel({
   find,
+  activeFindQuery,
   onFindChange,
   onChangeSource,
   findReady,
@@ -417,6 +425,7 @@ function FindReplacePanel({
   onPreviewChapter,
   previewState,
   onApplySelected,
+  onApplyAll,
   onTogglePreviewItem,
   onPreviewSelectAll,
   onPreviewSelectNone,
@@ -426,6 +435,7 @@ function FindReplacePanel({
   onClearSearch,
 }: {
   find: ChapterFindState;
+  activeFindQuery: string;
   onFindChange: (patch: Partial<ChapterFindState>) => void;
   onChangeSource: (source: FindSource) => void;
   findReady: boolean;
@@ -434,6 +444,7 @@ function FindReplacePanel({
   onPreviewChapter: (index: number) => void;
   previewState: ChapterPreviewState;
   onApplySelected: () => void;
+  onApplyAll: () => void;
   onTogglePreviewItem: (key: string, checked: boolean) => void;
   onPreviewSelectAll: () => void;
   onPreviewSelectNone: () => void;
@@ -501,9 +512,19 @@ function FindReplacePanel({
             Tìm
           </Button>
           {searchCount > 0 ? (
-            <Button size="sm" variant="ghost" onClick={onClearSearch}>
-              Xóa kết quả
-            </Button>
+            <>
+              <Button size="sm" variant="ghost" onClick={onClearSearch}>
+                Xóa kết quả
+              </Button>
+              <Button
+                size="sm"
+                loading={previewState.applying}
+                onClick={onApplyAll}
+                title="Thay mọi kết quả khớp trong toàn truyện"
+              >
+                Thay tất cả
+              </Button>
+            </>
           ) : null}
         </div>
       </div>
@@ -536,6 +557,8 @@ function FindReplacePanel({
             onPreviewSelectAll={onPreviewSelectAll}
             onPreviewSelectNone={onPreviewSelectNone}
             onOpenChapter={onOpenChapter}
+            matchQuery={activeFindQuery}
+            matchRegex={find.regex}
           />
         )}
       </div>
@@ -568,6 +591,8 @@ function ChapterHitList({
   onPreviewSelectAll,
   onPreviewSelectNone,
   onOpenChapter,
+  matchQuery,
+  matchRegex,
 }: {
   hits: SearchHit[];
   previewState: ChapterPreviewState;
@@ -577,6 +602,8 @@ function ChapterHitList({
   onPreviewSelectAll: () => void;
   onPreviewSelectNone: () => void;
   onOpenChapter: (index: number) => void;
+  matchQuery: string;
+  matchRegex: boolean;
 }) {
   return (
     <ul className="space-y-1.5">
@@ -641,6 +668,8 @@ function ChapterHitList({
                   onPreviewSelectAll={onPreviewSelectAll}
                   onPreviewSelectNone={onPreviewSelectNone}
                   onOpenChapter={onOpenChapter}
+                  matchQuery={matchQuery}
+                  matchRegex={matchRegex}
                 />
               )
             ) : null}
@@ -658,12 +687,17 @@ function PreviewRow({
   checked,
   disabled,
   onToggle,
+  matchQuery,
+  matchRegex,
 }: {
   item: FindReplacePreviewItem;
   checked: boolean;
   disabled: boolean;
   onToggle: (checked: boolean) => void;
+  matchQuery: string;
+  matchRegex: boolean;
 }) {
+  const isRegexMatch = item.para_index < 0;
   return (
     <li
       className={clsx(
@@ -678,23 +712,57 @@ function PreviewRow({
           checked={checked}
           disabled={disabled}
           onChange={(e) => onToggle(e.target.checked)}
-          aria-label={`Chọn đoạn ${item.para_index + 1} để thay`}
+          aria-label={isRegexMatch ? "Chọn kết quả này để thay" : `Chọn đoạn ${item.para_index + 1} để thay`}
         />
-        <span data-numeric className="shrink-0 text-[11px] opacity-50">
-          {num(item.para_index + 1)}
-        </span>
+        {!isRegexMatch && (
+          <span data-numeric className="shrink-0 text-[11px] opacity-50">
+            {num(item.para_index + 1)}
+          </span>
+        )}
         <span className="text-[11px] font-medium opacity-80">{item.count} chỗ</span>
       </label>
       <div className="space-y-px px-2 py-1.5 font-mono text-[11px] leading-5">
         <div className="whitespace-pre-wrap break-words">
-          <DiffText before={item.before} after={item.after} mode="removed" />
+          <MatchText text={item.before} query={matchQuery} regex={matchRegex} />
         </div>
-        <div className="whitespace-pre-wrap break-words">
-          <DiffText before={item.before} after={item.after} />
-        </div>
+        {item.after !== item.before && (
+          <div className="whitespace-pre-wrap break-words">
+            <DiffText before={item.before} after={item.after} />
+          </div>
+        )}
       </div>
     </li>
   );
+}
+
+function MatchText({ text, query, regex }: { text: string; query: string; regex: boolean }) {
+  const parts = useMemo<ReactNode[]>(() => {
+    if (!query) return [text];
+    try {
+      const source = regex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(source, "gi");
+      const nodes: ReactNode[] = [];
+      let cursor = 0;
+      for (const match of text.matchAll(pattern)) {
+        const start = match.index ?? 0;
+        const value = match[0];
+        if (!value) continue;
+        if (start > cursor) nodes.push(text.slice(cursor, start));
+        nodes.push(
+          <mark key={`${start}:${value}`} className="rounded-sm bg-warning/35 px-0.5 text-inherit">
+            {value}
+          </mark>,
+        );
+        cursor = start + value.length;
+      }
+      if (cursor < text.length) nodes.push(text.slice(cursor));
+      return nodes.length ? nodes : [text];
+    } catch {
+      return [text];
+    }
+  }, [text, query, regex]);
+
+  return <>{parts}</>;
 }
 
 function PreviewControls({
@@ -764,6 +832,8 @@ function ChapterPreviewSection({
   onPreviewSelectAll,
   onPreviewSelectNone,
   onOpenChapter,
+  matchQuery,
+  matchRegex,
 }: {
   items: FindReplacePreviewItem[];
   selected: Set<string>;
@@ -773,6 +843,8 @@ function ChapterPreviewSection({
   onPreviewSelectAll: () => void;
   onPreviewSelectNone: () => void;
   onOpenChapter: (index: number) => void;
+  matchQuery: string;
+  matchRegex: boolean;
 }) {
   const disabled = items.length === 0 || applying;
 
@@ -797,6 +869,8 @@ function ChapterPreviewSection({
             checked={selected.has(findPreviewKeyOf(item))}
             disabled={applying}
             onToggle={(checked) => onTogglePreviewItem(findPreviewKeyOf(item), checked)}
+            matchQuery={matchQuery}
+            matchRegex={matchRegex}
           />
         ))}
       </ul>

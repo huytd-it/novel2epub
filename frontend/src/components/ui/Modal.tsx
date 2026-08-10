@@ -58,6 +58,7 @@ export function ConfirmDialog({
   title,
   body,
   confirmLabel = "Xác nhận",
+  confirmDisabled,
   destructive,
   pending,
 }: {
@@ -67,6 +68,7 @@ export function ConfirmDialog({
   title: string;
   body: ReactNode;
   confirmLabel?: string;
+  confirmDisabled?: boolean;
   destructive?: boolean;
   pending?: boolean;
 }) {
@@ -81,6 +83,7 @@ export function ConfirmDialog({
           <Button
             variant={destructive ? "danger" : "primary"}
             loading={pending}
+            disabled={confirmDisabled}
             onClick={onConfirm}
           >
             {confirmLabel}

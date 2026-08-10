@@ -8,6 +8,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from novel2epub import han_cleanup
+from novel2epub.blocks import split_blocks
 from novel2epub.notes import split_paras
 from novel2epub.pipeline import step_cleanup_han_local_mt_selected
 from novel2epub.storage import Storage
@@ -96,17 +97,30 @@ def reader_search(slug: str, q: str, regex: bool = False, case: bool = False, so
         text = _text(ch)
         if not text:
             continue
-        matches = list(pattern.finditer(text))
-        if not matches:
-            continue
+        if regex:
+            matches = list(pattern.finditer(text))
+            if not matches:
+                continue
+            snippets = [_search_snippet(text, m) for m in matches[:_SEARCH_MAX_SNIPPETS]]
+        else:
+            paras = split_blocks(text) if source == "raw" else split_paras(text)
+            matches_by_para = [(para, list(pattern.finditer(para))) for para in paras]
+            matches_by_para = [(para, ms) for para, ms in matches_by_para if ms]
+            if not matches_by_para:
+                continue
+            matches = [m for _, pms in matches_by_para for m in pms]
+            snippets = []
+            for para, para_matches in matches_by_para:
+                snippets.extend(_search_snippet(para, m) for m in para_matches)
+                if len(snippets) >= _SEARCH_MAX_SNIPPETS:
+                    break
+            snippets = snippets[:_SEARCH_MAX_SNIPPETS]
         results.append(
             {
                 "chapter_index": ch.index,
                 "title": ch.title or f"Chương {ch.index}",
                 "count": len(matches),
-                "snippets": [
-                    _search_snippet(text, m) for m in matches[:_SEARCH_MAX_SNIPPETS]
-                ],
+                "snippets": snippets,
             }
         )
     return JSONResponse(results)

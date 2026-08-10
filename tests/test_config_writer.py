@@ -112,6 +112,81 @@ def test_update_defaults_persists_prompt_template(tmp_path):
     assert cfg.translate.openai.prompt_template == "Dòng 1\nDòng 2\nDòng 3"
 
 
+def test_global_ai_provider_with_per_ebook_model_overrides(tmp_path):
+    path = tmp_path / "novel2epub.db"
+    write_db_config(
+        path,
+        defaults={
+            "global_ai": {
+                "base_url": "https://global.example/v1",
+                "api_key": "global-secret",
+                "translation_model": "translate-global",
+                "assistant_model": "assistant-global",
+                "timeout_seconds": 45,
+                "temperature": 0.2,
+            }
+        },
+        ebooks={
+            "a": {
+                "novel": {"slug": "a"},
+                "translate": {
+                    "translation_model": "translate-ebook",
+                    "openai": {
+                        "base_url": "https://legacy-ebook.example/v1",
+                        "api_key": "legacy-secret",
+                    },
+                },
+                "ai": {
+                    "assistant_model": "assistant-ebook",
+                    "openai": {"api_key": "legacy-ai-secret"},
+                },
+            }
+        },
+    )
+
+    cfg = load_config(path, "a")
+    assert cfg.translate.openai.base_url == "https://global.example/v1"
+    assert cfg.translate.openai.api_key == "global-secret"
+    assert cfg.translate.openai.model == "translate-ebook"
+    assert cfg.ai.openai.base_url == "https://global.example/v1"
+    assert cfg.ai.openai.api_key == "global-secret"
+    assert cfg.ai.openai.model == "assistant-ebook"
+    assert cfg.translate.openai.timeout_seconds == 45
+    assert cfg.ai.openai.temperature == 0.2
+
+
+def test_update_ebook_discards_provider_credentials_but_keeps_model_overrides(tmp_path):
+    path = tmp_path / "novel2epub.db"
+    write_db_config(path, ebooks={"a": {"novel": {"slug": "a"}}})
+
+    update_ebook(
+        path,
+        "a",
+        {
+            "translate": {
+                "translation_model": "translation-override",
+                "openai": {"base_url": "https://forbidden", "api_key": "secret"},
+            },
+            "ai": {
+                "assistant_model": "assistant-override",
+                "openai": {"api_key": "secret-2"},
+            },
+        },
+    )
+
+    import json
+    from novel2epub.db import get_connection
+
+    conn = get_connection(path)
+    row = conn.execute(
+        "SELECT translate_overrides_json, ai_overrides_json FROM ebooks WHERE slug='a'"
+    ).fetchone()
+    translate = json.loads(row[0])
+    assistant = json.loads(row[1])
+    assert translate == {"translation_model": "translation-override"}
+    assert assistant == {"assistant_model": "assistant-override"}
+
+
 def test_update_defaults_writes_shared_config_to_all_ebooks(tmp_path):
     """`translate`/`ai` dùng chung: ghi vào defaults, mọi ebook đều thấy."""
     path = tmp_path / "novel2epub.db"

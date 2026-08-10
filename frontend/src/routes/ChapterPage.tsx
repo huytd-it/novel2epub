@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -480,31 +480,15 @@ function EditableCompareView({
                     <span className="opacity-40">—</span>
                   )}
                 </td>
-                <td className="w-1/3 px-2 py-2 text-[13px] leading-relaxed">
-                  {editingCol === "translated" ? (
-                    <CompareCellEditor
-                      autoFocus
-                      defaultValue={row.edited}
-                      disabled={pending}
-                      onCommit={(v) => commit(i, "translated", v)}
-                      onCancel={() => finishEdit(i)}
-                    />
-                  ) : row.edited ? (
-                    <button
-                      type="button"
-                      className={clsx(
-                        "block w-full cursor-text rounded-field px-1 text-left hover:bg-base-200",
-                        changed && "bg-success/5",
-                      )}
-                      onClick={() => setEditing((p) => ({ ...p, [i]: "translated" }))}
-                      disabled={pending}
-                      title="Sửa bản hiện tại"
-                    >
-                      {changed ? <DiffText before={row.mt} after={row.edited} /> : row.edited}
-                    </button>
-                  ) : (
-                    <span className="opacity-40">—</span>
-                  )}
+                <td className="w-1/3 px-2 py-2 align-top">
+                  <CompareCellEditor
+                    key={row.edited}
+                    defaultValue={row.edited}
+                    disabled={pending}
+                    changed={changed}
+                    onCommit={(v) => commit(i, "translated", v)}
+                    onCancel={() => finishEdit(i)}
+                  />
                 </td>
                 <td className="w-10 px-2 py-2">
                   <button
@@ -528,19 +512,23 @@ function EditableCompareView({
 }
 
 /** Ô sửa nội tuyến cho khung đối chiếu — commit khi rời ô, đọc thẳng
-    `e.target.value` (không tin state closure), Escape để hủy. */
+    `e.target.value` (không tin state closure), Escape để hủy. Tự giãn chiều
+    cao theo nội dung nên lấp kín cả ô; `changed` tô nền khi bản hiện tại
+    khác bản dịch máy. */
 function CompareCellEditor({
   defaultValue,
   onCommit,
   onCancel,
   autoFocus,
   disabled,
+  changed,
 }: {
   defaultValue: string;
   onCommit: (value: string) => void;
   onCancel: () => void;
   autoFocus?: boolean;
   disabled?: boolean;
+  changed?: boolean;
 }) {
   const [value, setValue] = useState(defaultValue);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -554,6 +542,13 @@ function CompareCellEditor({
       }
     }
   }, [autoFocus]);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
 
   return (
     <textarea
@@ -569,7 +564,10 @@ function CompareCellEditor({
           e.preventDefault();
         }
       }}
-      className="textarea textarea-bordered textarea-sm w-full font-read text-[13px]"
+      className={clsx(
+        "textarea textarea-bordered textarea-sm w-full resize-none overflow-hidden font-read text-[13px]",
+        changed && "border-success/40 bg-success/5",
+      )}
       aria-label="Sửa đoạn"
     />
   );
@@ -682,6 +680,13 @@ export function ChapterPage() {
       setDocumentRevision(data.revision);
     }
   }, [slug, chapterIndex, data, loadedKey]);
+
+  useLayoutEffect(() => {
+    if (!editMode || !editorRef.current) return;
+    const editor = editorRef.current;
+    editor.style.height = "0px";
+    editor.style.height = `${editor.scrollHeight}px`;
+  }, [documentDraft, editMode, fontSize, readerPrefs.fontFamily, readerPrefs.lineHeight]);
 
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -983,7 +988,7 @@ export function ChapterPage() {
 
   return (
     <div
-      className={clsx("min-h-screen", chaptersCollapsed ? "lg:pr-10" : "lg:pr-72")}
+      className={clsx("min-h-screen", chaptersCollapsed ? "lg:pr-10" : "lg:pr-80")}
     >
       {/* ── Thanh công cụ ─────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 border-b border-base-300 bg-base-100/95 backdrop-blur">
@@ -1177,9 +1182,9 @@ export function ChapterPage() {
             )}
           </Panel>
           <p className="mt-3 text-xs opacity-50">
-            Khung này gộp các dòng trong cùng một khối nên số hàng ở đây không trùng số đoạn của
-            chế độ Đọc. Sửa trực tiếp: bấm vào cột Bản gốc hoặc Bản hiện tại để sửa; nút xóa
-            trên hàng sẽ xóa đồng bộ khối gốc + dịch máy + bản hiện tại (có xác nhận).
+            Cột Bản hiện tại sửa trực tiếp ngay trong ô (Ctrl+Enter để xong); ô tô nền là chỗ
+            khác bản dịch máy. Bấm vào cột Bản gốc để sửa; nút xóa trên hàng sẽ xóa đồng bộ khối
+            gốc + dịch máy + bản hiện tại (có xác nhận).
           </p>
         </div>
       ) : view === "raw" ? (
@@ -1204,7 +1209,7 @@ export function ChapterPage() {
         </div>
       ) : (
         <div
-          className="mx-auto px-4 pb-10"
+          className="mx-auto px-4 pb-16"
           style={{ maxWidth: `${readerPrefs.contentWidth}px` }}
           ref={contentRef}
           onMouseUp={handleMouseUp}
@@ -1228,7 +1233,7 @@ export function ChapterPage() {
                 value={documentDraft}
                 onChange={(e) => setDocumentDraft(e.target.value)}
                 className={clsx(
-                  "textarea textarea-bordered min-h-[70vh] w-full resize-y",
+                  "textarea textarea-bordered min-h-[60vh] w-full resize-none overflow-hidden",
                   readerPrefs.fontFamily === "serif" && "font-read",
                   readerPrefs.fontFamily === "mono" && "font-mono",
                   readerPrefs.fontFamily === "sans" && "font-sans",
@@ -1260,33 +1265,56 @@ export function ChapterPage() {
             />
           )}
 
-          <div className="mt-10 flex items-center justify-between border-t border-base-300 pt-4">
-            <Button disabled={data.prev_index === null} onClick={() => go(data.prev_index)}>
-              ← Chương trước
-            </Button>
-            <div className="flex gap-1.5">
-              {data.has_mt_snapshot ? (
-                <Button
-                  icon={<IconRevert size={14} />}
-                  loading={revertEdits.isPending}
-                  onClick={() =>
-                    revertEdits.mutate(undefined, {
-                      onSuccess: () => toast("Đã khôi phục về bản dịch máy."),
-                      onError: (err) =>
-                        toast(err instanceof Error ? err.message : String(err), "error"),
-                    })
-                  }
-                >
-                  Khôi phục bản dịch máy
-                </Button>
-              ) : null}
-            </div>
-            <Button disabled={data.next_index === null} onClick={() => go(data.next_index)}>
-              Chương sau →
-            </Button>
-          </div>
         </div>
       )}
+
+      {/* ── Nav cố định dưới cùng ──────────────────────────────────── */}
+      {view === "read" ? (
+        <nav className="sticky bottom-0 z-30 border-t border-base-300 bg-base-100/95 backdrop-blur">
+          <div
+            className="relative mx-auto flex w-full items-center justify-between px-2 py-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]"
+            style={{ maxWidth: `${readerPrefs.contentWidth}px` }}
+          >
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<IconChevronLeft size={15} />}
+              disabled={data.prev_index === null}
+              onClick={() => go(data.prev_index)}
+              aria-label="Chương trước"
+              title="Chương trước"
+            />
+            {data.has_mt_snapshot ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="absolute left-1/2 -translate-x-1/2"
+                icon={<IconRevert size={13} />}
+                loading={revertEdits.isPending}
+                onClick={() =>
+                  revertEdits.mutate(undefined, {
+                    onSuccess: () => toast("Đã khôi phục về bản dịch máy."),
+                    onError: (err) =>
+                      toast(err instanceof Error ? err.message : String(err), "error"),
+                  })
+                }
+                title="Khôi phục về bản dịch máy"
+              >
+                <span className="hidden sm:inline">Khôi phục</span>
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<IconChevronRight size={15} />}
+              disabled={data.next_index === null}
+              onClick={() => go(data.next_index)}
+              aria-label="Chương sau"
+              title="Chương sau"
+            />
+            </div>
+        </nav>
+      ) : null}
 
       {selection ? (
         <NoteComposer

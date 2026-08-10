@@ -27,6 +27,7 @@ from novel2epub.pipeline import (
 from novel2epub.pipeline import step_apply_ai_revision, step_discard_ai_revision
 from novel2epub import revisions
 from novel2epub.notes import insert_para, replace_para, split_paras
+from novel2epub.queue_labels import batch_job_label, chapter_job_label, job_label
 from novel2epub.storage import Chapter, Storage
 from novel2epub.toc import count_words
 from novel2epub.translator import _filter_glossary
@@ -223,10 +224,9 @@ def ebook_chapter_action(request: Request, slug: str, index: int, action: str = 
         else:
             raise ValueError(f"action không hợp lệ: {_act!r}")
 
-    step_label = {"crawl": "Crawl", "translate": "Dịch", "cleanup-han": "Cleanup Hán"}.get(action, action)
     request.app.state.job.queue.enqueue(
         category, f"chapter-{action}", _target,
-        label=f"{step_label} · {ebook_title} · {ch_label}",
+        label=chapter_job_label(f"chapter-{action}", title=ebook_title, slug=slug, index=index, chapter_title=ch.title if ch else ""),
         ebook=slug, lock_ebook=False, chapter_indexes=[index],
         cancel_event=cancel_event,
     )
@@ -244,7 +244,7 @@ def ebook_chapter_delete_translation(request: Request, slug: str, index: int):
 
     request.app.state.job.queue.enqueue(
         "translate", f"delete-translation-{index}", _target,
-        label=f"Xóa bản dịch · {cfg.novel.title or slug} · Ch.{index}",
+        label=chapter_job_label("delete-translation", title=cfg.novel.title, slug=slug, index=index),
         ebook=slug, lock_ebook=False, chapter_indexes=[index],
         cancel_event=cancel_event,
     )
@@ -394,7 +394,7 @@ def ebook_chapter_ai(request: Request, slug: str, index: int, op: str):
 
     request.app.state.job.queue.enqueue(
         "translate", f"ai-{op}-{index}", _target,
-        label=f"AI {op} · {cfg.novel.title or slug} · Ch.{index}",
+        label=job_label(f"ai-{op}", title=cfg.novel.title, slug=slug, detail=f"Chương {index}"),
         ebook=slug, lock_ebook=False, chapter_indexes=[index],
         cancel_event=cancel_event,
     )
@@ -846,7 +846,7 @@ async def api_batch_translate_titles(
         category="translate",
         ebook=slug,
         chapter_indexes=index_list,
-        label=f"Dịch tiêu đề · {cfg.novel.title or slug} · {len(index_list)} chương",
+        label=batch_job_label("translate-titles", title=cfg.novel.title, slug=slug, count=len(index_list)),
     )
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
@@ -869,7 +869,9 @@ async def api_batch_delete_translation(request: Request, slug: str, indexes: str
         step_delete_translation_selected(cfg, log, selected_indexes=index_list)
 
     started = request.app.state.job.start_custom(
-        f"batch-delete-translation-{len(index_list)}", _target, category="translate"
+        f"batch-delete-translation-{len(index_list)}", _target, category="translate",
+        ebook=slug, chapter_indexes=index_list,
+        label=batch_job_label("delete-translation", title=cfg.novel.title, slug=slug, count=len(index_list)),
     )
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
@@ -894,7 +896,9 @@ async def api_batch_suggest_glossary(
                 log(f"[batch-glossary] Lỗi chương {idx}: {e}")
 
     started = request.app.state.job.start_custom(
-        f"batch-suggest-glossary-{len(index_list)}", _target, category="translate"
+        f"batch-suggest-glossary-{len(index_list)}", _target, category="translate",
+        ebook=slug, chapter_indexes=index_list,
+        label=batch_job_label("ai-suggest", title=cfg.novel.title, slug=slug, count=len(index_list)),
     )
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
@@ -942,7 +946,9 @@ async def api_batch_extract_characters(
             f"{len(result['relations'])} quan hệ vào hàng chờ duyệt.")
 
     started = request.app.state.job.start_custom(
-        f"extract-characters-{len(index_list)}", _target, category="translate"
+        f"extract-characters-{len(index_list)}", _target, category="translate",
+        ebook=slug, chapter_indexes=index_list,
+        label=batch_job_label("Trích xuất nhân vật", title=cfg.novel.title, slug=slug, count=len(index_list)),
     )
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
@@ -990,7 +996,9 @@ async def api_batch_ai_rewrite(
                 log(f"[batch-rewrite-local-nmt] Lỗi: {e}")
 
         started = request.app.state.job.start_custom(
-            f"batch-rewrite-local-nmt-{len(index_list)}", _target, category="translate"
+            f"batch-rewrite-local-nmt-{len(index_list)}", _target, category="translate",
+            ebook=slug, chapter_indexes=index_list,
+            label=batch_job_label("local-mt", title=cfg.novel.title, slug=slug, count=len(index_list)),
         )
     else:
         def _target(log):
@@ -1016,7 +1024,9 @@ async def api_batch_ai_rewrite(
                     log(f"[batch-rewrite] Lỗi chương {idx}: {e}")
 
         started = request.app.state.job.start_custom(
-            f"batch-ai-rewrite-{len(index_list)}", _target, category="translate"
+            f"batch-ai-rewrite-{len(index_list)}", _target, category="translate",
+            ebook=slug, chapter_indexes=index_list,
+            label=batch_job_label("ai-rewrite", title=cfg.novel.title, slug=slug, count=len(index_list)),
         )
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
@@ -1518,7 +1528,9 @@ async def api_batch_translate(request: Request, slug: str, indexes: str = Form("
         batch_translate_job_factory(spec["params"]),
         category="translate",
         ebook=slug,
+        chapter_indexes=index_list,
         spec=spec,
+        label=batch_job_label("translate", title=cfg.novel.title, slug=slug, count=len(index_list)),
     )
     return JSONResponse({"started": True, "total": len(index_list), "pending": pending})
 

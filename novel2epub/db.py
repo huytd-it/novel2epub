@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -56,6 +56,7 @@ _SCHEMA_STATEMENTS = [
         -- KHÔNG bao giờ lưu nội dung cấu hình WireGuard/private key ở đây —
         -- chỉ chứa tham chiếu đến file ngoài trong profiles_dir.
         wireguard_json TEXT NOT NULL DEFAULT '{}',
+        global_ai_json TEXT NOT NULL DEFAULT '{}',
         oidc_json TEXT NOT NULL DEFAULT '{}',
         session_epoch INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -114,6 +115,13 @@ _SCHEMA_STATEMENTS = [
         series_index TEXT NOT NULL DEFAULT '',
         identifier TEXT NOT NULL DEFAULT '',
         cover_url TEXT NOT NULL DEFAULT '',
+        raw_title TEXT NOT NULL DEFAULT '',
+        raw_author TEXT NOT NULL DEFAULT '',
+        raw_description TEXT NOT NULL DEFAULT '',
+        raw_subjects_json TEXT NOT NULL DEFAULT '[]',
+        raw_source_hash TEXT NOT NULL DEFAULT '',
+        raw_updated_at TEXT NOT NULL DEFAULT '',
+        translated_metadata_source_hash TEXT NOT NULL DEFAULT '',
         source_url TEXT NOT NULL DEFAULT '',
         cover_file TEXT NOT NULL DEFAULT '',
         title_note TEXT NOT NULL DEFAULT '',
@@ -573,6 +581,15 @@ _ADDED_COLUMNS = [
     ("sources", "code", "TEXT NOT NULL DEFAULT ''"),
     ("ebooks", "code", "TEXT NOT NULL DEFAULT ''"),
     ("chapters", "code", "TEXT NOT NULL DEFAULT ''"),
+    # v15: Global AI provider + raw metadata for curated/stale tracking.
+    ("settings", "global_ai_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ("ebooks", "raw_title", "TEXT NOT NULL DEFAULT ''"),
+    ("ebooks", "raw_author", "TEXT NOT NULL DEFAULT ''"),
+    ("ebooks", "raw_description", "TEXT NOT NULL DEFAULT ''"),
+    ("ebooks", "raw_subjects_json", "TEXT NOT NULL DEFAULT '[]'"),
+    ("ebooks", "raw_source_hash", "TEXT NOT NULL DEFAULT ''"),
+    ("ebooks", "raw_updated_at", "TEXT NOT NULL DEFAULT ''"),
+    ("ebooks", "translated_metadata_source_hash", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 
@@ -819,7 +836,91 @@ def _migration_v14(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
 
+def _json_object(raw: str | dict | None) -> dict:
+    if isinstance(raw, dict):
+        return dict(raw)
+    try:
+        value = json.loads(raw or "{}")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _first_nonempty(*values):
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _migration_v15(conn: sqlite3.Connection) -> None:
+    """Create the global AI provider and raw-metadata tracking fields."""
+    _ensure_columns(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+    row = conn.execute(
+        "SELECT translate_json, ai_json, global_ai_json FROM settings WHERE id = 1"
+    ).fetchone()
+    if row is not None:
+        translate = _json_object(row["translate_json"])
+        assistant = _json_object(row["ai_json"])
+        global_ai = _json_object(row["global_ai_json"])
+        translate_openai = _json_object(translate.get("openai"))
+        assistant_openai = _json_object(assistant.get("openai"))
+        migrated = {
+            "base_url": _first_nonempty(
+                translate_openai.get("base_url"), assistant_openai.get("base_url")
+            ),
+            "api_key": _first_nonempty(
+                translate_openai.get("api_key"), assistant_openai.get("api_key")
+            ),
+            "translation_model": translate_openai.get("model"),
+            "assistant_model": assistant_openai.get("model"),
+            "timeout_seconds": _first_nonempty(
+                translate_openai.get("timeout_seconds"),
+                assistant_openai.get("timeout_seconds"),
+            ),
+            "temperature": _first_nonempty(
+                translate_openai.get("temperature"), assistant_openai.get("temperature")
+            ),
+        }
+        for key, value in migrated.items():
+            if key not in global_ai and value not in (None, ""):
+                global_ai[key] = value
+        conn.execute(
+            "UPDATE settings SET global_ai_json = ?, updated_at = datetime('now') WHERE id = 1",
+            (json.dumps(global_ai, ensure_ascii=False),),
+        )
+
+    for ebook in conn.execute(
+        "SELECT slug, translate_overrides_json, ai_overrides_json FROM ebooks"
+    ).fetchall():
+        translate = _json_object(ebook["translate_overrides_json"])
+        assistant = _json_object(ebook["ai_overrides_json"])
+        translation_openai = _json_object(translate.get("openai"))
+        assistant_openai = _json_object(assistant.get("openai"))
+        changed = False
+        if "translation_model" not in translate and translation_openai.get("model"):
+            translate["translation_model"] = translation_openai["model"]
+            changed = True
+        if "assistant_model" not in assistant and assistant_openai.get("model"):
+            assistant["assistant_model"] = assistant_openai["model"]
+            changed = True
+        if changed:
+            conn.execute(
+                "UPDATE ebooks SET translate_overrides_json = ?, ai_overrides_json = ?, "
+                "updated_at = datetime('now') WHERE slug = ?",
+                (
+                    json.dumps(translate, ensure_ascii=False),
+                    json.dumps(assistant, ensure_ascii=False),
+                    ebook["slug"],
+                ),
+            )
+
+
 _MIGRATIONS = {
+
     8: _migration_noop,
     9: _migration_noop,
     10: _migration_v10,
@@ -827,6 +928,7 @@ _MIGRATIONS = {
     12: _migration_v12,
     13: _migration_v13,
     14: _migration_v14,
+    15: _migration_v15,
 }
 
 

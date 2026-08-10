@@ -126,6 +126,55 @@ def test_blocks_delete_keeps_inner_newlines():
     assert new == "Khối hai"
 
 
+def test_blocks_split_paragraphs_matches_split_paras():
+    """Đoạn = TỪNG DÒNG không rỗng, trùng `notes.split_paras` của chế độ Đọc."""
+    from novel2epub.blocks import split_paragraphs
+    from novel2epub.notes import split_paras
+
+    text = "Hắn nói:\n— Đi thôi.\n\nĐoạn sau."
+    assert split_paragraphs(text) == split_paras(text) == [
+        "Hắn nói:",
+        "— Đi thôi.",
+        "Đoạn sau.",
+    ]
+    assert split_paragraphs("\n\n  \n") == []
+    assert split_paragraphs("") == []
+
+
+def test_blocks_replace_paragraph_by_line():
+    from novel2epub.blocks import replace_paragraph, split_paragraphs
+
+    text = "Lời dẫn:\n— Thoại.\n\nĐoạn sau."
+    # Chỉ sửa dòng thứ 0, dòng "— Thoại." giữ nguyên.
+    new, reason = replace_paragraph(text, 0, "Lời dẫn:", "Lời dẫn đã sửa:")
+    assert reason == ""
+    assert split_paragraphs(new) == ["Lời dẫn đã sửa:", "— Thoại.", "Đoạn sau."]
+
+    # new_text rỗng = xóa đoạn.
+    new, reason = replace_paragraph(text, 1, "— Thoại.", "")
+    assert reason == ""
+    assert split_paragraphs(new) == ["Lời dẫn:", "Đoạn sau."]
+
+
+def test_blocks_replace_paragraph_stale_expected_409():
+    from novel2epub.blocks import replace_paragraph
+
+    new, reason = replace_paragraph("A\n\nB", 0, "KHÔNG KHỚP", "X")
+    assert new is None
+    assert "tải lại trang" in reason
+
+
+def test_blocks_delete_paragraph_by_line():
+    from novel2epub.blocks import delete_paragraph, split_paragraphs
+
+    text = "Hắn nói:\n— Đi thôi.\n\nĐoạn sau."
+    # Xóa dòng "— Đi thôi." — dòng "Hắn nói:" và "Đoạn sau." còn nguyên.
+    new, reason = delete_paragraph(text, 1, "— Đi thôi.")
+    assert reason == ""
+    assert split_paragraphs(new) == ["Hắn nói:", "Đoạn sau."]
+    assert "— Đi thôi." not in new
+
+
 # ── /search?source=raw ─────────────────────────────────────────────────────
 
 def test_search_raw_includes_untranslated_chapters(tmp_path, monkeypatch):

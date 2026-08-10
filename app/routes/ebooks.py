@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
 from novel2epub.config_writer import update_ebook
 from novel2epub.progress import chapter_progress
+from novel2epub.queue_labels import job_label
 from novel2epub.storage import Storage
 from novel2epub.toc import apply_chapter_query, chapter_rows
 
@@ -77,7 +78,10 @@ def bulk_action(
         def _target(log, _fn=fn, _cfg=cfg):
             _fn(_cfg, log)
 
-        request.app.state.job.queue.enqueue(category, action, _target, label=f"{action}:{slug}", ebook=slug)
+        request.app.state.job.queue.enqueue(
+            category, action, _target,
+            label=job_label(action, title=cfg.novel.title, slug=slug), ebook=slug,
+        )
     return RedirectResponse(url="/library", status_code=303)
 
 
@@ -181,5 +185,6 @@ def api_publish_push(request: Request, slug: str):
         category="build",
         ebook=slug,
         spec=spec,
+        label=job_label("publish-reader", title=cfg.novel.title, slug=slug),
     )
     return JSONResponse({"started": True})

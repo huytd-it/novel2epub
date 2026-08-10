@@ -8,6 +8,7 @@ import threading
 from typing import Callable
 
 from novel2epub.config import Config
+from novel2epub.queue_labels import job_label
 from novel2epub.pipeline import (
     run_all,
     step_build,
@@ -74,7 +75,11 @@ class JobRunner:
         def _target(log, _fn=fn, _cfg=cfg, _ev=cancel_event):
             _fn(_cfg, log, should_cancel=_ev.is_set)
 
-        self.queue.enqueue(category, step, _target, label=step, cancel_event=cancel_event)
+        self.queue.enqueue(
+            category, step, _target,
+            label=job_label(step, title=cfg.novel.title, slug=cfg.novel.slug),
+            ebook=cfg.novel.slug, cancel_event=cancel_event,
+        )
         return True
 
     def is_ebook_busy(self, category: str, ebook: str) -> bool:
@@ -113,5 +118,9 @@ class JobRunner:
         def _target(log, _fn=fn, _cfg=cfg, _ev=cancel_event):
             _fn(_cfg, log, should_cancel=_ev.is_set)
 
-        job = self.queue.enqueue(category, step, _target, label=label or step, ebook=ebook, cancel_event=cancel_event)
+        job = self.queue.enqueue(
+            category, step, _target,
+            label=label or job_label(step, title=cfg.novel.title, slug=ebook or cfg.novel.slug),
+            ebook=ebook, cancel_event=cancel_event,
+        )
         return {"job_id": job.id, "category": category}

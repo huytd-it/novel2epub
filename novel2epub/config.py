@@ -450,6 +450,33 @@ class NovelConfig:
     # URL ảnh bìa. Người dùng nhập tay hoặc upload file qua Web UI, lưu YAML
     # để pipeline dùng làm cover_url cho manifest khi crawl không có.
     cover_url: str = ""
+    raw_title: str = ""
+    raw_author: str = ""
+    raw_description: str = ""
+    raw_subjects: list[str] = field(default_factory=list)
+    raw_source_hash: str = ""
+    raw_updated_at: str = ""
+    translated_metadata_source_hash: str = ""
+
+
+@dataclass
+class GlobalAIConfig:
+    """Cấu hình AI/LLM cấp hệ thống — endpoint và credential dùng chung cho
+    mọi tác vụ AI: dịch chương, glossary analysis, rewrite, evaluate, cleanup,
+    dịch metadata, dịch đoạn chọn bằng LLM.
+
+    ``translation_model``: model dùng cho dịch chương (translate pipeline).
+    ``assistant_model``: model dùng cho mọi tác vụ AI còn lại.
+
+    Ebook có thể override ``translation_model`` / ``assistant_model`` nhưng
+    KHÔNG override ``base_url`` / ``api_key`` — credential chỉ nằm đúng một chỗ.
+    """
+    base_url: str = "http://localhost:20128/v1"
+    api_key: str = ""
+    translation_model: str = "free-stack"
+    assistant_model: str = "free-stack"
+    timeout_seconds: int = 120000
+    temperature: float = 0.7
 
 
 @dataclass
@@ -569,6 +596,7 @@ class Config:
     translate: TranslateConfig
     output: OutputConfig
     ai: AIConfig = field(default_factory=AIConfig)
+    global_ai: GlobalAIConfig = field(default_factory=GlobalAIConfig)
     queue: QueueConfig = field(default_factory=QueueConfig)
     reader: ReaderConfig = field(default_factory=ReaderConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
@@ -672,7 +700,7 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
     settings_row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
     defaults: dict[str, Any] = {}
     if settings_row:
-        for section in ("novel", "crawl", "translate", "ai", "output", "queue", "reader", "api", "wireguard"):
+        for section in ("novel", "crawl", "translate", "ai", "global_ai", "output", "queue", "reader", "api", "wireguard"):
             data = json.loads(settings_row[f"{section}_json"] or "{}")
             if data:
                 defaults[section] = data
@@ -696,6 +724,12 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
             "subjects": json.loads(r["subjects_json"] or "[]"),
             "series": r["series"], "series_index": r["series_index"],
             "identifier": r["identifier"], "cover_url": r["cover_url"],
+            "raw_title": r["raw_title"], "raw_author": r["raw_author"],
+            "raw_description": r["raw_description"],
+            "raw_subjects": json.loads(r["raw_subjects_json"] or "[]"),
+            "raw_source_hash": r["raw_source_hash"],
+            "raw_updated_at": r["raw_updated_at"],
+            "translated_metadata_source_hash": r["translated_metadata_source_hash"],
         }
         block["novel"] = {k: v for k, v in novel_fields.items() if v not in (None, "", [])}
         block["novel"]["slug"] = r["slug"]
@@ -787,6 +821,26 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         override["reader"] = {
             k: v for k, v in ebook_reader.items() if k not in READER_GLOBAL_FIELDS
         }
+
+    ebook_translate = _as_dict(override.get("translate"))
+    translation_model_override = str(
+        ebook_translate.get("translation_model", "") or ""
+    ).strip()
+    ebook_translate.pop("translation_model", None)
+    ebook_translate.pop("openai", None)
+    if ebook_translate:
+        override["translate"] = ebook_translate
+    else:
+        override.pop("translate", None)
+
+    ebook_ai = _as_dict(override.get("ai"))
+    assistant_model_override = str(ebook_ai.get("assistant_model", "") or "").strip()
+    ebook_ai.pop("assistant_model", None)
+    ebook_ai.pop("openai", None)
+    if ebook_ai:
+        override["ai"] = ebook_ai
+    else:
+        override.pop("ai", None)
 
     # Source preset resolution: nếu ebook có field `source`, lookup preset
     # từ bảng `sources` → merge crawl fields từ preset vào TRƯỚC khi ebook
@@ -965,6 +1019,30 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         ai_openai_raw = openai_raw
     ai = AIConfig(openai=OpenAIConfig(**ai_openai_raw))
 
+    global_ai_raw = _as_dict(raw.get("global_ai"))
+    global_ai = GlobalAIConfig(
+        base_url=str(global_ai_raw.get("base_url", translate.openai.base_url)),
+        api_key=str(global_ai_raw.get("api_key", translate.openai.api_key)),
+        translation_model=str(
+            global_ai_raw.get("translation_model", translate.openai.model)
+        ),
+        assistant_model=str(global_ai_raw.get("assistant_model", ai.openai.model)),
+        timeout_seconds=int(
+            global_ai_raw.get("timeout_seconds", translate.openai.timeout_seconds)
+        ),
+        temperature=float(global_ai_raw.get("temperature", translate.openai.temperature)),
+    )
+    translate.openai.base_url = global_ai.base_url
+    translate.openai.api_key = global_ai.api_key
+    translate.openai.model = translation_model_override or global_ai.translation_model
+    translate.openai.timeout_seconds = global_ai.timeout_seconds
+    translate.openai.temperature = global_ai.temperature
+    ai.openai.base_url = global_ai.base_url
+    ai.openai.api_key = global_ai.api_key
+    ai.openai.model = assistant_model_override or global_ai.assistant_model
+    ai.openai.timeout_seconds = global_ai.timeout_seconds
+    ai.openai.temperature = global_ai.temperature
+
     if crawl.ai_fallback and preset_name != "go":
         warnings.append(
             "crawl.ai_fallback=true nhưng translate.preset không phải 'go' "
@@ -1049,4 +1127,4 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         wgcf=wgcf,
     )
 
-    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, output=output, queue=queue, reader=reader, api=api, wireguard=wireguard, source=source_name, warnings=warnings)
+    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, global_ai=global_ai, output=output, queue=queue, reader=reader, api=api, wireguard=wireguard, source=source_name, warnings=warnings)

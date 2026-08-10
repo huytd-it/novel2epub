@@ -414,6 +414,76 @@ def test_ai_revisions_cascade_delete_with_ebook():
     assert conn.execute("SELECT COUNT(*) AS c FROM ai_revisions").fetchone()["c"] == 0
 
 
+def test_v15_schema_has_global_ai_and_raw_metadata_columns():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+
+    assert "global_ai_json" in _column_names(conn, "settings")
+    assert {
+        "raw_title",
+        "raw_author",
+        "raw_description",
+        "raw_subjects_json",
+        "raw_source_hash",
+        "raw_updated_at",
+        "translated_metadata_source_hash",
+    } <= _column_names(conn, "ebooks")
+
+
+def test_v14_migrates_global_ai_models_without_promoting_ebook_credentials():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        conn.execute(
+            "INSERT INTO settings (id, translate_json, ai_json) VALUES (1, ?, ?)",
+            (
+                json.dumps({"openai": {
+                    "base_url": "https://global.example/v1",
+                    "api_key": "global-secret",
+                    "model": "translate-global",
+                    "timeout_seconds": 90,
+                }}),
+                json.dumps({"openai": {"model": "assistant-global"}}),
+            ),
+        )
+        conn.execute(
+            "INSERT INTO ebooks (slug, translate_overrides_json, ai_overrides_json) "
+            "VALUES ('legacy', ?, ?)",
+            (
+                json.dumps({"openai": {
+                    "base_url": "https://ebook.example/v1",
+                    "api_key": "ebook-secret",
+                    "model": "translate-ebook",
+                }}),
+                json.dumps({"openai": {
+                    "api_key": "ebook-ai-secret",
+                    "model": "assistant-ebook",
+                }}),
+            ),
+        )
+        conn.execute("UPDATE _meta SET value = '14' WHERE key = 'schema_version'")
+
+    init_schema(conn)
+
+    global_ai = json.loads(
+        conn.execute("SELECT global_ai_json FROM settings WHERE id = 1").fetchone()[0]
+    )
+    assert global_ai == {
+        "base_url": "https://global.example/v1",
+        "api_key": "global-secret",
+        "translation_model": "translate-global",
+        "assistant_model": "assistant-global",
+        "timeout_seconds": 90,
+    }
+    ebook = conn.execute(
+        "SELECT translate_overrides_json, ai_overrides_json FROM ebooks WHERE slug='legacy'"
+    ).fetchone()
+    assert json.loads(ebook[0])["translation_model"] == "translate-ebook"
+    assert json.loads(ebook[1])["assistant_model"] == "assistant-ebook"
+    assert global_ai["api_key"] != "ebook-secret"
+    assert global_ai["base_url"] != "https://ebook.example/v1"
+
+
 def test_future_schema_is_rejected_without_downgrade():
     conn = get_connection(":memory:")
     init_schema(conn)

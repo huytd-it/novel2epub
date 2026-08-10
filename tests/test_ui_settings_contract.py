@@ -87,6 +87,103 @@ def test_meta_du_de_dung_giao_dien(client):
     assert all({"value", "label"} <= set(g) for g in meta["genres"])
 
 
+def test_settings_response_never_exposes_global_api_key(client):
+    from novel2epub.config_writer import update_defaults
+    from app import deps
+
+    update_defaults(deps.WORKSPACE_PATH, {"global_ai": {
+        "base_url": "https://provider.example/v1",
+        "api_key": "super-secret-key",
+        "translation_model": "translation-model",
+        "assistant_model": "assistant-model",
+    }})
+
+    payload = client.get("/api/ui/ebooks/t/settings").json()
+    assert "super-secret-key" not in client.get("/api/ui/ebooks/t/settings").text
+    assert payload["translate"]["api_key"] == ""
+    assert payload["ai"]["api_key"] == ""
+    assert payload["global_ai"]["api_key"] == ""
+    assert payload["global_ai"]["api_key_configured"] is True
+
+
+def test_global_ai_save_blank_key_keeps_secret_and_explicit_clear_removes_it(client):
+    from novel2epub.config_writer import update_defaults
+    from app import deps
+
+    update_defaults(deps.WORKSPACE_PATH, {"global_ai": {
+        "base_url": "https://provider.example/v1",
+        "api_key": "keep-me",
+        "translation_model": "old-translation",
+        "assistant_model": "old-assistant",
+    }})
+    response = client.post("/api/ui/settings/global-ai", json={
+        "base_url": "https://new.example/v1",
+        "api_key": "",
+        "translation_model": "new-translation",
+        "assistant_model": "new-assistant",
+        "timeout_seconds": 60,
+        "temperature": 0.3,
+    })
+    assert response.status_code == 200
+    assert "keep-me" not in response.text
+    assert client.get("/api/ui/settings/global-ai").json()["api_key_configured"] is True
+
+    cleared = client.post("/api/ui/settings/global-ai", json={"clear_api_key": True})
+    assert cleared.status_code == 200
+    assert client.get("/api/ui/settings/global-ai").json()["api_key_configured"] is False
+
+
+def test_model_discovery_accepts_key_in_body_not_query(client, monkeypatch):
+    captured = {}
+
+    def fake_list_models(base_url, api_key="", timeout_seconds=30):
+        captured.update(base_url=base_url, api_key=api_key, timeout=timeout_seconds)
+        return ["model-a"]
+
+    monkeypatch.setattr("app.routes.settings.openai_client.list_models", fake_list_models)
+    response = client.post("/settings/ai/models", json={
+        "base_url": "https://provider.example/v1",
+        "api_key": "body-secret",
+        "timeout_seconds": 12,
+    })
+    assert response.status_code == 200
+    assert response.json() == {"models": ["model-a"]}
+    assert captured == {
+        "base_url": "https://provider.example/v1",
+        "api_key": "body-secret",
+        "timeout": 12,
+    }
+    assert client.get(
+        "/settings/ai/models?base_url=https://provider.example/v1&api_key=query-secret"
+    ).status_code == 405
+
+
+def test_model_override_can_use_global_without_losing_other_translate_settings(client):
+    from app import deps
+    from novel2epub.config_writer import update_ebook
+
+    update_ebook(deps.WORKSPACE_PATH, "t", {
+        "translate": {"translation_model": "ebook-translation", "genre": "xianxia"},
+        "ai": {"assistant_model": "ebook-assistant"},
+    })
+    current = client.get("/api/ui/ebooks/t/settings/model-overrides")
+    assert current.json() == {
+        "translation_model": "ebook-translation",
+        "assistant_model": "ebook-assistant",
+    }
+
+    saved = client.post("/api/ui/ebooks/t/settings/model-overrides", json={
+        "translation_model": "",
+        "assistant_model": "new-assistant",
+    })
+    assert saved.status_code == 200
+    assert saved.json()["model_overrides"] == {
+        "translation_model": "",
+        "assistant_model": "new-assistant",
+    }
+    assert client.get("/api/ui/ebooks/t/settings").json()["translate"]["genre"] == "xianxia"
+
+
 def test_slug_khong_ton_tai_tra_404_khong_phai_500(client):
     """Khớp hành vi của `resolved_cfg`/`ebook_cfg` ở các endpoint khác: thư viện
     đã có ebook thì slug lạ là 404 (not found), không phải lỗi server."""

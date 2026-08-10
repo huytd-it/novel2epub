@@ -439,18 +439,111 @@ def reset_ai_overrides(slug: str):
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 
-@router.get("/settings/ai/models")
-def list_ai_models(base_url: str, api_key: str = ""):
-    """Proxy GET {base_url}/models cho UI Settings hiển thị dropdown model id.
+def _global_ai_payload(*, include_secret: bool = False) -> dict:
+    from novel2epub.db import get_thread_connection
 
-    Trả {"models": [...]} hoặc {"error": "..."} (200 cả 2 trường hợp — lỗi do
-    provider không hỗ trợ /models là bình thường, để UI tự fallback input tự do).
-    """
+    conn = get_thread_connection(Path(deps.DB_PATH).resolve())
+    row = conn.execute(
+        "SELECT global_ai_json, translate_json, ai_json FROM settings WHERE id = 1"
+    ).fetchone()
+    stored = json.loads(row["global_ai_json"] or "{}") if row else {}
+    translate = json.loads(row["translate_json"] or "{}") if row else {}
+    assistant = json.loads(row["ai_json"] or "{}") if row else {}
+    translate_openai = translate.get("openai") if isinstance(translate.get("openai"), dict) else {}
+    assistant_openai = assistant.get("openai") if isinstance(assistant.get("openai"), dict) else {}
+    api_key = str(stored.get("api_key") or translate_openai.get("api_key") or assistant_openai.get("api_key") or "")
+    payload = {
+        "base_url": str(stored.get("base_url") or translate_openai.get("base_url") or assistant_openai.get("base_url") or "http://localhost:20128/v1"),
+        "api_key": api_key if include_secret else "",
+        "api_key_configured": bool(api_key),
+        "translation_model": str(stored.get("translation_model") or translate_openai.get("model") or "free-stack"),
+        "assistant_model": str(stored.get("assistant_model") or assistant_openai.get("model") or "free-stack"),
+        "timeout_seconds": int(stored.get("timeout_seconds") or translate_openai.get("timeout_seconds") or assistant_openai.get("timeout_seconds") or 120000),
+        "temperature": float(stored.get("temperature", translate_openai.get("temperature", assistant_openai.get("temperature", 0.7)))),
+    }
+    return payload
+
+
+def save_global_ai_settings(payload: dict) -> dict:
+    current = _global_ai_payload(include_secret=True)
+    api_key = str(payload.get("api_key") or "").strip()
+    if payload.get("clear_api_key"):
+        api_key = ""
+    elif not api_key:
+        api_key = current["api_key"]
+    global_ai = {
+        "base_url": str(payload.get("base_url", current["base_url"])).strip().rstrip("/"),
+        "api_key": api_key,
+        "translation_model": str(payload.get("translation_model", current["translation_model"])).strip(),
+        "assistant_model": str(payload.get("assistant_model", current["assistant_model"])).strip(),
+        "timeout_seconds": max(1, int(payload.get("timeout_seconds", current["timeout_seconds"]))),
+        "temperature": float(payload.get("temperature", current["temperature"])),
+    }
+    if not global_ai["base_url"]:
+        raise ValueError("base_url không được để trống.")
+    if not 0 <= global_ai["temperature"] <= 2:
+        raise ValueError("temperature phải nằm trong khoảng 0 đến 2.")
+    update_defaults(deps.WORKSPACE_PATH, {"global_ai": global_ai})
+    return {**global_ai, "api_key": "", "api_key_configured": bool(api_key)}
+
+
+@router.post("/settings/ai/models")
+def list_ai_models(payload: dict):
+    """Proxy model discovery; credential chỉ nhận trong request body."""
+    base_url = str(payload.get("base_url") or "").strip()
+    api_key = str(payload.get("api_key") or "").strip()
+    if not api_key and payload.get("use_saved_api_key", True):
+        api_key = _global_ai_payload(include_secret=True)["api_key"]
+    timeout_seconds = max(1, int(payload.get("timeout_seconds", 30)))
+    if not base_url:
+        return JSONResponse({"models": [], "error": "Thiếu base_url."})
     try:
-        models = openai_client.list_models(base_url, api_key)
+        models = openai_client.list_models(base_url, api_key, timeout_seconds)
         return JSONResponse({"models": models})
     except Exception as e:
         return JSONResponse({"models": [], "error": str(e)})
+
+
+def _test_ai_provider(base_url: str, api_key: str, timeout_seconds: int) -> JSONResponse:
+    from types import SimpleNamespace
+    import time as _time
+
+    try:
+        start = _time.monotonic()
+        resp = requests.get(
+            base_url.rstrip("/") + "/models",
+            headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+            timeout=timeout_seconds,
+        )
+        latency_ms = int((_time.monotonic() - start) * 1000)
+    except requests.exceptions.Timeout as e:
+        return JSONResponse({"ok": False, "error": f"Timeout: {e}"}, status_code=200)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=200)
+    if resp.status_code != 200:
+        return JSONResponse({
+            "ok": False,
+            "latency_ms": latency_ms,
+            "error": f"HTTP {resp.status_code}: {resp.text.strip()[:200]}",
+        }, status_code=200)
+    data = resp.json()
+    items = data.get("data", data) if isinstance(data, dict) else data
+    model_count = len(items) if isinstance(items, list) else 0
+    headers_obj = resp.headers if hasattr(resp.headers, "get") else SimpleNamespace(get=lambda k, d=None: d)
+    result: dict = {"ok": True, "latency_ms": latency_ms, "model_count": model_count}
+    omniroute_version = headers_obj.get("X-OmniRoute-Version")
+    if omniroute_version:
+        result["omniroute_version"] = omniroute_version
+    return JSONResponse(result, status_code=200)
+
+
+@router.post("/settings/ai/test")
+def test_global_ai_connection(payload: dict):
+    current = _global_ai_payload(include_secret=True)
+    base_url = str(payload.get("base_url") or current["base_url"]).strip()
+    api_key = str(payload.get("api_key") or current["api_key"]).strip()
+    timeout_seconds = max(1, int(payload.get("timeout_seconds", 15)))
+    return _test_ai_provider(base_url, api_key, timeout_seconds)
 
 
 @router.post("/ebooks/{slug}/settings/translate/test")

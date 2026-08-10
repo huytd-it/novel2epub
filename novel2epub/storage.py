@@ -872,7 +872,7 @@ class Storage:
             )
         return cur.rowcount == 1
 
-    def delete_aligned_block(
+    def delete_aligned_paragraph(
         self,
         ch: Chapter,
         *,
@@ -881,13 +881,14 @@ class Storage:
         block_index: int,
         expected_rev: int,
     ) -> dict:
-        """Xóa ĐỒNG BỘ khối `block_index` khỏi raw, snapshot MT và bản dịch
+        """Xóa ĐỒNG BỘ đoạn `block_index` khỏi raw, snapshot MT và bản dịch
         hoạt động của nhánh — MỘT transaction.
 
-        Semantics theo thiết kế: xóa đoạn gốc thì xóa luôn đoạn dịch máy và đoạn
-        dịch hiện tại (cùng hàng trong khung đối chiếu). Chỉ đụng nhánh đang
-        hoạt động; nhánh không active giữ nguyên. Có stale protection kép:
-        `raw_expected` (nội dung raw khối) và `expected_rev` (revision nhánh).
+        Đoạn đếm theo DÒNG không rỗng (`split_paragraphs`), trùng với chế độ
+        Đọc. Semantics theo thiết kế: xóa đoạn gốc thì xóa luôn đoạn dịch máy
+        và đoạn dịch hiện tại (cùng hàng trong khung đối chiếu). Chỉ đụng nhánh
+        đang hoạt động; nhánh không active giữ nguyên. Có stale protection kép:
+        `raw_expected` (nội dung raw đoạn) và `expected_rev` (revision nhánh).
 
         Trả `{"deleted": bool, "revision": int, "reason": str}` — `reason` rỗng
         khi thành công, khác rỗng khi stale/không hợp lệ (không ghi gì).
@@ -916,11 +917,11 @@ class Storage:
                 conn.rollback()
                 return {"deleted": False, "revision": expected_rev, "reason": "Chương không có bản gốc."}
 
-            blocks = _blocks.split_blocks(raw)
-            if not (0 <= block_index < len(blocks)):
+            paras = _blocks.split_paragraphs(raw)
+            if not (0 <= block_index < len(paras)):
                 conn.rollback()
                 return {"deleted": False, "revision": expected_rev, "reason": "Đoạn đã thay đổi — tải lại trang."}
-            if blocks[block_index] != (raw_expected or "").replace("\r\n", "\n"):
+            if paras[block_index].strip() != (raw_expected or "").replace("\r\n", "\n").strip():
                 conn.rollback()
                 return {"deleted": False, "revision": expected_rev, "reason": "Bản gốc đã thay đổi — tải lại trang."}
 
@@ -929,20 +930,20 @@ class Storage:
                 conn.rollback()
                 return {"deleted": False, "revision": cur_rev, "reason": "Bản dịch đã thay đổi — tải lại trang."}
 
-            new_raw, raw_reason = _blocks.delete_block(raw, block_index, blocks[block_index])
+            new_raw, raw_reason = _blocks.delete_paragraph(raw, block_index, paras[block_index])
             if raw_reason:
                 conn.rollback()
                 return {"deleted": False, "revision": cur_rev, "reason": raw_reason}
 
-            # Đối tác MT/translated: cùng index block trong cột tương ứng (nếu có).
-            mt_blocks = _blocks.split_blocks(row[mt_col] or "")
-            edited_blocks = _blocks.split_blocks(row[text_col] or "")
+            # Đối tác MT/translated: cùng index đoạn trong cột tương ứng (nếu có).
+            mt_paras = _blocks.split_paragraphs(row[mt_col] or "")
+            edited_paras = _blocks.split_paragraphs(row[text_col] or "")
             new_mt = row[mt_col]
-            if 0 <= block_index < len(mt_blocks):
-                new_mt, _ = _blocks.delete_block(row[mt_col] or "", block_index, mt_blocks[block_index])
+            if 0 <= block_index < len(mt_paras):
+                new_mt, _ = _blocks.delete_paragraph(row[mt_col] or "", block_index, mt_paras[block_index])
             new_edited = row[text_col]
-            if 0 <= block_index < len(edited_blocks):
-                new_edited, _ = _blocks.delete_block(row[text_col] or "", block_index, edited_blocks[block_index])
+            if 0 <= block_index < len(edited_paras):
+                new_edited, _ = _blocks.delete_paragraph(row[text_col] or "", block_index, edited_paras[block_index])
 
             conn.execute(
                 f"UPDATE chapters SET raw_text=?, {text_col}=?, {rev_col}={rev_col}+1, "

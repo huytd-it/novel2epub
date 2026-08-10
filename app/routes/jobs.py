@@ -17,6 +17,7 @@ from novel2epub.pipeline import step_crawl_chapter_outcome
 from novel2epub.pipeline import step_translate_selected
 from novel2epub.pipeline import step_translate_chapter_outcome
 from novel2epub.pipeline import step_translate_toc_selected
+from novel2epub.queue_labels import batch_job_label, chapter_job_label, job_label
 from novel2epub.storage import Storage
 from novel2epub.toc import apply_chapter_query, chapter_rows, select_visible_range
 
@@ -83,7 +84,16 @@ def start_ebook_crawl_range(
             should_cancel=cancel_event.is_set,
         )
 
-    request.app.state.job.start_custom("crawl", _target, category="crawl", cancel_event=cancel_event)
+    range_detail = (
+        f"Chương {start_idx}–{end_idx}" if start_idx is not None and end_idx is not None
+        else f"Từ chương {start_idx}" if start_idx is not None
+        else f"Đến chương {end_idx}" if end_idx is not None
+        else "Toàn bộ"
+    )
+    request.app.state.job.start_custom(
+        "crawl", _target, category="crawl", cancel_event=cancel_event,
+        ebook=slug, label=job_label("crawl", title=cfg.novel.title, slug=slug, detail=range_detail),
+    )
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -152,7 +162,7 @@ def start_ebook_chapter_action(
 
             job = queue.enqueue(
                 "crawl", "chapter-crawl", _target,
-                label=f"Crawl · {ebook_title} · {ch_label}",
+                label=chapter_job_label("chapter-crawl", title=ebook_title, slug=slug, index=idx, chapter_title=ch.title),
                 ebook=slug, lock_ebook=False, chapter_indexes=[idx],
                 cancel_event=cancel_event,
             )
@@ -180,7 +190,7 @@ def start_ebook_chapter_action(
 
             job = queue.enqueue(
                 "translate", "chapter-translate", _target,
-                label=f"Dịch · {ebook_title} · {ch_label}",
+                label=chapter_job_label("chapter-translate", title=ebook_title, slug=slug, index=idx, chapter_title=ch.title),
                 ebook=slug, lock_ebook=False, chapter_indexes=[idx],
                 cancel_event=cancel_event,
             )
@@ -202,7 +212,7 @@ def start_ebook_chapter_action(
 
             queue.enqueue(
                 "translate", "chapter-cleanup-han", _target,
-                label=f"Cleanup Hán · {ebook_title} · {len(selected)} chương",
+                label=batch_job_label("chapter-cleanup-han", title=ebook_title, slug=slug, count=len(selected)),
                 ebook=slug, lock_ebook=False, chapter_indexes=selected,
                 cancel_event=cancel_event,
             )
@@ -224,7 +234,7 @@ def start_ebook_chapter_action(
 
                 queue.enqueue(
                     "translate", "chapter-cleanup-han", _target,
-                    label=f"Cleanup Hán · {ebook_title} · {ch_label}",
+                    label=chapter_job_label("chapter-cleanup-han", title=ebook_title, slug=slug, index=idx, chapter_title=ch.title if ch else ""),
                     ebook=slug, lock_ebook=False, chapter_indexes=[idx],
                     cancel_event=cancel_event,
                 )
@@ -277,8 +287,12 @@ def start_ebook_translate_toc_selected(
             mod_cfg, log, force=override, selected_indexes=checked_indexes
         )
 
-    label = "translate-toc-selected" if backend == "openai" else "translate-toc-selected-local-mt"
-    request.app.state.job.start_custom(label, _target, category="translate")
+    step = "translate-toc-selected" if backend == "openai" else "translate-toc-selected-local-mt"
+    detail = f"{len(checked_indexes)} chương · {'AI' if backend == 'openai' else 'Local MT'}"
+    request.app.state.job.start_custom(
+        step, _target, category="translate", ebook=slug, chapter_indexes=checked_indexes,
+        label=job_label("translate-toc-selected", title=cfg.novel.title, slug=slug, detail=detail),
+    )
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -298,7 +312,11 @@ def start_ebook_build_selected(
 
         step_build_selected(cfg, log, selected_indexes=checked_indexes)
 
-    request.app.state.job.start_custom("build-selected", _target, category="build")
+    request.app.state.job.start_custom(
+        "build-selected", _target, category="build", ebook=slug,
+        chapter_indexes=checked_indexes,
+        label=batch_job_label("build-selected", title=cfg.novel.title, slug=slug, count=len(checked_indexes)),
+    )
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
@@ -408,7 +426,10 @@ def start_ebook_reorder(
         from novel2epub.pipeline import step_reorder
         step_reorder(cfg, log, desired_order=desired)
 
-    request.app.state.job.start_custom("reorder", _target, category="both")
+    request.app.state.job.start_custom(
+        "reorder", _target, category="both", ebook=slug,
+        label=job_label("reorder", title=cfg.novel.title, slug=slug),
+    )
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 

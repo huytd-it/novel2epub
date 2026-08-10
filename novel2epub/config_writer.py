@@ -32,7 +32,7 @@ _NOVEL_COLUMNS = frozenset({
 })
 
 # Các section của bảng `settings` — thứ tự khớp cột trong _upsert_settings.
-_SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "output", "queue", "reader", "api", "wireguard")
+_SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "global_ai", "output", "queue", "reader", "api", "wireguard")
 
 
 def clean_prompt_text(value: str) -> str:
@@ -107,8 +107,10 @@ def update_ebook(
 
         translate_updates = updates.get("translate")
         if isinstance(translate_updates, dict):
-            filtered = {k: v for k, v in translate_updates.items()
-                        if k not in _DEPRECATED_TRANSLATE_FIELDS}
+            filtered = {
+                k: v for k, v in translate_updates.items()
+                if k not in _DEPRECATED_TRANSLATE_FIELDS and k != "openai"
+            }
             if replace_translate:
                 new_translate = filtered
             else:
@@ -119,11 +121,12 @@ def update_ebook(
 
         ai_updates = updates.get("ai")
         if isinstance(ai_updates, dict):
+            filtered_ai = {k: v for k, v in ai_updates.items() if k != "openai"}
             if replace_ai:
-                new_ai = ai_updates
+                new_ai = filtered_ai
             else:
                 current_ai = json.loads(row["ai_overrides_json"] or "{}")
-                new_ai = _deep_merge_raw(current_ai, ai_updates)
+                new_ai = _deep_merge_raw(current_ai, filtered_ai)
             set_clauses.append("ai_overrides_json = ?")
             params.append(json.dumps(new_ai, ensure_ascii=False))
 
@@ -195,13 +198,14 @@ def _read_settings_sections(conn) -> dict[str, Any]:
 def _upsert_settings(conn, current: dict[str, Any]) -> None:
     conn.execute(
         """
-        INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json, reader_json, api_json, wireguard_json)
-        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, global_ai_json, output_json, queue_json, reader_json, api_json, wireguard_json)
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             novel_json = excluded.novel_json,
             crawl_json = excluded.crawl_json,
             translate_json = excluded.translate_json,
             ai_json = excluded.ai_json,
+            global_ai_json = excluded.global_ai_json,
             output_json = excluded.output_json,
             queue_json = excluded.queue_json,
             reader_json = excluded.reader_json,

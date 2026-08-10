@@ -24,7 +24,7 @@ from novel2epub.db import get_connection, init_schema  # noqa: E402
 
 EXAMPLE_PATH = ROOT / "novel2epub.example.yaml"
 
-_SETTINGS_SECTIONS = ("crawl", "translate", "ai", "output", "queue", "reader")
+_SETTINGS_SECTIONS = ("crawl", "translate", "ai", "global_ai", "output", "queue", "reader")
 
 
 def _section_json(defaults: dict, key: str) -> str:
@@ -58,12 +58,13 @@ def main() -> int:
         with conn:
             conn.execute(
                 """
-                INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, output_json, queue_json, reader_json)
-                VALUES (1, '{}', ?, ?, ?, ?, ?, ?)
+                INSERT INTO settings (id, novel_json, crawl_json, translate_json, ai_json, global_ai_json, output_json, queue_json, reader_json)
+                VALUES (1, '{}', ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     crawl_json = excluded.crawl_json,
                     translate_json = excluded.translate_json,
                     ai_json = excluded.ai_json,
+                    global_ai_json = excluded.global_ai_json,
                     output_json = excluded.output_json,
                     queue_json = excluded.queue_json,
                     reader_json = excluded.reader_json

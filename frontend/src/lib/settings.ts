@@ -98,6 +98,21 @@ export interface AiSettings {
   temperature: number;
 }
 
+export interface GlobalAiSettings {
+  base_url: string;
+  api_key: string;
+  api_key_configured: boolean;
+  translation_model: string;
+  assistant_model: string;
+  timeout_seconds: number;
+  temperature: number;
+}
+
+export interface ModelOverrides {
+  translation_model: string;
+  assistant_model: string;
+}
+
 export interface ReaderSettings {
   url: string;
   service_key: string;
@@ -130,6 +145,7 @@ export interface EbookSettings {
   source: SourceSettings;
   translate: TranslateSettings;
   ai: AiSettings;
+  global_ai: GlobalAiSettings;
   reader: ReaderSettings;
   output: OutputSettings;
   meta: SettingsMeta;

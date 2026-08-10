@@ -124,3 +124,86 @@ def delete_block(
     else:
         del lines[max(0, start - 1) : len(lines)]
     return "\n".join(lines), ""
+
+
+# ---------------------------------------------------------------------------
+# Đoạn = MỘT DÒNG (cách chia của chế độ Đọc và `para/save`). Khung đối chiếu
+# dùng bộ này để mỗi hàng đúng bằng một đoạn; `split_blocks`/`delete_block`/
+# `replace_block` ở trên vẫn giữ cho find-preview raw (đếm theo khối).
+# ---------------------------------------------------------------------------
+
+def split_paragraphs(text: str) -> list[str]:
+    """Tách theo TỪNG DÒNG không rỗng — mỗi đoạn = 1 dòng.
+
+    Trùng đúng `notes.split_paras` nên chỉ số đoạn của khung đối chiếu khớp
+    với chỉ số của chế độ Đọc và `para/save` (không còn nhầm như khi đếm khối).
+    """
+    if not text:
+        return []
+    return [line for line in text.split("\n") if line.strip()]
+
+
+def _paragraph_line_indexes(lines: list[str]) -> list[int]:
+    return [i for i, line in enumerate(lines) if line.strip()]
+
+
+def replace_paragraph(
+    text: str,
+    para_index: int,
+    expected_text: str,
+    new_text: str,
+) -> tuple[str | None, str]:
+    """Thay đoạn thứ `para_index` (đếm theo `split_paragraphs`) bằng `new_text`.
+
+    Kiểm tra đoạn hiện tại khớp `expected_text` trước khi ghi để chống stale
+    (như `replace_block`). `new_text` rỗng = xóa đoạn. Trả `(văn_bản_mới, "")`
+    khi thành công, `(None, lý_do)` khi index lệch / bản đã đổi.
+    """
+    if not text:
+        return None, "Chương không có nội dung."
+    lines = text.split("\n")
+    idxs = _paragraph_line_indexes(lines)
+    if not (0 <= para_index < len(idxs)):
+        return None, "Đoạn đã thay đổi — tải lại trang."
+    if lines[idxs[para_index]].strip() != expected_text.strip():
+        return None, "Bản đã thay đổi — tải lại trang."
+    cleaned = " ".join(seg.strip() for seg in new_text.splitlines() if seg.strip())
+    if cleaned:
+        lines[idxs[para_index]] = cleaned
+    else:
+        del lines[idxs[para_index]]
+    return "\n".join(lines), ""
+
+
+def delete_paragraph(
+    text: str,
+    para_index: int,
+    expected_text: str,
+) -> tuple[str | None, str]:
+    """Xóa đoạn thứ `para_index` (đếm theo `split_paragraphs`).
+
+    Bỏ đúng dòng của đoạn; nếu để lại hai dòng trống liền nhau thì gộp bớt một.
+    Cũng bỏ dòng trống sinh ra ở ĐẦU/CUỐI (dòng trống là ký hiệu ngăn cách
+    đoạn, không phải nội dung). Trả `(văn_bản_mới, "")` khi thành công,
+    `(None, lý_do)` khi lệch.
+    """
+    if not text:
+        return None, "Chương không có nội dung."
+    lines = text.split("\n")
+    idxs = _paragraph_line_indexes(lines)
+    if not (0 <= para_index < len(idxs)):
+        return None, "Đoạn đã thay đổi — tải lại trang."
+    if lines[idxs[para_index]].strip() != expected_text.strip():
+        return None, "Bản đã thay đổi — tải lại trang."
+    idx = idxs[para_index]
+    del lines[idx]
+    # Nếu đúng sau đoạn vừa xóa là dòng trống (dải phân cách) thì bỏ nó —
+    # giống `delete_block` xóa luôn separator sau khối.
+    if idx < len(lines) and not lines[idx].strip():
+        del lines[idx]
+    # Bỏ dòng trống dư ở đầu/cuối còn sót (vd xóa đoạn cuối để lại dòng trống).
+    while lines and not lines[0].strip():
+        del lines[0]
+    while lines and not lines[-1].strip():
+        del lines[-1]
+    return "\n".join(lines), ""

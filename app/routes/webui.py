@@ -29,6 +29,7 @@ from novel2epub.automation import (
     validate_schedule,
 )
 from novel2epub.progress import chapter_progress
+from novel2epub.queue_labels import batch_job_label
 from novel2epub.sources import SourcePreset, delete_preset, save_preset
 from novel2epub.storage import Storage
 from novel2epub.toc import apply_chapter_query, chapter_rows, count_words
@@ -395,11 +396,10 @@ def ebook_chapter_compare(slug: str, index: int):
     (`translated_paras`), khung đối chiếu 3 cột (`paragraphs`), và trạng thái
     nhánh + bản nháp AI.
 
-    CHÚ Ý hai cách đánh số đoạn KHÁC NHAU cùng nằm trong payload này:
-    - `translated_paras` chia theo TỪNG DÒNG (`notes.split_paras`) — đây là
-      cách đánh số canonical mà `para/save` và ghi chú dùng.
-    - `paragraphs` chia theo KHỐI (`align_paragraphs`) để gióng 3 cột.
-    Không bao giờ lấy chỉ số của cái này áp cho cái kia (xem docs/architecture.md).
+    Cả `translated_paras` lẫn `paragraphs` đều chia theo TỪNG DÒNG không rỗng
+    (`notes.split_paras` / `novel2epub.blocks.split_paragraphs`) nên chỉ số hàng
+    của khung đối chiếu trùng đúng chỉ số đoạn mà `para/save` và ghi chú dùng
+    (xem docs/architecture.md).
     """
     from novel2epub.notes import split_paras
     cfg = deps.resolved_cfg(slug)
@@ -524,19 +524,22 @@ def ebook_chapter_save(slug: str, index: int, payload: dict = Body(...)):
 
 @router.post("/ebooks/{slug}/chapters/{index}/compare/block")
 def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)):
-    """Sửa/xóa KHỐI trong khung đối chiếu 3 cột (bản gốc | dịch máy | bản hiện tại).
+    """Sửa/xóa ĐOẠN trong khung đối chiếu 3 cột (bản gốc | dịch máy | bản hiện tại).
+
+    `block` là chỉ số ĐOẠN = TỪNG DÒNG không rỗng (`align_paragraphs` /
+    `novel2epub.blocks.split_paragraphs`), trùng với chỉ số của chế độ Đọc và
+    `para/save` — không còn là chỉ số khối cách dòng trống.
 
     Body JSON:
     - `op`:
-      - `"edit_raw"` — sửa cột Bản gốc. `raw_expected` = nội dung khối raw lúc
+      - `"edit_raw"` — sửa cột Bản gốc. `raw_expected` = nội dung đoạn raw lúc
         preview (raw không revision nên đây là khóa chống stale), `new_text`.
       - `"edit_translated"` — sửa cột Bản hiện tại. `block_expected` = nội dung
-        khối hiện tại, `new_text`, `revision` = revision nhánh active (CAS).
-      - `"delete"` — xóa khối raw + khối MT + khối bản dịch active ĐỒNG BỘ
-        trong MỘT transaction (xem `Storage.delete_aligned_block`). Cần
+        đoạn hiện tại, `new_text`, `revision` = revision nhánh active (CAS).
+      - `"delete"` — xóa đoạn raw + đoạn MT + đoạn bản dịch active ĐỒNG BỘ
+        trong MỘT transaction (xem `Storage.delete_aligned_paragraph`). Cần
         `raw_expected` + `revision`.
-    - `block`: index KHỐI trong khung đối chiếu (`align_paragraphs`), KHÔNG phải
-      chỉ số dòng của `split_paras`.
+    - `block`: index đoạn trong khung đối chiếu (`align_paragraphs`).
 
     `edit_raw`/`edit_translated` không đụng nhánh/khối khác: sửa raw chỉ sửa raw,
     sửa bản hiện tại chỉ sửa bản dịch của nhánh active (MT snapshot giữ nguyên).
@@ -545,7 +548,7 @@ def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)
     Trả `{"saved"/"deleted", "revision", "reason"}` — `reason` rỗng khi thành
     công; 409 khi stale/conflict (không ghi gì).
     """
-    from novel2epub.blocks import replace_block
+    from novel2epub.blocks import replace_paragraph
 
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -572,7 +575,7 @@ def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)
         raw_expected = payload.get("raw_expected")
         if not isinstance(raw_expected, str):
             raise HTTPException(status_code=400, detail="Thiếu 'raw_expected' cho thao tác xóa.")
-        result = storage.delete_aligned_block(
+        result = storage.delete_aligned_paragraph(
             chapter,
             branch=branch,
             raw_expected=raw_expected,
@@ -599,7 +602,7 @@ def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)
         if not storage.has_raw(chapter):
             raise HTTPException(status_code=404, detail="Chương chưa có bản gốc.")
         current_raw = storage.read_raw(chapter)
-        new_raw, reason = replace_block(current_raw, block, raw_expected, new_text)
+        new_raw, reason = replace_paragraph(current_raw, block, raw_expected, new_text)
         if reason:
             raise HTTPException(status_code=409, detail=reason)
         if not storage.write_raw_conditional(chapter, current_raw, new_raw):
@@ -615,7 +618,7 @@ def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)
     if not storage.has_branch_text(chapter, branch):
         raise HTTPException(status_code=404, detail="Chương chưa có bản dịch.")
     current = storage.read_branch_text(chapter, branch)
-    new_block, reason = replace_block(current, block, block_expected, new_text)
+    new_block, reason = replace_paragraph(current, block, block_expected, new_text)
     if reason:
         raise HTTPException(status_code=409, detail=reason)
     if not storage.compare_and_swap_branch(
@@ -744,7 +747,7 @@ def ebook_settings(slug: str):
             "preset": tr.preset,
             "profile": tr.profile,
             "base_url": oa.base_url,
-            "api_key": oa.api_key,
+            "api_key": "",
             "model": oa.model,
             "timeout_seconds": oa.timeout_seconds,
             "temperature": oa.temperature,
@@ -781,11 +784,12 @@ def ebook_settings(slug: str):
         },
         "ai": {
             "base_url": ai.base_url,
-            "api_key": ai.api_key,
+            "api_key": "",
             "model": ai.model,
             "timeout_seconds": ai.timeout_seconds,
             "temperature": ai.temperature,
         },
+        "global_ai": settings_routes._global_ai_payload(),
         "reader": {
             "url": rd.url,
             "service_key": rd.service_key,
@@ -814,6 +818,75 @@ def ebook_settings(slug: str):
             "genres": [{"value": k, "label": v.label or k} for k, v in GENRE_PRESETS.items()],
         },
     }
+
+
+def _ebook_model_overrides(slug: str) -> dict:
+    from novel2epub.db import get_thread_connection
+
+    conn = get_thread_connection(Path(deps.DB_PATH).resolve())
+    row = conn.execute(
+        "SELECT translate_overrides_json, ai_overrides_json FROM ebooks WHERE slug = ?",
+        (slug,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Không có ebook {slug!r}.")
+    translate = json.loads(row["translate_overrides_json"] or "{}")
+    assistant = json.loads(row["ai_overrides_json"] or "{}")
+    return {
+        "translation_model": str(translate.get("translation_model") or ""),
+        "assistant_model": str(assistant.get("assistant_model") or ""),
+    }
+
+
+@router.get("/ebooks/{slug}/settings/model-overrides")
+def ebook_model_overrides(slug: str):
+    return _ebook_model_overrides(slug)
+
+
+@router.post("/ebooks/{slug}/settings/model-overrides")
+def ebook_model_overrides_save(slug: str, payload: dict = Body(...)):
+    from novel2epub.db import get_thread_connection
+
+    translation_model = str(payload.get("translation_model") or "").strip()
+    assistant_model = str(payload.get("assistant_model") or "").strip()
+    conn = get_thread_connection(Path(deps.DB_PATH).resolve())
+    row = conn.execute(
+        "SELECT translate_overrides_json, ai_overrides_json FROM ebooks WHERE slug = ?",
+        (slug,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Không có ebook {slug!r}.")
+    translate = json.loads(row["translate_overrides_json"] or "{}")
+    assistant = json.loads(row["ai_overrides_json"] or "{}")
+    if translation_model:
+        translate["translation_model"] = translation_model
+    else:
+        translate.pop("translation_model", None)
+    if assistant_model:
+        assistant["assistant_model"] = assistant_model
+    else:
+        assistant.pop("assistant_model", None)
+    with conn:
+        conn.execute(
+            "UPDATE ebooks SET translate_overrides_json = ?, ai_overrides_json = ?, "
+            "updated_at = datetime('now') WHERE slug = ?",
+            (json.dumps(translate, ensure_ascii=False), json.dumps(assistant, ensure_ascii=False), slug),
+        )
+    return {"saved": True, "model_overrides": _ebook_model_overrides(slug)}
+
+
+@router.get("/settings/global-ai")
+def global_ai_settings():
+    return settings_routes._global_ai_payload()
+
+
+@router.post("/settings/global-ai")
+def global_ai_settings_save(payload: dict = Body(...)):
+    try:
+        saved = settings_routes.save_global_ai_settings(payload)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"saved": True, "global_ai": saved}
 
 
 _SETTINGS_SAVERS = {
@@ -1880,9 +1953,19 @@ def ebook_chapters_bulk_confirm(request: Request, slug: str, payload: dict = Bod
         raise HTTPException(status_code=409, detail="Preview không có chương đủ điều kiện để thực thi.")
 
     def _dispatch(name, category, fn):
+        action_label = {
+            "translate": "translate",
+            "local-mt": "local-mt",
+            "ai-edit-draft": "ai-rewrite",
+            "build": "build",
+            "delete-translation": "delete-translation",
+        }.get(action, action)
         return request.app.state.job.start_custom(
             name, fn, category=category, ebook=slug,
             chapter_indexes=eligible_indexes,
+            label=batch_job_label(
+                action_label, title=cfg.novel.title, slug=slug, count=len(eligible_indexes)
+            ),
         )
 
     try:

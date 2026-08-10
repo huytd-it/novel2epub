@@ -52,16 +52,19 @@ def test_chuong_rong_van_tra_mot_hang():
 
 
 def test_khong_trung_cach_danh_so_cua_split_paras():
-    """Chốt lại sự khác biệt khiến `para/save` không dùng được chỉ số hàng ở đây.
+    """Khung đối chiếu chia theo ĐOẠN (từng dòng) nên trùng số đoạn chế độ Đọc.
 
-    `notes.split_paras` đếm theo TỪNG DÒNG, khung so sánh đếm theo KHỐI. Hàng
-    thứ 2 ở đây là đoạn thứ 3 bên kia — lấy nhầm chỉ số là ghi đè nhầm dòng.
+    Trước đây khung so sánh đếm theo KHỐI (gộp dòng liền cách bởi dòng trống)
+    còn `notes.split_paras` đếm theo TỪNG DÒNG — hai bên lệch nhau khiến lấy
+    chỉ số từ hàng để gọi `para/save` là ghi đè nhầm dòng. Giờ đây đã thống nhất:
+    hàng thứ 2 ở đây đúng là đoạn thứ 2 bên kia.
     """
     from novel2epub.notes import split_paras
 
     text = "Hắn nói:\n— Đi thôi.\n\nĐoạn sau."
     assert split_paras(text) == ["Hắn nói:", "— Đi thôi.", "Đoạn sau."]
     assert [row[2] for row in align_paragraphs(text, text, text)] == [
-        "Hắn nói: — Đi thôi.",
+        "Hắn nói:",
+        "— Đi thôi.",
         "Đoạn sau.",
     ]

@@ -59,7 +59,7 @@ function JobRow({
         ) : null}
       </td>
       <td className="px-3 py-1.5 text-[13px] opacity-60">
-        {job.chapter_codes?.join(", ") || job.ebook_code || job.ebook || "—"}
+        {job.ebook_code || job.ebook || "—"}
       </td>
       <td className="px-3 py-1.5">
         <Badge tone={tone}>{job.cancelling ? "Đang hủy" : JOB_STATE_LABEL[job.state]}</Badge>

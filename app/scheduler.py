@@ -24,6 +24,7 @@ from novel2epub.pipeline import (
     step_rewrite_chapters,
     step_translate_selected,
 )
+from novel2epub.queue_labels import automation_job_label
 from novel2epub.storage import Storage
 
 from .logging_config import logger
@@ -41,23 +42,6 @@ _STEP_FN = {
     "build": lambda cfg, log: step_build(cfg, log),
     "publish-reader": lambda cfg, log: step_publish_reader(cfg, log),
 }
-
-_STEP_LABEL = {
-    "fetch-toc": "Cập nhật mục lục",
-    "crawl-new": "Cào chương mới",
-    "translate-local-mt": "Dịch Local MT",
-    "translate-pending": "LLM dịch",
-    "llm-edit": "LLM biên tập",
-    "cleanup-han": "Dọn từ Hán",
-    "build": "Đóng gói EPUB",
-    "publish-reader": "Đăng Reader",
-}
-
-
-def _automation_job_label(automation: Automation, ebook_title: str) -> str:
-    steps = [_STEP_LABEL.get(step, step) for step in automation.steps]
-    detail = " → ".join(steps) if steps else "Không có bước"
-    return f"Tự động hóa · {ebook_title or automation.ebook} · {detail}"
 
 def _is_due(automation: Automation, now: datetime) -> bool:
     """Đến hạn = đã qua mốc cron kế tiếp kể từ lần chạy cuối (hoặc từ lúc tạo
@@ -226,7 +210,7 @@ class AutomationScheduler:
             "both",
             "automation",
             _target,
-            label=_automation_job_label(automation, ebook_title),
+            label=automation_job_label(title=ebook_title, slug=automation.ebook, steps=automation.steps),
             ebook=automation.ebook,
             spec={"kind": "automation", "params": {"automation_id": automation.id}},
         )

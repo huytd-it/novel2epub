@@ -139,7 +139,7 @@ def start_ebook_chapter_action(
             ch = index_to_chapter.get(idx)
             if ch is None:
                 continue
-            ch_label = ch.title if ch and ch.title else f"Ch.{idx}"
+            ch_label = f"{idx}.{ch.title}" if ch.title else f"Ch.{idx}"
             cancel_event = threading.Event()
 
             def _target(log, _cfg=cfg, _idx=idx, _ev=cancel_event):
@@ -165,7 +165,7 @@ def start_ebook_chapter_action(
             ch = index_to_chapter.get(idx)
             if ch is None:
                 continue
-            ch_label = ch.title if ch and ch.title else f"Ch.{idx}"
+            ch_label = f"{idx}.{ch.title}" if ch.title else f"Ch.{idx}"
             cancel_event = threading.Event()
 
             def _target(log, _cfg=cfg, _idx=idx, _ev=cancel_event):
@@ -211,7 +211,7 @@ def start_ebook_chapter_action(
             index_to_chapter = {ch.index: ch for ch in manifest.chapters}
             for idx in selected:
                 ch = index_to_chapter.get(idx)
-                ch_label = ch.title if ch and ch.title else f"Ch.{idx}"
+                ch_label = f"{idx}.{ch.title}" if ch.title else f"Ch.{idx}"
                 cancel_event = threading.Event()
 
                 def _target(log, _cfg=cfg, _idx=idx, _ev=cancel_event):
@@ -496,6 +496,12 @@ def api_queue_bulk_delete(request: Request, job_ids: list[str] = Body(...)):
 @router.post("/api/queue/bulk-clear-failed")
 def api_queue_bulk_clear_failed(request: Request, category: str = Body("all")):
     count = request.app.state.job.queue.bulk_clear_failed(category)
+    return {"ok": True, "count": count}
+
+
+@router.post("/api/queue/clear-history")
+def api_queue_clear_history(request: Request):
+    count = request.app.state.job.queue.clear_history()
     return {"ok": True, "count": count}
 
 

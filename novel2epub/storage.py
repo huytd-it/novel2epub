@@ -683,6 +683,10 @@ class Storage:
         """Bản dịch của nhánh ĐANG HOẠT ĐỘNG (thứ đi vào EPUB/Reader)."""
         return self.read_branch_text(ch, self.active_branch(ch))
 
+    def read_active_branch_title(self, ch: Chapter) -> str:
+        """Tiêu đề của nhánh đang hoạt động, fallback về tiêu đề manifest."""
+        return self.read_branch_title(ch, self.active_branch(ch)) or ch.title
+
     def has_active_branch_text(self, ch: Chapter) -> bool:
         """Nhánh đang hoạt động có bản dịch hoàn tất? (giống `has_translated`
         nhưng theo `active_branch` chứ không cứng theo nhánh AI.)"""

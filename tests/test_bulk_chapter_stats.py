@@ -91,3 +91,15 @@ def test_chapter_rows_without_stats_map_still_works(tmp_storage):
     s.write_raw(ch, "你好")
     rows = chapter_rows([ch], s)
     assert rows[0].has_raw is True
+
+
+def test_chapter_rows_use_active_branch_title(tmp_storage):
+    s = tmp_storage
+    ch = Chapter(index=5, url="http://example.com/5", title="第5章 仪式")
+    s.write_branch_titles(ch, "local_mt", "Chương 5: Nghi thức", "第5章 仪式")
+    s.set_active_branch(ch, "local_mt")
+
+    row = chapter_rows([ch], s)[0]
+
+    assert row.title == "Chương 5: Nghi thức"
+    assert row.visible_title == "Chương 5: Nghi thức"

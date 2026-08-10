@@ -17,7 +17,7 @@ import {
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
 import { Button, Spinner } from "@/components/ui/Button";
 import { Badge, Dot } from "@/components/ui/Badge";
-import { Modal } from "@/components/ui/Modal";
+import { ConfirmDialog, Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { IconPlay, IconRetry, IconTrash } from "@/components/icons";
 
@@ -184,6 +184,7 @@ export function QueuePage() {
   const toast = useToast();
   const [tab, setTab] = useState<"active" | "history">("active");
   const [logJob, setLogJob] = useState<Job | null>(null);
+  const [confirmClearHistory, setConfirmClearHistory] = useState(false);
 
   const act = useMutation({
     mutationFn: async ({ job, action }: { job: Job; action: string }) => {
@@ -199,6 +200,17 @@ export function QueuePage() {
     onSuccess: (res) => {
       client.invalidateQueries({ queryKey: queueKey });
       toast(`Đã xử lý ${res.count} việc.`);
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
+  const clearHistory = useMutation({
+    mutationFn: () => api.post<{ count: number }>("/api/queue/clear-history"),
+    onSuccess: (res) => {
+      setConfirmClearHistory(false);
+      setLogJob(null);
+      client.invalidateQueries({ queryKey: queueKey });
+      toast(`Đã xóa ${res.count} việc khỏi lịch sử.`);
     },
     onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
   });
@@ -251,14 +263,25 @@ export function QueuePage() {
               Chạy lại {failedCount} việc lỗi
             </Button>
           ) : null}
-          <Button
-            variant="danger"
-            icon={<IconTrash />}
-            loading={bulk.isPending}
-            onClick={() => bulk.mutate("/api/queue/bulk-clear-failed")}
-          >
-            Xóa việc lỗi
-          </Button>
+          {failedCount > 0 ? (
+            <Button
+              variant="danger"
+              icon={<IconTrash />}
+              loading={bulk.isPending}
+              onClick={() => bulk.mutate("/api/queue/bulk-clear-failed")}
+            >
+              Xóa việc lỗi
+            </Button>
+          ) : null}
+          {tab === "history" && (data?.history.length ?? 0) > 0 ? (
+            <Button
+              variant="danger"
+              icon={<IconTrash />}
+              onClick={() => setConfirmClearHistory(true)}
+            >
+              Xóa lịch sử
+            </Button>
+          ) : null}
         </>
       }
     >
@@ -346,6 +369,20 @@ export function QueuePage() {
       </Panel>
 
       <JobLogModal job={logJob} open={logJob !== null} onClose={() => setLogJob(null)} />
+      <ConfirmDialog
+        open={confirmClearHistory}
+        onCancel={() => setConfirmClearHistory(false)}
+        onConfirm={() => clearHistory.mutate()}
+        title="Xóa toàn bộ lịch sử?"
+        body={
+          <p>
+            {data?.history.length ?? 0} việc đã kết thúc sẽ bị xóa vĩnh viễn. Việc đang chạy và đang chờ không bị ảnh hưởng.
+          </p>
+        }
+        confirmLabel="Xóa lịch sử"
+        destructive
+        pending={clearHistory.isPending}
+      />
     </Page>
   );
 }

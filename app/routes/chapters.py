@@ -210,7 +210,7 @@ def ebook_chapter_action(request: Request, slug: str, index: int, action: str = 
     manifest = storage.load_manifest()
     ch = next((c for c in manifest.chapters if c.index == index), None) if manifest else None
     ebook_title = cfg.novel.title or slug
-    ch_label = ch.title if ch and ch.title else f"Ch.{index}"
+    ch_label = f"{index}.{ch.title}" if ch and ch.title else f"Ch.{index}"
     cancel_event = threading.Event()
 
     def _target(log, _cfg=cfg, _act=action, _idx=index, _ev=cancel_event):
@@ -841,7 +841,12 @@ async def api_batch_translate_titles(
                 log(f"[batch-tiêu-đề] Lỗi chương {idx}: {e}")
 
     started = request.app.state.job.start_custom(
-        f"batch-translate-titles-{len(index_list)}", _target, category="translate"
+        f"batch-translate-titles-{len(index_list)}",
+        _target,
+        category="translate",
+        ebook=slug,
+        chapter_indexes=index_list,
+        label=f"Dịch tiêu đề · {cfg.novel.title or slug} · {len(index_list)} chương",
     )
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")

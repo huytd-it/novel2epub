@@ -2,21 +2,43 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Page } from "@/app/Shell";
-import { api, apiBase, apiToken, builtInApiBase, setApiBase, setApiToken } from "@/lib/api";
+import { ApiError, api, apiBase, apiToken, builtInApiBase, setApiBase, setApiToken } from "@/lib/api";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 
-/**
- * Bản web chạy cùng origin nên không cần gì ở đây; bản Tauri thì có — nó nạp
- * giao diện từ `tauri://` và phải được chỉ tận nơi server đang chạy.
- */
+type ConnectionMode = "same-origin" | "tailnet" | "funnel";
+
+function normalizeApiBase(value: string): string {
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  const url = new URL(trimmed);
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (url.protocol !== "https:" && !(local && url.protocol === "http:")) {
+    throw new Error("Server từ xa phải dùng HTTPS. HTTP chỉ được phép với localhost.");
+  }
+  return url.toString().replace(/\/+$/, "");
+}
+
+function connectionError(error: unknown): string {
+  if (error instanceof ApiError && error.status === 401) {
+    return "Token không hợp lệ hoặc đã đổi. Hãy nhập lại token API của server.";
+  }
+  if (error instanceof TypeError) {
+    return "Không tới được server. Kiểm tra Tailscale, HTTPS, địa chỉ và CORS của backend.";
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Cấu hình một client SPA/Tauri tới backend local, tailnet hoặc Funnel. */
 export function ConnectionPage() {
   const toast = useToast();
   const [base, setBase] = useState(apiBase());
   const [token, setToken] = useState(apiToken());
+  const [mode, setMode] = useState<ConnectionMode>(apiBase() ? "tailnet" : "same-origin");
+  const [validationError, setValidationError] = useState("");
 
   const probe = useQuery({
     queryKey: ["probe"],
@@ -25,10 +47,18 @@ export function ConnectionPage() {
   });
 
   const save = () => {
-    setApiBase(base);
-    setApiToken(token);
-    toast("Đã lưu. Đang kiểm tra lại kết nối.");
-    probe.refetch();
+    try {
+      const normalized = mode === "same-origin" ? "" : normalizeApiBase(base);
+      if (mode !== "same-origin" && !normalized) throw new Error("Hãy nhập địa chỉ server.");
+      setValidationError("");
+      setBase(normalized);
+      setApiBase(normalized);
+      setApiToken(token);
+      toast("Đã lưu. Đang kiểm tra lại kết nối.");
+      probe.refetch();
+    } catch (error) {
+      setValidationError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   return (
@@ -51,6 +81,40 @@ export function ConnectionPage() {
           hint="Để trống nếu giao diện chạy cùng máy chủ với API."
         />
         <div className="space-y-4 p-3">
+          <div className="join flex w-full" aria-label="Kiểu kết nối">
+            {([
+              ["same-origin", "Cùng server"],
+              ["tailnet", "Tailscale riêng"],
+              ["funnel", "Funnel công khai"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`btn btn-sm join-item flex-1 ${mode === value ? "btn-active" : ""}`}
+                aria-pressed={mode === value}
+                onClick={() => {
+                  setMode(value);
+                  setValidationError("");
+                  if (value === "same-origin") setBase("");
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {mode === "tailnet" ? (
+            <p className="text-xs opacity-65">
+              Dùng hostname HTTPS <code>https://may-chu.tailnet.ts.net</code>. Trình duyệt mở frontend
+              Vercel chỉ kết nối được khi chính thiết bị đó đã đăng nhập Tailscale.
+            </p>
+          ) : mode === "funnel" ? (
+            <p className="text-xs text-warning">
+              Funnel đưa API ra Internet. Bắt buộc dùng token mạnh, HTTPS và chỉ cho phép chính xác
+              origin Vercel trong CORS; không dùng dấu <code>*</code>.
+            </p>
+          ) : (
+            <p className="text-xs opacity-65">Dùng khi FastAPI đang phục vụ frontend tại cùng origin.</p>
+          )}
           <Field
             label="Địa chỉ"
             hint={
@@ -64,6 +128,7 @@ export function ConnectionPage() {
               onChange={(e) => setBase(e.target.value)}
               placeholder={builtInApiBase() || "http://127.0.0.1:8010"}
               spellCheck={false}
+              disabled={mode === "same-origin"}
             />
           </Field>
           <Field
@@ -78,10 +143,9 @@ export function ConnectionPage() {
               spellCheck={false}
             />
           </Field>
+          {validationError ? <p className="text-xs text-error">{validationError}</p> : null}
           {probe.isError ? (
-            <p className="text-xs text-error">
-              {probe.error instanceof Error ? probe.error.message : String(probe.error)}
-            </p>
+            <p className="text-xs text-error">{connectionError(probe.error)}</p>
           ) : null}
           <div className="flex gap-2">
             <Button variant="primary" onClick={save}>
@@ -89,8 +153,10 @@ export function ConnectionPage() {
             </Button>
             <Button
               onClick={() => {
+                setMode("same-origin");
                 setBase("");
                 setToken("");
+                setValidationError("");
                 setApiBase("");
                 setApiToken("");
                 toast("Đã xóa cấu hình, quay về dùng cùng origin.");

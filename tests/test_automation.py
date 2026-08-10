@@ -310,6 +310,9 @@ def test_run_now_enqueues_job_in_both_category(tmp_path, monkeypatch):
     job = next(j for j in history if j["id"] == job_id)
     assert job["category"] == "both"
     assert job["state"] == "done"
+    assert job["step"] == "automation"
+    assert job["automation_id"] == a.id
+    assert job["label"] == "Tự động hóa · e · Đóng gói EPUB"
 
     loaded = load_automations(path)
     assert loaded[a.id].last_run_outcome == "success"

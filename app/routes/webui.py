@@ -443,8 +443,8 @@ def ebook_chapter_compare(slug: str, index: int):
 
     return {
         "index": chapter.index,
-        "title": chapter.title,
-        "title_zh": getattr(chapter, "title_zh", "") or "",
+        "title": storage.read_active_branch_title(chapter),
+        "title_zh": storage.read_branch_title_zh(chapter, active) or getattr(chapter, "title_zh", "") or "",
         "url": chapter.url,
         "skipped": bool(getattr(chapter, "skipped", False)),
         "has_raw": bool(raw),

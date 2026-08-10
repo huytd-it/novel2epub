@@ -180,10 +180,11 @@ def chapter_rows(
             except Exception:
                 pass
 
+        active_title = storage.read_active_branch_title(ch)
         rows.append(ChapterRow(
             index=ch.index,
-            title=ch.title,
-            visible_title=ch.title or f"Chương {ch.index}",
+            title=active_title,
+            visible_title=active_title or f"Chương {ch.index}",
             url=ch.url,
             has_raw=has_raw,
             has_translated=has_translated,

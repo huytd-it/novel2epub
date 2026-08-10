@@ -67,7 +67,7 @@ function stepName(step: string) {
 }
 
 function automationJob(a: Automation, jobs: Job[]): Job | undefined {
-  return jobs.find((job) => job.label === `automation:${a.id}:${a.ebook}`) ??
+  return jobs.find((job) => job.automation_id === a.id) ??
     jobs.find((job) => job.step === "automation" && job.ebook === a.ebook);
 }
 

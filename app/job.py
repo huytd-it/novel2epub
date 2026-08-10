@@ -94,9 +94,10 @@ class JobRunner:
         cancel_event: threading.Event | None = None,
         chapter_indexes: list[int] | None = None,
         lock_ebook: bool = True,
+        label: str = "",
     ) -> bool:
         self.queue.enqueue(
-            category, step, target_fn, label=step, ebook=ebook, spec=spec,
+            category, step, target_fn, label=label or step, ebook=ebook, spec=spec,
             cancel_event=cancel_event, chapter_indexes=chapter_indexes,
             lock_ebook=lock_ebook,
         )

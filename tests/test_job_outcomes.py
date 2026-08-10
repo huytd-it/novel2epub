@@ -479,7 +479,8 @@ def test_selected_crawl_action_returns_enqueued_job_ids(tmp_path, monkeypatch):
     from app.main import app
 
     cfg = _cfg(tmp_path)
-    _manifest(cfg, Chapter(index=1, url="http://x/1"))
+    cfg.novel.title = "Quỷ Bí Chi Chủ"
+    _manifest(cfg, Chapter(index=40, url="http://x/40", title="第40章 神秘学课程"))
     runner = _FakeJobRunner()
     monkeypatch.setattr(deps, "resolved_cfg", lambda _: cfg)
     app.state.job = runner
@@ -487,13 +488,14 @@ def test_selected_crawl_action_returns_enqueued_job_ids(tmp_path, monkeypatch):
 
     response = client.post(
         "/ebooks/t/jobs/chapter-action",
-        data={"action": "crawl", "targeting_mode": "checked", "checked_indexes": "1"},
+        data={"action": "crawl", "targeting_mode": "checked", "checked_indexes": "40"},
         follow_redirects=False,
     )
 
     assert response.status_code == 200
     assert response.json() == {"job_ids": ["job-1"], "action": "crawl"}
     assert runner.queue.enqueued[0][1:3] == ("crawl", "chapter-crawl")
+    assert runner.queue.enqueued[0][4]["label"] == "Crawl · Quỷ Bí Chi Chủ · 40.第40章 神秘学课程"
 
 
 def test_selected_translate_action_returns_enqueued_job_ids(tmp_path, monkeypatch):

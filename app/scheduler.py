@@ -42,6 +42,23 @@ _STEP_FN = {
     "publish-reader": lambda cfg, log: step_publish_reader(cfg, log),
 }
 
+_STEP_LABEL = {
+    "fetch-toc": "Cập nhật mục lục",
+    "crawl-new": "Cào chương mới",
+    "translate-local-mt": "Dịch Local MT",
+    "translate-pending": "LLM dịch",
+    "llm-edit": "LLM biên tập",
+    "cleanup-han": "Dọn từ Hán",
+    "build": "Đóng gói EPUB",
+    "publish-reader": "Đăng Reader",
+}
+
+
+def _automation_job_label(automation: Automation, ebook_title: str) -> str:
+    steps = [_STEP_LABEL.get(step, step) for step in automation.steps]
+    detail = " → ".join(steps) if steps else "Không có bước"
+    return f"Tự động hóa · {ebook_title or automation.ebook} · {detail}"
+
 def _is_due(automation: Automation, now: datetime) -> bool:
     """Đến hạn = đã qua mốc cron kế tiếp kể từ lần chạy cuối (hoặc từ lúc tạo
     nếu chưa từng chạy) → lỡ nhiều mốc chỉ chạy bù đúng 1 lần. Cron rác ném
@@ -202,11 +219,15 @@ class AutomationScheduler:
             )
             return result
 
+        cfg = load_config(self.workspace_path, automation.ebook)
+        novel = getattr(cfg, "novel", None)
+        ebook_title = getattr(novel, "title", "") or automation.ebook
         job = self.queue.enqueue(
             "both",
             "automation",
             _target,
-            label=f"automation:{automation.id}:{automation.ebook}",
+            label=_automation_job_label(automation, ebook_title),
             ebook=automation.ebook,
+            spec={"kind": "automation", "params": {"automation_id": automation.id}},
         )
         return job.id

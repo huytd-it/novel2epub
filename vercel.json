@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm ci --prefix frontend && npm run build --prefix frontend",
+  "outputDirectory": "app/webui",
+  "cleanUrls": true,
+  "redirects": [
+    { "source": "/", "destination": "/app/", "permanent": false }
+  ],
+  "rewrites": [
+    { "source": "/app/assets/:path*", "destination": "/assets/:path*" },
+    { "source": "/app/icons/:path*", "destination": "/icons/:path*" },
+    { "source": "/app/manifest.webmanifest", "destination": "/manifest.webmanifest" },
+    { "source": "/app/registerSW.js", "destination": "/registerSW.js" },
+    { "source": "/app/sw.js", "destination": "/sw.js" },
+    { "source": "/app/workbox-:path*", "destination": "/workbox-:path*" },
+    { "source": "/app/:path*", "destination": "/index.html" }
+  ]
+}

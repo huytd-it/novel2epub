@@ -53,6 +53,21 @@ def test_chapter_payload_co_revision_va_ai_revisions(client):
     assert body["ai_revisions"] == []
 
 
+def test_chapter_payload_uses_active_local_mt_title(client):
+    _client, storage = client
+    chapter = Chapter(index=1, url="http://x/1", title="第1章 仪式", title_zh="第1章 仪式")
+    storage.save_chapter(chapter)
+    storage.write_branch_titles(chapter, "local_mt", "Chương 1: Nghi thức", "第1章 仪式")
+    storage.set_active_branch(chapter, "local_mt")
+
+    res = _client.get("/api/ui/ebooks/t/chapters/1")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["title"] == "Chương 1: Nghi thức"
+    assert body["title_zh"] == "第1章 仪式"
+
+
 def test_save_toan_van_voi_expected_rev_hop_le(client):
     _client, storage = client
     res = _client.post(

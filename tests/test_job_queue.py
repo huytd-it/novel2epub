@@ -25,6 +25,23 @@ def test_has_active_ebook_detects_pending_and_ignores_other_ebook():
     assert queue.has_active_ebook("book-b") is False
 
 
+def test_start_custom_accepts_display_label_separate_from_step():
+    from app.job import JobRunner
+
+    runner = JobRunner(workers={"crawl": 0, "translate": 0, "build": 0})
+    runner.start_custom(
+        "batch-translate-titles-1",
+        lambda log: None,
+        category="translate",
+        label="Dịch tiêu đề · Quỷ Bí Chi Chủ · 1 chương",
+    )
+
+    job = runner.queue.snapshot()["pending"]["translate"][0]
+    assert job["step"] == "batch-translate-titles-1"
+    assert job["label"] == "Dịch tiêu đề · Quỷ Bí Chi Chủ · 1 chương"
+
+
+
 def test_job_snapshot_and_log_use_stable_chapter_codes(tmp_path):
     db_path = tmp_path / "codes.db"
     conn = get_connection(db_path)
@@ -568,3 +585,38 @@ def test_delete_removes_job_from_history_table(tmp_path):
 
     restored = JobQueue(workers={"crawl": 0, "translate": 0, "build": 0}, db_path=db_path)
     assert job.id not in restored._jobs
+
+
+def test_clear_history_removes_terminal_jobs_from_memory_and_database(tmp_path):
+    from novel2epub.db import get_thread_connection
+
+    db_path = tmp_path / "novel2epub.db"
+    q = JobQueue(workers={"crawl": 1, "translate": 0, "build": 0}, db_path=db_path)
+    jobs = [q.enqueue("crawl", f"crawl-{index}", lambda log: None) for index in range(3)]
+    assert _wait_until(lambda: all(job.state == "done" for job in jobs))
+
+    conn = get_thread_connection(db_path)
+    assert _wait_until(
+        lambda: conn.execute("SELECT COUNT(*) AS n FROM job_queue_history").fetchone()["n"] == 3
+    )
+
+    assert q.clear_history() == 3
+    assert q.snapshot()["history"] == []
+    assert all(job.id not in q._jobs for job in jobs)
+    assert conn.execute("SELECT COUNT(*) AS n FROM job_queue_history").fetchone()["n"] == 0
+    assert q.clear_history() == 0
+
+    restored = JobQueue(workers={"crawl": 0, "translate": 0, "build": 0}, db_path=db_path)
+    assert restored.snapshot()["history"] == []
+
+
+def test_clear_history_keeps_pending_jobs(tmp_path):
+    q = JobQueue(
+        workers={"crawl": 0, "translate": 0, "build": 0},
+        db_path=tmp_path / "novel2epub.db",
+    )
+    pending = q.enqueue("crawl", "crawl", lambda log: None)
+
+    assert q.clear_history() == 0
+    assert pending.id in q._jobs
+    assert q.snapshot()["pending"]["crawl"][0]["id"] == pending.id

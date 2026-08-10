@@ -633,6 +633,8 @@ export function ChapterPage() {
   const { fontSize } = readerPrefs;
   const [bookmark, setBookmark] = useBookmark(slug);
   const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [selectedChapterIndexes, setSelectedChapterIndexes] = useState<Set<number>>(new Set());
+  const [bulkLocalMtOpen, setBulkLocalMtOpen] = useState(false);
   // Trạng thái thu gọn danh sách chương (desktop) — lưu theo slug để giữ nguyên
   // khi chuyển chương và khi tải lại trang.
   const [chaptersCollapsed, setChaptersCollapsed] = useState<boolean>(() => {
@@ -731,6 +733,8 @@ export function ChapterPage() {
     setPreviewChapter(null);
     setPreviewItems([]);
     setPreviewSelected(new Set());
+    setSelectedChapterIndexes(new Set());
+    setBulkLocalMtOpen(false);
   }, [slug]);
 
   const runFind = () => {
@@ -1327,6 +1331,27 @@ export function ChapterPage() {
         confirmLabel="Xếp vào hàng đợi"
         onDone={() => toast("Đã xếp biên tập vào hàng đợi — bản nháp sẽ hiện ở đây khi xong.")}
       />
+      <BulkPreviewDialog
+        open={bulkLocalMtOpen}
+        onClose={() => setBulkLocalMtOpen(false)}
+        slug={slug}
+        action="local-mt"
+        force={false}
+        indexes={[...selectedChapterIndexes].sort((a, b) => a - b)}
+        title={`Dịch Local MT ${selectedChapterIndexes.size} chương`}
+        body={
+          <>
+            Dịch các chương đã chọn trong TOC bằng <strong>Local MT</strong>. Chương đã có bản
+            dịch Local MT sẽ được <strong>bỏ qua</strong>, không ghi đè.
+          </>
+        }
+        confirmLabel="Xếp vào hàng đợi"
+        onDone={() => {
+          setSelectedChapterIndexes(new Set());
+          void queryClient.invalidateQueries({ queryKey: ["chapters", slug] });
+          toast("Đã xếp dịch Local MT vào hàng đợi — theo dõi ở trang Hàng đợi.");
+        }}
+      />
       <ChapterListDrawer
         open={chaptersOpen}
         onClose={() => setChaptersOpen(false)}
@@ -1352,6 +1377,18 @@ export function ChapterPage() {
         searchHits={findHits ?? []}
         searchCount={searchCount}
         onClearSearch={clearSearchResults}
+        selectedIndexes={selectedChapterIndexes}
+        onToggleSelected={(selectedIndex) =>
+          setSelectedChapterIndexes((prev) => {
+            const next = new Set(prev);
+            if (next.has(selectedIndex)) next.delete(selectedIndex);
+            else next.add(selectedIndex);
+            return next;
+          })
+        }
+        onSelectAll={(indexes) => setSelectedChapterIndexes(new Set(indexes))}
+        onClearSelected={() => setSelectedChapterIndexes(new Set())}
+        onBulkLocalMt={() => setBulkLocalMtOpen(true)}
       />
       <NotesPanel
         open={notesOpen}

@@ -19,6 +19,7 @@ export interface Job {
   ended_at: number | null;
   error: string | null;
   cancelling: boolean;
+  automation_id?: string;
   outcome?: unknown;
 }
 

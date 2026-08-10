@@ -96,6 +96,8 @@ class Job:
             "error": self.error,
             "cancelling": self.cancel_event.is_set(),
         }
+        if self.spec and self.spec.get("kind") == "automation":
+            d["automation_id"] = self.spec.get("params", {}).get("automation_id", "")
         if self.outcome is not None:
             d["outcome"] = self.outcome
         if with_log:
@@ -374,6 +376,19 @@ class JobQueue:
                 if j.state == "failed" and (category == "all" or j.category == category)
             ]
         return sum(1 for jid in failed_ids if self.delete(jid))
+
+    def clear_history(self) -> int:
+        """Xóa toàn bộ job đã kết thúc, giữ nguyên job pending/running."""
+        with self._cv:
+            history_ids = [job.id for job in self._history]
+            if not history_ids:
+                return 0
+            self._history.clear()
+            for job_id in history_ids:
+                self._jobs.pop(job_id, None)
+            self._cv.notify_all()
+        self._delete_history_rows(history_ids)
+        return len(history_ids)
 
     def bulk_retry_failed(self, category: str) -> int:
         """Retry tất cả job failed trong 1 category. Trả số job đã retry."""
@@ -780,14 +795,20 @@ class JobQueue:
             logger.exception("Không lưu được job %s vào lịch sử (%s)", job.id, self._db_path)
 
     def _delete_history_row(self, job_id: str) -> None:
-        if self._db_path is None:
+        self._delete_history_rows([job_id])
+
+    def _delete_history_rows(self, job_ids: list[str]) -> None:
+        if self._db_path is None or not job_ids:
             return
         conn = get_thread_connection(self._db_path)
         try:
             with conn:
-                conn.execute("DELETE FROM job_queue_history WHERE id = ?", (job_id,))
+                conn.executemany(
+                    "DELETE FROM job_queue_history WHERE id = ?",
+                    [(job_id,) for job_id in job_ids],
+                )
         except Exception:
-            logger.exception("Không xóa được job %s khỏi lịch sử (%s)", job_id, self._db_path)
+            logger.exception("Không xóa được lịch sử job khỏi %s", self._db_path)
 
     def _save_history(self) -> None:
         """Viết lại toàn bộ deque lịch sử (dùng lúc khởi động/kiểm thử, KHÔNG

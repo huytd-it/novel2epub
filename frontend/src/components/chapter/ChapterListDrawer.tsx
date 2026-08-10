@@ -75,6 +75,11 @@ export function ChapterListDrawer({
   searchHits,
   searchCount,
   onClearSearch,
+  selectedIndexes,
+  onToggleSelected,
+  onSelectAll,
+  onClearSelected,
+  onBulkLocalMt,
 }: {
   open: boolean;
   onClose: () => void;
@@ -100,6 +105,11 @@ export function ChapterListDrawer({
   searchHits: SearchHit[];
   searchCount: number;
   onClearSearch: () => void;
+  selectedIndexes: Set<number>;
+  onToggleSelected: (index: number) => void;
+  onSelectAll: (indexes: number[]) => void;
+  onClearSelected: () => void;
+  onBulkLocalMt: () => void;
 }) {
   const [search, setSearch] = useState("");
   const { data, isFetching, isPending, isError, error, fetchNextPage, hasNextPage, refetch } =
@@ -108,6 +118,9 @@ export function ChapterListDrawer({
   const active = open && !collapsed && mode === "list";
   const list = (data?.pages ?? []).flatMap((p) => p.rows);
   const matched = data?.pages[0]?.matched ?? 0;
+  const matchingIndexes = data?.pages[0]?.indexes ?? [];
+  const allMatchingSelected =
+    matchingIndexes.length > 0 && matchingIndexes.every((index) => selectedIndexes.has(index));
   const reachable = hasNextPage && !isPending;
 
   // Tải trang kế khi người dùng cuộn gần đáy scroll container. Root là container
@@ -241,7 +254,7 @@ export function ChapterListDrawer({
           </div>
 
           {mode === "list" ? (
-            <div className="border-b border-base-300 p-2">
+            <div className="space-y-2 border-b border-base-300 p-2">
               <InputWithIcon
                 icon={<IconSearch size={14} />}
                 value={search}
@@ -249,6 +262,23 @@ export function ChapterListDrawer({
                 placeholder="Tìm tiêu đề chương"
                 className="w-full"
               />
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <button
+                  type="button"
+                  className="link link-hover disabled:no-underline disabled:opacity-40"
+                  disabled={matchingIndexes.length === 0}
+                  onClick={() =>
+                    allMatchingSelected ? onClearSelected() : onSelectAll(matchingIndexes)
+                  }
+                >
+                  {allMatchingSelected ? "Bỏ chọn tất cả" : `Chọn tất cả ${num(matched)} chương`}
+                </button>
+                {selectedIndexes.size > 0 ? (
+                  <span data-numeric className="shrink-0 font-medium text-primary">
+                    {num(selectedIndexes.size)} đã chọn
+                  </span>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -284,16 +314,26 @@ export function ChapterListDrawer({
               <>
                 <ul>
                   {list.map((row) => (
-                    <li key={row.index}>
+                    <li
+                      key={row.index}
+                      className={clsx(
+                        "flex items-center border-l-2 hover:bg-base-200",
+                        row.index === currentIndex
+                          ? "border-primary bg-base-200 font-medium"
+                          : "border-transparent",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm ml-2.5 shrink-0"
+                        checked={selectedIndexes.has(row.index)}
+                        onChange={() => onToggleSelected(row.index)}
+                        aria-label={`Chọn chương ${row.index}`}
+                      />
                       <button
                         type="button"
                         onClick={() => handleSelect(row.index)}
-                        className={clsx(
-                          "flex w-full items-center gap-2 border-l-2 px-3 py-1.5 text-left text-[13px] hover:bg-base-200",
-                          row.index === currentIndex
-                            ? "border-primary bg-base-200 font-medium"
-                            : "border-transparent",
-                        )}
+                        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-[13px]"
                       >
                         <Dot tone={row.has_translated ? "gold" : row.has_raw ? "indigo" : "neutral"} />
                         <span data-numeric className="shrink-0 opacity-40">
@@ -327,6 +367,17 @@ export function ChapterListDrawer({
               </>
             )}
           </div>
+
+          {mode === "list" && selectedIndexes.size > 0 ? (
+            <div className="flex items-center gap-2 border-t border-base-300 bg-base-100 p-2">
+              <Button size="sm" variant="ghost" onClick={onClearSelected}>
+                Bỏ chọn
+              </Button>
+              <Button size="sm" variant="primary" className="flex-1" onClick={onBulkLocalMt}>
+                Dịch Local MT ({num(selectedIndexes.size)})
+              </Button>
+            </div>
+          ) : null}
         </aside>
       )}
     </>

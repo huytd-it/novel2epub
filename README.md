@@ -129,6 +129,7 @@ Không copy trực tiếp DB đang chạy nếu muốn bảo đảm snapshot nh�
 - [Hướng dẫn vận hành](docs/operations.md)
 - [Dịch và biên tập](docs/translation.md)
 - [Phát triển và kiểm thử](docs/development.md)
+- [Release, Vercel và Tailscale](docs/release.md)
 - [Giao diện SPA](docs/architecture.md#giao-diện-spa-frontend)
 
 ## Giới Hạn

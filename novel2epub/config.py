@@ -556,7 +556,7 @@ class ReaderConfig:
 
 
 def _safe_filename(value: str) -> str:
-    """Loại bỏ ký tự không hợp lệ cho tên file trên Windows (< > : " / \ | ? *)."""
+    """Loại bỏ ký tự không hợp lệ cho tên file Windows, gồm cả backslash."""
     value = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", value)
     value = re.sub(r"\s+", " ", value).strip(" .")
     return value or "untitled"

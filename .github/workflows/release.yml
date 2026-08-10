@@ -1,0 +1,113 @@
+name: Release applications
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x64
+          - os: macos-14
+            name: macos-arm64
+          - os: ubuntu-22.04
+            name: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run typecheck
+        working-directory: frontend
+      - name: Build and publish desktop bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: novel2epub ${{ github.ref_name }}
+          releaseBody: Automated unsigned application artifacts. Install only builds from this repository.
+          releaseDraft: false
+          prerelease: false
+          projectPath: frontend
+          artifactName: novel2epub-${{ github.ref_name }}-${{ matrix.name }}
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - run: npm ci
+        working-directory: frontend
+      - name: Initialize Android project
+        run: npx tauri android init --ci
+        working-directory: frontend
+      - name: Build unsigned Android APK and AAB
+        run: npx tauri android build --ci --apk --aab
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: novel2epub-${{ github.ref_name }}-android-unsigned
+          path: |
+            frontend/src-tauri/gen/android/**/*.apk
+            frontend/src-tauri/gen/android/**/*.aab
+          if-no-files-found: error
+
+  ios:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - run: npm ci
+        working-directory: frontend
+      - name: Initialize iOS project
+        run: npx tauri ios init --ci
+        working-directory: frontend
+      - name: Build unsigned iOS project
+        run: npx tauri ios build --ci
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: novel2epub-${{ github.ref_name }}-ios-unsigned
+          path: |
+            frontend/src-tauri/gen/apple/build/**/*.app
+            frontend/src-tauri/gen/apple/build/**/*.xcarchive
+            frontend/src-tauri/gen/apple/build/**/*.ipa
+          if-no-files-found: warn

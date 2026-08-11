@@ -2,6 +2,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import { chapterKey } from "./ebook";
+import { queueKey } from "./queue";
 
 export interface NoteSuggestion {
   fixed_text: string;
@@ -461,8 +462,47 @@ export function useCompareBlockEdit(slug: string, index: number) {
   });
 }
 
-/** Dịch lại / biên tập AI một chương đi qua hợp đồng bulk-preview + confirm:
+/** Dịch lại đi qua hợp đồng bulk-preview + confirm vì nó GHI ĐÈ bản dịch:
     UI mở `BulkPreviewDialog` (xem `components/chapter/BulkPreviewDialog.tsx`). */
+
+/* ── Biên tập AI: bấm một cái ra một job ─────────────────────────────── */
+
+export interface AiEditDraftResult {
+  status: "queued";
+  job_id: string;
+  /** Số chương thực sự vào job (đã có bản dịch Local MT). */
+  queued: number;
+  /** Số chương bị bỏ qua vì chưa có bản dịch Local MT. */
+  skipped: number;
+  indexes: number[];
+  blocked: { index: number; reason: string }[];
+}
+
+/** Xếp job biên tập AI cho danh sách chương. Không preview, không confirm —
+    kết quả là bản nháp chờ duyệt nên bấm nhầm cũng không mất bản dịch. */
+export function startAiEditDraft(slug: string, indexes: number[]) {
+  return api.post<AiEditDraftResult>(`/api/ui/ebooks/${slug}/chapters/ai-edit-draft`, {
+    body: { indexes },
+  });
+}
+
+/** Câu thông báo dùng chung cho cả trang chương lẫn trang truyện. */
+export function aiEditDraftMessage(result: AiEditDraftResult) {
+  const base = `Đã xếp ${result.queued} chương vào hàng đợi biên tập AI.`;
+  return result.skipped > 0
+    ? `${base} Bỏ qua ${result.skipped} chương chưa có bản dịch Local MT.`
+    : base;
+}
+
+export function useAiEditDraft(slug: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (indexes: number[]) => startAiEditDraft(slug, indexes),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: queueKey });
+    },
+  });
+}
 
 /* ── Bản nháp AI (candidate) ─────────────────────────────────────────── */
 

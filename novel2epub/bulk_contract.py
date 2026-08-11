@@ -118,6 +118,8 @@ def preview_plan(
     """Đánh giá không đụng chạm cho danh sách chương. Trả
     `{action, branch, force, total, eligible, blocked, chapters, estimates}`.
     `chapters[i]` = `{index, title, ok, reason, fingerprint}`."""
+    from . import revisions
+
     chapters = list(manifest.chapters)
     wanted = set(int(i) for i in indexes)
     items: list[dict] = []

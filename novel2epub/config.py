@@ -73,6 +73,28 @@ class ScraplingConfig:
     dns_over_https: bool = False
 
 
+def next_page_url_pattern_error(pattern: str) -> str:
+    """Kiểm tra `crawl.next_page_url_pattern`, trả về thông báo lỗi ("" = hợp lệ).
+
+    Dùng chung cho `CrawlConfig.__post_init__` và các route ghi config để chặn
+    giá trị hỏng ngay lúc lưu thay vì lúc load.
+    """
+    pattern = (pattern or "").strip()
+    if not pattern:
+        return ""
+    try:
+        pat = re.compile(pattern)
+    except re.error as e:
+        return f"crawl.next_page_url_pattern không phải regex hợp lệ: {e}"
+    # `pat.groups` đã đếm cả group đặt tên — không cộng thêm `groupindex`.
+    if pat.groups != 1:
+        return (
+            "crawl.next_page_url_pattern phải chứa đúng 1 capturing group "
+            f"(vd r'(\\d+)\\.html$'), hiện có {pat.groups}."
+        )
+    return ""
+
+
 @dataclass
 class CrawlConfig:
     toc_url: str = ""
@@ -110,21 +132,9 @@ class CrawlConfig:
     toc_max_pages: int = 5
 
     def __post_init__(self) -> None:
-        if self.next_page_url_pattern:
-            try:
-                pat = re.compile(self.next_page_url_pattern)
-            except re.error as e:
-                raise ValueError(
-                    f"crawl.next_page_url_pattern không phải regex hợp lệ: {e}"
-                ) from e
-            unnamed_groups = pat.groups
-            named_groups = len(pat.groupindex)
-            total = unnamed_groups + named_groups
-            if total != 1:
-                raise ValueError(
-                    "crawl.next_page_url_pattern phải chứa đúng 1 capturing "
-                    f"group, hiện có {total}."
-                )
+        err = next_page_url_pattern_error(self.next_page_url_pattern)
+        if err:
+            raise ValueError(err)
 
     content_selector: str = ""
 
@@ -845,7 +855,9 @@ def load_config(path: str | Path, slug: str = "") -> Config:
 
     ebook_translate = _as_dict(override.get("translate"))
     translation_model_override = str(
-        ebook_translate.get("translation_model", "") or ""
+        ebook_translate.get("translation_model", "")
+        or _as_dict(ebook_translate.get("openai")).get("model", "")
+        or ""
     ).strip()
     ebook_translate.pop("translation_model", None)
     ebook_translate.pop("openai", None)
@@ -855,7 +867,11 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         override.pop("translate", None)
 
     ebook_ai = _as_dict(override.get("ai"))
-    assistant_model_override = str(ebook_ai.get("assistant_model", "") or "").strip()
+    assistant_model_override = str(
+        ebook_ai.get("assistant_model", "")
+        or _as_dict(ebook_ai.get("openai")).get("model", "")
+        or ""
+    ).strip()
     ebook_ai.pop("assistant_model", None)
     ebook_ai.pop("openai", None)
     if ebook_ai:
@@ -915,6 +931,16 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     if legacy_doh is not None and "dns_over_https" not in scrapling_raw:
         scrapling_raw["dns_over_https"] = legacy_doh
     crawl_retry_raw = _as_dict(crawl_raw.pop("retry", None))
+    # Pattern hỏng đã nằm trong DB (lưu trước khi có validate ở route) không được
+    # phép làm chết cả web UI — bỏ qua nó, ghi cảnh báo để người dùng sửa lại.
+    crawl_warnings: list[str] = []
+    pattern_err = next_page_url_pattern_error(crawl_raw.get("next_page_url_pattern", ""))
+    if pattern_err:
+        crawl_warnings.append(
+            f"Bỏ qua crawl.next_page_url_pattern="
+            f"{crawl_raw.get('next_page_url_pattern')!r}: {pattern_err}"
+        )
+        crawl_raw["next_page_url_pattern"] = ""
     crawl = CrawlConfig(**crawl_raw)
     if scrapling_raw:
         crawl.scrapling = ScraplingConfig(**scrapling_raw)
@@ -937,7 +963,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     translate_raw.pop("glossary_files", None)  # deprecated: glossary is SQLite-only
     retry_raw = _as_dict(translate_raw.pop("retry", None))
     chunk_raw = _as_dict(translate_raw.pop("chunk", None))
-    warnings: list[str] = list(source_warnings)
+    warnings: list[str] = list(source_warnings) + crawl_warnings
     if preset_name:
         from . import presets as _presets
 
@@ -1037,13 +1063,23 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     ai_openai_raw = _as_dict(ai_raw.get("openai"))
     if not ai_openai_raw:
         # Chưa có ai.openai → dùng translate.openai làm mặc định (backward-compat)
-        ai_openai_raw = openai_raw
+        ai_openai_raw = dict(openai_raw)
+    else:
+        ai_openai_raw = dict(ai_openai_raw)
+
+    from .presets.go import GO_PROMPT
+    from .presets.omniroute import OMNIPROUTE_PROMPT
+
     # Prompt biên tập RIÊNG, không lấy prompt dịch chương làm mặc định: prompt dịch
     # có placeholder khác ({text}, {tone}...) — format lúc rewrite sẽ sập, và về
     # nghĩa vụ cũng sai (dịch lại thay vì biên tập lại). Rỗng / dính prompt dịch
     # (khi fallback từ translate.openai) → thay bằng AI_EDIT_PROMPT.
     _ai_prompt = str(ai_openai_raw.get("prompt_template") or "").strip()
-    if not _ai_prompt or _ai_prompt in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT):
+    if (
+        not _ai_prompt
+        or _ai_prompt in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, OMNIPROUTE_PROMPT, GO_PROMPT)
+        or "{translated}" not in _ai_prompt
+    ):
         ai_openai_raw["prompt_template"] = AI_EDIT_PROMPT
     ai = AIConfig(openai=OpenAIConfig(**ai_openai_raw))
 

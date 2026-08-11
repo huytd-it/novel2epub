@@ -13,7 +13,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import openai_client
-from novel2epub.config import LOCAL_MT_MODEL_PRESETS
+from novel2epub.config import LOCAL_MT_MODEL_PRESETS, next_page_url_pattern_error
 from novel2epub.genre import GENRE_PRESETS
 from novel2epub.config_writer import (
     clean_prompt_text,
@@ -224,6 +224,9 @@ def save_source(
     headless: bool = Form(False),
     strip_patterns: str = Form(""),
 ):
+    pattern_err = next_page_url_pattern_error(next_page_url_pattern)
+    if pattern_err:
+        raise HTTPException(status_code=400, detail=pattern_err)
     strip_list = [line.strip() for line in strip_patterns.splitlines() if line.strip()]
     crawl: dict = {
         "toc_url": toc_url,

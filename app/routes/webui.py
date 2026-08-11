@@ -2107,6 +2107,79 @@ def ebook_chapters_bulk_confirm(request: Request, slug: str, payload: dict = Bod
     return {**result, "token": token, "consumed": True, "exact_indexes": eligible_indexes}
 
 
+@router.post("/ebooks/{slug}/chapters/ai-edit-draft")
+def ebook_chapters_ai_edit_draft(request: Request, slug: str, payload: dict = Body(...)):
+    """Xếp thẳng job biên tập AI cho các chương đã chọn — KHÔNG qua preview/confirm.
+
+    Nút "Biên tập AI" phải là một cú bấm ra một job: hợp đồng bulk hai vòng
+    (preview token → confirm) chỉ hợp lý cho hành động GHI ĐÈ bản dịch, còn ở
+    đây kết quả luôn là bản nháp chờ duyệt nên không có gì để mất nếu bấm nhầm.
+
+    Lọc eligibility ngay tại đây chỉ để báo liền số chương bị bỏ qua (đọc file,
+    không gọi model). Job vẫn chạy `require_local_mt=True` nên chương mất bản
+    Local MT trong lúc chờ hàng đợi vẫn bị chặn đúng lúc thực thi."""
+    from novel2epub import bulk_contract
+    from novel2epub.pipeline import step_preview_revisions_bulk
+
+    cfg = deps.resolved_cfg(slug)
+    indexes = payload.get("indexes")
+    if not isinstance(indexes, list) or not indexes:
+        raise HTTPException(status_code=400, detail="Thiếu 'indexes'.")
+    try:
+        index_list = [int(i) for i in indexes]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="'indexes' phải là list số.")
+
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+
+    wanted = set(index_list)
+    eligible: list[int] = []
+    blocked: list[dict] = []
+    for ch in manifest.chapters:
+        if ch.index not in wanted:
+            continue
+        ok, reason = bulk_contract.chapter_eligibility(storage, ch, action="ai-edit-draft")
+        if ok:
+            eligible.append(ch.index)
+        else:
+            blocked.append({"index": ch.index, "reason": reason})
+    if not eligible:
+        raise HTTPException(
+            status_code=409,
+            detail="Không có chương nào đủ điều kiện — cần bản dịch Local MT trước.",
+        )
+
+    if len(eligible) == 1:
+        ch = storage.get_chapter(eligible[0])
+        label = chapter_job_label(
+            "ai-rewrite", title=cfg.novel.title, slug=slug,
+            index=eligible[0], chapter_title=ch.title if ch else "",
+        )
+    else:
+        label = batch_job_label(
+            "ai-rewrite", title=cfg.novel.title, slug=slug, count=len(eligible),
+        )
+
+    def _target(log, _cfg=cfg, _idx=list(eligible)):
+        step_preview_revisions_bulk(_cfg, log, selected_indexes=_idx, require_local_mt=True)
+
+    job = request.app.state.job.queue.enqueue(
+        "ai-edit", f"ai-edit-draft-{slug}", _target,
+        label=label, ebook=slug, chapter_indexes=list(eligible),
+    )
+    return {
+        "status": "queued",
+        "job_id": job.id,
+        "queued": len(eligible),
+        "skipped": len(blocked),
+        "indexes": eligible,
+        "blocked": blocked,
+    }
+
+
 @router.get("/queue")
 def queue_status(request: Request):
     """Trạng thái queue theo category: running / pending / workers / history gần nhất."""

@@ -190,6 +190,36 @@ def test_crawl_config_rejects_invalid_regex():
         )
 
 
+def test_crawl_config_accepts_named_capturing_group():
+    """Group đặt tên vẫn là group 1 — không được tính thành 2 group."""
+    cfg = CrawlConfig(
+        toc_url="https://example.com",
+        next_page_url_pattern=r"(?P<page>\d+)\.html$",
+    )
+    assert cfg.next_page_url_pattern == r"(?P<page>\d+)\.html$"
+
+
+def test_load_config_skips_broken_pattern_instead_of_raising(tmp_path):
+    """Pattern hỏng đã nằm trong DB chỉ được tắt phân trang + cảnh báo.
+
+    Ném ValueError lúc load làm chết cả trang thư viện (mọi ebook), không chỉ
+    ebook có config sai — xem lỗi 500 ở /api/ui/library.
+    """
+    config_path = _write_config(
+        tmp_path,
+        extra={
+            "crawl": {
+                "toc_url": "https://example.com/book/",
+                "next_page_url_pattern": r"\.html$",
+            }
+        },
+    )
+    cfg = load_config(config_path)
+
+    assert cfg.crawl.next_page_url_pattern == ""
+    assert any("next_page_url_pattern" in w for w in cfg.warnings), cfg.warnings
+
+
 def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
     """Config hiệu lực = deep_merge(defaults, ebooks[slug])."""
     path = write_db_config(

@@ -9,11 +9,13 @@ import { num } from "@/lib/format";
 import { hasRealDiff } from "@/lib/diff";
 import { useChapter, type AiRevision, type ChapterCompare } from "@/lib/ebook";
 import {
+  aiEditDraftMessage,
   applyBookReplace,
   invalidateBookSearch,
   loadFindState,
   previewBookReplace,
   saveFindState,
+  useAiEditDraft,
   useBookmark,
   useBookSearch,
   useChapterNotes,
@@ -160,18 +162,21 @@ function NoteComposer({
 }
 
 /* ── Nguồn bản dịch: ba luồng độc lập ────────────────────────────────
-   "Dịch" đọc từ BẢN GỐC và ghi thẳng vào nhánh. "Biên tập AI" đọc từ BẢN
-   DỊCH đang có và chỉ sinh BẢN NHÁP chờ duyệt — không tự ghi đè. Tách hẳn
-   hai nhóm nút để không ai bấm nhầm "biên tập" khi định "dịch lại".      */
+   "Dịch" đọc từ BẢN GỐC và ghi thẳng vào nhánh nên phải preview + confirm.
+   "Biên tập AI" đọc từ BẢN DỊCH đang có và chỉ sinh BẢN NHÁP chờ duyệt —
+   không ghi đè gì cả, nên bấm một cái là xếp job luôn, không hỏi lại. Tách
+   hẳn hai nhóm nút để không ai bấm nhầm "biên tập" khi định "dịch lại".  */
 
 function BranchBar({
   slug,
   data,
   onRewrite,
+  rewritePending,
 }: {
   slug: string;
   data: ChapterCompare;
   onRewrite: () => void;
+  rewritePending: boolean;
 }) {
   const toast = useToast();
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
@@ -207,7 +212,9 @@ function BranchBar({
           variant="primary"
           icon={<IconSparkle size={13} />}
           disabled={!data.has_translated}
+          loading={rewritePending}
           onClick={onRewrite}
+          title="Xếp job biên tập AI cho chương này — kết quả là bản nháp chờ duyệt"
         >
           Biên tập AI
         </Button>
@@ -592,6 +599,7 @@ export function ChapterPage() {
   const updateTitle = useUpdateChapterTitle(slug, chapterIndex);
   const revertEdits = useRevertEdits(slug, chapterIndex);
   const createNote = useCreateNote(slug, chapterIndex);
+  const aiEditDraft = useAiEditDraft(slug);
 
   // `?edit=1` mở sẵn chế độ sửa. Xoá param ngay sau khi đọc để URL không
   // "dính" chế độ sửa khi chia sẻ hay bookmark.
@@ -636,7 +644,6 @@ export function ChapterPage() {
     });
   };
   const [notesOpen, setNotesOpen] = useState(false);
-  const [rewriteOpen, setRewriteOpen] = useState(false);
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const [documentDraft, setDocumentDraft] = useState("");
   const [documentRevision, setDocumentRevision] = useState(0);
@@ -1149,7 +1156,20 @@ export function ChapterPage() {
       </div>
 
       <div className="mx-auto max-w-[1100px] px-4 py-5">
-        <BranchBar slug={slug} data={data} onRewrite={() => setRewriteOpen(true)} />
+        <BranchBar
+          slug={slug}
+          data={data}
+          rewritePending={aiEditDraft.isPending}
+          onRewrite={() =>
+            aiEditDraft.mutate([chapterIndex], {
+              onSuccess: (res) =>
+                toast(
+                  `${aiEditDraftMessage(res)} Bản nháp sẽ hiện ở đây khi xong.`,
+                ),
+              onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+            })
+          }
+        />
 
         {drafts.length > 0 ? (
           <Panel className="mb-4 overflow-hidden">
@@ -1354,23 +1374,6 @@ export function ChapterPage() {
         />
       ) : null}
 
-      <BulkPreviewDialog
-        open={rewriteOpen}
-        onClose={() => setRewriteOpen(false)}
-        slug={slug}
-        action="ai-edit-draft"
-        indexes={[chapterIndex]}
-        title="Biên tập AI"
-        body={
-          <>
-            AI đọc <strong>bản dịch Local MT</strong> của chương này (không đọc bản gốc) và viết
-            lại cho mượt hơn. Kết quả là một <strong>bản nháp</strong> — bạn xem rồi mới quyết
-            định áp vào bản dịch. Chương chưa có bản dịch Local MT sẽ bị chặn.
-          </>
-        }
-        confirmLabel="Xếp vào hàng đợi"
-        onDone={() => toast("Đã xếp biên tập vào hàng đợi — bản nháp sẽ hiện ở đây khi xong.")}
-      />
       <BulkPreviewDialog
         open={bulkLocalMtOpen}
         onClose={() => setBulkLocalMtOpen(false)}

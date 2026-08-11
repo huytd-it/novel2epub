@@ -157,15 +157,20 @@ nháp AI.
 **Ba luồng tách bạch trên UI** (`BranchBar`), vì chúng đọc nguồn khác nhau và
 hành xử khác nhau:
 
-| Luồng | Đọc từ | Ghi vào | Hoàn tác |
-| --- | --- | --- | --- |
-| Dịch Local MT | bản gốc | thẳng vào nhánh `local_mt` | không |
-| Dịch AI | bản gốc | thẳng vào nhánh `ai` | không |
-| Biên tập AI | bản dịch đang có | bản nháp chờ duyệt | có — bỏ nháp |
+| Luồng | Đọc từ | Ghi vào | Hoàn tác | Xác nhận |
+| --- | --- | --- | --- | --- |
+| Dịch Local MT | bản gốc | thẳng vào nhánh `local_mt` | không | preview + confirm |
+| Dịch AI | bản gốc | thẳng vào nhánh `ai` | không | preview + confirm |
+| Biên tập AI | bản dịch đang có | bản nháp chờ duyệt | có — bỏ nháp | không, xếp job luôn |
 
 Gộp chúng vào một nút "AI" là chỗ dễ mất dữ liệu nhất: "dịch" ghi đè thẳng
 còn "biên tập" thì không, nên hai việc phải nằm ở hai nhóm nút có nhãn khác
 nhau. Bulk action ở trang Ebook (`BatchBar`) chia đúng ba nhóm này.
+
+Cột "Xác nhận" đi theo cột "Hoàn tác": hộp thoại preview/confirm là để chặn
+GHI ĐÈ nhầm, mà biên tập AI thì không ghi đè gì nên nó chỉ tổ thêm một cú bấm.
+Nút "Biên tập AI" gọi thẳng `POST .../chapters/ai-edit-draft` → job `ai-edit`
+(xem `docs/operations.md`).
 
 **Đánh số đoạn của khung đọc là `notes.split_paras`** (từng DÒNG không rỗng) —
 KHÁC với `app/chapter_compare.py` (theo KHỐI, xem mục bên dưới). Payload trả

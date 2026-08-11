@@ -216,3 +216,23 @@ def test_evaluate_translation_uses_full_glossary(monkeypatch):
     # evaluate audit TOÀN BỘ glossary (tìm mục thừa/trùng/mâu thuẫn) → không lọc.
     assert "叶凡 = Diệp Phàm" in captured["prompt"]
     assert "庄国 = Trang Quốc" in captured["prompt"]
+
+
+def test_rewrite_chapter_handles_prompt_with_tone_or_translate_template(monkeypatch):
+    from novel2epub.config import OpenAIConfig
+    from novel2epub.glossary_ai import rewrite_chapter
+
+    captured = _capture_run_chat(monkeypatch, "Bản dịch đã biên tập")
+    # Config mang translation prompt template có {tone} hoặc {text} thay vì edit prompt
+    cfg_with_tone = OpenAIConfig(
+        base_url="https://api.test/v1",
+        prompt_template="Dịch đoạn văn {tone} và {text}"
+    )
+    out = rewrite_chapter(
+        cfg_with_tone,
+        raw="第10章 明劲",
+        current_translation="Chương 10 Minh Kính",
+        glossary={"明劲": "Minh Kính"},
+    )
+    assert out == "Bản dịch đã biên tập"
+    assert "BIÊN TẬP LẠI" in captured["prompt"]

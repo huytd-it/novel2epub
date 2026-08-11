@@ -190,9 +190,17 @@ def _rewrite_prompt_template(ai_cfg: OpenAIConfig) -> str:
 
     `ai.openai` là `OpenAIConfig` dùng chung — `load_config` đã đổi mặc định
     prompt_template của nó sang `AI_EDIT_PROMPT`, nhưng config cũ/test dựng tay
-    vẫn để prompt DỊCH (DEFAULT_PROMPT) không hợp cho biên tập → bỏ qua."""
+    vẫn để prompt DỊCH (DEFAULT_PROMPT, OMNIPROUTE_PROMPT, GO_PROMPT...) không hợp cho biên tập → bỏ qua."""
     tpl = str(getattr(ai_cfg, "prompt_template", "") or "").strip()
-    if not tpl or tpl == DEFAULT_PROMPT:
+    from .config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT
+    from .presets.go import GO_PROMPT
+    from .presets.omniroute import OMNIPROUTE_PROMPT
+
+    if (
+        not tpl
+        or tpl in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, OMNIPROUTE_PROMPT, GO_PROMPT)
+        or "{translated}" not in tpl
+    ):
         return REWRITE_PROMPT
     return tpl
 
@@ -218,13 +226,23 @@ def rewrite_chapter(
         if filter_glossary
         else glossary
     )
-    prompt = _rewrite_prompt_template(ai_cfg).format(
-        guidelines=EDIT_HAY_GUIDELINES,
-        genre_rules=_format_genre_block(genre),
-        glossary=_format_glossary(prompt_glossary),
-        raw=raw,
-        translated=current_translation,
-    )
+    tpl = _rewrite_prompt_template(ai_cfg)
+    try:
+        prompt = tpl.format(
+            guidelines=EDIT_HAY_GUIDELINES,
+            genre_rules=_format_genre_block(genre),
+            glossary=_format_glossary(prompt_glossary),
+            raw=raw,
+            translated=current_translation,
+        )
+    except (KeyError, IndexError, ValueError):
+        prompt = REWRITE_PROMPT.format(
+            guidelines=EDIT_HAY_GUIDELINES,
+            genre_rules=_format_genre_block(genre),
+            glossary=_format_glossary(prompt_glossary),
+            raw=raw,
+            translated=current_translation,
+        )
     output = openai_client.run_chat(ai_cfg, prompt)
     return _apply_glossary(_clean_output(output), glossary)
 

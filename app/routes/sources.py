@@ -10,7 +10,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
 from novel2epub import openai_client, selector_ai
-from novel2epub.config import CrawlConfig, ScraplingConfig
+from novel2epub.config import CrawlConfig, ScraplingConfig, next_page_url_pattern_error
 from novel2epub.crawler import ScraplingCrawler
 from novel2epub.sources import SourcePreset, delete_preset, save_preset, save_presets
 
@@ -103,6 +103,9 @@ def save_source_preset(
     ai_eval_prompt: str = Form(""),
 ):
     name = name.strip()
+    pattern_err = next_page_url_pattern_error(next_page_url_pattern)
+    if pattern_err:
+        raise HTTPException(status_code=400, detail=pattern_err)
     strip_list = [line.strip() for line in strip_patterns.splitlines() if line.strip()]
     if name:
         kwargs = dict(

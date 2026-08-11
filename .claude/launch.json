@@ -18,6 +18,14 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--port", "8012"],
       "port": 8012
+    },
+    {
+      "name": "web-scratch",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "C:\\Users\\huytd\\AppData\\Local\\Temp\\claude\\D--Projects-novel2epub\\12aba377-8d04-48b1-a63b-f4fa190c613b\\scratchpad\\serve.py"
+      ],
+      "port": 8011
     }
   ]
 }

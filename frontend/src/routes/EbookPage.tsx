@@ -9,6 +9,7 @@ import { bytes, num, percent } from "@/lib/format";
 import { decodeStrip, stripCounts } from "@/lib/strip";
 import { queueKey } from "@/lib/queue";
 import { useCurrentBook } from "@/lib/books";
+import { aiEditDraftMessage, useAiEditDraft } from "@/lib/chapter";
 import {
   DEFAULT_FILTERS,
   ebookKey,
@@ -253,8 +254,9 @@ const NORMALIZE_TOC_ACTION: BatchAction = {
  * `fixed bottom` để chọn ở đâu cũng thao tác được ngay tại chỗ.
  *
  * Ba nhóm tách hẳn nhau vì chúng KHÔNG cùng một loại việc:
- * - "Dịch": đọc bản gốc, ghi thẳng vào nhánh đã chọn.
- * - "Biên tập AI": đọc bản dịch đang có, sinh bản nháp chờ duyệt.
+ * - "Dịch": đọc bản gốc, ghi thẳng vào nhánh đã chọn → phải preview + confirm.
+ * - "Biên tập AI": đọc bản dịch đang có, sinh bản nháp chờ duyệt → không ghi
+ *   đè gì nên bấm một cái là xếp job luôn, không qua hộp thoại.
  * - "Khác": các thao tác phụ trợ, gom vào menu cho gọn.
  */
 function BatchBar({
@@ -272,7 +274,7 @@ function BatchBar({
   const [pending, setPending] = useState<BatchAction | null>(null);
   const [tocPreview, setTocPreview] = useState<TocPreview | null>(null);
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
-  const [rewriteOpen, setRewriteOpen] = useState(false);
+  const aiEditDraft = useAiEditDraft(slug);
 
   const run = useMutation({
     mutationFn: (action: BatchAction) =>
@@ -355,9 +357,20 @@ function BatchBar({
               size="sm"
               variant="primary"
               icon={<IconSparkle size={13} />}
-              onClick={() => setRewriteOpen(true)}
+              loading={aiEditDraft.isPending}
+              title="Xếp job biên tập AI cho các chương đã chọn — kết quả là bản nháp chờ duyệt"
+              onClick={() =>
+                aiEditDraft.mutate(selected, {
+                  onSuccess: (res) => {
+                    toast(aiEditDraftMessage(res));
+                    onDone();
+                  },
+                  onError: (err) =>
+                    toast(err instanceof Error ? err.message : String(err), "error"),
+                })
+              }
             >
-              Biên tập AI…
+              Biên tập AI
             </Button>
           </div>
 
@@ -408,24 +421,6 @@ function BatchBar({
             Dịch {selected.length} chương đã chọn vào nhánh{" "}
             <strong>{branchLabel}</strong>. Chương nào đã có bản dịch trong nhánh đó sẽ được{" "}
             <strong>bỏ qua</strong>, không ghi đè.
-          </>
-        }
-        confirmLabel="Xếp vào hàng đợi"
-        onDone={onDone}
-      />
-
-      <BulkPreviewDialog
-        open={rewriteOpen}
-        onClose={() => setRewriteOpen(false)}
-        slug={slug}
-        action="ai-edit-draft"
-        indexes={selected}
-        title={`Biên tập AI ${selected.length} chương`}
-        body={
-          <>
-            AI đọc <strong>bản dịch Local MT</strong> của từng chương và viết lại cho mượt hơn —
-            không đọc bản gốc, không dịch lại. Mỗi chương sinh một <strong>bản nháp</strong> để
-            bạn duyệt trong trang chương. Chương chưa có bản dịch Local MT sẽ bị chặn.
           </>
         }
         confirmLabel="Xếp vào hàng đợi"

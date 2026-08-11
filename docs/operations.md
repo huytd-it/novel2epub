@@ -183,6 +183,23 @@ chặn chương chưa có bản dịch ở nhánh đang hoạt động). Logic �
 Endpoint `/chapters/bulk` cũ (ghi thẳng) vẫn chạy nhưng **deprecated** — client mới
 nên dùng preview/confirm. `set-branch` của nó map sang `switch-branch` của hợp đồng mới.
 
+### Biên tập AI không đi qua preview/confirm
+
+Nút "Biên tập AI" (trang chương và trang truyện) bắn thẳng
+`POST /api/ui/ebooks/{slug}/chapters/ai-edit-draft` với body `{"indexes": [...]}` và
+nhận về `{status: "queued", job_id, queued, skipped, indexes, blocked}` — một cú bấm
+là một job trong category `ai-edit`, không có hộp thoại.
+
+Bỏ được hai vòng token vì hành động này **không ghi đè gì**: kết quả là bản nháp chờ
+duyệt, bấm nhầm thì bỏ nháp. Vân tay workspace của hợp đồng bulk sinh ra để chặn ghi
+đè nhầm nên ở đây không có việc để làm. Route tự lọc chương chưa có bản dịch Local MT
+(đọc file, không gọi model) để trả ngay `skipped`/`blocked`; job vẫn chạy
+`step_preview_revisions_bulk(require_local_mt=True)` nên chương mất bản Local MT
+trong lúc chờ hàng đợi vẫn bị chặn đúng lúc thực thi. Không chương nào đủ điều kiện →
+`409`, không enqueue.
+
+Action `ai-edit-draft` của hợp đồng bulk vẫn còn cho CLI/API cũ, UI không dùng nữa.
+
 ## Tách Giao Diện Khỏi Máy Chạy Backend
 
 SPA (`/app`) là file tĩnh nên có thể để trên Vercel/Cloudflare Pages, còn

@@ -79,6 +79,23 @@ def test_operational_codes_are_backfilled_and_stable():
     assert conn.execute("SELECT code FROM chapters").fetchone()["code"] == "SDR-QBCC-0001"
 
 
+def test_backfill_codes_handles_swapped_chapter_indexes():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        conn.execute("INSERT INTO ebooks (slug, title, code) VALUES ('book', 'Book', 'SRC-BOOK')")
+        conn.execute("INSERT INTO chapters (ebook_slug, idx, code) VALUES ('book', 1, 'SRC-BOOK-0002')")
+        conn.execute("INSERT INTO chapters (ebook_slug, idx, code) VALUES ('book', 2, 'SRC-BOOK-0001')")
+
+    init_schema(conn)
+
+    rows = conn.execute("SELECT idx, code FROM chapters ORDER BY idx").fetchall()
+    assert [(row["idx"], row["code"]) for row in rows] == [
+        (1, "SRC-BOOK-0002"),
+        (2, "SRC-BOOK-0001"),
+    ]
+
+
 def test_settings_is_single_row_table():
     conn = get_connection(":memory:")
     init_schema(conn)

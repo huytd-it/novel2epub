@@ -62,11 +62,24 @@ def backfill_codes(conn: sqlite3.Connection) -> None:
         code = _unique(f"{source_code}-{book_code}", used_ebooks)
         conn.execute("UPDATE ebooks SET code = ? WHERE slug = ?", (code, row["slug"]))
 
+    used_chapters = {
+        row["code"]
+        for row in conn.execute("SELECT code FROM chapters WHERE code <> ''").fetchall()
+    }
     for row in conn.execute("SELECT slug, code FROM ebooks").fetchall():
-        conn.execute(
-            "UPDATE chapters SET code = printf('%s-%04d', ?, idx) WHERE ebook_slug = ?",
-            (row["code"], row["slug"]),
-        )
+        # Chapter code là định danh ổn định, không phải số thứ tự hiển thị.
+        # Chỉ gán cho hàng còn thiếu. Nếu code theo idx đã thuộc về một chương
+        # vừa được dịch chuyển, thêm suffix thay vì đổi định danh chương cũ.
+        missing = conn.execute(
+            "SELECT idx FROM chapters WHERE ebook_slug = ? AND code = '' ORDER BY idx",
+            (row["slug"],),
+        ).fetchall()
+        for chapter in missing:
+            code = _unique(chapter_code(row["code"], chapter["idx"]), used_chapters)
+            conn.execute(
+                "UPDATE chapters SET code = ? WHERE ebook_slug = ? AND idx = ?",
+                (code, row["slug"], chapter["idx"]),
+            )
 
 
 def ebook_identity(conn: sqlite3.Connection, slug: str) -> tuple[str, dict[int, str]]:

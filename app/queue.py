@@ -71,7 +71,7 @@ class Job:
     started_at: float | None = None
     ended_at: float | None = None
     error: str = ""
-    log: deque = field(default_factory=lambda: deque(maxlen=500))
+    log: deque[str] = field(default_factory=deque)
     cancel_event: threading.Event = field(default_factory=threading.Event)
     # spec: {"kind": ..., "params": {...JSON-serializable...}} — cho phép tái
     # tạo lại `target` sau khi restart (xem JobQueue.register_kind/load_pending).
@@ -774,7 +774,7 @@ class JobQueue:
         with self._lock:
             if job.id not in self._jobs:
                 return  # job bị delete() trong lúc nó vừa chạy xong — đừng ghi lại
-        data_json = json.dumps(job.to_dict(), ensure_ascii=False)
+        data_json = json.dumps(job.to_dict(with_log=True), ensure_ascii=False)
         conn = get_thread_connection(self._db_path)
         limit = self._history.maxlen or DEFAULT_HISTORY_LIMIT
         try:
@@ -825,7 +825,7 @@ class JobQueue:
                         INSERT INTO job_queue_history (id, data_json, ended_at) VALUES (?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET data_json = excluded.data_json, ended_at = excluded.ended_at
                         """,
-                        (j.id, json.dumps(j.to_dict(), ensure_ascii=False), j.ended_at),
+                        (j.id, json.dumps(j.to_dict(with_log=True), ensure_ascii=False), j.ended_at),
                     )
                 conn.execute(
                     "DELETE FROM job_queue_history WHERE id NOT IN "
@@ -864,5 +864,6 @@ class JobQueue:
             job.started_at = item.get("started_at")
             job.ended_at = item.get("ended_at")
             job.error = item.get("error", "")
+            job.log.extend(item.get("log", []))
             self._history.appendleft(job)
             self._jobs[job.id] = job

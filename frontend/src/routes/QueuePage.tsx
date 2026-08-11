@@ -161,7 +161,7 @@ function JobLogModal({ job, open, onClose }: { job: Job | null; open: boolean; o
   const boxRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight;
-  }, [data?.log]);
+  }, [data?.log, open]);
   return (
     <Modal open={open} onClose={onClose} title={job ? `Nhật ký · ${job.label}` : "Nhật ký"} wide footer={<Button onClick={onClose}>Đóng</Button>}>
       {!job ? <EmptyState title="Chưa có nhật ký" hint="Chọn một việc trong hàng đợi để xem nhật ký." /> : isPending ? <div className="flex justify-center py-12"><Spinner /></div> : (

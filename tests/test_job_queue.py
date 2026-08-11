@@ -587,6 +587,25 @@ def test_delete_removes_job_from_history_table(tmp_path):
     assert job.id not in restored._jobs
 
 
+def test_history_persists_complete_job_log_across_restart(tmp_path):
+    db_path = tmp_path / "novel2epub.db"
+    lines = [f"log line {index}" for index in range(750)]
+
+    def target(log):
+        for line in lines:
+            log(line)
+
+    q = JobQueue(workers={"crawl": 1, "translate": 0, "build": 0}, db_path=db_path)
+    job = q.enqueue("crawl", "crawl", target)
+    assert _wait_until(lambda: job.state == "done")
+    assert _wait_until(lambda: q.job_log(job.id) == lines)
+
+    restored = JobQueue(workers={"crawl": 0, "translate": 0, "build": 0}, db_path=db_path)
+
+    assert restored.job_log(job.id) == lines
+    assert next(item for item in restored.snapshot()["history"] if item["id"] == job.id)["state"] == "done"
+
+
 def test_clear_history_removes_terminal_jobs_from_memory_and_database(tmp_path):
     from novel2epub.db import get_thread_connection
 

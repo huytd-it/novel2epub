@@ -423,38 +423,70 @@ def start_ebook_reorder(
         raise HTTPException(status_code=400, detail="Chưa có manifest.")
 
     current = [chapter.index for chapter in manifest.chapters]
-    if order.strip().lower() == "auto":
+    mode = "auto" if order.strip().lower() == "auto" else "manual"
+    detection_summary: dict[str, object] = {"mode": mode}
+    if mode == "auto":
         from novel2epub.bulk_transfer import split_zh_title_number
 
-        detected: list[tuple[int, int, int]] = []
-        unresolved: list[int] = []
+        # Mỗi chương có số mở đầu một nhóm; các thông báo/ngoại truyện không số
+        # phía sau được giữ cùng nhóm. Sắp xếp nhóm theo số chương sẽ sửa được
+        # đoạn TOC đảo thứ tự mà không đẩy thông báo tác giả xuống cuối sách.
+        leading: list[int] = []
+        groups: list[tuple[int, int, list[int]]] = []
+        current_group: tuple[int, int, list[int]] | None = None
+        translated_detected = 0
+        source_detected = 0
+        unnumbered: list[int] = []
         for position, chapter in enumerate(manifest.chapters):
-            prefix, _ = split_zh_title_number(chapter.title_zh or "")
-            match = re.match(r"^(?:Chương|Quyển|Hồi)\s+(\d+)$", prefix, re.IGNORECASE)
-            if not match:
-                match = re.match(
-                    r"^\s*(?:chương|chapter|ch\.?|hồi)\s*([0-9]+)\b",
-                    chapter.title or "",
-                    re.IGNORECASE,
-                )
+            # Tiêu đề đã dịch là nội dung người dùng đang thấy/chỉnh sửa nên
+            # được ưu tiên. Chỉ fallback sang tiêu đề gốc khi bản dịch không
+            # còn tiền tố số chương.
+            match = re.match(
+                r"^\s*(?:chương|chapter|ch\.?|hồi|quyển)\s*([0-9]+)\b",
+                chapter.title or "",
+                re.IGNORECASE,
+            )
             if match:
-                detected.append((int(match.group(1)), position, chapter.index))
+                translated_detected += 1
             else:
-                unresolved.append(chapter.index)
-        if unresolved:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Không detect được số chương cho index: {', '.join(map(str, unresolved[:20]))}"
-                + ("…" if len(unresolved) > 20 else ""),
-            )
-        numbers = [number for number, _, _ in detected]
-        duplicates = sorted({number for number in numbers if numbers.count(number) > 1})
-        if duplicates:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Số chương bị trùng: {', '.join(map(str, duplicates))}.",
-            )
-        desired = [index for _, _, index in sorted(detected)]
+                prefix, _ = split_zh_title_number(chapter.title_zh or "")
+                match = re.match(r"^(?:Chương|Quyển|Hồi)\s+(\d+)$", prefix, re.IGNORECASE)
+                if match:
+                    source_detected += 1
+            if match:
+                current_group = (int(match.group(1)), position, [chapter.index])
+                groups.append(current_group)
+            elif current_group is None:
+                leading.append(chapter.index)
+                unnumbered.append(chapter.index)
+            else:
+                current_group[2].append(chapter.index)
+                unnumbered.append(chapter.index)
+
+        if not groups:
+            raise HTTPException(status_code=400, detail="Không tìm thấy số chương trong tiêu đề.")
+        # position là tie-breaker ổn định cho chương trùng số (thường là phần
+        # thượng/hạ hoặc bản bổ sung), không tự ý loại bất kỳ chương nào.
+        desired = leading + [
+            index
+            for _, _, indexes in sorted(groups, key=lambda group: (group[0], group[1]))
+            for index in indexes
+        ]
+        numbers = [number for number, _, _ in groups]
+        duplicate_numbers = sorted({number for number in numbers if numbers.count(number) > 1})
+        number_set = set(numbers)
+        gaps = (
+            [number for number in range(min(numbers), max(numbers) + 1) if number not in number_set]
+            if numbers
+            else []
+        )
+        detection_summary.update(
+            translated=translated_detected,
+            source=source_detected,
+            unnumbered=unnumbered,
+            duplicates=duplicate_numbers,
+            gaps=gaps,
+        )
     else:
         try:
             desired = [int(x.strip()) for x in order.split(",") if x.strip()]
@@ -473,8 +505,39 @@ def start_ebook_reorder(
             detail += f" Không tồn tại: {', '.join(map(str, unknown[:20]))}."
         raise HTTPException(status_code=400, detail=detail)
 
+    moved = [
+        (old_position + 1, new_position + 1, index)
+        for old_position, index in enumerate(current)
+        if (new_position := desired.index(index)) != old_position
+    ]
+
     def _target(log):
         from novel2epub.pipeline import step_reorder
+
+        log(f"[reorder] Bắt đầu: mode={mode}, tổng={len(current)}, thay đổi vị trí={len(moved)}.")
+        if mode == "auto":
+            log(
+                "[reorder] Detect tiêu đề: "
+                f"đã dịch={detection_summary.get('translated', 0)}, "
+                f"gốc={detection_summary.get('source', 0)}, "
+                f"không số={len(detection_summary.get('unnumbered', []))}."
+            )
+            duplicates = detection_summary.get("duplicates", [])
+            gaps = detection_summary.get("gaps", [])
+            if duplicates:
+                log(f"[reorder] Cảnh báo số chương trùng: {', '.join(map(str, duplicates))}.")
+            if gaps:
+                shown = list(gaps)[:30]
+                suffix = "…" if len(gaps) > len(shown) else ""
+                log(f"[reorder] Cảnh báo số chương thiếu: {', '.join(map(str, shown))}{suffix}.")
+        for old_position, new_position, index in moved[:30]:
+            chapter = next(chapter for chapter in manifest.chapters if chapter.index == index)
+            log(
+                f"[reorder] #{index}: vị trí {old_position} → {new_position}; "
+                f"{(chapter.title or chapter.title_zh or '(không tiêu đề)')[:100]}"
+            )
+        if len(moved) > 30:
+            log(f"[reorder] … và {len(moved) - 30} thay đổi vị trí khác.")
         step_reorder(cfg, log, desired_order=desired)
 
     job_id = request.app.state.job.start_custom(

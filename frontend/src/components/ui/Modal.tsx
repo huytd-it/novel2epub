@@ -11,6 +11,7 @@ export function Modal({
   children,
   footer,
   wide,
+  fullscreen,
 }: {
   open: boolean;
   onClose: () => void;
@@ -18,6 +19,7 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  fullscreen?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -32,14 +34,22 @@ export function Modal({
 
   return (
     <dialog ref={ref} className="modal" onClose={onClose}>
-      <div className={clsx("modal-box border border-base-300 p-0", wide && "max-w-3xl")}>
+      <div
+        className={clsx(
+          "modal-box border border-base-300 p-0",
+          wide && "max-w-3xl",
+          fullscreen && "flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col sm:h-[calc(100dvh-2rem)] sm:w-[calc(100vw-2rem)]",
+        )}
+      >
         <div className="flex items-center justify-between border-b border-base-300 px-4 py-3">
           <h3 className="font-display text-base font-semibold">{title}</h3>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Đóng">
             ✕
           </Button>
         </div>
-        <div className="scroll-slim max-h-[65vh] overflow-y-auto px-4 py-3">{children}</div>
+        <div className={clsx("scroll-slim overflow-y-auto px-4 py-3", fullscreen ? "min-h-0 flex-1" : "max-h-[65vh]")}>
+          {children}
+        </div>
         {footer ? (
           <div className="flex justify-end gap-2 border-t border-base-300 px-4 py-3">{footer}</div>
         ) : null}

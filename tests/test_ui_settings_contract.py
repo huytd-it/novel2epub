@@ -69,7 +69,8 @@ def test_default_prompts_tra_prompt_moi_theo_ngon_ngu(client):
     from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT, EN_TITLE_PROMPT, TITLE_PROMPT
 
     settings_page = (Path(__file__).parents[1] / "frontend/src/routes/SettingsPage.tsx").read_text(encoding="utf-8")
-    assert "Nạp prompt mới" in settings_page
+    assert "Nạp lại prompt" in settings_page
+    assert "Xem prompt toàn màn hình" in settings_page
     assert "/settings/translate/default-prompts?source_language=" in settings_page
 
     chinese = client.get("/settings/translate/default-prompts")

@@ -688,13 +688,19 @@ export function EbookPage() {
   const { data: book, isPending, error } = useEbook(slug);
   const { data: page, isFetching } = useChapters(slug, filters, offset, PAGE_SIZE);
 
-  const isNonContinuous = useMemo(() => {
-    if (!page?.rows.length) return false;
-    const indices = page.rows.map(r => r.index).sort((a, b) => a - b);
-    for (let i = 0; i < indices.length - 1; i++) {
-        if (indices[i+1] !== indices[i] + 1) return true;
-    }
-    return false;
+  const indexGaps = useMemo(() => {
+    if (!page?.rows.length) return [];
+    const sorted = [...page.rows].sort((a, b) => a.index - b.index);
+    return sorted.flatMap((row, position) => {
+      const next = sorted[position + 1];
+      if (!next || next.index === row.index + 1) return [];
+      return [{
+        from: row.index + 1,
+        to: next.index - 1,
+        before: row,
+        after: next,
+      }];
+    });
   }, [page?.rows]);
 
   // Mở thẳng trang truyện cũng là "đang làm truyện này" — thanh điều hướng
@@ -818,11 +824,41 @@ export function EbookPage() {
         </div>
       ) : null}
 
-      {isNonContinuous ? (
-        <div className="mb-3 flex items-center gap-2 rounded-box border border-error/40 bg-error/10 px-3 py-2 text-[13px]">
-          <Dot tone="vermilion" />
-          Danh sách chương trên trang hiện tại không liên tục.
-        </div>
+      {indexGaps.length > 0 ? (
+        <details className="group mb-3 rounded-box border border-error/40 bg-error/10 text-[13px]">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 marker:content-none">
+            <Dot tone="vermilion" />
+            <span className="font-medium">
+              Thiếu {num(indexGaps.reduce((total, gap) => total + gap.to - gap.from + 1, 0))} index
+              trong {num(indexGaps.length)} khoảng trên trang này
+            </span>
+            <span className="ml-auto text-[11px] opacity-60 group-open:hidden">Xem chi tiết</span>
+            <span className="ml-auto hidden text-[11px] opacity-60 group-open:inline">Thu gọn</span>
+          </summary>
+          <div className="border-t border-error/20 px-3 py-2">
+            <p className="mb-2 text-[11px] opacity-70">
+              Các khoảng dưới đây nằm giữa hai chương đang hiển thị. Mở chương lân cận để kiểm tra
+              tiêu đề và URL nguồn.
+            </p>
+            <ul className="space-y-1.5">
+              {indexGaps.map((gap) => (
+                <li
+                  key={`${gap.from}-${gap.to}`}
+                  className="grid gap-1 rounded-box bg-base-100/60 px-2.5 py-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"
+                >
+                  <span data-numeric className="font-medium text-error">
+                    Thiếu #{gap.from}{gap.to > gap.from ? `–${gap.to}` : ""}
+                  </span>
+                  <span className="min-w-0 text-[11px] opacity-70">
+                    Sau <Link className="font-medium hover:text-primary" to={`/ebooks/${slug}/chapters/${gap.before.index}`}>#{gap.before.index} {gap.before.visible_title}</Link>
+                    {" · trước "}
+                    <Link className="font-medium hover:text-primary" to={`/ebooks/${slug}/chapters/${gap.after.index}`}>#{gap.after.index} {gap.after.visible_title}</Link>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
       ) : null}
 
       <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-5">

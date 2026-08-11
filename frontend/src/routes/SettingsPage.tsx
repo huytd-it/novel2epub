@@ -18,6 +18,7 @@ import { Button, Spinner } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
+import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 
 /* ── Mô tả field dùng chung cho mọi tab ──────────────────────────────── */
@@ -456,6 +457,7 @@ const LOCAL_MT_KEYS = LOCAL_MT_MODELS.map((item) => ({
 function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSettings["translate"]; meta: EbookSettings["meta"] }) {
   const toast = useToast();
   const [loadingPrompts, setLoadingPrompts] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const fields: FieldSpec<EbookSettings["translate"]>[] = [
     {
       key: "type",
@@ -550,27 +552,58 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
       fields={fields}
       server={server}
       renderExtraActions={(draft, setDraft) => (
-        <Button
-          size="sm"
-          loading={loadingPrompts}
-          onClick={async () => {
-            setLoadingPrompts(true);
-            try {
-              const language = encodeURIComponent(String(draft.source_language ?? ""));
-              const prompts = await api.get<Pick<EbookSettings["translate"], "prompt_template" | "title_prompt_template">>(
-                `/settings/translate/default-prompts?source_language=${language}`,
-              );
-              setDraft((current) => ({ ...current, ...prompts }));
-              toast("Đã nạp prompt dịch mới. Bấm Lưu để áp dụng.");
-            } catch (error) {
-              toast(error instanceof Error ? error.message : String(error), "error");
-            } finally {
-              setLoadingPrompts(false);
-            }
-          }}
-        >
-          Nạp prompt mới
-        </Button>
+        <>
+          <Button size="sm" onClick={() => setPreviewOpen(true)}>
+            Xem prompt toàn màn hình
+          </Button>
+          <Button
+            size="sm"
+            loading={loadingPrompts}
+            onClick={async () => {
+              setLoadingPrompts(true);
+              try {
+                const language = encodeURIComponent(String(draft.source_language ?? ""));
+                const prompts = await api.get<Pick<EbookSettings["translate"], "prompt_template" | "title_prompt_template">>(
+                  `/settings/translate/default-prompts?source_language=${language}`,
+                );
+                setDraft((current) => ({ ...current, ...prompts }));
+                toast("Đã nạp lại prompt mặc định. Bấm Lưu để áp dụng.");
+              } catch (error) {
+                toast(error instanceof Error ? error.message : String(error), "error");
+              } finally {
+                setLoadingPrompts(false);
+              }
+            }}
+          >
+            Nạp lại prompt
+          </Button>
+          <Modal
+            open={previewOpen}
+            onClose={() => setPreviewOpen(false)}
+            title="Xem và chỉnh sửa prompt dịch"
+            fullscreen
+            footer={<Button onClick={() => setPreviewOpen(false)}>Đóng</Button>}
+          >
+            <div className="grid min-h-full gap-4 lg:grid-cols-2">
+              <Field label="Prompt dịch chương" hint="Các placeholder trong ngoặc nhọn được pipeline điền khi dịch.">
+                <Textarea
+                  value={String(draft.prompt_template ?? "")}
+                  onChange={(event) => setDraft((current) => ({ ...current, prompt_template: event.target.value }))}
+                  className="min-h-[55vh] resize-y font-mono text-xs leading-5 lg:min-h-full"
+                  spellCheck={false}
+                />
+              </Field>
+              <Field label="Prompt dịch tiêu đề" hint="Prompt dùng riêng khi dịch tên truyện và tiêu đề chương.">
+                <Textarea
+                  value={String(draft.title_prompt_template ?? "")}
+                  onChange={(event) => setDraft((current) => ({ ...current, title_prompt_template: event.target.value }))}
+                  className="min-h-[40vh] resize-y font-mono text-xs leading-5 lg:min-h-full"
+                  spellCheck={false}
+                />
+              </Field>
+            </div>
+          </Modal>
+        </>
       )}
     />
   );

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 
 from novel2epub.pipeline import step_cleanup_han_selected
 from novel2epub.pipeline import step_crawl_selected
@@ -422,32 +422,66 @@ def start_ebook_reorder(
     if manifest is None:
         raise HTTPException(status_code=400, detail="Chưa có manifest.")
 
+    current = [chapter.index for chapter in manifest.chapters]
     if order.strip().lower() == "auto":
-        numbered: list[tuple[int, int]] = []
+        from novel2epub.bulk_transfer import split_zh_title_number
+
+        detected: list[tuple[int, int, int]] = []
+        unresolved: list[int] = []
         for position, chapter in enumerate(manifest.chapters):
-            match = re.search(r"(?:chương|chapter|第)\s*([0-9]+)", chapter.title or chapter.title_zh or "", re.IGNORECASE)
+            prefix, _ = split_zh_title_number(chapter.title_zh or "")
+            match = re.match(r"^(?:Chương|Quyển|Hồi)\s+(\d+)$", prefix, re.IGNORECASE)
+            if not match:
+                match = re.match(
+                    r"^\s*(?:chương|chapter|ch\.?|hồi)\s*([0-9]+)\b",
+                    chapter.title or "",
+                    re.IGNORECASE,
+                )
             if match:
-                numbered.append((int(match.group(1)), position))
-        if len(numbered) != len(manifest.chapters):
-            raise HTTPException(status_code=400, detail="Không thể detect số chương từ toàn bộ tiêu đề.")
-        desired = [manifest.chapters[position].index for _, position in sorted(numbered)]
+                detected.append((int(match.group(1)), position, chapter.index))
+            else:
+                unresolved.append(chapter.index)
+        if unresolved:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Không detect được số chương cho index: {', '.join(map(str, unresolved[:20]))}"
+                + ("…" if len(unresolved) > 20 else ""),
+            )
+        numbers = [number for number, _, _ in detected]
+        duplicates = sorted({number for number in numbers if numbers.count(number) > 1})
+        if duplicates:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Số chương bị trùng: {', '.join(map(str, duplicates))}.",
+            )
+        desired = [index for _, _, index in sorted(detected)]
     else:
         try:
-            desired = [int(x) for x in order.split(",") if x.strip()]
-        except ValueError:
-            raise HTTPException(status_code=400, detail="order phải là dãy số index, cách dấu phẩy")
+            desired = [int(x.strip()) for x in order.split(",") if x.strip()]
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="order phải là dãy số index, cách dấu phẩy") from exc
+
     if not desired:
         raise HTTPException(status_code=400, detail="order rỗng")
+    if len(desired) != len(current) or len(set(desired)) != len(desired) or set(desired) != set(current):
+        missing = sorted(set(current) - set(desired))
+        unknown = sorted(set(desired) - set(current))
+        detail = "Thứ tự phải chứa mỗi index hiện có đúng một lần."
+        if missing:
+            detail += f" Thiếu: {', '.join(map(str, missing[:20]))}."
+        if unknown:
+            detail += f" Không tồn tại: {', '.join(map(str, unknown[:20]))}."
+        raise HTTPException(status_code=400, detail=detail)
 
     def _target(log):
         from novel2epub.pipeline import step_reorder
         step_reorder(cfg, log, desired_order=desired)
 
-    request.app.state.job.start_custom(
+    job_id = request.app.state.job.start_custom(
         "reorder", _target, category="both", ebook=slug,
         label=job_label("reorder", title=cfg.novel.title, slug=slug),
     )
-    return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
+    return JSONResponse({"started": 1, "job_id": str(job_id or "")})
 
 
 @router.post("/ebooks/{slug}/jobs/{category}/cancel")

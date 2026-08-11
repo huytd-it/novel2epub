@@ -122,6 +122,55 @@ def test_insert_chapter_rejects_duplicate_url_without_changes(tmp_path):
     assert storage.load_manifest().to_json() == before
 
 
+def test_reorder_chapters_preserves_complete_rows(tmp_path):
+    storage = _storage(tmp_path)
+    chapters = [
+        Chapter(1, "https://x/1", "Chương 1", "第一章"),
+        Chapter(2, "https://x/2", "Chương 2", "第二章"),
+        Chapter(3, "https://x/3", "Chương 3", "第三章"),
+    ]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    for chapter in chapters:
+        storage.write_raw(chapter, f"RAW {chapter.url}")
+        storage.write_translated(chapter, f"VI {chapter.url}")
+        storage.write_translated_mt(chapter, f"MT {chapter.url}")
+        storage.write_meta(chapter, {"source": chapter.url})
+
+    result = storage.reorder_chapters([3, 1, 2])
+
+    assert [(chapter.index, chapter.url) for chapter in result.chapters] == [
+        (1, "https://x/3"),
+        (2, "https://x/1"),
+        (3, "https://x/2"),
+    ]
+    for chapter in result.chapters:
+        assert storage.read_raw(chapter) == f"RAW {chapter.url}"
+        assert storage.read_translated(chapter) == f"VI {chapter.url}"
+        assert storage.read_translated_mt(chapter) == f"MT {chapter.url}"
+        assert storage.read_meta(chapter) == {"source": chapter.url}
+
+
+@pytest.mark.parametrize(
+    "order, message",
+    [
+        ([1, 2], "đủ toàn bộ"),
+        ([1, 2, 2], "bị trùng"),
+        ([1, 2, 99], "không tồn tại"),
+    ],
+)
+def test_reorder_chapters_rejects_invalid_permutation(tmp_path, order, message):
+    storage = _storage(tmp_path)
+    storage.save_manifest(
+        Manifest(slug="t", chapters=[Chapter(i, f"https://x/{i}", str(i)) for i in range(1, 4)])
+    )
+    before = storage.load_manifest().to_json()
+
+    with pytest.raises(ValueError, match=message):
+        storage.reorder_chapters(order)
+
+    assert storage.load_manifest().to_json() == before
+
+
 # --- Route tests for POST /ebooks/{slug}/chapters/manual ---
 
 

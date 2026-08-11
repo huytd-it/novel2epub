@@ -401,6 +401,94 @@ class Storage:
             from .codes import backfill_codes
             backfill_codes(self.conn)
 
+    def reorder_chapters(self, desired_order: list[int]) -> Manifest:
+        """Đổi thứ tự chương nguyên tử, giữ toàn bộ nội dung gắn với chương.
+
+        ``idx`` hiện vừa là vị trí vừa là khóa lưu trữ, vì vậy không được đổi
+        index qua ``save_manifest``. Dùng namespace index âm trong cùng một
+        transaction để tránh va chạm khóa khi hoán vị, đồng thời remap các bảng
+        phụ đang tham chiếu index chương.
+        """
+        manifest = self.load_manifest()
+        if manifest is None:
+            raise ValueError("Chưa có manifest.")
+        current = [chapter.index for chapter in manifest.chapters]
+        if len(desired_order) != len(current):
+            raise ValueError("Thứ tự mới phải chứa đủ toàn bộ chương.")
+        if len(set(desired_order)) != len(desired_order):
+            raise ValueError("Thứ tự mới chứa index bị trùng.")
+        if set(desired_order) != set(current):
+            missing = sorted(set(current) - set(desired_order))
+            unknown = sorted(set(desired_order) - set(current))
+            details = []
+            if missing:
+                details.append(f"thiếu {missing}")
+            if unknown:
+                details.append(f"không tồn tại {unknown}")
+            raise ValueError("Thứ tự mới không hợp lệ: " + ", ".join(details) + ".")
+
+        mapping = {old: new for new, old in enumerate(desired_order, 1)}
+        if all(old == new for old, new in mapping.items()):
+            return manifest
+
+        dependent_columns = (
+            ("ai_revisions", "idx"),
+            ("preview_tokens", "idx"),
+            ("chapter_revisions", "chapter_index"),
+        )
+        with self.conn:
+            # Đưa mọi khóa sang số âm trước để các phép hoán vị không đè nhau.
+            for old in current:
+                self.conn.execute(
+                    "UPDATE chapters SET idx = ? WHERE ebook_slug = ? AND idx = ?",
+                    (-old, self.slug, old),
+                )
+            for table, column in dependent_columns:
+                exists = self.conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+                ).fetchone()
+                if exists:
+                    self.conn.execute(
+                        f"UPDATE {table} SET {column} = -{column} WHERE ebook_slug = ?",
+                        (self.slug,),
+                    )
+            self.conn.execute(
+                "UPDATE chapters SET duplicate_of = -duplicate_of "
+                "WHERE ebook_slug = ? AND duplicate_of IS NOT NULL",
+                (self.slug,),
+            )
+
+            for old, new in mapping.items():
+                self.conn.execute(
+                    "UPDATE chapters SET idx = ? WHERE ebook_slug = ? AND idx = ?",
+                    (new, self.slug, -old),
+                )
+                for table, column in dependent_columns:
+                    exists = self.conn.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+                    ).fetchone()
+                    if exists:
+                        self.conn.execute(
+                            f"UPDATE {table} SET {column} = ? WHERE ebook_slug = ? AND {column} = ?",
+                            (new, self.slug, -old),
+                        )
+                self.conn.execute(
+                    "UPDATE chapters SET duplicate_of = ? "
+                    "WHERE ebook_slug = ? AND duplicate_of = ?",
+                    (new, self.slug, -old),
+                )
+
+            # Bản build cũ không còn khớp thứ tự mục lục.
+            self.conn.execute(
+                "UPDATE build_artifacts SET status='stale' WHERE ebook_slug = ?",
+                (self.slug,),
+            )
+
+        result = self.load_manifest()
+        if result is None:  # pragma: no cover - transaction đã giữ ebook tồn tại
+            raise RuntimeError("Không thể nạp manifest sau khi sắp xếp.")
+        return result
+
     def insert_chapter(self, ch: Chapter) -> None:
         with self.conn:
             ebook = self.conn.execute(

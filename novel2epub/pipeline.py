@@ -2511,39 +2511,18 @@ def step_reorder(cfg: Config, log: LogFn = _print, *, desired_order: list[int], 
     if manifest is None:
         raise RuntimeError("Chưa có manifest.")
 
-    by_index = {ch.index: ch for ch in manifest.chapters}
-
-    reordered = []
-    seen = set()
-    for idx in desired_order:
-        ch = by_index.get(idx)
-        if ch is None:
-            log(f"[reorder] Bỏ qua index {idx} không tồn tại trong manifest.")
-            continue
-        if ch.index in seen:
-            continue
-        reordered.append(ch)
-        seen.add(ch.index)
-
-    for ch in manifest.chapters:
-        if ch.index not in seen:
-            reordered.append(ch)
-
-    if len(reordered) != len(manifest.chapters):
-        log(f"[reorder] Cảnh báo: số chương thay đổi ({len(reordered)} vs {len(manifest.chapters)}).")
-
-    old_indexes = [ch.index for ch in reordered]
-    for i, ch in enumerate(reordered, 1):
-        ch.index = i
-        if i % 100 == 0:
-            log(f"[reorder] Đã cập nhật {i}/{len(reordered)} chương...")
-
-    from .toc import mark_duplicate_chapters
-
-    manifest.chapters = mark_duplicate_chapters(reordered)
-    storage.save_manifest(manifest)
-    log(f"[reorder] Hoàn tất. Đã sắp xếp {len(reordered)} chương, index {old_indexes[0]}..{old_indexes[-1]} → 1..{len(reordered)}.")
-    return manifest
+    current = [chapter.index for chapter in manifest.chapters]
+    if should_cancel and should_cancel():
+        raise RuntimeError("Đã hủy sắp xếp chương.")
+    try:
+        result = storage.reorder_chapters(desired_order)
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
+    log(
+        f"[reorder] Hoàn tất. Đã sắp xếp {len(result.chapters)} chương "
+        f"theo thứ tự {current[0]}..{current[-1]} → 1..{len(result.chapters)}."
+    )
+    return result
 
 
 def step_build(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> str:

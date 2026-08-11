@@ -820,7 +820,7 @@ export function EbookPage() {
 
       {isNonContinuous ? (
         <div className="mb-3 flex items-center gap-2 rounded-box border border-error/40 bg-error/10 px-3 py-2 text-[13px]">
-          <Dot tone="red" />
+          <Dot tone="vermilion" />
           Danh sách chương trên trang hiện tại không liên tục.
         </div>
       ) : null}

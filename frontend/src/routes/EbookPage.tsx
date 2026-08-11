@@ -39,6 +39,7 @@ import {
 
 const PAGE_SIZE = 100;
 const FILTERS_KEY = (slug: string) => `ebooks.${slug}.chapterFilters`;
+const PAGE_KEY = (slug: string) => `ebooks.${slug}.chapterPage`;
 
 /** Nạp bộ lọc + sắp xếp đã lưu cho truyện, hợp nhất với mặc định để khỏi vỡ schema. */
 function loadFilters(slug: string): ChapterFilters {
@@ -57,6 +58,16 @@ function loadFilters(slug: string): ChapterFilters {
     // Mất localStorage là không đáng kể — dùng mặc định.
   }
   return DEFAULT_FILTERS;
+}
+
+/** Nạp trang đã lưu cho truyện. */
+function loadPage(slug: string): number {
+  try {
+    const raw = window.localStorage.getItem(PAGE_KEY(slug));
+    return raw ? parseInt(raw, 10) : 0;
+  } catch {
+    return 0;
+  }
 }
 
 /* ── Thanh chạy pipeline ─────────────────────────────────────────────── */
@@ -245,6 +256,7 @@ const OTHER_ACTIONS: BatchAction[] = [
   { key: "characters", label: "Trích nhân vật", path: "batch/extract-characters" },
   { key: "skip", label: "Bỏ qua chương", path: "batch/update-skip", form: { skip: "true" } },
   { key: "unskip", label: "Hiện lại chương", path: "batch/update-skip", form: { skip: "false" } },
+  { key: "reorder", label: "Sắp xếp lại", path: "batch/reorder" },
   {
     key: "delete-translation",
     label: "Xóa bản dịch",
@@ -296,6 +308,8 @@ function BatchBar({
 }) {
   const toast = useToast();
   const [pending, setPending] = useState<BatchAction | null>(null);
+  const [reorderMode, setReorderMode] = useState<"detect" | "manual" | null>(null);
+  const [manualIndexes, setManualIndexes] = useState("");
   const [tocPreview, setTocPreview] = useState<TocPreview | null>(null);
   const [includeTranslatedTitle, setIncludeTranslatedTitle] = useState(false);
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
@@ -344,8 +358,32 @@ function BatchBar({
   });
 
   const trigger = (action: BatchAction) => {
+    if (action.key === "reorder") {
+      setReorderMode("detect");
+      return;
+    }
     if (action.confirm) setPending(action);
     else run.mutate(action);
+  };
+
+  const runReorder = () => {
+    const indexes = manualIndexes
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map(Number);
+    if (reorderMode === "manual" && (indexes.length === 0 || indexes.some((index) => !Number.isInteger(index)))) {
+      toast("Index phải là các số nguyên, ngăn cách bằng dấu phẩy.", "error");
+      return;
+    }
+    run.mutate({
+      key: "reorder",
+      label: "Sắp xếp lại",
+      path: "jobs/reorder",
+      form: reorderMode === "manual" ? { order: indexes.join(",") } : { order: "auto" },
+    });
+    setReorderMode(null);
+    setManualIndexes("");
   };
 
   const applyTocAction: BatchAction = {
@@ -471,6 +509,36 @@ function BatchBar({
         }
         confirmLabel="Xếp vào hàng đợi"
         onDone={onDone}
+      />
+
+      <ConfirmDialog
+        open={reorderMode !== null}
+        onCancel={() => {
+          setReorderMode(null);
+          setManualIndexes("");
+        }}
+        onConfirm={runReorder}
+        title="Sắp xếp lại danh sách chương"
+        body={
+          <div className="space-y-3">
+            <p>Sắp xếp toàn bộ danh sách chương theo thứ tự mới.</p>
+            <div className="flex gap-2">
+              <Button size="sm" variant={reorderMode === "detect" ? "primary" : "ghost"} onClick={() => setReorderMode("detect")}>Detect tên chương</Button>
+              <Button size="sm" variant={reorderMode === "manual" ? "primary" : "ghost"} onClick={() => setReorderMode("manual")}>Nhập index thủ công</Button>
+            </div>
+            {reorderMode === "manual" ? (
+              <InputWithIcon
+                icon={<span className="text-xs opacity-50">#</span>}
+                value={manualIndexes}
+                onChange={(event) => setManualIndexes(event.target.value)}
+                placeholder="Ví dụ: 3, 1, 2, 4"
+                aria-label="Thứ tự index chương"
+              />
+            ) : null}
+          </div>
+        }
+        confirmLabel="Sắp xếp"
+        pending={run.isPending}
       />
 
       <ConfirmDialog
@@ -613,12 +681,21 @@ export function EbookPage() {
   const client = useQueryClient();
   const [, selectBook] = useCurrentBook();
   const [filters, setFilters] = useState<ChapterFilters>(() => loadFilters(slug));
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useState(() => loadPage(slug));
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [lastToggled, setLastToggled] = useState<number | null>(null);
 
   const { data: book, isPending, error } = useEbook(slug);
   const { data: page, isFetching } = useChapters(slug, filters, offset, PAGE_SIZE);
+
+  const isNonContinuous = useMemo(() => {
+    if (!page?.rows.length) return false;
+    const indices = page.rows.map(r => r.index).sort((a, b) => a - b);
+    for (let i = 0; i < indices.length - 1; i++) {
+        if (indices[i+1] !== indices[i] + 1) return true;
+    }
+    return false;
+  }, [page?.rows]);
 
   // Mở thẳng trang truyện cũng là "đang làm truyện này" — thanh điều hướng
   // phải theo, nếu không người dùng thấy hai truyện khác nhau trên cùng màn.
@@ -632,14 +709,15 @@ export function EbookPage() {
     setLastToggled(null);
   }, [filters]);
 
-  // Giữ bộ lọc + sắp xếp qua các lần vào lại trang truyện này.
+  // Giữ bộ lọc + sắp xếp + trang qua các lần vào lại trang truyện này.
   useEffect(() => {
     try {
       window.localStorage.setItem(FILTERS_KEY(slug), JSON.stringify(filters));
+      window.localStorage.setItem(PAGE_KEY(slug), String(offset));
     } catch {
       // Quota đầy hoặc ẩn danh — bỏ qua, chỉ mất lần lưu này.
     }
-  }, [slug, filters]);
+  }, [slug, filters, offset]);
 
   const states = useMemo(() => decodeStrip(book?.strip ?? ""), [book?.strip]);
   const counts = useMemo(() => stripCounts(book?.counts ?? {}), [book?.counts]);
@@ -737,6 +815,13 @@ export function EbookPage() {
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-box border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]">
           <Dot tone="gold" pulse />
           Đang chạy: {book.active_jobs.map((j) => j.label).join(", ")}
+        </div>
+      ) : null}
+
+      {isNonContinuous ? (
+        <div className="mb-3 flex items-center gap-2 rounded-box border border-error/40 bg-error/10 px-3 py-2 text-[13px]">
+          <Dot tone="red" />
+          Danh sách chương trên trang hiện tại không liên tục.
         </div>
       ) : null}
 

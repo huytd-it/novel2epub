@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, memo } from "react";
 import type { ReactNode } from "react";
 import clsx from "clsx";
 
@@ -414,7 +414,7 @@ export function ChapterListDrawer({
 
 /* ── Panel tìm/thay toàn sách ─────────────────────────────────────────── */
 
-function FindReplacePanel({
+const FindReplacePanel = memo(function FindReplacePanel({
   find,
   activeFindQuery,
   onFindChange,
@@ -578,11 +578,11 @@ function FindReplacePanel({
       ) : null}
     </div>
   );
-}
+});
 
 /* ── Danh sách chương có khớp ─────────────────────────────────────────── */
 
-function ChapterHitList({
+const ChapterHitList = memo(function ChapterHitList({
   hits,
   previewState,
   onPreviewChapter,
@@ -678,7 +678,7 @@ function ChapterHitList({
       })}
     </ul>
   );
-}
+});
 
 /* ── Preview thay thế một chương (before/after kiểu VS Code) ─────────── */
 

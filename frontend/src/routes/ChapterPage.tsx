@@ -1492,14 +1492,23 @@ function ChapterTitle({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!editing) setDraft(title);
   }, [title, editing]);
 
+  useLayoutEffect(() => {
+    if (!editing || !editorRef.current) return;
+    const editor = editorRef.current;
+    editor.style.height = "0px";
+    editor.style.height = `${editor.scrollHeight}px`;
+  }, [draft, editing]);
+
   if (editMode && editing) {
     return (
-      <input
+      <textarea
+        ref={editorRef}
         autoFocus
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -1509,13 +1518,15 @@ function ChapterTitle({
           if (value && value !== title) onSave(value);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) e.currentTarget.blur();
           if (e.key === "Escape") {
             setDraft(title);
             setEditing(false);
+            e.preventDefault();
           }
         }}
-        className="mb-5 w-full rounded-field border border-dashed border-base-300 bg-transparent px-2 py-1 text-center font-display text-2xl outline-none focus:border-solid focus:border-primary"
+        className="textarea textarea-ghost mb-5 min-h-0 w-full resize-none overflow-hidden rounded-field border border-dashed border-base-300 bg-transparent px-2 py-1 text-center font-display text-2xl leading-tight outline-none focus:border-solid focus:border-primary"
+        aria-label="Sửa tiêu đề chương"
       />
     );
   }
@@ -1523,7 +1534,7 @@ function ChapterTitle({
   return (
     <h1
       className={clsx(
-        "mb-5 text-center font-display text-2xl leading-tight",
+        "mb-5 whitespace-pre-wrap text-center font-display text-2xl leading-tight",
         editMode && "cursor-text rounded-field outline-dashed outline-1 outline-base-300",
       )}
       onClick={() => editMode && setEditing(true)}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
@@ -206,6 +206,7 @@ interface TocTitleChange {
   new: string;
   old_zh: string;
   new_zh: string;
+  changed_fields: ("title" | "title_zh")[];
 }
 
 interface TocPreview {
@@ -214,9 +215,32 @@ interface TocPreview {
   changes: TocTitleChange[];
 }
 
+function TocTitleDiff({ label, before, after }: { label: string; before: string; after: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold tracking-[0.08em] uppercase opacity-45">{label}</p>
+      <p className="break-words text-[12px] line-through opacity-50">{before || "(trống)"}</p>
+      <p className="mt-0.5 break-words text-[13px] font-medium text-success">
+        {after || "(trống)"}
+      </p>
+    </div>
+  );
+}
+
 /** Nhóm "Khác" — ít dùng, gom vào menu để thanh hành động không dài ra. */
 const OTHER_ACTIONS: BatchAction[] = [
-  { key: "titles", label: "Dịch tiêu đề", path: "batch/translate-titles" },
+  {
+    key: "titles-smart",
+    label: "Dịch thông minh",
+    path: "batch/translate-titles",
+    form: { mode: "smart" },
+  },
+  {
+    key: "titles-fast",
+    label: "Dịch nhanh",
+    path: "batch/translate-titles",
+    form: { mode: "fast" },
+  },
   { key: "glossary", label: "Gợi ý glossary", path: "batch/suggest-glossary" },
   { key: "characters", label: "Trích nhân vật", path: "batch/extract-characters" },
   { key: "skip", label: "Bỏ qua chương", path: "batch/update-skip", form: { skip: "true" } },
@@ -273,6 +297,7 @@ function BatchBar({
   const toast = useToast();
   const [pending, setPending] = useState<BatchAction | null>(null);
   const [tocPreview, setTocPreview] = useState<TocPreview | null>(null);
+  const [includeTranslatedTitle, setIncludeTranslatedTitle] = useState(false);
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
   const aiEditDraft = useAiEditDraft(slug);
 
@@ -301,7 +326,11 @@ function BatchBar({
   const previewToc = useMutation({
     mutationFn: () =>
       api.post<TocPreview>(`/api/ebooks/${slug}/${NORMALIZE_TOC_ACTION.path}`, {
-        form: { indexes: selected.join(","), apply: "false" },
+        form: {
+          indexes: selected.join(","),
+          apply: "false",
+          include_translated: String(includeTranslatedTitle),
+        },
       }),
     onSuccess: (preview) => {
       if (preview.changed === 0) {
@@ -317,6 +346,14 @@ function BatchBar({
   const trigger = (action: BatchAction) => {
     if (action.confirm) setPending(action);
     else run.mutate(action);
+  };
+
+  const applyTocAction: BatchAction = {
+    ...NORMALIZE_TOC_ACTION,
+    form: {
+      apply: "true",
+      include_translated: String(includeTranslatedTitle),
+    },
   };
 
   const branchLabel = translateAction === "local-mt" ? "Local MT" : "AI";
@@ -376,14 +413,23 @@ function BatchBar({
 
           <div className="h-8 w-px bg-base-300" aria-hidden="true" />
 
-          <Button
-            size="sm"
-            loading={previewToc.isPending}
-            disabled={run.isPending || previewToc.isPending}
-            onClick={() => previewToc.mutate()}
-          >
-            Chuẩn hóa TOC
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              loading={previewToc.isPending}
+              disabled={run.isPending || previewToc.isPending}
+              onClick={() => previewToc.mutate()}
+            >
+              Chuẩn hóa TOC
+            </Button>
+            <label className="flex cursor-pointer items-center gap-1.5 text-[11px] opacity-70">
+              <Checkbox
+                checked={includeTranslatedTitle}
+                onChange={(event) => setIncludeTranslatedTitle(event.target.checked)}
+              />
+              Tiêu đề đã dịch
+            </label>
+          </div>
 
           <div className="ml-auto dropdown dropdown-top dropdown-end">
             <div tabIndex={0} role="button" className="btn btn-sm gap-1.5">
@@ -433,7 +479,7 @@ function BatchBar({
           setPending(null);
           setTocPreview(null);
         }}
-        onConfirm={() => pending && run.mutate(pending)}
+        onConfirm={() => pending && run.mutate(pending.key === "clean-toc" ? applyTocAction : pending)}
         title={pending?.label ?? ""}
         body={
           pending?.key === "clean-toc" && tocPreview ? (
@@ -447,24 +493,21 @@ function BatchBar({
                   Xem trước {Math.min(6, tocPreview.changes.length)} thay đổi
                 </p>
                 <ol className="scroll-slim max-h-72 space-y-2 overflow-y-auto rounded-box border border-base-300 bg-base-200/40 p-3">
-                  {tocPreview.changes.slice(0, 6).map((change) => {
-                    const sourceChanged = change.old_zh !== change.new_zh;
-                    const before = sourceChanged ? change.old_zh : change.old;
-                    const after = sourceChanged ? change.new_zh : change.new;
-                    return (
-                      <li key={change.index} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2">
-                        <span data-numeric className="pt-0.5 text-right text-[11px] opacity-40">
-                          {change.index}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="break-words text-[12px] line-through opacity-50">{before || "(trống)"}</p>
-                          <p className="mt-0.5 break-words text-[13px] font-medium text-success">
-                            {after || "(trống)"}
-                          </p>
-                        </div>
-                      </li>
-                    );
-                  })}
+                  {tocPreview.changes.slice(0, 6).map((change) => (
+                    <li key={change.index} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2">
+                      <span data-numeric className="pt-0.5 text-right text-[11px] opacity-40">
+                        {change.index}
+                      </span>
+                      <div className="min-w-0 space-y-2">
+                        {change.changed_fields.includes("title_zh") ? (
+                          <TocTitleDiff label="Gốc" before={change.old_zh} after={change.new_zh} />
+                        ) : null}
+                        {change.changed_fields.includes("title") ? (
+                          <TocTitleDiff label="Đã dịch" before={change.old} after={change.new} />
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
                 </ol>
                 {tocPreview.changed > 6 ? (
                   <p className="mt-1.5 text-[11px] opacity-50">
@@ -494,21 +537,31 @@ function ChapterTableRow({
   slug,
   row,
   checked,
-  onToggle,
+  onSelect,
 }: {
   slug: string;
   row: ChapterRow;
   checked: boolean;
-  onToggle: (index: number, shift: boolean) => void;
+  onSelect: (index: number, event: ReactMouseEvent, source: "row" | "checkbox") => void;
 }) {
   return (
-    <tr className={clsx("border-b border-base-300 last:border-b-0", checked && "bg-warning/5")}>
+    <tr
+      className={clsx(
+        "cursor-default border-b border-base-300 transition-colors last:border-b-0 hover:bg-base-200/45",
+        checked && "bg-warning/5 hover:bg-warning/10",
+      )}
+      aria-selected={checked}
+      onClick={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest("a, button, input, label, select, textarea")) return;
+        onSelect(row.index, event, "row");
+      }}
+    >
       <td className="w-9 px-2 py-1">
         <Checkbox
           checked={checked}
-          onChange={(e) =>
-            onToggle(row.index, (e.nativeEvent as MouseEvent).shiftKey === true)
-          }
+          onClick={(event) => onSelect(row.index, event, "checkbox")}
+          onChange={() => undefined}
           aria-label={`Chọn chương ${row.index}`}
         />
       </td>
@@ -576,6 +629,7 @@ export function EbookPage() {
   useEffect(() => {
     setOffset(0);
     setSelected(new Set());
+    setLastToggled(null);
   }, [filters]);
 
   // Giữ bộ lọc + sắp xếp qua các lần vào lại trang truyện này.
@@ -591,26 +645,25 @@ export function EbookPage() {
   const counts = useMemo(() => stripCounts(book?.counts ?? {}), [book?.counts]);
   const rows = page?.rows ?? [];
 
-  const toggle = (index: number, shift: boolean) => {
+  const selectRow = (
+    index: number,
+    event: ReactMouseEvent,
+    source: "row" | "checkbox",
+  ) => {
     setSelected((prev) => {
-      const next = new Set(prev);
-      // Shift-click chọn cả dải giữa hai lần bấm — thao tác bắt buộc khi phải
-      // gom vài trăm chương liền nhau.
-      if (shift && lastToggled !== null) {
-        const visible = rows.map((r) => r.index);
+      const additive = event.ctrlKey || event.metaKey || source === "checkbox";
+      const next = additive ? new Set(prev) : new Set<number>();
+      if (event.shiftKey && lastToggled !== null) {
+        const visible = rows.map((row) => row.index);
         const from = visible.indexOf(lastToggled);
         const to = visible.indexOf(index);
         if (from !== -1 && to !== -1) {
           const [lo, hi] = from < to ? [from, to] : [to, from];
-          const turnOn = !prev.has(index);
-          for (let i = lo; i <= hi; i++) {
-            if (turnOn) next.add(visible[i]);
-            else next.delete(visible[i]);
-          }
+          for (let i = lo; i <= hi; i++) next.add(visible[i]);
           return next;
         }
       }
-      if (next.has(index)) next.delete(index);
+      if (additive && prev.has(index)) next.delete(index);
       else next.add(index);
       return next;
     });
@@ -623,6 +676,7 @@ export function EbookPage() {
     client.invalidateQueries({ queryKey: ["chapters", slug] });
     client.invalidateQueries({ queryKey: queueKey });
     setSelected(new Set());
+    setLastToggled(null);
   };
 
   if (isPending) {
@@ -795,7 +849,7 @@ export function EbookPage() {
                     slug={slug}
                     row={row}
                     checked={selected.has(row.index)}
-                    onToggle={toggle}
+                    onSelect={selectRow}
                   />
                 ))}
               </tbody>
@@ -813,14 +867,20 @@ export function EbookPage() {
               <Button
                 size="sm"
                 disabled={offset === 0}
-                onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+                onClick={() => {
+                  setOffset(Math.max(0, offset - PAGE_SIZE));
+                  setLastToggled(null);
+                }}
               >
                 Trước
               </Button>
               <Button
                 size="sm"
                 disabled={offset + PAGE_SIZE >= page.matched}
-                onClick={() => setOffset(offset + PAGE_SIZE)}
+                onClick={() => {
+                  setOffset(offset + PAGE_SIZE);
+                  setLastToggled(null);
+                }}
               >
                 Sau
               </Button>
@@ -830,7 +890,7 @@ export function EbookPage() {
       </Panel>
 
       <p className="mt-3 text-xs opacity-50">
-        Giữ Shift khi bấm ô chọn để chọn cả dải chương.{" "}
+        Click vùng trống để chọn một dòng; giữ Ctrl/Cmd để thêm hoặc bỏ từng dòng, Shift để chọn cả dải.{" "}
         <a
           href={apiUrl(`/ebooks/${slug}/toc.csv`)}
           className="inline-flex items-center gap-1 hover:text-primary"
@@ -845,7 +905,11 @@ export function EbookPage() {
           slug={slug}
           selected={[...selected]}
           onDone={refresh}
-          onClear={() => setSelected(new Set())}
+           onClear={() => {
+             setSelected(new Set());
+             setLastToggled(null);
+           }}
+
         />
       ) : null}
     </Page>

@@ -298,6 +298,7 @@ function SectionForm<S extends SettingsSection>({
   server,
   banner,
   extraActions,
+  renderExtraActions,
 }: {
   slug: string;
   section: S;
@@ -307,6 +308,7 @@ function SectionForm<S extends SettingsSection>({
   server: EbookSettings[S];
   banner?: React.ReactNode;
   extraActions?: React.ReactNode;
+  renderExtraActions?: (draft: EbookSettings[S], setDraft: React.Dispatch<React.SetStateAction<EbookSettings[S]>>) => React.ReactNode;
 }) {
   const toast = useToast();
   const [draft, setDraft] = useState<EbookSettings[S]>(server);
@@ -336,6 +338,7 @@ function SectionForm<S extends SettingsSection>({
         actions={
           <>
             {extraActions}
+            {renderExtraActions?.(draft, setDraft)}
             {dirty ? (
               <Button size="sm" onClick={() => setDraft(server)}>
                 Hủy thay đổi
@@ -451,6 +454,8 @@ const LOCAL_MT_KEYS = LOCAL_MT_MODELS.map((item) => ({
 }));
 
 function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSettings["translate"]; meta: EbookSettings["meta"] }) {
+  const toast = useToast();
+  const [loadingPrompts, setLoadingPrompts] = useState(false);
   const fields: FieldSpec<EbookSettings["translate"]>[] = [
     {
       key: "type",
@@ -544,6 +549,29 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
       hint="Engine, văn phong, glossary và giới hạn prompt; provider/model được quản lý ở Global AI và Model override"
       fields={fields}
       server={server}
+      renderExtraActions={(draft, setDraft) => (
+        <Button
+          size="sm"
+          loading={loadingPrompts}
+          onClick={async () => {
+            setLoadingPrompts(true);
+            try {
+              const language = encodeURIComponent(String(draft.source_language ?? ""));
+              const prompts = await api.get<Pick<EbookSettings["translate"], "prompt_template" | "title_prompt_template">>(
+                `/settings/translate/default-prompts?source_language=${language}`,
+              );
+              setDraft((current) => ({ ...current, ...prompts }));
+              toast("Đã nạp prompt dịch mới. Bấm Lưu để áp dụng.");
+            } catch (error) {
+              toast(error instanceof Error ? error.message : String(error), "error");
+            } finally {
+              setLoadingPrompts(false);
+            }
+          }}
+        >
+          Nạp prompt mới
+        </Button>
+      )}
     />
   );
 }

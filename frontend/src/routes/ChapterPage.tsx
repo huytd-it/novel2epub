@@ -321,11 +321,13 @@ function EditableCompareView({
   slug,
   index,
   data,
+  fontFamily,
   onError,
 }: {
   slug: string;
   index: number;
   data: ChapterCompare;
+  fontFamily: "serif" | "sans" | "mono";
   onError: (err: unknown) => void;
 }) {
   const rows = data.paragraphs;
@@ -403,9 +405,11 @@ function EditableCompareView({
   };
 
   const pending = edit.isPending;
+  const fontClass =
+    fontFamily === "serif" ? "font-read" : fontFamily === "mono" ? "font-mono" : "font-sans";
 
   return (
-    <div className="scroll-slim overflow-x-auto">
+    <div className={clsx("scroll-slim overflow-x-auto", fontClass)}>
       <table className="w-full min-w-[60rem] border-collapse">
         <thead>
           <tr className="border-b border-base-300 bg-base-200/60 text-left">
@@ -435,8 +439,9 @@ function EditableCompareView({
                     <CompareCellEditor
                       autoFocus
                       defaultValue={row.raw}
-                      disabled={pending}
-                      onCommit={(v) => commit(i, "raw", v)}
+                       disabled={pending}
+                       fontFamily={fontFamily}
+                       onCommit={(v) => commit(i, "raw", v)}
                       onCancel={() => finishEdit(i)}
                     />
                   ) : (
@@ -463,14 +468,30 @@ function EditableCompareView({
                   )}
                 </td>
                 <td className="w-1/3 px-2 py-2 align-top">
-                  <CompareCellEditor
-                    key={row.edited}
-                    defaultValue={row.edited}
-                    disabled={pending}
-                    changed={changed}
-                    onCommit={(v) => commit(i, "translated", v)}
-                    onCancel={() => finishEdit(i)}
-                  />
+                  {editingCol === "translated" ? (
+                    <CompareCellEditor
+                      autoFocus
+                      defaultValue={row.edited}
+                      disabled={pending}
+                      changed={changed}
+                      fontFamily={fontFamily}
+                      onCommit={(v) => commit(i, "translated", v)}
+                      onCancel={() => finishEdit(i)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className={clsx(
+                        "block w-full cursor-text rounded-field px-1 text-left hover:bg-base-200",
+                        changed && "bg-success/5",
+                      )}
+                      onClick={() => setEditing((p) => ({ ...p, [i]: "translated" }))}
+                      disabled={pending}
+                      title="Sửa bản hiện tại"
+                    >
+                      {row.edited}
+                    </button>
+                  )}
                 </td>
                 <td className="w-10 px-2 py-2">
                   <button
@@ -504,6 +525,7 @@ function CompareCellEditor({
   autoFocus,
   disabled,
   changed,
+  fontFamily,
 }: {
   defaultValue: string;
   onCommit: (value: string) => void;
@@ -511,6 +533,7 @@ function CompareCellEditor({
   autoFocus?: boolean;
   disabled?: boolean;
   changed?: boolean;
+  fontFamily: "serif" | "sans" | "mono";
 }) {
   const [value, setValue] = useState(defaultValue);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -547,7 +570,10 @@ function CompareCellEditor({
         }
       }}
       className={clsx(
-        "textarea textarea-bordered textarea-sm w-full resize-none overflow-hidden font-read text-[13px]",
+        "textarea textarea-bordered textarea-sm w-full resize-none overflow-hidden text-[13px]",
+        fontFamily === "serif" && "font-read",
+        fontFamily === "mono" && "font-mono",
+        fontFamily === "sans" && "font-sans",
         changed && "border-success/40 bg-success/5",
       )}
       aria-label="Sửa đoạn"
@@ -1076,6 +1102,7 @@ export function ChapterPage() {
               size="sm"
               variant="ghost"
               icon={<IconSearch size={15} />}
+              className="min-h-9 min-w-9 px-2 sm:min-h-0 sm:min-w-0"
               onClick={() => openFindMode()}
               aria-label="Tìm/thay trong truyện"
               title="Tìm/thay trong truyện (Ctrl+F / Ctrl+H)"
@@ -1127,7 +1154,7 @@ export function ChapterPage() {
               aria-label="Font đọc"
               value={readerPrefs.fontFamily}
               onChange={(e) => setReaderPrefs({ fontFamily: e.target.value as "serif" | "sans" | "mono" })}
-              className="hidden select-sm w-24 sm:block"
+              className="hidden h-7 w-24 min-h-7 sm:block"
             >
               <option value="serif">Serif</option>
               <option value="sans">Sans</option>
@@ -1137,7 +1164,7 @@ export function ChapterPage() {
               aria-label="Giãn dòng"
               value={readerPrefs.lineHeight}
               onChange={(e) => setReaderPrefs({ lineHeight: Number(e.target.value) })}
-              className="hidden select-sm w-20 sm:block"
+              className="hidden h-7 w-20 min-h-7 sm:block"
             >
               <option value="1.5">1.5×</option>
               <option value="1.8">1.8×</option>
@@ -1205,6 +1232,7 @@ export function ChapterPage() {
                 slug={slug}
                 index={chapterIndex}
                 data={data}
+                fontFamily={readerPrefs.fontFamily}
                 onError={(err) => toast(err instanceof Error ? err.message : String(err), "error")}
               />
             ) : (
@@ -1301,21 +1329,24 @@ export function ChapterPage() {
       )}
 
       {/* ── Nav cố định dưới cùng ──────────────────────────────────── */}
-      {view === "read" ? (
-        <nav className="sticky bottom-0 z-30 border-t border-base-300 bg-base-100/95 backdrop-blur">
+      <nav className="sticky bottom-0 z-30 border-t border-base-300 bg-base-100/95 backdrop-blur">
           <div
-            className="relative mx-auto flex w-full items-center justify-between px-2 py-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]"
+            className="relative mx-auto flex w-full items-center justify-between gap-2 px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
             style={{ maxWidth: `${readerPrefs.contentWidth}px` }}
           >
             <Button
               size="sm"
               variant="ghost"
-              icon={<IconChevronLeft size={15} />}
+              className="min-h-9 flex-1 justify-start px-2.5 sm:flex-none"
+              icon={<IconChevronLeft size={16} />}
               disabled={data.prev_index === null}
               onClick={() => go(data.prev_index)}
               aria-label="Chương trước"
               title="Chương trước"
-            />
+            >
+              <span className="sm:hidden">Trước</span>
+              <span className="hidden sm:inline">Chương trước</span>
+            </Button>
             {data.has_mt_snapshot ? (
               <Button
                 size="sm"
@@ -1338,15 +1369,18 @@ export function ChapterPage() {
             <Button
               size="sm"
               variant="ghost"
-              icon={<IconChevronRight size={15} />}
+              className="min-h-9 flex-1 justify-end px-2.5 sm:flex-none"
               disabled={data.next_index === null}
               onClick={() => go(data.next_index)}
               aria-label="Chương sau"
               title="Chương sau"
-            />
-            </div>
-        </nav>
-      ) : null}
+            >
+              <span className="sm:hidden">Sau</span>
+              <span className="hidden sm:inline">Chương sau</span>
+              <IconChevronRight size={16} />
+            </Button>
+          </div>
+      </nav>
 
       {selection ? (
         <NoteComposer

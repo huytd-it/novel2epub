@@ -692,6 +692,17 @@ class OpenAITranslator:
             f"{numbered}"
         )
 
+    def translate_titles_once(self, titles: list[str]) -> list[str]:
+        """Dịch toàn bộ danh sách bằng đúng một prompt, không sinh chú thích."""
+        if not titles:
+            return []
+        out = self._run_chat_with_retry(self._build_titles_batch_prompt(titles))
+        parsed = _parse_titles_batch_response(out, len(titles))
+        return [
+            _apply_glossary(parsed.get(i, ""), self.glossary)
+            for i in range(1, len(titles) + 1)
+        ]
+
     def translate_titles(self, titles: list[str]) -> list[str]:
         if not titles:
             return []

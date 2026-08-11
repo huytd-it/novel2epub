@@ -82,6 +82,22 @@ def _parse_zh_number(value: str) -> int:
     return total + section + number
 
 
+def split_zh_title_number(zh_title: str) -> tuple[str, str]:
+    """Tách tiền tố ``第N章/卷/回`` khỏi phần tên chương tiếng Trung.
+
+    Trả ``(nhãn tiếng Việt + số, phần tiêu đề cần dịch)``. Nếu tiêu đề không
+    có tiền tố được hỗ trợ thì nhãn rỗng và toàn bộ chuỗi là phần cần dịch.
+    """
+    source = zh_title.strip()
+    match = _ZH_NUM_PREFIX_RE.match(source)
+    if not match:
+        return "", source
+    number = _parse_zh_number(match.group(1))
+    label = _ZH_NUM_LABELS[match.group(2)]
+    remainder = source[match.end():].strip().lstrip(":：-–—.、").strip()
+    return f"{label} {number}", remainder
+
+
 def ensure_title_number(zh_title: str, vi_title: str) -> str:
     """Giữ SỐ CHƯƠNG THẬT từ tiêu đề gốc khi AI dịch tiêu đề.
 

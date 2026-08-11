@@ -15,7 +15,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from .bulk_transfer import ensure_title_number
+from .bulk_transfer import ensure_title_number, split_zh_title_number
 from .config import Config, CrawlRetryConfig
 from .crawl_throttle import AdaptiveConcurrency, DomainRateLimiter
 from .crawler import ScraplingCrawler, is_rate_limited
@@ -1442,6 +1442,7 @@ def step_translate_toc_selected(
     force: bool = False,
     selected_indexes: list[int] | None = None,
     should_cancel: CancelFn | None = None,
+    mode: str = "smart",
 ) -> Manifest:
     """Dịch tiêu đề chương (TOC) cho các chương đã chọn, không đụng nội dung.
 
@@ -1453,8 +1454,13 @@ def step_translate_toc_selected(
     force=False (mặc định): CHỈ dịch chương CHƯA có `title_zh` (chưa dịch tiêu
     đề lần nào). force=True: dịch lại TẤT CẢ chương đã chọn có tiêu đề gốc,
     ghi đè `title` hiện tại — `title_zh` (tiêu đề gốc) không bị đụng vào.
-    Không dùng prompt template — gọi trực tiếp translator.translate_title().
+    ``mode=smart`` dùng OpenAI và gửi danh sách tiêu đề trong một prompt.
+    ``mode=fast`` luôn dùng Local MT, tách tiền tố ``第N章/卷/回``, chỉ dịch
+    riêng phần tên của từng chương rồi ghép lại thành ``Chương N: Tiêu đề``.
+    Cả hai chế độ đều không tạo chú thích.
     """
+    if mode not in {"smart", "fast"}:
+        raise RuntimeError(f"Chế độ dịch tiêu đề không hợp lệ: {mode!r}")
     _emit_translate_config(cfg, log, feature="DỊCH TIÊU ĐỀ TOC")
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -1465,7 +1471,14 @@ def step_translate_toc_selected(
         log("[toc] Dịch là noop (type=none hoặc nguồn tiếng Việt) — giữ nguyên tiêu đề, bỏ qua.")
         return manifest
 
-    translator = RateLimited(make_translator(cfg.translate, log, storage=storage), cfg.translate.delay_seconds)
+    title_translate_cfg = replace(
+        cfg.translate,
+        type="localmt" if mode == "fast" else "openai",
+    )
+    translator = RateLimited(
+        make_translator(title_translate_cfg, log, storage=storage),
+        title_translate_cfg.delay_seconds,
+    )
     selected = _chapter_selection(manifest.chapters, None, None, None, selected_indexes)
     total = len(selected)
     if total == 0:
@@ -1481,7 +1494,29 @@ def step_translate_toc_selected(
         log("[toc] Không có tiêu đề nào cần dịch (đã có sẵn — dùng 'force' để dịch lại).")
         return manifest
 
-    title_lookup = _batch_translate_titles(translator, to_translate, log)
+    if mode == "smart":
+        items = [(ch.index, ch.title_zh or ch.title) for ch in to_translate]
+        inner = translator.inner if hasattr(translator, "inner") else translator
+        if hasattr(inner, "translate_titles_once"):
+            log(f"[toc] Đang dịch thông minh {len(items)} tiêu đề trong một prompt…")
+            translated = inner.translate_titles_once([source for _index, source in items])
+            if len(translated) != len(items) or any(not title.strip() for title in translated):
+                raise RuntimeError("AI không trả đủ tiêu đề trong prompt dịch thông minh.")
+            title_lookup = dict(zip((index for index, _source in items), translated))
+        else:
+            title_lookup = _batch_translate_titles(translator, to_translate, log)
+    else:
+        title_lookup = {}
+        log(f"[toc] Đang dịch nhanh lần lượt {len(to_translate)} tiêu đề…")
+        for ch in to_translate:
+            source = ch.title_zh or ch.title
+            prefix, title_text = split_zh_title_number(source)
+            if title_text:
+                translated, _note = translator.translate_title(title_text)
+                translated = _clean_title(translated)
+                title_lookup[ch.index] = f"{prefix}: {translated}" if prefix else translated
+            elif prefix:
+                title_lookup[ch.index] = prefix
     changed = 0
     for ch in to_translate:
         if ch.index in title_lookup:
@@ -1506,15 +1541,17 @@ def step_clean_toc_titles(
     *,
     selected_indexes: list[int] | None = None,
     apply: bool = False,
+    include_translated: bool = False,
     should_cancel: CancelFn | None = None,
 ) -> dict:
     """Quét tiêu đề chương, loại từ rác kêu gọi độc giả (cầu nguyệt phiếu,
     cầu vé tháng, 求月票…) bằng `toc.strip_toc_junk`, không đụng số chương.
 
-    `apply=False` (mặc định): CHỈ preview — trả danh sách thay đổi, không ghi.
-    `apply=True`: ghi manifest cho những tiêu đề thực sự đổi.
+    Luôn chuẩn hóa tiêu đề nguồn: `title_zh` nếu đã lưu, nếu chưa thì `title`.
+    `include_translated=True` chuẩn hóa thêm `title` khi đã có `title_zh`.
+    `apply=False` chỉ preview; `apply=True` ghi các trường thực sự thay đổi.
 
-    Trả `{scanned, changed, changes: [{index, old, new}], applied}`.
+    Trả `{scanned, changed, changes, applied, include_translated}`.
     """
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -1529,16 +1566,27 @@ def step_clean_toc_titles(
             break
         old = ch.title or ""
         old_zh = ch.title_zh or ""
-        new = strip_toc_junk(normalize_toc_title(old))
-        new_zh = strip_toc_junk(normalize_toc_title(old_zh))
-        if new != old or new_zh != old_zh:
+        # Trước khi dịch, `title` chính là tiêu đề nguồn. Sau khi dịch,
+        # `title_zh` giữ nguồn và `title` là tiêu đề đã dịch.
+        source_field = "title_zh" if old_zh else "title"
+        clean_title = include_translated or source_field == "title"
+        new = strip_toc_junk(normalize_toc_title(old)) if clean_title else old
+        new_zh = strip_toc_junk(normalize_toc_title(old_zh)) if old_zh else old_zh
+        changed_fields = []
+        if new != old:
+            changed_fields.append("title")
+        if new_zh != old_zh:
+            changed_fields.append("title_zh")
+        if changed_fields:
             changes.append({
                 "index": ch.index,
                 "old": old,
                 "new": new,
                 "old_zh": old_zh,
                 "new_zh": new_zh,
+                "changed_fields": changed_fields,
             })
+
 
     applied = 0
     if apply and changes:
@@ -1559,6 +1607,7 @@ def step_clean_toc_titles(
         "changed": len(changes),
         "changes": changes,
         "applied": applied,
+        "include_translated": include_translated,
     }
 
 

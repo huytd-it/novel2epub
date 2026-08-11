@@ -180,15 +180,52 @@ def test_step_clean_toc_titles_preview_and_apply(tmp_path):
     preview = step_clean_toc_titles(cfg, lambda m: None, apply=False)
     assert preview["changed"] == 2
     assert preview["applied"] == 0
+    assert preview["include_translated"] is False
+    assert preview["changes"][0]["changed_fields"] == ["title_zh"]
     assert storage.load_manifest().chapters[0].title.endswith("(Cầu nguyệt phiếu)")
 
-    # Apply: ghi manifest.
+
+    # Mặc định chỉ ghi tiêu đề nguồn, không đụng tiêu đề đã dịch.
     result = step_clean_toc_titles(cfg, lambda m: None, apply=True)
     assert result["applied"] == 2
-    assert storage.load_manifest().chapters[0].title == "Chương 1: Khởi đầu"
+    assert storage.load_manifest().chapters[0].title.endswith("(Cầu nguyệt phiếu)")
     assert storage.load_manifest().chapters[0].title_zh == "第1章 绯红"
     assert storage.load_manifest().chapters[1].title == "Chương 2: Bình thường"
     assert storage.load_manifest().chapters[2].title_zh == "第3章 梅丽莎（上）"
+
+    # Tùy chọn tiêu đề đã dịch dọn thêm `title`, vẫn giữ nguồn đã chuẩn hóa.
+    translated = step_clean_toc_titles(
+        cfg, lambda m: None, apply=True, include_translated=True
+    )
+    assert translated["applied"] == 1
+    assert translated["include_translated"] is True
+    first = storage.load_manifest().chapters[0]
+    assert first.title == "Chương 1: Khởi đầu"
+    assert first.title_zh == "第1章 绯红"
+    assert translated["changes"][0]["changed_fields"] == ["title"]
+
+
+def test_step_clean_toc_titles_cleans_title_when_source_has_not_been_backfilled(tmp_path):
+    from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig
+    from novel2epub.pipeline import step_clean_toc_titles
+    from novel2epub.storage import Chapter, Manifest, Storage
+
+    cfg = Config(
+        novel=NovelConfig(slug="t"),
+        crawl=CrawlConfig(toc_url="http://x/", delay_seconds=0),
+        translate=TranslateConfig(type="localmt", delay_seconds=0),
+        output=OutputConfig(data_dir=str(tmp_path)),
+    )
+    storage = Storage(str(tmp_path), "t")
+    storage.save_manifest(Manifest(slug="t", chapters=[
+        Chapter(index=1, url="http://x/1", title="1.第1章 开始 求月票"),
+    ]))
+
+    result = step_clean_toc_titles(cfg, lambda m: None, apply=True)
+
+    assert result["changes"][0]["changed_fields"] == ["title"]
+    assert storage.load_manifest().chapters[0].title == "第1章 开始"
+
 
 @pytest.mark.parametrize(
     "title,expected",

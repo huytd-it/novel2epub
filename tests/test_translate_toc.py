@@ -28,6 +28,9 @@ class _FakeTitleTranslator:
         self.batch_calls.append(list(titles))
         return [f"VI:{t}" for t in titles]
 
+    def translate_titles_once(self, titles):
+        return self.translate_titles(titles)
+
     def translate_title(self, text, kind="tên chương"):
         self.single_calls.append(text)
         return f"VI:{text}", ""
@@ -105,7 +108,69 @@ def test_toc_removes_vote_request_suffix(tmp_path, monkeypatch):
     assert storage.load_manifest().chapters[0].title == "Chương 12: Tên chương"
 
 
+def test_toc_smart_uses_openai_backend(tmp_path, monkeypatch):
+    tr = _FakeTitleTranslator()
+    seen_types = []
+
+    def fake_make_translator(cfg, log=None, **kw):
+        seen_types.append(cfg.type)
+        return tr
+
+    monkeypatch.setattr(pipeline, "make_translator", fake_make_translator)
+    _seed(tmp_path, [Chapter(index=1, url="http://x/1", title="第一章 开始")])
+
+    pipeline.step_translate_toc_selected(
+        _cfg(tmp_path), lambda m: None, selected_indexes=[1], mode="smart"
+    )
+
+    assert seen_types == ["openai"]
+    assert tr.batch_calls == [["第一章 开始"]]
+
+
+def test_toc_fast_uses_local_mt_and_translates_only_split_title(tmp_path, monkeypatch):
+    tr = _FakeTitleTranslator()
+    seen_types = []
+
+    def fake_make_translator(cfg, log=None, **kw):
+        seen_types.append(cfg.type)
+        return tr
+
+    monkeypatch.setattr(pipeline, "make_translator", fake_make_translator)
+    storage = _seed(tmp_path, [
+        Chapter(index=9, url="http://x/9", title="第十二章 原名"),
+        Chapter(index=10, url="http://x/10", title="第13回：再会"),
+        Chapter(index=11, url="http://x/11", title="第十四章"),
+    ])
+
+    pipeline.step_translate_toc_selected(
+        _cfg(tmp_path), lambda m: None, selected_indexes=[9, 10, 11], mode="fast"
+    )
+
+    assert seen_types == ["localmt"]
+    assert tr.batch_calls == []
+    assert tr.single_calls == ["原名", "再会"]
+    chapters = storage.load_manifest().chapters
+    assert [ch.title for ch in chapters] == [
+        "Chương 12: VI:原名",
+        "Hồi 13: VI:再会",
+        "Chương 14",
+    ]
+    assert [ch.title_note for ch in chapters] == ["", "", ""]
+
+
+def test_toc_rejects_unknown_translation_mode(tmp_path):
+    _seed(tmp_path, [Chapter(index=1, url="http://x/1", title="第一章")])
+
+    try:
+        pipeline.step_translate_toc_selected(_cfg(tmp_path), mode="unknown")
+    except RuntimeError as exc:
+        assert "không hợp lệ" in str(exc)
+    else:
+        raise AssertionError("Expected invalid title translation mode to fail")
+
+
 def test_toc_mt_without_batch_translates_raw_titles_one_by_one(tmp_path, monkeypatch):
+
     tr = _FakeSingleTitleMT()
     monkeypatch.setattr(pipeline, "make_translator", lambda c, log=None, **kw: tr)
     storage = _seed(tmp_path, [

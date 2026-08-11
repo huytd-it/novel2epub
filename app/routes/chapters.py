@@ -23,6 +23,7 @@ from novel2epub.pipeline import (
     step_rewrite_preview,
     step_suggest_chapter,
     step_translate_selected,
+    step_translate_toc_selected,
 )
 from novel2epub.pipeline import step_apply_ai_revision, step_discard_ai_revision
 from novel2epub import revisions
@@ -615,11 +616,17 @@ async def api_batch_clean_raw(slug: str, indexes: str = Form(...)):
 
 
 @router.post("/api/ebooks/{slug}/batch/clean-toc")
-async def api_batch_clean_toc(slug: str, indexes: str = Form(""), apply: bool = Form(True)):
+async def api_batch_clean_toc(
+    slug: str,
+    indexes: str = Form(""),
+    apply: bool = Form(False),
+    include_translated: bool = Form(False),
+):
     """Chuẩn hóa tiêu đề TOC và dọn từ rác kêu gọi độc giả.
 
     Đồng bộ, không gọi model. `indexes` trống = quét toàn bộ manifest.
-    apply=True (mặc định): ghi manifest; apply=False: chỉ preview."""
+    Mặc định chỉ preview tiêu đề nguồn; `include_translated=True` dọn thêm
+    tiêu đề đã dịch và `apply=True` mới ghi thay đổi."""
     from novel2epub.pipeline import step_clean_toc_titles
 
     cfg = deps.resolved_cfg(slug)
@@ -628,6 +635,7 @@ async def api_batch_clean_toc(slug: str, indexes: str = Form(""), apply: bool = 
         cfg,
         selected_indexes=index_list or None,
         apply=apply,
+        include_translated=include_translated,
     )
     return JSONResponse(result)
 
@@ -826,25 +834,30 @@ async def api_batch_translate_titles(
     engine: str = Form(None),
     model: str = Form(None),
     custom_prompt: str = Form(None),
+    mode: str = Form("smart"),
 ):
-    """Batch translate titles for multiple chapters."""
+    """Dịch tiêu đề hàng loạt theo chế độ smart hoặc fast, không tạo chú thích."""
     cfg = deps.resolved_cfg(slug)
     index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if mode not in {"smart", "fast"}:
+        raise HTTPException(status_code=400, detail="Chế độ phải là 'smart' hoặc 'fast'.")
+    if engine or model or custom_prompt:
+        raise HTTPException(
+            status_code=400,
+            detail="Dịch tiêu đề hàng loạt không hỗ trợ tùy chọn engine/model/prompt riêng.",
+        )
 
     def _target(log):
-        for idx in index_list:
-            try:
-                step_retranslate_title(
-                    cfg,
-                    log,
-                    slug=slug,
-                    index=idx,
-                    engine=engine,
-                    model=model,
-                    custom_prompt=custom_prompt,
-                )
-            except RuntimeError as e:
-                log(f"[batch-tiêu-đề] Lỗi chương {idx}: {e}")
+        try:
+            step_translate_toc_selected(
+                cfg,
+                log,
+                force=True,
+                selected_indexes=index_list,
+                mode=mode,
+            )
+        except RuntimeError as e:
+            log(f"[batch-tiêu-đề] Lỗi: {e}")
 
     started = request.app.state.job.start_custom(
         f"batch-translate-titles-{len(index_list)}",

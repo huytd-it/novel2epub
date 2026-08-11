@@ -11,6 +11,7 @@ Lưu — không có lỗi nào nổ ra. Test này so hai đầu và bắt lệch
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -62,6 +63,28 @@ def test_moi_section_deu_co_mat(client):
     payload = client.get("/api/ui/ebooks/t/settings").json()
     for section, _ in SECTIONS:
         assert section in payload, f"thiếu section {section}"
+
+
+def test_default_prompts_tra_prompt_moi_theo_ngon_ngu(client):
+    from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT, EN_TITLE_PROMPT, TITLE_PROMPT
+
+    settings_page = (Path(__file__).parents[1] / "frontend/src/routes/SettingsPage.tsx").read_text(encoding="utf-8")
+    assert "Nạp prompt mới" in settings_page
+    assert "/settings/translate/default-prompts?source_language=" in settings_page
+
+    chinese = client.get("/settings/translate/default-prompts")
+    assert chinese.status_code == 200
+    assert chinese.json() == {
+        "prompt_template": DEFAULT_PROMPT,
+        "title_prompt_template": TITLE_PROMPT,
+    }
+
+    english = client.get("/settings/translate/default-prompts?source_language=en")
+    assert english.status_code == 200
+    assert english.json() == {
+        "prompt_template": EN_DEFAULT_PROMPT,
+        "title_prompt_template": EN_TITLE_PROMPT,
+    }
 
 
 def test_danh_sach_tra_ve_dang_van_ban_moi_dong_mot_muc(client):

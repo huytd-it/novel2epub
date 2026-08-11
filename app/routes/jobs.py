@@ -4,6 +4,7 @@ from __future__ import annotations
 import dataclasses
 import csv
 import io
+import re
 import threading
 from pathlib import Path
 from typing import Annotated
@@ -407,18 +408,34 @@ async def import_ebook_toc_csv(slug: str, file: UploadFile = File(...)):
     return RedirectResponse(url=f"/ebooks/{slug}", status_code=303)
 
 
-@router.post("/ebooks/{slug}/jobs/reorder")
+@router.post("/api/ebooks/{slug}/jobs/reorder")
 def start_ebook_reorder(
     request: Request,
     slug: str,
     order: str = Form(...),
 ):
-    """Sắp xếp lại chapters trong manifest theo thứ tự các index trong `order`."""
+    """Sắp xếp lại chapters theo thứ tự index hoặc số chương trong tiêu đề."""
     cfg = deps.resolved_cfg(slug)
-    try:
-        desired = [int(x) for x in order.split(",") if x.strip()]
-    except ValueError:
-        raise HTTPException(status_code=400, detail="order phải là dãy số index, cách dấu phẩy")
+    from novel2epub.storage import Storage
+
+    manifest = Storage(cfg.output.data_dir, cfg.novel.slug).load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=400, detail="Chưa có manifest.")
+
+    if order.strip().lower() == "auto":
+        numbered: list[tuple[int, int]] = []
+        for position, chapter in enumerate(manifest.chapters):
+            match = re.search(r"(?:chương|chapter|第)\s*([0-9]+)", chapter.title or chapter.title_zh or "", re.IGNORECASE)
+            if match:
+                numbered.append((int(match.group(1)), position))
+        if len(numbered) != len(manifest.chapters):
+            raise HTTPException(status_code=400, detail="Không thể detect số chương từ toàn bộ tiêu đề.")
+        desired = [manifest.chapters[position].index for _, position in sorted(numbered)]
+    else:
+        try:
+            desired = [int(x) for x in order.split(",") if x.strip()]
+        except ValueError:
+            raise HTTPException(status_code=400, detail="order phải là dãy số index, cách dấu phẩy")
     if not desired:
         raise HTTPException(status_code=400, detail="order rỗng")
 

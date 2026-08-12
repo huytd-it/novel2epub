@@ -58,7 +58,7 @@ def chapter_eligibility(
     if action in ("translate", "local-mt"):
         target_branch = revisions.BRANCH_LOCAL_MT if action == "local-mt" else revisions.normalize_branch(branch)
         if not storage.has_raw(ch):
-            return False, "Chương chưa có bản gốc (raw) để dịch."
+            return False, "Chưa crawl nội dung gốc của chương — TOC/tiêu đề không phải nội dung để dịch."
         if not force and storage.has_branch_text(ch, target_branch):
             return False, "Đã có bản dịch ở nhánh này (bật force để dịch lại)."
         return True, ""

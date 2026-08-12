@@ -46,7 +46,7 @@ def test_preview_returns_metadata(monkeypatch):
 
     app, client = _client(monkeypatch)
     monkeypatch.setattr(library, "_fetch_meta", lambda url, scrapling_mode="": {
-        "name": "Tên Truyện", "author": "Tác Giả", "slug": "ten-truyen",
+        "title": "Tên Truyện", "author": "Tác Giả", "slug": "ten-truyen",
         "cover_url": "https://x/cover.jpg", "chapter_count": 798,
     })
 
@@ -54,7 +54,7 @@ def test_preview_returns_metadata(monkeypatch):
         "toc_url": "https://www.shuhaige.net/372421/"})
     assert res.status_code == 200
     data = res.json()
-    assert data["name"] == "Tên Truyện"
+    assert data["title"] == "Tên Truyện"
     assert data["chapter_count"] == 798
     assert data["cover_url"].endswith("cover.jpg")
 
@@ -121,15 +121,15 @@ def test_create_ebook_calls_add_ebook(monkeypatch, tmp_path):
 
     captured = {}
 
-    def fake_add_ebook(path, slug, *, name="", title="", author="", toc_url="", source_name=""):
-        captured.update(path=str(path), slug=slug, name=name, title=title)
+    def fake_add_ebook(path, slug, *, title="", author="", toc_url="", source_name=""):
+        captured.update(path=str(path), slug=slug, title=title)
 
     monkeypatch.setattr(library, "add_ebook", fake_add_ebook)
     monkeypatch.setattr(library, "load_presets", lambda path: {})
 
     res = client.post("/library/ebooks", data={
         "toc_url": "https://www.shuhaige.net/372421/",
-        "name": "Tên Truyện", "author": "Tác Giả", "slug": "ten-truyen",
+        "title": "Tên Truyện", "author": "Tác Giả", "slug": "ten-truyen",
     }, follow_redirects=False)
 
     assert res.status_code == 303
@@ -181,7 +181,7 @@ def test_preview_returns_crawl_preview(monkeypatch, tmp_path):
     monkeypatch.setattr(deps, "SOURCES_PATH", str(db))
     app, client = _client(monkeypatch)
     monkeypatch.setattr(library, "_fetch_meta", lambda url, scrapling_mode="": {
-        "name": "Tên", "author": "TG", "slug": "ten", "chapter_count": 3,
+        "title": "Tên", "author": "TG", "slug": "ten", "chapter_count": 3,
     })
 
     res = client.post("/library/ebooks/preview", data={
@@ -211,7 +211,7 @@ def test_create_ebook_saves_description_and_cover(monkeypatch):
 
     res = client.post("/library/ebooks", data={
         "toc_url": "https://example.com/toc",
-        "name": "Tên", "slug": "ten-truyen",
+        "title": "Tên", "slug": "ten-truyen",
         "description": "Mô tả truyện", "cover_url": "https://x/cover.jpg",
     }, follow_redirects=False)
 
@@ -225,7 +225,7 @@ def test_create_ebook_missing_url_rejected(monkeypatch):
     app, client = _client(monkeypatch)
     res = client.post("/library/ebooks", data={
         "toc_url": "",
-        "name": "X",
+        "title": "X",
     }, follow_redirects=False)
     assert res.status_code == 400
 

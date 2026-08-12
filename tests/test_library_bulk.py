@@ -50,9 +50,9 @@ def _client(monkeypatch, tmp_path):
 
 
 def _meta_for(url: str) -> dict:
-    # slug/name giả lập theo URL để mỗi test tự kiểm soát được ebook nào trùng nhau.
-    name = url.rstrip("/").rsplit("/", 1)[-1]
-    return {"name": name, "author": "Tác giả", "slug": name, "cover_url": "", "chapter_count": 10}
+    # slug/title giả lập theo URL để mỗi test tự kiểm soát được ebook nào trùng nhau.
+    title = url.rstrip("/").rsplit("/", 1)[-1]
+    return {"title": title, "author": "Tác giả", "slug": title, "cover_url": "", "chapter_count": 10}
 
 
 def test_bulk_create_happy_path_three_urls(monkeypatch, tmp_path):

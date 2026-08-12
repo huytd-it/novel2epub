@@ -9,7 +9,6 @@ import { bytes, num, percent } from "@/lib/format";
 import { decodeStrip, stripCounts } from "@/lib/strip";
 import { queueKey } from "@/lib/queue";
 import { useCurrentBook } from "@/lib/books";
-import { aiEditDraftMessage, useAiEditDraft } from "@/lib/chapter";
 import {
   DEFAULT_FILTERS,
   ebookKey,
@@ -313,7 +312,7 @@ function BatchBar({
   const [tocPreview, setTocPreview] = useState<TocPreview | null>(null);
   const [includeTranslatedTitle, setIncludeTranslatedTitle] = useState(false);
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
-  const aiEditDraft = useAiEditDraft(slug);
+  const [aiEditOpen, setAiEditOpen] = useState(false);
 
   const run = useMutation({
     mutationFn: (action: BatchAction) =>
@@ -432,18 +431,8 @@ function BatchBar({
               size="sm"
               variant="primary"
               icon={<IconSparkle size={13} />}
-              loading={aiEditDraft.isPending}
-              title="Xếp job biên tập AI cho các chương đã chọn — kết quả là bản nháp chờ duyệt"
-              onClick={() =>
-                aiEditDraft.mutate(selected, {
-                  onSuccess: (res) => {
-                    toast(aiEditDraftMessage(res));
-                    onDone();
-                  },
-                  onError: (err) =>
-                    toast(err instanceof Error ? err.message : String(err), "error"),
-                })
-              }
+              title="AI biên tập GHI TRỰC TIẾP vào nhánh Local MT (bản gốc MT giữ trong snapshot) — xem xác nhận trước khi xếp job"
+              onClick={() => setAiEditOpen(true)}
             >
               Biên tập AI
             </Button>
@@ -505,6 +494,25 @@ function BatchBar({
             Dịch {selected.length} chương đã chọn vào nhánh{" "}
             <strong>{branchLabel}</strong>. Chương nào đã có bản dịch trong nhánh đó sẽ được{" "}
             <strong>bỏ qua</strong>, không ghi đè.
+          </>
+        }
+        confirmLabel="Xếp vào hàng đợi"
+        onDone={onDone}
+      />
+
+      <BulkPreviewDialog
+        open={aiEditOpen}
+        onClose={() => setAiEditOpen(false)}
+        slug={slug}
+        action="ai-edit"
+        indexes={selected}
+        title={`Biên tập AI ${selected.length} chương`}
+        body={
+          <>
+            AI đọc bản dịch <strong>Local MT</strong> của các chương đã chọn và{" "}
+            <strong>ghi kết quả TRỰC TIẾP vào nhánh Local MT</strong> (bản gốc dịch máy được giữ
+            trong snapshot để so sánh/khôi phục). Chương nào có Local MT sẽ bị{" "}
+            <strong>ghi đè</strong> — xem danh sách phía dưới rồi xác nhận.
           </>
         }
         confirmLabel="Xếp vào hàng đợi"
@@ -649,11 +657,24 @@ function ChapterTableRow({
           </span>
         ) : null}
       </td>
-      <td className="w-32 px-2 py-1">
-        <span className="flex items-center gap-1.5 text-[11px] opacity-70">
+      <td className="w-52 px-2 py-1">
+        <div className="flex items-center gap-1.5 text-[11px] opacity-70">
           <Dot tone={rowTone(row)} />
-          {rowLabel(row)}
-        </span>
+          <span>{rowLabel(row)}</span>
+          <span className="opacity-40">·</span>
+          <span
+            className={clsx(row.has_local_mt_translation ? "text-success" : "opacity-45")}
+            title={row.has_local_mt_translation ? "Đã có bản dịch Local MT" : "Chưa có bản dịch Local MT"}
+          >
+            Local MT {row.has_local_mt_translation ? "có" : "—"}
+          </span>
+          <span
+            className={clsx(row.has_ai_translation ? "text-success" : "opacity-45")}
+            title={row.has_ai_translation ? "Đã có bản dịch AI" : "Chưa có bản dịch AI"}
+          >
+            AI {row.has_ai_translation ? "có" : "—"}
+          </span>
+        </div>
       </td>
       <td data-numeric className="w-20 px-2 py-1 text-right text-xs opacity-60">
         {row.zh_char_count ? num(row.zh_char_count) : "—"}

@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 17
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -97,7 +97,6 @@ _SCHEMA_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS ebooks (
         slug TEXT PRIMARY KEY,
         code TEXT NOT NULL DEFAULT '',
-        name TEXT NOT NULL DEFAULT '',
         -- KHÔNG dùng FOREIGN KEY tới sources(name): ebook có thể tham chiếu
         -- 1 preset đã bị xóa (cố ý — _resolve_source_overrides xử lý bằng
         -- warning graceful, không phải lỗi cứng, xem novel2epub/config.py).
@@ -919,6 +918,53 @@ def _migration_v15(conn: sqlite3.Connection) -> None:
             )
 
 
+def _migration_v16(conn: sqlite3.Connection) -> None:
+    """Activate completed legacy Local MT rows whose default AI branch is empty.
+
+    The branch columns originally defaulted to ``ai`` before the translation
+    pipeline started activating the branch it had just completed.  Restrict the
+    backfill to unambiguous rows so an existing AI translation or an incomplete
+    Local MT job is never overridden.
+    """
+    _ensure_columns(conn)
+    conn.execute(
+        """
+        UPDATE chapters
+        SET active_branch = 'local_mt'
+        WHERE active_branch = 'ai'
+          AND trim(COALESCE(translated_text, '')) = ''
+          AND trim(COALESCE(local_mt_text, '')) != ''
+          AND json_valid(COALESCE(meta_json, '{}'))
+          AND COALESCE(json_extract(meta_json, '$.local_mt_complete'), 0) = 1
+        """
+    )
+
+
+def _migration_v17(conn: sqlite3.Connection) -> None:
+    """Gỡ cột `ebooks.name` — chỉ còn `title`.
+
+    Ebook cũ có `name` nhưng chưa có `title` (tạo từ YAML/library chỉ khai
+    `name`) được backfill `title = name` TRƯỚC khi xoá cột, rồi mới
+    ALTER TABLE DROP COLUMN (SQLite >= 3.35; cột không nằm trong index/PK
+    nên drop an toàn).
+    """
+    _ensure_columns(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+    columns = {r["name"] for r in conn.execute("PRAGMA table_info(ebooks)")}
+    if "name" not in columns:
+        return
+    conn.execute(
+        """
+        UPDATE ebooks
+        SET title = name
+        WHERE trim(COALESCE(title, '')) = '' AND trim(COALESCE(name, '')) != ''
+        """
+    )
+    conn.execute("ALTER TABLE ebooks DROP COLUMN name")
+
+
 _MIGRATIONS = {
 
     8: _migration_noop,
@@ -929,6 +975,8 @@ _MIGRATIONS = {
     13: _migration_v13,
     14: _migration_v14,
     15: _migration_v15,
+    16: _migration_v16,
+    17: _migration_v17,
 }
 
 

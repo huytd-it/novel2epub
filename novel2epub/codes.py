@@ -48,7 +48,7 @@ def backfill_codes(conn: sqlite3.Connection) -> None:
         row["name"] for row in conn.execute("PRAGMA table_info(ebooks)").fetchall()
     }
     select = ["slug", "code"]
-    for column in ("name", "title", "source_preset"):
+    for column in ("title", "source_preset"):
         select.append(column if column in ebook_columns else f"'' AS {column}")
     ebook_rows = conn.execute(
         f"SELECT {', '.join(select)} FROM ebooks ORDER BY slug"
@@ -58,7 +58,7 @@ def backfill_codes(conn: sqlite3.Connection) -> None:
         if row["code"]:
             continue
         source_code = source_codes.get(row["source_preset"], "SRC")
-        book_code = acronym(row["title"] or row["name"] or row["slug"], "BOOK")
+        book_code = acronym(row["title"] or row["slug"], "BOOK")
         code = _unique(f"{source_code}-{book_code}", used_ebooks)
         conn.execute("UPDATE ebooks SET code = ? WHERE slug = ?", (code, row["slug"]))
 

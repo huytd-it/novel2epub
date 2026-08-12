@@ -116,7 +116,7 @@ function EbookRow({ row }: { row: DashboardRow }) {
           onClick={() => navigate(`/ebooks/${row.slug}`)}
           className="font-display text-[15px] font-semibold hover:text-primary"
         >
-          {row.name}
+          {row.title}
         </button>
         {hasError ? <Badge tone="vermilion">có lỗi</Badge> : null}
       </div>

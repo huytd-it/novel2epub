@@ -363,7 +363,29 @@ export function ChapterListDrawer({
                         onClick={() => handleSelect(row.index)}
                         className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-[13px]"
                       >
-                        <Dot tone={row.has_translated ? "gold" : row.has_raw ? "indigo" : "neutral"} />
+                        <span
+                          title={
+                            row.has_translated
+                              ? `Nhánh ${row.active_branch === "local_mt" ? "Local MT" : "AI"} đang hoạt động đã có bản dịch.`
+                              : row.has_ai_translation || row.has_local_mt_translation
+                                ? `Nhánh đang hoạt động trống; ${row.has_local_mt_translation ? "Local MT" : "AI"} đã có bản dịch.`
+                                : row.has_raw
+                                  ? "Đã có bản gốc, chưa nhánh nào có bản dịch."
+                                  : "Chưa crawl nội dung gốc."
+                          }
+                        >
+                          <Dot
+                            tone={
+                              row.has_translated
+                                ? "gold"
+                                : row.has_ai_translation || row.has_local_mt_translation
+                                  ? "celadon"
+                                  : row.has_raw
+                                    ? "indigo"
+                                    : "neutral"
+                            }
+                          />
+                        </span>
                         <span data-numeric className="shrink-0 opacity-40">
                           {num(row.index)}
                         </span>
@@ -402,7 +424,7 @@ export function ChapterListDrawer({
                 Bỏ chọn
               </Button>
               <Button size="sm" variant="primary" className="flex-1" onClick={onBulkLocalMt}>
-                Dịch Local MT ({num(selectedIndexes.size)})
+                Xem trước Local MT ({num(selectedIndexes.size)})
               </Button>
             </div>
           ) : null}

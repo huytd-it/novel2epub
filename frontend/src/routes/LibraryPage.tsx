@@ -43,7 +43,7 @@ function EbookRow({ book }: { book: EbookSummary }) {
               onClick={() => selectBook(book.slug)}
               className="truncate font-display text-[15px] font-semibold hover:text-primary"
             >
-              {book.name}
+              {book.title}
             </Link>
             {isCurrent ? <Badge tone="gold">Đang làm</Badge> : null}
             {book.archived ? <Badge>Đã lưu trữ</Badge> : null}
@@ -80,7 +80,7 @@ function EbookRow({ book }: { book: EbookSummary }) {
               selectBook(book.slug);
               navigate(`/ebooks/${book.slug}`);
             }}
-            aria-label={`Mở ${book.name}`}
+            aria-label={`Mở ${book.title}`}
           />
           <Button
             size="sm"
@@ -90,7 +90,7 @@ function EbookRow({ book }: { book: EbookSummary }) {
               setTypedSlug("");
               setConfirmDelete(true);
             }}
-            aria-label={`Xóa ${book.name}`}
+            aria-label={`Xóa ${book.title}`}
             title="Xóa vĩnh viễn"
           />
         </div>
@@ -138,7 +138,7 @@ function EbookRow({ book }: { book: EbookSummary }) {
             onSuccess: () => {
               setConfirmDelete(false);
               if (isCurrent) selectBook("");
-              toast(`Đã xóa "${book.name}".`);
+              toast(`Đã xóa "${book.title}".`);
             },
             onError: (err) => {
               setConfirmDelete(false);
@@ -154,7 +154,7 @@ function EbookRow({ book }: { book: EbookSummary }) {
         body={
           <div className="space-y-3">
             <p>
-              Xóa <span className="font-semibold">“{book.name}”</span> vĩnh viễn — gồm cả file
+              Xóa <span className="font-semibold">“{book.title}”</span> vĩnh viễn — gồm cả file
               EPUB, bản gốc, bản dịch và dữ liệu trong DB. Không thể hoàn tác.
             </p>
             <label className="block">
@@ -189,7 +189,7 @@ export function LibraryPage() {
     if (!q) return list;
     return list.filter(
       (b) =>
-        b.name.toLowerCase().includes(q) ||
+        b.title.toLowerCase().includes(q) ||
         b.slug.toLowerCase().includes(q) ||
         b.author.toLowerCase().includes(q),
     );

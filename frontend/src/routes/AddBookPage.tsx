@@ -42,7 +42,7 @@ function SingleResult({ result, reset }: { result: EbookCreateResult; reset: () 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Badge tone="celadon">Đã tạo</Badge>
-          <h2 className="mt-2 font-display text-lg font-semibold">{result.name || result.slug}</h2>
+          <h2 className="mt-2 font-display text-lg font-semibold">{result.title || result.slug}</h2>
           <p className="text-xs opacity-60">{result.slug}{result.toc_job ? " · Đã xếp job lấy mục lục" : ""}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -60,8 +60,8 @@ function TranslateMetaButton({
   onTranslated,
   disabled,
 }: {
-  values: { name: string; author: string; description: string };
-  onTranslated: (patch: { name: string; author: string; description: string }) => void;
+  values: { title: string; author: string; description: string };
+  onTranslated: (patch: { title: string; author: string; description: string }) => void;
   disabled?: boolean;
 }) {
   const mutation = useTranslateMetadata();
@@ -69,13 +69,13 @@ function TranslateMetaButton({
   const translate = async () => {
     try {
       const result = await mutation.mutateAsync({
-        title: values.name,
+        title: values.title,
         author: values.author,
         description: values.description,
         engine: "localmt",
       });
       onTranslated({
-        name: result.title || values.name,
+        title: result.title || values.title,
         author: result.author || values.author,
         description: result.description || values.description,
       });
@@ -160,13 +160,13 @@ function SingleForm() {
           <div className="grid gap-3 p-4">
             {preview.cover_url ? <img src={preview.cover_url} alt="Bìa truyện" className="max-h-48 rounded-box object-cover" /> : null}
             <Field label="Slug"><Input value={preview.slug} onChange={(e) => setPreview({ ...preview, slug: e.target.value })} /></Field>
-            <Field label="Tên truyện"><Input value={preview.name} onChange={(e) => setPreview({ ...preview, name: e.target.value })} /></Field>
+            <Field label="Tên truyện"><Input value={preview.title} onChange={(e) => setPreview({ ...preview, title: e.target.value })} /></Field>
             <Field label="Tác giả"><Input value={preview.author} onChange={(e) => setPreview({ ...preview, author: e.target.value })} /></Field>
             <Field label="URL bìa"><Input value={preview.cover_url} onChange={(e) => setPreview({ ...preview, cover_url: e.target.value })} /></Field>
             <Field label="Mô tả"><Textarea rows={5} value={preview.description} onChange={(e) => setPreview({ ...preview, description: e.target.value })} /></Field>
             <details className="rounded-box border border-base-300 p-3 text-xs"><summary className="cursor-pointer font-medium">Cấu hình crawl hiệu lực</summary><pre className="mt-2 overflow-auto whitespace-pre-wrap opacity-70">{JSON.stringify(preview.crawl_preview, null, 2)}</pre></details>
             <Button variant="primary" loading={createMutation.isPending} onClick={() => create(true)}>Tạo truyện đã duyệt</Button>
-            <TranslateMetaButton values={{ name: preview.name, author: preview.author, description: preview.description }} onTranslated={(patch) => setPreview({ ...preview, ...patch })} disabled={!preview.name.trim()} />
+            <TranslateMetaButton values={{ title: preview.title, author: preview.author, description: preview.description }} onTranslated={(patch) => setPreview({ ...preview, ...patch })} disabled={!preview.title.trim()} />
           </div>
         </Panel>
       ) : <Panel className="hidden place-items-center p-8 text-center text-sm opacity-55 xl:grid">Metadata và cấu hình crawl sẽ hiện ở đây sau khi xem trước.</Panel>}
@@ -181,7 +181,7 @@ function BulkPreviewItem({
 }: {
   item: BulkPreviewResult;
   onUpdate: (patch: Partial<BulkPreviewResult>) => void;
-  onTranslated: (patch: { name: string; author: string; description: string }) => void;
+  onTranslated: (patch: { title: string; author: string; description: string }) => void;
 }) {
   if (item.status === "failed") {
     return (
@@ -204,12 +204,12 @@ function BulkPreviewItem({
           <p className="truncate text-xs opacity-60" title={item.url}>{item.url}</p>
         </div>
         <TranslateMetaButton
-          values={{ name: item.name ?? "", author: item.author ?? "", description: item.description ?? "" }}
+          values={{ title: item.title ?? "", author: item.author ?? "", description: item.description ?? "" }}
           onTranslated={onTranslated}
-          disabled={!item.name}
+          disabled={!item.title}
         />
       </div>
-      <Field label="Tên truyện"><Input value={item.name ?? ""} onChange={(e) => onUpdate({ name: e.target.value })} /></Field>
+      <Field label="Tên truyện"><Input value={item.title ?? ""} onChange={(e) => onUpdate({ title: e.target.value })} /></Field>
       <div className="grid gap-2 sm:grid-cols-2">
         <Field label="Tác giả"><Input value={item.author ?? ""} onChange={(e) => onUpdate({ author: e.target.value })} /></Field>
         <Field label="Slug"><Input value={item.slug ?? ""} onChange={(e) => onUpdate({ slug: e.target.value })} /></Field>
@@ -241,11 +241,11 @@ function BulkForm() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const items: BulkCreateItem[] = (previews ?? [])
-      .filter((item) => item.status === "ok" && item.name?.trim())
+      .filter((item) => item.status === "ok" && item.title?.trim())
       .map((item) => ({
         url: item.url,
         slug: item.slug,
-        name: item.name,
+        title: item.title,
         author: item.author,
         description: item.description,
         cover_url: item.cover_url,

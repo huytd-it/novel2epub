@@ -8,10 +8,12 @@
  */
 import { api } from "./api";
 
-/** Action hợp đồng bulk — khớp `bulk_contract.BULK_ACTIONS`. */
+/** Action hợp đồng bulk — khớp `bulk_contract.BULK_ACTIONS`. `ai-edit` ghi
+    TRỰC TIẾP vào nhánh `local_mt`; `ai-edit-draft` là alias cũ (same semantics). */
 export type BulkAction =
   | "translate"
   | "local-mt"
+  | "ai-edit"
   | "ai-edit-draft"
   | "switch-branch"
   | "skip"

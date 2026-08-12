@@ -40,7 +40,11 @@ export interface ChapterRow {
   visible_title: string;
   url: string;
   has_raw: boolean;
+  /** Bản dịch hoàn tất ở nhánh đang active (thứ Reader/EPUB sử dụng). */
   has_translated: boolean;
+  active_branch: "ai" | "local_mt";
+  has_ai_translation: boolean;
+  has_local_mt_translation: boolean;
   missing_fields: string[];
   duplicate_of: number | null;
   last_action_status: string;
@@ -85,6 +89,34 @@ export interface Paragraph {
   edited: string;
 }
 
+/** Hàng của khung đối chiếu 4 cột (SPA): bản gốc | Local MT | Dịch AI | AI edit.
+    `mt`/`edited` là field legacy (baseline dịch máy và bản hiện tại của nhánh
+    `local_mt`) giữ cho client cũ không vỡ khi parse. */
+export interface Paragraph4 {
+  raw: string;
+  local_mt: string;
+  ai: string;
+  ai_edit: string;
+  mt: string;
+  edited: string;
+}
+
+/** Một nguồn của khung đối chiếu 4 cột. `status`: `missing` (chưa có gì),
+    `partial` (chỉ còn baseline/snapshot), `ready` (đủ nội dung). `edited` là
+    metadata lần AI biên tập cuối (dict `local_mt_ai_edited`) hoặc voucher cũ
+    `before_rewrite`. */
+export interface ChapterSource {
+  status: "ready" | "partial" | "missing";
+  text: string;
+  title: string | null;
+  revision: number | null;
+  character_count: number;
+  edited: Record<string, unknown> | null;
+  engine: string | null;
+  model: string | null;
+  updated_at: string | null;
+}
+
 export interface AiRevision {
   id: number;
   engine: string;
@@ -124,10 +156,12 @@ export interface ChapterCompare {
   raw: string;
   translated: string;
   translated_mt: string;
+  /** Bốn nguồn của khung đối chiếu: raw | local_mt | ai | ai_edit. */
+  sources: Record<"raw" | "local_mt" | "ai" | "ai_edit", ChapterSource>;
   /** Chia theo DÒNG — khớp `para/save` và ghi chú. Dùng cho khung đọc/sửa. */
   translated_paras: string[];
-  /** Chia theo KHỐI — chỉ để gióng 3 cột đối chiếu. KHÔNG dùng cho para/save. */
-  paragraphs: Paragraph[];
+  /** Chia theo KHỐI — chỉ để gióng các cột đối chiếu. KHÔNG dùng cho para/save. */
+  paragraphs: Paragraph4[];
   raw_char_count: number;
   word_count: number;
   meta: Record<string, unknown>;

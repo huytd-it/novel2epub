@@ -17,7 +17,7 @@ export interface StorageReport {
 
 export interface StorageRow {
   slug: string;
-  name: string;
+  title: string;
   report: StorageReport;
 }
 

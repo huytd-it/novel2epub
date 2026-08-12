@@ -41,7 +41,7 @@ def _client(monkeypatch):
 def _meta(url, source=""):
     slug = url.rstrip("/").rsplit("/", 1)[-1]
     return {
-        "name": slug.title(), "author": "Tác giả", "description": "Mô tả",
+        "title": slug.title(), "author": "Tác giả", "description": "Mô tả",
         "slug": slug, "cover_url": "https://img/cover.jpg", "chapter_count": 12,
         "source": source,
     }
@@ -92,7 +92,7 @@ def test_create_quick_fetches_metadata_and_saves_extras(monkeypatch):
     monkeypatch.setattr(library, "_fetch_meta", lambda url, mode="", source="": _meta(url, source))
     monkeypatch.setattr(
         library, "_write_new_ebook",
-        lambda url, slug, name, author, **kwargs: {"slug": slug, "name": name, "source": kwargs["source_name"]},
+        lambda url, slug, title, author, **kwargs: {"slug": slug, "title": title, "source": kwargs["source_name"]},
     )
     monkeypatch.setattr(
         library, "_save_ebook_metadata",
@@ -115,16 +115,16 @@ def test_create_preview_payload_and_fetch_toc(monkeypatch):
     captured = {}
     monkeypatch.setattr(
         library, "_write_new_ebook",
-        lambda url, slug, name, author, **kwargs: captured.update(slug=slug, name=name, author=author) or {"slug": slug, "name": name, "source": ""},
+        lambda url, slug, title, author, **kwargs: captured.update(slug=slug, title=title, author=author) or {"slug": slug, "title": title, "source": ""},
     )
     monkeypatch.setattr(library, "_save_ebook_metadata", lambda *args: None)
 
     response = client.post("/api/ui/library/ebooks", json={
-        "toc_url": "https://x/book", "slug": "edited", "name": "Tên sửa",
+        "toc_url": "https://x/book", "slug": "edited", "title": "Tên sửa",
         "author": "TG sửa", "description": "MT sửa", "fetch_toc": True,
     })
     assert response.status_code == 200
-    assert captured == {"slug": "edited", "name": "Tên sửa", "author": "TG sửa"}
+    assert captured == {"slug": "edited", "title": "Tên sửa", "author": "TG sửa"}
     assert app.state.job.queue.restored == ["edited"]
     assert app.state.job.enqueued == [("fetch-toc", "edited")]
     assert response.json()["toc_job"]["job_id"] == "job-edited"
@@ -139,7 +139,7 @@ def test_create_duplicate_returns_409(monkeypatch):
         lambda *args, **kwargs: (_ for _ in ()).throw(HTTPException(409, "đã tồn tại")),
     )
     response = client.post("/api/ui/library/ebooks", json={
-        "toc_url": "https://x/book", "name": "Book",
+        "toc_url": "https://x/book", "title": "Book",
     })
     assert response.status_code == 409
 
@@ -156,10 +156,10 @@ def test_bulk_partial_failure_duplicate_auto_source_and_toc(monkeypatch):
             raise RuntimeError("Lỗi mạng")
         return _meta(url, "detected")
 
-    def write(url, slug, name, author):
+    def write(url, slug, title, author):
         if "duplicate" in url:
             raise HTTPException(409, "đã tồn tại")
-        return {"slug": slug, "name": name, "source": "detected"}
+        return {"slug": slug, "title": title, "source": "detected"}
 
     monkeypatch.setattr(library, "_fetch_meta", fetch)
     monkeypatch.setattr(library, "_write_new_ebook", write)
@@ -184,7 +184,7 @@ def test_bulk_accepts_twenty_and_rejects_twenty_one(monkeypatch):
     monkeypatch.setattr(library, "_fetch_meta", lambda url: _meta(url))
     monkeypatch.setattr(
         library, "_write_new_ebook",
-        lambda url, slug, name, author: {"slug": slug, "name": name, "source": ""},
+        lambda url, slug, title, author: {"slug": slug, "title": title, "source": ""},
     )
     monkeypatch.setattr(library, "_save_ebook_metadata", lambda *args: None)
     twenty = [f"https://x/book-{i}" for i in range(20)]
@@ -218,7 +218,7 @@ def test_bulk_preview_per_url_and_error_isolation(monkeypatch):
     results = response.json()["results"]
     assert len(results) == 2
     assert results[0]["status"] == "ok"
-    assert results[0]["name"] == "Good"
+    assert results[0]["title"] == "Good"
     assert results[0]["slug"] == "good"
     assert results[0]["source"] == "detected"
     assert results[0]["crawl_preview"]["scrapling_mode"] == "stealthy"
@@ -248,9 +248,9 @@ def test_bulk_create_uses_reviewed_items(monkeypatch):
         fetch_calls.append(url)
         return _meta(url, "detected")
 
-    def write(url, slug, name, author, **kwargs):
-        captured.update(url=url, slug=slug, name=name, author=author, kwargs=kwargs)
-        return {"slug": slug, "name": name, "source": kwargs.get("source_name", "")}
+    def write(url, slug, title, author, **kwargs):
+        captured.update(url=url, slug=slug, title=title, author=author, kwargs=kwargs)
+        return {"slug": slug, "title": title, "source": kwargs.get("source_name", "")}
 
     monkeypatch.setattr(library, "_fetch_meta", fetch)
     monkeypatch.setattr(library, "_write_new_ebook", write)
@@ -262,7 +262,7 @@ def test_bulk_create_uses_reviewed_items(monkeypatch):
     response = client.post("/api/ui/library/ebooks/bulk", json={
         "toc_urls": ["https://x/edited"],
         "items": [{
-            "url": "https://x/edited", "slug": "edited", "name": "Tên đã dịch",
+            "url": "https://x/edited", "slug": "edited", "title": "Tên đã dịch",
             "author": "TG MT", "description": "MT mô tả", "cover_url": "https://img/c2.jpg",
             "source": "xdetected", "scrapling_mode": "dynamic",
         }],
@@ -270,8 +270,8 @@ def test_bulk_create_uses_reviewed_items(monkeypatch):
     assert response.status_code == 200
     result = response.json()["results"][0]
     assert result["status"] == "created"
-    assert result["name"] == "Tên đã dịch"
-    assert fetch_calls == []  # items có name → không re-fetch
+    assert result["title"] == "Tên đã dịch"
+    assert fetch_calls == []  # items có title → không re-fetch
     assert captured["slug"] == "edited"
     assert captured["kwargs"]["source_name"] == "xdetected"
     assert captured["kwargs"]["scrapling_mode"] == "dynamic"
@@ -288,7 +288,7 @@ def test_bulk_item_without_name_falls_back_to_auto_fetch(monkeypatch):
     monkeypatch.setattr(library, "_fetch_meta", lambda url: fetch_calls.append(url) or _meta(url))
     monkeypatch.setattr(
         library, "_write_new_ebook",
-        lambda url, slug, name, author: {"slug": slug, "name": name, "source": ""},
+        lambda url, slug, title, author: {"slug": slug, "title": title, "source": ""},
     )
     monkeypatch.setattr(library, "_save_ebook_metadata", lambda *args: None)
 

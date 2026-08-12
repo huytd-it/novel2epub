@@ -93,7 +93,7 @@ def _fetch_meta(toc_url: str, scrapling_mode: str = "", source_name: str = "") -
 
     slug = slugify(title_raw or slugify(toc_url))
     return {
-        "name": title_raw,
+        "title": title_raw,
         "title_raw": title_raw,
         "author": author,
         "description": description,
@@ -228,12 +228,12 @@ def search_ebooks(
 
 
 def _write_new_ebook(
-    toc_url: str, slug: str, name: str, author: str, scrapling_mode: str = "",
+    toc_url: str, slug: str, title: str, author: str, scrapling_mode: str = "",
     ai_glossary_analysis: bool = False, source_name: str = "",
 ) -> dict:
     """Ghi ebook mới (đã có đủ metadata) vào config gộp. Raise HTTPException khi trùng slug.
 
-    Trả {"slug", "name"}. Dùng chung bởi `create_ebook` (1 URL, có redirect) và
+    Trả {"slug", "title"}. Dùng chung bởi `create_ebook` (1 URL, có redirect) và
     `create_ebooks_bulk` (nhiều URL, mỗi URL xử lý độc lập) — tách riêng phần
     fetch-metadata (mỗi caller tự quyết định cách xử lý lỗi fetch) khỏi phần ghi.
 
@@ -242,7 +242,7 @@ def _write_new_ebook(
     có preset thì chế độ scrapling đã do preset quyết định, không ghi đè.
     """
     if not slug:
-        slug = vn_slugify(name)
+        slug = vn_slugify(title)
     lib = deps.library()
     if slug in lib.ebooks:
         raise HTTPException(status_code=409, detail=f"Ebook '{slug}' đã tồn tại.")
@@ -257,8 +257,7 @@ def _write_new_ebook(
     add_ebook(
         deps.WORKSPACE_PATH,
         slug,
-        name=name,
-        title=name,
+        title=title,
         author=author,
         toc_url=toc_url,
         source_name=source_name,
@@ -275,7 +274,7 @@ def _write_new_ebook(
             slug,
             {"translate": {"ai_glossary_analysis": True}},
         )
-    return {"slug": slug, "name": name, "source": source_name}
+    return {"slug": slug, "title": title, "source": source_name}
 
 
 def _save_ebook_metadata(slug: str, description: str = "", cover_url: str = "") -> None:
@@ -299,7 +298,7 @@ def _enqueue_fetch_toc(request: Request, slug: str) -> dict | None:
 def create_ebook(
     request: Request,
     slug: str = Form(""),
-    name: str = Form(""),
+    title: str = Form(""),
     author: str = Form(""),
     toc_url: str = Form(""),
     description: str = Form(""),
@@ -311,18 +310,18 @@ def create_ebook(
     if not toc_url:
         raise HTTPException(status_code=400, detail="Thiếu URL mục lục.")
 
-    # name/author/slug thường gửi từ bước preview. Nếu thiếu (vd JS tắt) thì tự fetch.
-    if not name and toc_url:
+    # title/author/slug thường gửi từ bước preview. Nếu thiếu (vd JS tắt) thì tự fetch.
+    if not title and toc_url:
         try:
             fetched = _fetch_meta(toc_url)
-            name = fetched.get("name", "")
+            title = fetched.get("title", "")
             author = author or fetched.get("author", "")
             slug = slug or fetched.get("slug", "")
         except Exception:
-            pass  # fallback: dùng slug từ name trống
+            pass  # fallback: dùng slug từ title trống
 
     result = _write_new_ebook(
-        toc_url, slug, name, author,
+        toc_url, slug, title, author,
         scrapling_mode=scrapling_mode.strip(),
         ai_glossary_analysis=(ai_glossary_analysis == "on"),
     )
@@ -363,7 +362,7 @@ def create_ebooks_bulk(
 
         try:
             created = _write_new_ebook(
-                url, fetched.get("slug", ""), fetched.get("name", ""), fetched.get("author", "")
+                url, fetched.get("slug", ""), fetched.get("title", ""), fetched.get("author", "")
             )
         except HTTPException as e:
             status = "skipped-duplicate" if e.status_code == 409 else "failed"
@@ -381,7 +380,7 @@ def create_ebooks_bulk(
             "url": url,
             "status": "created",
             "slug": slug,
-            "name": created["name"],
+            "title": created["title"],
             "automation": enable_continuous,
         })
     return JSONResponse({"results": results})

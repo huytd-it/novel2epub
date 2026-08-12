@@ -19,7 +19,6 @@ def _write_workspace(path):
         },
         ebooks={
             "a": {
-                "name": "A",
                 "novel": {"slug": "a", "title": "Cũ"},
                 "crawl": {"toc_url": "https://a", "content_selector": "#old"},
             },
@@ -44,7 +43,7 @@ def test_update_ebook_does_not_touch_siblings(tmp_path):
     path = tmp_path / "novel2epub.db"
     _write_workspace(path)
     # Thêm ebook thứ 2 rồi sửa ebook 'a' -> 'b' phải nguyên vẹn.
-    add_ebook(path, "b", name="B", title="Bê", toc_url="https://b")
+    add_ebook(path, "b", title="Bê", toc_url="https://b")
     update_ebook(path, "a", {"novel": {"title": "Mới"}})
 
     cfg_b = load_config(path, "b")
@@ -59,7 +58,6 @@ def test_add_ebook_minimal_override_inherits_defaults(tmp_path):
     add_ebook(
         path,
         "test-truyen",
-        name="Tên Truyện",
         title="Tên Truyện",
         toc_url="https://x/book/1/",
     )
@@ -75,20 +73,20 @@ def test_add_ebook_minimal_override_inherits_defaults(tmp_path):
 def test_remove_ebook(tmp_path):
     path = tmp_path / "novel2epub.db"
     _write_workspace(path)
-    add_ebook(path, "b", name="B", title="Bê", toc_url="https://b")
+    add_ebook(path, "b", title="Bê", toc_url="https://b")
     remove_ebook(path, "a")
     lib = load_library(path)
     assert "a" not in lib.ebooks
     assert "b" in lib.ebooks
 
 
-def test_save_library_syncs_names_keeps_bodies(tmp_path):
+def test_save_library_keeps_bodies_and_syncs_slugs(tmp_path):
     path = tmp_path / "novel2epub.db"
     _write_workspace(path)
-    lib = LibraryConfig(ebooks={"a": LibraryEntry(slug="a", name="A mới")})
+    lib = LibraryConfig(ebooks={"a": LibraryEntry(slug="a"), "c": LibraryEntry(slug="c")})
     save_library(path, lib)
     loaded = load_library(path)
-    assert loaded.ebooks["a"].name == "A mới"
+    assert "a" in loaded.ebooks and "c" in loaded.ebooks
     # Override body của 'a' vẫn còn (không bị dựng lại từ đầu).
     assert load_config(path, "a").crawl.toc_url == "https://a"
 

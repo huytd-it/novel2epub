@@ -61,6 +61,52 @@ def test_schema_version_recorded():
     assert schema_version(conn) == SCHEMA_VERSION
 
 
+def test_v16_activates_only_unambiguous_completed_legacy_local_mt():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        conn.execute("UPDATE _meta SET value = '15' WHERE key = 'schema_version'")
+        conn.execute("INSERT INTO ebooks (slug) VALUES ('demo')")
+        rows = [
+            (1, "", "local done", '{"local_mt_complete": true}', "ai"),
+            (2, "ai done", "local done", '{"complete": true, "local_mt_complete": true}', "ai"),
+            (3, "", "local partial", '{"local_mt_complete": false}', "ai"),
+            (4, "", "local legacy no flag", '{}', "ai"),
+            (5, "", "   ", '{"local_mt_complete": true}', "ai"),
+            (6, "", "local done", '{bad json', "ai"),
+            (7, "", "local done", '{"local_mt_complete": true}', "local_mt"),
+            (8, "   ", "local done", '{"local_mt_complete": true}', "ai"),
+        ]
+        conn.executemany(
+            "INSERT INTO chapters "
+            "(ebook_slug, idx, translated_text, local_mt_text, meta_json, active_branch) "
+            "VALUES ('demo', ?, ?, ?, ?, ?)",
+            rows,
+        )
+
+    init_schema(conn)
+
+    branches = {
+        row["idx"]: row["active_branch"]
+        for row in conn.execute("SELECT idx, active_branch FROM chapters ORDER BY idx")
+    }
+    assert branches == {
+        1: "local_mt",
+        2: "ai",
+        3: "ai",
+        4: "ai",
+        5: "ai",
+        6: "ai",
+        7: "local_mt",
+        8: "local_mt",
+    }
+    assert schema_version(conn) == 16
+
+    # Migration remains idempotent after the version has been recorded.
+    init_schema(conn)
+    assert schema_version(conn) == 16
+
+
 def test_operational_codes_are_backfilled_and_stable():
     conn = get_connection(":memory:")
     init_schema(conn)

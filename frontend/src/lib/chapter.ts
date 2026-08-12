@@ -465,7 +465,7 @@ export function useCompareBlockEdit(slug: string, index: number) {
 /** Dịch lại đi qua hợp đồng bulk-preview + confirm vì nó GHI ĐÈ bản dịch:
     UI mở `BulkPreviewDialog` (xem `components/chapter/BulkPreviewDialog.tsx`). */
 
-/* ── Biên tập AI: bấm một cái ra một job ─────────────────────────────── */
+/* ── Biên tập AI: ghi TRỰC TIẾP vào nhánh Local MT ─────────────────────── */
 
 export interface AiEditDraftResult {
   status: "queued";
@@ -478,8 +478,18 @@ export interface AiEditDraftResult {
   blocked: { index: number; reason: string }[];
 }
 
-/** Xếp job biên tập AI cho danh sách chương. Không preview, không confirm —
-    kết quả là bản nháp chờ duyệt nên bấm nhầm cũng không mất bản dịch. */
+/** Xếp job biên tập AI GHI TRỰC TIẾP vào nhánh `local_mt` (canonical). Đây là
+    hành động GHI ĐÈ bản dịch nên body bắt buộc `confirm: true`; UI nên đi qua
+    hợp đồng bulk-preview/confirm (action `ai-edit`) để xem trước số chương đủ
+    điều kiện trước khi xác nhận. */
+export function startAiEdit(slug: string, indexes: number[]) {
+  return api.post<AiEditDraftResult>(`/api/ui/ebooks/${slug}/chapters/ai-edit`, {
+    body: { indexes, confirm: true },
+  });
+}
+
+/** Alias cũ của canonical `/ai-edit` — request shape giữ nguyên nhưng semantics
+    nay cũng là ghi trực tiếp (không còn sinh bản nháp chờ duyệt). */
 export function startAiEditDraft(slug: string, indexes: number[]) {
   return api.post<AiEditDraftResult>(`/api/ui/ebooks/${slug}/chapters/ai-edit-draft`, {
     body: { indexes },
@@ -494,10 +504,10 @@ export function aiEditDraftMessage(result: AiEditDraftResult) {
     : base;
 }
 
-export function useAiEditDraft(slug: string) {
+export function useAiEdit(slug: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (indexes: number[]) => startAiEditDraft(slug, indexes),
+    mutationFn: (indexes: number[]) => startAiEdit(slug, indexes),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: queueKey });
     },

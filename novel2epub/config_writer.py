@@ -243,7 +243,6 @@ def add_ebook(
     path: str | Path,
     slug: str,
     *,
-    name: str = "",
     title: str = "",
     author: str = "",
     toc_url: str = "",
@@ -271,17 +270,16 @@ def add_ebook(
     with conn:
         conn.execute(
             """
-            INSERT INTO ebooks (slug, name, title, author, date_added, identifier, source_preset, crawl_overrides_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO ebooks (slug, title, author, date_added, identifier, source_preset, crawl_overrides_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(slug) DO UPDATE SET
-                name = excluded.name,
                 title = excluded.title,
                 author = excluded.author,
                 source_preset = excluded.source_preset,
                 crawl_overrides_json = excluded.crawl_overrides_json
             """,
             (
-                slug, name, title, author, date.today().isoformat(),
+                slug, title, author, date.today().isoformat(),
                 f"urn:uuid:{uuid.uuid4()}", source_name or None,
                 json.dumps(crawl_over, ensure_ascii=False),
             ),
@@ -314,18 +312,15 @@ def remove_ebook(path: str | Path, slug: str) -> None:
 
 
 def save_library(path: str | Path, library: LibraryConfig) -> None:
-    """Đồng bộ danh sách ebook: cập nhật `name`, xóa ebook đã gỡ khỏi `library`."""
+    """Đồng bộ danh sách ebook: thêm slug chưa có, xóa ebook đã gỡ khỏi `library`."""
     db_path = Path(path).resolve()
     conn = get_thread_connection(db_path)
     with conn:
         existing = {r["slug"] for r in conn.execute("SELECT slug FROM ebooks")}
         for slug in existing - set(library.ebooks):
             conn.execute("DELETE FROM ebooks WHERE slug = ?", (slug,))
-        for slug, entry in library.ebooks.items():
+        for slug in library.ebooks:
             conn.execute(
-                """
-                INSERT INTO ebooks (slug, name) VALUES (?, ?)
-                ON CONFLICT(slug) DO UPDATE SET name = excluded.name
-                """,
-                (slug, entry.name or ""),
+                "INSERT OR IGNORE INTO ebooks (slug) VALUES (?)",
+                (slug,),
             )

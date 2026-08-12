@@ -34,7 +34,7 @@ def _cfg(tmp_path, slug="t"):
 
 
 def _fake_library(slug="t"):
-    entry = type("E", (), {"name": "Truyện T", "slug": slug})()
+    entry = type("E", (), {"title": "Truyện T", "slug": slug})()
     return type("L", (), {"ebooks": {slug: entry}})()
 
 

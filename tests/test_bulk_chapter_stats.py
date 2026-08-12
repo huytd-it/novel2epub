@@ -66,9 +66,27 @@ def test_bulk_chapter_stats_uses_active_local_mt_branch(tmp_storage):
 
     result = s.bulk_chapter_stats()[11]
 
+    assert result["active_branch"] == "local_mt"
     assert result["has_translated"] is True
+    assert result["has_ai_translation"] is False
+    assert result["has_local_mt_translation"] is True
     assert result["translated_len"] == len("Bản dịch Local MT")
     assert s.translated_stats()[0] == 1
+
+
+def test_bulk_chapter_stats_exposes_inactive_local_mt_branch(tmp_storage):
+    s = tmp_storage
+    ch = _ch(12)
+    s.write_raw(ch, "原文")
+    s.write_branch_text(ch, "local_mt", "Bản dịch Local MT")
+    s.mark_branch_complete(ch, "local_mt")
+
+    result = s.bulk_chapter_stats()[12]
+
+    assert result["active_branch"] == "ai"
+    assert result["has_translated"] is False
+    assert result["has_ai_translation"] is False
+    assert result["has_local_mt_translation"] is True
 
 
 from novel2epub.toc import chapter_rows, ChapterRow
@@ -105,6 +123,24 @@ def test_chapter_rows_without_stats_map_still_works(tmp_storage):
     s.write_raw(ch, "你好")
     rows = chapter_rows([ch], s)
     assert rows[0].has_raw is True
+    assert rows[0].active_branch == "ai"
+    assert rows[0].has_ai_translation is False
+    assert rows[0].has_local_mt_translation is False
+
+
+def test_chapter_rows_expose_translation_state_of_each_branch(tmp_storage):
+    s = tmp_storage
+    ch = _ch(6)
+    s.write_raw(ch, "原文")
+    s.write_branch_text(ch, "local_mt", "Bản dịch Local MT")
+    s.mark_branch_complete(ch, "local_mt")
+
+    row = chapter_rows([ch], s, stats_map=s.bulk_chapter_stats())[0]
+
+    assert row.active_branch == "ai"
+    assert row.has_translated is False
+    assert row.has_ai_translation is False
+    assert row.has_local_mt_translation is True
 
 
 def test_chapter_rows_use_active_branch_title(tmp_storage):

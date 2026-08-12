@@ -1930,6 +1930,91 @@ def step_rewrite_preview(cfg: Config, log: LogFn = _print, *, index: int, requir
     return revision_id
 
 
+def step_ai_edit_local_mt(cfg: Config, log: LogFn = _print, *, index: int) -> dict:
+    """AI biên tập GHI TRỰC TIẾP vào nhánh `local_mt` — không qua bản nháp.
+
+    Snapshot MT của nhánh được backfill từ bản dịch hiện tại TRƯỚC lần biên tập
+    đầu tiên, để không mất bản gốc dịch máy khi so sánh/khôi phục. Revision đọc
+    MỘT LẦN trước khi gọi model rồi ghi bằng `compare_and_swap_branch`: lệch giữa
+    chừng → `RevisionError` (route dịch sang 409), tuyệt đối không ghi đè. AI
+    chỉ đọc workspace đã che entity protect, không bao giờ thấy raw.
+
+    Trả `{index, revision, generated_at, applied}`; `applied=False` khi AI trả
+    về rỗng (giữ nguyên bản dịch). Không tạo hàng `ai_revisions` — chỉ ghi meta
+    `local_mt_ai_edited` cùng transaction với bản dịch.
+    """
+    from . import glossary_ai
+
+    storage, _manifest, ch = _require_chapter(cfg, index)
+    branch = revisions.BRANCH_LOCAL_MT
+    if not storage.has_branch_text(ch, branch):
+        raise RuntimeError("Chương chưa có bản dịch Local MT — bỏ qua (không gọi AI).")
+    if not storage.read_branch_mt_snapshot(ch, branch):
+        storage.write_branch_mt_snapshot(ch, branch, storage.read_branch_text(ch, branch))
+
+    _emit_translate_config(cfg, log, feature="AI BIÊN TẬP")
+    # Engine rewrite không được phép dùng raw_text (chống rò rỉ raw vào AI edit).
+    workspace, restore_map = _branch_edit_workspace(storage, ch, branch)
+    base_rev = storage.read_branch_revision(ch, branch)
+    glossary = glossary_ai.load_glossary(cfg.translate, storage)
+    log(f"[ai-edit] Đang biên tập trực tiếp chương {ch.index} (nhánh {revisions.branch_label(branch)}): {ch.title or ch.stem}")
+    rewritten = glossary_ai.rewrite_chapter(
+        cfg.ai.openai, "", workspace, glossary,
+        filter_glossary=cfg.translate.glossary_filter,
+    )
+    rewritten = _restore_edit_workspace(rewritten, restore_map)
+    if not rewritten.strip():
+        log("[ai-edit] AI trả về rỗng — giữ nguyên, không ghi đè.")
+        return {"index": ch.index, "revision": base_rev, "generated_at": "", "applied": False}
+
+    ok = storage.compare_and_swap_branch(ch, branch, expected_rev=base_rev, new_text=rewritten)
+    if not ok:
+        raise revisions.RevisionError(
+            "Bản dịch Local MT đã đổi đồng thời — tải lại trang và chạy lại biên tập AI."
+        )
+
+    generated_at = _now_iso()
+    ai_openai = getattr(getattr(cfg, "ai", None), "openai", None)
+    _update_chapter_meta(
+        storage, ch,
+        local_mt_ai_edited={
+            "engine": getattr(ai_openai, "engine", "") or "",
+            "model": getattr(ai_openai, "model", "") or "",
+            "generated_at": generated_at,
+            "from_rev": base_rev,
+        },
+    )
+    # Token preview duyệt bản dịch nhánh vừa đổi hết hiệu lực ngay.
+    storage.invalidate_preview_tokens(ch, branch)
+    log(f"[ai-edit] Đã ghi trực tiếp vào chương {ch.index} (revision {base_rev + 1}).")
+    return {
+        "index": ch.index,
+        "revision": base_rev + 1,
+        "generated_at": generated_at,
+        "applied": True,
+    }
+
+
+def step_ai_edit_local_mt_bulk(
+    cfg: Config, log: LogFn = _print, *, selected_indexes: list[int]
+) -> list[int]:
+    """Biên tập GHI TRỰC TIẾP cho NHIỀU chương. Trả list index đã áp thành công
+    (chương lỗi/đổi đồng thời bị bỏ qua, đã log — không kéo theo các chương khác,
+    không bao giờ tự ghi đè mù qua CAS)."""
+    applied: list[int] = []
+    for idx in selected_indexes:
+        try:
+            res = step_ai_edit_local_mt(cfg, log, index=idx)
+            if res.get("applied"):
+                applied.append(idx)
+        except revisions.RevisionError as e:
+            log(f"[ai-edit-bulk] Bỏ qua chương {idx}: {e}")
+        except RuntimeError as e:
+            log(f"[ai-edit-bulk] Lỗi chương {idx}: {e}")
+    log(f"[ai-edit-bulk] Đã biên tập trực tiếp {len(applied)}/{len(selected_indexes)} chương.")
+    return applied
+
+
 def step_apply_ai_revision(cfg: Config, log: LogFn = _print, *, revision_id: int) -> str:
     """Người review CHẤP NHẬN một candidate: optimistic lock trên revision của
     NHÁNH mà candidate thuộc về.
@@ -2151,7 +2236,7 @@ def step_bulk_confirm(
         raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
 
     def _target_branch() -> str:
-        if action in ("local-mt", "ai-edit-draft"):
+        if action in ("local-mt", "ai-edit", "ai-edit-draft"):
             return revisions.BRANCH_LOCAL_MT
         return revisions.normalize_branch(branch)
 
@@ -2179,16 +2264,20 @@ def step_bulk_confirm(
         _translate(log)
         return {"status": "done", "action": action, "branch": effective_branch, "total": len(index_list)}
 
-    if action == "ai-edit-draft":
-        def _draft(log: LogFn) -> None:
-            step_preview_revisions_bulk(cfg, log, selected_indexes=index_list, require_local_mt=True)
+    if action in ("ai-edit", "ai-edit-draft"):
+        # `ai-edit` là action canonical ghi TRỰC TIẾP vào nhánh `local_mt`;
+        # `ai-edit-draft` là alias cũ, request shape giữ nguyên nhưng nay cũng
+        # ghi đè trực tiếp (không còn sinh bản nháp chờ duyệt).
+
+        def _edit(log: LogFn) -> None:
+            step_ai_edit_local_mt_bulk(cfg, log, selected_indexes=index_list)
 
         if dispatch is not None:
-            ok = dispatch(f"bulk-ai-edit-draft-{cfg.novel.slug}", "ai-edit", _draft)
+            ok = dispatch(f"bulk-ai-edit-{cfg.novel.slug}", "ai-edit", _edit)
             if not ok:
                 raise RuntimeError("Đang có job khác chạy, vui lòng đợi.")
             return {"status": "queued", "action": action, "branch": revisions.BRANCH_LOCAL_MT, "total": len(index_list)}
-        _draft(log)
+        _edit(log)
         return {"status": "done", "action": action, "branch": revisions.BRANCH_LOCAL_MT, "total": len(index_list)}
 
     if action == "build":

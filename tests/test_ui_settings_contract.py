@@ -39,7 +39,7 @@ def client(tmp_path, monkeypatch):
     db = write_db_config(
         tmp_path / "n.db",
         defaults={"output": {"data_dir": str(tmp_path / "data")}},
-        ebooks={"t": {"name": "Truyện thử", "novel": {"title": "Truyện thử"}}},
+        ebooks={"t": {"novel": {"title": "Truyện thử"}}},
     )
     monkeypatch.setattr("app.deps.WORKSPACE_PATH", str(db))
     monkeypatch.setattr("app.deps.DB_PATH", str(db))

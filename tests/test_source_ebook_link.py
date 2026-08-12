@@ -163,7 +163,7 @@ class TestPresetResolveLive:
             tmp_path / "novel2epub.db",
             defaults={"translate": {"type": "none"}},
             sources={"aixdzs": {"content_selector": ".old", "delay_seconds": 1.0}},
-            ebooks={"novel-a": {"name": "A", "source": "aixdzs",
+            ebooks={"novel-a": {"source": "aixdzs",
                                 "crawl": {"toc_url": "https://aixdzs.com/d/1"}}},
         )
         before = _read_ebook_crawl(db, "novel-a")
@@ -183,7 +183,7 @@ class TestPresetResolveLive:
             tmp_path / "novel2epub.db",
             defaults={"translate": {"type": "none"}},
             sources={"aixdzs": {"content_selector": ".preset"}},
-            ebooks={"novel-a": {"name": "A", "source": "aixdzs",
+            ebooks={"novel-a": {"source": "aixdzs",
                                 "crawl": {"toc_url": "https://aixdzs.com/d/1",
                                           "content_selector": ".rieng"}}},
         )

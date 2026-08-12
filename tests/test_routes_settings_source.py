@@ -39,15 +39,14 @@ def _client(monkeypatch, tmp_path):
                             "scrapling_mode": "stealthy",
                             "domains": "aixdzs.com"}},
         ebooks={
-            "a": {"name": "A", "source": "aixdzs",
+            "a": {"source": "aixdzs",
                   "crawl": {"toc_url": "https://aixdzs.com/d/1"}},
             # Ebook thứ hai cùng preset — dùng để khẳng định không ai ghi vào nó.
-            "b": {"name": "B", "source": "aixdzs",
+            "b": {"source": "aixdzs",
                   "crawl": {"toc_url": "https://aixdzs.com/d/2"}},
             # Ebook CHƯA gắn nguồn nhưng URL khớp domain aixdzs — sync phải
             # tự nhận diện, gắn nguồn rồi đẩy override lên preset.
-            "c": {"name": "C",
-                  "crawl": {"toc_url": "https://aixdzs.com/d/3",
+            "c": {"crawl": {"toc_url": "https://aixdzs.com/d/3",
                             "content_selector": "#tu-c"}},
         },
     )

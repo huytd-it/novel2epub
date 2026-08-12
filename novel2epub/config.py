@@ -656,7 +656,7 @@ class Config:
 @dataclass
 class LibraryEntry:
     slug: str
-    name: str = ""
+    title: str = ""
     config: str = ""
 
 
@@ -718,8 +718,8 @@ def load_library(path: str | Path) -> LibraryConfig:
 
     conn = get_thread_connection(db_path)
     entries: dict[str, LibraryEntry] = {}
-    for r in conn.execute("SELECT slug, name FROM ebooks ORDER BY slug"):
-        entries[r["slug"]] = LibraryEntry(slug=r["slug"], name=r["name"] or "", config="")
+    for r in conn.execute("SELECT slug, title FROM ebooks ORDER BY slug"):
+        entries[r["slug"]] = LibraryEntry(slug=r["slug"], title=r["title"] or "", config="")
     return LibraryConfig(ebooks=entries)
 
 
@@ -743,8 +743,6 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
     ebooks: dict[str, Any] = {}
     for r in conn.execute("SELECT * FROM ebooks"):
         block: dict[str, Any] = {}
-        if r["name"]:
-            block["name"] = r["name"]
         if r["source_preset"]:
             block["source"] = r["source_preset"]
         novel_fields = {
@@ -840,7 +838,6 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     else:
         override = {}
     override = dict(override)
-    override.pop("name", None)  # tên hiển thị cấp ebook, không thuộc Config
     # `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình RIÊNG từng ebook
     # (translate_overrides_json/ai_overrides_json) merge đè lên `defaults:` —
     # defaults chỉ còn là fallback cho ebook chưa cấu hình riêng và là giá trị

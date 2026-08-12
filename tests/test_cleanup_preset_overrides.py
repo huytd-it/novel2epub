@@ -31,7 +31,7 @@ def _db(tmp_path: Path, ebooks: dict) -> Path:
 
 
 def test_bo_override_trung_preset(tmp_path):
-    db = _db(tmp_path, {"a": {"name": "A", "source": "aixdzs", "crawl": {
+    db = _db(tmp_path, {"a": {"source": "aixdzs", "crawl": {
         "toc_url": "https://aixdzs.com/d/1",
         "content_selector": ".content",   # trùng preset → bỏ
         "delay_seconds": 2.0,             # trùng preset → bỏ
@@ -42,7 +42,7 @@ def test_bo_override_trung_preset(tmp_path):
 
 
 def test_giu_override_khac_preset(tmp_path):
-    db = _db(tmp_path, {"a": {"name": "A", "source": "aixdzs", "crawl": {
+    db = _db(tmp_path, {"a": {"source": "aixdzs", "crawl": {
         "toc_url": "https://aixdzs.com/d/1",
         "content_selector": ".rieng",     # khác preset → giữ
     }}})
@@ -52,7 +52,7 @@ def test_giu_override_khac_preset(tmp_path):
 
 
 def test_ebook_khong_co_source_khong_bi_dung(tmp_path):
-    db = _db(tmp_path, {"a": {"name": "A", "crawl": {
+    db = _db(tmp_path, {"a": {"crawl": {
         "content_selector": ".content",
     }}})
     report = cleanup_overrides(db)
@@ -61,7 +61,7 @@ def test_ebook_khong_co_source_khong_bi_dung(tmp_path):
 
 
 def test_source_khong_ton_tai_thi_bo_qua(tmp_path):
-    db = _db(tmp_path, {"a": {"name": "A", "source": "khong-co", "crawl": {
+    db = _db(tmp_path, {"a": {"source": "khong-co", "crawl": {
         "content_selector": ".content",
     }}})
     report = cleanup_overrides(db)
@@ -70,7 +70,7 @@ def test_source_khong_ton_tai_thi_bo_qua(tmp_path):
 
 
 def test_dry_run_khong_ghi_gi(tmp_path):
-    db = _db(tmp_path, {"a": {"name": "A", "source": "aixdzs", "crawl": {
+    db = _db(tmp_path, {"a": {"source": "aixdzs", "crawl": {
         "toc_url": "https://aixdzs.com/d/1",
         "content_selector": ".content",
     }}})
@@ -81,7 +81,7 @@ def test_dry_run_khong_ghi_gi(tmp_path):
 
 
 def test_idempotent(tmp_path):
-    db = _db(tmp_path, {"a": {"name": "A", "source": "aixdzs", "crawl": {
+    db = _db(tmp_path, {"a": {"source": "aixdzs", "crawl": {
         "toc_url": "https://aixdzs.com/d/1",
         "content_selector": ".content",
     }}})
@@ -109,7 +109,7 @@ def test_main_db_khong_ton_tai_thi_bao_loi_va_exit_khac_0(tmp_path, capsys):
 
 def test_main_dry_run_bao_cao_db_that(tmp_path, capsys):
     """main() với DB có thật vẫn chạy bình thường — guard mới không chặn nhầm."""
-    db = _db(tmp_path, {"a": {"name": "A", "source": "aixdzs", "crawl": {
+    db = _db(tmp_path, {"a": {"source": "aixdzs", "crawl": {
         "toc_url": "https://aixdzs.com/d/1",
         "content_selector": ".content",
     }}})

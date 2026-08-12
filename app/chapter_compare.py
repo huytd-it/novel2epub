@@ -1,4 +1,5 @@
-"""Gióng đoạn cho khung so sánh 3 cột (bản gốc | dịch máy | bản biên tập).
+"""Gióng đoạn cho khung so sánh (bản gốc | dịch máy | bản biên tập, và khung
+4 cột Bản gốc | Local MT | Dịch AI | AI edit cho SPA).
 
 Tách khỏi route vì cả trang Jinja2 cũ (`chapter.html`) lẫn API của SPA
 (`/api/ui/ebooks/{slug}/chapters/{index}`) đều cần đúng cách chia này — hai
@@ -29,3 +30,27 @@ def align_paragraphs(raw: str, mt: str, edited: str) -> list[tuple[str, str, str
 
     rows = [row for row in zip(*columns) if row[0].strip()]
     return rows or [("", "", "")]
+
+
+def align_sources(
+    raw: str, local_mt: str, ai: str, ai_edit: str
+) -> list[tuple[str, str, str, str]]:
+    """Ghép bốn nguồn của khung đối chiếu 4 cột thành các hàng
+    `(bản gốc, Local MT, dịch AI, AI edit)`.
+
+    Cùng quy ước với `align_paragraphs`: mỗi hàng = MỘT ĐOẠN (một dòng không
+    rỗng), cột ngắn hơn đệm chuỗi rỗng, hàng có bản gốc rỗng bị loại, luôn trả
+    về ít nhất một hàng để khung không sập khi chương rỗng.
+    """
+    columns = [
+        split_paragraphs(raw),
+        split_paragraphs(local_mt),
+        split_paragraphs(ai),
+        split_paragraphs(ai_edit),
+    ]
+    height = max((len(col) for col in columns), default=0)
+    for col in columns:
+        col.extend([""] * (height - len(col)))
+
+    rows = [row for row in zip(*columns) if row[0].strip()]
+    return rows or [("", "", "", "")]

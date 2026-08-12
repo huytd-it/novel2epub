@@ -189,20 +189,20 @@ def main() -> int:
                 conn.execute(
                     """
                     INSERT INTO ebooks
-                        (slug, name, source_preset, archived, title, author, description, language,
+                        (slug, source_preset, archived, title, author, description, language,
                          publisher, pubdate, date_added, subjects_json, series, series_index,
                          identifier, cover_url, source_url, cover_file, title_note,
                          metadata_missing_json, curated_fields_json,
                          crawl_overrides_json, output_overrides_json, epub_path)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(slug) DO UPDATE SET
-                        name=excluded.name, source_preset=excluded.source_preset, archived=excluded.archived,
+                        source_preset=excluded.source_preset, archived=excluded.archived,
                         title=excluded.title, author=excluded.author, description=excluded.description
                     """,
                     (
-                        slug, block.get("name", ""), block.get("source") or None,
+                        slug, block.get("source") or None,
                         1 if slug in archived else 0,
-                        mv("title"), mv("author"), mv("description"),
+                        mv("title") or block.get("name", ""), mv("author"), mv("description"),
                         novel.get("language", "vi"), novel.get("publisher", ""), novel.get("pubdate", ""),
                         novel.get("date_added", ""), json.dumps(novel.get("subjects", []), ensure_ascii=False),
                         novel.get("series", ""), novel.get("series_index", ""),

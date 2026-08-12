@@ -103,7 +103,7 @@ def _build_ebook_rows(cfgs: list[tuple[str, object]]) -> tuple[list[dict], dict]
 
         rows.append({
             "slug": slug,
-            "name": cfg.novel.title or slug,
+            "title": cfg.novel.title or slug,
             "progress": progress,
             "crawl_problems": len(crawl_problems),
             "han_fixed": han_fixed,

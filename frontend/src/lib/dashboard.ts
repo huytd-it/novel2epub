@@ -14,7 +14,7 @@ export interface AutomationStatus {
 
 export interface DashboardRow {
   slug: string;
-  name: string;
+  title: string;
   progress: {
     total: number;
     raw_count: number;

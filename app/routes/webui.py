@@ -36,7 +36,7 @@ from novel2epub.toc import apply_chapter_query, chapter_rows, count_words
 from novel2epub.wireguard import WireGuardProfileError
 
 from .. import deps
-from ..chapter_compare import align_paragraphs
+from ..chapter_compare import align_paragraphs, align_sources
 from ..cost_summary import read_cost_summary
 from ..ebook_deletion import (
     ConfirmationMismatch,
@@ -71,7 +71,7 @@ def _chapter_state(chapter, stats: dict) -> str:
         meta = json.loads(stats.get("meta_json") or "{}")
     except (TypeError, json.JSONDecodeError):
         meta = {}
-    return _EDITED if meta.get("before_rewrite") else _MT
+    return _EDITED if (meta.get("before_rewrite") or meta.get("local_mt_ai_edited")) else _MT
 
 
 def _encode_strip(states: list[str]) -> str:
@@ -98,7 +98,7 @@ def _encode_strip(states: list[str]) -> str:
     return ",".join(parts)
 
 
-def _ebook_summary(slug: str, name: str, cfg, *, archived: bool, in_library: bool) -> dict:
+def _ebook_summary(slug: str, cfg, *, archived: bool, in_library: bool) -> dict:
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     stats_map = storage.bulk_chapter_stats()
@@ -111,7 +111,6 @@ def _ebook_summary(slug: str, name: str, cfg, *, archived: bool, in_library: boo
     epub_path = Path(cfg.epub_path)
     return {
         "slug": slug,
-        "name": name,
         "title": cfg.novel.title,
         "author": cfg.novel.author,
         "archived": archived,
@@ -176,12 +175,10 @@ def library_list(show_archived: bool = False):
             continue
         if entry is None:
             cfg = deps.cfg()
-            name = cfg.novel.title or cfg.novel.slug
         else:
             cfg = deps.resolved_cfg(slug)
-            name = entry.name or cfg.novel.title or slug
         items.append(
-            _ebook_summary(slug, name, cfg, archived=is_archived, in_library=entry is not None)
+            _ebook_summary(slug, cfg, archived=is_archived, in_library=entry is not None)
         )
     return {"ebooks": items, "archived_count": len(archived)}
 
@@ -215,27 +212,27 @@ def library_ebook_create(request: Request, payload: dict = Body(...)):
     toc_url = _required_toc_url(payload)
     source = str(payload.get("source") or "").strip()
     mode = str(payload.get("scrapling_mode") or "").strip()
-    name = str(payload.get("name") or "").strip()
+    title = str(payload.get("title") or "").strip()
     author = str(payload.get("author") or "").strip()
     slug = str(payload.get("slug") or "").strip()
     description = str(payload.get("description") or "")
     cover_url = str(payload.get("cover_url") or "")
 
-    if not name:
+    if not title:
         try:
             fetched = library_routes._fetch_meta(toc_url, mode, source)
         except HTTPException:
             raise
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        name = str(fetched.get("name") or "")
+        title = str(fetched.get("title") or "")
         author = author or str(fetched.get("author") or "")
         slug = slug or str(fetched.get("slug") or "")
         description = description or str(fetched.get("description") or "")
         cover_url = cover_url or str(fetched.get("cover_url") or "")
 
     created = library_routes._write_new_ebook(
-        toc_url, slug, name, author, scrapling_mode=mode, source_name=source,
+        toc_url, slug, title, author, scrapling_mode=mode, source_name=source,
     )
     library_routes._save_ebook_metadata(created["slug"], description, cover_url)
     if bool(payload.get("fetch_toc")):
@@ -267,7 +264,7 @@ def _bulk_urls(payload: dict) -> list[str]:
 
 def _bulk_items(payload: dict) -> dict[str, dict]:
     """Metadata đã duyệt/ sửa từ bước preview, map theo URL. URL không có entry
-    (hoặc entry thiếu name) sẽ được fetch tự động như trước."""
+    (hoặc entry thiếu title) sẽ được fetch tự động như trước."""
     raw_items = payload.get("items")
     if raw_items is None:
         return {}
@@ -332,11 +329,11 @@ def library_ebooks_bulk(request: Request, payload: dict = Body(...)):
     for url in urls:
         item = items_by_url.get(url)
         try:
-            if item and str(item.get("name") or "").strip():
+            if item and str(item.get("title") or "").strip():
                 # Bước preview đã duyệt/sửa/dịch metadata — dùng luôn, không re-fetch.
                 fetched = {
                     "slug": str(item.get("slug") or ""),
-                    "name": str(item.get("name") or "").strip(),
+                    "title": str(item.get("title") or "").strip(),
                     "author": str(item.get("author") or "").strip(),
                     "description": str(item.get("description") or ""),
                     "cover_url": str(item.get("cover_url") or ""),
@@ -355,7 +352,7 @@ def library_ebooks_bulk(request: Request, payload: dict = Body(...)):
             created = library_routes._write_new_ebook(
                 url,
                 str(fetched.get("slug") or ""),
-                str(fetched.get("name") or ""),
+                str(fetched.get("title") or ""),
                 str(fetched.get("author") or ""),
                 **write_kwargs,
             )
@@ -556,6 +553,69 @@ def ebook_chapter_compare(slug: str, index: int):
         for branch in revisions.BRANCHES
     }
 
+    # ── Bốn nguồn của khung đối chiếu 4 cột (additive với các field legacy) ──
+    # `ai_edit` là nhánh `local_mt` sau AI biên tập; `local_mt` là baseline dịch
+    # máy (snapshot nếu có, fallback bản hiện tại) để so phần AI đã sửa.
+    local_mt_text = storage.read_branch_text(chapter, revisions.BRANCH_LOCAL_MT)
+    local_mt_has = storage.has_branch_text(chapter, revisions.BRANCH_LOCAL_MT)
+    local_mt_baseline = storage.read_branch_mt_snapshot(chapter, revisions.BRANCH_LOCAL_MT) or local_mt_text
+    ai_text = storage.read_branch_text(chapter, revisions.BRANCH_AI)
+    ai_has = storage.has_branch_text(chapter, revisions.BRANCH_AI)
+    ai_baseline = storage.read_branch_mt_snapshot(chapter, revisions.BRANCH_AI) or ai_text
+    local_mt_ai_edited = meta.get("local_mt_ai_edited") or None
+
+    def _source_status(has_text: bool, baseline: str) -> str:
+        if has_text:
+            return "ready"
+        return "partial" if baseline.strip() else "missing"
+
+    sources = {
+        "raw": {
+            "status": "ready" if raw.strip() else "missing",
+            "text": raw,
+            "title": None,
+            "revision": None,
+            "character_count": len(raw),
+            "edited": None,
+            "engine": None,
+            "model": None,
+            "updated_at": None,
+        },
+        "local_mt": {
+            "status": _source_status(local_mt_has, local_mt_baseline),
+            "text": local_mt_baseline,
+            "title": storage.read_branch_title(chapter, revisions.BRANCH_LOCAL_MT) or chapter.title,
+            "revision": storage.read_branch_revision(chapter, revisions.BRANCH_LOCAL_MT),
+            "character_count": len(local_mt_text),
+            "edited": None,
+            "engine": None,
+            "model": None,
+            "updated_at": None,
+        },
+        "ai": {
+            "status": _source_status(ai_has, ai_baseline),
+            "text": ai_text,
+            "title": storage.read_branch_title(chapter, revisions.BRANCH_AI) or chapter.title,
+            "revision": storage.read_branch_revision(chapter, revisions.BRANCH_AI),
+            "character_count": len(ai_text),
+            "edited": meta.get("before_rewrite") or None,
+            "engine": None,
+            "model": None,
+            "updated_at": None,
+        },
+        "ai_edit": {
+            "status": "ready" if (local_mt_has and local_mt_ai_edited) else "missing",
+            "text": local_mt_text,
+            "title": storage.read_branch_title(chapter, revisions.BRANCH_LOCAL_MT) or chapter.title,
+            "revision": storage.read_branch_revision(chapter, revisions.BRANCH_LOCAL_MT),
+            "character_count": len(local_mt_text),
+            "edited": local_mt_ai_edited,
+            "engine": (local_mt_ai_edited or {}).get("engine") if local_mt_ai_edited else None,
+            "model": (local_mt_ai_edited or {}).get("model") if local_mt_ai_edited else None,
+            "updated_at": (local_mt_ai_edited or {}).get("generated_at") if local_mt_ai_edited else None,
+        },
+    }
+
     return {
         "index": chapter.index,
         "title": storage.read_active_branch_title(chapter),
@@ -572,12 +632,15 @@ def ebook_chapter_compare(slug: str, index: int):
         "raw": raw,
         "translated": translated,
         "translated_mt": translated_mt,
+        "sources": sources,
         # Chia theo DÒNG — khớp `para/save` và ghi chú.
         "translated_paras": split_paras(translated) if translated else [],
-        # Chia theo KHỐI — chỉ để gióng 3 cột đối chiếu.
+        # Chia theo KHỐI — chỉ để gióng các cột đối chiếu. Hàng giữ cả 4 nguồn
+        # mới (`raw`/`local_mt`/`ai`/`ai_edit`) lẫn 2 field legacy (`mt`/`edited`
+        # = baseline dịch máy và bản hiện tại của nhánh `local_mt`).
         "paragraphs": [
-            {"raw": r, "mt": m, "edited": e}
-            for r, m, e in align_paragraphs(raw, translated_mt, translated)
+            {"raw": r, "local_mt": m, "ai": a, "ai_edit": e, "mt": m, "edited": e}
+            for r, m, a, e in align_sources(raw, local_mt_baseline, ai_text, local_mt_text)
         ],
         "raw_char_count": len(raw),
         "word_count": count_words(translated),
@@ -1050,9 +1113,8 @@ def library_detail(slug: str):
     if library.ebooks and entry is None:
         raise HTTPException(status_code=404, detail=f"Không có ebook {slug!r}.")
     cfg = deps.resolved_cfg(slug)
-    name = (entry.name if entry else "") or cfg.novel.title or slug
     return _ebook_summary(
-        slug, name, cfg, archived=slug in archived, in_library=entry is not None
+        slug, cfg, archived=slug in archived, in_library=entry is not None
     )
 
 
@@ -1437,7 +1499,7 @@ def storage_overview():
         report["raw_chapters"] = counts["raw"]
         report["translated_chapters"] = counts["translated"]
         report["glossary_entries"] = counts["glossary"]
-        rows.append({"slug": slug, "name": cfg.novel.title or slug, "report": report})
+        rows.append({"slug": slug, "title": cfg.novel.title or slug, "report": report})
     return {"rows": rows, "grand_total": grand_total}
 
 
@@ -1472,9 +1534,9 @@ def _automation_ebook_options() -> list[dict[str, str]]:
     if not library.ebooks:
         return [{"slug": "default", "title": "default"}]
     options = []
-    for slug, entry in library.ebooks.items():
+    for slug in library.ebooks:
         cfg = deps.resolved_cfg(slug)
-        options.append({"slug": slug, "title": entry.name or cfg.novel.title or slug})
+        options.append({"slug": slug, "title": cfg.novel.title or slug})
     return sorted(options, key=lambda ebook: ebook["title"].casefold())
 
 
@@ -2071,6 +2133,7 @@ def ebook_chapters_bulk_confirm(request: Request, slug: str, payload: dict = Bod
         action_label = {
             "translate": "translate",
             "local-mt": "local-mt",
+            "ai-edit": "ai-rewrite",
             "ai-edit-draft": "ai-rewrite",
             "build": "build",
             "delete-translation": "delete-translation",
@@ -2107,21 +2170,11 @@ def ebook_chapters_bulk_confirm(request: Request, slug: str, payload: dict = Bod
     return {**result, "token": token, "consumed": True, "exact_indexes": eligible_indexes}
 
 
-@router.post("/ebooks/{slug}/chapters/ai-edit-draft")
-def ebook_chapters_ai_edit_draft(request: Request, slug: str, payload: dict = Body(...)):
-    """Xếp thẳng job biên tập AI cho các chương đã chọn — KHÔNG qua preview/confirm.
-
-    Nút "Biên tập AI" phải là một cú bấm ra một job: hợp đồng bulk hai vòng
-    (preview token → confirm) chỉ hợp lý cho hành động GHI ĐÈ bản dịch, còn ở
-    đây kết quả luôn là bản nháp chờ duyệt nên không có gì để mất nếu bấm nhầm.
-
-    Lọc eligibility ngay tại đây chỉ để báo liền số chương bị bỏ qua (đọc file,
-    không gọi model). Job vẫn chạy `require_local_mt=True` nên chương mất bản
-    Local MT trong lúc chờ hàng đợi vẫn bị chặn đúng lúc thực thi."""
+def _ai_edit_eligible(storage, manifest, payload: dict) -> tuple[list[int], list[dict]]:
+    """Đọc `indexes`, lọc chương đủ điều kiện biên tập AI (đã có bản dịch
+    Local MT — đọc file, không gọi model). Trả `(eligible, blocked)`."""
     from novel2epub import bulk_contract
-    from novel2epub.pipeline import step_preview_revisions_bulk
 
-    cfg = deps.resolved_cfg(slug)
     indexes = payload.get("indexes")
     if not isinstance(indexes, list) or not indexes:
         raise HTTPException(status_code=400, detail="Thiếu 'indexes'.")
@@ -2130,22 +2183,25 @@ def ebook_chapters_ai_edit_draft(request: Request, slug: str, payload: dict = Bo
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="'indexes' phải là list số.")
 
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    if manifest is None:
-        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
-
     wanted = set(index_list)
     eligible: list[int] = []
     blocked: list[dict] = []
     for ch in manifest.chapters:
         if ch.index not in wanted:
             continue
-        ok, reason = bulk_contract.chapter_eligibility(storage, ch, action="ai-edit-draft")
+        ok, reason = bulk_contract.chapter_eligibility(storage, ch, action="ai-edit")
         if ok:
             eligible.append(ch.index)
         else:
             blocked.append({"index": ch.index, "reason": reason})
+    return eligible, blocked
+
+
+def _enqueue_ai_edit_job(job, cfg, storage, slug: str, eligible: list[int], blocked: list[dict]) -> dict:
+    """Xếp job biên tập AI ghi TRỰC TIẾP vào nhánh `local_mt` cho `eligible`
+    (CAS mỗi chương lúc thực thi — chương đổi giữa chừng bị bỏ qua có log)."""
+    from novel2epub.pipeline import step_ai_edit_local_mt_bulk
+
     if not eligible:
         raise HTTPException(
             status_code=409,
@@ -2156,7 +2212,7 @@ def ebook_chapters_ai_edit_draft(request: Request, slug: str, payload: dict = Bo
         ch = storage.get_chapter(eligible[0])
         label = chapter_job_label(
             "ai-rewrite", title=cfg.novel.title, slug=slug,
-            index=eligible[0], chapter_title=ch.title if ch else "",
+            index=eligible[0], chapter_title=getattr(ch, "title", "") if ch else "",
         )
     else:
         label = batch_job_label(
@@ -2164,21 +2220,60 @@ def ebook_chapters_ai_edit_draft(request: Request, slug: str, payload: dict = Bo
         )
 
     def _target(log, _cfg=cfg, _idx=list(eligible)):
-        step_preview_revisions_bulk(_cfg, log, selected_indexes=_idx, require_local_mt=True)
+        step_ai_edit_local_mt_bulk(_cfg, log, selected_indexes=_idx)
 
-    job = request.app.state.job.queue.enqueue(
-        "ai-edit", f"ai-edit-draft-{slug}", _target,
+    queued = job.queue.enqueue(
+        "ai-edit", f"ai-edit-{slug}", _target,
         label=label, ebook=slug, chapter_indexes=list(eligible),
     )
     return {
         "status": "queued",
-        "job_id": job.id,
+        "job_id": queued.id,
         "queued": len(eligible),
         "skipped": len(blocked),
         "indexes": eligible,
         "blocked": blocked,
     }
 
+
+@router.post("/ebooks/{slug}/chapters/ai-edit")
+def ebook_chapters_ai_edit(request: Request, slug: str, payload: dict = Body(...)):
+    """AI biên tập GHI TRỰC TIẾP vào nhánh `local_mt` (canonical).
+
+    Đây là hành động GHI ĐÈ bản dịch nên bắt buộc xác nhận: gửi `confirm: true`.
+    UI nên đi qua hợp đồng bulk-preview/confirm (action `ai-edit`) để xem trước
+    số chương đủ điều kiện; endpoint này dành cho luồng CLI/API/test muốn một
+    cú gọi trực tiếp có cờ xác nhận rõ ràng."""
+    if not payload.get("confirm"):
+        raise HTTPException(
+            status_code=400,
+            detail="AI biên tập ghi đè bản dịch Local MT — cần xác nhận (confirm: true).",
+        )
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+
+    eligible, blocked = _ai_edit_eligible(storage, manifest, payload)
+    return _enqueue_ai_edit_job(request.app.state.job, cfg, storage, slug, eligible, blocked)
+
+
+@router.post("/ebooks/{slug}/chapters/ai-edit-draft")
+def ebook_chapters_ai_edit_draft(request: Request, slug: str, payload: dict = Body(...)):
+    """Alias cũ của `/ai-edit` — request shape giữ nguyên nhưng semantics đã
+    đổi sang GHI TRỰC TIẾP (không còn sinh bản nháp chờ duyệt): bấm là ghi đè
+    bản dịch Local MT bằng kết quả AI. Có ghi đè thật nên luồng UI mới đi qua
+    hợp đồng bulk-preview/confirm (action `ai-edit`); endpoint này chỉ còn cho
+    CLI/API cũ gọi."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+
+    eligible, blocked = _ai_edit_eligible(storage, manifest, payload)
+    return _enqueue_ai_edit_job(request.app.state.job, cfg, storage, slug, eligible, blocked)
 
 @router.get("/queue")
 def queue_status(request: Request):

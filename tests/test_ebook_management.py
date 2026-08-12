@@ -42,7 +42,7 @@ def _client(monkeypatch, tmp_path, slugs=("a", "b")):
     from app import deps
     from app.main import app
 
-    library = LibraryConfig(ebooks={slug: LibraryEntry(slug=slug, name=f"Truyện {slug}") for slug in slugs})
+    library = LibraryConfig(ebooks={slug: LibraryEntry(slug=slug, title=f"Truyện {slug}") for slug in slugs})
     monkeypatch.setattr(deps, "library", lambda: library)
     monkeypatch.setattr(deps, "resolved_cfg", lambda slug: _cfg(tmp_path, slug))
     monkeypatch.setattr(deps, "LIBRARY_STATE_PATH", tmp_path / "library_state.json")

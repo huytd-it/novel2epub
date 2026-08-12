@@ -89,7 +89,12 @@ class ChapterRow:
     visible_title: str
     url: str
     has_raw: bool
+    # `has_translated` chỉ nhánh đang active (Reader/EPUB); hai field sau cho
+    # biết dữ liệu hoàn tất ở từng nhánh để UI không đánh đồng các cột DB.
     has_translated: bool
+    active_branch: str
+    has_ai_translation: bool
+    has_local_mt_translation: bool
     missing_fields: list[str]
     duplicate_of: int | None
     last_action_status: str
@@ -167,6 +172,9 @@ def chapter_rows(
             s = stats_map.get(ch.index, {})
             has_raw = s.get("has_raw", False)
             has_translated = s.get("has_translated", False)
+            active_branch = s.get("active_branch", storage.active_branch(ch))
+            has_ai_translation = s.get("has_ai_translation", False)
+            has_local_mt_translation = s.get("has_local_mt_translation", False)
             # ponytail: byte-length estimates for display only, not business logic
             word_count = (s.get("translated_len") or 0) // 5 if has_translated else 0
             zh_char_count = (s.get("raw_len") or 0) // 3 if has_raw else 0
@@ -175,7 +183,14 @@ def chapter_rows(
             except Exception:
                 meta = {}
         else:
-            has_translated = storage.has_translated(ch)
+            active_branch = storage.active_branch(ch)
+            has_ai_translation = storage.has_branch_text(ch, "ai")
+            has_local_mt_translation = storage.has_branch_text(ch, "local_mt")
+            has_translated = (
+                has_local_mt_translation
+                if active_branch == "local_mt"
+                else has_ai_translation
+            )
             word_count = count_words(storage.read_translated(ch)) if has_translated else 0
             has_raw = storage.has_raw(ch)
             zh_char_count = count_han_chars(storage.read_raw(ch)) if has_raw else 0
@@ -196,6 +211,17 @@ def chapter_rows(
                 elif meta.get("before_rewrite"):
                     bientap = "✏️ Đã biên tập"
                     bientap_tooltip = "AI rewrite đã được áp dụng (giữ bản gốc trong before_rewrite để khôi phục)"
+                elif meta.get("local_mt_ai_edited"):
+                    edited = meta["local_mt_ai_edited"]
+                    when = edited.get("generated_at", "") if isinstance(edited, dict) else ""
+                    engine = edited.get("engine", "") if isinstance(edited, dict) else ""
+                    bientap = "✏️ Đã biên tập (Local MT)"
+                    tip = "AI biên tập GHI TRỰC TIẾP vào nhánh Local MT (bản gốc MT giữ trong snapshot)"
+                    if engine:
+                        tip += f"\nengine: {engine}"
+                    if when:
+                        tip += f"\ngenerated_at: {when}"
+                    bientap_tooltip = tip
             except Exception:
                 pass
 
@@ -207,6 +233,9 @@ def chapter_rows(
             url=ch.url,
             has_raw=has_raw,
             has_translated=has_translated,
+            active_branch=active_branch,
+            has_ai_translation=has_ai_translation,
+            has_local_mt_translation=has_local_mt_translation,
             missing_fields=chapter_missing(ch),
             duplicate_of=ch.duplicate_of,
             last_action_status=ch.last_action_status,

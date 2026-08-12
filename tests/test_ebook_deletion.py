@@ -45,7 +45,7 @@ def make_ebook_db(tmp_path: Path) -> tuple[Path, Path]:
     epub.write_bytes(b"epub")
     db = write_db_config(
         tmp_path / "novel2epub.db",
-        ebooks={"book-a": {"name": "Book A", "output": {"epub_path": str(epub)}}},
+        ebooks={"book-a": {"novel": {"title": "Book A"}, "output": {"epub_path": str(epub)}}},
     )
     conn = get_connection(db)
     with conn:

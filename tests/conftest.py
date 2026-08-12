@@ -45,7 +45,7 @@ def write_db_config(
     """Tạo 1 file `.db` tại `path` với settings/sources/ebooks cho trước.
 
     Shape của `ebooks[slug]` giống hệt khối `ebooks.<slug>` trong YAML cũ:
-    `{"name": ..., "source": <preset name>, "novel": {...}, "crawl": {...},
+    `{"source": <preset name>, "novel": {...}, "crawl": {...},
     "output": {...}}`.
     """
     path = Path(path)
@@ -83,14 +83,14 @@ def write_db_config(
             conn.execute(
                 """
                 INSERT INTO ebooks
-                    (slug, name, source_preset, title, author, description, language,
+                    (slug, source_preset, title, author, description, language,
                      publisher, pubdate, date_added, subjects_json, series, series_index,
                      identifier, cover_url, crawl_overrides_json, output_overrides_json, epub_path,
                      reader_overrides_json, translate_overrides_json, ai_overrides_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    slug, block.get("name", ""), block.get("source"),
+                    slug, block.get("source"),
                     novel.get("title", ""), novel.get("author", ""), novel.get("description", ""),
                     novel.get("language", "vi"), novel.get("publisher", ""), novel.get("pubdate", ""),
                     novel.get("date_added", ""), json.dumps(novel.get("subjects", []), ensure_ascii=False),

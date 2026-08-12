@@ -1,9 +1,9 @@
-"""Nút "Biên tập AI" xếp thẳng job, không đi qua preview/confirm.
+"""Alias "Biên tập AI" (cũ `/ai-edit-draft`) xếp thẳng job ghi trực tiếp.
 
-Trước đây nút này gọi hợp đồng bulk (`ai-edit-draft`) hai vòng; giờ nó bắn
-thẳng `POST /api/ui/ebooks/{slug}/chapters/ai-edit-draft`. Kết quả luôn là bản
-nháp chờ duyệt nên không cần token xác nhận — bù lại route phải tự lọc chương
-chưa có bản dịch Local MT và báo lại số bị bỏ qua.
+Request shape cũ giữ nguyên nhưng semantics đã đổi sang GHI TRỰC TIẾP vào
+nhánh `local_mt` (đồng bộ với canonical `/ai-edit`) — không còn sinh bản nháp
+chờ duyệt. Route phải tự lọc chương chưa có bản dịch Local MT và báo lại số bị
+bỏ qua; job chạy `step_ai_edit_local_mt_bulk` (CAS từng chương lúc thực thi).
 """
 from __future__ import annotations
 
@@ -161,24 +161,54 @@ def test_thieu_indexes_tra_400(tmp_path, monkeypatch):
     assert job.queue.enqueued == []
 
 
-def test_job_chay_voi_require_local_mt(tmp_path, monkeypatch):
-    """Job phải gọi `step_preview_revisions_bulk(require_local_mt=True)` — chương
-    mất bản Local MT trong lúc chờ hàng đợi vẫn bị chặn đúng lúc thực thi."""
+def test_job_chay_voi_bulk_direct_write(tmp_path, monkeypatch):
+    """Job phải gọi `step_ai_edit_local_mt_bulk` (ghi trực tiếp, CAS từng chương
+    lúc thực thi — chương mất bản Local MT trong lúc chờ hàng đợi bị bỏ qua)."""
     cfg = _cfg(tmp_path)
     _seed(tmp_path)
     seen: dict = {}
 
     from novel2epub import pipeline
 
-    def _fake(cfg_arg, log, *, selected_indexes, require_local_mt=False):
+    def _fake(cfg_arg, log, *, selected_indexes):
         seen["indexes"] = list(selected_indexes)
-        seen["require_local_mt"] = require_local_mt
-        return []
+        return [1]
 
-    monkeypatch.setattr(pipeline, "step_preview_revisions_bulk", _fake)
+    monkeypatch.setattr(pipeline, "step_ai_edit_local_mt_bulk", _fake)
     client, _job = _client(cfg, monkeypatch, run_job=True)
 
     res = client.post("/api/ui/ebooks/t/chapters/ai-edit-draft", json={"indexes": [1, 2]})
 
     assert res.status_code == 200
-    assert seen == {"indexes": [1, 2], "require_local_mt": True}
+    assert seen == {"indexes": [1, 2]}
+
+
+def test_canonical_ai_edit_bat_buoc_confirm(tmp_path, monkeypatch):
+    """Canonical `/ai-edit` GHI ĐÈ bản dịch nên bắt buộc `confirm: true`."""
+    cfg = _cfg(tmp_path)
+    _seed(tmp_path)
+    client, job = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ui/ebooks/t/chapters/ai-edit", json={"indexes": [1, 2]})
+
+    assert res.status_code == 400
+    assert "confirm" in res.json()["detail"].lower()
+    assert job.queue.enqueued == []
+
+
+def test_canonical_ai_edit_co_confirm_thi_xep_job(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    _seed(tmp_path)
+    client, job = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ui/ebooks/t/chapters/ai-edit",
+        json={"indexes": [1, 2], "confirm": True},
+    )
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "queued"
+    assert data["queued"] == 2
+    assert job.queue.enqueued[0]["category"] == "ai-edit"
+    assert job.queue.enqueued[0]["chapter_indexes"] == [1, 2]

@@ -252,6 +252,8 @@ class Storage:
         rows = self.conn.execute(
             "SELECT idx, active_branch,"
             " CASE WHEN raw_text IS NOT NULL AND raw_text != '' THEN 1 ELSE 0 END AS has_raw_int,"
+            " CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END AS has_ai_int,"
+            " CASE WHEN local_mt_text IS NOT NULL AND local_mt_text != '' THEN 1 ELSE 0 END AS has_local_mt_int,"
             " CASE WHEN active_branch = 'local_mt'"
             " THEN CASE WHEN local_mt_text IS NOT NULL AND local_mt_text != '' THEN 1 ELSE 0 END"
             " ELSE CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END"
@@ -265,19 +267,28 @@ class Storage:
         ).fetchall()
         result: dict[int, dict] = {}
         for row in rows:
-            has_tr_raw = bool(row["has_tr_int"])
-            if has_tr_raw:
-                try:
-                    meta = json.loads(row["meta_json"] or "{}")
-                except Exception:
-                    meta = {}
-                branch = revisions.normalize_branch(row["active_branch"])
-                has_translated = bool(meta.get(self._BRANCH_COMPLETE_META[branch], True))
-            else:
-                has_translated = False
+            try:
+                meta = json.loads(row["meta_json"] or "{}")
+            except Exception:
+                meta = {}
+            branch = revisions.normalize_branch(row["active_branch"])
+            has_ai_translation = bool(row["has_ai_int"]) and bool(
+                meta.get(self._BRANCH_COMPLETE_META[revisions.BRANCH_AI], True)
+            )
+            has_local_mt_translation = bool(row["has_local_mt_int"]) and bool(
+                meta.get(self._BRANCH_COMPLETE_META[revisions.BRANCH_LOCAL_MT], True)
+            )
+            has_translated = (
+                has_local_mt_translation
+                if branch == revisions.BRANCH_LOCAL_MT
+                else has_ai_translation
+            )
             result[row["idx"]] = {
+                "active_branch": branch,
                 "has_raw": bool(row["has_raw_int"]),
                 "has_translated": has_translated,
+                "has_ai_translation": has_ai_translation,
+                "has_local_mt_translation": has_local_mt_translation,
                 "translated_len": row["translated_len"] or 0,
                 "raw_len": row["raw_len"] or 0,
                 "meta_json": row["meta_json"],

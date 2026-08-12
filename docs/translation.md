@@ -29,8 +29,10 @@ Với nguồn tiếng Việt, đặt `source_language=vi`; hệ thống tự pas
 Trong SPA, hai hành động dịch là tường minh và không phụ thuộc `translate.type`: **Local MT** luôn dùng engine Local MT và ghi nhánh `local_mt`; **Dịch AI** luôn dùng OpenAI-compatible và ghi nhánh `ai`. Vì vậy Local MT không gọi `ai.openai` hoặc endpoint `/chat/completions`. `translate.type` chỉ còn là backend mặc định cho CLI/automation cũ.
 
 1. Dịch bằng `localmt` (ghi vào nhánh `local_mt`).
-2. Dùng **AI biên tập** (hành động `ai-edit-draft`, engine rewrite chỉ đọc nhánh `local_mt`) để nắn văn phong/xưng hô và **trích glossary** từ chính bản dịch.
-3. Duyệt bản nháp AI trước khi áp.
+2. Dùng **AI biên tập** (hành động `ai-edit`, engine rewrite chỉ đọc nhánh `local_mt`, không bao giờ thấy raw) để nắn văn phong/xưng hô và **trích glossary** từ chính bản dịch.
+3. Trước khi gửi, SPA hiện hộp thoại xác nhận vì kết quả **ghi đè trực tiếp** vào nhánh `local_mt`; bản Local MT gốc được giữ lại trong snapshot (đọc bản gốc khi cần xem lại) và nhánh `ai` không bị đụng tới.
+
+Vì AI chỉ *biên tập* (không dịch trực tiếp từ bản gốc), workflow này **không có rủi ro bản quyền**.
 
 Vì AI chỉ *biên tập* (không dịch trực tiếp từ bản gốc), workflow này **không có rủi ro bản quyền**.
 

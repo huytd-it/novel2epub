@@ -332,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
             print("Chưa có ebook nào trong file gộp (khối ebooks:)")
             return 0
         for slug, entry in library.ebooks.items():
-            print(f"{slug}\t{entry.name or slug}")
+            print(f"{slug}\t{entry.title or slug}")
         return 0
 
     if args.command == "service":

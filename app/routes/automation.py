@@ -35,9 +35,9 @@ def _ebook_options() -> list[dict[str, str]]:
     if not library.ebooks:
         return [{"slug": "default", "title": "default"}]
     options = []
-    for slug, entry in library.ebooks.items():
+    for slug in library.ebooks:
         cfg = deps.resolved_cfg(slug)
-        options.append({"slug": slug, "title": entry.name or cfg.novel.title or slug})
+        options.append({"slug": slug, "title": cfg.novel.title or slug})
     return sorted(options, key=lambda ebook: ebook["title"].casefold())
 
 

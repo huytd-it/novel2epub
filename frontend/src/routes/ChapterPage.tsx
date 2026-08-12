@@ -9,23 +9,21 @@ import { num } from "@/lib/format";
 import { hasRealDiff } from "@/lib/diff";
 import { useChapter, type AiRevision, type ChapterCompare } from "@/lib/ebook";
 import {
-  aiEditDraftMessage,
   applyBookReplace,
   invalidateBookSearch,
   loadFindState,
   previewBookReplace,
   saveFindState,
-  useAiEditDraft,
   useBookmark,
   useBookSearch,
   useChapterNotes,
-  useCompareBlockEdit,
   useConfirmDraft,
   useCreateNote,
   useDiscardDraft,
   useReaderPreferences,
   useRevertEdits,
   useSaveChapterText,
+  useSetActiveBranch,
   useUpdateChapterTitle,
   type FindReplacePreviewItem,
   type FindSource,
@@ -58,7 +56,6 @@ import {
   IconRevert,
   IconSearch,
   IconSparkle,
-  IconTrash,
 } from "@/components/icons";
 
 /* ── Bôi đen văn bản trong đoạn -> đánh dấu ghi chú ─────────────────── */
@@ -161,34 +158,85 @@ function NoteComposer({
   );
 }
 
-/* ── Nguồn bản dịch: ba luồng độc lập ────────────────────────────────
+/* ── Nguồn bản dịch: hai nhánh độc lập ───────────────────────────────
    "Dịch" đọc từ BẢN GỐC và ghi thẳng vào nhánh nên phải preview + confirm.
-   "Biên tập AI" đọc từ BẢN DỊCH đang có và chỉ sinh BẢN NHÁP chờ duyệt —
-   không ghi đè gì cả, nên bấm một cái là xếp job luôn, không hỏi lại. Tách
-   hẳn hai nhóm nút để không ai bấm nhầm "biên tập" khi định "dịch lại".  */
+   "Biên tập AI" đọc từ nhánh LOCAL MT và GHI TRỰC TIẾP kết quả AI vào chính
+   nhánh đó (CAS mỗi chương lúc thực thi) — ghi đè bản dịch thật nên phải qua
+   dialog xác nhận trước khi xếp job. Tách hẳn hai nhóm nút để không ai bấm
+   nhầm "biên tập" khi định "dịch lại".                                       */
+
+const BRANCH_ORDER = ["ai", "local_mt"] as const;
 
 function BranchBar({
   slug,
   data,
-  onRewrite,
-  rewritePending,
+  onAiEdit,
+  aiEditPending,
 }: {
   slug: string;
   data: ChapterCompare;
-  onRewrite: () => void;
-  rewritePending: boolean;
+  onAiEdit: () => void;
+  aiEditPending: boolean;
 }) {
   const toast = useToast();
+  const setActiveBranch = useSetActiveBranch(slug, data.index);
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
 
   const branchLabel = translateAction === "local-mt" ? "Local MT" : "AI";
 
+  const switchTo = (branch: "ai" | "local_mt") => {
+    if (branch === data.active_branch) return;
+    setActiveBranch.mutate(branch, {
+      onSuccess: () => toast(`Đã chuyển sang nhánh ${data.branches[branch].label}.`),
+      onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+    });
+  };
+
   return (
     <Panel className="mb-4 px-3 py-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Badge tone={data.active_branch === "local_mt" ? "gold" : "indigo"}>
-          {data.branches[data.active_branch].label}
-        </Badge>
+      <div className="flex flex-wrap items-center gap-2">
+        {BRANCH_ORDER.map((b) => {
+          const st = data.branches[b];
+          const isActive = b === data.active_branch;
+          return (
+            <div
+              key={b}
+              className={clsx(
+                "flex items-center gap-2 rounded-field border px-2.5 py-1.5 text-[12px]",
+                isActive
+                  ? "border-base-content/25 bg-base-200"
+                  : "border-base-300 bg-base-100",
+              )}
+            >
+              <Badge tone={isActive ? (b === "local_mt" ? "gold" : "indigo") : "neutral"}>
+                {st.label}
+              </Badge>
+              <span className="opacity-60">
+                {st.has_text ? "có bản dịch" : "trống"}
+                {st.revision > 0 ? ` · r${st.revision}` : ""}
+              </span>
+              {isActive ? (
+                <Badge tone="gold">hoạt động</Badge>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="min-h-6 px-2 text-[11px]"
+                  loading={setActiveBranch.isPending}
+                  disabled={!st.has_text}
+                  onClick={() => switchTo(b)}
+                  title={
+                    st.has_text
+                      ? `Chuyển Reader/EPUB sang nhánh ${st.label}`
+                      : "Nhánh này chưa có bản dịch — chưa thể chuyển"
+                  }
+                >
+                  Chuyển
+                </Button>
+              )}
+            </div>
+          );
+        })}
 
         <div className="h-7 w-px bg-base-300" aria-hidden="true" />
 
@@ -211,10 +259,10 @@ function BranchBar({
           size="sm"
           variant="primary"
           icon={<IconSparkle size={13} />}
-          disabled={!data.has_translated}
-          loading={rewritePending}
-          onClick={onRewrite}
-          title="Xếp job biên tập AI cho chương này — kết quả là bản nháp chờ duyệt"
+          disabled={!data.branches.local_mt.has_text}
+          loading={aiEditPending}
+          onClick={onAiEdit}
+          title="AI biên tập GHI TRỰC TIẾP vào nhánh Local MT (bản gốc MT giữ trong snapshot) — xem xác nhận trước khi xếp job"
         >
           Biên tập AI
         </Button>
@@ -317,104 +365,28 @@ function DraftCard({
 
 /* ── Khung đối chiếu 3 cột — cho phép sửa đoạn ───────────────────────── */
 
-function EditableCompareView({
-  slug,
-  index,
+/** Khung đối chiếu 4 cột READ-ONLY (SPA): bản gốc | Local MT | Dịch AI | AI edit.
+    Phần tô nền là chỗ "AI edit" khác "Local MT" (bản AI đã sửa). Không sửa
+    trực tiếp trong ô — sửa bản dịch đi qua tab Đọc (toàn văn, CAS `expected_rev`),
+    tránh mọi đường ghi không an toàn branch. */
+function CompareSourcesView({
   data,
   fontFamily,
-  onError,
 }: {
-  slug: string;
-  index: number;
   data: ChapterCompare;
   fontFamily: "serif" | "sans" | "mono";
-  onError: (err: unknown) => void;
 }) {
   const rows = data.paragraphs;
-  const edit = useCompareBlockEdit(slug, index);
-  const toast = useToast();
-
-  // Ô nào đang được sửa (block index → cột).
-  const [editing, setEditing] = useState<Record<number, "raw" | "translated">>({});
-  // Revision mới nhất đã biết — mutation thành công trả revision mới trước khi
-  // refetch chapter về, nên dùng nó cho các thao tác kế để khỏi dính stale 409.
-  const [latestRevision, setLatestRevision] = useState(data.revision);
-  useEffect(() => {
-    setLatestRevision(data.revision);
-  }, [data.revision]);
-
-  const finishEdit = (block: number) => {
-    setEditing((prev) => {
-      const next = { ...prev };
-      delete next[block];
-      return next;
-    });
-  };
-
-  const commit = (block: number, col: "raw" | "translated", rawValue: string) => {
-    const row = rows[block];
-    if (!row) return;
-    finishEdit(block);
-    const value = rawValue.trim();
-    const before = col === "raw" ? row.raw : row.edited;
-    if (value === before) return; // không đổi gì cả
-
-    edit.mutate(
-      {
-        op: col === "raw" ? "edit_raw" : "edit_translated",
-        block,
-        revision: latestRevision,
-        raw_expected: row.raw,
-        block_expected: col === "translated" ? row.edited : undefined,
-        new_text: value,
-      },
-      {
-        onSuccess: (res) => {
-          setLatestRevision(res.revision);
-          toast(col === "raw" ? "Đã sửa bản gốc." : "Đã sửa bản hiện tại.");
-        },
-        onError,
-      },
-    );
-  };
-
-  const requestDelete = (block: number) => {
-    const row = rows[block];
-    if (!row) return;
-    if (
-      !window.confirm(
-        `Xóa đoạn này khỏi cả 3 cột (bản gốc, dịch máy, bản hiện tại)?\n\n«${row.raw.slice(0, 120)}»\n\nThao tác này không thể hoàn tác.`,
-      )
-    )
-      return;
-    edit.mutate(
-      {
-        op: "delete",
-        block,
-        revision: latestRevision,
-        raw_expected: row.raw,
-      },
-      {
-        onSuccess: (res) => {
-          setLatestRevision(res.revision);
-          toast("Đã xóa đồng bộ khối gốc + dịch máy + bản hiện tại.");
-        },
-        onError,
-      },
-    );
-  };
-
-  const pending = edit.isPending;
   const fontClass =
     fontFamily === "serif" ? "font-read" : fontFamily === "mono" ? "font-mono" : "font-sans";
 
   return (
     <div className={clsx("scroll-slim overflow-x-auto", fontClass)}>
-      <table className="w-full min-w-[60rem] border-collapse">
+      <table className="w-full min-w-[96rem] border-collapse">
         <thead>
           <tr className="border-b border-base-300 bg-base-200/60 text-left">
             <th className="w-10 px-2 py-1.5" />
-            {["Bản gốc", "Dịch máy", "Bản hiện tại"].map((h) => (
+            {["Bản gốc", "Local MT", "Dịch AI", "AI edit"].map((h) => (
               <th
                 key={h}
                 className="px-2 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase opacity-40"
@@ -422,88 +394,32 @@ function EditableCompareView({
                 {h}
               </th>
             ))}
-            <th className="w-10 px-2 py-1.5" />
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => {
-            const changed = hasRealDiff(row.mt, row.edited);
-            const editingCol = editing[i];
+            const changed = hasRealDiff(row.local_mt, row.ai_edit);
             return (
               <tr key={i} className="border-b border-base-300 align-top last:border-b-0">
                 <td data-numeric className="w-10 px-2 py-2 text-[11px] opacity-30">
                   {i + 1}
                 </td>
-                <td className="w-1/3 px-2 py-2 text-[13px] leading-relaxed opacity-70">
-                  {editingCol === "raw" ? (
-                    <CompareCellEditor
-                      autoFocus
-                      defaultValue={row.raw}
-                       disabled={pending}
-                       fontFamily={fontFamily}
-                       onCommit={(v) => commit(i, "raw", v)}
-                      onCancel={() => finishEdit(i)}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="block w-full cursor-text rounded-field px-1 text-left hover:bg-base-200"
-                      onClick={() => setEditing((p) => ({ ...p, [i]: "raw" }))}
-                      disabled={pending}
-                      title="Sửa bản gốc"
-                    >
-                      {row.raw}
-                    </button>
-                  )}
+                <td className="w-1/4 px-2 py-2 text-[13px] leading-relaxed opacity-70">
+                  {row.raw}
                 </td>
-                <td className="w-1/3 px-2 py-2 text-[13px] leading-relaxed opacity-70">
-                  {row.mt ? (
-                    changed ? (
-                      <DiffText before={row.mt} after={row.edited} mode="removed" />
-                    ) : (
-                      row.mt
-                    )
-                  ) : (
-                    <span className="opacity-40">—</span>
-                  )}
+                <td className="w-1/4 px-2 py-2 text-[13px] leading-relaxed opacity-70">
+                  {row.local_mt || <span className="opacity-40">—</span>}
                 </td>
-                <td className="w-1/3 px-2 py-2 align-top">
-                  {editingCol === "translated" ? (
-                    <CompareCellEditor
-                      autoFocus
-                      defaultValue={row.edited}
-                      disabled={pending}
-                      changed={changed}
-                      fontFamily={fontFamily}
-                      onCommit={(v) => commit(i, "translated", v)}
-                      onCancel={() => finishEdit(i)}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className={clsx(
-                        "block w-full cursor-text rounded-field px-1 text-left hover:bg-base-200",
-                        changed && "bg-success/5",
-                      )}
-                      onClick={() => setEditing((p) => ({ ...p, [i]: "translated" }))}
-                      disabled={pending}
-                      title="Sửa bản hiện tại"
-                    >
-                      {row.edited}
-                    </button>
-                  )}
+                <td className="w-1/4 px-2 py-2 text-[13px] leading-relaxed opacity-70">
+                  {row.ai || <span className="opacity-40">—</span>}
                 </td>
-                <td className="w-10 px-2 py-2">
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-xs btn-square text-error"
-                    disabled={pending}
-                    onClick={() => requestDelete(i)}
-                    aria-label={`Xóa đoạn ${i + 1}`}
-                    title="Xóa đoạn khỏi cả 3 cột"
-                  >
-                    <IconTrash size={14} />
-                  </button>
+                <td
+                  className={clsx(
+                    "w-1/4 px-2 py-2 text-[13px] leading-relaxed",
+                    changed && "bg-success/5",
+                  )}
+                >
+                  {row.ai_edit || <span className="opacity-40">—</span>}
                 </td>
               </tr>
             );
@@ -511,73 +427,6 @@ function EditableCompareView({
         </tbody>
       </table>
     </div>
-  );
-}
-
-/** Ô sửa nội tuyến cho khung đối chiếu — commit khi rời ô, đọc thẳng
-    `e.target.value` (không tin state closure), Escape để hủy. Tự giãn chiều
-    cao theo nội dung nên lấp kín cả ô; `changed` tô nền khi bản hiện tại
-    khác bản dịch máy. */
-function CompareCellEditor({
-  defaultValue,
-  onCommit,
-  onCancel,
-  autoFocus,
-  disabled,
-  changed,
-  fontFamily,
-}: {
-  defaultValue: string;
-  onCommit: (value: string) => void;
-  onCancel: () => void;
-  autoFocus?: boolean;
-  disabled?: boolean;
-  changed?: boolean;
-  fontFamily: "serif" | "sans" | "mono";
-}) {
-  const [value, setValue] = useState(defaultValue);
-  const ref = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (autoFocus) {
-      const el = ref.current;
-      if (el) {
-        el.focus();
-        el.setSelectionRange(el.value.length, el.value.length);
-      }
-    }
-  }, [autoFocus]);
-
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = "0px";
-    el.style.height = `${el.scrollHeight}px`;
-  }, [value]);
-
-  return (
-    <textarea
-      ref={ref}
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      disabled={disabled}
-      onBlur={(e) => onCommit(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) e.currentTarget.blur();
-        if (e.key === "Escape") {
-          onCancel();
-          e.preventDefault();
-        }
-      }}
-      className={clsx(
-        "textarea textarea-bordered textarea-sm w-full resize-none overflow-hidden text-[13px]",
-        fontFamily === "serif" && "font-read",
-        fontFamily === "mono" && "font-mono",
-        fontFamily === "sans" && "font-sans",
-        changed && "border-success/40 bg-success/5",
-      )}
-      aria-label="Sửa đoạn"
-    />
   );
 }
 
@@ -625,7 +474,6 @@ export function ChapterPage() {
   const updateTitle = useUpdateChapterTitle(slug, chapterIndex);
   const revertEdits = useRevertEdits(slug, chapterIndex);
   const createNote = useCreateNote(slug, chapterIndex);
-  const aiEditDraft = useAiEditDraft(slug);
 
   // `?edit=1` mở sẵn chế độ sửa. Xoá param ngay sau khi đọc để URL không
   // "dính" chế độ sửa khi chia sẻ hay bookmark.
@@ -642,6 +490,7 @@ export function ChapterPage() {
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [selectedChapterIndexes, setSelectedChapterIndexes] = useState<Set<number>>(new Set());
   const [bulkLocalMtOpen, setBulkLocalMtOpen] = useState(false);
+  const [aiEditOpen, setAiEditOpen] = useState(false);
   // Trạng thái thu gọn danh sách chương (desktop) — lưu theo slug để giữ nguyên
   // khi chuyển chương và khi tải lại trang.
   const [chaptersCollapsed, setChaptersCollapsed] = useState<boolean>(() => {
@@ -1186,23 +1035,15 @@ export function ChapterPage() {
         <BranchBar
           slug={slug}
           data={data}
-          rewritePending={aiEditDraft.isPending}
-          onRewrite={() =>
-            aiEditDraft.mutate([chapterIndex], {
-              onSuccess: (res) =>
-                toast(
-                  `${aiEditDraftMessage(res)} Bản nháp sẽ hiện ở đây khi xong.`,
-                ),
-              onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
-            })
-          }
+          aiEditPending={false}
+          onAiEdit={() => setAiEditOpen(true)}
         />
 
         {drafts.length > 0 ? (
           <Panel className="mb-4 overflow-hidden">
             <PanelHeader
               title={`Bản nháp AI chờ duyệt (${drafts.length})`}
-              hint="Chưa áp vào bản dịch — xem khác biệt rồi quyết định."
+              hint="Khối legacy của workflow cũ (sinh bản nháp chờ duyệt) — biên tập AI giờ ghi trực tiếp nên bản nháp ở đây không tự áp; chấp nhận hoặc bỏ đi."
             />
             <div className="space-y-2.5 p-3">
               {drafts.map((d) => (
@@ -1225,15 +1066,12 @@ export function ChapterPage() {
           <Panel className="overflow-hidden">
             <PanelHeader
               title="Đối chiếu"
-              hint={`${num(data.paragraphs.length)} đoạn · phần tô là chỗ bản hiện tại khác bản dịch máy`}
+              hint={`${num(data.paragraphs.length)} đoạn · phần tô ở cột AI edit là chỗ khác bản Local MT (bản AI đã sửa)`}
             />
             {data.has_raw ? (
-              <EditableCompareView
-                slug={slug}
-                index={chapterIndex}
+              <CompareSourcesView
                 data={data}
                 fontFamily={readerPrefs.fontFamily}
-                onError={(err) => toast(err instanceof Error ? err.message : String(err), "error")}
               />
             ) : (
               <p className="px-4 py-10 text-center text-sm opacity-50">
@@ -1242,9 +1080,9 @@ export function ChapterPage() {
             )}
           </Panel>
           <p className="mt-3 text-xs opacity-50">
-            Cột Bản hiện tại sửa trực tiếp ngay trong ô (Ctrl+Enter để xong); ô tô nền là chỗ
-            khác bản dịch máy. Bấm vào cột Bản gốc để sửa; nút xóa trên hàng sẽ xóa đồng bộ khối
-            gốc + dịch máy + bản hiện tại (có xác nhận).
+            Khung đối chiếu chỉ đọc: cột <strong>AI edit</strong> là bản AI biên tập GHI TRỰC
+            TIẾP vào nhánh <strong>Local MT</strong> (bản gốc MT giữ trong snapshot). Muốn sửa
+            bản dịch, dùng tab Đọc — lưu có khóa revision chống ghi đè.
           </p>
         </div>
       ) : view === "raw" ? (
@@ -1306,11 +1144,17 @@ export function ChapterPage() {
             </div>
           ) : !data.has_translated ? (
             <div className="rounded-box border border-base-300 bg-base-200/40 px-6 py-14 text-center">
-              <p className="font-display text-base">Chương này chưa có bản dịch</p>
+              <p className="font-display text-base">
+                {data.branches.ai.has_text || data.branches.local_mt.has_text
+                  ? `Nhánh ${data.branches[data.active_branch].label} đang hoạt động chưa có nội dung`
+                  : "Chương này chưa có bản dịch"}
+              </p>
               <p className="mt-2 text-sm opacity-60">
-                {data.has_raw
-                  ? "Đã có bản gốc — bấm Dịch AI hoặc Dịch Local MT ở trên."
-                  : "Chưa crawl được nội dung. Chạy bước Crawl ở trang truyện trước."}
+                {data.branches.ai.has_text || data.branches.local_mt.has_text
+                  ? `Đã có bản ${data.branches[data.active_branch === "ai" ? "local_mt" : "ai"].label}; chuyển nhánh ở thanh phía trên để đọc hoặc biên tập.`
+                  : data.has_raw
+                    ? "Đã có bản gốc — bấm Dịch AI hoặc Dịch Local MT ở trên."
+                    : "Chưa crawl được nội dung. Chạy bước Crawl ở trang truyện trước."}
               </p>
             </div>
           ) : (
@@ -1415,7 +1259,7 @@ export function ChapterPage() {
         action="local-mt"
         force={false}
         indexes={[...selectedChapterIndexes].sort((a, b) => a - b)}
-        title={`Dịch Local MT ${selectedChapterIndexes.size} chương`}
+        title={`Xem trước Local MT cho ${selectedChapterIndexes.size} chương`}
         body={
           <>
             Dịch các chương đã chọn trong TOC bằng <strong>Local MT</strong>. Chương đã có bản
@@ -1427,6 +1271,27 @@ export function ChapterPage() {
           setSelectedChapterIndexes(new Set());
           void queryClient.invalidateQueries({ queryKey: ["chapters", slug] });
           toast("Đã xếp dịch Local MT vào hàng đợi — theo dõi ở trang Hàng đợi.");
+        }}
+      />
+      <BulkPreviewDialog
+        open={aiEditOpen}
+        onClose={() => setAiEditOpen(false)}
+        slug={slug}
+        action="ai-edit"
+        indexes={[chapterIndex]}
+        title="Biên tập AI chương này"
+        body={
+          <>
+            AI đọc bản dịch <strong>Local MT</strong> của chương {chapterIndex} và{" "}
+            <strong>ghi kết quả TRỰC TIẾP vào nhánh Local MT</strong> (bản gốc dịch máy được giữ
+            trong snapshot để so sánh/khôi phục). Chương có Local MT sẽ bị{" "}
+            <strong>ghi đè</strong> — xem danh sách phía dưới rồi xác nhận.
+          </>
+        }
+        confirmLabel="Xếp vào hàng đợi"
+        onDone={() => {
+          void queryClient.invalidateQueries({ queryKey: ["chapter", slug] });
+          toast("Đã xếp biên tập AI vào hàng đợi — theo dõi ở trang Hàng đợi.");
         }}
       />
       <ChapterListDrawer

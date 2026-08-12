@@ -41,7 +41,7 @@ def _seed(tmp_path):
 
 
 def _client(monkeypatch, cfg):
-    entry = type("E", (), {"name": "Truyện T", "slug": "t"})()
+    entry = type("E", (), {"title": "Truyện T", "slug": "t"})()
     monkeypatch.setattr(deps, "library", lambda: type("L", (), {"ebooks": {"t": entry}})())
     monkeypatch.setattr(deps, "cfg", lambda: cfg)
     monkeypatch.setattr(deps, "resolved_cfg", lambda s: cfg)

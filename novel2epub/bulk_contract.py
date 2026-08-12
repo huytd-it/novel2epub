@@ -13,9 +13,9 @@ Hợp đồng:
   config còn khớp, workspace từng chương còn khớp) rồi mới thực thi. Lệch →
   409 + phải preview lại.
 
-`translate`/`local-mt`/`build`/`ai-edit-draft` là action dài → confirm đẩy job
-nền; `switch-branch`/`skip`/`unskip`/`delete-translation` là thao tác nhanh →
-confirm chạy đồng bộ.
+`translate`/`local-mt`/`build`/`ai-edit`/`ai-edit-draft` là action dài → confirm
+đẩy job nền; `switch-branch`/`skip`/`unskip`/`delete-translation` là thao tác
+nhanh → confirm chạy đồng bộ.
 """
 from __future__ import annotations
 
@@ -23,14 +23,15 @@ import hashlib
 import json
 
 # Action hỗ trợ trong hợp đồng bulk. `build` dùng strict (chặn chương chưa có
-# bản dịch), `ai-edit-draft` chỉ biên tập bản dịch Local NMT.
+# bản dịch), `ai-edit` biên tập bản dịch Local NMT và GHI TRỰC TIẾP (không qua
+# bản nháp); `ai-edit-draft` là alias cũ, cùng eligibility/fingerprint/plan.
 BULK_ACTIONS: tuple[str, ...] = (
-    "translate", "local-mt", "ai-edit-draft", "switch-branch",
+    "translate", "local-mt", "ai-edit", "ai-edit-draft", "switch-branch",
     "skip", "unskip", "delete-translation", "build",
 )
 
 # Action chạy nền qua job (dài), còn lại chạy đồng bộ trong confirm.
-JOB_ACTIONS: frozenset[str] = frozenset({"translate", "local-mt", "ai-edit-draft", "build"})
+JOB_ACTIONS: frozenset[str] = frozenset({"translate", "local-mt", "ai-edit", "ai-edit-draft", "build"})
 
 # Hạn dùng mặc định token bulk preview (giây).
 BULK_TOKEN_TTL_SECONDS = 60 * 30
@@ -51,7 +52,7 @@ def chapter_eligibility(
         return (storage.active_branch(ch) != branch), "Đã ở nhánh này."
     if action == "delete-translation":
         return storage.has_any_translation_data(ch), "Chương chưa có bản dịch nào để xóa."
-    if action == "ai-edit-draft":
+    if action in ("ai-edit", "ai-edit-draft"):
         if not storage.has_branch_text(ch, revisions.BRANCH_LOCAL_MT):
             return False, "Chưa có bản dịch Local MT — bỏ qua (không gọi AI)."
         return True, ""
@@ -86,7 +87,7 @@ def chapter_fingerprint(storage, ch, *, action: str, branch: str = "") -> dict:
             "content_hash": _text_hash(text),
             "raw_hash": _text_hash(storage.read_raw(ch) if storage.has_raw(ch) else ""),
         }
-    if action == "ai-edit-draft":
+    if action in ("ai-edit", "ai-edit-draft"):
         text = storage.read_branch_text(ch, revisions.BRANCH_LOCAL_MT) if storage.has_branch_text(ch, revisions.BRANCH_LOCAL_MT) else ""
         return {
             "index": ch.index, "branch": revisions.BRANCH_LOCAL_MT,
@@ -129,7 +130,7 @@ def preview_plan(
         ok, reason = chapter_eligibility(storage, ch, action=action, branch=branch, force=force)
         fingerprint = chapter_fingerprint(storage, ch, action=action, branch=branch)
         input_chars = 0
-        if action == "ai-edit-draft":
+        if action in ("ai-edit", "ai-edit-draft"):
             input_chars = len(storage.read_branch_text(ch, revisions.BRANCH_LOCAL_MT)) if ok else 0
         elif action == "translate":
             input_chars = len(storage.read_raw(ch)) if ok else 0

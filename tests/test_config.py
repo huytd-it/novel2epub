@@ -231,7 +231,6 @@ def test_unified_file_merges_defaults_with_ebook_override(tmp_path):
         },
         ebooks={
             "a": {
-                "name": "Truyện A",
                 "novel": {"slug": "a", "title": "A"},
                 "crawl": {"toc_url": "https://a", "scrapling": {"mode": "stealthy"}},
             },

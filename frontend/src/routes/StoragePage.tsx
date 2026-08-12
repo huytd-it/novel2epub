@@ -42,7 +42,7 @@ function StorageRowCard({ row, onAsk }: { row: StorageRow; onAsk: (c: Confirm) =
     <Panel className="p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <Link to={`/ebooks/${row.slug}`} className="font-display text-[15px] font-semibold hover:text-primary">
-          {row.name}
+          {row.title}
         </Link>
         <span data-numeric className="badge badge-neutral">
           {bytes(r.total)}
@@ -110,7 +110,7 @@ export function StoragePage() {
     mutation.mutate(row.slug, {
       onSuccess: () => {
         setConfirm(null);
-        toast(`Đã ${CONFIRM_COPY[kind].title.toLowerCase()} cho ${row.name}.`);
+        toast(`Đã ${CONFIRM_COPY[kind].title.toLowerCase()} cho ${row.title}.`);
       },
       onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
     });
@@ -147,7 +147,7 @@ export function StoragePage() {
         onCancel={() => setConfirm(null)}
         onConfirm={run}
         title={confirm ? CONFIRM_COPY[confirm.kind].title : ""}
-        body={confirm ? CONFIRM_COPY[confirm.kind].body(confirm.row.name) : ""}
+        body={confirm ? CONFIRM_COPY[confirm.kind].body(confirm.row.title) : ""}
         confirmLabel={confirm ? CONFIRM_COPY[confirm.kind].title : undefined}
         destructive
         pending={pending}

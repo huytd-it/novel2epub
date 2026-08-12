@@ -172,10 +172,10 @@ Web UI thao tác nhiều chương qua hai bước *preview → confirm* thay vì
   kiện/lý do từ chối và vân tay workspace (`config_hash` + fingerprint mỗi chương).
 - `POST /api/ui/ebooks/{slug}/chapters/bulk-confirm` — nhận token, xác thực rồi mới
   thực thi. Token hết hạn/đã dùng, hoặc config/chương đổi kể từ lúc preview → `409`,
-  phải preview lại. Action dài (`translate`, `local-mt`, `ai-edit-draft`, `build`) chạy
+  phải preview lại. Action dài (`translate`, `local-mt`, `ai-edit`, `build`) chạy
   qua job nền; `switch-branch`, `skip`, `unskip`, `delete-translation` chạy đồng bộ.
 
-`action` nhận: `translate`, `local-mt`, `ai-edit-draft` (chỉ biên tập bản dịch Local
+`action` nhận: `translate`, `local-mt`, `ai-edit` (chỉ biên tập bản dịch Local
 MT), `switch-branch`, `skip`, `unskip`, `delete-translation`, `build` (build strict —
 chặn chương chưa có bản dịch ở nhánh đang hoạt động). Logic đánh giá nằm trong
 `novel2epub/bulk_contract.py`; token lưu bảng `bulk_tokens`.
@@ -183,22 +183,29 @@ chặn chương chưa có bản dịch ở nhánh đang hoạt động). Logic �
 Endpoint `/chapters/bulk` cũ (ghi thẳng) vẫn chạy nhưng **deprecated** — client mới
 nên dùng preview/confirm. `set-branch` của nó map sang `switch-branch` của hợp đồng mới.
 
-### Biên tập AI không đi qua preview/confirm
+### Biên tập AI ghi trực tiếp (có xác nhận)
 
-Nút "Biên tập AI" (trang chương và trang truyện) bắn thẳng
-`POST /api/ui/ebooks/{slug}/chapters/ai-edit-draft` với body `{"indexes": [...]}` và
-nhận về `{status: "queued", job_id, queued, skipped, indexes, blocked}` — một cú bấm
-là một job trong category `ai-edit`, không có hộp thoại.
+Nút "Biên tập AI" (trang chương và trang truyện) không đi qua preview/confirm: nó bắn
+thẳng `POST /api/ui/ebooks/{slug}/chapters/ai-edit` với body `{"indexes": [...], "confirm": true}`
+và nhận về `{status: "queued", job_id, queued, skipped, indexes, blocked}` — một cú bấm
+là một job trong category `ai-edit`, không có hộp thoại token.
 
-Bỏ được hai vòng token vì hành động này **không ghi đè gì**: kết quả là bản nháp chờ
-duyệt, bấm nhầm thì bỏ nháp. Vân tay workspace của hợp đồng bulk sinh ra để chặn ghi
-đè nhầm nên ở đây không có việc để làm. Route tự lọc chương chưa có bản dịch Local MT
-(đọc file, không gọi model) để trả ngay `skipped`/`blocked`; job vẫn chạy
-`step_preview_revisions_bulk(require_local_mt=True)` nên chương mất bản Local MT
-trong lúc chờ hàng đợi vẫn bị chặn đúng lúc thực thi. Không chương nào đủ điều kiện →
-`409`, không enqueue.
+Thiếu `confirm: true` → `400`. Bỏ được hai vòng token vì hành động này được chấp nhận
+rủi ro ghi đè có chủ đích: kết quả AI **ghi đè trực tiếp nhánh `local_mt`** (bản Local
+MT gốc được lưu vào snapshot trước lần biên tập đầu tiên và không bị đè lại), nhánh
+`ai` và `active_branch` không đổi. Việc ghi dùng optimistic lock — nếu bản dịch đổi
+đồng thời lúc job chạy thì chương bị bỏ qua (log lỗi) thay vì ghi đè nhầm.
 
-Action `ai-edit-draft` của hợp đồng bulk vẫn còn cho CLI/API cũ, UI không dùng nữa.
+Vân tay workspace của hợp đồng bulk sinh ra để chặn ghi đè nhầm nên ở đây không có
+việc để làm. Route tự lọc chương chưa có bản dịch Local MT (đọc file, không gọi model)
+để trả ngay `skipped`/`blocked`; job vẫn chạy
+`step_ai_edit_local_mt_bulk` nên chương mất bản Local MT trong lúc chờ hàng đợi vẫn bị
+chặn đúng lúc thực thi. Không chương nào đủ điều kiện → `409`, không enqueue.
+
+Alias `POST /api/ui/ebooks/{slug}/chapters/ai-edit-draft` (body cũ `{"indexes": [...]}`,
+không cần `confirm`) giữ nguyên path cho client cũ nhưng có cùng hành vi ghi trực tiếp;
+action `ai-edit-draft` của hợp đồng bulk cũng còn cho CLI/API cũ. Cả hai map sang action
+canonical `ai-edit`.
 
 ## Tách Giao Diện Khỏi Máy Chạy Backend
 

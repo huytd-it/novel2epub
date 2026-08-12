@@ -4,7 +4,6 @@ import { api } from "./api";
 
 export interface EbookSummary {
   slug: string;
-  name: string;
   title: string;
   author: string;
   archived: boolean;
@@ -50,7 +49,7 @@ export interface CrawlPreview {
 }
 
 export interface EbookPreview {
-  name: string;
+  title: string;
   author: string;
   description: string;
   slug: string;
@@ -64,7 +63,7 @@ export interface EbookPreview {
 export interface CreateEbookInput {
   toc_url: string;
   slug?: string;
-  name?: string;
+  title?: string;
   author?: string;
   description?: string;
   cover_url?: string;
@@ -76,7 +75,7 @@ export interface CreateEbookInput {
 export interface EbookCreateResult {
   status: "created";
   slug: string;
-  name: string;
+  title: string;
   source: string;
   toc_job: { job_id: string; category: string } | null;
 }
@@ -85,7 +84,7 @@ export interface BulkEbookResult {
   url: string;
   status: "created" | "skipped-duplicate" | "failed";
   slug?: string;
-  name?: string;
+  title?: string;
   source?: string;
   reason?: string;
   toc_job?: { job_id: string; category: string } | null;
@@ -95,7 +94,7 @@ export interface BulkPreviewResult {
   url: string;
   status: "ok" | "failed";
   reason?: string;
-  name?: string;
+  title?: string;
   author?: string;
   description?: string;
   slug?: string;
@@ -110,7 +109,7 @@ export interface BulkPreviewResult {
 export interface BulkCreateItem {
   url: string;
   slug?: string;
-  name?: string;
+  title?: string;
   author?: string;
   description?: string;
   cover_url?: string;

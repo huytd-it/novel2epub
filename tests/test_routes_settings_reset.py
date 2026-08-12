@@ -54,7 +54,7 @@ def _client(monkeypatch, tmp_path):
                             "scrapling_mode": "stealthy",
                             "domains": "aixdzs.com"}},
         ebooks={
-            "a": {"name": "A", "source": "aixdzs",
+            "a": {"source": "aixdzs",
                   "crawl": {"toc_url": "https://aixdzs.com/d/1",
                             "content_selector": "#cu-rich",
                             "delay_seconds": 9.0,
@@ -65,8 +65,7 @@ def _client(monkeypatch, tmp_path):
                   "ai": {"openai": {"model": "editor-rieng-a"}}},
             # Ebook không gắn nguồn — reset crawl về mặc định thuần; có
             # translate riêng để khẳng định reset của a không lây sang b.
-            "b": {"name": "B",
-                  "crawl": {"toc_url": "https://khac.com/d/2",
+            "b": {"crawl": {"toc_url": "https://khac.com/d/2",
                             "content_selector": "#rieng"},
                   "translate": {"openai": {"model": "model-rieng-b"}}},
         },
@@ -133,8 +132,8 @@ def test_reset_source_tu_gan_lai_nguon_khop_url(monkeypatch, tmp_path):
     conn = get_connection(str(db))
     with conn:
         conn.execute(
-            "INSERT INTO ebooks (slug, name, crawl_overrides_json) VALUES (?, ?, ?)",
-            ("c", "C", json.dumps({
+            "INSERT INTO ebooks (slug, crawl_overrides_json) VALUES (?, ?)",
+            ("c", json.dumps({
                 "toc_url": "https://aixdzs.com/d/9",
                 "content_selector": "#cu-cua-c",
                 "delay_seconds": 7.0,

@@ -112,13 +112,14 @@ def build_epub(
 
     book = epub.EpubBook()
     identifier = (metadata.identifier if metadata else "") or f"novel2epub-{manifest.slug}"
+    title = (metadata.title if metadata else "") or manifest.title or manifest.slug
+    author = (metadata.author if metadata else "") or manifest.author
+    description = (metadata.description if metadata else "") or manifest.description
     book.set_identifier(identifier)
-    book.set_title(manifest.title or manifest.slug)
+    book.set_title(title)
     book.set_language(language)
-    author = manifest.author
     if author:
         book.add_author(author)
-    description = manifest.description
     if description:
         book.add_metadata("DC", "description", description)
 

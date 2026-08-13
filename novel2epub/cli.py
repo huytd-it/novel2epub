@@ -282,6 +282,10 @@ def main(argv: list[str] | None = None) -> int:
         choices=["ai", "local_mt"],
         help="Chỉ backfill một nhánh; không truyền thì chạy cả hai.",
     )
+    sub.add_parser(
+        "dataset-backfill",
+        help="Dựng source revision, segment và alignment canonical (idempotent, không tự đánh dấu gold)",
+    )
 
     # ── WireGuard / wgcf — hoạt động ĐỘC LẬP, không cần ebook ─────────────
     wg = sub.add_parser(
@@ -566,6 +570,18 @@ def main(argv: list[str] | None = None) -> int:
                 f"Baseline: {result['revisions']} revision cho {result['chapters']} "
                 f"chương, branches={','.join(result['branches']) or '-'}, "
                 f"operations={result['operations']}"
+            )
+        elif args.command == "dataset-backfill":
+            from .dataset_store import backfill_dataset_store
+
+            storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+            result = backfill_dataset_store(storage)
+            print(
+                "Dataset backfill: "
+                f"source={result.source_revisions}, links={result.translation_links}, "
+                f"source_segments={result.source_segments}, "
+                f"translation_segments={result.translation_segments}, "
+                f"alignments={result.alignments}"
             )
     except (RuntimeError, ValueError, ImportError) as e:
         print(f"Lỗi: {e}", file=sys.stderr)

@@ -26,6 +26,25 @@ Các bước idempotent theo trạng thái chương. Cờ `force`, phạm vi và
 
 SQLite là nguồn sự thật duy nhất. `Storage` cung cấp API tương thích cho manifest và nội dung chương nhưng dữ liệu thực tế nằm trong DB, không còn dùng `raw/*.md`, `translated/*.md` hoặc sidecar JSON làm runtime storage.
 
+### Kho Dữ Liệu Canonical Cho Fine-tune
+
+Schema v18 bổ sung lớp additive, không thay hoặc tự sửa workspace hiện hành:
+
+- `chapter_source_revisions`: snapshot raw bất biến, nén zlib và hash canonical.
+- `chapter_revisions`: translation history hiện có, bổ sung source link, stage và provenance model/prompt/config.
+- `chapter_segments`, `source_revision_segments`, `translation_revision_segments`: segment có ID bền vững và realization theo revision.
+- `segment_alignments`/`segment_alignment_members`: alignment N:M; backfill ordinal ban đầu luôn là `proposed`, confidence 0.25 và chưa eligible để train.
+- `chapter_evidence`, `chapter_eligibility_decisions`: bằng chứng chất lượng và quyết định policy append-only.
+- `chapter_pointers`: ba loại con trỏ `reading`, `review`, `dataset` đến immutable revision/segment.
+
+Không backfill lúc startup vì nén/hash hàng nghìn chương có thể tốn thời gian. Chạy rõ ràng theo từng ebook:
+
+```sh
+python -m novel2epub -e <slug> dataset-backfill
+```
+
+Command tự tạo translation baseline còn thiếu, snapshot raw, liên kết translation với source, tạo segment và alignment ordinal. Chạy lại idempotent; không đổi raw, branch workspace, revision hiện hành, `active_branch`, Reader hay EPUB và không tự gắn nhãn gold/eligible. Production writer vẫn đang được chuyển dần sang canonical transaction service; vì vậy chưa dùng ledger làm nguồn ghi duy nhất cho đến khi toàn bộ writer đã cut over.
+
 Các nhóm dữ liệu chính:
 
 - `settings`, `sources`, `ebooks`: cấu hình ba tầng.

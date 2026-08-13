@@ -32,6 +32,15 @@ _EXPECTED_TABLES = {
     "ai_revisions",
     "chapter_operations",
     "chapter_revisions",
+    "chapter_source_revisions",
+    "chapter_segments",
+    "source_revision_segments",
+    "translation_revision_segments",
+    "segment_alignments",
+    "segment_alignment_members",
+    "chapter_evidence",
+    "chapter_eligibility_decisions",
+    "chapter_pointers",
 }
 
 
@@ -100,11 +109,22 @@ def test_v16_activates_only_unambiguous_completed_legacy_local_mt():
         7: "local_mt",
         8: "local_mt",
     }
-    assert schema_version(conn) == 16
+    assert schema_version(conn) == SCHEMA_VERSION
 
     # Migration remains idempotent after the version has been recorded.
     init_schema(conn)
-    assert schema_version(conn) == 16
+    assert schema_version(conn) == SCHEMA_VERSION
+
+
+def test_v18_adds_translation_provenance_columns():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(chapter_revisions)")}
+    assert {
+        "source_revision_id", "stage", "generator_kind", "generator_name",
+        "generator_version", "prompt_hash", "config_hash", "input_snapshot_hash",
+        "provenance_json",
+    } <= columns
 
 
 def test_operational_codes_are_backfilled_and_stable():

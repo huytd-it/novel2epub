@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -514,6 +514,160 @@ _SCHEMA_STATEMENTS = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_chapter_revisions_unique ON chapter_revisions(ebook_slug, chapter_index, branch, revision_number)",
     "CREATE INDEX IF NOT EXISTS idx_chapter_revisions_branch ON chapter_revisions(ebook_slug, chapter_index, branch, revision_number DESC)",
     "CREATE INDEX IF NOT EXISTS idx_chapter_revisions_operation ON chapter_revisions(operation_id)",
+    # ── Kho dữ liệu canonical cho fine-tune (v18) ──────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS chapter_source_revisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id INTEGER NOT NULL REFERENCES chapter_operations(id) ON DELETE RESTRICT,
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        chapter_index INTEGER NOT NULL,
+        revision_number INTEGER NOT NULL CHECK (revision_number >= 1),
+        parent_revision_id INTEGER REFERENCES chapter_source_revisions(id) ON DELETE RESTRICT,
+        source_url TEXT NOT NULL DEFAULT '',
+        fetched_at TEXT NOT NULL DEFAULT '',
+        fetcher_kind TEXT NOT NULL DEFAULT '',
+        fetch_metadata_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(fetch_metadata_json)),
+        title TEXT NOT NULL DEFAULT '',
+        content_blob BLOB NOT NULL,
+        content_encoding TEXT NOT NULL DEFAULT 'zlib' CHECK (content_encoding = 'zlib'),
+        content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+        base_content_hash TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (ebook_slug, chapter_index, revision_number),
+        UNIQUE (ebook_slug, chapter_index, content_hash)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_source_revisions_head ON chapter_source_revisions(ebook_slug, chapter_index, revision_number DESC, id DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_source_revisions_operation ON chapter_source_revisions(operation_id)",
+    """
+    CREATE TABLE IF NOT EXISTS chapter_segments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        chapter_index INTEGER NOT NULL,
+        stable_key TEXT NOT NULL,
+        created_from_source_revision_id INTEGER NOT NULL REFERENCES chapter_source_revisions(id) ON DELETE RESTRICT,
+        parent_segment_id INTEGER REFERENCES chapter_segments(id) ON DELETE RESTRICT,
+        status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','superseded','merged','split')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (ebook_slug, chapter_index, stable_key)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS source_revision_segments (
+        source_revision_id INTEGER NOT NULL REFERENCES chapter_source_revisions(id) ON DELETE RESTRICT,
+        segment_id INTEGER NOT NULL REFERENCES chapter_segments(id) ON DELETE RESTRICT,
+        ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+        char_start INTEGER NOT NULL CHECK (char_start >= 0),
+        char_end INTEGER NOT NULL CHECK (char_end >= char_start),
+        content_text TEXT NOT NULL,
+        content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+        splitter TEXT NOT NULL DEFAULT 'nonempty_line_v1',
+        splitter_version INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (source_revision_id, segment_id),
+        UNIQUE (source_revision_id, ordinal)
+    ) WITHOUT ROWID
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS translation_revision_segments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        translation_revision_id INTEGER NOT NULL REFERENCES chapter_revisions(id) ON DELETE RESTRICT,
+        ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+        char_start INTEGER NOT NULL CHECK (char_start >= 0),
+        char_end INTEGER NOT NULL CHECK (char_end >= char_start),
+        content_text TEXT NOT NULL,
+        content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+        splitter TEXT NOT NULL DEFAULT 'nonempty_line_v1',
+        splitter_version INTEGER NOT NULL DEFAULT 1,
+        UNIQUE (translation_revision_id, ordinal)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS segment_alignments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_revision_id INTEGER NOT NULL REFERENCES chapter_source_revisions(id) ON DELETE RESTRICT,
+        translation_revision_id INTEGER NOT NULL REFERENCES chapter_revisions(id) ON DELETE RESTRICT,
+        alignment_set TEXT NOT NULL DEFAULT 'default',
+        method TEXT NOT NULL CHECK (method IN ('ordinal_backfill','exact','model','human')),
+        confidence REAL CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+        status TEXT NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed','accepted','rejected','superseded')),
+        operation_id INTEGER NOT NULL REFERENCES chapter_operations(id) ON DELETE RESTRICT,
+        metadata_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata_json)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (source_revision_id, translation_revision_id, alignment_set)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS segment_alignment_members (
+        alignment_id INTEGER NOT NULL REFERENCES segment_alignments(id) ON DELETE RESTRICT,
+        group_ordinal INTEGER NOT NULL DEFAULT 0 CHECK (group_ordinal >= 0),
+        side TEXT NOT NULL CHECK (side IN ('source','translation')),
+        source_segment_id INTEGER REFERENCES chapter_segments(id) ON DELETE RESTRICT,
+        translation_segment_id INTEGER REFERENCES translation_revision_segments(id) ON DELETE RESTRICT,
+        ordinal INTEGER NOT NULL DEFAULT 0 CHECK (ordinal >= 0),
+        PRIMARY KEY (alignment_id, group_ordinal, side, ordinal),
+        CHECK ((side='source' AND source_segment_id IS NOT NULL AND translation_segment_id IS NULL)
+            OR (side='translation' AND source_segment_id IS NULL AND translation_segment_id IS NOT NULL))
+    ) WITHOUT ROWID
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS chapter_evidence (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id INTEGER NOT NULL REFERENCES chapter_operations(id) ON DELETE RESTRICT,
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        chapter_index INTEGER NOT NULL,
+        source_revision_id INTEGER REFERENCES chapter_source_revisions(id) ON DELETE RESTRICT,
+        translation_revision_id INTEGER REFERENCES chapter_revisions(id) ON DELETE RESTRICT,
+        source_segment_id INTEGER REFERENCES chapter_segments(id) ON DELETE RESTRICT,
+        translation_segment_id INTEGER REFERENCES translation_revision_segments(id) ON DELETE RESTRICT,
+        evidence_type TEXT NOT NULL,
+        code TEXT NOT NULL,
+        severity TEXT NOT NULL DEFAULT 'info' CHECK (severity IN ('info','warning','error','blocking')),
+        verdict TEXT NOT NULL DEFAULT 'observed' CHECK (verdict IN ('observed','pass','fail','needs_review','accepted','rejected')),
+        score REAL,
+        confidence REAL CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+        value_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(value_json)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        CHECK (source_revision_id IS NOT NULL OR translation_revision_id IS NOT NULL)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_evidence_review ON chapter_evidence(ebook_slug, verdict, severity, chapter_index)",
+    """
+    CREATE TABLE IF NOT EXISTS chapter_eligibility_decisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id INTEGER NOT NULL REFERENCES chapter_operations(id) ON DELETE RESTRICT,
+        translation_revision_id INTEGER NOT NULL REFERENCES chapter_revisions(id) ON DELETE RESTRICT,
+        purpose TEXT NOT NULL CHECK (purpose IN ('publication','reader','review','mt_parallel','mt_post_edit','llm_translate','llm_post_edit','llm_critic','preference','dataset_eval')),
+        policy_name TEXT NOT NULL,
+        policy_version TEXT NOT NULL,
+        policy_hash TEXT NOT NULL CHECK (length(policy_hash) = 64),
+        eligible INTEGER NOT NULL CHECK (eligible IN (0,1)),
+        reason_codes_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(reason_codes_json)),
+        evidence_snapshot_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(evidence_snapshot_json)),
+        supersedes_id INTEGER REFERENCES chapter_eligibility_decisions(id) ON DELETE RESTRICT,
+        decided_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (translation_revision_id, purpose, policy_name, policy_version)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS chapter_pointers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        namespace TEXT NOT NULL,
+        pointer_key TEXT NOT NULL,
+        purpose TEXT NOT NULL CHECK (purpose IN ('reading','review','dataset')),
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        chapter_index INTEGER NOT NULL,
+        translation_revision_id INTEGER NOT NULL REFERENCES chapter_revisions(id) ON DELETE RESTRICT,
+        source_revision_id INTEGER REFERENCES chapter_source_revisions(id) ON DELETE RESTRICT,
+        source_segment_id INTEGER REFERENCES chapter_segments(id) ON DELETE RESTRICT,
+        translation_segment_id INTEGER REFERENCES translation_revision_segments(id) ON DELETE RESTRICT,
+        alignment_id INTEGER REFERENCES segment_alignments(id) ON DELETE RESTRICT,
+        selector_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(selector_json)),
+        created_by_operation_id INTEGER REFERENCES chapter_operations(id) ON DELETE RESTRICT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (namespace, pointer_key)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_chapter_pointers_chapter ON chapter_pointers(ebook_slug, chapter_index, purpose)",
 ]
 
 # Cột thêm vào bảng ĐÃ TỒN TẠI ở các phiên bản schema sau. `_SCHEMA_STATEMENTS`
@@ -572,6 +726,16 @@ _ADDED_COLUMNS = [
     ("chapters", "local_mt_mt_snapshot", "TEXT"),
     ("ai_revisions", "branch", "TEXT NOT NULL DEFAULT 'ai'"),
     ("chapter_operations", "request_hash", "TEXT NOT NULL DEFAULT ''"),
+    # v18: provenance truy vấn thường xuyên của immutable translation revision.
+    ("chapter_revisions", "source_revision_id", "INTEGER REFERENCES chapter_source_revisions(id) ON DELETE RESTRICT"),
+    ("chapter_revisions", "stage", "TEXT NOT NULL DEFAULT 'edited'"),
+    ("chapter_revisions", "generator_kind", "TEXT NOT NULL DEFAULT ''"),
+    ("chapter_revisions", "generator_name", "TEXT NOT NULL DEFAULT ''"),
+    ("chapter_revisions", "generator_version", "TEXT NOT NULL DEFAULT ''"),
+    ("chapter_revisions", "prompt_hash", "TEXT NOT NULL DEFAULT ''"),
+    ("chapter_revisions", "config_hash", "TEXT NOT NULL DEFAULT ''"),
+    ("chapter_revisions", "input_snapshot_hash", "TEXT NOT NULL DEFAULT ''"),
+    ("chapter_revisions", "provenance_json", "TEXT NOT NULL DEFAULT '{}'"),
     # v13: per-branch content hash — mốc đối chiếu "bản hiện hành" của nhánh
     # với revision gần nhất (bất biến sản phẩm: full SHA-256 canonical).
     ("chapters", "ai_content_hash", "TEXT NOT NULL DEFAULT ''"),
@@ -662,6 +826,8 @@ _POST_COLUMN_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_ai_revisions_branch_status ON ai_revisions(ebook_slug, branch, status)",
     "CREATE INDEX IF NOT EXISTS idx_chapters_ai_content_hash ON chapters(ebook_slug, ai_content_hash)",
     "CREATE INDEX IF NOT EXISTS idx_chapters_local_mt_content_hash ON chapters(ebook_slug, local_mt_content_hash)",
+    "CREATE INDEX IF NOT EXISTS idx_chapter_revisions_source ON chapter_revisions(source_revision_id) WHERE source_revision_id IS NOT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_chapter_revisions_stage ON chapter_revisions(ebook_slug, chapter_index, branch, stage, revision_number DESC)",
 ]
 
 
@@ -940,6 +1106,15 @@ def _migration_v16(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migration_v18(conn: sqlite3.Connection) -> None:
+    """Thêm kho dữ liệu canonical additive; không tự backfill dữ liệu lớn."""
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+    _ensure_columns(conn)
+    for stmt in _POST_COLUMN_INDEXES:
+        conn.execute(stmt)
+
+
 def _migration_v17(conn: sqlite3.Connection) -> None:
     """Gỡ cột `ebooks.name` — chỉ còn `title`.
 
@@ -977,6 +1152,7 @@ _MIGRATIONS = {
     15: _migration_v15,
     16: _migration_v16,
     17: _migration_v17,
+    18: _migration_v18,
 }
 
 

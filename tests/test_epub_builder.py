@@ -79,6 +79,31 @@ def test_populated_metadata_fields_appear_in_epub(tmp_path):
     assert "calibre:timestamp" in opf and "2024-06-01" in opf
 
 
+def test_settings_metadata_overrides_crawled_manifest_metadata(tmp_path):
+    manifest = Manifest(
+        slug="t",
+        title="Tên crawl",
+        author="Tác giả crawl",
+        description="Mô tả crawl",
+        chapters=[],
+    )
+    metadata = NovelConfig(
+        title="Tên trong Settings",
+        author="Tác giả trong Settings",
+        description="Mô tả trong Settings",
+    )
+
+    out = build_epub(manifest, [], tmp_path / "out.epub", metadata=metadata)
+    opf = _opf_text(out)
+
+    assert "Tên trong Settings" in opf
+    assert "Tác giả trong Settings" in opf
+    assert "Mô tả trong Settings" in opf
+    assert "Tên crawl" not in opf
+    assert "Tác giả crawl" not in opf
+    assert "Mô tả crawl" not in opf
+
+
 def test_identifier_stable_across_rebuilds(tmp_path):
     metadata = NovelConfig(identifier="urn:uuid:stable-id")
     out1 = build_epub(_manifest(), [], tmp_path / "a.epub", metadata=metadata)

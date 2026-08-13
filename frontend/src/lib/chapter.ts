@@ -443,6 +443,7 @@ export function useSetActiveBranch(slug: string, index: number) {
     active phía server trong một transaction; trả về revision mới. */
 export interface CompareBlockEdit {
   op: "edit_raw" | "edit_translated" | "delete";
+  branch?: Branch;
   block: number;
   raw_expected?: string;
   block_expected?: string;

@@ -6,7 +6,6 @@ import clsx from "clsx";
 
 import { useCurrentBook } from "@/lib/books";
 import { num } from "@/lib/format";
-import { hasRealDiff } from "@/lib/diff";
 import { useChapter, type AiRevision, type ChapterCompare } from "@/lib/ebook";
 import {
   applyBookReplace,
@@ -17,6 +16,7 @@ import {
   useBookmark,
   useBookSearch,
   useChapterNotes,
+  useCompareBlockEdit,
   useConfirmDraft,
   useCreateNote,
   useDiscardDraft,
@@ -365,62 +365,121 @@ function DraftCard({
 
 /* ── Khung đối chiếu 3 cột — cho phép sửa đoạn ───────────────────────── */
 
-/** Khung đối chiếu 4 cột READ-ONLY (SPA): bản gốc | Local MT | Dịch AI | AI edit.
-    Phần tô nền là chỗ "AI edit" khác "Local MT" (bản AI đã sửa). Không sửa
-    trực tiếp trong ô — sửa bản dịch đi qua tab Đọc (toàn văn, CAS `expected_rev`),
-    tránh mọi đường ghi không an toàn branch. */
-function CompareSourcesView({
+/** Đối chiếu và sửa trực tiếp ba nguồn độc lập. Local MT hiển thị phiên bản cuối
+    cùng của nhánh local_mt (bao gồm kết quả AI edit), không phải snapshot cũ. */
+function EditableCompareView({
+  slug,
+  index,
   data,
   fontFamily,
+  onError,
 }: {
+  slug: string;
+  index: number;
   data: ChapterCompare;
   fontFamily: "serif" | "sans" | "mono";
+  onError: (err: unknown) => void;
 }) {
   const rows = data.paragraphs;
+  const edit = useCompareBlockEdit(slug, index);
+  const toast = useToast();
+  type Column = "raw" | "local_mt" | "ai";
+  const [editing, setEditing] = useState<Record<number, Column>>({});
+  const [revisions, setRevisions] = useState({
+    local_mt: data.branches.local_mt.revision,
+    ai: data.branches.ai.revision,
+  });
+  useEffect(() => {
+    setRevisions({ local_mt: data.branches.local_mt.revision, ai: data.branches.ai.revision });
+  }, [data.branches.local_mt.revision, data.branches.ai.revision]);
+
+  const finishEdit = (row: number) => setEditing((current) => {
+    const next = { ...current };
+    delete next[row];
+    return next;
+  });
+
+  const commit = (rowIndex: number, column: Column, value: string) => {
+    const row = rows[rowIndex];
+    if (!row) return;
+    finishEdit(rowIndex);
+    const before = column === "raw" ? row.raw : row[column];
+    const nextValue = value.trim();
+    if (nextValue === before) return;
+    const branch = column === "raw" ? data.active_branch : column;
+    edit.mutate({
+      op: column === "raw" ? "edit_raw" : "edit_translated",
+      branch,
+      block: rowIndex,
+      revision: column === "raw" ? data.branches[branch].revision : revisions[branch],
+      raw_expected: column === "raw" ? row.raw : undefined,
+      block_expected: column === "raw" ? undefined : before,
+      new_text: nextValue,
+    }, {
+      onSuccess: (result) => {
+        if (column !== "raw") setRevisions((current) => ({ ...current, [branch]: result.revision }));
+        toast(`Đã sửa ${column === "raw" ? "bản gốc" : data.branches[branch].label}.`);
+      },
+      onError,
+    });
+  };
+
   const fontClass =
     fontFamily === "serif" ? "font-read" : fontFamily === "mono" ? "font-mono" : "font-sans";
+  const columns: { key: Column; label: string }[] = [
+    { key: "raw", label: "Bản gốc" },
+    { key: "local_mt", label: "Local MT" },
+    { key: "ai", label: "Dịch AI" },
+  ];
 
   return (
     <div className={clsx("scroll-slim overflow-x-auto", fontClass)}>
-      <table className="w-full min-w-[96rem] border-collapse">
+      <table className="w-full min-w-[60rem] border-collapse">
         <thead>
           <tr className="border-b border-base-300 bg-base-200/60 text-left">
             <th className="w-10 px-2 py-1.5" />
-            {["Bản gốc", "Local MT", "Dịch AI", "AI edit"].map((h) => (
+            {columns.map(({ label }) => (
               <th
-                key={h}
+                key={label}
                 className="px-2 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase opacity-40"
               >
-                {h}
+                {label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => {
-            const changed = hasRealDiff(row.local_mt, row.ai_edit);
             return (
               <tr key={i} className="border-b border-base-300 align-top last:border-b-0">
                 <td data-numeric className="w-10 px-2 py-2 text-[11px] opacity-30">
                   {i + 1}
                 </td>
-                <td className="w-1/4 px-2 py-2 text-[13px] leading-relaxed opacity-70">
-                  {row.raw}
-                </td>
-                <td className="w-1/4 px-2 py-2 text-[13px] leading-relaxed opacity-70">
-                  {row.local_mt || <span className="opacity-40">—</span>}
-                </td>
-                <td className="w-1/4 px-2 py-2 text-[13px] leading-relaxed opacity-70">
-                  {row.ai || <span className="opacity-40">—</span>}
-                </td>
-                <td
-                  className={clsx(
-                    "w-1/4 px-2 py-2 text-[13px] leading-relaxed",
-                    changed && "bg-success/5",
-                  )}
-                >
-                  {row.ai_edit || <span className="opacity-40">—</span>}
-                </td>
+                {columns.map(({ key }) => {
+                  const value = key === "raw" ? row.raw : row[key];
+                  return <td key={key} className="w-1/3 px-2 py-2 text-[13px] leading-relaxed">
+                    {editing[i] === key ? (
+                      <CompareCellEditor
+                        autoFocus
+                        defaultValue={value}
+                        disabled={edit.isPending}
+                        fontFamily={fontFamily}
+                        onCommit={(next) => commit(i, key, next)}
+                        onCancel={() => finishEdit(i)}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="block min-h-6 w-full cursor-text rounded-field px-1 text-left hover:bg-base-200"
+                        disabled={edit.isPending || (key !== "raw" && !data.branches[key].has_text)}
+                        onClick={() => setEditing((current) => ({ ...current, [i]: key }))}
+                        title={`Sửa ${key === "raw" ? "bản gốc" : data.branches[key].label}`}
+                      >
+                        {value || <span className="opacity-40">—</span>}
+                      </button>
+                    )}
+                  </td>;
+                })}
               </tr>
             );
           })}
@@ -428,6 +487,43 @@ function CompareSourcesView({
       </table>
     </div>
   );
+}
+
+function CompareCellEditor({ defaultValue, onCommit, onCancel, autoFocus, disabled, fontFamily }: {
+  defaultValue: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  fontFamily: "serif" | "sans" | "mono";
+}) {
+  const [value, setValue] = useState(defaultValue);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    element.style.height = "0px";
+    element.style.height = `${element.scrollHeight}px`;
+    if (autoFocus) element.focus();
+  }, [value, autoFocus]);
+  return <textarea
+    ref={ref}
+    value={value}
+    disabled={disabled}
+    onChange={(event) => setValue(event.target.value)}
+    onBlur={(event) => onCommit(event.target.value)}
+    onKeyDown={(event) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) event.currentTarget.blur();
+      if (event.key === "Escape") { event.preventDefault(); onCancel(); }
+    }}
+    className={clsx(
+      "textarea textarea-bordered textarea-sm w-full resize-none overflow-hidden text-[13px]",
+      fontFamily === "serif" && "font-read",
+      fontFamily === "mono" && "font-mono",
+      fontFamily === "sans" && "font-sans",
+    )}
+    aria-label="Sửa đoạn"
+  />;
 }
 
 /** Tab Gốc — render bản gốc theo khối, có empty state rõ ràng. */
@@ -1066,12 +1162,15 @@ export function ChapterPage() {
           <Panel className="overflow-hidden">
             <PanelHeader
               title="Đối chiếu"
-              hint={`${num(data.paragraphs.length)} đoạn · phần tô ở cột AI edit là chỗ khác bản Local MT (bản AI đã sửa)`}
+              hint={`${num(data.paragraphs.length)} đoạn · bấm vào ô để sửa đúng nguồn`}
             />
             {data.has_raw ? (
-              <CompareSourcesView
+              <EditableCompareView
+                slug={slug}
+                index={chapterIndex}
                 data={data}
                 fontFamily={readerPrefs.fontFamily}
+                onError={(err) => toast(err instanceof Error ? err.message : String(err), "error")}
               />
             ) : (
               <p className="px-4 py-10 text-center text-sm opacity-50">
@@ -1080,9 +1179,8 @@ export function ChapterPage() {
             )}
           </Panel>
           <p className="mt-3 text-xs opacity-50">
-            Khung đối chiếu chỉ đọc: cột <strong>AI edit</strong> là bản AI biên tập GHI TRỰC
-            TIẾP vào nhánh <strong>Local MT</strong> (bản gốc MT giữ trong snapshot). Muốn sửa
-            bản dịch, dùng tab Đọc — lưu có khóa revision chống ghi đè.
+            Bấm vào Bản gốc, Local MT hoặc Dịch AI để sửa trực tiếp; Ctrl+Enter để lưu.
+            Local MT là phiên bản cuối cùng của nhánh, bao gồm nội dung đã được AI biên tập.
           </p>
         </div>
       ) : view === "raw" ? (

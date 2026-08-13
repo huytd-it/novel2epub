@@ -56,6 +56,13 @@ _TOC_JUNK_VI_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Ghi chú tăng chương thường được máy dịch thành "chương thêm" / "thêm chương",
+# theo sau bởi lời kêu gọi và đôi khi bị thiếu dấu đóng ngoặc.
+_TOC_JUNK_BONUS_RE = re.compile(
+    r"\s*[（(]\s*(?:chương\s+thêm|thêm\s+chương)\b.*?[）)]?\s*$",
+    re.IGNORECASE,
+)
+
 # Bản Hán thô còn sót: (跪求|日更|求) + danh từ kêu gọi (月票/推荐票/订阅...),
 # strip ở BẤT KỲ vị trí nào, có thể bọc ngoặc.
 _TOC_JUNK_ZH_RE = re.compile(
@@ -76,6 +83,9 @@ def strip_toc_junk(title: str) -> str:
         return title
     out = _TOC_JUNK_ZH_RE.sub("", title)
     out = _TOC_JUNK_VI_RE.sub("", out)
+    # Chạy sau regex lời kêu gọi để xóa luôn phần "(chương thêm" mà regex đó
+    # có thể để lại, tránh phải clean TOC lần thứ hai.
+    out = _TOC_JUNK_BONUS_RE.sub("", out)
     # Dọn cặp ngoặc rỗng và separator thừa còn lại ở cuối.
     out = re.sub(r"\s*[（(【\[]\s*[）)】\]]\s*$", "", out)
     out = re.sub(r"\s*[:：\-–—,，;；]+\s*$", "", out)

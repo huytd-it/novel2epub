@@ -225,6 +225,13 @@ interface TocPreview {
   changes: TocTitleChange[];
 }
 
+interface ReaderPublishPreview {
+  new: number;
+  edited: number;
+  unchanged: number;
+  skipped: number;
+}
+
 function TocTitleDiff({ label, before, after }: { label: string; before: string; after: string }) {
   return (
     <div>
@@ -700,11 +707,36 @@ export function EbookPage() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
   const client = useQueryClient();
+  const toast = useToast();
   const [, selectBook] = useCurrentBook();
   const [filters, setFilters] = useState<ChapterFilters>(() => loadFilters(slug));
   const [offset, setOffset] = useState(() => loadPage(slug));
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [lastToggled, setLastToggled] = useState<number | null>(null);
+  const [readerPreview, setReaderPreview] = useState<ReaderPublishPreview | null>(null);
+
+  const previewReader = useMutation({
+    mutationFn: () => api.get<ReaderPublishPreview>(`/api/ebooks/${slug}/publish/preview`),
+    onSuccess: (preview) => {
+      if (!preview.new && !preview.edited) {
+        toast(`Không có gì để đẩy. ${preview.unchanged} chương đã đồng bộ, ${preview.skipped} chương bị bỏ qua.`);
+        return;
+      }
+      setReaderPreview(preview);
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
+  const publishReader = useMutation({
+    mutationFn: () => api.post<{ started: boolean }>(`/api/ebooks/${slug}/publish/push`),
+    onSuccess: () => {
+      setReaderPreview(null);
+      client.invalidateQueries({ queryKey: queueKey });
+      toast("Đã xếp job đẩy lên Reader vào hàng đợi.");
+      navigate("/queue");
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
 
   const { data: book, isPending, error } = useEbook(slug);
   const { data: page, isFetching } = useChapters(slug, filters, offset, PAGE_SIZE);
@@ -823,6 +855,14 @@ export function EbookPage() {
         <>
           <PipelineBar slug={slug} />
           <Button
+            loading={previewReader.isPending}
+            disabled={!book.reader_configured || publishReader.isPending}
+            title={book.reader_configured ? "Xem trước và đẩy bản dịch lên Reader" : "Chưa cấu hình Reader"}
+            onClick={() => previewReader.mutate()}
+          >
+            Đẩy Reader
+          </Button>
+          <Button
             variant="primary"
             icon={<IconRead size={15} />}
             onClick={() => navigate(`/ebooks/${slug}/chapters`)}
@@ -844,6 +884,24 @@ export function EbookPage() {
           Đang chạy: {book.active_jobs.map((j) => j.label).join(", ")}
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={readerPreview !== null}
+        onCancel={() => setReaderPreview(null)}
+        onConfirm={() => publishReader.mutate()}
+        title="Đẩy lên Reader?"
+        confirmLabel="Đẩy lên Reader"
+        pending={publishReader.isPending}
+        body={readerPreview ? (
+          <div className="space-y-1">
+            <p>Thêm mới: <strong data-numeric>{num(readerPreview.new)}</strong> chương</p>
+            <p>Cập nhật: <strong data-numeric>{num(readerPreview.edited)}</strong> chương</p>
+            <p>Không đổi: <strong data-numeric>{num(readerPreview.unchanged)}</strong> chương</p>
+            <p>Bỏ qua: <strong data-numeric>{num(readerPreview.skipped)}</strong> chương chưa dịch xong hoặc bị skip</p>
+            <p className="pt-2 opacity-60">Không có chương nào bị xóa trên Reader.</p>
+          </div>
+        ) : null}
+      />
 
       {indexGaps.length > 0 ? (
         <details className="group mb-3 rounded-box border border-error/40 bg-error/10 text-[13px]">

@@ -744,7 +744,9 @@ def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)
     if not isinstance(block, int) or block < 0:
         raise HTTPException(status_code=400, detail="block phải là số nguyên ≥ 0.")
 
-    branch = storage.active_branch(chapter)
+    branch = payload.get("branch", storage.active_branch(chapter))
+    if branch not in revisions.BRANCHES:
+        raise HTTPException(status_code=400, detail="branch phải là ai hoặc local_mt.")
     revision = payload.get("revision")
     if not isinstance(revision, int):
         raise HTTPException(status_code=400, detail="Thiếu 'revision' (revision nhánh đang hoạt động).")

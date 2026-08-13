@@ -236,6 +236,13 @@ def test_step_clean_toc_titles_cleans_title_when_source_has_not_been_backfilled(
         ("Bí mật （求订阅）", "Bí mật"),
         ("Thức tỉnh 跪求月票推荐票", "Thức tỉnh"),
         ("Trùng sinh cầu phiếu！", "Trùng sinh"),
+        ("Chương 75: Nhà họ Bì (Chương thêm", "Chương 75: Nhà họ Bì"),
+        ("Chương 125: Đại bại (thêm chương, cầu đặt mua)", "Chương 125: Đại bại"),
+        ("Chương 196: Giết chóc (Thêm chương cầu duyệt)", "Chương 196: Giết chóc"),
+        (
+            "Chương 75: Nhà họ Bì (Chương thêm cầu nguyệt phiếu)",
+            "Chương 75: Nhà họ Bì",
+        ),
         # KHÔNG được cắt nhầm tiêu đề thường:
         ("Xin một vé về tuổi thơ", "Xin một vé về tuổi thơ"),
         ("Chương 3: Khởi đầu", "Chương 3: Khởi đầu"),

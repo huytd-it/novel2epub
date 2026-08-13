@@ -2636,10 +2636,9 @@ def step_build_selected(
     vi cũ — xem `step_build`.
 
     `strict_translated=True` CHẶN CỨNG (trước khi ghi bất cứ thứ gì) nếu có
-    chương non-skipped thiếu bản dịch ở nhánh đang hoạt động — dùng cho hành
-    động build từ bulk-confirm: không được âm thầm dựng EPUB có chương bản
-    gốc. Danh sách blocker trả trong lỗi; lỗi dạng RuntimeError với message
-    có `Chương N ...`.
+    chương non-skipped chưa có bản xuất bản. Chính sách chọn bản ưu tiên AI
+    hoàn chỉnh và fallback Local MT hoàn chỉnh; không bao giờ rơi về raw.
+    Danh sách blocker trả trong lỗi; lỗi dạng RuntimeError có `Chương N ...`.
     """
     _emit_build_config(cfg, log)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -2660,8 +2659,8 @@ def step_build_selected(
                 f"Chương {b['index']}: {b['reason']}" for b in blockers
             )
             raise RuntimeError(
-                "Không build được — còn chương chưa có bản dịch ở nhánh đang hoạt "
-                f"động ({len(blockers)} chương): {detail}"
+                "Không build được — còn chương chưa có bản AI hoặc Local MT hoàn chỉnh "
+                f"({len(blockers)} chương): {detail}"
             )
 
     # Blocker: chỉ 1 build ebook tại một thời điểm. Snapshot fingerprint các
@@ -2683,18 +2682,17 @@ def step_build_selected(
         footnotes_by_stem: dict[str, list[dict]] = {}
         anchored_stems: set[str] = set()
         for ch in chapters:
-            branch = storage.active_branch(ch)
-            if storage.has_branch_text(ch, branch):
-                md = storage.read_branch_text(ch, branch)
-                anchored_stems.add(ch.stem)
-                title = storage.read_branch_title(ch, branch) or ch.title or f"Chương {ch.index}"
-                md, fns = _footnotes.annotate(md, notes)
-                if fns:
-                    footnotes_by_stem[ch.stem] = fns
-            else:
-                # Workflow mới tuyệt đối không đưa raw vào EPUB. Blocker đã
-                # được kiểm tra trước vòng lặp; nhánh này chỉ bảo vệ race hiếm.
+            selected = storage.publication_version(ch)
+            if selected is None:
+                # Không bao giờ đưa raw vào EPUB. Blocker đã kiểm tra trước;
+                # nhánh này chỉ bảo vệ race hiếm khi dữ liệu đổi giữa chừng.
                 continue
+            md = selected.text
+            title = selected.title
+            anchored_stems.add(ch.stem)
+            md, fns = _footnotes.annotate(md, notes)
+            if fns:
+                footnotes_by_stem[ch.stem] = fns
             chapters_html.append((ch, title, md))
 
         if not chapters_html:
@@ -2730,21 +2728,19 @@ def step_build_selected(
 def _collect_publishable(storage: Storage, manifest: Manifest) -> list[tuple[int, str, str, dict]]:
     """`(index, title, markdown, meta)` của các chương ĐỦ ĐIỀU KIỆN đẩy.
 
-    Đọc NHÁNH ĐANG HOẠT ĐỘNG của từng chương (bản đi vào Reader phải trùng bản
-    đi vào EPUB). Bỏ chương bị skip và chương chưa dịch xong — `has_branch_text`
-    đã chặn bản dịch dở (meta complete = False) nên job dịch đang chạy song song
-    không làm rò bản nửa vời lên Reader.
+    Dùng cùng resolver với EPUB: ưu tiên AI hoàn chỉnh, fallback Local MT hoàn
+    chỉnh. Bỏ chương skip/chưa dịch xong để job song song không làm rò bản nửa
+    vời lên Reader.
     """
     items: list[tuple[int, str, str, dict]] = []
     for ch in manifest.chapters:
         if ch.skipped:
             continue
-        branch = storage.active_branch(ch)
-        if not storage.has_branch_text(ch, branch):
+        selected = storage.publication_version(ch)
+        if selected is None:
             continue
         meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-        title = storage.read_branch_title(ch, branch) or ch.title
-        items.append((ch.index, title, storage.read_branch_text(ch, branch), meta))
+        items.append((ch.index, selected.title, selected.text, meta))
     return items
 
 
@@ -2863,15 +2859,17 @@ def step_publish_reader(
                 ch = by_index.get(p.index)
                 if ch is None:
                     continue
-                active_branch = storage.active_branch(ch)
+                selected = storage.publication_version(ch)
+                if selected is None:
+                    continue
                 _update_chapter_meta(
                     storage, ch,
                     reader={
                         "hash": p.hash,
                         "remote_id": remote_id,
                         "pushed_at": now,
-                        "branch": active_branch,
-                        "revision": storage.read_branch_revision(ch, active_branch),
+                        "branch": selected.branch,
+                        "revision": selected.revision,
                     },
                 )
             done = min(start + size, len(pushes))
@@ -2898,15 +2896,15 @@ def _peek_book_id(reader, book_slug: str, log: LogFn) -> str:
 def readiness_blockers(cfg: Config) -> dict:
     """Trả danh sách blockers ngăn build và trạng thái tổng quan workflow.
 
-    Blocker cứng (hard): chương không skip nhưng thiếu active-branch workspace.
-    Build bị chặn hoàn toàn nếu có bất kỳ blocker cứng nào.
+    Blocker cứng (hard): chương không skip nhưng chưa có AI hoặc Local MT hoàn
+    chỉnh. Build bị chặn hoàn toàn nếu có bất kỳ blocker cứng nào.
 
     Trả {
       "has_manifest": bool,
       "total": int,
       "skipped": int,
-      "ready": int,              -- không skip VÀ có active-branch text
-      "blocked": int,            -- không skip, KHÔNG có active-branch text
+       "ready": int,              -- không skip VÀ có bản xuất bản
+       "blocked": int,            -- không skip, KHÔNG có bản xuất bản
       "blocked_indexes": [...],  -- tối đa 50 index đầu
       "pending_candidates": int, -- số candidate chưa áp
       "build_stale": bool,
@@ -2930,8 +2928,7 @@ def readiness_blockers(cfg: Config) -> dict:
     for ch in chapters:
         if ch.skipped:
             continue
-        branch = storage.active_branch(ch)
-        if storage.has_branch_text(ch, branch):
+        if storage.publication_version(ch) is not None:
             ready += 1
         else:
             blocked_indexes.append(ch.index)

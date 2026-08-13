@@ -726,7 +726,7 @@ def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)
     Trả `{"saved"/"deleted", "revision", "reason"}` — `reason` rỗng khi thành
     công; 409 khi stale/conflict (không ghi gì).
     """
-    from novel2epub.blocks import replace_paragraph
+    from novel2epub.blocks import replace_paragraph, split_paragraphs
 
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -799,6 +799,20 @@ def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)
         raise HTTPException(status_code=404, detail="Chương chưa có bản dịch.")
     current = storage.read_branch_text(chapter, branch)
     new_block, reason = replace_paragraph(current, block, block_expected, new_text)
+    if reason:
+        # Xóa một đoạn làm cột dịch ngắn hơn cột gốc, nên chỉ số hàng đối chiếu
+        # của các đoạn phía sau không còn là chỉ số trong riêng nhánh dịch. Khi
+        # nội dung mong đợi là duy nhất, dùng chính khóa stale đó để tìm lại đúng
+        # đoạn; nội dung trùng vẫn bị từ chối để không sửa nhầm.
+        translated_paras = split_paragraphs(current)
+        matches = [
+            i for i, paragraph in enumerate(translated_paras)
+            if paragraph.strip() == block_expected.strip()
+        ]
+        if len(matches) == 1:
+            new_block, reason = replace_paragraph(
+                current, matches[0], block_expected, new_text
+            )
     if reason:
         raise HTTPException(status_code=409, detail=reason)
     if not storage.compare_and_swap_branch(
@@ -970,6 +984,12 @@ def ebook_settings(slug: str):
             "temperature": ai.temperature,
         },
         "global_ai": settings_routes._global_ai_payload(),
+        "opds": {
+            "token": "",
+            "token_configured": bool(cfg.api.token),
+            "cors_origins": "\n".join(cfg.api.cors_origins),
+            "auto_build": cfg.api.auto_build,
+        },
         "reader": {
             "url": rd.url,
             "service_key": rd.service_key,
@@ -1067,6 +1087,31 @@ def global_ai_settings_save(payload: dict = Body(...)):
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"saved": True, "global_ai": saved}
+
+
+def _opds_settings_payload() -> dict:
+    api = deps.cfg().api
+    return {
+        "token": "",
+        "token_configured": bool(api.token),
+        "cors_origins": "\n".join(api.cors_origins),
+        "auto_build": api.auto_build,
+    }
+
+
+@router.post("/settings/opds")
+def opds_settings_save(payload: dict = Body(...)):
+    from novel2epub.config import update_defaults
+
+    current = deps.cfg().api
+    token = str(payload.get("token") or "").strip() or current.token
+    origins = [line.strip() for line in str(payload.get("cors_origins") or "").splitlines() if line.strip()]
+    update_defaults(deps.WORKSPACE_PATH, {"api": {
+        "token": token,
+        "cors_origins": origins,
+        "auto_build": bool(payload.get("auto_build")),
+    }})
+    return {"saved": True, "opds": _opds_settings_payload()}
 
 
 _SETTINGS_SAVERS = {

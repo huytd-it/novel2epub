@@ -11,6 +11,7 @@ import {
   type EbookSettings,
   type GlobalAiSettings,
   type ModelOverrides,
+  type OpdsSettings,
   type SettingsSection,
 } from "@/lib/settings";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
@@ -808,11 +809,61 @@ function ModelOverridesTab({ slug, global }: { slug: string; global: GlobalAiSet
   );
 }
 
+function OpdsTab({ server }: { server: OpdsSettings }) {
+  const toast = useToast();
+  const [values, setValues] = useState(server);
+  useEffect(() => setValues(server), [server]);
+  const save = useMutation({
+    mutationFn: () => api.post<{ saved: boolean; opds: OpdsSettings }>(
+      "/api/ui/settings/opds",
+      { body: values },
+    ),
+    onSuccess: (result) => {
+      setValues(result.opds);
+      toast("Đã lưu cấu hình OPDS.");
+    },
+    onError: (error) => toast(error instanceof Error ? error.message : String(error), "error"),
+  });
+
+  return (
+    <Panel>
+      <PanelHeader
+        title="OPDS"
+        hint="Catalog dùng cho Readest và các ứng dụng đọc sách tương thích OPDS"
+        actions={<Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>Lưu OPDS</Button>}
+      />
+      <div className="border-b border-base-300 bg-base-200/50 px-4 py-3 text-[13px]">
+        <Badge tone={values.token_configured ? "celadon" : "gold"}>
+          {values.token_configured ? "Đã có token" : "Chưa có token"}
+        </Badge>
+        <span className="ml-2 opacity-70">Catalog: <code>/opds</code>. Để trống token khi lưu sẽ giữ nguyên token hiện tại.</span>
+      </div>
+      <div className="grid gap-4 p-4 md:grid-cols-2">
+        <Field label="Token truy cập" hint="Nhập giá trị mới chỉ khi muốn thay token hiện tại">
+          <Input type="password" autoComplete="new-password" value={values.token} onChange={(event) => setValues((current) => ({ ...current, token: event.target.value }))} />
+        </Field>
+        <div className="flex items-end pb-1">
+          <label className="flex items-center gap-2 text-[13px]">
+            <Checkbox checked={values.auto_build} onChange={(event) => setValues((current) => ({ ...current, auto_build: event.target.checked }))} />
+            Tự build lại EPUB khi mở catalog
+          </label>
+        </div>
+        <div className="md:col-span-2">
+          <Field label="CORS origins" hint="Mỗi origin một dòng, ví dụ https://readest.com">
+            <Textarea rows={5} spellCheck={false} value={values.cors_origins} onChange={(event) => setValues((current) => ({ ...current, cors_origins: event.target.value }))} />
+          </Field>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 /* ── Trang ───────────────────────────────────────────────────────────── */
 
 const TABS = [
   { key: "global-ai", label: "Global AI" },
   { key: "models", label: "Model override" },
+  { key: "opds", label: "OPDS" },
   { key: "novel", label: "Truyện" },
   { key: "source", label: "Nguồn" },
   { key: "translate", label: "Dịch" },
@@ -882,6 +933,7 @@ export function SettingsPage() {
 
       {tab === "global-ai" ? <GlobalAiTab server={data.global_ai} /> : null}
       {tab === "models" ? <ModelOverridesTab slug={slug} global={data.global_ai} /> : null}
+      {tab === "opds" ? <OpdsTab server={data.opds} /> : null}
       {tab === "novel" ? (
         <SectionForm
           slug={slug}

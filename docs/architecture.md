@@ -167,6 +167,13 @@ Gộp chúng vào một nút "AI" là chỗ dễ mất dữ liệu nhất: "dị
 còn "biên tập" thì không, nên hai việc phải nằm ở hai nhóm nút có nhãn khác
 nhau. Bulk action ở trang Ebook (`BatchBar`) chia đúng ba nhóm này.
 
+**Chính sách xuất bản không phụ thuộc `active_branch`**: Reader, EPUB, readiness
+và fingerprint phát hiện build stale đều gọi cùng `Storage.publication_version`.
+Resolver ưu tiên nhánh `ai` đã hoàn tất; nếu chưa có AI hoàn chỉnh thì dùng ngay
+nhánh `local_mt` đã hoàn tất. Không candidate pending hoặc raw nào được đưa vào
+Reader/EPUB. `active_branch` chỉ còn mô tả workspace đang đọc/sửa trong editor,
+không được dùng để vô tình hạ bản xuất bản tốt nhất xuống nhánh kém hơn.
+
 Cột "Xác nhận" đi theo cột "Hoàn tác": hộp thoại preview/confirm là để chặn
 GHI ĐÈ nhầm, mà biên tập AI thì không ghi đè gì nên nó chỉ tổ thêm một cú bấm.
 Nút "Biên tập AI" gọi thẳng `POST .../chapters/ai-edit-draft` → job `ai-edit`

@@ -500,6 +500,32 @@ def test_compare_edit_translated_active_local_mt_branch(tmp_path, monkeypatch):
     assert storage.read_branch_text(ch, "ai") == ""
 
 
+def test_compare_edit_translated_finds_unique_paragraph_after_column_drift(tmp_path, monkeypatch):
+    """Sau khi xóa một đoạn Local MT, index hàng vẫn theo cột raw; khóa nội
+    dung duy nhất phải giúp sửa/xóa đúng đoạn thay vì báo stale giả."""
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+    storage.write_raw(ch, "原文 một.\n\n原文 rác.\n\n原文 hai.")
+    storage.write_branch_text(ch, "local_mt", "Cục bộ một.\n\nCập nhật không dễ, nhớ chia sẻ mạng")
+    storage.mark_branch_complete(ch, "local_mt")
+    client = _client(_cfg(tmp_path), monkeypatch)
+    revision = storage.read_branch_revision(ch, "local_mt")
+
+    res = _post(client, "t", 1, {
+        "op": "edit_translated",
+        "branch": "local_mt",
+        "block": 2,
+        "block_expected": "Cập nhật không dễ, nhớ chia sẻ mạng",
+        "new_text": "",
+        "revision": revision,
+    })
+
+    assert res.status_code == 200, res.text
+    assert storage.read_branch_text(ch, "local_mt") == "Cục bộ một.\n"
+    assert storage.read_branch_revision(ch, "local_mt") == revision + 1
+
+
 def test_compare_delete_active_local_mt_removes_its_branch_only(tmp_path, monkeypatch):
     """Xóa khối khi active = local_mt: xóa raw + snapshot MT local_mt + bản
     local_mt; nhánh ai giữ nguyên."""

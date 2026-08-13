@@ -147,6 +147,21 @@ class Chapter:
         return f"{self.index:04d}"
 
 
+@dataclass(frozen=True)
+class PublicationVersion:
+    """Bản tốt nhất hiện có để Reader/EPUB sử dụng.
+
+    Đây là quyết định xuất bản, độc lập với `active_branch` của editor. Hiện tại
+    nhánh AI hoàn chỉnh có ưu tiên cao hơn Local MT hoàn chỉnh; về sau resolver
+    này là điểm duy nhất cần mở rộng khi có approval/version lineage chính thức.
+    """
+
+    branch: str
+    revision: int
+    title: str
+    text: str
+
+
 @dataclass
 class Manifest:
     slug: str
@@ -806,12 +821,31 @@ class Storage:
             )
         return branch
 
+    def publication_version(self, ch: Chapter) -> PublicationVersion | None:
+        """Chọn bản tốt nhất hiện có cho Reader/EPUB.
+
+        Nhánh AI hoàn chỉnh luôn được ưu tiên. Khi chưa có AI hoàn chỉnh, Local
+        MT hoàn chỉnh được xuất bản ngay để người đọc không phải chờ. Không dùng
+        `active_branch`: đó là lựa chọn workspace, không phải đánh giá chất lượng.
+        Candidate AI pending nằm ngoài workspace nên không thể lọt qua resolver.
+        """
+        for branch in (revisions.BRANCH_AI, revisions.BRANCH_LOCAL_MT):
+            if not self.has_branch_text(ch, branch):
+                continue
+            return PublicationVersion(
+                branch=branch,
+                revision=self.read_branch_revision(ch, branch),
+                title=self.read_branch_title(ch, branch) or ch.title or f"Chương {ch.index}",
+                text=self.read_branch_text(ch, branch),
+            )
+        return None
+
     def read_active_branch_text(self, ch: Chapter) -> str:
-        """Bản dịch của nhánh ĐANG HOẠT ĐỘNG (thứ đi vào EPUB/Reader)."""
+        """Bản dịch của nhánh đang được chọn trong editor."""
         return self.read_branch_text(ch, self.active_branch(ch))
 
     def read_active_branch_title(self, ch: Chapter) -> str:
-        """Tiêu đề của nhánh đang hoạt động, fallback về tiêu đề manifest."""
+        """Tiêu đề của nhánh editor đang chọn, fallback về tiêu đề manifest."""
         return self.read_branch_title(ch, self.active_branch(ch)) or ch.title
 
     def has_active_branch_text(self, ch: Chapter) -> bool:
@@ -946,36 +980,23 @@ class Storage:
             )
 
     def branch_chapter_snapshots(self) -> dict[int, dict]:
-        """Fingerprint nội dung đi vào build: {idx: {branch, revision, has_text,
-        title, content_hash}} cho mọi chương có bản dịch ở nhánh ĐANG HOẠT ĐỘNG.
-        Dùng để phát hiện build stale (bản dịch đổi sau khi build → snapshot
-        lệch). `content_hash` = hash tiêu đề+nội dung bản dịch đúng thứ sẽ đi
-        vào EPUB (`reader_sync.content_hash`)."""
+        """Fingerprint đúng bản mà chính sách xuất bản chọn cho Reader/EPUB."""
         from .reader_sync import content_hash as _content_hash
 
-        rows = self.conn.execute(
-            "SELECT idx, active_branch, revision, local_mt_revision, "
-            "translated_text, local_mt_text, title, local_mt_title "
-            "FROM chapters WHERE ebook_slug=?",
-            (self.slug,),
-        ).fetchall()
+        manifest = self.load_manifest()
+        if manifest is None:
+            return {}
         out: dict[int, dict] = {}
-        for row in rows:
-            branch = revisions.normalize_branch(row["active_branch"])
-            if branch == "ai":
-                text = row["translated_text"] or ""
-                rev = row["revision"]
-                title = row["title"] or ""
-            else:
-                text = row["local_mt_text"] or ""
-                rev = row["local_mt_revision"]
-                title = row["local_mt_title"] or ""
-            out[int(row["idx"])] = {
-                "branch": branch,
-                "revision": int(rev or 0),
-                "has_text": bool(text),
-                "title": title,
-                "content_hash": _content_hash(title, text) if text else "",
+        for ch in manifest.chapters:
+            selected = self.publication_version(ch)
+            out[ch.index] = {
+                "branch": selected.branch if selected else "",
+                "revision": selected.revision if selected else 0,
+                "has_text": selected is not None,
+                "title": selected.title if selected else "",
+                "content_hash": (
+                    _content_hash(selected.title, selected.text) if selected else ""
+                ),
             }
         return out
 
@@ -1646,27 +1667,25 @@ class Storage:
                 int(item["idx"]): _subset(item)
                 for item in stored if isinstance(item, dict) and "idx" in item
             }
+        elif isinstance(stored, dict):
+            stored = {int(k): _subset(v) for k, v in stored.items() if isinstance(v, dict)}
+        else:
+            stored = {}
         current = {int(k): _subset(v) for k, v in self.branch_chapter_snapshots().items()}
-        return json.dumps(current, sort_keys=True) != json.dumps(
-            {int(k): v for k, v in stored.items()}, sort_keys=True
-        )
+        return json.dumps(current, sort_keys=True) != json.dumps(stored, sort_keys=True)
 
     def build_blockers(self, chapters: list[Chapter]) -> list[dict]:
-        """Chương nào trong danh sách (non-skipped) THIẾU bản dịch ở nhánh đang
-        hoạt động — build strict phải chặn (không rơi về raw). Trả
-        `[{index, title, branch, reason}]`."""
+        """Chương non-skipped chưa có AI hoặc Local MT hoàn chỉnh để xuất bản."""
         blockers: list[dict] = []
         for ch in chapters:
-            if ch.skipped:
+            if ch.skipped or self.publication_version(ch) is not None:
                 continue
-            branch = self.active_branch(ch)
-            if not self.has_branch_text(ch, branch):
-                blockers.append({
-                    "index": ch.index,
-                    "title": ch.title or f"Chương {ch.index}",
-                    "branch": branch,
-                    "reason": f"Nhánh '{revisions.branch_label(branch)}' chưa có bản dịch.",
-                })
+            blockers.append({
+                "index": ch.index,
+                "title": ch.title or f"Chương {ch.index}",
+                "branch": "",
+                "reason": "Chưa có bản AI hoặc Local MT hoàn chỉnh.",
+            })
         return blockers
 
     # ----- legacy migration: meta['ai_rewrite'] cũ (v10 trở về trước) -----

@@ -113,6 +113,13 @@ export interface ModelOverrides {
   assistant_model: string;
 }
 
+export interface OpdsSettings {
+  token: string;
+  token_configured: boolean;
+  cors_origins: string;
+  auto_build: boolean;
+}
+
 export interface ReaderSettings {
   url: string;
   service_key: string;
@@ -146,6 +153,7 @@ export interface EbookSettings {
   translate: TranslateSettings;
   ai: AiSettings;
   global_ai: GlobalAiSettings;
+  opds: OpdsSettings;
   reader: ReaderSettings;
   output: OutputSettings;
   meta: SettingsMeta;

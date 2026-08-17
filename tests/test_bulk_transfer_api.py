@@ -80,12 +80,14 @@ def _seed(tmp_path):
     return storage, chapters
 
 
-def test_export_returns_text_with_prompt_and_chapters(tmp_path, monkeypatch):
-    # glossary_filter tắt: test này kiểm tra khối glossary được nhúng nguyên
-    # vào export, không phải hành vi lọc (nội dung không chứa từ glossary).
+def test_export_always_filters_glossary_to_chapters(tmp_path, monkeypatch):
+    # Glossary luôn được rút gọn về đúng mục xuất hiện trong chương đã chọn,
+    # bất kể cfg.translate.glossary_filter — mục không có trong nội dung sẽ bị
+    # loại, không nhúng nguyên bảng vào export.
     cfg = _cfg(tmp_path, glossary_filter=False)
-    storage, _ = _seed(tmp_path)
-    storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n")
+    storage, chapters = _seed(tmp_path)
+    storage.write_translated(chapters[0], "Tiêu Viêm bước vào phòng")
+    storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n林动 = Lâm Động\n")
     client = _client(cfg, monkeypatch)
 
     res = client.post("/api/ebooks/t/batch/export", data={"indexes": "1,2"})
@@ -94,8 +96,9 @@ def test_export_returns_text_with_prompt_and_chapters(tmp_path, monkeypatch):
     assert data["total"] == 2
     assert data["skipped"] == []
     assert "## idx:1" in data["text"]
-    assert "Bản dịch chương 1" in data["text"]
+    assert "Tiêu Viêm bước vào phòng" in data["text"]
     assert "萧炎 = Tiêu Viêm" in data["text"]
+    assert "林动 = Lâm Động" not in data["text"]
 
 
 def test_export_skips_untranslated(tmp_path, monkeypatch):
@@ -161,6 +164,80 @@ def test_export_no_indexes_400(tmp_path, monkeypatch):
     client = _client(cfg, monkeypatch)
     res = client.post("/api/ebooks/t/batch/export", data={"indexes": ""})
     assert res.status_code == 400
+
+
+def test_export_raw_prompt_profile_config_uses_cfg_prompt(tmp_path, monkeypatch):
+    # prompt_profile="config" (mặc định): nhúng prompt render từ
+    # cfg.translate.openai.prompt_template (DEFAULT_PROMPT), không phải
+    # TRANSLATE_PROMPT tĩnh.
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=1, url="http://x/1", title="第一章")]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    storage.write_raw(chapters[0], "原文内容")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/batch/export", data={"indexes": "1", "source": "raw", "prompt_profile": "config"}
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "NGUYÊN TẮC DỊCH" in data["text"]
+    assert "# Yêu cầu dịch truyện Trung → Việt" not in data["text"]
+
+
+def test_export_raw_prompt_profile_static_uses_translate_prompt(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=1, url="http://x/1", title="第一章")]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    storage.write_raw(chapters[0], "原文内容")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/batch/export", data={"indexes": "1", "source": "raw", "prompt_profile": "static"}
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "# Yêu cầu dịch truyện Trung → Việt" in data["text"]
+    assert "NGUYÊN TẮC DỊCH" not in data["text"]
+
+
+def test_export_glossary_source_returns_only_detected_terms(tmp_path, monkeypatch):
+    # source="glossary": chỉ xuất khối ## GLOSSARY gồm các mục detect trong
+    # chương đã chọn (nội dung translated); không kèm chương.
+    cfg = _cfg(tmp_path)
+    storage, chapters = _seed(tmp_path)
+    storage.write_translated(chapters[0], "Tiêu Viêm bước vào phòng")
+    storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm\n林动 = Lâm Động\n")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/batch/export", data={"indexes": "1,2", "source": "glossary"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["source"] == "glossary"
+    assert data["count"] == 1
+    assert data["skipped"] == []
+    assert "## GLOSSARY" in data["text"]
+    assert "萧炎 = Tiêu Viêm" in data["text"]
+    assert "林动 = Lâm Động" not in data["text"]
+    assert "## idx:" not in data["text"]
+
+
+def test_export_glossary_source_skips_untranslated(tmp_path, monkeypatch):
+    # Chương chưa dịch bị skip — nó không có nội dung để detect glossary.
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=1, url="http://x/1"), Chapter(index=2, url="http://x/2")]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    storage.write_translated(chapters[0], "Tiêu Viêm xuất hiện")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/batch/export", data={"indexes": "1,2", "source": "glossary"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["skipped"] == [2]
+    assert data["count"] == 0
 
 
 def test_import_preview_does_not_write(tmp_path, monkeypatch):

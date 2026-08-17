@@ -24,11 +24,12 @@ import { ChapterLegend, ChapterStrip } from "@/components/ChapterStrip";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
 import { Button, Spinner } from "@/components/ui/Button";
 import { Dot } from "@/components/ui/Badge";
-import { Checkbox, InputWithIcon, Select } from "@/components/ui/Field";
-import { ConfirmDialog } from "@/components/ui/Modal";
+import { Checkbox, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
+import { ConfirmDialog, Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import {
   IconCaretDown,
+  IconChat,
   IconDownload,
   IconRead,
   IconSearch,
@@ -288,6 +289,291 @@ const NORMALIZE_TOC_ACTION: BatchAction = {
     `Chuẩn hóa tiêu đề ${n} chương đã chọn? Thao tác sẽ bỏ tiền tố thứ tự như “3.” và ghi chú quảng cáo trong ngoặc, nhưng giữ số chương cùng các phần (上), (中), (下).`,
 };
 
+type WebChatProfile = "raw-config" | "raw-static" | "translated" | "glossary";
+
+const WEB_CHAT_PROFILES: {
+  key: WebChatProfile;
+  label: string;
+  source: string;
+  promptProfile?: string;
+  hint: string;
+}[] = [
+  {
+    key: "raw-config",
+    label: "Dịch — Config truyện",
+    source: "raw",
+    promptProfile: "config",
+    hint: "Prompt dịch render từ config truyện (giống bản dịch AI backend).",
+  },
+  {
+    key: "raw-static",
+    label: "Dịch — Prompt mặc định",
+    source: "raw",
+    promptProfile: "static",
+    hint: "Prompt TRANSLATE_PROMPT tĩnh có sẵn của hệ thống.",
+  },
+  {
+    key: "translated",
+    label: "Biên tập bản dịch",
+    source: "translated",
+    hint: "Prompt EDIT_PROMPT — biên tập lại bản dịch đã có.",
+  },
+  {
+    key: "glossary",
+    label: "Dọn glossary",
+    source: "glossary",
+    hint: "Chỉ xuất các mục glossary detect trong chương đã chọn.",
+  },
+];
+
+interface WebChatPreview {
+  mode: "preview";
+  chapters: { index: number; changed: boolean; title_changed: boolean }[];
+  titles_changed: number[];
+  missing: number[];
+  unknown: number[];
+  extra: number[];
+  glossary_new: Record<string, string>;
+}
+
+interface WebChatExportResult {
+  text: string;
+  skipped: number[];
+  total: number;
+  source: string;
+  count?: number;
+}
+
+/**
+ * Hộp thoại "Web chat" — xuất/nhập dữ liệu cho AI ngoài app.
+ *
+ * Tab Xuất: chọn prompt profile, gọi export rồi hiện khối Markdown để dán vào
+ * AI web chat. Tab Nhập: dán kết quả AI về, preview rồi xác nhận (chương qua
+ * batch/import, riêng profile "Dọn glossary" qua /glossary/import).
+ */
+function WebChatDialog({
+  open,
+  onClose,
+  slug,
+  indexes,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  slug: string;
+  indexes: number[];
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  const [tab, setTab] = useState<"export" | "import">("export");
+  const [profile, setProfile] = useState<WebChatProfile>("raw-config");
+  const [importText, setImportText] = useState("");
+  const [preview, setPreview] = useState<WebChatPreview | null>(null);
+  const [importError, setImportError] = useState("");
+
+  const current = WEB_CHAT_PROFILES.find((p) => p.key === profile)!;
+
+  const exportMut = useMutation({
+    mutationFn: (p: WebChatProfile) => {
+      const cfg = WEB_CHAT_PROFILES.find((x) => x.key === p)!;
+      return api.post<WebChatExportResult>(`/api/ebooks/${slug}/batch/export`, {
+        form: {
+          indexes: indexes.join(","),
+          source: cfg.source,
+          ...(cfg.promptProfile ? { prompt_profile: cfg.promptProfile } : {}),
+        },
+      });
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
+  const importMut = useMutation({
+    mutationFn: async (mode: "preview" | "confirm") => {
+      if (profile === "glossary") {
+        return api.post<{ added: number; updated: number }>(`/api/ebooks/${slug}/glossary/import`, {
+          form: { text: importText },
+        });
+      }
+      return api.post<WebChatPreview>(
+        `/api/ebooks/${slug}/batch/import`,
+        { form: { text: importText, indexes: indexes.join(","), mode } },
+      );
+    },
+    onSuccess: (res, mode) => {
+      if (profile === "glossary") {
+        const g = res as { added: number; updated: number };
+        toast(`Đã nhập glossary: ${g.added} mới, ${g.updated} cập nhật.`);
+        onDone();
+        onClose();
+        return;
+      }
+      if (mode === "preview") {
+        setPreview(res as WebChatPreview);
+        return;
+      }
+      const done = res as WebChatPreview & { written: number[]; glossary_added: number };
+      toast(`Đã ghi ${done.written.length} chương, thêm ${done.glossary_added} mục glossary.`);
+      onDone();
+      onClose();
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      setImportError(message);
+      toast(message, "error");
+    },
+  });
+
+  // Xuất lại khi mở modal hoặc đổi profile.
+  useEffect(() => {
+    if (!open) return;
+    exportMut.mutate(profile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ chạy khi mở/đổi profile
+  }, [open, profile]);
+
+  const pickProfile = (key: WebChatProfile) => {
+    setProfile(key);
+    setPreview(null);
+    setImportError("");
+  };
+
+  const exportData = exportMut.data;
+  const skippedInfo =
+    exportData && exportData.skipped.length > 0
+      ? `${exportData.skipped.length} chương bị bỏ qua (thiếu raw/dịch).`
+      : null;
+  const countInfo =
+    exportData && current.source === "glossary"
+      ? `Detected ${exportData.count ?? 0} mục glossary trong ${exportData.total} chương.`
+      : `Xuất ${exportData?.total ?? 0} chương.`;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Web chat — xuất / nhập dữ liệu AI"
+      wide
+      footer={
+        tab === "export" ? (
+          <>
+            <Button
+              variant="neutral"
+              loading={exportMut.isPending}
+              disabled={!exportData}
+              onClick={() => navigator.clipboard.writeText(exportData!.text).then(() => toast("Đã sao chép."))}
+            >
+              Sao chép
+            </Button>
+            <Button onClick={onClose}>Đóng</Button>
+          </>
+        ) : (
+          <>
+            {profile === "glossary" ? (
+              <Button
+                variant="primary"
+                loading={importMut.isPending}
+                disabled={!importText.trim()}
+                onClick={() => importMut.mutate("confirm")}
+              >
+                Nhập vào glossary
+              </Button>
+            ) : preview ? (
+              <Button
+                variant="primary"
+                loading={importMut.isPending}
+                onClick={() => importMut.mutate("confirm")}
+              >
+                Xác nhận ghi
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                loading={importMut.isPending}
+                disabled={!importText.trim()}
+                onClick={() => importMut.mutate("preview")}
+              >
+                Xem trước
+              </Button>
+            )}
+            <Button onClick={onClose}>Đóng</Button>
+          </>
+        )
+      }
+    >
+      <div className="mb-2 flex items-center gap-1.5">
+        <Button size="sm" variant={tab === "export" ? "primary" : "neutral"} onClick={() => setTab("export")}>
+          Xuất
+        </Button>
+        <Button size="sm" variant={tab === "import" ? "primary" : "neutral"} onClick={() => setTab("import")}>
+          Nhập
+        </Button>
+        <Select value={profile} onChange={(e) => pickProfile(e.target.value as WebChatProfile)} className="ml-3">
+          {WEB_CHAT_PROFILES.map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {tab === "export" ? (
+        <>
+          <p className="mb-2 text-xs opacity-60">{current.hint}</p>
+          {exportMut.isPending && !exportData ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm opacity-60">
+              <Spinner /> Đang xuất
+            </div>
+          ) : (
+            <>
+              <p className="mb-2 text-xs opacity-60">
+                {countInfo}
+                {skippedInfo ? ` ${skippedInfo}` : ""}
+              </p>
+              <Textarea readOnly value={exportData?.text ?? ""} rows={16} className="w-full font-mono text-xs" />
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="mb-2 text-xs opacity-60">
+            {profile === "glossary"
+              ? "Dán khối ## GLOSSARY AI trả về để merge vào glossary."
+              : "Dán kết quả AI (kèm marker ## idx:N) để ghi đè bản dịch."}
+          </p>
+          <Textarea
+            value={importText}
+            onChange={(e) => {
+              setImportText(e.target.value);
+              setPreview(null);
+              setImportError("");
+            }}
+            rows={16}
+            className="w-full font-mono text-xs"
+            placeholder={profile === "glossary" ? "## GLOSSARY\n李逸 = Lý Dịch" : "## idx:5: Chương 5: ..."}
+          />
+          {preview ? (
+            <div className="mt-2 rounded-box border border-base-300 p-2.5 text-xs">
+              <p className="font-medium">
+                {preview.chapters.filter((c) => c.changed).length} chương thay đổi,{" "}
+                {preview.chapters.length - preview.chapters.filter((c) => c.changed).length} không đổi.
+              </p>
+              {preview.unknown.length > 0 && (
+                <p className="opacity-70">Không tìm thấy trong manifest: {preview.unknown.join(", ")}</p>
+              )}
+              {preview.extra.length > 0 && (
+                <p className="opacity-70">Ngoài danh sách chọn: {preview.extra.join(", ")}</p>
+              )}
+              {Object.keys(preview.glossary_new).length > 0 && (
+                <p className="opacity-70">Glossary mới: {Object.keys(preview.glossary_new).join(", ")}</p>
+              )}
+            </div>
+          ) : null}
+          {importError ? <p className="mt-2 text-xs text-error">{importError}</p> : null}
+        </>
+      )}
+    </Modal>
+  );
+}
+
 /**
  * Thanh hành động hàng loạt — CỐ ĐỊNH ở đáy màn hình.
  *
@@ -320,6 +606,7 @@ function BatchBar({
   const [includeTranslatedTitle, setIncludeTranslatedTitle] = useState(false);
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
   const [aiEditOpen, setAiEditOpen] = useState(false);
+  const [webChatOpen, setWebChatOpen] = useState(false);
 
   const run = useMutation({
     mutationFn: (action: BatchAction) =>
@@ -465,6 +752,15 @@ function BatchBar({
             </label>
           </div>
 
+          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Web chat</span>
+            <Button size="sm" icon={<IconChat size={13} />} onClick={() => setWebChatOpen(true)}>
+              Xuất / Nhập
+            </Button>
+          </div>
+
           <div className="ml-auto dropdown dropdown-top dropdown-end">
             <div tabIndex={0} role="button" className="btn btn-sm gap-1.5">
               Khác <IconCaretDown size={12} />
@@ -523,6 +819,14 @@ function BatchBar({
           </>
         }
         confirmLabel="Xếp vào hàng đợi"
+        onDone={onDone}
+      />
+
+      <WebChatDialog
+        open={webChatOpen}
+        onClose={() => setWebChatOpen(false)}
+        slug={slug}
+        indexes={selected}
         onDone={onDone}
       />
 

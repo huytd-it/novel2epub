@@ -16,6 +16,7 @@ export {
   PiCaretLeft as IconChevronLeft,
   PiCaretRight as IconChevronRight,
   PiCaretUpDown as IconSwitch,
+  PiChats as IconChat,
   PiCheck as IconCheck,
   PiClock as IconClock,
   PiGearSix as IconSettings,

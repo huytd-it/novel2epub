@@ -1052,7 +1052,11 @@ async def api_batch_ai_rewrite(
     return JSONResponse({"started": True, "total": len(index_list), "backend": backend})
 
 
-_EXPORT_PROMPTS = {"translated": bulk_transfer.EDIT_PROMPT, "raw": bulk_transfer.TRANSLATE_PROMPT}
+_EXPORT_PROMPTS = {
+    "translated": bulk_transfer.EDIT_PROMPT,
+    "raw": bulk_transfer.TRANSLATE_PROMPT,
+    "glossary": bulk_transfer.GLOSSARY_CLEAN_PROMPT,
+}
 
 
 def _filter_glossary_for_batch(
@@ -1099,9 +1103,11 @@ def _characters_block_for_batch(
     )
 
 
-def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
+def _do_export(slug: str, indexes: str, source: str, prompt_profile: str = "config") -> JSONResponse:
     if source not in _EXPORT_PROMPTS:
         raise HTTPException(status_code=400, detail=f"source không hợp lệ: {source!r}")
+    if prompt_profile not in ("config", "static"):
+        raise HTTPException(status_code=400, detail=f"prompt_profile không hợp lệ: {prompt_profile!r}")
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -1112,6 +1118,8 @@ def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
     if not index_list:
         raise HTTPException(status_code=400, detail="Chưa chọn chương nào. Hãy tick checkbox trước.")
 
+    # Glossary dùng nội dung đã dịch để detect (glossary là về thuật ngữ bản
+    # dịch) — kể cả source="glossary", nơi chỉ xuất khối glossary.
     by_index = {c.index: c for c in manifest.chapters}
     items: list[tuple[int, str, str]] = []
     skipped: list[int] = []
@@ -1134,11 +1142,23 @@ def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
             else "Không có chương đã dịch nào trong số đã chọn."
         raise HTTPException(status_code=400, detail=detail)
 
+    # Luôn rút gọn glossary về đúng các mục xuất hiện trong batch, bất kể
+    # cfg.translate.glossary_filter — đây là đường xuất web chat thủ công.
     glossary = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
-    if cfg.translate.glossary_filter:
-        glossary = _filter_glossary_for_batch(glossary, items)
+    glossary = _filter_glossary_for_batch(glossary, items)
+
+    if source == "glossary":
+        text = bulk_transfer.build_glossary_export(glossary)
+        return JSONResponse({
+            "text": text, "skipped": skipped, "total": len(items), "source": source,
+            "count": len(glossary),
+        })
+
     if source == "raw":
-        prompt = bulk_transfer.build_translate_prompt_from_cfg(cfg)
+        if prompt_profile == "static":
+            prompt = _EXPORT_PROMPTS["raw"]
+        else:
+            prompt = bulk_transfer.build_translate_prompt_from_cfg(cfg)
     else:
         prompt = _EXPORT_PROMPTS[source]
     chars_all = characters_mod.characters_from_rows(storage.read_character_entries())
@@ -1155,12 +1175,17 @@ def _do_export(slug: str, indexes: str, source: str) -> JSONResponse:
     return JSONResponse({"text": text, "skipped": skipped, "total": len(items), "source": source})
 
 @router.get("/api/ebooks/{slug}/export")
-async def api_export(slug: str, indexes: str = "", source: str = "translated"):
-    return _do_export(slug, indexes, source)
+async def api_export(slug: str, indexes: str = "", source: str = "translated", prompt_profile: str = "config"):
+    return _do_export(slug, indexes, source, prompt_profile)
 
 @router.post("/api/ebooks/{slug}/batch/export")
-async def api_batch_export(slug: str, indexes: str = Form(""), source: str = Form("translated")):
-    return _do_export(slug, indexes, source)
+async def api_batch_export(
+    slug: str,
+    indexes: str = Form(""),
+    source: str = Form("translated"),
+    prompt_profile: str = Form("config"),
+):
+    return _do_export(slug, indexes, source, prompt_profile)
 
 
 @router.post("/api/ebooks/{slug}/batch/import")

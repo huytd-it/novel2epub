@@ -6,7 +6,8 @@ import { DEFAULT_FILTERS, useInfiniteChapters } from "@/lib/ebook";
 import type { FindReplacePreviewItem, FindSource, SearchHit } from "@/lib/chapter";
 import { num } from "@/lib/format";
 import { InputWithIcon } from "@/components/ui/Field";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading, SkeletonTable } from "@/components/ui/Loading";
 import { Dot } from "@/components/ui/Badge";
 import { DiffText } from "@/components/DiffText";
 import {
@@ -330,9 +331,7 @@ export function ChapterListDrawer({
                 onClearSearch={onClearSearch}
               />
             ) : isFetching && !data ? (
-              <div className="flex justify-center py-8">
-                <Spinner />
-              </div>
+              <SkeletonTable rows={8} cols={2} />
             ) : list.length === 0 ? (
               <p className="px-3 py-6 text-center text-xs opacity-50">
                 Không có chương nào khớp.
@@ -405,9 +404,7 @@ export function ChapterListDrawer({
                       </Button>
                     </p>
                   ) : isFetching ? (
-                    <p className="flex items-center justify-center gap-2 py-3 text-[11px] opacity-60">
-                      <Spinner /> Đang tải thêm chương…
-                    </p>
+                    <Loading size="sm" label="Đang tải thêm chương" delay={0} />
                   ) : !hasNextPage ? (
                     <p className="py-3 text-center text-[11px] opacity-40">
                       Đã hết danh sách ({num(matched)} chương).
@@ -553,9 +550,7 @@ const FindReplacePanel = memo(function FindReplacePanel({
 
       <div className="scroll-slim flex-1 overflow-y-auto p-2">
         {searchState.loading ? (
-          <div className="flex justify-center py-8">
-            <Spinner />
-          </div>
+          <Loading label="Đang tìm" />
         ) : searchState.error ? (
           <p className="rounded-box border border-error/30 bg-error/5 px-3 py-2 text-xs text-error">
             {searchState.error}
@@ -673,9 +668,7 @@ const ChapterHitList = memo(function ChapterHitList({
             ))}
             {previewing ? (
               previewState.loading ? (
-                <div className="flex items-center justify-center gap-2 py-3 text-[11px] opacity-60">
-                  <Spinner /> Đang tạo bản xem trước
-                </div>
+                <Loading size="sm" label="Đang tạo bản xem trước" delay={0} />
               ) : previewState.error ? (
                 <p className="mt-1.5 rounded-field border border-error/30 bg-error/5 px-2 py-1.5 text-[11px] text-error">
                   {previewState.error}

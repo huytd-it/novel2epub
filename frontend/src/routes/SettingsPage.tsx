@@ -15,7 +15,8 @@ import {
   type SettingsSection,
 } from "@/lib/settings";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading } from "@/components/ui/Loading";
 import { Badge } from "@/components/ui/Badge";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
@@ -787,7 +788,7 @@ function ModelOverridesTab({ slug, global }: { slug: string; global: GlobalAiSet
         hint="Chỉ đổi model; endpoint, API key, timeout và temperature luôn lấy từ Global AI"
         actions={<Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>Lưu override</Button>}
       />
-      {query.isPending ? <div className="flex items-center gap-2 p-4 text-sm opacity-60"><Spinner /> Đang đọc override</div> : (
+      {query.isPending ? <Loading size="sm" label="Đang đọc override" className="justify-start px-4" /> : (
         <div className="grid gap-4 p-4 md:grid-cols-2">
           <ModelField
             label="Model dịch chương"
@@ -879,10 +880,8 @@ export function SettingsPage() {
 
   if (isPending) {
     return (
-      <Page title="Đang tải cài đặt">
-        <div className="flex items-center justify-center gap-2 py-20 text-sm opacity-60">
-          <Spinner /> Đang đọc cấu hình
-        </div>
+      <Page title="Đang tải cài đặt" loading loadingLabel="Đang đọc cấu hình">
+        {null}
       </Page>
     );
   }

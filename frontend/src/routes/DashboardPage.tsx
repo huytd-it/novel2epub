@@ -4,7 +4,6 @@ import { Page } from "@/app/Shell";
 import { bytes, num } from "@/lib/format";
 import { useDashboard, type AutomationStatus, type DashboardRow } from "@/lib/dashboard";
 import { Panel, EmptyState } from "@/components/ui/Panel";
-import { Spinner } from "@/components/ui/Button";
 import { Badge, Dot } from "@/components/ui/Badge";
 
 /* ── Donut SVG thuần — không cần thư viện chart ─────────────────────── */
@@ -171,10 +170,8 @@ export function DashboardPage() {
 
   if (isPending || !data) {
     return (
-      <Page title="Bảng điều khiển">
-        <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60">
-          <Spinner /> Đang tải
-        </div>
+      <Page title="Bảng điều khiển" loading>
+        {null}
       </Page>
     );
   }

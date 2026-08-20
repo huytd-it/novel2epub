@@ -20,7 +20,8 @@ import {
   type PendingEntry,
 } from "@/lib/glossary";
 import { Panel, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading, SkeletonTable } from "@/components/ui/Loading";
 import { Checkbox, Input, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -343,9 +344,7 @@ function SuspectsView({ slug }: { slug: string }) {
 
   if (isPending) {
     return (
-      <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60">
-        <Spinner /> Đang quét
-      </div>
+      <Loading label="Đang quét" />
     );
   }
   if (!data || data.count === 0) {
@@ -579,9 +578,7 @@ export function GlossaryPage() {
             </div>
 
             {isPending ? (
-              <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60">
-                <Spinner /> Đang tải
-              </div>
+              <SkeletonTable rows={6} cols={4} />
             ) : rows.length === 0 && pendingRows.length === 0 ? (
               <EmptyState
                 title={search ? "Không có mục nào khớp" : "Glossary đang trống"}

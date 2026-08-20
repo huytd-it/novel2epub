@@ -29,7 +29,8 @@ import {
   type FindSource,
   type Note,
 } from "@/lib/chapter";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading } from "@/components/ui/Loading";
 import { Textarea, Select } from "@/components/ui/Field";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { Badge } from "@/components/ui/Badge";
@@ -954,9 +955,7 @@ export function ChapterPage() {
 
   if (isPending) {
     return (
-      <div className="flex min-h-[70vh] items-center justify-center gap-2 text-sm opacity-60">
-        <Spinner /> Đang tải chương
-      </div>
+      <Loading size="lg" label="Đang tải chương" className="min-h-[70vh]" />
     );
   }
 

@@ -92,6 +92,33 @@ def strip_toc_junk(title: str) -> str:
     return out.strip()
 
 
+# ── Kiểm tra format tiêu đề chương ───────────────────────────────────────
+# Ba dạng được coi là ĐÚNG (xem docs/operations.md):
+#   "Chương 5"              — chỉ số chương
+#   "Chương 5: Tên chương"  — số chương, dấu ngăn, tên
+#   "Chương 5 Tên chương"   — số chương, khoảng trắng, tên
+# Số chương cho phép hậu tố ".1" / "-2" (chương chia nhỏ). Dấu ngăn nhận cả
+# ":", "：", ".", "-", "–", "—". So khớp KHÔNG phân biệt hoa thường vì kiểu
+# viết hoa là chuyện trình bày, không phải lỗi cấu trúc.
+_TITLE_FORMAT_RE = re.compile(
+    r"^Chương\s+\d+(?:[.\-]\d+)?"
+    r"(?:\s*[:：.\-–—]\s*\S.*|\s+\S.*)?$",
+    re.IGNORECASE,
+)
+
+
+def title_format_ok(title: str) -> bool:
+    """True nếu tiêu đề theo đúng mẫu "Chương N", "Chương N: tên", "Chương N tên".
+
+    Tiêu đề rỗng luôn là lỗi — chương chưa có tiêu đề thì không có gì để đưa
+    vào EPUB. Dùng cho cột trạng thái và bộ lọc "Tiêu đề lỗi" ở bảng chương.
+    """
+    title = (title or "").strip()
+    if not title:
+        return False
+    return bool(_TITLE_FORMAT_RE.match(title))
+
+
 @dataclass
 class ChapterRow:
     index: int
@@ -116,10 +143,19 @@ class ChapterRow:
     bientap: str = ""
     bientap_tooltip: str = ""
     skipped: bool = False
+    # Tiêu đề của nhánh đang active có đúng mẫu "Chương N[: tên]" không.
+    # Tính trên `title` (tiêu đề thật) chứ không phải `visible_title` — cái sau
+    # đã có fallback "Chương {index}" nên luôn đúng mẫu, che mất chương thiếu
+    # tiêu đề.
+    title_format_ok: bool = True
 
     @property
     def has_missing(self) -> bool:
         return bool(self.missing_fields)
+
+    @property
+    def has_title_error(self) -> bool:
+        return not self.title_format_ok
 
 
 def missing_metadata(title: str = "", author: str = "", description: str = "") -> list[str]:
@@ -254,6 +290,7 @@ def chapter_rows(
             bientap=bientap,
             bientap_tooltip=bientap_tooltip,
             skipped=ch.skipped,
+            title_format_ok=title_format_ok(active_title),
         ))
     return rows
 
@@ -309,7 +346,17 @@ def apply_chapter_query(
     filter_translated: str = "any",
     filter_missing: str = "any",
     filter_skipped: str = "no",
+    filter_local_mt: str = "any",
+    filter_ai: str = "any",
+    filter_title_error: str = "any",
 ) -> list[ChapterRow]:
+    """Lọc + sắp xếp danh sách chương.
+
+    `filter_translated` xét nhánh ĐANG ACTIVE (thứ đi vào EPUB/Reader), còn
+    `filter_local_mt` / `filter_ai` xét từng nhánh riêng — ba bộ lọc này độc
+    lập nên chọn "Bản dịch: có" cùng "AI: không" là hợp lệ và có nghĩa.
+    `filter_title_error` = "yes" chỉ giữ chương có tiêu đề sai mẫu.
+    """
     q = (search or "").strip().lower()
     out = []
     for row in rows:
@@ -319,7 +366,13 @@ def apply_chapter_query(
             continue
         if not _matches_filter(row.has_translated, filter_translated):
             continue
+        if not _matches_filter(row.has_local_mt_translation, filter_local_mt):
+            continue
+        if not _matches_filter(row.has_ai_translation, filter_ai):
+            continue
         if not _matches_filter(row.has_missing, filter_missing):
+            continue
+        if not _matches_filter(row.has_title_error, filter_title_error):
             continue
         if not _matches_filter(row.skipped, filter_skipped):
             continue

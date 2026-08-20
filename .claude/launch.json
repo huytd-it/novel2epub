@@ -26,6 +26,12 @@
         "C:\\Users\\huytd\\AppData\\Local\\Temp\\claude\\D--Projects-novel2epub\\12aba377-8d04-48b1-a63b-f4fa190c613b\\scratchpad\\serve.py"
       ],
       "port": 8011
+    },
+    {
+      "name": "web-8765",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--port", "8765"],
+      "port": 8765
     }
   ]
 }

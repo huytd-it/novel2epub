@@ -12,7 +12,8 @@ import {
   type StorageRow,
 } from "@/lib/storage";
 import { Panel, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading } from "@/components/ui/Loading";
 import { ConfirmDialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { IconDownload } from "@/components/icons";
@@ -119,9 +120,7 @@ export function StoragePage() {
   return (
     <Page title="Lưu trữ & Dung lượng" hint="Tổng dung lượng raw, translated, glossary, EPUB theo từng truyện — dọn dẹp khi cần">
       {isPending ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60">
-          <Spinner /> Đang tải
-        </div>
+        <Loading label="Đang tính dung lượng" />
       ) : !data || data.rows.length === 0 ? (
         <Panel>
           <EmptyState title="Chưa có dữ liệu" hint="Thêm truyện và chạy crawl/dịch để thấy báo cáo lưu trữ." />

@@ -459,6 +459,9 @@ def ebook_chapters(
     filter_translated: str = "any",
     filter_missing: str = "any",
     filter_skipped: str = "no",
+    filter_local_mt: str = "any",
+    filter_ai: str = "any",
+    filter_title_error: str = "any",
     offset: int = 0,
     limit: int = 100,
 ):
@@ -484,6 +487,9 @@ def ebook_chapters(
         filter_translated=filter_translated,
         filter_missing=filter_missing,
         filter_skipped=filter_skipped,
+        filter_local_mt=filter_local_mt,
+        filter_ai=filter_ai,
+        filter_title_error=filter_title_error,
     )
 
     limit = max(1, min(limit, 500))

@@ -8,7 +8,8 @@ import { decodeStrip, stripCounts } from "@/lib/strip";
 import { useCurrentBook, useDeleteEbook, useLibrary, type EbookSummary } from "@/lib/books";
 import { ChapterLegend, ChapterStrip } from "@/components/ChapterStrip";
 import { Panel, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { SkeletonTable } from "@/components/ui/Loading";
 import { Badge } from "@/components/ui/Badge";
 import { Input, InputWithIcon } from "@/components/ui/Field";
 import { ConfirmDialog } from "@/components/ui/Modal";
@@ -253,9 +254,7 @@ export function LibraryPage() {
     >
       <Panel className="overflow-hidden">
         {isPending ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60">
-            <Spinner /> Đang tải thư viện
-          </div>
+          <SkeletonTable rows={5} cols={5} />
         ) : error ? (
           <EmptyState
             title="Không đọc được thư viện"

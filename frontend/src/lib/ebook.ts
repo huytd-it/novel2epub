@@ -53,6 +53,8 @@ export interface ChapterRow {
   bientap: string;
   bientap_tooltip: string;
   skipped: boolean;
+  /** Tiêu đề nhánh active có đúng mẫu "Chương N", "Chương N: tên", "Chương N tên". */
+  title_format_ok: boolean;
 }
 
 export interface ChapterPage {
@@ -68,8 +70,15 @@ export interface ChapterFilters {
   sort: string;
   direction: string;
   filter_raw: string;
+  /** Nhánh ĐANG ACTIVE có bản dịch — thứ đi vào EPUB/Reader. */
   filter_translated: string;
+  /** Nhánh Local MT có bản dịch, độc lập với nhánh nào đang active. */
+  filter_local_mt: string;
+  /** Nhánh AI có bản dịch, độc lập với nhánh nào đang active. */
+  filter_ai: string;
   filter_missing: string;
+  /** "yes" = chỉ chương có tiêu đề sai mẫu "Chương N[: tên]". */
+  filter_title_error: string;
   filter_skipped: string;
 }
 
@@ -79,7 +88,10 @@ export const DEFAULT_FILTERS: ChapterFilters = {
   direction: "asc",
   filter_raw: "any",
   filter_translated: "any",
+  filter_local_mt: "any",
+  filter_ai: "any",
   filter_missing: "any",
+  filter_title_error: "any",
   filter_skipped: "any",
 };
 
@@ -254,11 +266,47 @@ export function rowTone(row: ChapterRow): "neutral" | "gold" | "indigo" | "celad
   return row.bientap ? "celadon" : "gold";
 }
 
+/**
+ * Nhãn trạng thái chính của một chương.
+ *
+ * Nói rõ bản dịch đến từ nhánh nào: trước đây chương nào đã dịch cũng đọc là
+ * "Đã dịch máy" kể cả khi nhánh active là AI, nên cột trạng thái mâu thuẫn với
+ * hai badge nhánh ngay bên cạnh.
+ */
 export function rowLabel(row: ChapterRow): string {
   if (row.skipped) return "Bỏ qua";
   if (!row.has_raw) return "Chưa crawl";
-  if (!row.has_translated) return "Có bản gốc";
-  return row.bientap ? "Đã biên tập" : "Đã dịch máy";
+  if (!row.has_translated) return "Chưa dịch";
+  if (row.bientap) return "Đã biên tập";
+  return row.active_branch === "ai" ? "Đã dịch AI" : "Đã dịch máy";
+}
+
+/** Cảnh báo cần người xử lý tay, xếp theo mức độ khẩn. */
+export function rowWarnings(row: ChapterRow): { key: string; label: string; hint: string }[] {
+  const out: { key: string; label: string; hint: string }[] = [];
+  if (row.duplicate_of !== null) {
+    out.push({
+      key: "duplicate",
+      label: `Trùng #${row.duplicate_of}`,
+      hint: `Cùng URL và tiêu đề với chương ${row.duplicate_of}.`,
+    });
+  }
+  if (!row.title_format_ok) {
+    out.push({
+      key: "title",
+      label: "Tiêu đề lỗi",
+      hint: 'Tiêu đề không theo mẫu "Chương N", "Chương N: tên chương" hoặc "Chương N tên chương".',
+    });
+  }
+  const missing = row.missing_fields.filter((field) => field !== "duplicate");
+  if (missing.length > 0) {
+    out.push({
+      key: "missing",
+      label: `Thiếu ${missing.join(", ")}`,
+      hint: `Manifest thiếu trường: ${missing.join(", ")}.`,
+    });
+  }
+  return out;
 }
 
 /* ── Hành động hàng loạt qua hợp đồng bulk-preview / bulk-confirm ──────

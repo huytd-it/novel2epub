@@ -48,3 +48,7 @@ logs
 .worktrees/
 .superpowers/
 models
+
+# Env cục bộ cho dev server (không commit)
+.env.local
+.env.*.local

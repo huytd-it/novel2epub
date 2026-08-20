@@ -15,7 +15,8 @@ import {
   type Job,
 } from "@/lib/queue";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading } from "@/components/ui/Loading";
 import { Badge, Dot } from "@/components/ui/Badge";
 import { ConfirmDialog, Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -164,7 +165,7 @@ function JobLogModal({ job, open, onClose }: { job: Job | null; open: boolean; o
   }, [data?.log, open]);
   return (
     <Modal open={open} onClose={onClose} title={job ? `Nhật ký · ${job.label}` : "Nhật ký"} wide footer={<Button onClick={onClose}>Đóng</Button>}>
-      {!job ? <EmptyState title="Chưa có nhật ký" hint="Chọn một việc trong hàng đợi để xem nhật ký." /> : isPending ? <div className="flex justify-center py-12"><Spinner /></div> : (
+      {!job ? <EmptyState title="Chưa có nhật ký" hint="Chọn một việc trong hàng đợi để xem nhật ký." /> : isPending ? <Loading label="Đang đọc nhật ký" /> : (
         <div ref={boxRef} className="scroll-slim max-h-[55vh] overflow-auto bg-base-200 px-3 py-2">
           {(data?.log ?? []).length === 0 ? <p className="py-8 text-center text-sm opacity-50">Job chưa ghi dòng log nào.</p> : (data?.log ?? []).map((line, index) => (
             <pre key={index} className={clsx("m-0 text-[12px] leading-[1.55] break-words whitespace-pre-wrap", /ERROR|CRITICAL|Traceback|failed|Lỗi/.test(line) ? "text-error" : "opacity-65")}>{line}</pre>

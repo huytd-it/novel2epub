@@ -10,7 +10,8 @@ import {
   type BulkPreview,
 } from "@/lib/bulk";
 import { num } from "@/lib/format";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading } from "@/components/ui/Loading";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 
@@ -131,9 +132,7 @@ export function BulkPreviewDialog({
       {body ? <p className="mb-3 text-[13px] opacity-70">{body}</p> : null}
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-12 text-sm opacity-60">
-          <Spinner /> Đang đánh giá các chương đã chọn…
-        </div>
+        <Loading label="Đang đánh giá các chương đã chọn" />
       ) : error ? (
         <div className="rounded-box border border-error/30 bg-error/5 px-3 py-2 text-[13px] text-error">
           {error}

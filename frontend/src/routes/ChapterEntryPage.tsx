@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { firstReadingIndex } from "@/lib/chapter";
-import { Spinner } from "@/components/ui/Button";
+import { Loading } from "@/components/ui/Loading";
 
 const bookmarkKey = (slug: string) => `n2e-bookmark-${slug}`;
 
@@ -31,8 +31,6 @@ export function ChapterEntryPage() {
   }, [slug, navigate]);
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center gap-2 text-sm opacity-60">
-      <Spinner /> Đang mở chương đọc gần nhất
-    </div>
+    <Loading size="lg" label="Đang mở chương đọc gần nhất" className="min-h-[70vh]" />
   );
 }

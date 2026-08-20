@@ -14,7 +14,8 @@ import {
 } from "@/lib/automation";
 import { useJobLog, useQueue, type Job } from "@/lib/queue";
 import { Panel, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading, SkeletonTable } from "@/components/ui/Loading";
 import { Input, InputWithIcon } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { Badge, Dot, type Tone } from "@/components/ui/Badge";
@@ -304,7 +305,7 @@ function LogModal({ automation, job, open, onClose }: { automation: Automation; 
   }, [data?.log]);
   return (
     <Modal open={open} onClose={onClose} title={`Nhật ký · ${automation.ebook}`} wide footer={<Button onClick={onClose}>Đóng</Button>}>
-      {!job ? <EmptyState title="Chưa có lần chạy" hint="Chạy tự động hóa để bắt đầu ghi nhật ký riêng." /> : isPending ? <div className="flex justify-center py-12"><Spinner /></div> : (
+      {!job ? <EmptyState title="Chưa có lần chạy" hint="Chạy tự động hóa để bắt đầu ghi nhật ký riêng." /> : isPending ? <Loading label="Đang đọc nhật ký" /> : (
         <div ref={boxRef} className="scroll-slim max-h-[55vh] overflow-auto bg-base-200 px-3 py-2">
           {(data?.log ?? []).length === 0 ? <p className="py-8 text-center text-sm opacity-50">Job chưa ghi dòng log nào.</p> : (data?.log ?? []).map((line, index) => (
             <pre key={index} className={clsx("m-0 text-[12px] leading-[1.55] break-words whitespace-pre-wrap", /ERROR|CRITICAL|Traceback|failed|Lỗi/.test(line) ? "text-error" : /automation:step:(start|done)/.test(line) ? "font-semibold text-primary" : "opacity-65")}>{line}</pre>
@@ -383,7 +384,7 @@ export function AutomationPage() {
       actions={<Button variant="primary" icon={<IconPlus size={14} />} onClick={() => setFormOpen(true)}>Thêm tự động hóa</Button>}
     >
       <Panel className="overflow-hidden">
-        {isPending ? <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60"><Spinner /> Đang tải</div> : !data?.automations.length ? (
+        {isPending ? <SkeletonTable rows={3} cols={4} /> : !data?.automations.length ? (
           <EmptyState title="Chưa có tự động hóa" hint="Tạo pipeline đầu tiên để cào, dịch và xuất sách theo lịch." action={<Button variant="primary" icon={<IconPlus size={14} />} onClick={() => setFormOpen(true)}>Thêm tự động hóa</Button>} />
         ) : data.automations.map((a) => (
           <AutomationCard key={a.id} a={a} title={titles.get(a.ebook) ?? a.ebook} job={automationJob(a, jobs)} onEdit={() => { setEditing(a); setFormOpen(true); }} onDelete={() => setConfirmDelete(a)} />

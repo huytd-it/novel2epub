@@ -30,13 +30,28 @@ from novel2epub.storage import Storage
 from .logging_config import logger
 from .queue import JobQueue
 
+def _step_translate_local_mt(cfg, log):
+    # Hành động tường minh — luôn dùng engine Local MT bất kể translate.type
+    # của ebook, giống hệt action thủ công trong SPA (xem chapters.py và
+    # docs/translation.md § Workflow A).
+    if hasattr(cfg, "translate"):
+        cfg.translate.type = "localmt"
+    return step_translate_selected(cfg, log, branch=revisions.BRANCH_LOCAL_MT)
+
+
+def _step_translate_pending(cfg, log):
+    # Hành động tường minh — luôn dùng engine OpenAI-compatible (LLM) bất kể
+    # translate.type của ebook, đối xứng với _step_translate_local_mt.
+    if hasattr(cfg, "translate"):
+        cfg.translate.type = "openai"
+    return step_translate_selected(cfg, log)
+
+
 _STEP_FN = {
     "fetch-toc": lambda cfg, log: step_fetch_toc(cfg, log),
     "crawl-new": lambda cfg, log: step_crawl_selected(cfg, log),
-    "translate-local-mt": lambda cfg, log: step_translate_selected(
-        cfg, log, branch=revisions.BRANCH_LOCAL_MT
-    ),
-    "translate-pending": lambda cfg, log: step_translate_selected(cfg, log),
+    "translate-local-mt": _step_translate_local_mt,
+    "translate-pending": _step_translate_pending,
     "llm-edit": lambda cfg, log: step_rewrite_chapters(cfg, log),
     "cleanup-han": lambda cfg, log: step_cleanup_han_selected(cfg, log),
     "build": lambda cfg, log: step_build(cfg, log),

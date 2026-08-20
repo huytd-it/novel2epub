@@ -40,6 +40,19 @@ Vì AI chỉ *biên tập* (không dịch trực tiếp từ bản gốc), workf
 
 Dịch thẳng bằng `openai` cho chất lượng tốt với đa số ngữ cảnh (tùy model), nhưng đôi khi sót ký tự Hán. Bước clear Hán mặc định dùng **Local MT** (miễn phí, offline) thay vì tốn token OpenAI — xem [Clear Hán](#clear-hán-chữ-hán-còn-sót). Khi API gặp giới hạn, tận dụng **export/import** (`bulk_transfer`) để dịch/biên tập qua web chat AI miễn phí rồi nạp ngược.
 
+### Tự host endpoint OpenAI-compatible
+
+Backend `openai` không bắt buộc phải là dịch vụ trả tiền: bất kỳ server nào lộ `POST {base_url}/chat/completions` và `GET {base_url}/models` đều dùng được. `notebooks/novel2epub_zhvi_server.ipynb` dựng sẵn một server như vậy trên GPU miễn phí của Colab/Kaggle với model mạnh Trung → Việt (Qwen3/Qwen3.5 hoặc Sailor2 — bản train riêng cho Đông Nam Á). Chi tiết vận hành xem [operations.md](operations.md#tự-host-model-dịch-trên-colabkaggle).
+
+Khi tự host, chỉnh kèm mấy tham số sau cho khớp server:
+
+- `temperature` 0.3 — mặc định 0.7 quá cao cho dịch, dễ chế thêm chi tiết.
+- `translate.max_workers` bằng số slot song song mà engine báo (notebook in sẵn); đặt cao hơn chỉ làm request xếp hàng.
+- `translate.prompt_max_chars` không quá một nửa context của model (mặc định notebook là 8192 token → khoảng 4000 ký tự).
+- `timeout_seconds` 600, vì GPU miễn phí sinh chậm hơn API thương mại.
+
+Model có thinking mode (Qwen3/Qwen3.5) phải **tắt thinking ở phía server**: client chỉ gửi đúng một message `user` nên không có chỗ truyền cờ. Notebook lo việc này, và còn lọc `<think>` trên luồng SSE để phòng hờ — nếu bản dịch xuất hiện thẻ `<think>`, đó là dấu hiệu endpoint chưa tắt đúng.
+
 ### Model Local MT
 
 Local MT dùng model NMT/seq2seq lượng tử hóa qua CTranslate2, chọn qua `translate.model` (preset) hoặc `translate.hachimimt.model_key`:
@@ -80,7 +93,13 @@ Sau khi dịch, bản Việt đôi khi còn sót ký tự Hán. Bước clear H�
 - **`local_mt` (mặc định)**: dịch riêng từng vùng Hán bằng Local MT cục bộ, giữ nguyên phần Việt. Miễn phí, offline, không tốn token — chạy được cả với ebook dịch bằng `openai`.
 - **`openai`**: nhờ AI biên tập (`ai.openai`) sửa vùng Hán trong ngữ cảnh câu; chất lượng cao hơn nhưng tốn token và cần cấu hình AI biên tập.
 
-Bật tự động sau mỗi chương bằng `translate.auto_cleanup_han`, hoặc chạy tay: CLI `cleanup-han [--engine local_mt|openai]`, hoặc nút Clear Hán trên trình đọc/chương.
+Bật tự động sau mỗi chương bằng `translate.auto_cleanup_han`, hoặc chạy tay:
+
+- **CLI**: `cleanup-han [--engine local_mt|openai]`.
+- **Trang chương / trình đọc**: nút Clear Hán.
+- **Hàng loạt ở trang truyện**: chọn chương trong bảng rồi bấm **Dọn chữ Hán** ở thanh hành động. Hộp thoại cho chọn engine (bỏ trống = theo cấu hình truyện) và tuỳ chọn quét lại chương đã dọn. Gọi `POST /api/ebooks/{slug}/batch/cleanup-han` với `indexes`, `engine`, `force`; cả lô chạy trong MỘT job nên Local MT chỉ nạp model một lần.
+
+Bản dịch trước khi dọn được giữ trong snapshot để so sánh và khôi phục.
 
 ## Dọn tiêu đề TOC
 

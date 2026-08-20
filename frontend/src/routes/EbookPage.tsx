@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
@@ -14,6 +14,7 @@ import {
   ebookKey,
   rowLabel,
   rowTone,
+  rowWarnings,
   useChapters,
   useEbook,
   type ChapterFilters,
@@ -22,7 +23,8 @@ import {
 import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
 import { ChapterLegend, ChapterStrip } from "@/components/ChapterStrip";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading, SkeletonTable } from "@/components/ui/Loading";
 import { Dot } from "@/components/ui/Badge";
 import { Checkbox, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
 import { ConfirmDialog, Modal } from "@/components/ui/Modal";
@@ -37,9 +39,13 @@ import {
   IconSparkle,
 } from "@/components/icons";
 
-const PAGE_SIZE = 100;
+/** Backend chặn `limit` ở 500 (`GET /api/ui/ebooks/{slug}/chapters`) — đừng
+    đưa lựa chọn lớn hơn vào đây, người dùng sẽ thấy số hiển thị không khớp. */
+const PAGE_SIZES = [25, 50, 100, 200, 500] as const;
+const DEFAULT_PAGE_SIZE = 100;
 const FILTERS_KEY = (slug: string) => `ebooks.${slug}.chapterFilters`;
 const PAGE_KEY = (slug: string) => `ebooks.${slug}.chapterPage`;
+const PAGE_SIZE_KEY = (slug: string) => `ebooks.${slug}.chapterPageSize`;
 
 /** Nạp bộ lọc + sắp xếp đã lưu cho truyện, hợp nhất với mặc định để khỏi vỡ schema. */
 function loadFilters(slug: string): ChapterFilters {
@@ -67,6 +73,17 @@ function loadPage(slug: string): number {
     return raw ? parseInt(raw, 10) : 0;
   } catch {
     return 0;
+  }
+}
+
+/** Nạp cỡ trang đã lưu, bỏ qua giá trị lạ (bản cũ, người dùng sửa tay). */
+function loadPageSize(slug: string): number {
+  try {
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY(slug));
+    const value = raw ? parseInt(raw, 10) : NaN;
+    return (PAGE_SIZES as readonly number[]).includes(value) ? value : DEFAULT_PAGE_SIZE;
+  } catch {
+    return DEFAULT_PAGE_SIZE;
   }
 }
 
@@ -134,6 +151,34 @@ const TRISTATE = [
   { value: "no", label: "Không" },
 ];
 
+/** Tri-state cho lỗi tiêu đề — "Có/Không" ở đây nghĩa là "có lỗi/không lỗi",
+    đọc ngược so với các cột dữ liệu nên phải đặt chữ khác. */
+const TITLE_ERROR_STATES = [
+  { value: "any", label: "Tất cả" },
+  { value: "yes", label: "Sai mẫu" },
+  { value: "no", label: "Đúng mẫu" },
+];
+
+/**
+ * Ba bộ lọc nhánh dịch tách rời nhau vì chúng trả lời ba câu hỏi khác nhau:
+ * "Bản dịch" xét nhánh ĐANG ACTIVE (thứ đi vào EPUB/Reader), còn "Local MT" và
+ * "AI" xét dữ liệu từng nhánh. Gộp lại như trước thì không lọc được "đã có MT
+ * nhưng chưa có bản AI" — đúng tập chương cần xếp job dịch AI.
+ */
+const FILTER_SELECTS = [
+  { key: "filter_raw", label: "Bản gốc", options: TRISTATE, width: "w-24" },
+  { key: "filter_translated", label: "Bản dịch", options: TRISTATE, width: "w-24" },
+  { key: "filter_local_mt", label: "Local MT", options: TRISTATE, width: "w-24" },
+  { key: "filter_ai", label: "AI", options: TRISTATE, width: "w-24" },
+  { key: "filter_title_error", label: "Tiêu đề", options: TITLE_ERROR_STATES, width: "w-28" },
+  { key: "filter_skipped", label: "Bỏ qua", options: TRISTATE, width: "w-24" },
+] as const satisfies readonly {
+  key: keyof ChapterFilters;
+  label: string;
+  options: { value: string; label: string }[];
+  width: string;
+}[];
+
 function FilterBar({
   filters,
   onChange,
@@ -142,6 +187,7 @@ function FilterBar({
   onChange: (next: ChapterFilters) => void;
 }) {
   const set = (patch: Partial<ChapterFilters>) => onChange({ ...filters, ...patch });
+  const activeCount = FILTER_SELECTS.filter(({ key }) => filters[key] !== "any").length;
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-base-300 px-3 py-2">
@@ -153,22 +199,22 @@ function FilterBar({
         className="w-56"
         aria-label="Tìm chương"
       />
-      {(
-        [
-          ["filter_raw", "Bản gốc"],
-          ["filter_translated", "Bản dịch"],
-          ["filter_skipped", "Bỏ qua"],
-        ] as const
-      ).map(([key, label]) => (
-        <label key={key} className="flex items-center gap-1.5 text-[11px] opacity-70">
+      {FILTER_SELECTS.map(({ key, label, options, width }) => (
+        <label
+          key={key}
+          className={clsx(
+            "flex items-center gap-1.5 text-[11px]",
+            filters[key] === "any" ? "opacity-70" : "font-medium opacity-100",
+          )}
+        >
           {label}
           <Select
             value={filters[key]}
             onChange={(e) => set({ [key]: e.target.value } as Partial<ChapterFilters>)}
-            className="w-24"
+            className={clsx(width, filters[key] !== "any" && "border-primary/60")}
             aria-label={label}
           >
-            {TRISTATE.map((o) => (
+            {options.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -176,6 +222,20 @@ function FilterBar({
           </Select>
         </label>
       ))}
+      {activeCount > 0 ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() =>
+            onChange({
+              ...filters,
+              ...Object.fromEntries(FILTER_SELECTS.map(({ key }) => [key, "any"])),
+            })
+          }
+        >
+          Xóa {activeCount} bộ lọc
+        </Button>
+      ) : null}
       <label className="flex items-center gap-1.5 text-[11px] opacity-70">
         Sắp xếp
         <Select
@@ -519,9 +579,7 @@ function WebChatDialog({
         <>
           <p className="mb-2 text-xs opacity-60">{current.hint}</p>
           {exportMut.isPending && !exportData ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-sm opacity-60">
-              <Spinner /> Đang xuất
-            </div>
+            <Loading label="Đang xuất" />
           ) : (
             <>
               <p className="mb-2 text-xs opacity-60">
@@ -575,6 +633,84 @@ function WebChatDialog({
 }
 
 /**
+ * Hộp thoại "Dọn chữ Hán" — rà bản dịch, dịch nốt vùng chữ Hán còn sót.
+ *
+ * Hai engine KHÔNG thay thế được cho nhau nên phải chọn tường minh, không có
+ * mặc định ngầm trong UI: Local MT chạy offline, miễn phí, hợp với việc quét
+ * cả nghìn chương; AI biên tập tốn tiền theo token nhưng xử lý được các đoạn
+ * mà MT cục bộ trả về lổn nhổn. Bỏ trống = theo cấu hình truyện
+ * (Cài đặt → Dịch → Dọn chữ Hán).
+ */
+function CleanupHanDialog({
+  open,
+  onClose,
+  slug,
+  indexes,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  slug: string;
+  indexes: number[];
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  const [engine, setEngine] = useState("");
+  const [force, setForce] = useState(false);
+
+  const run = useMutation({
+    mutationFn: () =>
+      api.post<{ started: boolean; total: number }>(`/api/ebooks/${slug}/batch/cleanup-han`, {
+        form: {
+          indexes: indexes.join(","),
+          ...(engine ? { engine } : {}),
+          force: String(force),
+        },
+      }),
+    onSuccess: (res) => {
+      toast(`Đã xếp job dọn chữ Hán cho ${num(res.total)} chương vào hàng đợi.`);
+      onDone();
+      onClose();
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
+  return (
+    <ConfirmDialog
+      open={open}
+      onCancel={onClose}
+      onConfirm={() => run.mutate()}
+      title="Dọn chữ Hán"
+      confirmLabel="Xếp vào hàng đợi"
+      pending={run.isPending}
+      body={
+        <div className="space-y-3">
+          <p>
+            Rà bản dịch của <strong data-numeric>{num(indexes.length)}</strong> chương đã chọn và
+            dịch nốt những đoạn còn nguyên chữ Hán. Chương chưa có bản dịch được bỏ qua.
+          </p>
+          <label className="flex items-center gap-2 text-[13px]">
+            <span className="w-16 shrink-0 opacity-70">Engine</span>
+            <Select value={engine} onChange={(e) => setEngine(e.target.value)} className="w-52">
+              <option value="">Theo cấu hình truyện</option>
+              <option value="local_mt">Local MT — offline, miễn phí</option>
+              <option value="openai">AI biên tập — tốn token</option>
+            </Select>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+            <Checkbox checked={force} onChange={(event) => setForce(event.target.checked)} />
+            Quét lại cả chương đã dọn trước đó
+          </label>
+          <p className="text-[11px] opacity-60">
+            Bản dịch cũ được giữ trong snapshot nên có thể so sánh và khôi phục.
+          </p>
+        </div>
+      }
+    />
+  );
+}
+
+/**
  * Thanh hành động hàng loạt — CỐ ĐỊNH ở đáy màn hình.
  *
  * Trước đây thanh này `sticky` bên trong panel bảng: chọn xong ở cuối danh
@@ -607,6 +743,7 @@ function BatchBar({
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
   const [aiEditOpen, setAiEditOpen] = useState(false);
   const [webChatOpen, setWebChatOpen] = useState(false);
+  const [cleanupHanOpen, setCleanupHanOpen] = useState(false);
 
   const run = useMutation({
     mutationFn: (action: BatchAction) =>
@@ -730,6 +867,13 @@ function BatchBar({
             >
               Biên tập AI
             </Button>
+            <Button
+              size="sm"
+              title="Dịch nốt những đoạn còn nguyên chữ Hán trong bản dịch đã có"
+              onClick={() => setCleanupHanOpen(true)}
+            >
+              Dọn chữ Hán
+            </Button>
           </div>
 
           <div className="h-8 w-px bg-base-300" aria-hidden="true" />
@@ -830,6 +974,14 @@ function BatchBar({
         onDone={onDone}
       />
 
+      <CleanupHanDialog
+        open={cleanupHanOpen}
+        onClose={() => setCleanupHanOpen(false)}
+        slug={slug}
+        indexes={selected}
+        onDone={onDone}
+      />
+
       <ConfirmDialog
         open={reorderMode !== null}
         onCancel={() => {
@@ -918,7 +1070,182 @@ function BatchBar({
   );
 }
 
+/* ── Phân trang ──────────────────────────────────────────────────────── */
+
+/**
+ * Thanh phân trang + chọn số dòng mỗi trang.
+ *
+ * Đặt được ở CẢ HAI đầu bảng: trước đây chỉ có ở chân, nên với 100 dòng thì
+ * muốn sang trang là phải cuộn hết bảng — trong khi mọi thứ khác (bộ lọc, nút
+ * chọn tất cả) đều nằm ở đầu. `variant` chỉ đổi đường viền để hai thanh không
+ * tạo ra hai vạch kẻ chồng nhau.
+ */
+function TablePager({
+  offset,
+  pageSize,
+  matched,
+  variant,
+  onOffset,
+  onPageSize,
+}: {
+  offset: number;
+  pageSize: number;
+  matched: number;
+  variant: "top" | "bottom";
+  /** Nhận cả dạng hàm cập nhật để "Trước"/"Sau" không đọc `offset` cũ khi
+      bấm liên tiếp trong cùng một nhịp render. */
+  onOffset: (next: number | ((prev: number) => number)) => void;
+  onPageSize?: (next: number) => void;
+}) {
+  const pageCount = Math.max(1, Math.ceil(matched / pageSize));
+  const current = Math.floor(offset / pageSize) + 1;
+  const first = matched === 0 ? 0 : offset + 1;
+  const last = Math.min(offset + pageSize, matched);
+
+  return (
+    <div
+      className={clsx(
+        "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2",
+        variant === "top" ? "border-b border-base-300" : "border-t border-base-300",
+      )}
+    >
+      <div className="flex items-center gap-3">
+        {onPageSize ? (
+          <label className="flex items-center gap-1.5 text-[11px] opacity-70">
+            Hiện
+            <Select
+              value={String(pageSize)}
+              onChange={(event) => onPageSize(Number(event.target.value))}
+              className="w-20"
+              aria-label="Số chương mỗi trang"
+            >
+              {PAGE_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </Select>
+            dòng
+          </label>
+        ) : null}
+        <span data-numeric className="text-[11px] opacity-60">
+          {num(first)}–{num(last)} / {num(matched)}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <span data-numeric className="mr-1 text-[11px] opacity-60">
+          Trang {num(current)}/{num(pageCount)}
+        </span>
+        <Button size="sm" disabled={offset === 0} onClick={() => onOffset(0)} title="Trang đầu">
+          «
+        </Button>
+        <Button
+          size="sm"
+          disabled={offset === 0}
+          onClick={() => onOffset((prev) => Math.max(0, prev - pageSize))}
+        >
+          Trước
+        </Button>
+        <Button
+          size="sm"
+          disabled={offset + pageSize >= matched}
+          onClick={() =>
+            onOffset((prev) => Math.min(prev + pageSize, Math.max(0, (pageCount - 1) * pageSize)))
+          }
+        >
+          Sau
+        </Button>
+        <Button
+          size="sm"
+          disabled={offset + pageSize >= matched}
+          onClick={() => onOffset((pageCount - 1) * pageSize)}
+          title="Trang cuối"
+        >
+          »
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Bảng chương ─────────────────────────────────────────────────────── */
+
+/**
+ * Badge một nhánh dịch (Local MT / AI).
+ *
+ * Trước đây cột trạng thái viết thành câu — "Local MT có · AI —" — vừa dài vừa
+ * bắt đọc chữ mới biết được/mất. Ở đây trạng thái nằm hết trong hình thức:
+ * nhánh có dữ liệu thì badge đặc, chưa có thì viền đứt và mờ; nhánh đang
+ * active có vòng ngoài vì đó mới là bản đi vào EPUB/Reader.
+ */
+function BranchBadge({
+  label,
+  has,
+  active,
+}: {
+  label: string;
+  has: boolean;
+  active: boolean;
+}) {
+  const state = has ? "đã có bản dịch" : "chưa có bản dịch";
+  return (
+    <span
+      title={`${label}: ${state}${active ? " · đang là nhánh xuất bản" : ""}`}
+      className={clsx(
+        "inline-flex items-center rounded-selector px-1.5 py-px text-[10px] font-medium tracking-wide",
+        has
+          ? "bg-success/15 text-success"
+          : "border border-dashed border-base-content/25 text-base-content/40",
+        active && "ring-1 ring-primary/60",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+/** Cột trạng thái: nhãn chính, hai nhánh dịch, rồi cảnh báo cần người xử lý. */
+function ChapterStatusCell({ row }: { row: ChapterRow }) {
+  const warnings = rowWarnings(row);
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5 text-[11px]">
+        <Dot tone={rowTone(row)} />
+        <span className={clsx(row.skipped ? "opacity-45" : "opacity-80")}>{rowLabel(row)}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-1">
+        <BranchBadge
+          label="MT"
+          has={row.has_local_mt_translation}
+          active={row.active_branch === "local_mt"}
+        />
+        <BranchBadge label="AI" has={row.has_ai_translation} active={row.active_branch === "ai"} />
+        {row.bientap ? (
+          <span
+            title={row.bientap_tooltip}
+            className="inline-flex items-center rounded-selector bg-info/15 px-1.5 py-px text-[10px] font-medium text-info"
+          >
+            {/* Bỏ emoji dẫn đầu ("📝", "✏️") — badge đã có màu riêng, thêm
+                emoji nữa thì cột trạng thái rối. `\p{Emoji_Presentation}`
+                KHÔNG khớp "✏️" (U+270F là ký tự text, chỉ thành emoji nhờ
+                VS16) nên phải cắt theo "mọi ký tự không phải chữ/số". */}
+            {row.bientap.replace(/^[^\p{L}\p{N}]+/u, "")}
+          </span>
+        ) : null}
+        {warnings.map((warning) => (
+          <span
+            key={warning.key}
+            title={warning.hint}
+            className="inline-flex items-center rounded-selector bg-error/15 px-1.5 py-px text-[10px] font-medium text-error"
+          >
+            {warning.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function ChapterTableRow({
   slug,
@@ -962,30 +1289,19 @@ function ChapterTableRow({
         >
           {row.visible_title}
         </Link>
-        {row.duplicate_of ? (
-          <span data-numeric className="ml-2 text-[11px] text-error">
-            trùng #{row.duplicate_of}
+        {/* Chương trùng và tiêu đề sai mẫu đã có badge ở cột trạng thái; ở đây
+            chỉ đánh dấu tiêu đề lỗi ngay tại chỗ đọc để khỏi phải liếc ngang. */}
+        {!row.title_format_ok ? (
+          <span
+            title='Tiêu đề không theo mẫu "Chương N", "Chương N: tên chương" hoặc "Chương N tên chương".'
+            className="ml-2 text-[11px] text-error"
+          >
+            ⚠
           </span>
         ) : null}
       </td>
-      <td className="w-52 px-2 py-1">
-        <div className="flex items-center gap-1.5 text-[11px] opacity-70">
-          <Dot tone={rowTone(row)} />
-          <span>{rowLabel(row)}</span>
-          <span className="opacity-40">·</span>
-          <span
-            className={clsx(row.has_local_mt_translation ? "text-success" : "opacity-45")}
-            title={row.has_local_mt_translation ? "Đã có bản dịch Local MT" : "Chưa có bản dịch Local MT"}
-          >
-            Local MT {row.has_local_mt_translation ? "có" : "—"}
-          </span>
-          <span
-            className={clsx(row.has_ai_translation ? "text-success" : "opacity-45")}
-            title={row.has_ai_translation ? "Đã có bản dịch AI" : "Chưa có bản dịch AI"}
-          >
-            AI {row.has_ai_translation ? "có" : "—"}
-          </span>
-        </div>
+      <td className="w-56 px-2 py-1">
+        <ChapterStatusCell row={row} />
       </td>
       <td data-numeric className="w-20 px-2 py-1 text-right text-xs opacity-60">
         {row.zh_char_count ? num(row.zh_char_count) : "—"}
@@ -1015,6 +1331,7 @@ export function EbookPage() {
   const [, selectBook] = useCurrentBook();
   const [filters, setFilters] = useState<ChapterFilters>(() => loadFilters(slug));
   const [offset, setOffset] = useState(() => loadPage(slug));
+  const [pageSize, setPageSize] = useState(() => loadPageSize(slug));
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [lastToggled, setLastToggled] = useState<number | null>(null);
   const [readerPreview, setReaderPreview] = useState<ReaderPublishPreview | null>(null);
@@ -1043,7 +1360,12 @@ export function EbookPage() {
   });
 
   const { data: book, isPending, error } = useEbook(slug);
-  const { data: page, isFetching } = useChapters(slug, filters, offset, PAGE_SIZE);
+  const { data: page, isFetching, isPending: chaptersPending } = useChapters(
+    slug,
+    filters,
+    offset,
+    pageSize,
+  );
 
   const indexGaps = useMemo(() => {
     if (!page?.rows.length) return [];
@@ -1066,21 +1388,41 @@ export function EbookPage() {
     if (slug) selectBook(slug);
   }, [slug, selectBook]);
 
+  // Đổi bộ lọc thì tập kết quả khác hẳn — về trang đầu và bỏ chọn.
+  //
+  // So sánh THAM CHIẾU của `filters` chứ không đếm số lần chạy: effect có deps
+  // vẫn chạy sau lần mount đầu, và StrictMode ở dev còn chạy lại lần nữa — cả
+  // hai lần đó đều xóa mất trang vừa khôi phục từ localStorage. `filters` chỉ
+  // đổi identity khi `setFilters` được gọi, nên đây đúng là "người dùng vừa
+  // đổi bộ lọc".
+  const lastFilters = useRef(filters);
   useEffect(() => {
+    if (lastFilters.current === filters) return;
+    lastFilters.current = filters;
     setOffset(0);
     setSelected(new Set());
     setLastToggled(null);
   }, [filters]);
 
-  // Giữ bộ lọc + sắp xếp + trang qua các lần vào lại trang truyện này.
+  // Bộ lọc đã lưu có thể khớp ít kết quả hơn lần trước (chương bị xóa, đổi
+  // bộ lọc ở tab khác) — offset khôi phục khi đó trỏ ra ngoài danh sách và
+  // bảng hiện rỗng dù vẫn có kết quả. Kéo về trang cuối còn dữ liệu.
+  useEffect(() => {
+    if (page && offset > 0 && offset >= page.matched) {
+      setOffset(Math.max(0, Math.floor((page.matched - 1) / pageSize) * pageSize));
+    }
+  }, [page, offset, pageSize]);
+
+  // Giữ bộ lọc + sắp xếp + trang + cỡ trang qua các lần vào lại trang truyện này.
   useEffect(() => {
     try {
       window.localStorage.setItem(FILTERS_KEY(slug), JSON.stringify(filters));
       window.localStorage.setItem(PAGE_KEY(slug), String(offset));
+      window.localStorage.setItem(PAGE_SIZE_KEY(slug), String(pageSize));
     } catch {
       // Quota đầy hoặc ẩn danh — bỏ qua, chỉ mất lần lưu này.
     }
-  }, [slug, filters, offset]);
+  }, [slug, filters, offset, pageSize]);
 
   const states = useMemo(() => decodeStrip(book?.strip ?? ""), [book?.strip]);
   const counts = useMemo(() => stripCounts(book?.counts ?? {}), [book?.counts]);
@@ -1112,6 +1454,20 @@ export function EbookPage() {
   };
 
   const allOnPage = rows.length > 0 && rows.every((r) => selected.has(r.index));
+
+  // Đổi trang xóa mốc Shift: dải chọn chỉ có nghĩa trong các dòng đang thấy.
+  const goToOffset = (next: number | ((prev: number) => number)) => {
+    setOffset((prev) => Math.max(0, typeof next === "function" ? next(prev) : next));
+    setLastToggled(null);
+  };
+
+  /** Đổi cỡ trang giữ nguyên dòng đầu đang xem, làm tròn về đầu trang mới. */
+  const changePageSize = (next: number) => {
+    setPageSize(next);
+    setOffset(Math.floor(offset / next) * next);
+    setLastToggled(null);
+  };
+
   const refresh = () => {
     client.invalidateQueries({ queryKey: ebookKey(slug) });
     client.invalidateQueries({ queryKey: ["chapters", slug] });
@@ -1122,10 +1478,8 @@ export function EbookPage() {
 
   if (isPending) {
     return (
-      <Page title="Đang tải">
-        <div className="flex items-center justify-center gap-2 py-20 text-sm opacity-60">
-          <Spinner /> Đang đọc dữ liệu truyện
-        </div>
+      <Page title="Đang tải" loading loadingLabel="Đang đọc dữ liệu truyện">
+        {null}
       </Page>
     );
   }
@@ -1304,7 +1658,20 @@ export function EbookPage() {
 
         <FilterBar filters={filters} onChange={setFilters} />
 
-        {rows.length === 0 ? (
+        {page ? (
+          <TablePager
+            offset={offset}
+            pageSize={pageSize}
+            matched={page.matched}
+            variant="top"
+            onOffset={goToOffset}
+            onPageSize={changePageSize}
+          />
+        ) : null}
+
+        {chaptersPending ? (
+          <SkeletonTable rows={Math.min(pageSize, 10)} cols={6} />
+        ) : rows.length === 0 ? (
           <EmptyState
             title={book.has_manifest ? "Không có chương nào khớp" : "Chưa có mục lục"}
             hint={
@@ -1314,7 +1681,7 @@ export function EbookPage() {
             }
           />
         ) : (
-          <div className={clsx("overflow-x-auto", isFetching && "opacity-60")}>
+          <div className={clsx("overflow-x-auto", isFetching && "is-refetching")}>
             <table className="w-full min-w-[52rem] border-collapse text-left">
               <thead>
                 <tr className="border-b border-base-300 bg-base-200/60">
@@ -1361,35 +1728,14 @@ export function EbookPage() {
           </div>
         )}
 
-        {page && page.matched > PAGE_SIZE ? (
-          <div className="flex items-center justify-between border-t border-base-300 px-3 py-2">
-            <span data-numeric className="text-[11px] opacity-60">
-              {num(offset + 1)}–{num(Math.min(offset + PAGE_SIZE, page.matched))} /{" "}
-              {num(page.matched)}
-            </span>
-            <div className="flex gap-1.5">
-              <Button
-                size="sm"
-                disabled={offset === 0}
-                onClick={() => {
-                  setOffset(Math.max(0, offset - PAGE_SIZE));
-                  setLastToggled(null);
-                }}
-              >
-                Trước
-              </Button>
-              <Button
-                size="sm"
-                disabled={offset + PAGE_SIZE >= page.matched}
-                onClick={() => {
-                  setOffset(offset + PAGE_SIZE);
-                  setLastToggled(null);
-                }}
-              >
-                Sau
-              </Button>
-            </div>
-          </div>
+        {page && page.matched > pageSize ? (
+          <TablePager
+            offset={offset}
+            pageSize={pageSize}
+            matched={page.matched}
+            variant="bottom"
+            onOffset={goToOffset}
+          />
         ) : null}
       </Panel>
 

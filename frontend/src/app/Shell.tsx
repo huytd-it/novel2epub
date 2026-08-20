@@ -7,6 +7,7 @@ import { pendingCount, useQueue } from "@/lib/queue";
 import { useCurrentBook, useLibrary } from "@/lib/books";
 import { num } from "@/lib/format";
 import { ChapterStrip } from "@/components/ChapterStrip";
+import { GlobalLoadingBar, Loading } from "@/components/ui/Loading";
 import { decodeStrip } from "@/lib/strip";
 import {
   IconBook,
@@ -303,6 +304,9 @@ export function Shell() {
 
   return (
     <div className="drawer md:drawer-open">
+      {/* Một vạch tiến độ duy nhất cho cả app — mọi query/mutation đang bay
+          đều báo ở đây, kể cả khi màn hình bên dưới còn dữ liệu cũ. */}
+      <GlobalLoadingBar />
       <input
         id="n2e-drawer"
         type="checkbox"
@@ -397,11 +401,16 @@ export function Page({
   title,
   hint,
   actions,
+  loading,
+  loadingLabel,
   children,
 }: {
   title: string;
   hint?: React.ReactNode;
   actions?: React.ReactNode;
+  /** Thay toàn bộ nội dung bằng khối "đang tải" — dùng cho lần nạp đầu tiên. */
+  loading?: boolean;
+  loadingLabel?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -413,7 +422,7 @@ export function Page({
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </header>
-      {children}
+      {loading ? <Loading size="lg" label={loadingLabel ?? "Đang tải"} /> : children}
     </div>
   );
 }

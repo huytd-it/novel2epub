@@ -17,7 +17,8 @@ import {
   type Relation,
 } from "@/lib/characters";
 import { Panel, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading, SkeletonTable } from "@/components/ui/Loading";
 import { Checkbox, Input, InputWithIcon, Select } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -383,9 +384,7 @@ function PendingTab({ slug }: { slug: string }) {
 
   if (isPending) {
     return (
-      <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60">
-        <Spinner /> Đang tải
-      </div>
+      <Loading label="Đang tải nhân vật" />
     );
   }
   const characters = data?.characters ?? [];
@@ -621,9 +620,7 @@ export function CharactersPage() {
 
           <Panel className="overflow-hidden">
             {isPending ? (
-              <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60">
-                <Spinner /> Đang tải
-              </div>
+              <SkeletonTable rows={6} cols={4} />
             ) : filtered.length === 0 ? (
               <EmptyState
                 title={search ? "Không có nhân vật nào khớp" : "Chưa có nhân vật nào"}

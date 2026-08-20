@@ -10,7 +10,8 @@ import {
   useUpdateNote,
   type Note,
 } from "@/lib/chapter";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading } from "@/components/ui/Loading";
 import { Badge } from "@/components/ui/Badge";
 import { Checkbox, Textarea } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
@@ -198,9 +199,7 @@ export function NotesPanel({
 
         <div className="scroll-slim flex-1 overflow-y-auto p-2.5">
           {isPending ? (
-            <div className="flex justify-center py-8">
-              <Spinner />
-            </div>
+            <Loading label="Đang tải ghi chú" />
           ) : !notes || notes.length === 0 ? (
             <p className="py-8 text-center text-xs opacity-50">
               Chưa có ghi chú nào cho chương này. Bôi đen một đoạn văn bản để thêm ghi chú.

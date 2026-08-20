@@ -14,7 +14,8 @@ import {
   type IdiomEntry,
 } from "@/lib/idioms";
 import { Panel, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { SkeletonTable } from "@/components/ui/Loading";
 import { Checkbox, Input, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -376,9 +377,7 @@ export function IdiomsPage() {
         </div>
 
         {isPending ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60">
-            <Spinner /> Đang tải
-          </div>
+          <SkeletonTable rows={6} cols={4} />
         ) : rows.length === 0 ? (
           <EmptyState
             title={search ? "Không có mục nào khớp" : "Kho đang trống"}

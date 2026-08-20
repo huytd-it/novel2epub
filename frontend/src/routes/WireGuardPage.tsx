@@ -16,7 +16,7 @@ import {
   type WireGuardProfile,
 } from "@/lib/wireguard";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Checkbox, Field, Input, Textarea } from "@/components/ui/Field";
 import { ConfirmDialog } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -161,10 +161,8 @@ export function WireGuardPage() {
 
   if (isPending || !data) {
     return (
-      <Page title="WireGuard">
-        <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60">
-          <Spinner /> Đang tải
-        </div>
+      <Page title="WireGuard" loading>
+        {null}
       </Page>
     );
   }

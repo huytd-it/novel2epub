@@ -202,4 +202,93 @@
       opacity: 0.45;
     }
   }
+
+  /* ── Trạng thái đang tải ───────────────────────────────────────────
+     Ba lớp dùng chung cho mọi màn hình: ba chấm chạy sau nhãn, ô xám
+     nhấp nháy thay cho nội dung chưa về, và vạch tiến độ vô định chạy
+     ngang đầu app khi còn request đang bay. */
+
+  /* Ba chấm "..." chạy nối nhau sau chữ "Đang tải". Dùng ::after để nhãn
+     không đổi bề rộng khi chấm hiện/ẩn — nếu chèn ký tự thật vào DOM thì
+     cả dòng sẽ giật mỗi 400ms. */
+  .loading-dots::after {
+    content: "";
+    display: inline-block;
+    width: 1.1em;
+    text-align: left;
+    animation: n2e-dots 1.2s steps(1, end) infinite;
+  }
+  @keyframes n2e-dots {
+    0% {
+      content: "";
+    }
+    25% {
+      content: ".";
+    }
+    50% {
+      content: "..";
+    }
+    75%,
+    100% {
+      content: "...";
+    }
+  }
+
+  /* Ô giữ chỗ có ánh sáng quét ngang. Nền là base-300 pha loãng để không
+     đọc nhầm thành ô dữ liệu thật. */
+  .skeleton-box {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-field);
+    background: color-mix(in oklab, var(--color-base-300) 55%, transparent);
+  }
+  .skeleton-box::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--color-base-content) 8%, transparent),
+      transparent
+    );
+    animation: n2e-shimmer 1.6s ease-in-out infinite;
+  }
+  @keyframes n2e-shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  /* Vạch tiến độ vô định: không biết còn bao lâu nên chỉ chạy qua lại. */
+  .progress-indeterminate::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inline-size: 40%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-primary),
+      color-mix(in oklab, var(--color-primary) 40%, transparent)
+    );
+    animation: n2e-slide 1.1s ease-in-out infinite;
+  }
+  @keyframes n2e-slide {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(350%);
+    }
+  }
+
+  /* Nội dung cũ còn hiển thị trong lúc tải bản mới: mờ đi và chặn click
+     để không ai bấm lên dữ liệu sắp bị thay. */
+  .is-refetching {
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity 150ms ease-out;
+  }
 }

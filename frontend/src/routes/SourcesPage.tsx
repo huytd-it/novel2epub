@@ -14,7 +14,8 @@ import {
   type SourcePreset,
 } from "@/lib/sources";
 import { Panel, EmptyState } from "@/components/ui/Panel";
-import { Button, Spinner } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import { Loading } from "@/components/ui/Loading";
 import { Checkbox, Field, Input, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -411,9 +412,7 @@ export function SourcesPage() {
       }
     >
       {isPending ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm opacity-60">
-          <Spinner /> Đang tải
-        </div>
+        <Loading label="Đang tải nguồn" />
       ) : presets.length === 0 ? (
         <Panel>
           <EmptyState

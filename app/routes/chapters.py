@@ -897,6 +897,55 @@ async def api_batch_delete_translation(request: Request, slug: str, indexes: str
     return JSONResponse({"started": True, "total": len(index_list)})
 
 
+@router.post("/api/ebooks/{slug}/batch/cleanup-han")
+async def api_batch_cleanup_han(
+    request: Request,
+    slug: str,
+    indexes: str = Form(...),
+    engine: str = Form(""),
+    force: bool = Form(False),
+):
+    """Dọn chữ Hán còn sót trong bản dịch của các chương đã chọn.
+
+    `engine` trống = dùng `translate.cleanup_han.engine` của truyện; "local_mt"
+    dịch riêng vùng Hán bằng MT cục bộ (offline, miễn phí), "openai" nhờ AI
+    biên tập. `force=True` quét lại cả chương đã dọn trước đó.
+
+    Một job duy nhất cho cả lô — `step_cleanup_han_selected` đã tự lặp qua
+    `selected_indexes`, và MT cục bộ chỉ nên nạp model một lần.
+    """
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào. Hãy tick checkbox trước.")
+    engine = (engine or "").strip().lower()
+    if engine not in {"", "local_mt", "openai"}:
+        raise HTTPException(status_code=400, detail="engine phải là 'local_mt' hoặc 'openai'.")
+
+    cancel_event = threading.Event()
+
+    def _target(log):
+        log(f"[config] action=cleanup-han engine={engine or cfg.translate.cleanup_han.engine!r} "
+            f"force={force!r} selected={len(index_list)} chương")
+        step_cleanup_han_selected(
+            cfg,
+            log,
+            force=force,
+            selected_indexes=index_list,
+            should_cancel=cancel_event.is_set,
+            engine=engine or None,
+        )
+
+    started = request.app.state.job.start_custom(
+        f"batch-cleanup-han-{len(index_list)}", _target, category="translate",
+        ebook=slug, chapter_indexes=index_list, cancel_event=cancel_event,
+        label=batch_job_label("cleanup-han", title=cfg.novel.title, slug=slug, count=len(index_list)),
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "total": len(index_list)})
+
+
 @router.post("/api/ebooks/{slug}/batch/suggest-glossary")
 async def api_batch_suggest_glossary(
     request: Request,

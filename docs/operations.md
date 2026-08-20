@@ -163,6 +163,40 @@ Bốn điều cần biết về hành vi này:
 
 Theo dõi tiến độ ở `/queue` (job tên `opds-autobuild:<slug>`) và `/logs`. Tắt cờ `auto_build` thì quay về build tay hoàn toàn qua nút Build hoặc Automation.
 
+## Bảng Chương Ở Trang Truyện
+
+`GET /api/ui/ebooks/{slug}/chapters` nhận `offset`/`limit` (limit tối đa 500) cùng
+các bộ lọc dưới đây; web UI cho chọn 25/50/100/200/500 dòng mỗi trang và có thanh
+phân trang ở cả đầu lẫn chân bảng. Bộ lọc, cỡ trang và trang hiện tại được nhớ theo
+từng truyện trong `localStorage`.
+
+| Tham số | Ý nghĩa |
+| --- | --- |
+| `filter_raw` | Có bản gốc đã crawl. |
+| `filter_translated` | Nhánh **đang hoạt động** có bản dịch — thứ đi vào EPUB/Reader. |
+| `filter_local_mt` | Nhánh `local_mt` có bản dịch, không phụ thuộc nhánh nào đang hoạt động. |
+| `filter_ai` | Nhánh `ai` có bản dịch, không phụ thuộc nhánh nào đang hoạt động. |
+| `filter_title_error` | `yes` = chỉ chương có tiêu đề sai mẫu. |
+| `filter_missing` | Manifest thiếu trường (url/title/duplicate). |
+| `filter_skipped` | Chương bị đánh dấu bỏ qua. |
+
+Ba bộ lọc nhánh độc lập nhau nên kết hợp được, ví dụ `filter_local_mt=yes&filter_ai=no`
+ra đúng tập chương đã có bản dịch máy nhưng chưa có bản AI.
+
+### Tiêu đề đúng mẫu
+
+`novel2epub.toc.title_format_ok` coi ba dạng sau là hợp lệ (không phân biệt hoa
+thường, số chương cho phép hậu tố `.1`/`-2`):
+
+- `Chương 5`
+- `Chương 5: Tên chương`
+- `Chương 5 Tên chương`
+
+Tiêu đề rỗng cũng tính là lỗi. Cờ nằm ở trường `title_format_ok` của mỗi dòng và
+tính trên tiêu đề thật của nhánh đang hoạt động, không tính trên `visible_title`
+(trường đó có fallback `Chương {index}` nên luôn đúng mẫu). Bảng chương hiện badge
+"Tiêu đề lỗi" ở cột trạng thái; dùng **Chuẩn hóa TOC** hoặc **Dịch tiêu đề** để sửa.
+
 ## Hành Động Hàng Loạt Chương (Bulk)
 
 Web UI thao tác nhiều chương qua hai bước *preview → confirm* thay vì ghi thẳng:
@@ -265,6 +299,57 @@ khi port xong, hãy dùng SPA từ xa và để dành UI cũ cho lúc ngồi t�
 Phiên bản WireGuard hiện tại cung cấp bộ quản lý profile + cung cấp wgcf qua CLI và một context manager **tái sử dụng** (`novel2epub.wireguard.wireguard_network_scope`) để dùng ĐÚNG **một** profile cho toàn bộ một thao tác mạng (toc/crawl), khóa liên tiến trình. Scope này **metadata-free**: chỉ chọn id profile và giữ khóa; nó KHÔNG ghi DB active và KHÔNG tự nhận đã kích hoạt. Vòng đời tunnel service thật (cài/gỡ WireGuard for Windows) là việc riêng của `activate_profile`/`rotate_profile`, chỉ chạy khi `wireguard.manage_service=true` (ngược lại bị TỪ CHỐI).
 
 **Giới hạn có chủ đích:** pipeline `crawl`/`toc` **chưa tự** gọi scope này — rotation giữa request là không an toàn và bị loại ở v1. Nếu cần, tích hợp ở tầng job-level: bọc toàn bộ job crawl/toc bằng context manager và giữ nguyên một profile xuyên suốt job, tuyệt đối không rotate giữa chừng.
+
+## Tự Host Model Dịch Trên Colab/Kaggle
+
+`notebooks/novel2epub_zhvi_server.ipynb` dựng một endpoint OpenAI-Compatible trên GPU miễn phí của Colab/Kaggle, expose qua tunnel để dùng làm **Dịch API** và **AI biên tập**. Hữu ích khi provider ngoài hết quota hoặc muốn dịch hàng loạt không tốn token.
+
+Quy trình:
+
+1. Mở notebook trên Colab (`Runtime > Change runtime type > T4 GPU`) hoặc Kaggle (`Accelerator = GPU T4 x2`, bật `Internet`).
+2. Sửa `API_KEY` trong cell CONFIG rồi `Run all`. Lần đầu mất 10–20 phút (cài engine + tải model).
+3. Cell **Verify** in ra khối `base_url` / `api_key` / `model` — dán vào **Cài đặt > Dịch API** và **Cài đặt > AI biên tập**.
+4. Để cell **Monitor** chạy trong lúc dịch; cell **Stop** giải phóng VRAM khi xong.
+
+Notebook tự nhận GPU rồi chọn preset; ép thủ công bằng `PRESET` / `ENGINE`:
+
+| Preset | Engine | VRAM | Dùng khi |
+| --- | --- | --- | --- |
+| `qwen3-14b-awq` | vLLM | ~10GB | mặc định 1×T4 — tiếng Trung mạnh, throughput tốt |
+| `qwen2.5-14b-awq` | vLLM | ~10GB | đường lui an toàn nhất trên Turing |
+| `qwen3.5-9b-awq` | vLLM | ~6.5GB | GPU nhỏ hoặc muốn nhiều request song song |
+| `qwen3.5-35b-a3b-awq` | vLLM (tp=2) | ~20GB | Kaggle T4×2 — MoE nên vẫn nhanh |
+| `sailor2-20b-gguf` | llama.cpp | ~12GB | ưu tiên tiếng Việt tự nhiên (model train cho Đông Nam Á) |
+| `sailor2-8b-gguf` | llama.cpp | ~6.5GB | bản nhẹ của hướng trên |
+
+### Cache model giữa các phiên
+
+Mặc định model tải vào đĩa tạm (`/content/hf`, `/kaggle/tmp/hf`) và mất khi hết phiên. Cell *Lưu cache model cho phiên sau* xử lý việc giữ lại; notebook tự dò cache khi khởi động và **ưu tiên preset đã có sẵn** thay vì tải bản khác.
+
+| Nền tảng | Cách làm | Lần sau |
+| --- | --- | --- |
+| Colab | Đặt `MODEL_CACHE = "drive"` — model tải thẳng vào `MyDrive/novel2epub-models/hf` | Run all, không tải lại (Drive free 15GB, đủ preset ~10GB) |
+| Kaggle | Chạy cell cache để chép vào `/kaggle/working/model-cache`, rồi `Save Version > Save & Run All` | `Add Input > Your Work >` output notebook này |
+| Kaggle (gọn hơn) | `Add Input > Models`, attach model có sẵn trên Kaggle | Đặt `MODEL_LOCAL_PATH` trỏ vào thư mục đó, khỏi tốn 20GB output |
+| Bất kỳ | `MODEL_LOCAL_PATH = "/đường/dẫn"` | Dùng thẳng thư mục model hoặc file `.gguf` đó |
+
+Notebook nhận layout cache của `huggingface_hub` (`models--org--repo/snapshots/<hash>`) ở bất kỳ độ sâu nào trong `/kaggle/input` hoặc thư mục cache, nên bản chép ra dataset vẫn dùng lại được.
+
+Cache đáng giá nhất trên Kaggle: input đã attach mount sẵn, mất 0 giây. Trên Colab, `hf_transfer` đang bật nên tải mới model ~10GB thường chỉ 2–5 phút — đọc từ Drive đôi khi còn chậm hơn, nên đo một lần rồi hãy quyết.
+
+Vài điểm vận hành cần nhớ:
+
+- **URL tunnel đổi mỗi lần chạy lại** — phải cập nhật `base_url` trong Settings. Session Colab ~12h (idle ~90 phút), Kaggle 9h/session và 30h/tuần. Đây là công cụ chạy theo phiên, không phải server 24/7.
+- **Đặt `translate.max_workers` bằng số slot engine báo** (cell Verify in sẵn). Đặt cao hơn chỉ làm request xếp hàng chứ không nhanh thêm.
+- **Temperature**: shim kẹp trần 0.35 dù app gửi 0.7, nhưng nên đặt 0.3 ngay trong Settings cho khớp.
+- **T4 là Turing (sm75)**: không bf16, không FlashAttention. Nếu vLLM chết vì thiếu kernel, đặt `ENGINE = "llamacpp"` rồi chạy lại — llama.cpp chạy được trên mọi GPU.
+- Kiểm tra endpoint từ máy chạy novel2epub bằng chính code của app:
+
+```bash
+python scripts/check_openai_endpoint.py --base-url https://xxx.trycloudflare.com/v1 --api-key n2e-...
+```
+
+Script báo lỗi nếu tunnel chết, `/models` sai định dạng, hoặc kết quả còn thẻ `<think>` / fence Markdown / sót chữ Hán.
 
 ## Xử Lý Sự Cố
 

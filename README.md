@@ -131,6 +131,7 @@ Không copy trực tiếp DB đang chạy nếu muốn bảo đảm snapshot nh�
 - [Phát triển và kiểm thử](docs/development.md)
 - [Release, Vercel và Tailscale](docs/release.md)
 - [Giao diện SPA](docs/architecture.md#giao-diện-spa-frontend)
+- [Server dịch zh → vi trên Colab/Kaggle](notebooks/novel2epub_zhvi_server.ipynb) — dựng endpoint OpenAI-Compatible miễn phí, xem [hướng dẫn](docs/operations.md#tự-host-model-dịch-trên-colabkaggle)
 
 ## Giới Hạn
 

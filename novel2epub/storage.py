@@ -264,49 +264,31 @@ class Storage:
         return int(row["n"] or 0), float(row["ts"] or 0.0)
 
     def bulk_chapter_stats(self) -> dict[int, dict]:
+        """Trạng thái UI của toàn ebook, chỉ đọc projection hẹp.
+
+        Tuyệt đối không đọc `chapters` ở đây: bảng đó giữ blob raw và bản dịch,
+        khiến Library/Dashboard quét hàng trăm MB chỉ để hiển thị vài cờ trạng thái.
+        `chapter_ui_state` được trigger đồng bộ trong cùng transaction với writer.
+        """
         rows = self.conn.execute(
-            "SELECT idx, active_branch,"
-            " CASE WHEN raw_text IS NOT NULL AND raw_text != '' THEN 1 ELSE 0 END AS has_raw_int,"
-            " CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END AS has_ai_int,"
-            " CASE WHEN local_mt_text IS NOT NULL AND local_mt_text != '' THEN 1 ELSE 0 END AS has_local_mt_int,"
-            " CASE WHEN active_branch = 'local_mt'"
-            " THEN CASE WHEN local_mt_text IS NOT NULL AND local_mt_text != '' THEN 1 ELSE 0 END"
-            " ELSE CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END"
-            " END AS has_tr_int,"
-            " CASE WHEN active_branch = 'local_mt' THEN LENGTH(local_mt_text)"
-            " ELSE LENGTH(translated_text) END AS translated_len,"
-            " LENGTH(raw_text) AS raw_len,"
-            " meta_json"
-            " FROM chapters WHERE ebook_slug = ?",
+            "SELECT idx, active_branch, has_raw, has_ai_translation, "
+            "has_local_mt_translation, has_translated, raw_len, translated_len, "
+            "edit_state, han_fixed_count "
+            "FROM chapter_ui_state WHERE ebook_slug = ?",
             (self.slug,),
         ).fetchall()
         result: dict[int, dict] = {}
         for row in rows:
-            try:
-                meta = json.loads(row["meta_json"] or "{}")
-            except Exception:
-                meta = {}
-            branch = revisions.normalize_branch(row["active_branch"])
-            has_ai_translation = bool(row["has_ai_int"]) and bool(
-                meta.get(self._BRANCH_COMPLETE_META[revisions.BRANCH_AI], True)
-            )
-            has_local_mt_translation = bool(row["has_local_mt_int"]) and bool(
-                meta.get(self._BRANCH_COMPLETE_META[revisions.BRANCH_LOCAL_MT], True)
-            )
-            has_translated = (
-                has_local_mt_translation
-                if branch == revisions.BRANCH_LOCAL_MT
-                else has_ai_translation
-            )
             result[row["idx"]] = {
-                "active_branch": branch,
-                "has_raw": bool(row["has_raw_int"]),
-                "has_translated": has_translated,
-                "has_ai_translation": has_ai_translation,
-                "has_local_mt_translation": has_local_mt_translation,
+                "active_branch": revisions.normalize_branch(row["active_branch"]),
+                "has_raw": bool(row["has_raw"]),
+                "has_translated": bool(row["has_translated"]),
+                "has_ai_translation": bool(row["has_ai_translation"]),
+                "has_local_mt_translation": bool(row["has_local_mt_translation"]),
                 "translated_len": row["translated_len"] or 0,
                 "raw_len": row["raw_len"] or 0,
-                "meta_json": row["meta_json"],
+                "edit_state": row["edit_state"] or "",
+                "han_fixed_count": row["han_fixed_count"] or 0,
             }
         return result
 

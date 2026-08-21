@@ -22,17 +22,38 @@ export interface EbookSummary {
 export interface LibraryResponse {
   ebooks: EbookSummary[];
   archived_count: number;
+  total: number;
+  page: number;
+  limit: number;
+  current: EbookSummary | null;
 }
 
-export function libraryKey(showArchived: boolean) {
-  return ["library", showArchived] as const;
+export interface LibraryQuery {
+  showArchived?: boolean;
+  q?: string;
+  sort?: "title" | "recent";
+  page?: number;
+  limit?: number;
+  currentSlug?: string;
 }
 
-export function useLibrary(showArchived = false) {
+export function libraryKey(query: LibraryQuery = {}) {
+  return ["library", query] as const;
+}
+
+export function useLibrary(query: LibraryQuery = {}) {
+  const params = new URLSearchParams({
+    show_archived: query.showArchived ? "1" : "0",
+    q: query.q ?? "",
+    sort: query.sort ?? "title",
+    page: String(query.page ?? 0),
+    limit: String(query.limit ?? 24),
+  });
+  if (query.currentSlug) params.set("current_slug", query.currentSlug);
   return useQuery({
-    queryKey: libraryKey(showArchived),
+    queryKey: libraryKey(query),
     queryFn: () =>
-      api.get<LibraryResponse>(`/api/ui/library?show_archived=${showArchived ? 1 : 0}`),
+      api.get<LibraryResponse>(`/api/ui/library?${params}`),
   });
 }
 

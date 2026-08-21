@@ -38,6 +38,7 @@ def test_title_format_accepts_three_shapes(title):
         "Lời nói đầu",
         "Chương5: dính liền",
         "5. Tên chương",
+        "Chương 5: 回家",
     ],
 )
 def test_title_format_rejects_wrong_shapes(title):
@@ -49,7 +50,7 @@ def _seed(tmp_path) -> Storage:
     storage = Storage(tmp_path, "t")
     ch1 = Chapter(index=1, url="http://x/1", title="Chương 1: Khởi đầu")
     ch2 = Chapter(index=2, url="http://x/2", title="Chương 2")
-    ch3 = Chapter(index=3, url="http://x/3", title="Lời bạt")
+    ch3 = Chapter(index=3, url="http://x/3", title="Chương 3: 回家")
     storage.save_manifest(Manifest(slug="t", chapters=[ch1, ch2, ch3]))
 
     storage.write_branch_text(ch1, "local_mt", "bản dịch máy")

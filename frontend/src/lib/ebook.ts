@@ -53,7 +53,7 @@ export interface ChapterRow {
   bientap: string;
   bientap_tooltip: string;
   skipped: boolean;
-  /** Tiêu đề nhánh active có đúng mẫu "Chương N", "Chương N: tên", "Chương N tên". */
+  /** Tiêu đề nhánh active đúng mẫu "Chương N[: tên]" và không còn chữ Hán. */
   title_format_ok: boolean;
 }
 
@@ -77,7 +77,7 @@ export interface ChapterFilters {
   /** Nhánh AI có bản dịch, độc lập với nhánh nào đang active. */
   filter_ai: string;
   filter_missing: string;
-  /** "yes" = chỉ chương có tiêu đề sai mẫu "Chương N[: tên]". */
+  /** "yes" = chỉ chương sai mẫu "Chương N[: tên]" hoặc còn chữ Hán. */
   filter_title_error: string;
   filter_skipped: string;
 }
@@ -295,7 +295,7 @@ export function rowWarnings(row: ChapterRow): { key: string; label: string; hint
     out.push({
       key: "title",
       label: "Tiêu đề lỗi",
-      hint: 'Tiêu đề không theo mẫu "Chương N", "Chương N: tên chương" hoặc "Chương N tên chương".',
+      hint: 'Tiêu đề sai mẫu "Chương N[: tên chương]" hoặc còn chữ Hán.',
     });
   }
   const missing = row.missing_fields.filter((field) => field !== "duplicate");

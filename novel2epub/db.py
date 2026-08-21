@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 20
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -180,6 +180,88 @@ _SCHEMA_STATEMENTS = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_code ON sources(code) WHERE code <> ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_ebooks_code ON ebooks(code) WHERE code <> ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_chapters_code ON chapters(code) WHERE code <> ''",
+    # Trạng thái hẹp cho các màn hình tổng quan.  Không đọc blob raw/dịch từ
+    # `chapters` chỉ để vẽ tiến độ: bảng chapters có thể lớn hàng GB.
+    """
+    CREATE TABLE IF NOT EXISTS chapter_ui_state (
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        idx INTEGER NOT NULL,
+        active_branch TEXT NOT NULL DEFAULT 'ai',
+        has_raw INTEGER NOT NULL DEFAULT 0,
+        has_ai_translation INTEGER NOT NULL DEFAULT 0,
+        has_local_mt_translation INTEGER NOT NULL DEFAULT 0,
+        has_translated INTEGER NOT NULL DEFAULT 0,
+        raw_len INTEGER NOT NULL DEFAULT 0,
+        translated_len INTEGER NOT NULL DEFAULT 0,
+        edit_state TEXT NOT NULL DEFAULT '',
+        han_fixed_count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (ebook_slug, idx)
+    ) WITHOUT ROWID
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_chapter_ui_state_ebook ON chapter_ui_state(ebook_slug, idx)",
+    """
+    CREATE TRIGGER IF NOT EXISTS chapters_ui_state_after_insert
+    AFTER INSERT ON chapters
+    BEGIN
+        INSERT INTO chapter_ui_state (
+            ebook_slug, idx, active_branch, has_raw, has_ai_translation,
+            has_local_mt_translation, has_translated, raw_len, translated_len,
+            edit_state, han_fixed_count
+        ) VALUES (
+            NEW.ebook_slug, NEW.idx, COALESCE(NEW.active_branch, 'ai'),
+            CASE WHEN COALESCE(NEW.raw_text, '') != '' THEN 1 ELSE 0 END,
+            CASE WHEN COALESCE(NEW.translated_text, '') != '' AND
+                (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete') IS NULL OR
+                 COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete'), 0) != 0) THEN 1 ELSE 0 END,
+            CASE WHEN COALESCE(NEW.local_mt_text, '') != '' AND
+                (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete') IS NULL OR
+                 COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete'), 0) != 0) THEN 1 ELSE 0 END,
+            CASE WHEN COALESCE(NEW.active_branch, 'ai') = 'local_mt' THEN
+                CASE WHEN COALESCE(NEW.local_mt_text, '') != '' AND
+                    (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete'), 0) != 0) THEN 1 ELSE 0 END
+            ELSE CASE WHEN COALESCE(NEW.translated_text, '') != '' AND
+                    (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete'), 0) != 0) THEN 1 ELSE 0 END END,
+            LENGTH(COALESCE(NEW.raw_text, '')),
+            CASE WHEN COALESCE(NEW.active_branch, 'ai') = 'local_mt' THEN LENGTH(COALESCE(NEW.local_mt_text, '')) ELSE LENGTH(COALESCE(NEW.translated_text, '')) END,
+            CASE WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') IS NOT NULL THEN 'draft'
+                 WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') IS NOT NULL THEN 'edited_ai'
+                 WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') IS NOT NULL THEN 'edited_local_mt'
+                 ELSE '' END,
+            COALESCE(CAST(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.han_cleanup.fixed_count') AS INTEGER), 0)
+        );
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS chapters_ui_state_after_update
+    AFTER UPDATE OF active_branch, raw_text, translated_text, local_mt_text, meta_json ON chapters
+    BEGIN
+        DELETE FROM chapter_ui_state WHERE ebook_slug=NEW.ebook_slug AND idx=NEW.idx;
+        INSERT INTO chapter_ui_state (ebook_slug, idx, active_branch, has_raw, has_ai_translation, has_local_mt_translation, has_translated, raw_len, translated_len, edit_state, han_fixed_count)
+        SELECT NEW.ebook_slug, NEW.idx, COALESCE(NEW.active_branch, 'ai'),
+            COALESCE(NEW.raw_text, '') != '',
+            COALESCE(NEW.translated_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete'), 0) != 0),
+            COALESCE(NEW.local_mt_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete'), 0) != 0),
+            CASE WHEN COALESCE(NEW.active_branch, 'ai') = 'local_mt' THEN COALESCE(NEW.local_mt_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete'), 0) != 0) ELSE COALESCE(NEW.translated_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete'), 0) != 0) END,
+            LENGTH(COALESCE(NEW.raw_text, '')), CASE WHEN COALESCE(NEW.active_branch, 'ai') = 'local_mt' THEN LENGTH(COALESCE(NEW.local_mt_text, '')) ELSE LENGTH(COALESCE(NEW.translated_text, '')) END,
+            CASE WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') IS NOT NULL THEN 'draft' WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') IS NOT NULL THEN 'edited_ai' WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') IS NOT NULL THEN 'edited_local_mt' ELSE '' END,
+            COALESCE(CAST(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.han_cleanup.fixed_count') AS INTEGER), 0);
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS chapters_ui_state_after_identity_update
+    AFTER UPDATE OF ebook_slug, idx ON chapters
+    BEGIN
+        UPDATE chapter_ui_state SET ebook_slug=NEW.ebook_slug, idx=NEW.idx
+        WHERE ebook_slug=OLD.ebook_slug AND idx=OLD.idx;
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS chapters_ui_state_after_delete
+    AFTER DELETE ON chapters
+    BEGIN
+        DELETE FROM chapter_ui_state WHERE ebook_slug=OLD.ebook_slug AND idx=OLD.idx;
+    END
+    """,
     # ── glossary (names.txt / vietphrase.txt) ────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS glossary_entries (
@@ -1115,6 +1197,22 @@ def _migration_v18(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
 
+def _migration_v19(conn: sqlite3.Connection) -> None:
+    """Backfill projection trạng thái UI hẹp từ chapters một lần khi nâng cấp."""
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+    # Trigger biến phép UPDATE no-op này thành projection cho từng chương.  Chỉ
+    # chạy trong migration; các lần ghi sau được trigger đồng bộ cùng transaction.
+    conn.execute("UPDATE chapters SET meta_json=meta_json")
+
+
+def _migration_v20(conn: sqlite3.Connection) -> None:
+    """Sửa trigger đổi khóa chapter để projection di chuyển không tự ghi lại chapter."""
+    conn.execute("DROP TRIGGER IF EXISTS chapters_ui_state_after_identity_update")
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+
 def _migration_v17(conn: sqlite3.Connection) -> None:
     """Gỡ cột `ebooks.name` — chỉ còn `title`.
 
@@ -1153,6 +1251,8 @@ _MIGRATIONS = {
     16: _migration_v16,
     17: _migration_v17,
     18: _migration_v18,
+    19: _migration_v19,
+    20: _migration_v20,
 }
 
 

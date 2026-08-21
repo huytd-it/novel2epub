@@ -67,11 +67,7 @@ def _chapter_state(chapter, stats: dict) -> str:
         return _SKIP
     if not stats.get("has_translated"):
         return _RAW if stats.get("has_raw") else _NONE
-    try:
-        meta = json.loads(stats.get("meta_json") or "{}")
-    except (TypeError, json.JSONDecodeError):
-        meta = {}
-    return _EDITED if (meta.get("before_rewrite") or meta.get("local_mt_ai_edited")) else _MT
+    return _EDITED if stats.get("edit_state") in ("edited_ai", "edited_local_mt") else _MT
 
 
 def _encode_strip(states: list[str]) -> str:
@@ -166,21 +162,83 @@ def log_sources():
 
 
 @router.get("/library")
-def library_list(show_archived: bool = False):
-    archived = archived_slugs(deps.LIBRARY_STATE_PATH)
-    items = []
-    for slug, entry in _entries():
-        is_archived = slug in archived
-        if is_archived and not show_archived:
-            continue
-        if entry is None:
-            cfg = deps.cfg()
-        else:
-            cfg = deps.resolved_cfg(slug)
-        items.append(
-            _ebook_summary(slug, cfg, archived=is_archived, in_library=entry is not None)
+def library_list(
+    show_archived: bool = False,
+    q: str = "",
+    sort: str = "title",
+    page: int = 0,
+    limit: int = 24,
+    current_slug: str = "",
+):
+    """Trang hoá thư viện trước khi dựng các summary tốn chi phí."""
+    page = max(page, 0)
+    limit = max(1, min(limit, 100))
+    q = q.strip()
+    if sort not in {"title", "recent"}:
+        raise HTTPException(status_code=400, detail="Kiểu sắp xếp thư viện không hợp lệ.")
+
+    from novel2epub.db import get_thread_connection
+
+    conn = get_thread_connection(deps.DB_PATH)
+    where: list[str] = []
+    params: list[object] = []
+    if not show_archived:
+        where.append("archived = 0")
+    if q:
+        pattern = f"%{q}%"
+        where.append(
+            "(title LIKE ? COLLATE NOCASE OR author LIKE ? COLLATE NOCASE OR slug LIKE ? COLLATE NOCASE)"
         )
-    return {"ebooks": items, "archived_count": len(archived)}
+        params.extend([pattern, pattern, pattern])
+    where_sql = f" WHERE {' AND '.join(where)}" if where else ""
+    order_sql = (
+        "date_added DESC, title COLLATE NOCASE, slug"
+        if sort == "recent"
+        else "title COLLATE NOCASE, slug"
+    )
+    total = conn.execute(f"SELECT COUNT(*) FROM ebooks{where_sql}", params).fetchone()[0]
+    archived_count = conn.execute("SELECT COUNT(*) FROM ebooks WHERE archived = 1").fetchone()[0]
+    rows = conn.execute(
+        f"SELECT slug, archived FROM ebooks{where_sql} ORDER BY {order_sql} LIMIT ? OFFSET ?",
+        [*params, limit, page * limit],
+    ).fetchall()
+
+    def summary(row):
+        slug = row["slug"]
+        return _ebook_summary(
+            slug,
+            deps.resolved_cfg(slug),
+            archived=bool(row["archived"]),
+            in_library=True,
+        )
+
+    # Giữ chế độ một ebook mặc định cho cài đặt mới chưa có entry library.
+    if total == 0 and not q and not show_archived:
+        return {
+            "ebooks": [_ebook_summary("default", deps.cfg(), archived=False, in_library=False)],
+            "archived_count": archived_count,
+            "total": 1,
+            "page": 0,
+            "limit": limit,
+            "current": None,
+        }
+
+    current = None
+    if current_slug:
+        current_row = conn.execute(
+            "SELECT slug, archived FROM ebooks WHERE slug = ?", (current_slug,)
+        ).fetchone()
+        if current_row is not None:
+            current = summary(current_row)
+
+    return {
+        "ebooks": [summary(row) for row in rows],
+        "archived_count": archived_count,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "current": current,
+    }
 
 
 def _required_toc_url(payload: dict) -> str:

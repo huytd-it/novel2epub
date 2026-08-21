@@ -7,8 +7,6 @@ toàn bộ ebook bằng 1 query thay vì 1 query/chương — xem docs/superpowe
 """
 from __future__ import annotations
 
-import json
-
 from novel2epub.storage import Manifest, Storage
 
 
@@ -51,14 +49,4 @@ def han_fixed_total(
             if storage.has_meta(ch)
         )
 
-    total = 0
-    for ch in chapters:
-        raw_meta = stats_map.get(ch.index, {}).get("meta_json")
-        if not raw_meta:
-            continue
-        try:
-            meta = json.loads(raw_meta)
-        except json.JSONDecodeError:
-            continue
-        total += meta.get("han_cleanup", {}).get("fixed_count", 0)
-    return total
+    return sum(int(stats_map.get(ch.index, {}).get("han_fixed_count", 0) or 0) for ch in chapters)

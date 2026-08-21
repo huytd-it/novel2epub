@@ -1205,44 +1205,34 @@ function BranchBadge({
   );
 }
 
-/** Cột trạng thái: nhãn chính, hai nhánh dịch, rồi cảnh báo cần người xử lý. */
+/** Cột trạng thái chỉ giữ tiến độ chính và các cảnh báo cần người xử lý. */
 function ChapterStatusCell({ row }: { row: ChapterRow }) {
   const warnings = rowWarnings(row);
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 text-[11px]">
-        <Dot tone={rowTone(row)} />
-        <span className={clsx(row.skipped ? "opacity-45" : "opacity-80")}>{rowLabel(row)}</span>
-      </div>
-      <div className="flex flex-wrap items-center gap-1">
-        <BranchBadge
-          label="MT"
-          has={row.has_local_mt_translation}
-          active={row.active_branch === "local_mt"}
-        />
-        <BranchBadge label="AI" has={row.has_ai_translation} active={row.active_branch === "ai"} />
-        {row.bientap ? (
-          <span
-            title={row.bientap_tooltip}
-            className="inline-flex items-center rounded-selector bg-info/15 px-1.5 py-px text-[10px] font-medium text-info"
-          >
-            {/* Bỏ emoji dẫn đầu ("📝", "✏️") — badge đã có màu riêng, thêm
-                emoji nữa thì cột trạng thái rối. `\p{Emoji_Presentation}`
-                KHÔNG khớp "✏️" (U+270F là ký tự text, chỉ thành emoji nhờ
-                VS16) nên phải cắt theo "mọi ký tự không phải chữ/số". */}
-            {row.bientap.replace(/^[^\p{L}\p{N}]+/u, "")}
-          </span>
-        ) : null}
-        {warnings.map((warning) => (
-          <span
-            key={warning.key}
-            title={warning.hint}
-            className="inline-flex items-center rounded-selector bg-error/15 px-1.5 py-px text-[10px] font-medium text-error"
-          >
-            {warning.label}
-          </span>
-        ))}
-      </div>
+    <div className="flex items-center gap-1.5 whitespace-nowrap text-[11px]">
+      <Dot tone={rowTone(row)} />
+      <span className={clsx(row.skipped ? "opacity-45" : "opacity-80")}>{rowLabel(row)}</span>
+      {row.bientap ? (
+        <span
+          title={row.bientap_tooltip}
+          className="inline-flex items-center rounded-selector bg-info/15 px-1.5 py-px text-[10px] font-medium text-info"
+        >
+          {/* Bỏ emoji dẫn đầu ("📝", "✏️") — badge đã có màu riêng, thêm
+              emoji nữa thì cột trạng thái rối. `\p{Emoji_Presentation}`
+              KHÔNG khớp "✏️" (U+270F là ký tự text, chỉ thành emoji nhờ
+              VS16) nên phải cắt theo "mọi ký tự không phải chữ/số". */}
+          {row.bientap.replace(/^[^\p{L}\p{N}]+/u, "")}
+        </span>
+      ) : null}
+      {warnings.map((warning) => (
+        <span
+          key={warning.key}
+          title={warning.hint}
+          className="inline-flex items-center rounded-selector bg-error/15 px-1.5 py-px text-[10px] font-medium text-error"
+        >
+          {warning.label}
+        </span>
+      ))}
     </div>
   );
 }
@@ -1279,29 +1269,41 @@ function ChapterTableRow({
           aria-label={`Chọn chương ${row.index}`}
         />
       </td>
-      <td data-numeric className="w-14 px-2 py-1 text-xs opacity-60">
+      <td data-numeric className="w-10 px-2 py-1 text-xs opacity-60">
         {row.index}
       </td>
       <td className="px-2 py-1">
-        <Link
-          to={`/ebooks/${slug}/chapters/${row.index}`}
-          className={clsx("text-[13px] hover:text-primary", row.skipped && "line-through opacity-50")}
-        >
-          {row.visible_title}
-        </Link>
-        {/* Chương trùng và tiêu đề sai mẫu đã có badge ở cột trạng thái; ở đây
-            chỉ đánh dấu tiêu đề lỗi ngay tại chỗ đọc để khỏi phải liếc ngang. */}
-        {!row.title_format_ok ? (
-          <span
-            title='Tiêu đề không theo mẫu "Chương N", "Chương N: tên chương" hoặc "Chương N tên chương".'
-            className="ml-2 text-[11px] text-error"
+        <div className="flex min-w-0 items-center gap-2">
+          <Link
+            to={`/ebooks/${slug}/chapters/${row.index}`}
+            className={clsx("min-w-0 flex-1 truncate text-[13px] hover:text-primary", row.skipped && "line-through opacity-50")}
           >
-            ⚠
-          </span>
-        ) : null}
+            {row.visible_title}
+          </Link>
+          {/* Chương trùng và tiêu đề sai mẫu đã có badge ở cột trạng thái; ở đây
+              chỉ đánh dấu tiêu đề lỗi ngay tại chỗ đọc để khỏi phải liếc ngang. */}
+          {!row.title_format_ok ? (
+            <span
+              title='Tiêu đề sai mẫu "Chương N[: tên chương]" hoặc còn chữ Hán.'
+              className="shrink-0 text-[11px] text-error"
+            >
+              ⚠
+            </span>
+          ) : null}
+        </div>
       </td>
-      <td className="w-56 px-2 py-1">
+      <td className="w-48 px-2 py-1">
         <ChapterStatusCell row={row} />
+      </td>
+      <td className="w-12 px-2 py-1 text-center">
+        <BranchBadge
+          label="MT"
+          has={row.has_local_mt_translation}
+          active={row.active_branch === "local_mt"}
+        />
+      </td>
+      <td className="w-12 px-2 py-1 text-center">
+        <BranchBadge label="AI" has={row.has_ai_translation} active={row.active_branch === "ai"} />
       </td>
       <td data-numeric className="w-20 px-2 py-1 text-right text-xs opacity-60">
         {row.zh_char_count ? num(row.zh_char_count) : "—"}
@@ -1624,7 +1626,11 @@ export function EbookPage() {
 
       {book.total > 0 ? (
         <Panel className="mb-4 p-3">
-          <ChapterStrip states={states} height={30} />
+          <ChapterStrip
+            states={states}
+            height={30}
+            onSelect={(index) => navigate(`/ebooks/${slug}/chapters/${index + 1}`)}
+          />
           <div className="mt-2">
             <ChapterLegend counts={counts} />
           </div>
@@ -1682,7 +1688,7 @@ export function EbookPage() {
           />
         ) : (
           <div className={clsx("overflow-x-auto", isFetching && "is-refetching")}>
-            <table className="w-full min-w-[52rem] border-collapse text-left">
+            <table className="w-full min-w-[58rem] table-fixed border-collapse text-left">
               <thead>
                 <tr className="border-b border-base-300 bg-base-200/60">
                   <th className="w-9 px-2 py-1.5">
@@ -1700,11 +1706,14 @@ export function EbookPage() {
                       aria-label="Chọn tất cả chương trên trang"
                     />
                   </th>
-                  {["#", "Tiêu đề", "Trạng thái", "Chữ Hán", "Từ", ""].map((h, i) => (
+                  {["#", "Tiêu đề", "Trạng thái", "MT", "AI", "Chữ Hán", "Từ", ""].map((h, i) => (
                     <th
                       key={h || i}
                       className={clsx(
                         "px-2 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase opacity-40",
+                        h === "#" && "w-10",
+                        h === "Tiêu đề" && "w-[22rem]",
+                        (h === "MT" || h === "AI") && "text-center",
                         (h === "Chữ Hán" || h === "Từ") && "text-right",
                       )}
                     >

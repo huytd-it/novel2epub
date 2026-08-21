@@ -149,8 +149,8 @@ function SidebarLink({
 
 function BookSection({ collapsed }: { collapsed: boolean }) {
   const [slug] = useCurrentBook();
-  const { data } = useLibrary();
-  const book = data?.ebooks.find((b) => b.slug === slug);
+  const { data } = useLibrary({ currentSlug: slug });
+  const book = data?.current;
   const states = useMemo(() => decodeStrip(book?.strip ?? ""), [book?.strip]);
 
   return (

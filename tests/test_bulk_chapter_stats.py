@@ -1,6 +1,6 @@
 import json
 import pytest
-from novel2epub.storage import Storage, Chapter
+from novel2epub.storage import Storage, Chapter, Manifest
 
 
 @pytest.fixture
@@ -45,16 +45,46 @@ def test_bulk_chapter_stats_flags(tmp_storage):
     assert result[3]["has_translated"] is False
 
 
-def test_bulk_chapter_stats_meta_json(tmp_storage):
+def test_bulk_chapter_stats_exposes_compact_edit_state(tmp_storage):
     s = tmp_storage
     ch = _ch(10)
     s.write_translated(ch, "Xin chào")
     s.write_meta(ch, {"complete": True, "ai_rewrite": {"text": "draft", "generated_at": "2026-01-01"}})
     s.mark_translated_complete(ch)
     result = s.bulk_chapter_stats()
-    assert result[10]["meta_json"] is not None
-    meta = json.loads(result[10]["meta_json"])
-    assert meta.get("ai_rewrite") is not None
+    assert result[10]["edit_state"] == "draft"
+
+
+def test_bulk_chapter_stats_tracks_meta_derived_values_without_returning_meta(tmp_storage):
+    s = tmp_storage
+    ch = _ch(13)
+    s.write_raw(ch, "nguyên văn")
+    s.write_translated(ch, "bản dịch")
+    s.write_meta(ch, {
+        "complete": True,
+        "before_rewrite": {"text": "bản cũ"},
+        "han_cleanup": {"fixed_count": 7},
+    })
+
+    result = s.bulk_chapter_stats()[13]
+
+    assert result["has_translated"] is True
+    assert result["edit_state"] == "edited_ai"
+    assert result["han_fixed_count"] == 7
+    assert "meta_json" not in result
+
+
+def test_bulk_chapter_stats_follows_chapter_index_reorder(tmp_storage):
+    s = tmp_storage
+    first, second = _ch(1), _ch(2)
+    s.save_manifest(Manifest(slug="test-slug", chapters=[first, second]))
+    s.write_raw(first, "raw first")
+    s.write_raw(second, "raw second")
+
+    s.reorder_chapters([2, 1])
+
+    assert set(s.bulk_chapter_stats()) == {1, 2}
+    assert s.bulk_chapter_stats()[1]["raw_len"] == len("raw second")
 
 
 def test_bulk_chapter_stats_uses_active_local_mt_branch(tmp_storage):

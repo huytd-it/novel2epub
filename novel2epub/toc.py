@@ -105,10 +105,11 @@ _TITLE_FORMAT_RE = re.compile(
     r"(?:\s*[:：.\-–—]\s*\S.*|\s+\S.*)?$",
     re.IGNORECASE,
 )
+_HAN_CHARACTER_RE = re.compile(r"[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\U00020000-\U0002EBEF]")
 
 
 def title_format_ok(title: str) -> bool:
-    """True nếu tiêu đề theo đúng mẫu "Chương N", "Chương N: tên", "Chương N tên".
+    """True nếu tiêu đề đúng mẫu và không còn chữ Hán.
 
     Tiêu đề rỗng luôn là lỗi — chương chưa có tiêu đề thì không có gì để đưa
     vào EPUB. Dùng cho cột trạng thái và bộ lọc "Tiêu đề lỗi" ở bảng chương.
@@ -116,7 +117,7 @@ def title_format_ok(title: str) -> bool:
     title = (title or "").strip()
     if not title:
         return False
-    return bool(_TITLE_FORMAT_RE.match(title))
+    return bool(_TITLE_FORMAT_RE.match(title)) and not _HAN_CHARACTER_RE.search(title)
 
 
 @dataclass
@@ -211,7 +212,6 @@ def chapter_rows(
     storage: Storage,
     stats_map: dict[int, dict] | None = None,
 ) -> list[ChapterRow]:
-    import json as _json
     rows = []
     for ch in chapters:
         if stats_map is not None:
@@ -224,10 +224,7 @@ def chapter_rows(
             # ponytail: byte-length estimates for display only, not business logic
             word_count = (s.get("translated_len") or 0) // 5 if has_translated else 0
             zh_char_count = (s.get("raw_len") or 0) // 3 if has_raw else 0
-            try:
-                meta = _json.loads(s.get("meta_json") or "{}")
-            except Exception:
-                meta = {}
+            edit_state = s.get("edit_state", "")
         else:
             active_branch = storage.active_branch(ch)
             has_ai_translation = storage.has_branch_text(ch, "ai")
@@ -241,10 +238,21 @@ def chapter_rows(
             has_raw = storage.has_raw(ch)
             zh_char_count = count_han_chars(storage.read_raw(ch)) if has_raw else 0
             meta = storage.read_meta(ch) if (has_translated and storage.has_meta(ch)) else {}
+            edit_state = ""
 
         bientap = ""
         bientap_tooltip = ""
-        if has_translated and meta:
+        if stats_map is not None:
+            if edit_state == "draft":
+                bientap = "📝 Nháp AI"
+                bientap_tooltip = "AI rewrite draft pending review"
+            elif edit_state == "edited_ai":
+                bientap = "✏️ Đã biên tập"
+                bientap_tooltip = "AI rewrite đã được áp dụng"
+            elif edit_state == "edited_local_mt":
+                bientap = "✏️ Đã biên tập (Local MT)"
+                bientap_tooltip = "AI biên tập đã áp dụng vào nhánh Local MT"
+        elif has_translated and meta:
             try:
                 if meta.get("ai_rewrite"):
                     ar = meta["ai_rewrite"]

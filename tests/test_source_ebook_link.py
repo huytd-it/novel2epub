@@ -246,6 +246,14 @@ class TestProxyResolution:
         assert overrides["proxy"] == "socks5://h:1080"
         assert overrides["dns_over_https"] is True
 
+    def test_to_crawl_config_emits_retry_config(self):
+        preset = SourcePreset(name="x", retry_attempts=6, retry_backoff=1.5)
+
+        crawl = preset.to_crawl_config("https://example.test/toc")
+
+        assert crawl.retry.attempts == 6
+        assert crawl.retry.backoff == 1.5
+
 
 # ── Task 9.3: _preset_usage with source field ──────────────────────
 

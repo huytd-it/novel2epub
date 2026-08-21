@@ -28,6 +28,7 @@ export interface SourceSettings {
   max_chapters: number;
   delay_seconds: number;
   max_workers: number;
+  concurrency_cap: number;
   content_selector: string;
   scrapling_mode: string;
   solve_cloudflare: boolean;

@@ -204,6 +204,7 @@ def save_source(
     max_chapters: int = Form(0),
     delay_seconds: float = Form(1.0),
     max_workers: int = Form(1),
+    concurrency_cap: int = Form(0),
     content_selector: str = Form(""),
     scrapling_mode: str = Form("fetcher"),
     solve_cloudflare: bool = Form(False),
@@ -233,6 +234,7 @@ def save_source(
         "chapter_link_pattern": chapter_link_pattern,
         "max_chapters": max_chapters,
         "max_workers": max(1, max_workers),
+        "concurrency_cap": max(0, concurrency_cap),
         "delay_seconds": delay_seconds,
         "content_selector": content_selector,
         "headless": headless,
@@ -260,18 +262,14 @@ def save_source(
     }
 
     # Ebook gắn source chỉ lưu field nó CỐ Ý override — field trùng preset là
-    # thừa và sẽ đóng băng ebook ở giá trị preset lúc ghi. `retry` không đến từ
-    # preset nên luôn giữ; `toc_url` không có trong SourcePreset nên
-    # strip_preset_defaults tự khắc giữ.
+    # thừa và sẽ đóng băng ebook ở giá trị preset lúc ghi. `toc_url` không có
+    # trong SourcePreset nên strip_preset_defaults tự khắc giữ.
     cfg = deps.resolved_cfg(slug)
     source_name = getattr(cfg, "source", "")
     if source_name:
         preset = load_presets(deps.DB_PATH).get(source_name)
         if preset:
-            retry = crawl.pop("retry", None)
             crawl, _removed = strip_preset_defaults(crawl, preset)
-            if retry is not None:
-                crawl["retry"] = retry
 
     path = deps.ebook_config_path(slug)
     logger.info(
@@ -340,7 +338,7 @@ def sync_to_source(slug: str):
 
     # Field phẳng: so crawl đã resolve với preset; khác nghĩa là ebook đã override.
     for key, preset_val in preset.crawl_overrides().items():
-        if key in SCRAPLING_FIELD_MAP.values():
+        if key in SCRAPLING_FIELD_MAP.values() or key == "retry":
             continue  # xử lý riêng bên dưới (tên lồng khác tên phẳng)
         ebook_val = getattr(crawl, key, None)
         if ebook_val is not None and ebook_val != preset_val:
@@ -355,6 +353,21 @@ def sync_to_source(slug: str):
             if ebook_val is not None and ebook_val != getattr(preset, flat_key, None):
                 setattr(preset, flat_key, ebook_val)
                 changed_fields.append(flat_key)
+
+    retry = crawl.retry
+    preset_retry = preset.crawl_overrides()["retry"]
+    retry_fields = {
+        "attempts": "retry_attempts",
+        "delay_seconds": "retry_delay_seconds",
+        "backoff": "retry_backoff",
+        "max_delay_seconds": "retry_max_delay_seconds",
+        "respect_retry_after": "retry_respect_retry_after",
+    }
+    for retry_key, preset_key in retry_fields.items():
+        ebook_val = getattr(retry, retry_key)
+        if ebook_val != preset_retry[retry_key]:
+            setattr(preset, preset_key, ebook_val)
+            changed_fields.append(preset_key)
 
     if not changed_fields:
         # Không có gì để đẩy nhưng vẫn ghi lại liên kết nguồn (ebook có thể

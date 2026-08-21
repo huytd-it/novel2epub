@@ -72,6 +72,7 @@ def _form(**over) -> dict:
         "max_chapters": 0,
         "delay_seconds": 2.0,
         "max_workers": 1,
+        "concurrency_cap": 0,
         "content_selector": ".preset",
         "scrapling_mode": "stealthy",
         # Checkbox không tick thì trình duyệt KHÔNG gửi field → Form(False).
@@ -86,6 +87,7 @@ def _form(**over) -> dict:
         "retry_delay_seconds": 5.0,
         "retry_backoff": 2.0,
         "retry_max_delay_seconds": 120.0,
+        "retry_respect_retry_after": "true",
     }
     base.update(over)
     return base
@@ -96,11 +98,12 @@ def test_luu_source_trung_preset_khong_sinh_override(monkeypatch, tmp_path):
     r = client.post("/ebooks/a/settings/source", data=_form())
     assert r.status_code == 303
     crawl = _crawl(db, "a")
-    # Chỉ còn toc_url + retry (retry không đến từ preset). Không có
-    # content_selector/delay_seconds/scrapling vì chúng trùng preset.
+    # Chỉ còn toc_url. Không có content_selector/delay_seconds/scrapling/retry
+    # vì chúng đều trùng preset.
     assert "content_selector" not in crawl
     assert "delay_seconds" not in crawl
     assert "scrapling" not in crawl
+    assert "retry" not in crawl
     assert crawl["toc_url"] == "https://aixdzs.com/d/1"
 
 
@@ -127,6 +130,20 @@ def test_luu_source_scrapling_khac_preset_giu_override_dang_long(monkeypatch, tm
     # Chỉ `mode` khác preset — 5 field scrapling còn lại trùng nên bị lọc sạch.
     from novel2epub.config import load_config
     assert load_config(db, "a").crawl.scrapling.mode == "dynamic"
+
+
+def test_sync_to_source_day_retry_va_don_override(monkeypatch, tmp_path):
+    db, client = _client(monkeypatch, tmp_path)
+    client.post("/ebooks/a/settings/source", data=_form(retry_attempts=6))
+    assert _crawl(db, "a")["retry"]["attempts"] == 6
+
+    r = client.post("/ebooks/a/settings/sync-to-source")
+    assert r.status_code == 303
+    assert load_presets(db)["aixdzs"].retry_attempts == 6
+    assert "retry" not in _crawl(db, "a")
+
+    from novel2epub.config import load_config
+    assert load_config(db, "b").crawl.retry.attempts == 6
 
 
 def test_sync_to_source_day_field_scrapling_long_va_don_override(monkeypatch, tmp_path):

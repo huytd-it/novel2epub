@@ -157,9 +157,11 @@ wireguard.ts`) vì lớp `api.post()` dùng chung chỉ hỗ trợ JSON/form-url
 (gồm cả selector AI-detect và prompt AI-glossary/cleanup/eval); SPA chỉ port
 đúng bộ trường mà form `Form(...)` cũ THỰC SỰ nhận (`_SOURCE_EDITABLE_FIELDS`
 trong `webui.py`, khớp `BASIC_FIELDS`/`SELECTOR_FIELDS`/`CRAWL_FIELDS` trong
-`SourcesPage.tsx`) — CRUD, test dry-run, nhân bản, xóa đầy đủ. Wizard "Phân
-tích bằng AI" (đề xuất selector) và nhập YAML hàng loạt vẫn ở giao diện cũ,
-link rõ trên trang.
+`SourcesPage.tsx`) — CRUD, test dry-run, nhân bản, xóa đầy đủ. Các chính sách
+crawl dùng chung (phân trang chương/mục lục, Scrapling và retry/backoff) có ở
+cả preset Nguồn lẫn override Nguồn theo ebook; `toc_url`, giới hạn chương và
+worker vẫn là riêng từng ebook. Wizard "Phân tích bằng AI" (đề xuất selector)
+và nhập YAML hàng loạt vẫn ở giao diện cũ, link rõ trên trang.
 
 ### Trang Chương — Một Trang Cho Mọi Việc Của Một Chương
 

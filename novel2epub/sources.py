@@ -41,6 +41,13 @@ class SourcePreset:
     max_pages_per_chapter: int = 10
     toc_next_page_selector: str = ""
     toc_max_pages: int = 5
+    # Retry là chính sách của website, nên cần đi theo preset thay vì bị lặp
+    # lại ở từng ebook dùng cùng nguồn.
+    retry_attempts: int = 3
+    retry_delay_seconds: float = 5.0
+    retry_backoff: float = 2.0
+    retry_max_delay_seconds: float = 120.0
+    retry_respect_retry_after: bool = True
     # Regex lines matching these patterns sẽ bị xoá khỏi text chương (loại bỏ ads/junk).
     strip_patterns: list[str] = field(default_factory=list)
     scrapling_mode: str = "stealthy"
@@ -89,6 +96,14 @@ class SourcePreset:
         }
         for key in _source_only:
             data.pop(key, None)
+        retry = {
+            "attempts": data.pop("retry_attempts"),
+            "delay_seconds": data.pop("retry_delay_seconds"),
+            "backoff": data.pop("retry_backoff"),
+            "max_delay_seconds": data.pop("retry_max_delay_seconds"),
+            "respect_retry_after": data.pop("retry_respect_retry_after"),
+        }
+        data["retry"] = retry
         return {k: v for k, v in data.items() if not k.startswith("search_")}
 
     def to_crawl_config(self, toc_url: str = "", mode_override: str = ""):
@@ -100,10 +115,11 @@ class SourcePreset:
         dùng khi người dùng chọn tay lúc Thêm ebook. Gộp logic trước đây lặp ở
         route test nguồn để mọi nơi fetch nguồn dùng chung 1 đường.
         """
-        from .config import CrawlConfig, ScraplingConfig
+        from .config import CrawlConfig, CrawlRetryConfig, ScraplingConfig
 
         overrides = self.crawl_overrides()
         overrides.pop("chapter_link_pattern", None)
+        retry_kwargs = overrides.pop("retry", None)
         scrapling_kwargs: dict[str, Any] = {}
         legacy_mode = overrides.pop("scrapling_mode", None)
         if legacy_mode is not None:
@@ -117,6 +133,8 @@ class SourcePreset:
             chapter_link_pattern=self.chapter_link_pattern,
             **overrides,
         )
+        if retry_kwargs:
+            crawl_cfg.retry = CrawlRetryConfig(**retry_kwargs)
         if scrapling_kwargs:
             crawl_cfg.scrapling = ScraplingConfig(**scrapling_kwargs)
         if mode_override:
@@ -136,18 +154,20 @@ _FIELD_NAMES = {f.name for f in fields(SourcePreset)}
 
 
 def _coerce(name: str, value: Any) -> Any:
-    if name in {"headless", "magic", "solve_cloudflare", "network_idle", "dns_over_https", "ai_glossary_enabled", "ai_cleanup_enabled", "ai_eval_enabled"}:
+    if name in {"headless", "magic", "solve_cloudflare", "network_idle", "dns_over_https", "retry_respect_retry_after", "ai_glossary_enabled", "ai_cleanup_enabled", "ai_eval_enabled"}:
         return bool(value)
-    if name == "delay_seconds":
+    if name in {"delay_seconds", "retry_delay_seconds", "retry_backoff", "retry_max_delay_seconds"}:
         try:
             return float(value)
         except (TypeError, ValueError):
-            return 1.0
-    if name in {"max_pages_per_chapter", "toc_max_pages"}:
+            return {"delay_seconds": 1.0, "retry_delay_seconds": 5.0,
+                    "retry_backoff": 2.0, "retry_max_delay_seconds": 120.0}[name]
+    if name in {"max_pages_per_chapter", "toc_max_pages", "retry_attempts"}:
         try:
             return int(value)
         except (TypeError, ValueError):
-            return 10 if name == "max_pages_per_chapter" else 5
+            return {"max_pages_per_chapter": 10, "toc_max_pages": 5,
+                    "retry_attempts": 3}[name]
     if name in {"concurrency_cap", "max_search_results"}:
         try:
             return int(value)

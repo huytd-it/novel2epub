@@ -23,6 +23,13 @@ export interface SourcePreset {
   next_page_selector: string;
   next_page_url_pattern: string;
   max_pages_per_chapter: number;
+  toc_next_page_selector: string;
+  toc_max_pages: number;
+  retry_attempts: number;
+  retry_delay_seconds: number;
+  retry_backoff: number;
+  retry_max_delay_seconds: number;
+  retry_respect_retry_after: boolean;
   scrapling_mode: string;
   solve_cloudflare: boolean;
   network_idle: boolean;
@@ -120,6 +127,13 @@ export const EMPTY_PRESET: SourcePreset = {
   next_page_selector: "",
   next_page_url_pattern: "",
   max_pages_per_chapter: 10,
+  toc_next_page_selector: "",
+  toc_max_pages: 5,
+  retry_attempts: 3,
+  retry_delay_seconds: 5,
+  retry_backoff: 2,
+  retry_max_delay_seconds: 120,
+  retry_respect_retry_after: true,
   scrapling_mode: "stealthy",
   solve_cloudflare: false,
   network_idle: false,

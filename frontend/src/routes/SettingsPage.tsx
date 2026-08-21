@@ -403,6 +403,7 @@ const SOURCE_FIELDS: FieldSpec<EbookSettings["source"]>[] = [
   { key: "max_chapters", label: "Giới hạn số chương", kind: "number", hint: "0 = không giới hạn" },
   { key: "delay_seconds", label: "Delay giữa các request (giây)", kind: "number", step: 0.1 },
   { key: "max_workers", label: "Số luồng crawl song song", kind: "number" },
+  { key: "concurrency_cap", label: "Trần song song theo nguồn", kind: "number", hint: "0 = mặc định theo chế độ crawl" },
   { key: "impersonate", label: "Impersonate (fingerprint trình duyệt)", kind: "text" },
   { key: "proxy", label: "Proxy", kind: "text" },
   { key: "headless", label: "Chạy headless", kind: "checkbox" },

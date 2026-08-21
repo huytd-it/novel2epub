@@ -980,6 +980,7 @@ def ebook_settings(slug: str):
             "max_chapters": crawl.max_chapters,
             "delay_seconds": crawl.delay_seconds,
             "max_workers": crawl.max_workers,
+            "concurrency_cap": crawl.concurrency_cap,
             "content_selector": crawl.content_selector,
             "scrapling_mode": sc.mode,
             "solve_cloudflare": sc.solve_cloudflare,
@@ -1933,6 +1934,8 @@ _SOURCE_EDITABLE_FIELDS = {
     "magic", "js_code", "delay_seconds", "next_page_selector", "next_page_url_pattern",
     "max_pages_per_chapter", "scrapling_mode", "solve_cloudflare", "network_idle",
     "impersonate", "proxy", "dns_over_https", "concurrency_cap", "strip_patterns",
+    "toc_next_page_selector", "toc_max_pages", "retry_attempts", "retry_delay_seconds",
+    "retry_backoff", "retry_max_delay_seconds", "retry_respect_retry_after",
 }
 
 

@@ -63,6 +63,8 @@ const SELECTOR_FIELDS: FieldSpec[] = [
   { key: "next_page_selector", label: "Selector trang kế (nội dung)", kind: "text" },
   { key: "next_page_url_pattern", label: "Regex URL trang kế", kind: "text" },
   { key: "max_pages_per_chapter", label: "Số trang tối đa / chương", kind: "number" },
+  { key: "toc_next_page_selector", label: "Selector trang kế (mục lục)", kind: "text" },
+  { key: "toc_max_pages", label: "Số trang mục lục tối đa", kind: "number" },
 ];
 
 const CRAWL_FIELDS: FieldSpec[] = [
@@ -77,6 +79,11 @@ const CRAWL_FIELDS: FieldSpec[] = [
   { key: "solve_cloudflare", label: "Giải Cloudflare challenge", kind: "checkbox" },
   { key: "network_idle", label: "Đợi mạng nhàn rỗi", kind: "checkbox" },
   { key: "dns_over_https", label: "DNS-over-HTTPS", kind: "checkbox" },
+  { key: "retry_attempts", label: "Số lần thử lại", kind: "number" },
+  { key: "retry_delay_seconds", label: "Delay thử lại (giây)", kind: "number", step: 0.1 },
+  { key: "retry_backoff", label: "Hệ số backoff", kind: "number", step: 0.1 },
+  { key: "retry_max_delay_seconds", label: "Delay thử lại tối đa (giây)", kind: "number" },
+  { key: "retry_respect_retry_after", label: "Tôn trọng header Retry-After", kind: "checkbox" },
   { key: "js_code", label: "JS chạy sau khi tải trang", kind: "textarea", wide: true },
   { key: "strip_patterns", label: "Regex loại bỏ nội dung thừa (1 dòng / pattern)", kind: "textarea", wide: true },
 ];

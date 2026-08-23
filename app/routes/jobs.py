@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from novel2epub.pipeline import step_cleanup_han_selected
 from novel2epub.pipeline import step_crawl_selected
 from novel2epub.pipeline import step_crawl_chapter_outcome
+from novel2epub.pipeline import step_reorder
 from novel2epub.pipeline import step_translate_selected
 from novel2epub.pipeline import step_translate_chapter_outcome
 from novel2epub.pipeline import step_translate_toc_selected
@@ -29,6 +30,8 @@ router = APIRouter()
 
 _TOC_CSV_FIELDS = ("index", "url", "title", "title_zh")
 _TOC_CSV_MAX_BYTES = 5 * 1024 * 1024
+# Giới hạn số phần tử đảo vị trí trả về để payload không phình khi sách dài.
+_REORDER_CHANGES_LIMIT = 100
 
 def _parse_optional_int(value: str) -> int | None:
     value = (value or "").strip()
@@ -409,12 +412,16 @@ async def import_ebook_toc_csv(slug: str, file: UploadFile = File(...)):
 
 
 @router.post("/api/ebooks/{slug}/jobs/reorder")
-def start_ebook_reorder(
-    request: Request,
+def reorder_ebook_chapters(
     slug: str,
     order: str = Form(...),
 ):
-    """Sắp xếp lại chapters theo thứ tự index hoặc số chương trong tiêu đề."""
+    """Sắp xếp lại chapters theo thứ tự index hoặc số chương trong tiêu đề.
+
+    Chạy trực tiếp thay vì xếp job queue: thao tác chỉ là một phép ghi manifest
+    nên đủ nhẹ để đồng bộ trong request. Trả về danh sách đảo vị trí cũ → mới
+    để frontend tự hiển thị và cập nhật bảng chương ngay lập tức.
+    """
     cfg = deps.resolved_cfg(slug)
     from novel2epub.storage import Storage
 
@@ -424,7 +431,6 @@ def start_ebook_reorder(
 
     current = [chapter.index for chapter in manifest.chapters]
     mode = "auto" if order.strip().lower() == "auto" else "manual"
-    detection_summary: dict[str, object] = {"mode": mode}
     if mode == "auto":
         from novel2epub.bulk_transfer import split_zh_title_number
 
@@ -434,9 +440,6 @@ def start_ebook_reorder(
         leading: list[int] = []
         groups: list[tuple[int, int, list[int]]] = []
         current_group: tuple[int, int, list[int]] | None = None
-        translated_detected = 0
-        source_detected = 0
-        unnumbered: list[int] = []
         for position, chapter in enumerate(manifest.chapters):
             # Tiêu đề đã dịch là nội dung người dùng đang thấy/chỉnh sửa nên
             # được ưu tiên. Chỉ fallback sang tiêu đề gốc khi bản dịch không
@@ -446,22 +449,16 @@ def start_ebook_reorder(
                 chapter.title or "",
                 re.IGNORECASE,
             )
-            if match:
-                translated_detected += 1
-            else:
+            if not match:
                 prefix, _ = split_zh_title_number(chapter.title_zh or "")
                 match = re.match(r"^(?:Chương|Quyển|Hồi)\s+(\d+)$", prefix, re.IGNORECASE)
-                if match:
-                    source_detected += 1
             if match:
                 current_group = (int(match.group(1)), position, [chapter.index])
                 groups.append(current_group)
             elif current_group is None:
                 leading.append(chapter.index)
-                unnumbered.append(chapter.index)
             else:
                 current_group[2].append(chapter.index)
-                unnumbered.append(chapter.index)
 
         if not groups:
             raise HTTPException(status_code=400, detail="Không tìm thấy số chương trong tiêu đề.")
@@ -472,21 +469,6 @@ def start_ebook_reorder(
             for _, _, indexes in sorted(groups, key=lambda group: (group[0], group[1]))
             for index in indexes
         ]
-        numbers = [number for number, _, _ in groups]
-        duplicate_numbers = sorted({number for number in numbers if numbers.count(number) > 1})
-        number_set = set(numbers)
-        gaps = (
-            [number for number in range(min(numbers), max(numbers) + 1) if number not in number_set]
-            if numbers
-            else []
-        )
-        detection_summary.update(
-            translated=translated_detected,
-            source=source_detected,
-            unnumbered=unnumbered,
-            duplicates=duplicate_numbers,
-            gaps=gaps,
-        )
     else:
         try:
             desired = [int(x.strip()) for x in order.split(",") if x.strip()]
@@ -506,45 +488,20 @@ def start_ebook_reorder(
         raise HTTPException(status_code=400, detail=detail)
 
     moved = [
-        (old_position + 1, new_position + 1, index)
+        {"index": index, "from": old_position + 1, "to": new_position + 1}
         for old_position, index in enumerate(current)
         if (new_position := desired.index(index)) != old_position
     ]
 
-    def _target(log):
-        from novel2epub.pipeline import step_reorder
-
-        log(f"[reorder] Bắt đầu: mode={mode}, tổng={len(current)}, thay đổi vị trí={len(moved)}.")
-        if mode == "auto":
-            log(
-                "[reorder] Detect tiêu đề: "
-                f"đã dịch={detection_summary.get('translated', 0)}, "
-                f"gốc={detection_summary.get('source', 0)}, "
-                f"không số={len(detection_summary.get('unnumbered', []))}."
-            )
-            duplicates = detection_summary.get("duplicates", [])
-            gaps = detection_summary.get("gaps", [])
-            if duplicates:
-                log(f"[reorder] Cảnh báo số chương trùng: {', '.join(map(str, duplicates))}.")
-            if gaps:
-                shown = list(gaps)[:30]
-                suffix = "…" if len(gaps) > len(shown) else ""
-                log(f"[reorder] Cảnh báo số chương thiếu: {', '.join(map(str, shown))}{suffix}.")
-        for old_position, new_position, index in moved[:30]:
-            chapter = next(chapter for chapter in manifest.chapters if chapter.index == index)
-            log(
-                f"[reorder] #{index}: vị trí {old_position} → {new_position}; "
-                f"{(chapter.title or chapter.title_zh or '(không tiêu đề)')[:100]}"
-            )
-        if len(moved) > 30:
-            log(f"[reorder] … và {len(moved) - 30} thay đổi vị trí khác.")
-        step_reorder(cfg, log, desired_order=desired)
-
-    job_id = request.app.state.job.start_custom(
-        "reorder", _target, category="both", ebook=slug,
-        label=job_label("reorder", title=cfg.novel.title, slug=slug),
+    step_reorder(cfg, lambda _message: None, desired_order=desired)
+    return JSONResponse(
+        {
+            "mode": mode,
+            "total": len(current),
+            "moved": len(moved),
+            "changes": moved[:_REORDER_CHANGES_LIMIT],
+        }
     )
-    return JSONResponse({"started": 1, "job_id": str(job_id or "")})
 
 
 @router.post("/ebooks/{slug}/jobs/{category}/cancel")

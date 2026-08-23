@@ -111,7 +111,6 @@ function useDebouncedValue(value: string, delay = 250) {
 const STEPS = [
   { step: "fetch-toc", label: "Lấy mục lục" },
   { step: "crawl", label: "Crawl" },
-  { step: "translate", label: "Dịch" },
   { step: "build", label: "Build EPUB" },
 ] as const;
 
@@ -324,6 +323,20 @@ interface ReaderPublishPreview {
   edited: number;
   unchanged: number;
   skipped: number;
+}
+
+/** Một phép đảo vị trí khi sắp xếp chương — from/to là vị trí 1-based trước/sau. */
+interface ReorderChange {
+  index: number;
+  from: number;
+  to: number;
+}
+
+interface ReorderResult {
+  mode: "auto" | "manual";
+  total: number;
+  moved: number;
+  changes: ReorderChange[];
 }
 
 function TocTitleDiff({ label, before, after }: { label: string; before: string; after: string }) {
@@ -842,6 +855,28 @@ function BatchBar({
     onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
   });
 
+  /** Sắp xếp chương chạy trực tiếp (không qua job queue): backend ghi manifest
+      ngay trong request và trả về các phép đảo vị trí cũ → mới để liệt kê. */
+  const reorderRun = useMutation({
+    mutationFn: (form: Record<string, string>) =>
+      api.post<ReorderResult>(`/api/ebooks/${slug}/jobs/reorder`, { form }),
+    onSuccess: (res) => {
+      setReorderMode(null);
+      setManualIndexes("");
+      onDone();
+      const shown = res.changes.slice(0, 3).map((c) => `#${c.index}: ${c.from}→${c.to}`);
+      const hidden = res.moved - shown.length;
+      const detail = shown.length > 0 ? ` (${shown.join(", ")}${hidden > 0 ? ` +${hidden}` : ""})` : "";
+      toast(
+        res.moved > 0
+          ? `Đã sắp xếp ${res.total} chương, ${res.moved} đổi vị trí${detail}.`
+          : `Thứ tự ${res.total} chương đã đúng, không có gì đổi.`,
+      );
+    },
+    // Giữ hộp thoại mở để sửa lại input khi lỗi.
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
   const trigger = (action: BatchAction) => {
     if (action.key === "reorder") {
       setReorderMode("detect");
@@ -861,14 +896,9 @@ function BatchBar({
       toast("Index phải là các số nguyên, ngăn cách bằng dấu phẩy.", "error");
       return;
     }
-    run.mutate({
-      key: "reorder",
-      label: "Sắp xếp lại",
-      path: "jobs/reorder",
-      form: reorderMode === "manual" ? { order: indexes.join(",") } : { order: "auto" },
-    });
-    setReorderMode(null);
-    setManualIndexes("");
+    reorderRun.mutate(
+      reorderMode === "manual" ? { order: indexes.join(",") } : { order: "auto" },
+    );
   };
 
   const applyTocAction: BatchAction = {
@@ -1093,7 +1123,7 @@ function BatchBar({
           </div>
         }
         confirmLabel="Sắp xếp"
-        pending={run.isPending}
+        pending={reorderRun.isPending}
       />
 
       <ConfirmDialog

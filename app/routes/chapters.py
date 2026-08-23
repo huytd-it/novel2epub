@@ -862,7 +862,7 @@ async def api_batch_translate_titles(
     started = request.app.state.job.start_custom(
         f"batch-translate-titles-{len(index_list)}",
         _target,
-        category="translate",
+        category="local-mt" if mode == "fast" else "ai-translate",
         ebook=slug,
         chapter_indexes=index_list,
         label=batch_job_label("translate-titles", title=cfg.novel.title, slug=slug, count=len(index_list)),

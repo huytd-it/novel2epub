@@ -3,6 +3,10 @@ phải luôn dịch từ title_zh (tiêu đề gốc chữ Hán) khi đã có, K
 hiện tại (có thể đã là bản dịch tiếng Việt của lần dịch trước)."""
 from __future__ import annotations
 
+from fastapi.testclient import TestClient
+
+from app import deps
+from app.routes import chapters as chapters_route
 from novel2epub import pipeline
 from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig, TranslateConfig
 from novel2epub.storage import Chapter, Manifest, Storage
@@ -53,6 +57,59 @@ def _seed(tmp_path, chapters):
     storage = Storage(tmp_path, "t")
     storage.save_manifest(Manifest(slug="t", chapters=chapters))
     return storage
+
+
+class _FakeJob:
+    def __init__(self):
+        self.started = []
+
+    def start_custom(self, name, target, category, **kwargs):
+        self.started.append({"name": name, "category": category, **kwargs})
+        target(lambda _message: None)
+        return True
+
+
+def _route_client(cfg, monkeypatch):
+    monkeypatch.setattr(deps, "resolved_cfg", lambda slug: cfg)
+    from app.main import app
+
+    app.state.job = _FakeJob()
+    return TestClient(app), app.state.job
+
+
+def test_batch_translate_titles_queues_fast_as_local_mt(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    calls = []
+    monkeypatch.setattr(
+        chapters_route,
+        "step_translate_toc_selected",
+        lambda cfg, log, **kwargs: calls.append(kwargs),
+    )
+    client, job = _route_client(cfg, monkeypatch)
+
+    response = client.post(
+        "/api/ebooks/t/batch/translate-titles",
+        data={"indexes": "1,3", "mode": "fast"},
+    )
+
+    assert response.status_code == 200
+    assert job.started[0]["category"] == "local-mt"
+    assert job.started[0]["chapter_indexes"] == [1, 3]
+    assert calls == [{"force": True, "selected_indexes": [1, 3], "mode": "fast"}]
+
+
+def test_batch_translate_titles_queues_smart_as_ai_translate(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    monkeypatch.setattr(chapters_route, "step_translate_toc_selected", lambda *args, **kwargs: None)
+    client, job = _route_client(cfg, monkeypatch)
+
+    response = client.post(
+        "/api/ebooks/t/batch/translate-titles",
+        data={"indexes": "2", "mode": "smart"},
+    )
+
+    assert response.status_code == 200
+    assert job.started[0]["category"] == "ai-translate"
 
 
 def test_toc_first_time_translates_from_title_and_backfills_title_zh(tmp_path, monkeypatch):

@@ -9,6 +9,8 @@ import {
   useRunAutomationNow,
   useUpdateAutomation,
   useValidateSchedule,
+  AUTOMATION_STEP_META,
+  automationStepName,
   type Automation,
   type EbookOption,
 } from "@/lib/automation";
@@ -46,17 +48,6 @@ const OUTCOME_LABEL: Record<string, string> = {
   partial: "Một phần",
 };
 
-const STEP_META: Record<string, { name: string; description: string }> = {
-  "fetch-toc": { name: "Cập nhật mục lục", description: "Lấy danh sách chương mới từ nguồn" },
-  "crawl-new": { name: "Cào chương mới", description: "Tải nội dung gốc của các chương còn thiếu" },
-  "translate-local-mt": { name: "Dịch Local MT", description: "Dịch nhanh bằng mô hình chạy cục bộ" },
-  "translate-pending": { name: "LLM dịch", description: "Dịch các chương đang chờ bằng LLM" },
-  "llm-edit": { name: "LLM biên tập", description: "Tạo bản nháp biên tập từ bản Local MT" },
-  "cleanup-han": { name: "Dọn từ Hán", description: "Rà soát và làm sạch từ Hán còn sót" },
-  build: { name: "Đóng gói EPUB", description: "Tạo lại tệp EPUB hoàn chỉnh" },
-  "publish-reader": { name: "Đăng Reader", description: "Đồng bộ bản mới lên Reader" },
-};
-
 const SCHEDULE_PRESETS = [
   { label: "15 phút", cron: "*/15 * * * *" },
   { label: "30 phút", cron: "*/30 * * * *" },
@@ -69,10 +60,6 @@ const SCHEDULE_PRESETS = [
 const PAGE_SIZE = 6;
 type StatusFilter = "all" | "enabled" | "disabled" | "active" | "failed";
 type ScheduleFilter = "all" | "scheduled" | "manual";
-
-function stepName(step: string) {
-  return STEP_META[step]?.name ?? step;
-}
 
 function automationJob(a: Automation, jobs: Job[]): Job | undefined {
   return jobs.find((job) => job.automation_id === a.id) ??
@@ -257,15 +244,15 @@ function FormModal({
                     <span data-numeric className={clsx("w-5 text-center text-[11px]", selected ? "font-medium text-primary" : "opacity-35")}>
                       {selected ? index + 1 : "—"}
                     </span>
-                    <Checkbox checked={selected} onChange={() => toggleStep(step)} aria-label={`${selected ? "Bỏ chọn" : "Chọn"} ${stepName(step)}`} />
+                    <Checkbox checked={selected} onChange={() => toggleStep(step)} aria-label={`${selected ? "Bỏ chọn" : "Chọn"} ${automationStepName(step)}`} />
                     <button type="button" onClick={() => toggleStep(step)} className="min-w-0 flex-1 text-left">
-                      <span className={clsx("block text-[13px] font-semibold", !selected && "opacity-60")}>{stepName(step)}</span>
-                      <span className="block truncate text-[11px] opacity-50">{STEP_META[step]?.description}</span>
+                      <span className={clsx("block text-[13px] font-semibold", !selected && "opacity-60")}>{automationStepName(step)}</span>
+                      <span className="block truncate text-[11px] opacity-50">{AUTOMATION_STEP_META[step]?.description}</span>
                     </button>
                     {selected ? (
                       <div className="flex shrink-0 gap-1">
-                        <Button size="sm" icon={<IconMoveUp size={12} />} onClick={() => moveStep(step, -1)} disabled={index === 0} aria-label={`Đưa ${stepName(step)} lên`} />
-                        <Button size="sm" icon={<IconMoveDown size={12} />} onClick={() => moveStep(step, 1)} disabled={index === selectedSteps.length - 1} aria-label={`Đưa ${stepName(step)} xuống`} />
+                        <Button size="sm" icon={<IconMoveUp size={12} />} onClick={() => moveStep(step, -1)} disabled={index === 0} aria-label={`Đưa ${automationStepName(step)} lên`} />
+                        <Button size="sm" icon={<IconMoveDown size={12} />} onClick={() => moveStep(step, 1)} disabled={index === selectedSteps.length - 1} aria-label={`Đưa ${automationStepName(step)} xuống`} />
                       </div>
                     ) : <span className="text-[11px] opacity-35">Bỏ qua</span>}
                   </div>
@@ -353,7 +340,7 @@ function Pipeline({ automation, job, logs }: { automation: Automation; job?: Job
               <div className={clsx("mx-auto flex size-6 items-center justify-center rounded-full border text-xs", state === "done" && "border-success bg-success text-success-content", state === "running" && "border-warning bg-warning/15 text-warning", state === "failed" && "border-error bg-error text-error-content", state === "idle" && "border-base-300 bg-base-100 opacity-55")}>
                 {state === "done" ? <IconCheck size={13} /> : state === "failed" ? <IconClose size={13} /> : state === "running" ? <Dot tone="gold" pulse /> : index + 1}
               </div>
-              <p className={clsx("mt-1 text-[11px] leading-tight font-medium", state === "idle" && "opacity-50")}>{stepName(step)}</p>
+              <p className={clsx("mt-1 text-[11px] leading-tight font-medium", state === "idle" && "opacity-50")}>{automationStepName(step)}</p>
             </div>
             {index < automation.steps.length - 1 ? <span className={clsx("mt-3 -mx-4 h-px w-8", state === "done" ? "bg-success" : "bg-base-300")} /> : null}
           </li>

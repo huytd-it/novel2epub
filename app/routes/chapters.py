@@ -620,13 +620,14 @@ async def api_batch_clean_toc(
     slug: str,
     indexes: str = Form(""),
     apply: bool = Form(False),
-    include_translated: bool = Form(False),
+    include_translated: bool = Form(True),
+    include_zh: bool = Form(False),
 ):
     """Chuẩn hóa tiêu đề TOC và dọn từ rác kêu gọi độc giả.
 
     Đồng bộ, không gọi model. `indexes` trống = quét toàn bộ manifest.
-    Mặc định chỉ preview tiêu đề nguồn; `include_translated=True` dọn thêm
-    tiêu đề đã dịch và `apply=True` mới ghi thay đổi."""
+    Mặc định dọn tiêu đề đã dịch; `include_zh=True` mới dọn tiêu đề nguồn vì
+    trường này tham gia khóa nhận diện chương mới. `apply=True` mới ghi."""
     from novel2epub.pipeline import step_clean_toc_titles
 
     cfg = deps.resolved_cfg(slug)
@@ -636,6 +637,7 @@ async def api_batch_clean_toc(
         selected_indexes=index_list or None,
         apply=apply,
         include_translated=include_translated,
+        include_zh=include_zh,
     )
     return JSONResponse(result)
 

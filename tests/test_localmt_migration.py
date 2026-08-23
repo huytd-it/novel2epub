@@ -176,33 +176,31 @@ def test_step_clean_toc_titles_preview_and_apply(tmp_path):
         Chapter(index=3, url="http://x/3", title="Chương 3", title_zh="3.第3章 梅丽莎（上）"),
     ]))
 
-    # Preview: KHÔNG ghi.
+    # Preview mặc định chỉ dọn bản dịch, KHÔNG ghi và giữ nguyên title_zh dùng
+    # trong khóa nhận diện chương mới.
     preview = step_clean_toc_titles(cfg, lambda m: None, apply=False)
-    assert preview["changed"] == 2
+    assert preview["changed"] == 1
     assert preview["applied"] == 0
-    assert preview["include_translated"] is False
-    assert preview["changes"][0]["changed_fields"] == ["title_zh"]
+    assert preview["include_translated"] is True
+    assert preview["include_zh"] is False
+    assert preview["changes"][0]["changed_fields"] == ["title"]
     assert storage.load_manifest().chapters[0].title.endswith("(Cầu nguyệt phiếu)")
 
-
-    # Mặc định chỉ ghi tiêu đề nguồn, không đụng tiêu đề đã dịch.
     result = step_clean_toc_titles(cfg, lambda m: None, apply=True)
-    assert result["applied"] == 2
-    assert storage.load_manifest().chapters[0].title.endswith("(Cầu nguyệt phiếu)")
-    assert storage.load_manifest().chapters[0].title_zh == "第1章 绯红"
-    assert storage.load_manifest().chapters[1].title == "Chương 2: Bình thường"
-    assert storage.load_manifest().chapters[2].title_zh == "第3章 梅丽莎（上）"
+    assert result["applied"] == 1
+    first = storage.load_manifest().chapters[0]
+    assert first.title == "Chương 1: Khởi đầu"
+    assert first.title_zh == "1.第1章 绯红（第一更求推荐票）"
+    assert storage.load_manifest().chapters[2].title_zh == "3.第3章 梅丽莎（上）"
 
-    # Tùy chọn tiêu đề đã dịch dọn thêm `title`, vẫn giữ nguồn đã chuẩn hóa.
-    translated = step_clean_toc_titles(
-        cfg, lambda m: None, apply=True, include_translated=True
-    )
-    assert translated["applied"] == 1
-    assert translated["include_translated"] is True
+    # Chỉ khi opt-in mới dọn tiêu đề nguồn.
+    source = step_clean_toc_titles(cfg, lambda m: None, apply=True, include_zh=True)
+    assert source["applied"] == 2
+    assert source["include_zh"] is True
     first = storage.load_manifest().chapters[0]
     assert first.title == "Chương 1: Khởi đầu"
     assert first.title_zh == "第1章 绯红"
-    assert translated["changes"][0]["changed_fields"] == ["title"]
+    assert storage.load_manifest().chapters[2].title_zh == "第3章 梅丽莎（上）"
 
 
 def test_step_clean_toc_titles_cleans_title_when_source_has_not_been_backfilled(tmp_path):
@@ -221,9 +219,14 @@ def test_step_clean_toc_titles_cleans_title_when_source_has_not_been_backfilled(
         Chapter(index=1, url="http://x/1", title="1.第1章 开始 求月票"),
     ]))
 
+    # Không có title_zh thì title đang là nguồn; mặc định phải giữ nguyên để
+    # chapter_title_key() không đổi giữa hai lần fetch TOC.
     result = step_clean_toc_titles(cfg, lambda m: None, apply=True)
+    assert result["changed"] == 0
+    assert storage.load_manifest().chapters[0].title == "1.第1章 开始 求月票"
 
-    assert result["changes"][0]["changed_fields"] == ["title"]
+    source = step_clean_toc_titles(cfg, lambda m: None, apply=True, include_zh=True)
+    assert source["changes"][0]["changed_fields"] == ["title"]
     assert storage.load_manifest().chapters[0].title == "第1章 开始"
 
 

@@ -1,6 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 
+export const AUTOMATION_STEP_META: Record<string, { name: string; description: string }> = {
+  "fetch-toc": { name: "Cập nhật mục lục", description: "Lấy danh sách chương mới từ nguồn" },
+  "crawl-new": { name: "Cào chương mới", description: "Tải nội dung gốc của các chương còn thiếu" },
+  "translate-local-mt": { name: "Dịch Local MT", description: "Dịch nhanh bằng mô hình chạy cục bộ" },
+  "translate-pending": { name: "LLM dịch", description: "Dịch các chương đang chờ bằng LLM" },
+  "llm-edit": { name: "LLM biên tập", description: "Tạo bản nháp biên tập từ bản Local MT" },
+  "cleanup-han": { name: "Dọn từ Hán", description: "Rà soát và làm sạch từ Hán còn sót" },
+  build: { name: "Đóng gói EPUB", description: "Tạo lại tệp EPUB hoàn chỉnh" },
+  "publish-reader": { name: "Đăng Reader", description: "Đồng bộ bản mới lên Reader" },
+};
+
+export function automationStepName(step: string) {
+  return AUTOMATION_STEP_META[step]?.name ?? step;
+}
+
 export interface Automation {
   id: string;
   ebook: string;

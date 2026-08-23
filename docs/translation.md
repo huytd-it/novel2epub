@@ -106,7 +106,7 @@ Bản dịch trước khi dọn được giữ trong snapshot để so sánh và
 Tiêu đề chương đôi khi dính từ rác kêu gọi độc giả ("(Cầu nguyệt phiếu)", "cầu vé tháng", `求月票`...). Hàm `toc.strip_toc_junk` loại chúng mà giữ nguyên số chương:
 
 - **Tự động**: chạy trong `_clean_title` mỗi khi dịch/dịch lại tiêu đề.
-- **Thủ công**: nút "Dọn TOC (từ rác)" trong SPA (`batch/clean-toc`) hoặc CLI `clean-toc [--apply]` (mặc định chỉ preview) để dọn dữ liệu tiêu đề cũ.
+- **Thủ công**: nút **Chuẩn hóa TOC** trong SPA (`batch/clean-toc`) mặc định dọn tiêu đề đã dịch và tiêu đề theo nhánh Local MT/AI. Tiêu đề nguồn `title_zh` chỉ được dọn khi bật **Gốc (zh)** vì nó tham gia khóa nhận diện chương mới `(url, title_zh hoặc title)`; đổi trường này có thể khiến lần cập nhật TOC sau coi tiêu đề nguồn chưa dọn là một chương mới. CLI `clean-toc [--apply]` mặc định chỉ preview.
 
 ### Trích xuất tên riêng từ raw
 

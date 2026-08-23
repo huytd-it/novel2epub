@@ -196,7 +196,43 @@ def test_refresh_manifest_partial_toc_keeps_missing_chapters(tmp_path, monkeypat
     assert manifest.chapters[1].title == "C2"
 
 
+def test_clean_translated_toc_title_does_not_create_new_chapter_on_refresh(tmp_path, monkeypatch):
+    """Dọn bản dịch mặc định phải giữ title_zh làm khóa ổn định với TOC nguồn."""
+    from novel2epub.storage import Manifest
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    source_title = "1.第1章 绯红（第一更求推荐票）"
+    storage.save_manifest(Manifest(
+        slug="t",
+        chapters=[Chapter(
+            index=1,
+            url="http://x/1",
+            title="Chương 1: Hồng (Cầu nguyệt phiếu)",
+            title_zh=source_title,
+        )],
+    ))
+
+    cleaned = pipeline.step_clean_toc_titles(cfg, lambda m: None, apply=True)
+    assert cleaned["changed"] == 1
+    assert storage.load_manifest().chapters[0].title_zh == source_title
+
+    toc = TocResult(
+        title="",
+        chapters=[Chapter(index=1, url="http://x/1", title=source_title, title_zh=source_title)],
+    )
+    monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda c: _FakeCrawler(toc))
+    pipeline.step_fetch_toc(cfg, lambda m: None)
+
+    chapters = storage.load_manifest().chapters
+    assert len(chapters) == 1
+    assert chapters[0].index == 1
+    assert chapters[0].title == "Chương 1: Hồng"
+    assert chapters[0].title_zh == source_title
+
+
 def test_refresh_manifest_keeps_same_url_different_titles(tmp_path, monkeypatch):
+
     """A new title at an existing URL is a new chapter with a new index."""
     from novel2epub.storage import Manifest
 

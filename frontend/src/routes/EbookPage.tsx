@@ -8,6 +8,12 @@ import { api, apiUrl } from "@/lib/api";
 import { bytes, num, percent } from "@/lib/format";
 import { decodeStrip, stripCounts } from "@/lib/strip";
 import { queueKey } from "@/lib/queue";
+import {
+  AUTOMATION_STEP_META,
+  automationStepName,
+  type Automation,
+  type AutomationOverview,
+} from "@/lib/automation";
 import { useCurrentBook } from "@/lib/books";
 import {
   DEFAULT_FILTERS,
@@ -27,13 +33,14 @@ import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { Loading, SkeletonTable } from "@/components/ui/Loading";
 import { Dot } from "@/components/ui/Badge";
-import { Checkbox, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
+import { Checkbox, Input, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
 import { ConfirmDialog, Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import {
   IconCaretDown,
   IconChat,
   IconDownload,
+  IconPlay,
   IconRead,
   IconSearch,
   IconSettings,
@@ -114,10 +121,17 @@ const STEPS = [
   { step: "build", label: "Build EPUB" },
 ] as const;
 
-function PipelineBar({ slug }: { slug: string }) {
+function PipelineBar({ slug, epubExists }: { slug: string; epubExists: boolean }) {
   const client = useQueryClient();
+  const navigate = useNavigate();
   const toast = useToast();
   const [running, setRunning] = useState("");
+  const [automationOpen, setAutomationOpen] = useState(false);
+  const [overview, setOverview] = useState<AutomationOverview | null>(null);
+  const [selectedAutomationId, setSelectedAutomationId] = useState("");
+  const [selectedSteps, setSelectedSteps] = useState<string[]>([]);
+  const [crawlWorkers, setCrawlWorkers] = useState("4");
+  const [translateWorkers, setTranslateWorkers] = useState("4");
 
   const enqueue = useMutation({
     mutationFn: (step: string) =>
@@ -131,6 +145,76 @@ function PipelineBar({ slug }: { slug: string }) {
     onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
   });
 
+  const loadAutomations = useMutation({
+    mutationFn: () => api.get<AutomationOverview>("/api/ui/automation"),
+    onSuccess: (data) => {
+      setOverview(data);
+      const first = data.automations.find((automation) => automation.ebook === slug);
+      setSelectedAutomationId(first?.id ?? "");
+      setSelectedSteps(data.steps);
+      setCrawlWorkers("4");
+      setTranslateWorkers("4");
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
+  const runAutomation = useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ ok: boolean; job_id: string }>(`/api/ui/automation/${id}/run-now`),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: queueKey });
+      client.invalidateQueries({ queryKey: ["automation"] });
+      setAutomationOpen(false);
+      toast("Đã đưa workflow tự động vào hàng đợi.");
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
+  const createAndRun = useMutation({
+    mutationFn: async () => {
+      const crawl = Number(crawlWorkers);
+      const translate = Number(translateWorkers);
+      if (!selectedSteps.length) throw new Error("Cần chọn ít nhất một bước.");
+      if (!Number.isInteger(crawl) || crawl < 1 || crawl > 64 || !Number.isInteger(translate) || translate < 1 || translate > 64) {
+        throw new Error("Số luồng phải là số nguyên từ 1 đến 64.");
+      }
+      const created = await api.post<Automation>("/api/ui/automation", {
+        body: {
+          ebook: slug,
+          steps: selectedSteps,
+          schedule: "manual",
+          crawl_workers: crawl,
+          translate_workers: translate,
+        },
+      });
+      try {
+        await api.post<{ ok: boolean; job_id: string }>(`/api/ui/automation/${created.id}/run-now`);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(`Đã tạo workflow nhưng chưa chạy được: ${reason}`);
+      }
+      return created;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: queueKey });
+      client.invalidateQueries({ queryKey: ["automation"] });
+      setAutomationOpen(false);
+      toast("Đã tạo workflow thủ công và đưa vào hàng đợi.");
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
+  const openAutomation = () => {
+    setOverview(null);
+    loadAutomations.reset();
+    setAutomationOpen(true);
+    loadAutomations.mutate();
+  };
+  const bookAutomations = overview?.automations.filter((automation) => automation.ebook === slug) ?? [];
+  const selectedAutomation = bookAutomations.find((automation) => automation.id === selectedAutomationId)
+    ?? bookAutomations[0];
+  const automationPending = runAutomation.isPending || createAndRun.isPending;
+
   return (
     <>
       {STEPS.map(({ step, label }) => (
@@ -143,6 +227,133 @@ function PipelineBar({ slug }: { slug: string }) {
           {label}
         </Button>
       ))}
+      <Button icon={<IconPlay size={14} />} onClick={openAutomation}>
+        Tự động
+      </Button>
+      <Button
+        icon={<IconDownload size={14} />}
+        disabled={!epubExists}
+        title={epubExists ? "Tải tệp EPUB đã build" : "Chưa có EPUB — hãy chạy Build EPUB trước"}
+        onClick={() => { window.location.href = apiUrl(`/ebooks/${slug}/download`); }}
+      >
+        Tải EPUB
+      </Button>
+
+      <Modal
+        open={automationOpen}
+        onClose={() => !automationPending && setAutomationOpen(false)}
+        title={bookAutomations.length ? "Xem trước workflow tự động" : "Tạo workflow tự động"}
+        wide
+        footer={
+          <>
+            <Button onClick={() => setAutomationOpen(false)} disabled={automationPending}>Hủy</Button>
+            {selectedAutomation ? (
+              <>
+                <Button onClick={() => navigate("/automation")} disabled={automationPending}>Mở trang Tự động</Button>
+                <Button
+                  variant="primary"
+                  icon={<IconPlay size={14} />}
+                  loading={runAutomation.isPending}
+                  onClick={() => runAutomation.mutate(selectedAutomation.id)}
+                >
+                  Chạy workflow
+                </Button>
+              </>
+            ) : overview ? (
+              <Button
+                variant="primary"
+                icon={<IconPlay size={14} />}
+                loading={createAndRun.isPending}
+                onClick={() => createAndRun.mutate()}
+              >
+                Tạo và chạy
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        {loadAutomations.isPending ? (
+          <Loading label="Đang đọc workflow" />
+        ) : loadAutomations.isError ? (
+          <EmptyState
+            title="Không đọc được workflow"
+            hint={loadAutomations.error instanceof Error ? loadAutomations.error.message : String(loadAutomations.error)}
+            action={<Button onClick={() => loadAutomations.mutate()}>Thử lại</Button>}
+          />
+        ) : !overview ? null : selectedAutomation ? (
+          <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_16rem]">
+            <div className="min-w-0">
+              {bookAutomations.length > 1 ? (
+                <label className="mb-4 block text-xs">
+                  <span className="mb-1 block font-medium">Workflow</span>
+                  <Select
+                    value={selectedAutomation.id}
+                    onChange={(event) => setSelectedAutomationId(event.target.value)}
+                    className="w-full"
+                  >
+                    {bookAutomations.map((automation, index) => (
+                      <option key={automation.id} value={automation.id}>
+                        Workflow {index + 1} · {automation.steps.length} bước · {automation.schedule === "manual" ? "thủ công" : automation.schedule}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+              ) : null}
+              <ol className="overflow-hidden rounded-field border border-base-300">
+                {selectedAutomation.steps.map((step, index) => (
+                  <li key={`${step}-${index}`} className="flex gap-3 border-b border-base-300 px-3 py-2.5 last:border-b-0">
+                    <span data-numeric className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</span>
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-semibold">{automationStepName(step)}</span>
+                      <span className="block text-[11px] opacity-55">{AUTOMATION_STEP_META[step]?.description}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <dl className="grid h-fit grid-cols-[auto_1fr] gap-x-3 gap-y-2 rounded-field border border-base-300 bg-base-200/35 p-3 text-xs">
+              <dt className="opacity-55">Lịch</dt><dd className="text-right font-medium">{selectedAutomation.schedule === "manual" ? "Chỉ thủ công" : selectedAutomation.schedule}</dd>
+              <dt className="opacity-55">Trạng thái</dt><dd className="text-right font-medium">{selectedAutomation.enabled ? "Đang bật" : "Đã tắt lịch"}</dd>
+              <dt className="opacity-55">Luồng cào</dt><dd data-numeric className="text-right font-medium">{selectedAutomation.crawl_workers}</dd>
+              <dt className="opacity-55">Luồng dịch</dt><dd data-numeric className="text-right font-medium">{selectedAutomation.translate_workers}</dd>
+              <dt className="opacity-55">Lần cuối</dt><dd data-numeric className="truncate text-right font-medium" title={selectedAutomation.last_run_at}>{selectedAutomation.last_run_at || "Chưa chạy"}</dd>
+              {selectedAutomation.last_run_error ? <><dt className="text-error">Lỗi gần nhất</dt><dd className="break-words text-right text-error">{selectedAutomation.last_run_error}</dd></> : null}
+            </dl>
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_16rem]">
+            <div>
+              <p className="mb-3 text-xs opacity-65">Truyện chưa có workflow. Chọn các bước sẽ được lưu theo chế độ chạy thủ công rồi chạy ngay một lần.</p>
+              <div className="overflow-hidden rounded-field border border-base-300">
+                {overview.steps.map((step) => (
+                  <label key={step} className="flex cursor-pointer items-center gap-3 border-b border-base-300 px-3 py-2.5 last:border-b-0 hover:bg-base-200/40">
+                    <Checkbox
+                      checked={selectedSteps.includes(step)}
+                      onChange={() => setSelectedSteps((current) => current.includes(step) ? current.filter((item) => item !== step) : [...current, step])}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-semibold">{automationStepName(step)}</span>
+                      <span className="block text-[11px] opacity-55">{AUTOMATION_STEP_META[step]?.description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="h-fit space-y-3 rounded-field border border-base-300 bg-base-200/35 p-3">
+              <p className="text-xs font-semibold">Tài nguyên</p>
+              <label className="block text-xs">
+                <span className="mb-1 block opacity-65">Luồng cào</span>
+                <Input value={crawlWorkers} onChange={(event) => setCrawlWorkers(event.target.value)} type="number" min={1} max={64} />
+              </label>
+              <label className="block text-xs">
+                <span className="mb-1 block opacity-65">Luồng LLM dịch</span>
+                <Input value={translateWorkers} onChange={(event) => setTranslateWorkers(event.target.value)} type="number" min={1} max={64} />
+              </label>
+              <p className="text-[11px] leading-relaxed opacity-55">Lịch mặc định: chỉ chạy thủ công. Có thể đổi cron tại trang Tự động.</p>
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }
@@ -392,7 +603,7 @@ const NORMALIZE_TOC_ACTION: BatchAction = {
   label: "Chuẩn hóa TOC",
   path: "batch/clean-toc",
   confirm: (n) =>
-    `Chuẩn hóa tiêu đề ${n} chương đã chọn? Thao tác sẽ bỏ tiền tố thứ tự như “3.” và ghi chú quảng cáo trong ngoặc, nhưng giữ số chương cùng các phần đánh dấu (上)/(中)/(下), (Thượng)/(Hạ) và số thứ tự (1), (2). Tiêu đề nhánh Local MT/AI cũng được dọn theo.`,
+    `Chuẩn hóa tiêu đề ${n} chương đã chọn? Mặc định chỉ dọn tiêu đề đã dịch và các nhánh Local MT/AI; tiêu đề gốc được giữ nguyên để lần cập nhật mục lục sau không nhận nhầm thành chương mới.`,
 };
 
 /** Crawl chỉ tải chương CHƯA có raw; force tải LẠI tất cả (raw cũ bị ghi đè,
@@ -806,7 +1017,8 @@ function BatchBar({
   const [reorderMode, setReorderMode] = useState<"detect" | "manual" | null>(null);
   const [manualIndexes, setManualIndexes] = useState("");
   const [tocPreview, setTocPreview] = useState<TocPreview | null>(null);
-  const [includeTranslatedTitle, setIncludeTranslatedTitle] = useState(false);
+  const [includeTranslatedTitle, setIncludeTranslatedTitle] = useState(true);
+  const [includeZhTitle, setIncludeZhTitle] = useState(false);
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
   const [translateForce, setTranslateForce] = useState(false);
   const [aiEditOpen, setAiEditOpen] = useState(false);
@@ -842,6 +1054,7 @@ function BatchBar({
           indexes: selected.join(","),
           apply: "false",
           include_translated: String(includeTranslatedTitle),
+          include_zh: String(includeZhTitle),
         },
       }),
     onSuccess: (preview) => {
@@ -906,6 +1119,7 @@ function BatchBar({
     form: {
       apply: "true",
       include_translated: String(includeTranslatedTitle),
+      include_zh: String(includeZhTitle),
     },
   };
 
@@ -997,7 +1211,17 @@ function BatchBar({
                 checked={includeTranslatedTitle}
                 onChange={(event) => setIncludeTranslatedTitle(event.target.checked)}
               />
-              Tiêu đề đã dịch
+              Bản dịch
+            </label>
+            <label
+              className="flex cursor-pointer items-center gap-1.5 text-[11px] opacity-70"
+              title="Tiêu đề gốc tham gia nhận diện chương mới; chỉ bật khi chấp nhận lần cập nhật TOC sau có thể thấy tiêu đề nguồn khác."
+            >
+              <Checkbox
+                checked={includeZhTitle}
+                onChange={(event) => setIncludeZhTitle(event.target.checked)}
+              />
+              Gốc (zh)
             </label>
           </div>
 
@@ -1675,7 +1899,7 @@ export function EbookPage() {
       }
       actions={
         <>
-          <PipelineBar slug={slug} />
+          <PipelineBar slug={slug} epubExists={book.epub_exists} />
           <Button
             loading={previewReader.isPending}
             disabled={!book.reader_configured || publishReader.isPending}

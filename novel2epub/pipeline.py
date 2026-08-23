@@ -1541,22 +1541,23 @@ def step_clean_toc_titles(
     *,
     selected_indexes: list[int] | None = None,
     apply: bool = False,
-    include_translated: bool = False,
+    include_translated: bool = True,
+    include_zh: bool = False,
     should_cancel: CancelFn | None = None,
 ) -> dict:
     """Quét tiêu đề chương, loại từ rác kêu gọi độc giả (cầu nguyệt phiếu,
     cầu vé tháng, 求月票…) bằng `toc.strip_toc_junk`, không đụng số chương.
 
-    Luôn chuẩn hóa tiêu đề nguồn: `title_zh` nếu đã lưu, nếu chưa thì `title`.
-    `include_translated=True` chuẩn hóa thêm `title` khi đã có `title_zh`.
-    Ngoài manifest, chuẩn hóa cả TIÊU ĐỀ THEO NHÁNH (`local_mt`/`ai`) — bản
-    dịch máy tự dịch lại tiêu đề nên thường còn nguyên từ rác dù manifest đã
-    sạch; bỏ qua nhánh sẽ khiến EPUB/Reader hiện tiêu đề cũ.
-    `apply=False` chỉ preview; `apply=True` ghi các trường thực sự thay đổi.
+    Mặc định chỉ chuẩn hóa tiêu đề đã dịch (`title` khi có `title_zh`). Tiêu đề
+    nguồn tham gia khóa nhận diện chương mới `(url, title_zh hoặc title)`, nên
+    chỉ chuẩn hóa khi `include_zh=True`; nếu tự ý đổi, lần fetch TOC sau có thể
+    coi cùng URL với tiêu đề nguồn chưa dọn là một chương mới.
+    Ngoài manifest, áp dụng cùng quy tắc cho TIÊU ĐỀ THEO NHÁNH
+    (`local_mt`/`ai`). `apply=False` chỉ preview; `apply=True` mới ghi.
 
-    Trả `{scanned, changed, changes, applied, include_translated}` — mỗi item
-    `changes[i]` có thể kèm `branches: {<branch>: {title, title_zh}}` với
-    `(old, new)` cho từng trường nhánh bị thay đổi.
+    Trả `{scanned, changed, changes, applied, include_translated, include_zh}` —
+    mỗi item `changes[i]` có thể kèm
+    `branches: {<branch>: {title, title_zh}}` với `(old, new)` cho từng trường.
     """
     from . import revisions
 
@@ -1573,12 +1574,16 @@ def step_clean_toc_titles(
             break
         old = ch.title or ""
         old_zh = ch.title_zh or ""
-        # Trước khi dịch, `title` chính là tiêu đề nguồn. Sau khi dịch,
-        # `title_zh` giữ nguồn và `title` là tiêu đề đã dịch.
-        source_field = "title_zh" if old_zh else "title"
-        clean_title = include_translated or source_field == "title"
+        # Có `title_zh` thì `title` là bản dịch, dọn mặc định. Nếu chưa có
+        # `title_zh`, `title` chính là nguồn và cũng phải nằm sau cờ include_zh
+        # vì chapter_title_key() dùng nó làm fallback cho khóa nhận diện.
+        clean_title = include_translated if old_zh else include_zh
         new = strip_toc_junk(normalize_toc_title(old)) if clean_title else old
-        new_zh = strip_toc_junk(normalize_toc_title(old_zh)) if old_zh else old_zh
+        new_zh = (
+            strip_toc_junk(normalize_toc_title(old_zh))
+            if old_zh and include_zh
+            else old_zh
+        )
         changed_fields = []
         if new != old:
             changed_fields.append("title")
@@ -1593,15 +1598,19 @@ def step_clean_toc_titles(
             b_zh = storage.read_branch_title_zh(ch, branch)
             if not (b_title or b_zh):
                 continue
-            # Nhánh không có title_zh riêng thì title của nhánh CHÍNH là nguồn
-            # → luôn dọn được; có rồi thì title là bản dịch, chỉ dọn khi được
-            # cho phép (đồng bộ quy tắc của manifest phía trên).
+            # Có title_zh thì title của nhánh là bản dịch. Không có title_zh
+            # thì coi title là nguồn và bảo vệ sau cờ include_zh như manifest.
+            clean_branch_title = include_translated if b_zh else include_zh
             b_new = (
                 strip_toc_junk(normalize_toc_title(b_title))
-                if (include_translated or not b_zh)
+                if clean_branch_title
                 else b_title
             )
-            b_new_zh = strip_toc_junk(normalize_toc_title(b_zh)) if b_zh else b_zh
+            b_new_zh = (
+                strip_toc_junk(normalize_toc_title(b_zh))
+                if b_zh and include_zh
+                else b_zh
+            )
             diff: dict[str, tuple[str, str]] = {}
             if b_new != b_title:
                 diff["title"] = (b_title, b_new)
@@ -1648,6 +1657,7 @@ def step_clean_toc_titles(
         "changes": changes,
         "applied": applied,
         "include_translated": include_translated,
+        "include_zh": include_zh,
     }
 
 

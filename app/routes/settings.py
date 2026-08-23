@@ -28,6 +28,7 @@ from novel2epub.sources import (
     save_preset,
     strip_preset_defaults,
 )
+from novel2epub.queue_labels import job_label
 from novel2epub.storage import Storage
 
 from .. import deps
@@ -885,3 +886,210 @@ def save_output(
         "translate": {"max_workers": max(1, translate_max_workers)},
     })
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+
+
+# ── Local MT CHUNG: danh mục model + cài đặt/cập nhật + config mặc định ────
+#
+# Trang quản lý tập trung cho toàn hệ thống: xem model nào đã tải về máy,
+# tải model mới / cập nhật lại (job nền vì tải hàng trăm MB), và đặt model
+# mặc định. Danh sách model đọc trực tiếp từ `hachimimt.translator.MODELS`
+# nên khi bổ sung Local MT mới chỉ cần thêm entry ở đó — trang tự hiển thị.
+
+@router.get("/api/ui/settings/local-mt")
+def local_mt_overview():
+    from novel2epub.hachimimt.translator import (
+        MODELS,
+        MODELS_DIR,
+        is_model_downloaded,
+    )
+
+    cfg = deps.cfg()
+    tr = cfg.translate
+    models = []
+    for key, m in MODELS.items():
+        models.append({
+            "key": key,
+            "label": m.label,
+            "model_id": m.model_id,
+            "ct2_model_id": m.ct2_model_id or m.model_id,
+            "size_mb": m.ct2_size_mb,
+            "default_beam": m.default_beam,
+            "downloaded": is_model_downloaded(key, "ct2"),
+        })
+    return {
+        # Thiết kế cho việc bổ sung Local MT khác sau này: mỗi engine một nhóm
+        # model; hiện tại chỉ có "hachimimt".
+        "engines": [
+            {
+                "id": "hachimimt",
+                "label": "Local MT (NMT cục bộ)",
+                "models": models,
+            }
+        ],
+        "models_dir": str(MODELS_DIR),
+        "config": {
+            "model_key": tr.hachimimt.model_key,
+            "backend": tr.hachimimt.backend,
+            "beam_size": tr.hachimimt.beam_size,
+            "chunk_mode": tr.hachimimt.chunk_mode,
+        },
+    }
+
+
+@router.post("/api/ui/settings/local-mt/config")
+def local_mt_config_save(payload: dict):
+    """Lưu model/beam/chunk mode MẶC ĐỊNH dùng chung (`defaults.translate`)."""
+    from novel2epub.hachimimt.translator import MODELS
+
+    current = deps.cfg().translate
+    model_key = str(payload.get("model_key") or "").strip()
+    if model_key and model_key not in MODELS:
+        raise HTTPException(status_code=400, detail=f"Không biết model: {model_key}")
+    chunk_mode = str(payload.get("chunk_mode") or current.hachimimt.chunk_mode).strip()
+    if chunk_mode not in ("sentence", "paragraph"):
+        raise HTTPException(status_code=400, detail="chunk_mode phải là 'sentence' hoặc 'paragraph'.")
+    hachimimt = {
+        "model_key": model_key or current.hachimimt.model_key,
+        "beam_size": max(1, int(payload.get("beam_size", current.hachimimt.beam_size))),
+        "chunk_mode": chunk_mode,
+    }
+    update_defaults(deps.WORKSPACE_PATH, {"translate": {"hachimimt": hachimimt}})
+    logger.info(
+        "[config][LOCAL-MT] defaults lưu: model_key=%s beam=%s chunk_mode=%s",
+        hachimimt["model_key"], hachimimt["beam_size"], hachimimt["chunk_mode"],
+    )
+    return {"saved": True, "config": {**hachimimt, "backend": "ctranslate2"}}
+
+
+@router.post("/api/ui/settings/local-mt/install")
+def local_mt_install(request: Request, payload: dict):
+    """Tải về / cập nhật model Local MT qua job nền.
+
+    `ensure_model_files` idempotent: file đủ rồi trả ngay không tải gì; thiếu
+    thì snapshot_download bổ sung đúng pattern còn thiếu (cập nhật cũng là gọi
+    lại hàm này). Job category "both" — chiếm độc quyền vì tải nặng CPU/IO.
+    """
+    import threading
+
+    from novel2epub.hachimimt.translator import Backend, MODELS, ensure_model_files
+
+    model_key = str(payload.get("model_key") or "").strip()
+    if model_key not in MODELS:
+        raise HTTPException(status_code=400, detail=f"Không biết model: {model_key}")
+    label = MODELS[model_key].label
+    cancel_event = threading.Event()
+
+    def _target(log, _key=model_key, _ev=cancel_event):
+        log(f"[local-mt] Bắt đầu tải/cập nhật {MODELS[_key].model_id} …")
+        path = ensure_model_files(MODELS[_key], Backend.CT2)
+        log(f"[local-mt] Xong: {path}")
+
+    started = request.app.state.job.start_custom(
+        f"local-mt-install-{model_key}",
+        _target,
+        category="both",
+        cancel_event=cancel_event,
+        label=job_label("local-mt-install", title=label),
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return {"started": True, "model_key": model_key}
+
+
+@router.get("/api/ui/settings/translate-defaults")
+def translate_defaults_get():
+    """Cấu hình DỊCH CHUNG (defaults.translate) hiển thị trên trang quản lý.
+
+    Không chứa credential AI (Global AI lo) và phần Local MT (trang riêng)."""
+    tr = deps.cfg().translate
+    return {
+        "type": tr.type,
+        "source_language": tr.source_language,
+        "target_language": tr.target_language,
+        "genre": tr.genre,
+        "tone": tr.style.tone,
+        "pronoun_policy": tr.style.pronoun_policy,
+        "title_mode": tr.style.title_mode,
+        "han_viet_level": tr.style.han_viet_level,
+        "keep_paragraphs": tr.style.keep_paragraphs,
+        "delay_seconds": tr.delay_seconds,
+        "max_workers": tr.max_workers,
+        "batch_size": tr.batch_size,
+        "prompt_max_chars": tr.prompt_max_chars,
+        "retry_attempts": tr.retry.attempts,
+        "retry_delay_seconds": tr.retry.delay_seconds,
+        "chunk_max_chars": tr.chunk.max_chars,
+        "chunk_overlap_paragraphs": tr.chunk.overlap_paragraphs,
+        "auto_glossary": tr.auto_glossary,
+        "use_idioms": tr.use_idioms,
+        "ai_glossary_analysis": tr.ai_glossary_analysis,
+        "auto_cleanup_han": tr.auto_cleanup_han,
+        "cleanup_han_engine": tr.cleanup_han.engine,
+        "cleanup_han_max_chars": tr.cleanup_han.max_chars,
+        "cleanup_han_retries": tr.cleanup_han.retries,
+        "prompt_template": tr.openai.prompt_template,
+        "title_prompt_template": tr.openai.title_prompt_template,
+        # Cho combobox Thể loại trên trang quản lý (giống tab Dịch của ebook).
+        "genres": [{"value": k, "label": v.label or k} for k, v in GENRE_PRESETS.items()],
+    }
+
+
+@router.post("/api/ui/settings/translate-defaults")
+def translate_defaults_save(payload: dict):
+    """Ghi cấu hình DỊCH CHUNG vào defaults.translate (deep-merge).
+
+    Prompt ghi qua `openai` để merge không đè mất credential đang có; các
+    trường khác ghi phẳng/nested tương ứng cấu trúc dataclass."""
+    genre = str(payload.get("genre") or "auto").strip()
+    translate: dict = {
+        "source_language": str(payload.get("source_language") or "").strip(),
+        "target_language": str(payload.get("target_language") or "vi").strip() or "vi",
+        "genre": genre,
+        "style": {
+            "tone": str(payload.get("tone") or ""),
+            "pronoun_policy": str(payload.get("pronoun_policy") or ""),
+            "title_mode": str(payload.get("title_mode") or ""),
+            "han_viet_level": str(payload.get("han_viet_level") or ""),
+            "keep_paragraphs": bool(payload.get("keep_paragraphs", True)),
+        },
+        "delay_seconds": max(0.0, float(payload.get("delay_seconds", 0.5))),
+        "max_workers": max(1, int(payload.get("max_workers", 1))),
+        "batch_size": max(1, int(payload.get("batch_size", 1))),
+        "prompt_max_chars": max(0, int(payload.get("prompt_max_chars", 20000))),
+        "retry": {
+            "attempts": max(1, int(payload.get("retry_attempts", 1))),
+            "delay_seconds": max(0.0, float(payload.get("retry_delay_seconds", 0.0))),
+        },
+        "chunk": {
+            "max_chars": max(0, int(payload.get("chunk_max_chars", 0))),
+            "overlap_paragraphs": max(0, int(payload.get("chunk_overlap_paragraphs", 0))),
+        },
+        "auto_glossary": bool(payload.get("auto_glossary", False)),
+        "use_idioms": bool(payload.get("use_idioms", True)),
+        "ai_glossary_analysis": bool(payload.get("ai_glossary_analysis", False)),
+        "auto_cleanup_han": bool(payload.get("auto_cleanup_han", False)),
+        "cleanup_han": {
+            "engine": "openai" if payload.get("cleanup_han_engine") == "openai" else "local_mt",
+            "max_chars": max(0, int(payload.get("cleanup_han_max_chars", 18000))),
+            "retries": max(0, int(payload.get("cleanup_han_retries", 1))),
+        },
+    }
+    prompt_template = str(payload.get("prompt_template") or "")
+    title_prompt_template = str(payload.get("title_prompt_template") or "")
+    openai_update: dict = {}
+    if prompt_template.strip():
+        openai_update["prompt_template"] = clean_prompt_text(prompt_template)
+    if title_prompt_template.strip():
+        openai_update["title_prompt_template"] = clean_prompt_text(title_prompt_template)
+    if openai_update:
+        translate["openai"] = openai_update
+    update_defaults(deps.WORKSPACE_PATH, {"translate": translate})
+    logger.info(
+        "[config][DỊCH-CHUNG] defaults lưu: genre=%s tone=%r workers=%s batch=%s "
+        "prompt_max_chars=%s chunk=%s cleanup_han=%s/%s prompt=%s",
+        translate["genre"], translate["style"]["tone"], translate["max_workers"],
+        translate["batch_size"], translate["prompt_max_chars"],
+        translate["chunk"], translate["cleanup_han"]["engine"],
+        translate["cleanup_han"]["retries"], bool(openai_update),
+    )
+    return {"saved": True}

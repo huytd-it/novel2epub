@@ -20,6 +20,7 @@ export {
   PiCaretUpDown as IconSwitch,
   PiChats as IconChat,
   PiCheck as IconCheck,
+  PiCpu as IconChip,
   PiClock as IconClock,
   PiCopy as IconCopy,
   PiGearSix as IconSettings,
@@ -50,3 +51,7 @@ export {
   PiTrash as IconTrash,
   PiX as IconClose,
 } from "react-icons/pi";
+
+/** Icon "ngôn ngữ" cho trang Dịch Chung — không có tên gợi nhớ sẵn trong
+    Phosphor nên đặt alias tại đây cùng quy tắc đặt tên theo việc dùng. */
+export { PiGlobe as IconLanguages } from "react-icons/pi";

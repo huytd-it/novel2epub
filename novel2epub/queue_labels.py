@@ -21,6 +21,7 @@ ACTION_LABELS = {
     "cleanup-han": "Dọn chữ Hán",
     "cleanup-han-local-mt": "Dọn chữ Hán bằng Local MT",
     "crawl": "Cào dữ liệu",
+    "crawl-force": "Cào lại (force)",
     "delete-translation": "Xóa bản dịch",
     "fetch-toc": "Cập nhật mục lục",
     "glossary-approve": "Duyệt thuật ngữ",

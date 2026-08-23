@@ -1498,7 +1498,7 @@ def step_translate_toc_selected(
         items = [(ch.index, ch.title_zh or ch.title) for ch in to_translate]
         inner = translator.inner if hasattr(translator, "inner") else translator
         if hasattr(inner, "translate_titles_once"):
-            log(f"[toc] Đang dịch thông minh {len(items)} tiêu đề trong một prompt…")
+            log(f"[toc] Đang dịch tiêu đề thông minh {len(items)} tiêu đề trong một prompt…")
             translated = inner.translate_titles_once([source for _index, source in items])
             if len(translated) != len(items) or any(not title.strip() for title in translated):
                 raise RuntimeError("AI không trả đủ tiêu đề trong prompt dịch thông minh.")
@@ -1507,7 +1507,7 @@ def step_translate_toc_selected(
             title_lookup = _batch_translate_titles(translator, to_translate, log)
     else:
         title_lookup = {}
-        log(f"[toc] Đang dịch nhanh lần lượt {len(to_translate)} tiêu đề…")
+        log(f"[toc] Đang dịch tiêu đề nhanh lần lượt {len(to_translate)} tiêu đề…")
         for ch in to_translate:
             source = ch.title_zh or ch.title
             prefix, title_text = split_zh_title_number(source)
@@ -1549,10 +1549,17 @@ def step_clean_toc_titles(
 
     Luôn chuẩn hóa tiêu đề nguồn: `title_zh` nếu đã lưu, nếu chưa thì `title`.
     `include_translated=True` chuẩn hóa thêm `title` khi đã có `title_zh`.
+    Ngoài manifest, chuẩn hóa cả TIÊU ĐỀ THEO NHÁNH (`local_mt`/`ai`) — bản
+    dịch máy tự dịch lại tiêu đề nên thường còn nguyên từ rác dù manifest đã
+    sạch; bỏ qua nhánh sẽ khiến EPUB/Reader hiện tiêu đề cũ.
     `apply=False` chỉ preview; `apply=True` ghi các trường thực sự thay đổi.
 
-    Trả `{scanned, changed, changes, applied, include_translated}`.
+    Trả `{scanned, changed, changes, applied, include_translated}` — mỗi item
+    `changes[i]` có thể kèm `branches: {<branch>: {title, title_zh}}` với
+    `(old, new)` cho từng trường nhánh bị thay đổi.
     """
+    from . import revisions
+
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
@@ -1577,7 +1584,34 @@ def step_clean_toc_titles(
             changed_fields.append("title")
         if new_zh != old_zh:
             changed_fields.append("title_zh")
-        if changed_fields:
+
+        # Tiêu đề theo nhánh — độc lập với manifest, cùng quy tắc dọn.
+        branch_diffs: dict[str, dict[str, tuple[str, str]]] = {}
+        branch_updates: dict[str, tuple[str, str]] = {}
+        for branch in revisions.BRANCHES:
+            b_title = storage.read_branch_title(ch, branch)
+            b_zh = storage.read_branch_title_zh(ch, branch)
+            if not (b_title or b_zh):
+                continue
+            # Nhánh không có title_zh riêng thì title của nhánh CHÍNH là nguồn
+            # → luôn dọn được; có rồi thì title là bản dịch, chỉ dọn khi được
+            # cho phép (đồng bộ quy tắc của manifest phía trên).
+            b_new = (
+                strip_toc_junk(normalize_toc_title(b_title))
+                if (include_translated or not b_zh)
+                else b_title
+            )
+            b_new_zh = strip_toc_junk(normalize_toc_title(b_zh)) if b_zh else b_zh
+            diff: dict[str, tuple[str, str]] = {}
+            if b_new != b_title:
+                diff["title"] = (b_title, b_new)
+            if b_new_zh != b_zh:
+                diff["title_zh"] = (b_zh, b_new_zh)
+            if diff:
+                branch_diffs[branch] = diff
+                branch_updates[branch] = (b_new, b_new_zh)
+
+        if changed_fields or branch_diffs:
             changes.append({
                 "index": ch.index,
                 "old": old,
@@ -1585,19 +1619,25 @@ def step_clean_toc_titles(
                 "old_zh": old_zh,
                 "new_zh": new_zh,
                 "changed_fields": changed_fields,
+                "branches": branch_diffs,
+                # Dùng lúc apply: (title, title_zh) mới cho từng nhánh.
+                "branch_updates": {b: tuple(v) for b, v in branch_updates.items()},
             })
-
 
     applied = 0
     if apply and changes:
         by_index = {c["index"]: c for c in changes}
         for ch in selected:
-            if ch.index in by_index:
-                change = by_index[ch.index]
+            change = by_index.get(ch.index)
+            if change is None:
+                continue
+            if change["changed_fields"]:
                 ch.title = change["new"]
                 ch.title_zh = change["new_zh"]
                 storage.save_chapter(ch)
-                applied += 1
+            for branch, (b_title, b_zh) in change.get("branch_updates", {}).items():
+                storage.write_branch_titles(ch, branch, b_title, b_zh)
+            applied += 1
 
     verb = "Đã dọn" if apply else "Preview"
     log(f"[clean-toc] {verb}: {len(changes)} tiêu đề dính từ rác / {len(selected)} chương quét"

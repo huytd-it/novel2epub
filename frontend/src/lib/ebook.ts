@@ -38,6 +38,9 @@ export interface ChapterRow {
   index: number;
   title: string;
   visible_title: string;
+  /** Tiêu đề nguồn tiếng Trung trong manifest — cho "Hiển thị zh_title"
+      và suy luận số chương thật khi tiêu đề dịch thiếu số. */
+  title_zh: string;
   url: string;
   has_raw: boolean;
   /** Bản dịch hoàn tất ở nhánh đang active (thứ Reader/EPUB sử dụng). */
@@ -80,6 +83,8 @@ export interface ChapterFilters {
   /** "yes" = chỉ chương sai mẫu "Chương N[: tên]" hoặc còn chữ Hán. */
   filter_title_error: string;
   filter_skipped: string;
+  /** Hiện tiêu đề tiếng Trung ngay dưới tiêu đề đã dịch trong bảng chương. */
+  show_zh_title: boolean;
 }
 
 export const DEFAULT_FILTERS: ChapterFilters = {
@@ -93,6 +98,7 @@ export const DEFAULT_FILTERS: ChapterFilters = {
   filter_missing: "any",
   filter_title_error: "any",
   filter_skipped: "any",
+  show_zh_title: false,
 };
 
 export interface Paragraph {
@@ -199,8 +205,11 @@ export function useChapters(
   offset: number,
   limit: number,
 ) {
+  // `show_zh_title` chỉ là cờ hiển thị phía client — không gửi lên API.
+  const { show_zh_title: _zh, ...filterParams } = filters;
+  void _zh;
   const params = new URLSearchParams({
-    ...filters,
+    ...filterParams,
     offset: String(offset),
     limit: String(limit),
   });
@@ -231,8 +240,10 @@ export const CHAPTERS_PAGE_SIZE = 100;
  * `total`, để không lãng phí một request thừa khi bộ lọc loại bớt chương.
  */
 export function useInfiniteChapters(slug: string, filters: ChapterFilters, pageSize = CHAPTERS_PAGE_SIZE) {
+  const { show_zh_title: _zh, ...filterParams } = filters;
+  void _zh;
   const params = new URLSearchParams({
-    ...filters,
+    ...filterParams,
     limit: String(pageSize),
   });
   return useInfiniteQuery({
@@ -264,6 +275,20 @@ export function rowTone(row: ChapterRow): "neutral" | "gold" | "indigo" | "celad
   if (row.skipped) return "neutral";
   if (!row.has_translated) return row.has_raw ? "indigo" : "neutral";
   return row.bientap ? "celadon" : "gold";
+}
+
+/**
+ * Số chương THẬT suy luận từ tiêu đề — ưu tiên tiêu đề dịch ("Chương 123: …",
+ * cả "Quyển/Hồi"), fallback sang tiêu đề gốc ("第123章 …"). Trả null khi không
+ * parse được số nào; dùng cho báo cáo khoảng trống index để phân biệt
+ * "nguồn bỏ trống index" với "thiếu nội dung thật".
+ */
+export function chapterOrdinal(title: string, titleZh = ""): number | null {
+  const vi = /(?:^|\s)(?:chương|chapter|ch\.?|quyển|hồi)\s*(\d+)\b/i.exec(title || "");
+  if (vi) return Number(vi[1]);
+  const zh = /^第\s*([\d]+)\s*(?:章|卷|回)/.exec((titleZh || "").trim());
+  if (zh) return Number(zh[1]);
+  return null;
 }
 
 /**

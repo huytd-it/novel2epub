@@ -14,11 +14,19 @@ _HAN_RE = re.compile(r"[一-鿿㐀-䶿豈-﫿]")
 
 _TOC_ORDINAL_PREFIX_RE = re.compile(r"^\s*\d+\s*[.．、]\s*")
 _TOC_TRAILING_PAREN_RE = re.compile(r"\s*[（(]([^（）()]*)[）)]\s*$")
+# Phần đánh dấu truyện chia đoạn giữ nguyên cả bản Hán lẫn bản đã dịch:
+# (上/中/下) máy dịch thường thành (Thượng/Trung/Hạ). So khớp KHÔNG phân biệt
+# hoa/thường vì kiểu viết là chuyện trình bày.
 _TOC_PART_MARKERS = {
     "上", "中", "下",
     "上篇", "中篇", "下篇",
     "上部", "中部", "下部",
+    "thượng", "trung", "hạ",
+    "thượng tập", "trung tập", "hạ tập",
 }
+# "(1)", "(2)"… cuối tiêu đề là số thứ tự phần trong cùng một chương gốc
+# (tác giả chia nhỏ) — mang ý nghĩa thứ tự nên phải GIỮ, không phải ghi chú rác.
+_TOC_NUMBER_MARKER_RE = re.compile(r"^\d+$")
 
 
 def count_han_chars(text: str) -> int:
@@ -26,13 +34,23 @@ def count_han_chars(text: str) -> int:
 
 
 def normalize_toc_title(title: str) -> str:
-    """Remove a list ordinal and trailing parenthetical note from a TOC title."""
+    """Remove a list ordinal and trailing parenthetical note from a TOC title.
+
+    Giữ lại ngoặc mang Ý NGHĨA THỨ TỰ: phần truyện (上)/(Thượng)/(Hạ) và số
+    thứ tự "(1)", "(2)" — chỉ cắt ghi chú rác (quảng cáo, chú thích).
+    """
     if not title:
         return title
     out = _TOC_ORDINAL_PREFIX_RE.sub("", title)
     trailing = _TOC_TRAILING_PAREN_RE.search(out)
-    if trailing and trailing.group(1).strip() not in _TOC_PART_MARKERS:
-        out = out[:trailing.start()]
+    if trailing:
+        marker = trailing.group(1).strip()
+        keep = (
+            marker.lower() in _TOC_PART_MARKERS
+            or _TOC_NUMBER_MARKER_RE.match(marker) is not None
+        )
+        if not keep:
+            out = out[:trailing.start()]
     return out.strip()
 
 
@@ -149,6 +167,9 @@ class ChapterRow:
     # đã có fallback "Chương {index}" nên luôn đúng mẫu, che mất chương thiếu
     # tiêu đề.
     title_format_ok: bool = True
+    # Tiêu đề nguồn tiếng Trung — dùng cho "Hiển thị zh_title" và suy luận số
+    # chương thật khi tiêu đề dịch thiếu/mất số.
+    title_zh: str = ""
 
     @property
     def has_missing(self) -> bool:
@@ -212,6 +233,11 @@ def chapter_rows(
     storage: Storage,
     stats_map: dict[int, dict] | None = None,
 ) -> list[ChapterRow]:
+    chapters = list(chapters)
+    # Một query cho toàn bộ tiêu đề nhánh active — gọi `read_active_branch_title`
+    # từng chương ở đây là 2 full-row (kèm blob raw/dịch) MỖI chương, nguyên
+    # nhân chính khiến endpoint bảng chương chậm với truyện dài.
+    active_titles = storage.bulk_active_titles() if chapters else {}
     rows = []
     for ch in chapters:
         if stats_map is not None:
@@ -279,7 +305,7 @@ def chapter_rows(
             except Exception:
                 pass
 
-        active_title = storage.read_active_branch_title(ch)
+        active_title = active_titles.get(ch.index) or ch.title
         rows.append(ChapterRow(
             index=ch.index,
             title=active_title,
@@ -299,6 +325,7 @@ def chapter_rows(
             bientap_tooltip=bientap_tooltip,
             skipped=ch.skipped,
             title_format_ok=title_format_ok(active_title),
+            title_zh=ch.title_zh or "",
         ))
     return rows
 
@@ -386,17 +413,20 @@ def apply_chapter_query(
             continue
         out.append(row)
     key = (sort or "source").lower()
+    desc = (direction or "asc").lower() == "desc"
     if key == "title":
-        key_fn = lambda r: (r.visible_title.lower(), r.index)
-        return sorted(out, key=key_fn, reverse=(direction or "asc").lower() == "desc")
+        return sorted(out, key=lambda r: (r.visible_title.lower(), r.index), reverse=desc)
     if key == "raw":
-        key_fn = lambda r: (r.has_raw, r.index)
-        return sorted(out, key=key_fn, reverse=(direction or "asc").lower() == "desc")
+        return sorted(out, key=lambda r: (r.has_raw, r.index), reverse=desc)
     if key == "translated":
-        key_fn = lambda r: (r.has_translated, r.index)
-        return sorted(out, key=key_fn, reverse=(direction or "asc").lower() == "desc")
+        return sorted(out, key=lambda r: (r.has_translated, r.index), reverse=desc)
+    if key in ("zh_chars", "words"):
+        # Sắp theo ĐỘ DÀI nội dung: "zh_chars" = số chữ Hán bản gốc (raw),
+        # "words" = số từ bản dịch. Index là tie-breaker để thứ tự ổn định.
+        attr = "zh_char_count" if key == "zh_chars" else "word_count"
+        return sorted(out, key=lambda r: (getattr(r, attr), r.index), reverse=desc)
     # "source" (default): preserve manifest list order, chỉ reverse nếu desc
-    if (direction or "asc").lower() == "desc":
+    if desc:
         out.reverse()
     return out
 

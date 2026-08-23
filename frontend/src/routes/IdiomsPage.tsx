@@ -16,6 +16,7 @@ import {
 import { Panel, EmptyState } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { SkeletonTable } from "@/components/ui/Loading";
+import { SelectionBar } from "@/components/ui/SelectionBar";
 import { Checkbox, Input, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -321,15 +322,6 @@ export function IdiomsPage() {
             placeholder="Tìm Hán / bản đẹp / bản máy"
             className="w-64"
           />
-          {selected.size > 0 ? (
-            <Button
-              variant="danger"
-              icon={<IconTrash size={14} />}
-              onClick={() => setConfirmBulkDelete(true)}
-            >
-              Xóa đã chọn ({selected.size})
-            </Button>
-          ) : null}
           <Button icon={<IconPlus size={14} />} variant="primary" onClick={() => setAddOpen(true)}>
             Thêm mục
           </Button>
@@ -447,6 +439,18 @@ export function IdiomsPage() {
           </div>
         )}
       </Panel>
+
+      {selected.size > 0 ? (
+        <SelectionBar
+          count={selected.size}
+          noun="mục đã chọn"
+          onClear={() => setSelected(new Set())}
+        >
+          <Button variant="danger" icon={<IconTrash size={14} />} onClick={() => setConfirmBulkDelete(true)}>
+            Xóa đã chọn ({selected.size})
+          </Button>
+        </SelectionBar>
+      ) : null}
 
       <AddIdiomModal open={addOpen} onClose={() => setAddOpen(false)} />
       <ExportImportModal open={ioOpen} onClose={() => setIoOpen(false)} />

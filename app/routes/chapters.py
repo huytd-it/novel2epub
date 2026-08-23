@@ -872,6 +872,49 @@ async def api_batch_translate_titles(
     return JSONResponse({"started": True, "total": len(index_list)})
 
 
+@router.post("/api/ebooks/{slug}/batch/crawl")
+async def api_batch_crawl(
+    request: Request,
+    slug: str,
+    indexes: str = Form(...),
+    force: bool = Form(False),
+):
+    """Crawl nội dung các chương ĐÃ CHỌN qua job nền.
+
+    `force=False` chỉ tải chương còn thiếu raw (an toàn khi chạy lại);
+    `force=True` tải LẠI cả chương đã có raw — dùng khi chương bị crawl lỗi
+    rỗng/quá ngắn hoặc nguồn vừa sửa nội dung. Raw cũ bị ghi đè, bản dịch giữ
+    nguyên.
+    """
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+    cancel_event = threading.Event()
+
+    def _target(log, _cfg=cfg, _idx=index_list, _force=force, _ev=cancel_event):
+        try:
+            step_crawl_selected(_cfg, log, force=_force, selected_indexes=_idx, should_cancel=_ev.is_set)
+        except RuntimeError as e:
+            log(f"[batch-crawl] Lỗi: {e}")
+
+    started = request.app.state.job.start_custom(
+        f"batch-crawl{'-force' if force else ''}-{len(index_list)}",
+        _target,
+        category="crawl",
+        ebook=slug,
+        chapter_indexes=index_list,
+        cancel_event=cancel_event,
+        label=batch_job_label(
+            "crawl-force" if force else "crawl",
+            title=cfg.novel.title, slug=slug, count=len(index_list),
+        ),
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "total": len(index_list), "force": force})
+
+
 @router.post("/api/ebooks/{slug}/batch/delete-translation")
 async def api_batch_delete_translation(request: Request, slug: str, indexes: str = Form(...)):
     """Xóa hàng loạt bản dịch (translated + snapshot MT + meta) cho các chương đã chọn.

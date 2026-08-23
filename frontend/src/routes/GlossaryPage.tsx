@@ -22,6 +22,7 @@ import {
 import { Panel, EmptyState } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { Loading, SkeletonTable } from "@/components/ui/Loading";
+import { SelectionBar } from "@/components/ui/SelectionBar";
 import { Checkbox, Input, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -491,45 +492,6 @@ export function GlossaryPage() {
       {view === "all" ? (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            {pendingSelected.size > 0 ? (
-              <>
-                <Button
-                  variant="primary"
-                  loading={approvePending.isPending}
-                  onClick={() =>
-                    approvePending.mutate(
-                      pendingRows
-                        .filter((p) => pendingSelected.has(p.source))
-                        .map((p) => ({ source: p.source, target: p.target, note: p.note })),
-                      {
-                        onSuccess: () => {
-                          setPendingSelected(new Set());
-                          toast("Đã xếp vào hàng đợi — xem tiến độ ở trang Hàng đợi.");
-                        },
-                      },
-                    )
-                  }
-                >
-                  Duyệt đã chọn ({pendingSelected.size})
-                </Button>
-                <Button
-                  loading={clearPending.isPending}
-                  onClick={() =>
-                    clearPending.mutate(
-                      { sources: [...pendingSelected] },
-                      { onSuccess: () => setPendingSelected(new Set()) },
-                    )
-                  }
-                >
-                  Bỏ đề xuất đã chọn
-                </Button>
-              </>
-            ) : null}
-            {selected.size > 0 ? (
-              <Button variant="danger" icon={<IconTrash size={14} />} onClick={() => setConfirmBulkDelete(true)}>
-                Xóa đã chọn ({selected.size})
-              </Button>
-            ) : null}
             <div className="ml-auto flex flex-wrap gap-2">
               <Button icon={<IconPlus size={14} />} variant="primary" onClick={() => setAddOpen(true)}>
                 Thêm mục
@@ -662,6 +624,57 @@ export function GlossaryPage() {
               </div>
             )}
           </Panel>
+
+          {selected.size > 0 || pendingSelected.size > 0 ? (
+            <SelectionBar
+              count={selected.size + pendingSelected.size}
+              noun="mục đã chọn"
+              onClear={() => {
+                setSelected(new Set());
+                setPendingSelected(new Set());
+              }}
+            >
+              {pendingSelected.size > 0 ? (
+                <>
+                  <Button
+                    variant="primary"
+                    loading={approvePending.isPending}
+                    onClick={() =>
+                      approvePending.mutate(
+                        pendingRows
+                          .filter((p) => pendingSelected.has(p.source))
+                          .map((p) => ({ source: p.source, target: p.target, note: p.note })),
+                        {
+                          onSuccess: () => {
+                            setPendingSelected(new Set());
+                            toast("Đã xếp vào hàng đợi — xem tiến độ ở trang Hàng đợi.");
+                          },
+                        },
+                      )
+                    }
+                  >
+                    Duyệt đề xuất ({pendingSelected.size})
+                  </Button>
+                  <Button
+                    loading={clearPending.isPending}
+                    onClick={() =>
+                      clearPending.mutate(
+                        { sources: [...pendingSelected] },
+                        { onSuccess: () => setPendingSelected(new Set()) },
+                      )
+                    }
+                  >
+                    Bỏ đề xuất
+                  </Button>
+                </>
+              ) : null}
+              {selected.size > 0 ? (
+                <Button variant="danger" icon={<IconTrash size={14} />} onClick={() => setConfirmBulkDelete(true)}>
+                  Xóa đã chọn ({selected.size})
+                </Button>
+              ) : null}
+            </SelectionBar>
+          ) : null}
         </>
       ) : (
         <Panel className="overflow-hidden">

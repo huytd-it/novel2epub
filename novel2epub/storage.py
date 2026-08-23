@@ -292,6 +292,30 @@ class Storage:
             }
         return result
 
+    def bulk_active_titles(self) -> dict[int, str]:
+        """Tiêu đề nhánh active của mọi chương bằng MỘT query hẹp.
+
+        Thay cho gọi `read_active_branch_title` từng chương khi build bảng:
+        mỗi gọi đó quét 2 lần full-row (`_chapter_row`) gồm blob raw + cả hai
+        bản dịch — với vài nghìn chương là hàng nghìn round-trip chở dữ liệu
+        blob chỉ để lấy một chuỗi tiêu đề. Trả về dict {idx: title} KHÔNG kèm
+        fallback `ch.title`; caller tự fallback khi key thiếu hoặc rỗng.
+        """
+        rows = self.conn.execute(
+            "SELECT idx, active_branch, title, local_mt_title "
+            "FROM chapters WHERE ebook_slug = ?",
+            (self.slug,),
+        ).fetchall()
+        return {
+            row["idx"]: (
+                row["local_mt_title"]
+                if revisions.normalize_branch(row["active_branch"]) == "local_mt"
+                else row["title"]
+            )
+            or ""
+            for row in rows
+        }
+
     # ----- manifest -----
     def load_manifest(self) -> Manifest | None:
         row = self.conn.execute(

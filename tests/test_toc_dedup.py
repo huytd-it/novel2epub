@@ -71,3 +71,16 @@ def test_normalize_toc_title_keeps_trailing_part_markers():
     assert normalize_toc_title("3.第3章 梅丽莎（上）") == "第3章 梅丽莎（上）"
     assert normalize_toc_title("第4章 仪式（中篇）") == "第4章 仪式（中篇）"
     assert normalize_toc_title("第5章 占卜(下部)") == "第5章 占卜(下部)"
+
+
+def test_normalize_toc_title_keeps_vietnamese_part_markers_and_ordinals():
+    """Bản dịch giữ phần đánh dấu thứ tự: (Thượng)/(Hạ) và số phần (1), (2)."""
+    assert normalize_toc_title("Chương 12: Bão tuyết (Thượng)") == "Chương 12: Bão tuyết (Thượng)"
+    assert normalize_toc_title("Chương 13: Bão tuyết (Hạ)") == "Chương 13: Bão tuyết (Hạ)"
+    assert normalize_toc_title("Chương 14: Đấu chiêu (Trung)") == "Chương 14: Đấu chiêu (Trung)"
+    assert normalize_toc_title("Chương 15: Song quyết（上篇）") == "Chương 15: Song quyết（上篇）"
+    # Số thứ tự phần trong ngoặc là ý nghĩa thật, không phải ghi chú rác.
+    assert normalize_toc_title("第20章 决战 (1)") == "第20章 决战 (1)"
+    assert normalize_toc_title("第20章 决战 (2)") == "第20章 决战 (2)"
+    # Ghi chú rác thường thì vẫn bị cắt.
+    assert normalize_toc_title("Chương 16: Khởi hành (đã sửa)") == "Chương 16: Khởi hành"

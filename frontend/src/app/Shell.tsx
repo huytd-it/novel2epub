@@ -14,10 +14,12 @@ import {
   IconCharacters,
   IconChevronLeft,
   IconChevronRight,
+  IconChip,
   IconClock,
   IconDisk,
   IconGauge,
   IconGlossary,
+  IconLanguages,
   IconLibrary,
   IconLog,
   IconMenu,
@@ -42,6 +44,8 @@ const WORKSHOP: Item[] = [
 ];
 
 const SYSTEM: Item[] = [
+  { to: "/translate-settings", label: "Dịch chung", icon: IconLanguages },
+  { to: "/local-mt", label: "Local MT chung", icon: IconChip },
   { to: "/sources", label: "Nguồn", icon: IconSource },
   { to: "/idioms", label: "Từ điển chung", icon: IconBook },
   { to: "/automation", label: "Tự động hóa", icon: IconClock },

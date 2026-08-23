@@ -112,3 +112,43 @@ def test_missing_title_counts_as_format_error(tmp_path):
     row = _rows(storage)[0]
     assert row.visible_title == "Chương 9"
     assert row.title_format_ok is False
+
+
+def test_chapter_row_exposes_source_title_zh(tmp_path):
+    """`title_zh` cần có ở dòng bảng cho "Hiển thị zh_title" và suy luận số chương."""
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=4, url="http://x/4", title="Chương 9", title_zh="第9章 回家")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+
+    row = _rows(storage)[0]
+    assert row.title_zh == "第9章 回家"
+
+
+def test_sort_by_content_length(tmp_path):
+    """Sắp xếp theo độ dài nội dung: `zh_chars` = bản gốc, `words` = bản dịch."""
+    storage = Storage(tmp_path, "t")
+    chs = [
+        Chapter(index=1, url="http://x/1", title="Chương 1"),
+        Chapter(index=2, url="http://x/2", title="Chương 2"),
+        Chapter(index=3, url="http://x/3", title="Chương 3"),
+    ]
+    storage.save_manifest(Manifest(slug="t", chapters=chs))
+    # Chương 2 dài nhất, chương 1 ngắn hơn, chương 3 không có gì
+    # (cả raw lẫn dịch) — độ lệch rõ để thứ tự không phụ thuộc tie-break.
+    storage.write_raw(chs[1], "原文内容很多很多很多")
+    storage.write_raw(chs[0], "原文内容很多")
+    storage.write_branch_text(chs[1], "ai", "bản dịch dài nhất trong ba chương")
+    storage.mark_branch_complete(chs[1], "ai")
+    storage.set_active_branch(chs[1], "ai")
+    storage.write_branch_text(chs[0], "local_mt", "bản dịch vừa")
+    storage.mark_branch_complete(chs[0], "local_mt")
+    storage.set_active_branch(chs[0], "local_mt")
+
+    # Đường production dùng stats_map (projection chapter_ui_state) — test cũng
+    # vậy để word_count/zh_char_count tính đúng trên nhánh active.
+    manifest = storage.load_manifest()
+    rows = chapter_rows(manifest.chapters, storage, stats_map=storage.bulk_chapter_stats())
+    assert _indexes(rows, sort="zh_chars", direction="desc") == [2, 1, 3]
+    assert _indexes(rows, sort="zh_chars", direction="asc") == [3, 1, 2]
+    assert _indexes(rows, sort="words", direction="desc") == [2, 1, 3]
+    assert _indexes(rows, sort="words", direction="asc") == [3, 1, 2]

@@ -33,6 +33,7 @@ export function BulkPreviewDialog({
   force = false,
   title,
   body,
+  bodyExtra,
   confirmLabel = "Xác nhận",
   onDone,
 }: {
@@ -45,6 +46,9 @@ export function BulkPreviewDialog({
   force?: boolean;
   title: string;
   body?: ReactNode;
+  /** Điều kiện bổ sung hiển thị ngay dưới đoạn body (vd checkbox force) —
+      đổi giá trị bên trong sẽ làm hộp thoại preview lại tự động. */
+  bodyExtra?: ReactNode;
   confirmLabel?: string;
   onDone: (result: BulkConfirmResult) => void;
 }) {
@@ -130,6 +134,7 @@ export function BulkPreviewDialog({
       }
     >
       {body ? <p className="mb-3 text-[13px] opacity-70">{body}</p> : null}
+      {bodyExtra ? <div className="mb-3">{bodyExtra}</div> : null}
 
       {loading ? (
         <Loading label="Đang đánh giá các chương đã chọn" />

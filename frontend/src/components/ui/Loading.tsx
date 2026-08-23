@@ -46,20 +46,26 @@ export function Loading({
   const show = useDelayedFlag(delay);
   const pad = { sm: "py-3", md: "py-12", lg: "py-20" }[size];
 
+  // Nhãn/spinner nằm trong wrapper RIÊNG có opacity cố định: nếu gộp chung
+  // một element thì "opacity-60" và "opacity-0" cùng đè nhau trên một class
+  // attribute mà Tailwind phân định bằng THỨ TỰ stylesheet (opacity-60 thắng)
+  // → khối không bao giờ ẩn được trong khoảng delay, nháy liên tục.
   return (
     <div
       role="status"
       aria-live="polite"
       aria-busy="true"
       className={clsx(
-        "flex items-center justify-center gap-2 text-sm opacity-60 transition-opacity duration-200",
+        "flex items-center justify-center transition-opacity duration-200",
         pad,
-        !show && "opacity-0",
+        !show && "pointer-events-none opacity-0",
         className,
       )}
     >
-      <Spinner className={size === "sm" ? "loading-xs" : undefined} />
-      <LoadingLabel>{label}</LoadingLabel>
+      <div className="flex items-center gap-2 text-sm opacity-60">
+        <Spinner className={size === "sm" ? "loading-xs" : undefined} />
+        <LoadingLabel>{label}</LoadingLabel>
+      </div>
     </div>
   );
 }

@@ -187,3 +187,112 @@ export function useSaveSettings<S extends SettingsSection>(slug: string, section
     onSuccess: () => client.invalidateQueries({ queryKey: settingsKey(slug) }),
   });
 }
+
+/* ── Cấu hình CHUNG của hệ thống (không gắn ebook) ─────────────────── */
+
+/** Một model Local MT trong danh mục — trạng thái tải đọc từ đĩa. */
+export interface LocalMtModel {
+  key: string;
+  label: string;
+  model_id: string;
+  ct2_model_id: string;
+  size_mb: number | null;
+  default_beam: number;
+  downloaded: boolean;
+}
+
+export interface LocalMtEngine {
+  id: string;
+  label: string;
+  models: LocalMtModel[];
+}
+
+export interface LocalMtConfig {
+  model_key: string;
+  backend: string;
+  beam_size: number;
+  chunk_mode: string;
+}
+
+export interface LocalMtOverview {
+  engines: LocalMtEngine[];
+  models_dir: string;
+  config: LocalMtConfig;
+}
+
+export const localMtKey = ["settings", "local-mt"] as const;
+
+export function useLocalMt() {
+  return useQuery({
+    queryKey: localMtKey,
+    queryFn: () => api.get<LocalMtOverview>("/api/ui/settings/local-mt"),
+  });
+}
+
+export function useSaveLocalMtConfig() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Partial<LocalMtConfig>) =>
+      api.post<{ saved: boolean; config: LocalMtConfig }>("/api/ui/settings/local-mt/config", {
+        body: payload,
+      }),
+    onSuccess: () => client.invalidateQueries({ queryKey: localMtKey }),
+  });
+}
+
+export function useInstallLocalMtModel() {
+  return useMutation({
+    mutationFn: (modelKey: string) =>
+      api.post<{ started: boolean; model_key: string }>("/api/ui/settings/local-mt/install", {
+        body: { model_key: modelKey },
+      }),
+  });
+}
+
+/** Cấu hình DỊCH CHUNG (defaults.translate) — prompt, giới hạn, retry… */
+export interface TranslateDefaults {
+  type: string;
+  source_language: string;
+  target_language: string;
+  genre: string;
+  tone: string;
+  pronoun_policy: string;
+  title_mode: string;
+  han_viet_level: string;
+  keep_paragraphs: boolean;
+  delay_seconds: number;
+  max_workers: number;
+  batch_size: number;
+  prompt_max_chars: number;
+  retry_attempts: number;
+  retry_delay_seconds: number;
+  chunk_max_chars: number;
+  chunk_overlap_paragraphs: number;
+  auto_glossary: boolean;
+  use_idioms: boolean;
+  ai_glossary_analysis: boolean;
+  auto_cleanup_han: boolean;
+  cleanup_han_engine: string;
+  cleanup_han_max_chars: number;
+  cleanup_han_retries: number;
+  prompt_template: string;
+  title_prompt_template: string;
+  /** Danh mục thể loại từ GENRE_PRESETS — chỉ có ở response GET, bỏ qua khi lưu. */
+  genres: { value: string; label: string }[];
+}
+
+export const translateDefaultsKey = ["settings", "translate-defaults"] as const;
+
+export function useTranslateDefaults() {
+  return useQuery({
+    queryKey: translateDefaultsKey,
+    queryFn: () => api.get<TranslateDefaults>("/api/ui/settings/translate-defaults"),
+  });
+}
+
+export function useSaveTranslateDefaults() {
+  return useMutation({
+    mutationFn: (payload: TranslateDefaults) =>
+      api.post<{ saved: boolean }>("/api/ui/settings/translate-defaults", { body: payload }),
+  });
+}

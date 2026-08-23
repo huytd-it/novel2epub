@@ -19,6 +19,7 @@ import {
 import { Panel, EmptyState } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { Loading, SkeletonTable } from "@/components/ui/Loading";
+import { SelectionBar } from "@/components/ui/SelectionBar";
 import { Checkbox, Input, InputWithIcon, Select } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -607,11 +608,6 @@ export function CharactersPage() {
               {num(filtered.length)} nhân vật
             </span>
             <div className="ml-auto flex gap-2">
-              {selected.size > 0 ? (
-                <Button variant="danger" icon={<IconTrash size={14} />} onClick={() => setConfirmBulkDelete(true)}>
-                  Xóa đã chọn ({selected.size})
-                </Button>
-              ) : null}
               <Button icon={<IconPlus size={14} />} variant="primary" onClick={() => setAddOpen(true)}>
                 Thêm nhân vật
               </Button>
@@ -679,6 +675,18 @@ export function CharactersPage() {
               </div>
             )}
           </Panel>
+
+          {selected.size > 0 ? (
+            <SelectionBar
+              count={selected.size}
+              noun="nhân vật đã chọn"
+              onClear={() => setSelected(new Set())}
+            >
+              <Button variant="danger" icon={<IconTrash size={14} />} onClick={() => setConfirmBulkDelete(true)}>
+                Xóa đã chọn ({selected.size})
+              </Button>
+            </SelectionBar>
+          ) : null}
         </>
       ) : (
         <Panel className="overflow-hidden">

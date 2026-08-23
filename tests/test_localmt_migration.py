@@ -227,6 +227,45 @@ def test_step_clean_toc_titles_cleans_title_when_source_has_not_been_backfilled(
     assert storage.load_manifest().chapters[0].title == "第1章 开始"
 
 
+def test_step_clean_toc_titles_also_cleans_branch_titles(tmp_path):
+    """Chuẩn hóa TOC phải chạm cả tiêu đề theo NHÁNH (Local MT/AI) — bản dịch
+    máy tự dịch lại tiêu đề nên thường còn nguyên từ rác dù manifest đã sạch."""
+    from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig
+    from novel2epub.pipeline import step_clean_toc_titles
+    from novel2epub.storage import Chapter, Manifest, Storage
+    from novel2epub import revisions
+
+    cfg = Config(
+        novel=NovelConfig(slug="t"),
+        crawl=CrawlConfig(toc_url="http://x/", delay_seconds=0),
+        translate=TranslateConfig(type="localmt", delay_seconds=0),
+        output=OutputConfig(data_dir=str(tmp_path)),
+    )
+    storage = Storage(str(tmp_path), "t")
+    ch = Chapter(index=1, url="http://x/1", title="第1章 绯红", title_zh="第1章 绯红")
+    storage.save_manifest(Manifest(slug="t", chapters=[ch]))
+
+    storage.write_branch_titles(ch, revisions.BRANCH_LOCAL_MT,
+                                title="Chương 1: Hồng (Cầu nguyệt phiếu)", title_zh="第1章 绯红")
+    storage.write_branch_titles(ch, revisions.BRANCH_AI,
+                                title="Chương 1: Hồng", title_zh="第1章 绯红")
+
+    preview = step_clean_toc_titles(cfg, lambda m: None, apply=False, include_translated=True)
+    change = preview["changes"][0]
+    # Preview trả diff cho từng nhánh nhưng CHƯA ghi.
+    assert change["branches"]["local_mt"]["title"] == (
+        "Chương 1: Hồng (Cầu nguyệt phiếu)", "Chương 1: Hồng",
+    )
+    assert storage.read_branch_title(ch, revisions.BRANCH_LOCAL_MT).endswith("(Cầu nguyệt phiếu)")
+
+    result = step_clean_toc_titles(cfg, lambda m: None, apply=True, include_translated=True)
+    assert result["applied"] == 1
+    assert storage.read_branch_title(ch, revisions.BRANCH_LOCAL_MT) == "Chương 1: Hồng"
+    assert storage.read_branch_title_zh(ch, revisions.BRANCH_LOCAL_MT) == "第1章 绯红"
+    # Nhánh AI không có gì phải dọn → giữ nguyên.
+    assert storage.read_branch_title(ch, revisions.BRANCH_AI) == "Chương 1: Hồng"
+
+
 @pytest.mark.parametrize(
     "title,expected",
     [

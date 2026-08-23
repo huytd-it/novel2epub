@@ -58,7 +58,9 @@ class _FakeJob:
             "translate": {"running": False, "step": "", "error": "", "log": []},
         }
 
-    def start_custom(self, name, target, *, category, ebook="", spec=None):
+    def start_custom(self, name, target, *, category, ebook="", spec=None, **_kwargs):
+        # `**_kwargs`: endpoint mới có thể truyền thêm chapter_indexes/label —
+        # fake chỉ cần ghi nhận phần cốt lõi, bỏ qua phần còn lại.
         self.started.append({"name": name, "category": category, "ebook": ebook, "spec": spec})
         self.logs = []
         self.error = ""

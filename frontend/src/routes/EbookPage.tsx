@@ -11,6 +11,7 @@ import { queueKey } from "@/lib/queue";
 import { useCurrentBook } from "@/lib/books";
 import {
   DEFAULT_FILTERS,
+  chapterOrdinal,
   ebookKey,
   rowLabel,
   rowTone,
@@ -54,9 +55,16 @@ function loadFilters(slug: string): ChapterFilters {
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       const merged = { ...DEFAULT_FILTERS };
+      const target = merged as unknown as Record<string, unknown>;
       for (const key of Object.keys(merged) as (keyof ChapterFilters)[]) {
         const value = parsed[key];
-        if (typeof value === "string") merged[key] = value;
+        // Chỉ nhận đúng kiểu khai báo — string cho bộ lọc/sắp xếp, boolean
+        // cho cờ hiển thị (show_zh_title); kiểu khác bị bỏ qua.
+        if (typeof value === "string" && typeof DEFAULT_FILTERS[key] === "string") {
+          target[key] = value;
+        } else if (typeof value === "boolean" && typeof DEFAULT_FILTERS[key] === "boolean") {
+          target[key] = value;
+        }
       }
       return merged;
     }
@@ -85,6 +93,17 @@ function loadPageSize(slug: string): number {
   } catch {
     return DEFAULT_PAGE_SIZE;
   }
+}
+
+/** Giá trị sau khi ngừng thay đổi `delay` ms — dùng cho ô tìm kiếm để mỗi
+    lần gõ không bắn một request danh sách chương mới lên server. */
+function useDebouncedValue(value: string, delay = 250) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
 }
 
 /* ── Thanh chạy pipeline ─────────────────────────────────────────────── */
@@ -236,6 +255,13 @@ function FilterBar({
           Xóa {activeCount} bộ lọc
         </Button>
       ) : null}
+      <label className="flex cursor-pointer items-center gap-1.5 text-[11px] opacity-70">
+        <Checkbox
+          checked={filters.show_zh_title}
+          onChange={(event) => set({ show_zh_title: event.target.checked })}
+        />
+        Hiển thị zh_title
+      </label>
       <label className="flex items-center gap-1.5 text-[11px] opacity-70">
         Sắp xếp
         <Select
@@ -244,7 +270,7 @@ function FilterBar({
             const [sort, direction] = e.target.value.split(":");
             set({ sort, direction });
           }}
-          className="w-40"
+          className="w-44"
           aria-label="Sắp xếp"
         >
           <option value="source:asc">Thứ tự mục lục</option>
@@ -253,6 +279,10 @@ function FilterBar({
           <option value="title:desc">Tiêu đề Z→A</option>
           <option value="translated:desc">Đã dịch trước</option>
           <option value="raw:desc">Có bản gốc trước</option>
+          <option value="zh_chars:desc">Bản gốc: nhiều chữ trước</option>
+          <option value="zh_chars:asc">Bản gốc: ít chữ trước</option>
+          <option value="words:desc">Bản dịch: nhiều từ trước</option>
+          <option value="words:asc">Bản dịch: ít từ trước</option>
         </Select>
       </label>
     </div>
@@ -278,6 +308,9 @@ interface TocTitleChange {
   old_zh: string;
   new_zh: string;
   changed_fields: ("title" | "title_zh")[];
+  /** Thay đổi tiêu đề theo NHÁNH dịch (Local MT/AI) — backend dọn song song
+      manifest, mỗi nhánh có diff riêng cho title/title_zh. */
+  branches?: Record<string, Record<string, [string, string]>>;
 }
 
 interface TocPreview {
@@ -309,13 +342,13 @@ function TocTitleDiff({ label, before, after }: { label: string; before: string;
 const OTHER_ACTIONS: BatchAction[] = [
   {
     key: "titles-smart",
-    label: "Dịch thông minh",
+    label: "Dịch tiêu đề thông minh",
     path: "batch/translate-titles",
     form: { mode: "smart" },
   },
   {
     key: "titles-fast",
-    label: "Dịch nhanh",
+    label: "Dịch tiêu đề nhanh",
     path: "batch/translate-titles",
     form: { mode: "fast" },
   },
@@ -346,7 +379,28 @@ const NORMALIZE_TOC_ACTION: BatchAction = {
   label: "Chuẩn hóa TOC",
   path: "batch/clean-toc",
   confirm: (n) =>
-    `Chuẩn hóa tiêu đề ${n} chương đã chọn? Thao tác sẽ bỏ tiền tố thứ tự như “3.” và ghi chú quảng cáo trong ngoặc, nhưng giữ số chương cùng các phần (上), (中), (下).`,
+    `Chuẩn hóa tiêu đề ${n} chương đã chọn? Thao tác sẽ bỏ tiền tố thứ tự như “3.” và ghi chú quảng cáo trong ngoặc, nhưng giữ số chương cùng các phần đánh dấu (上)/(中)/(下), (Thượng)/(Hạ) và số thứ tự (1), (2). Tiêu đề nhánh Local MT/AI cũng được dọn theo.`,
+};
+
+/** Crawl chỉ tải chương CHƯA có raw; force tải LẠI tất cả (raw cũ bị ghi đè,
+    bản dịch giữ nguyên). Cả hai chạy qua `batch/crawl` — job nền, có thể dừng. */
+const CRAWL_ACTION: BatchAction = {
+  key: "crawl",
+  label: "Crawl",
+  path: "batch/crawl",
+  form: { force: "false" },
+  confirm: (n) =>
+    `Crawl nội dung ${n} chương đã chọn? Chương nào chưa có bản gốc mới được tải.`,
+};
+
+const CRAWL_FORCE_ACTION: BatchAction = {
+  key: "crawl-force",
+  label: "Crawl lại (force)",
+  path: "batch/crawl",
+  form: { force: "true" },
+  destructive: true,
+  confirm: (n) =>
+    `Tải LẠI bản gốc của ${n} chương đã chọn? Raw cũ bị ghi đè — dùng khi chương bị crawl lỗi hoặc nguồn vừa sửa nội dung. Bản dịch giữ nguyên.`,
 };
 
 type WebChatProfile = "raw-config" | "raw-static" | "translated" | "glossary";
@@ -741,6 +795,7 @@ function BatchBar({
   const [tocPreview, setTocPreview] = useState<TocPreview | null>(null);
   const [includeTranslatedTitle, setIncludeTranslatedTitle] = useState(false);
   const [translateAction, setTranslateAction] = useState<"translate" | "local-mt" | null>(null);
+  const [translateForce, setTranslateForce] = useState(false);
   const [aiEditOpen, setAiEditOpen] = useState(false);
   const [webChatOpen, setWebChatOpen] = useState(false);
   const [cleanupHanOpen, setCleanupHanOpen] = useState(false);
@@ -845,6 +900,26 @@ function BatchBar({
           <div className="h-8 w-px bg-base-300" aria-hidden="true" />
 
           <div className="flex items-center gap-1.5">
+            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Crawl</span>
+            <Button
+              size="sm"
+              title="Tải nội dung gốc cho các chương đã chọn (bỏ qua chương đã có raw)"
+              onClick={() => trigger(CRAWL_ACTION)}
+            >
+              Crawl
+            </Button>
+            <Button
+              size="sm"
+              title="Tải LẠI bản gốc kể cả chương đã có raw — raw cũ bị ghi đè"
+              onClick={() => trigger(CRAWL_FORCE_ACTION)}
+            >
+              ↻ Force
+            </Button>
+          </div>
+
+          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
+
+          <div className="flex items-center gap-1.5">
             <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Dịch</span>
             <Button size="sm" onClick={() => setTranslateAction("local-mt")}>
               Local MT
@@ -933,7 +1008,7 @@ function BatchBar({
         slug={slug}
         action={translateAction === "local-mt" ? "local-mt" : "translate"}
         branch={translateAction === "translate" ? "ai" : ""}
-        force={false}
+        force={translateForce}
         indexes={selected}
         title={`Dịch bằng ${branchLabel}`}
         body={
@@ -942,6 +1017,15 @@ function BatchBar({
             <strong>{branchLabel}</strong>. Chương nào đã có bản dịch trong nhánh đó sẽ được{" "}
             <strong>bỏ qua</strong>, không ghi đè.
           </>
+        }
+        bodyExtra={
+          <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+            <Checkbox
+              checked={translateForce}
+              onChange={(event) => setTranslateForce(event.target.checked)}
+            />
+            Dịch lại cả chương đã có bản dịch ở nhánh này (force — bản dịch cũ được thay)
+          </label>
         }
         confirmLabel="Xếp vào hàng đợi"
         onDone={onDone}
@@ -1044,6 +1128,19 @@ function BatchBar({
                         {change.changed_fields.includes("title") ? (
                           <TocTitleDiff label="Đã dịch" before={change.old} after={change.new} />
                         ) : null}
+                        {Object.entries(change.branches ?? {}).map(([branch, fields]) => (
+                          <div key={branch} className="rounded-box border border-base-300 bg-base-100 px-2 py-1.5">
+                            <p className="text-[10px] font-semibold tracking-[0.08em] uppercase opacity-45">
+                              {branch === "local_mt" ? "Local MT" : "AI"}
+                            </p>
+                            {fields.title ? (
+                              <TocTitleDiff label="Đã dịch" before={fields.title[0]} after={fields.title[1]} />
+                            ) : null}
+                            {fields.title_zh ? (
+                              <TocTitleDiff label="Gốc" before={fields.title_zh[0]} after={fields.title_zh[1]} />
+                            ) : null}
+                          </div>
+                        ))}
                       </div>
                     </li>
                   ))}
@@ -1055,7 +1152,8 @@ function BatchBar({
                 ) : null}
               </div>
               <p className="opacity-70">
-                Các phần (上), (中), (下) được giữ lại. Chỉ ghi dữ liệu sau khi xác nhận.
+                Các phần (上)/(中)/(下), (Thượng)/(Hạ) và số thứ tự (1), (2) được giữ lại. Chỉ ghi dữ
+                liệu sau khi xác nhận.
               </p>
             </div>
           ) : (
@@ -1241,11 +1339,13 @@ function ChapterTableRow({
   slug,
   row,
   checked,
+  showZhTitle,
   onSelect,
 }: {
   slug: string;
   row: ChapterRow;
   checked: boolean;
+  showZhTitle: boolean;
   onSelect: (index: number, event: ReactMouseEvent, source: "row" | "checkbox") => void;
 }) {
   return (
@@ -1274,12 +1374,23 @@ function ChapterTableRow({
       </td>
       <td className="px-2 py-1">
         <div className="flex min-w-0 items-center gap-2">
-          <Link
-            to={`/ebooks/${slug}/chapters/${row.index}`}
-            className={clsx("min-w-0 flex-1 truncate text-[13px] hover:text-primary", row.skipped && "line-through opacity-50")}
-          >
-            {row.visible_title}
-          </Link>
+          <div className="min-w-0 flex-1">
+            <Link
+              to={`/ebooks/${slug}/chapters/${row.index}`}
+              className={clsx("block truncate text-[13px] hover:text-primary", row.skipped && "line-through opacity-50")}
+            >
+              {row.visible_title}
+            </Link>
+            {showZhTitle && row.title_zh ? (
+              <span
+                dir="rtl"
+                className="block truncate text-[11px] text-base-content/55"
+                title={row.title_zh}
+              >
+                {row.title_zh}
+              </span>
+            ) : null}
+          </div>
           {/* Chương trùng và tiêu đề sai mẫu đã có badge ở cột trạng thái; ở đây
               chỉ đánh dấu tiêu đề lỗi ngay tại chỗ đọc để khỏi phải liếc ngang. */}
           {!row.title_format_ok ? (
@@ -1362,24 +1473,45 @@ export function EbookPage() {
   });
 
   const { data: book, isPending, error } = useEbook(slug);
+  // Ô tìm kiếm chỉ đẩy lên API sau khi ngừng gõ — giữ nguyên tham chiếu
+  // `filters` khi đã bắt kịp để không tạo request thừa do queryKey đổi.
+  const debouncedSearch = useDebouncedValue(filters.search);
+  const queryFilters = useMemo(
+    () => (debouncedSearch === filters.search ? filters : { ...filters, search: debouncedSearch }),
+    [filters, debouncedSearch],
+  );
   const { data: page, isFetching, isPending: chaptersPending } = useChapters(
     slug,
-    filters,
+    queryFilters,
     offset,
     pageSize,
   );
 
+  /** Khoảng trống index giữa hai dòng đang hiển thị, kèm SUY LUẬN số chương
+      thật từ tiêu đề lân cận. Nếu hai chương hai bên có số chương liên tiếp
+      đúng bằng bề rộng khoảng trống (vd #122 "Chương 122" → #124 "Chương 123")
+      thì đó là index do NGUỒN bỏ trống — không phải thiếu nội dung cần điền. */
   const indexGaps = useMemo(() => {
     if (!page?.rows.length) return [];
     const sorted = [...page.rows].sort((a, b) => a.index - b.index);
     return sorted.flatMap((row, position) => {
       const next = sorted[position + 1];
       if (!next || next.index === row.index + 1) return [];
+      const missingCount = next.index - row.index - 1;
+      const beforeOrdinal = chapterOrdinal(row.visible_title, row.title_zh);
+      const afterOrdinal = chapterOrdinal(next.visible_title, next.title_zh);
+      const benign =
+        beforeOrdinal !== null &&
+        afterOrdinal !== null &&
+        afterOrdinal - beforeOrdinal === missingCount;
       return [{
         from: row.index + 1,
         to: next.index - 1,
         before: row,
         after: next,
+        beforeOrdinal,
+        afterOrdinal,
+        benign,
       }];
     });
   }, [page?.rows]);
@@ -1568,30 +1700,46 @@ export function EbookPage() {
           <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 marker:content-none">
             <Dot tone="vermilion" />
             <span className="font-medium">
-              Thiếu {num(indexGaps.reduce((total, gap) => total + gap.to - gap.from + 1, 0))} index
+              Trống {num(indexGaps.reduce((total, gap) => total + gap.to - gap.from + 1, 0))} index
               trong {num(indexGaps.length)} khoảng trên trang này
+              <span className="ml-1 font-normal opacity-70">
+                ({num(indexGaps.filter((gap) => !gap.benign).length)} nghi thiếu nội dung)
+              </span>
             </span>
             <span className="ml-auto text-[11px] opacity-60 group-open:hidden">Xem chi tiết</span>
             <span className="ml-auto hidden text-[11px] opacity-60 group-open:inline">Thu gọn</span>
           </summary>
           <div className="border-t border-error/20 px-3 py-2">
             <p className="mb-2 text-[11px] opacity-70">
-              Các khoảng dưới đây nằm giữa hai chương đang hiển thị. Mở chương lân cận để kiểm tra
-              tiêu đề và URL nguồn.
+              Số chương thật được suy từ tiêu đề hai chương lân cận. Hai bên liền số → nguồn bỏ
+              trống index, không cần crawl thêm; hụt số → có thể đang thiếu chương.
             </p>
             <ul className="space-y-1.5">
               {indexGaps.map((gap) => (
                 <li
                   key={`${gap.from}-${gap.to}`}
-                  className="grid gap-1 rounded-box bg-base-100/60 px-2.5 py-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"
+                  className="grid gap-1 rounded-box bg-base-100/60 px-2.5 py-2 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-3"
                 >
-                  <span data-numeric className="font-medium text-error">
-                    Thiếu #{gap.from}{gap.to > gap.from ? `–${gap.to}` : ""}
+                  <span
+                    data-numeric
+                    className={clsx("font-medium", gap.benign ? "text-warning" : "text-error")}
+                    title={gap.benign ? "Hai bên liền số chương — nguồn không có các index này." : "Số chương hai bên hụt — kiểm tra xem có chương bị bỏ sót không."}
+                  >
+                    {gap.benign ? "Nhảy" : "Thiếu"} #{gap.from}{gap.to > gap.from ? `–${gap.to}` : ""}
                   </span>
                   <span className="min-w-0 text-[11px] opacity-70">
                     Sau <Link className="font-medium hover:text-primary" to={`/ebooks/${slug}/chapters/${gap.before.index}`}>#{gap.before.index} {gap.before.visible_title}</Link>
                     {" · trước "}
                     <Link className="font-medium hover:text-primary" to={`/ebooks/${slug}/chapters/${gap.after.index}`}>#{gap.after.index} {gap.after.visible_title}</Link>
+                    {gap.beforeOrdinal !== null && gap.afterOrdinal !== null ? (
+                      <>
+                        {" — "}
+                        <span data-numeric>số chương {num(gap.beforeOrdinal)} → {num(gap.afterOrdinal)}</span>
+                        {gap.benign ? " (liền nhau)" : " (hụt)"}
+                      </>
+                    ) : (
+                      " — không suy được số chương từ tiêu đề"
+                    )}
                   </span>
                 </li>
               ))}
@@ -1706,7 +1854,7 @@ export function EbookPage() {
                       aria-label="Chọn tất cả chương trên trang"
                     />
                   </th>
-                  {["#", "Tiêu đề", "Trạng thái", "MT", "AI", "Chữ Hán", "Từ", ""].map((h, i) => (
+                  {["#", "Tiêu đề", "Trạng thái", "MT", "AI", "Bản gốc", "Bản dịch", ""].map((h, i) => (
                     <th
                       key={h || i}
                       className={clsx(
@@ -1714,7 +1862,7 @@ export function EbookPage() {
                         h === "#" && "w-10",
                         h === "Tiêu đề" && "w-[22rem]",
                         (h === "MT" || h === "AI") && "text-center",
-                        (h === "Chữ Hán" || h === "Từ") && "text-right",
+                        (h === "Bản gốc" || h === "Bản dịch") && "text-right",
                       )}
                     >
                       {h}
@@ -1729,6 +1877,7 @@ export function EbookPage() {
                     slug={slug}
                     row={row}
                     checked={selected.has(row.index)}
+                    showZhTitle={filters.show_zh_title}
                     onSelect={selectRow}
                   />
                 ))}

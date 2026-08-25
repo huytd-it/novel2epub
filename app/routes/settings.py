@@ -279,7 +279,11 @@ def save_source(
         slug, path, scrapling_mode, toc_url, content_selector, max_chapters, delay_seconds,
         next_page_selector or next_page_url_pattern or "off",
     )
-    update_ebook(deps.WORKSPACE_PATH, slug, {"crawl": crawl})
+    # Đây là snapshot đầy đủ của form đã loại các giá trị trùng preset, nên phải
+    # thay toàn bộ override. Merge sẽ giữ lại key cũ đã biến mất khỏi `crawl`;
+    # ví dụ đổi headless từ override True về False (trùng preset) sẽ lọc key
+    # khỏi snapshot nhưng giá trị True cũ vẫn còn trong DB.
+    update_ebook(deps.WORKSPACE_PATH, slug, {"crawl": crawl}, replace_crawl=True)
     return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
 
 

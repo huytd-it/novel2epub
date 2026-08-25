@@ -341,9 +341,15 @@ function SectionForm<S extends SettingsSection>({
 
   // Đồng bộ lại draft khi server trả dữ liệu mới (đổi truyện, hoặc sau khi lưu
   // thành công — server là nguồn sự thật, draft chỉ là bản nháp tạm thời).
-  useEffect(() => setDraft(server), [server]);
-
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(server), [draft, server]);
+
+  // Chỉ đồng bộ lại draft từ server khi CHƯA có thay đổi chưa lưu. Nếu đang
+  // sửa (dirty), bỏ qua: react-query có thể refetch (focus cửa sổ / interval)
+  // trả về `server` tham chiếu MỚI, và hiệu ứng này chạy sẽ GHI ĐÈ toggle của
+  // người dùng trước khi họ kịp bấm Lưu — triệu chứng "checkbox không lưu".
+  useEffect(() => {
+    if (!dirty) setDraft(server);
+  }, [server, dirty]);
 
   const set = (key: string, value: unknown) =>
     setDraft((prev) => ({ ...prev, [key]: value }));

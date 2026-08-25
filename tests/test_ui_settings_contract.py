@@ -39,7 +39,8 @@ def client(tmp_path, monkeypatch):
     db = write_db_config(
         tmp_path / "n.db",
         defaults={"output": {"data_dir": str(tmp_path / "data")}},
-        ebooks={"t": {"novel": {"title": "Truyện thử"}}},
+        sources={"test-source": {"headless": False}},
+        ebooks={"t": {"source": "test-source", "novel": {"title": "Truyện thử"}}},
     )
     monkeypatch.setattr("app.deps.WORKSPACE_PATH", str(db))
     monkeypatch.setattr("app.deps.DB_PATH", str(db))
@@ -63,6 +64,25 @@ def test_moi_section_deu_co_mat(client):
     payload = client.get("/api/ui/ebooks/t/settings").json()
     for section, _ in SECTIONS:
         assert section in payload, f"thiếu section {section}"
+
+
+def test_source_checkbox_false_xoa_override_true_cu(client):
+    """SPA gửi boolean false rõ ràng; lần lưu sau phải xóa override true cũ."""
+    current = client.get("/api/ui/ebooks/t/settings").json()["source"]
+
+    enabled = client.post(
+        "/api/ui/ebooks/t/settings/source",
+        json={**current, "headless": True},
+    )
+    assert enabled.status_code == 200
+    assert client.get("/api/ui/ebooks/t/settings").json()["source"]["headless"] is True
+
+    disabled = client.post(
+        "/api/ui/ebooks/t/settings/source",
+        json={**current, "headless": False},
+    )
+    assert disabled.status_code == 200
+    assert client.get("/api/ui/ebooks/t/settings").json()["source"]["headless"] is False
 
 
 def test_default_prompts_tra_prompt_moi_theo_ngon_ngu(client):

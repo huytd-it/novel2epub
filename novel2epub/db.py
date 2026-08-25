@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 21
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -381,6 +381,7 @@ _SCHEMA_STATEMENTS = [
         label TEXT NOT NULL DEFAULT '',
         ebook TEXT NOT NULL DEFAULT '',
         spec_json TEXT NOT NULL DEFAULT '{}',
+        position INTEGER NOT NULL DEFAULT 0,
         actor_issuer TEXT NOT NULL DEFAULT '',
         actor_subject TEXT NOT NULL DEFAULT ''
     )
@@ -794,6 +795,7 @@ _ADDED_COLUMNS = [
     ("notes", "actor_subject", "TEXT NOT NULL DEFAULT ''"),
     ("job_queue_history", "actor_issuer", "TEXT NOT NULL DEFAULT ''"),
     ("job_queue_history", "actor_subject", "TEXT NOT NULL DEFAULT ''"),
+    ("job_queue_pending", "position", "INTEGER NOT NULL DEFAULT 0"),
     ("job_queue_pending", "actor_issuer", "TEXT NOT NULL DEFAULT ''"),
     ("job_queue_pending", "actor_subject", "TEXT NOT NULL DEFAULT ''"),
     # v11 (mở rộng): nhánh local_mt + ai_translation độc lập (title/workspace/
@@ -1213,6 +1215,13 @@ def _migration_v20(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
 
+def _migration_v21(conn: sqlite3.Connection) -> None:
+    """Giữ thứ tự queue qua restart và đổi category `both` sang `automation`."""
+    _ensure_columns(conn)
+    conn.execute("UPDATE job_queue_pending SET category = 'automation' WHERE category = 'both'")
+
+
+
 def _migration_v17(conn: sqlite3.Connection) -> None:
     """Gỡ cột `ebooks.name` — chỉ còn `title`.
 
@@ -1253,6 +1262,7 @@ _MIGRATIONS = {
     18: _migration_v18,
     19: _migration_v19,
     20: _migration_v20,
+    21: _migration_v21,
 }
 
 

@@ -29,17 +29,17 @@ _STEPS: dict[str, Callable[[Config, Callable[[str], None]], object]] = {
     "reindex": step_reindex,
 }
 
-# Step nào chiếm category nào — "both" chiếm cả crawl+translate (build/run
-# đụng tới cả raw/ và translated/, run_all còn tự gọi crawl+dịch nối tiếp).
-# `translate` → `ai-translate` (category mới); nhánh Local NMT dùng `local-mt`;
-# AI biên tập (rewrite preview) dùng `ai-edit`.
+# Step nào chạy trong pool worker nào. `run`/`reindex` dùng pool automation
+# riêng nên không giữ hoặc chặn worker crawl/dịch/build khác.
+# `translate` → `ai-translate`; nhánh Local NMT dùng `local-mt`; AI biên tập
+# (rewrite preview) dùng `ai-edit`.
 _STEP_CATEGORY: dict[str, str] = {
     "crawl": "crawl",
     "fetch-toc": "crawl",
     "translate": "ai-translate",
     "build": "build",
-    "run": "both",
-    "reindex": "both",
+    "run": "automation",
+    "reindex": "automation",
 }
 
 

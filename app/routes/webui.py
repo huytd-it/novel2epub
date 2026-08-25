@@ -94,7 +94,15 @@ def _encode_strip(states: list[str]) -> str:
     return ",".join(parts)
 
 
-def _ebook_summary(slug: str, cfg, *, archived: bool, in_library: bool) -> dict:
+def _ebook_summary(
+    slug: str,
+    cfg,
+    *,
+    archived: bool,
+    in_library: bool,
+    created_at: str = "",
+    updated_at: str = "",
+) -> dict:
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     stats_map = storage.bulk_chapter_stats()
@@ -113,6 +121,8 @@ def _ebook_summary(slug: str, cfg, *, archived: bool, in_library: bool) -> dict:
         "in_library": in_library,
         "toc_url": cfg.crawl.toc_url,
         "translate_type": cfg.translate.type,
+        "created_at": created_at,
+        "updated_at": updated_at,
         "total": progress["total"],
         "raw_count": progress["raw_count"],
         "translated_count": progress["translated_count"],
@@ -174,7 +184,10 @@ def library_list(
     page = max(page, 0)
     limit = max(1, min(limit, 100))
     q = q.strip()
-    if sort not in {"title", "recent"}:
+    if sort not in {
+        "title", "title_desc", "created_at", "created_at_asc",
+        "updated_at", "updated_at_asc", "recent",
+    }:
         raise HTTPException(status_code=400, detail="Kiểu sắp xếp thư viện không hợp lệ.")
 
     from novel2epub.db import get_thread_connection
@@ -191,15 +204,21 @@ def library_list(
         )
         params.extend([pattern, pattern, pattern])
     where_sql = f" WHERE {' AND '.join(where)}" if where else ""
-    order_sql = (
-        "date_added DESC, title COLLATE NOCASE, slug"
-        if sort == "recent"
-        else "title COLLATE NOCASE, slug"
-    )
+    order_sql = {
+        "title": "title COLLATE NOCASE ASC, slug ASC",
+        "title_desc": "title COLLATE NOCASE DESC, slug DESC",
+        "created_at": "created_at DESC, title COLLATE NOCASE ASC, slug ASC",
+        "created_at_asc": "created_at ASC, title COLLATE NOCASE ASC, slug ASC",
+        "updated_at": "updated_at DESC, title COLLATE NOCASE ASC, slug ASC",
+        "updated_at_asc": "updated_at ASC, title COLLATE NOCASE ASC, slug ASC",
+        # Alias cũ của SPA.
+        "recent": "date_added DESC, title COLLATE NOCASE ASC, slug ASC",
+    }[sort]
     total = conn.execute(f"SELECT COUNT(*) FROM ebooks{where_sql}", params).fetchone()[0]
     archived_count = conn.execute("SELECT COUNT(*) FROM ebooks WHERE archived = 1").fetchone()[0]
     rows = conn.execute(
-        f"SELECT slug, archived FROM ebooks{where_sql} ORDER BY {order_sql} LIMIT ? OFFSET ?",
+        f"SELECT slug, archived, created_at, updated_at FROM ebooks{where_sql} "
+        f"ORDER BY {order_sql} LIMIT ? OFFSET ?",
         [*params, limit, page * limit],
     ).fetchall()
 
@@ -210,6 +229,8 @@ def library_list(
             deps.resolved_cfg(slug),
             archived=bool(row["archived"]),
             in_library=True,
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
         )
 
     # Giữ chế độ một ebook mặc định cho cài đặt mới chưa có entry library.
@@ -226,7 +247,8 @@ def library_list(
     current = None
     if current_slug:
         current_row = conn.execute(
-            "SELECT slug, archived FROM ebooks WHERE slug = ?", (current_slug,)
+            "SELECT slug, archived, created_at, updated_at FROM ebooks WHERE slug = ?",
+            (current_slug,),
         ).fetchone()
         if current_row is not None:
             current = summary(current_row)

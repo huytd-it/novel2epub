@@ -46,6 +46,7 @@ export {
   PiScroll as IconLog,
   PiShieldCheck as IconShield,
   PiStack as IconQueue,
+  PiTable as IconTable,
   PiSun as IconSun,
   PiSwap as IconReplace,
   PiTrash as IconTrash,

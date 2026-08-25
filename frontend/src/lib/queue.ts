@@ -53,7 +53,10 @@ export function useJobLog(jobId: string | null, poll = false) {
 
 export function pendingCount(snapshot: QueueSnapshot | undefined): number {
   if (!snapshot) return 0;
-  return Object.values(snapshot.pending).reduce((sum, list) => sum + list.length, 0);
+  return snapshot.categories.reduce(
+    (sum, category) => sum + (snapshot.pending[category]?.length ?? 0),
+    0,
+  );
 }
 
 export function jobTone(state: JobState): "neutral" | "gold" | "celadon" | "vermilion" {

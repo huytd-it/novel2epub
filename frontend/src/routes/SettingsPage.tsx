@@ -35,6 +35,10 @@ interface FieldSpec<T> {
   options?: { value: string; label: string }[];
   wide?: boolean; // chiếm trọn hàng lưới — cho textarea dài, URL, prompt
   step?: number;
+  // Vô hiệu hoá field dựa trên giá trị các field khác (ví dụ tuỳ chọn chỉ
+  // có nghĩa khi scrapling_mode là stealthy/dynamic). Khi bị vô hiệu, UI ghi
+  // chú thích rõ lý do để tránh cảm giác "bấm lưu mà không ăn".
+  disabledWhen?: (values: Record<string, unknown>) => boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- infra dùng chung mọi tab, an toàn kiểu nằm ở nơi khai báo FIELDS
@@ -49,19 +53,24 @@ function FieldControl({
   values: Record<string, unknown>;
   onChange: (next: unknown) => void;
 }) {
+  const disabled = spec.disabledWhen ? spec.disabledWhen(values) : false;
+  const disabledNote = disabled ? (
+    <span className="text-xs opacity-50">— không áp dụng ở chế độ hiện tại</span>
+  ) : null;
   switch (spec.kind) {
     case "checkbox":
       return (
-        <label className="flex items-center gap-2 py-1 text-[13px]">
-          <Checkbox checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
+        <label className={clsx("flex items-center gap-2 py-1 text-[13px]", disabled && "opacity-50")}>
+          <Checkbox checked={Boolean(value)} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
           {spec.label}
           {spec.hint ? <span className="text-xs opacity-50">— {spec.hint}</span> : null}
+          {disabled ? disabledNote : null}
         </label>
       );
     case "select":
       return (
         <Field label={spec.label} hint={spec.hint}>
-          <Select value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
+          <Select value={String(value ?? "")} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
             {(spec.options ?? []).map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -75,6 +84,7 @@ function FieldControl({
         <Field label={spec.label} hint={spec.hint}>
           <Textarea
             value={String(value ?? "")}
+            disabled={disabled}
             onChange={(e) => onChange(e.target.value)}
             rows={spec.wide ? 8 : 3}
             spellCheck={false}
@@ -88,6 +98,7 @@ function FieldControl({
             type="number"
             step={spec.step ?? 1}
             value={String(value ?? 0)}
+            disabled={disabled}
             onChange={(e) => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
           />
         </Field>
@@ -99,6 +110,7 @@ function FieldControl({
             type="password"
             autoComplete="off"
             value={String(value ?? "")}
+            disabled={disabled}
             onChange={(e) => onChange(e.target.value)}
           />
         </Field>
@@ -110,6 +122,7 @@ function FieldControl({
           hint={spec.hint}
           value={String(value ?? "")}
           baseUrl={String(values.base_url ?? "")}
+          disabled={disabled}
           onChange={onChange}
         />
       );
@@ -120,6 +133,7 @@ function FieldControl({
           hint={spec.hint}
           value={String(value ?? "")}
           apiKey={String(values.api_key ?? "")}
+          disabled={disabled}
           onChange={onChange}
         />
       );
@@ -129,6 +143,7 @@ function FieldControl({
           <Input
             type="text"
             value={String(value ?? "")}
+            disabled={disabled}
             onChange={(e) => onChange(e.target.value)}
             spellCheck={false}
           />
@@ -199,12 +214,14 @@ function BaseUrlField({
   hint,
   value,
   apiKey,
+  disabled,
   onChange,
 }: {
   label: string;
   hint?: string;
   value: string;
   apiKey: string;
+  disabled?: boolean;
   onChange: (next: unknown) => void;
 }) {
   const [loading, setLoading] = useState(false);
@@ -224,6 +241,7 @@ function BaseUrlField({
         <Input
           type="text"
           value={value}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           spellCheck={false}
           className="join-item flex-1 min-w-0"
@@ -231,6 +249,7 @@ function BaseUrlField({
         <Button
           size="sm"
           loading={loading}
+          disabled={disabled}
           onClick={load}
           className="join-item shrink-0"
           title="Lấy danh sách model từ {base_url}/models và tự lưu cache theo url"
@@ -249,12 +268,14 @@ function ModelField({
   hint,
   value,
   baseUrl,
+  disabled,
   onChange,
 }: {
   label: string;
   hint?: string;
   value: string;
   baseUrl: string;
+  disabled?: boolean;
   onChange: (next: unknown) => void;
 }) {
   const [models, setModels] = useState<string[]>([]);
@@ -287,6 +308,7 @@ function ModelField({
         onChange={(v) => onChange(v)}
         options={models}
         placeholder="Chọn model..."
+        disabled={disabled}
       />
       {status ? <span className="block text-xs italic opacity-60">{status}</span> : null}
     </Field>
@@ -406,10 +428,10 @@ const SOURCE_FIELDS: FieldSpec<EbookSettings["source"]>[] = [
   { key: "concurrency_cap", label: "Trần song song theo nguồn", kind: "number", hint: "0 = mặc định theo chế độ crawl" },
   { key: "impersonate", label: "Impersonate (fingerprint trình duyệt)", kind: "text" },
   { key: "proxy", label: "Proxy", kind: "text" },
-  { key: "headless", label: "Chạy headless", kind: "checkbox" },
-  { key: "solve_cloudflare", label: "Giải Cloudflare challenge", kind: "checkbox" },
-  { key: "network_idle", label: "Đợi mạng nhàn rỗi trước khi đọc trang", kind: "checkbox" },
-  { key: "dns_over_https", label: "DNS-over-HTTPS", kind: "checkbox" },
+  { key: "headless", label: "Chạy headless", kind: "checkbox", disabledWhen: (v) => v.scrapling_mode === "fetcher" },
+  { key: "solve_cloudflare", label: "Giải Cloudflare challenge", kind: "checkbox", disabledWhen: (v) => v.scrapling_mode === "fetcher" },
+  { key: "network_idle", label: "Đợi mạng nhàn rỗi trước khi đọc trang", kind: "checkbox", disabledWhen: (v) => v.scrapling_mode === "fetcher" },
+  { key: "dns_over_https", label: "DNS-over-HTTPS", kind: "checkbox", disabledWhen: (v) => v.scrapling_mode === "fetcher" },
   { key: "next_page_selector", label: "Selector trang kế (nội dung chương)", kind: "text" },
   { key: "next_page_url_pattern", label: "Regex URL trang kế", kind: "text" },
   { key: "max_pages_per_chapter", label: "Số trang tối đa / chương", kind: "number" },

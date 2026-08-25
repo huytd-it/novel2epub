@@ -10,6 +10,8 @@ export interface EbookSummary {
   in_library: boolean;
   toc_url: string;
   translate_type: string;
+  created_at: string;
+  updated_at: string;
   total: number;
   raw_count: number;
   translated_count: number;
@@ -31,7 +33,7 @@ export interface LibraryResponse {
 export interface LibraryQuery {
   showArchived?: boolean;
   q?: string;
-  sort?: "title" | "recent";
+  sort?: "title" | "title_desc" | "created_at" | "created_at_asc" | "updated_at" | "updated_at_asc" | "recent";
   page?: number;
   limit?: number;
   currentSlug?: string;

@@ -531,6 +531,7 @@ class QueueConfig:
     translate_workers: int = 2  # pool ai-translate; tên cũ giữ cho config hiện có
     ai_edit_workers: int = 1
     build_workers: int = 1
+    automation_workers: int = 1
 
 
 @dataclass
@@ -1127,6 +1128,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         translate_workers=max(0, int(queue_raw.get("translate_workers", defaults_q.translate_workers))),
         ai_edit_workers=max(0, int(queue_raw.get("ai_edit_workers", defaults_q.ai_edit_workers))),
         build_workers=max(0, int(queue_raw.get("build_workers", defaults_q.build_workers))),
+        automation_workers=max(0, int(queue_raw.get("automation_workers", defaults_q.automation_workers))),
     )
 
     reader_raw = _as_dict(raw.get("reader"))

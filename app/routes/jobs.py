@@ -616,6 +616,7 @@ def api_queue_update_workers(request: Request, category: str = Body(...), count:
         "translate": "translate_workers",
         "ai-edit": "ai_edit_workers",
         "build": "build_workers",
+        "automation": "automation_workers",
     }.get(category)
     if config_key is None:
         raise HTTPException(status_code=400, detail=f"category không hợp lệ: {category!r}")

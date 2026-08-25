@@ -52,6 +52,7 @@ def _load_queue_workers() -> dict[str, int]:
             "ai-translate": _cfg.queue.translate_workers,
             "ai-edit": _cfg.queue.ai_edit_workers,
             "build": _cfg.queue.build_workers,
+            "automation": _cfg.queue.automation_workers,
         }
     except Exception:
         _dq = QueueConfig()
@@ -61,6 +62,7 @@ def _load_queue_workers() -> dict[str, int]:
             "ai-translate": _dq.translate_workers,
             "ai-edit": _dq.ai_edit_workers,
             "build": _dq.build_workers,
+            "automation": _dq.automation_workers,
         }
 
 

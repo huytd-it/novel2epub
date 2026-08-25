@@ -1,9 +1,8 @@
 """Daemon thread chạy automation theo lịch cron 5 trường — croniter, stateless
 từ last_run_at/created_at, lỡ mốc chạy bù tối đa 1 lần (xem spec cron-schedule).
 Mỗi automation = 1 chuỗi step tuần tự (fetch-toc → crawl-new →
-translate-pending → build → publish-reader), enqueue thành 1 job "both" duy
-nhất để được JobQueue cấp quyền độc quyền crawl+dịch (an toàn vì step có thể
-đụng cả 2 lẫn build).
+translate-pending → build → publish-reader), enqueue thành 1 job `automation`
+trong pool riêng; pool này không chặn crawl/dịch/build thuộc category khác.
 """
 from __future__ import annotations
 
@@ -222,7 +221,7 @@ class AutomationScheduler:
         novel = getattr(cfg, "novel", None)
         ebook_title = getattr(novel, "title", "") or automation.ebook
         job = self.queue.enqueue(
-            "both",
+            "automation",
             "automation",
             _target,
             label=automation_job_label(title=ebook_title, slug=automation.ebook, steps=automation.steps),

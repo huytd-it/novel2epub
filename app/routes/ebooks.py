@@ -71,7 +71,7 @@ def bulk_action(
     from novel2epub.pipeline import run_all, step_build, step_crawl, step_translate
 
     fn = {"crawl": step_crawl, "translate": step_translate, "build": step_build, "run": run_all}[action]
-    category = {"crawl": "crawl", "translate": "translate", "build": "both", "run": "both"}[action]
+    category = {"crawl": "crawl", "translate": "translate", "build": "build", "run": "automation"}[action]
     for slug in slugs:
         cfg = deps.resolved_cfg(slug)
 

@@ -175,44 +175,58 @@ def test_n_worker_concurrency_within_category():
     gate.set()
 
 
-def test_both_job_waits_for_exclusive_access_and_blocks_others():
-    q = JobQueue(workers={"crawl": 1, "translate": 1})
+def test_automation_worker_runs_independently_from_crawl_worker():
+    q = JobQueue(workers={"crawl": 1, "automation": 1})
     crawl_started = threading.Event()
     crawl_gate = threading.Event()
-    both_started = threading.Event()
-    both_gate = threading.Event()
-    events = []
+    automation_started = threading.Event()
+    automation_gate = threading.Event()
 
-    def _crawl_target(log):
-        crawl_started.set()
-        events.append("crawl-start")
-        crawl_gate.wait(timeout=5)
-        events.append("crawl-end")
-
-    def _both_target(log):
-        both_started.set()
-        events.append("both-start")
-        both_gate.wait(timeout=5)
-        events.append("both-end")
-
-    q.enqueue("crawl", "crawl", _crawl_target)
+    q.enqueue(
+        "crawl", "crawl",
+        lambda log: (crawl_started.set(), crawl_gate.wait(timeout=5)),
+    )
     assert crawl_started.wait(timeout=5)
 
-    q.enqueue("both", "build", _both_target)
-    # both job phải đợi crawl xong, không chạy ngay.
-    time.sleep(0.2)
-    assert not both_started.is_set()
-
-    # job crawl mới không được chạy trong khi both job đang chờ độc quyền.
-    second_crawl_started = threading.Event()
-    q.enqueue("crawl", "crawl", lambda log: second_crawl_started.set())
-    time.sleep(0.2)
-    assert not second_crawl_started.is_set()
+    q.enqueue(
+        "automation", "run",
+        lambda log: (automation_started.set(), automation_gate.wait(timeout=5)),
+    )
+    assert automation_started.wait(timeout=5)
 
     crawl_gate.set()
-    assert both_started.wait(timeout=5)
-    both_gate.set()
-    assert _wait_until(lambda: second_crawl_started.is_set())
+    automation_gate.set()
+
+
+def test_automation_jobs_same_ebook_do_not_overlap():
+    q = JobQueue(workers={"automation": 2})
+    first_started = threading.Event()
+    first_gate = threading.Event()
+    second_started = threading.Event()
+
+    q.enqueue(
+        "automation", "run",
+        lambda log: (first_started.set(), first_gate.wait(timeout=5)),
+        ebook="book-a",
+    )
+    assert first_started.wait(timeout=5)
+    q.enqueue(
+        "automation", "run",
+        lambda log: second_started.set(),
+        ebook="book-a",
+    )
+    time.sleep(0.2)
+    assert not second_started.is_set()
+    first_gate.set()
+    assert second_started.wait(timeout=5)
+
+
+def test_legacy_both_category_is_normalized_to_automation():
+    q = JobQueue(workers={"automation": 0})
+    job = q.enqueue("both", "run", lambda log: None)
+
+    assert job.category == "automation"
+    assert q.snapshot()["pending"]["automation"][0]["id"] == job.id
 
 
 def test_cancel_pending_and_running():
@@ -479,6 +493,27 @@ def test_pending_job_with_spec_persisted_to_disk(tmp_path):
     assert json.loads(rows[0]["spec_json"]) == {"kind": "demo", "params": {"n": 1}}
 
     gate.set()
+
+
+def test_pending_order_survives_restart(tmp_path):
+    db_path = tmp_path / "ordered.db"
+    q = JobQueue(workers={"crawl": 0}, db_path=db_path)
+    first = q.enqueue(
+        "crawl", "first", lambda log: None,
+        spec={"kind": "demo", "params": {"name": "first"}},
+    )
+    second = q.enqueue(
+        "crawl", "second", lambda log: None,
+        spec={"kind": "demo", "params": {"name": "second"}},
+    )
+    assert q.reorder(second.id, first.id) is True
+
+    restored = JobQueue(workers={"crawl": 0}, db_path=db_path)
+    restored.register_kind("demo", lambda params: lambda log: None)
+    assert restored.load_pending() == 2
+    assert [job["step"] for job in restored.snapshot()["pending"]["crawl"]] == [
+        "second", "first",
+    ]
 
 
 def test_load_pending_reenqueues_job_with_registered_kind(tmp_path):

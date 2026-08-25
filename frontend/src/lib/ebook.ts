@@ -101,6 +101,36 @@ export const DEFAULT_FILTERS: ChapterFilters = {
   show_zh_title: false,
 };
 
+/** Khóa localStorage lưu bộ lọc bảng chương trên trang Sách — dùng chung để
+    trang Chương (drawer danh sách) có thể tái dùng đúng bộ lọc đang áp dụng. */
+export const CHAPTER_FILTERS_KEY = (slug: string) => `ebooks.${slug}.chapterFilters`;
+
+/** Nạp bộ lọc đã lưu cho truyện, hợp nhất với mặc định để khỏi vỡ schema.
+    Chỉ nhận đúng kiểu khai báo — string cho bộ lọc/sắp xếp, boolean cho cờ
+    hiển thị (show_zh_title); kiểu khác bị bỏ qua. */
+export function loadChapterFilters(slug: string): ChapterFilters {
+  try {
+    const raw = window.localStorage.getItem(CHAPTER_FILTERS_KEY(slug));
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const merged = { ...DEFAULT_FILTERS };
+      const target = merged as unknown as Record<string, unknown>;
+      for (const key of Object.keys(merged) as (keyof ChapterFilters)[]) {
+        const value = parsed[key];
+        if (typeof value === "string" && typeof DEFAULT_FILTERS[key] === "string") {
+          target[key] = value;
+        } else if (typeof value === "boolean" && typeof DEFAULT_FILTERS[key] === "boolean") {
+          target[key] = value;
+        }
+      }
+      return merged;
+    }
+  } catch {
+    // Mất localStorage là không đáng kể — dùng mặc định.
+  }
+  return DEFAULT_FILTERS;
+}
+
 export interface Paragraph {
   raw: string;
   mt: string;

@@ -284,7 +284,7 @@ def test_run_automation_steps_computes_stats_delta(monkeypatch, tmp_path):
 # ---------- AutomationScheduler.run_now / _tick enqueue qua JobQueue ----------
 
 
-def test_run_now_enqueues_job_in_both_category(tmp_path, monkeypatch):
+def test_run_now_enqueues_job_in_automation_category(tmp_path, monkeypatch):
     from app import scheduler as scheduler_mod
 
     path = tmp_path / "automations.yaml"
@@ -308,7 +308,7 @@ def test_run_now_enqueues_job_in_both_category(tmp_path, monkeypatch):
         time.sleep(0.05)
     history = queue.snapshot()["history"]
     job = next(j for j in history if j["id"] == job_id)
-    assert job["category"] == "both"
+    assert job["category"] == "automation"
     assert job["state"] == "done"
     assert job["step"] == "automation"
     assert job["automation_id"] == a.id

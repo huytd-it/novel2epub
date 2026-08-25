@@ -2738,7 +2738,7 @@ def step_build_selected(
                 # nhánh này chỉ bảo vệ race hiếm khi dữ liệu đổi giữa chừng.
                 continue
             md = selected.text
-            title = selected.title
+            title = storage.publication_title(ch)
             anchored_stems.add(ch.stem)
             md, fns = _footnotes.annotate(md, notes)
             if fns:

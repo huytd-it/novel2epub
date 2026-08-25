@@ -6,7 +6,7 @@ import clsx from "clsx";
 
 import { useCurrentBook } from "@/lib/books";
 import { num } from "@/lib/format";
-import { useChapter, type AiRevision, type ChapterCompare } from "@/lib/ebook";
+import { loadChapterFilters, useChapter, type AiRevision, type ChapterCompare } from "@/lib/ebook";
 import {
   applyBookReplace,
   invalidateBookSearch,
@@ -588,6 +588,33 @@ export function ChapterPage() {
   const [selectedChapterIndexes, setSelectedChapterIndexes] = useState<Set<number>>(new Set());
   const [bulkLocalMtOpen, setBulkLocalMtOpen] = useState(false);
   const [aiEditOpen, setAiEditOpen] = useState(false);
+  // Bật để drawer danh sách chương dùng lại bộ lọc đã lưu của trang Sách
+  // (`ebooks.<slug>.chapterFilters`) — thay vì chỉ tìm theo tiêu đề riêng.
+  const [applyEbookFilters, setApplyEbookFilters] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(`n2e-apply-ebook-filters:${slug}`) === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      setApplyEbookFilters(localStorage.getItem(`n2e-apply-ebook-filters:${slug}`) === "1");
+    } catch {
+      setApplyEbookFilters(false);
+    }
+  }, [slug]);
+  const toggleApplyEbookFilters = () => {
+    setApplyEbookFilters((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(`n2e-apply-ebook-filters:${slug}`, next ? "1" : "0");
+      } catch {
+        /* bỏ qua khi không truy cập được localStorage */
+      }
+      return next;
+    });
+  };
   // Trạng thái thu gọn danh sách chương (desktop) — lưu theo slug để giữ nguyên
   // khi chuyển chương và khi tải lại trang.
   const [chaptersCollapsed, setChaptersCollapsed] = useState<boolean>(() => {
@@ -1399,6 +1426,9 @@ export function ChapterPage() {
         onSelect={go}
         collapsed={chaptersCollapsed}
         onToggleCollapsed={toggleChaptersCollapsed}
+        applyEbookFilters={applyEbookFilters}
+        onToggleApplyEbookFilters={toggleApplyEbookFilters}
+        sharedFilters={applyEbookFilters ? loadChapterFilters(slug) : null}
         mode={findMode}
         onModeChange={setFindMode}
         find={findState}

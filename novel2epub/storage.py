@@ -846,6 +846,29 @@ class Storage:
             )
         return None
 
+    def publication_title(self, ch: Chapter) -> str:
+        """Tiêu đề cho TOC/heading EPUB — ưu tiên nhánh AI bất kể bản dịch có
+        hoàn chỉnh hay không, fallback về tiêu đề của bản xuất bản.
+
+        Khác `publication_version.title` (chỉ lấy tiêu đề nhánh AI khi AI có bản
+        HOÀN CHỈNH): với EPUB ta muốn danh mục luôn nhất quán với tên chương
+        người đọc thấy bên ngoài, nên né dùng tiêu đề nhánh AI nếu đã tồn tại
+        một bản AI kể cả khi thân chương rơi về Local MT.
+
+        Cột `title` (nhánh AI) bị seed từ tiêu đề manifest lúc crawl, nên phải
+        kiểm tra bản AI CÓ nội dung (đủ điều kiện/đang dở) trước khi coi giá trị
+        đó là tiêu đề riêng của nhánh AI — nếu AI chưa dịch gì thì cột chỉ là
+        fallback manifest.
+        """
+        row = self._chapter_row(ch)
+        ai_text = (row[self._BRANCH_COLUMNS[revisions.BRANCH_AI]["text"]] or "") if row else ""
+        if ai_text:
+            ai_title = self.read_branch_title(ch, revisions.BRANCH_AI)
+            if ai_title:
+                return ai_title
+        selected = self.publication_version(ch)
+        return selected.title if selected else ch.title or f"Chương {ch.index}"
+
     def read_active_branch_text(self, ch: Chapter) -> str:
         """Bản dịch của nhánh đang được chọn trong editor."""
         return self.read_branch_text(ch, self.active_branch(ch))

@@ -97,6 +97,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, object]] = {
     "queue": {
         "translate_workers": 5,
         "crawl_workers": 2,
+        "automation_workers": 1,
     },
     "reader": {
         "url": "",

@@ -95,7 +95,7 @@ quả về form để người dùng duyệt, không tự ghi metadata vào DB.
 
 ## Web UI Và Job Queue
 
-FastAPI render giao diện Jinja2 và cung cấp API nội bộ. `JobQueue` chia worker thành các loại `crawl`, `local-mt`, `ai-translate`, `ai-edit` và `build`; số worker từng loại được lưu trong cấu hình global. Job độc quyền như `run` chờ tài nguyên phù hợp để tránh ghi chồng trạng thái ebook.
+FastAPI render giao diện Jinja2 và cung cấp API nội bộ. `JobQueue` chia worker thành các loại `crawl`, `local-mt`, `ai-translate`, `ai-edit`, `build` và `automation`. Mỗi loại có pool và hàng chờ độc lập; job của một loại không chặn worker loại khác. `both` chỉ còn là alias migration sang `automation` cho job cũ. Thứ tự job chờ được lưu trong SQLite và có thể đổi bằng kéo-thả hoặc nhập vị trí trên SPA.
 
 `AutomationScheduler` kiểm tra cron định kỳ và enqueue toàn bộ chuỗi bước như một job tuần tự. Lịch bị lỡ khi máy tắt được chạy bù tối đa một lần.
 
@@ -123,6 +123,9 @@ song song: route Jinja2 cũ giữ nguyên đường dẫn, SPA phục vụ tại
 - Dải chương (`GET /api/ui/library`) gửi trạng thái từng chương dạng run-length
   (`e120,m40,n1500`): trạng thái gần như luôn liên tục theo lô crawl/dịch nên
   payload nhỏ hơn hai bậc so với gửi cả mảng, mà vẫn chính xác từng chương.
+- Trang Thư viện có ba chế độ lưới, danh sách và bảng. Dạng bảng hiển thị tên,
+  tác giả, tiến độ, ngày tạo/cập nhật; tìm kiếm, lọc lưu trữ, sắp xếp và phân
+  trang chạy phía server, còn số mục mỗi trang có thể chọn 10/24/50/100.
 - `/app/library/new` là luồng thêm truyện native của SPA. `POST
   /api/ui/library/ebooks/preview` cho phép tự nhận diện hoặc ép source preset để
   xem metadata và config crawl; `POST /api/ui/library/ebooks` tạo một truyện;

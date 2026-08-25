@@ -14,13 +14,34 @@ import { Badge } from "@/components/ui/Badge";
 import { Input, InputWithIcon, Select } from "@/components/ui/Field";
 import { ConfirmDialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { IconChevronRight, IconMenu, IconOverview, IconPlus, IconSearch, IconTrash } from "@/components/icons";
+import { IconChevronRight, IconMenu, IconOverview, IconPlus, IconSearch, IconTable, IconTrash } from "@/components/icons";
 
-const PAGE_SIZE = 24;
-type ViewMode = "grid" | "list";
+type ViewMode = "grid" | "list" | "table";
+type LibrarySort = "title" | "title_desc" | "created_at" | "created_at_asc" | "updated_at" | "updated_at_asc";
 
 function loadViewMode(): ViewMode {
-  try { return localStorage.getItem("n2e-library-view") === "list" ? "list" : "grid"; } catch { return "grid"; }
+  try {
+    const value = localStorage.getItem("n2e-library-view");
+    return value === "list" || value === "table" ? value : "grid";
+  } catch {
+    return "grid";
+  }
+}
+
+function loadPageSize(): number {
+  try {
+    const value = Number(localStorage.getItem("n2e-library-page-size"));
+    return [10, 24, 50, 100].includes(value) ? value : 24;
+  } catch {
+    return 24;
+  }
+}
+
+function formatDate(value: string): string {
+  if (!value) return "—";
+  const date = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
 }
 
 function useDebouncedValue(value: string, delay = 250) {
@@ -85,6 +106,56 @@ function EbookGridCard({ book }: { book: EbookSummary }) {
   </Panel>;
 }
 
+function EbookTable({ books, sort, onSort }: { books: EbookSummary[]; sort: LibrarySort; onSort: (sort: LibrarySort) => void }) {
+  const [currentSlug, selectBook] = useCurrentBook();
+
+  function nextSort(descending: LibrarySort, ascending: LibrarySort): LibrarySort {
+    return sort === descending ? ascending : descending;
+  }
+
+  function sortMark(descending: LibrarySort, ascending: LibrarySort) {
+    if (sort === descending) return " ↓";
+    if (sort === ascending) return " ↑";
+    return "";
+  }
+
+  return <Panel className="overflow-hidden">
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[58rem] border-collapse text-left">
+        <thead>
+          <tr className="border-b border-base-300 bg-base-200/60">
+            <th className="px-3 py-2 text-[10px] font-semibold tracking-[0.1em] opacity-45 uppercase">
+              <button type="button" className="hover:text-primary hover:opacity-100" onClick={() => onSort(nextSort("title_desc", "title"))}>Tên{sortMark("title_desc", "title")}</button>
+            </th>
+            <th className="px-3 py-2 text-[10px] font-semibold tracking-[0.1em] opacity-45 uppercase">Tác giả</th>
+            <th className="px-3 py-2 text-[10px] font-semibold tracking-[0.1em] opacity-45 uppercase">Tiến độ</th>
+            <th className="px-3 py-2 text-[10px] font-semibold tracking-[0.1em] opacity-45 uppercase">
+              <button type="button" className="hover:text-primary hover:opacity-100" onClick={() => onSort(nextSort("updated_at", "updated_at_asc"))}>Cập nhật{sortMark("updated_at", "updated_at_asc")}</button>
+            </th>
+            <th className="px-3 py-2 text-[10px] font-semibold tracking-[0.1em] opacity-45 uppercase">
+              <button type="button" className="hover:text-primary hover:opacity-100" onClick={() => onSort(nextSort("created_at", "created_at_asc"))}>Ngày tạo{sortMark("created_at", "created_at_asc")}</button>
+            </th>
+            <th className="px-3 py-2" />
+          </tr>
+        </thead>
+        <tbody>
+          {books.map((book) => {
+            const isCurrent = currentSlug === book.slug;
+            return <tr key={book.slug} className={clsx("border-b border-base-300 last:border-b-0 hover:bg-base-200/50", isCurrent && "bg-base-200/30")}>
+              <td className="max-w-80 px-3 py-2.5"><div className="flex min-w-0 items-center gap-2"><Link to={`/ebooks/${book.slug}`} onClick={() => selectBook(book.slug)} className="truncate font-medium hover:text-primary">{book.title || book.slug}</Link><EbookBadges book={book} isCurrent={isCurrent} /></div><p data-numeric className="mt-0.5 truncate text-[11px] opacity-45">{book.slug}</p></td>
+              <td className="max-w-52 truncate px-3 py-2.5 text-xs opacity-65">{book.author || "—"}</td>
+              <td className="px-3 py-2.5"><div className="flex items-center gap-2"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-base-200"><div className="h-full rounded-full bg-success" style={{ width: `${percent(book.translated_count, book.total)}%` }} /></div><span data-numeric className="text-xs opacity-60">{num(book.translated_count)}/{num(book.total)}</span></div></td>
+              <td data-numeric className="whitespace-nowrap px-3 py-2.5 text-xs opacity-65">{formatDate(book.updated_at)}</td>
+              <td data-numeric className="whitespace-nowrap px-3 py-2.5 text-xs opacity-65">{formatDate(book.created_at)}</td>
+              <td className="px-3 py-2.5"><EbookActions book={book} /></td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+    </div>
+  </Panel>;
+}
+
 function EbookListItem({ book }: { book: EbookSummary }) {
   const states = useMemo(() => decodeStrip(book.strip), [book.strip]);
   const counts = useMemo(() => stripCounts(book.counts), [book.counts]);
@@ -102,20 +173,22 @@ export function LibraryPage() {
   const navigate = useNavigate();
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<"title" | "recent">("title");
+  const [sort, setSort] = useState<LibrarySort>("title");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(loadPageSize);
   const [view, setView] = useState<ViewMode>(loadViewMode);
   const debouncedSearch = useDebouncedValue(search);
-  const { data, isPending, error } = useLibrary({ showArchived, q: debouncedSearch, sort, page, limit: PAGE_SIZE });
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
-  useEffect(() => setPage(0), [debouncedSearch, showArchived, sort]);
+  const { data, isPending, error } = useLibrary({ showArchived, q: debouncedSearch, sort, page, limit: pageSize });
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
+  useEffect(() => setPage(0), [debouncedSearch, showArchived, sort, pageSize]);
   useEffect(() => { try { localStorage.setItem("n2e-library-view", view); } catch { /* localStorage không khả dụng */ } }, [view]);
+  useEffect(() => { try { localStorage.setItem("n2e-library-page-size", String(pageSize)); } catch { /* localStorage không khả dụng */ } }, [pageSize]);
 
   return <Page
     title="Thư viện"
     hint={data ? <><span data-numeric>{num(data.total)}</span> truyện{debouncedSearch ? " khớp tìm kiếm" : ""} · trang <span data-numeric>{data.page + 1}/{totalPages}</span></> : "Đang đọc thư viện"}
-    actions={<><InputWithIcon icon={<IconSearch size={15} />} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm tên, tác giả hoặc slug" className="w-60" aria-label="Tìm truyện" /><Select value={sort} onChange={(e) => setSort(e.target.value as "title" | "recent")} aria-label="Sắp xếp thư viện" className="w-28"><option value="title">Tên A–Z</option><option value="recent">Mới thêm</option></Select><Button variant={showArchived ? "primary" : "neutral"} onClick={() => { setShowArchived((value) => !value); setPage(0); }}>Lưu trữ {data?.archived_count ? <span data-numeric className="ml-1 opacity-60">{data.archived_count}</span> : null}</Button><div className="join" aria-label="Kiểu hiển thị"><Button size="sm" variant={view === "grid" ? "primary" : "neutral"} icon={<IconOverview />} onClick={() => setView("grid")} aria-label="Xem dạng lưới" title="Dạng lưới" /><Button size="sm" variant={view === "list" ? "primary" : "neutral"} icon={<IconMenu />} onClick={() => setView("list")} aria-label="Xem dạng danh sách" title="Dạng danh sách" /></div><Button variant="primary" icon={<IconPlus />} onClick={() => navigate("/library/new")}>Thêm truyện</Button></>}
+    actions={<><InputWithIcon icon={<IconSearch size={15} />} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm tên, tác giả hoặc slug" className="w-60" aria-label="Tìm truyện" /><Select value={sort} onChange={(e) => setSort(e.target.value as LibrarySort)} aria-label="Sắp xếp thư viện" className="w-36"><option value="title">Tên A–Z</option><option value="title_desc">Tên Z–A</option><option value="updated_at">Cập nhật mới</option><option value="updated_at_asc">Cập nhật cũ</option><option value="created_at">Tạo mới</option><option value="created_at_asc">Tạo cũ</option></Select><Button variant={showArchived ? "primary" : "neutral"} onClick={() => { setShowArchived((value) => !value); setPage(0); }}>Lưu trữ {data?.archived_count ? <span data-numeric className="ml-1 opacity-60">{data.archived_count}</span> : null}</Button><div className="join" aria-label="Kiểu hiển thị"><Button size="sm" variant={view === "grid" ? "primary" : "neutral"} icon={<IconOverview />} onClick={() => setView("grid")} aria-label="Xem dạng lưới" title="Dạng lưới" /><Button size="sm" variant={view === "list" ? "primary" : "neutral"} icon={<IconMenu />} onClick={() => setView("list")} aria-label="Xem dạng danh sách" title="Dạng danh sách" /><Button size="sm" variant={view === "table" ? "primary" : "neutral"} icon={<IconTable />} onClick={() => setView("table")} aria-label="Xem dạng bảng" title="Dạng bảng" /></div><Button variant="primary" icon={<IconPlus />} onClick={() => navigate("/library/new")}>Thêm truyện</Button></>}
   >
-    {isPending ? <Panel className="overflow-hidden"><SkeletonTable rows={view === "grid" ? 6 : 5} cols={5} /></Panel> : error ? <Panel><EmptyState title="Không đọc được thư viện" hint={error instanceof Error ? error.message : String(error)} /></Panel> : data?.ebooks.length === 0 ? <Panel><EmptyState title={search ? "Không có truyện nào khớp" : "Thư viện đang trống"} hint={search ? "Thử từ khóa khác hoặc bật Lưu trữ." : "Thêm truyện bằng URL mục lục để bắt đầu."} /></Panel> : <>{view === "grid" ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{data!.ebooks.map((book) => <EbookGridCard key={book.slug} book={book} />)}</div> : <Panel className="overflow-hidden">{data!.ebooks.map((book) => <EbookListItem key={book.slug} book={book} />)}</Panel>}<div className="mt-4 flex items-center justify-between gap-3"><p className="text-xs opacity-55">Hiển thị <span data-numeric>{num(data!.ebooks.length)}</span> trên <span data-numeric>{num(data!.total)}</span> truyện.</p><div className="flex items-center gap-2"><Button size="sm" variant="ghost" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Trước</Button><span data-numeric className="text-xs opacity-60">{page + 1}/{totalPages}</span><Button size="sm" variant="ghost" disabled={page + 1 >= totalPages} onClick={() => setPage((value) => value + 1)}>Sau</Button></div></div></>}
+    {isPending ? <Panel className="overflow-hidden"><SkeletonTable rows={view === "grid" ? 6 : 5} cols={view === "table" ? 6 : 5} /></Panel> : error ? <Panel><EmptyState title="Không đọc được thư viện" hint={error instanceof Error ? error.message : String(error)} /></Panel> : data?.ebooks.length === 0 ? <Panel><EmptyState title={search ? "Không có truyện nào khớp" : "Thư viện đang trống"} hint={search ? "Thử từ khóa khác hoặc bật Lưu trữ." : "Thêm truyện bằng URL mục lục để bắt đầu."} /></Panel> : <>{view === "grid" ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{data!.ebooks.map((book) => <EbookGridCard key={book.slug} book={book} />)}</div> : view === "table" ? <EbookTable books={data!.ebooks} sort={sort} onSort={setSort} /> : <Panel className="overflow-hidden">{data!.ebooks.map((book) => <EbookListItem key={book.slug} book={book} />)}</Panel>}<div className="mt-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><p className="text-xs opacity-55">Hiển thị <span data-numeric>{num(data!.ebooks.length)}</span> trên <span data-numeric>{num(data!.total)}</span> truyện.</p><label className="flex items-center gap-1.5 text-xs opacity-60"><span>Hiện</span><Select value={String(pageSize)} onChange={(event) => setPageSize(Number(event.target.value))} aria-label="Số truyện mỗi trang" className="h-8 w-20"><option value="10">10</option><option value="24">24</option><option value="50">50</option><option value="100">100</option></Select><span>mục</span></label></div><div className="flex items-center gap-2"><Button size="sm" variant="ghost" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Trước</Button><span data-numeric className="text-xs opacity-60">{page + 1}/{totalPages}</span><Button size="sm" variant="ghost" disabled={page + 1 >= totalPages} onClick={() => setPage((value) => value + 1)}>Sau</Button></div></div></>}
   </Page>;
 }

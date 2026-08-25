@@ -567,6 +567,27 @@ def test_v14_migrates_global_ai_models_without_promoting_ebook_credentials():
     assert global_ai["base_url"] != "https://ebook.example/v1"
 
 
+def test_v21_migrates_legacy_both_queue_category_and_adds_position():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        conn.execute(
+            "INSERT INTO job_queue_pending "
+            "(id, category, step, label, ebook, spec_json, position) "
+            "VALUES ('legacy', 'both', 'run', 'Run', '', '{}', 7)"
+        )
+        conn.execute("UPDATE _meta SET value = '20' WHERE key = 'schema_version'")
+
+    init_schema(conn)
+
+    row = conn.execute(
+        "SELECT category, position FROM job_queue_pending WHERE id = 'legacy'"
+    ).fetchone()
+    assert row["category"] == "automation"
+    assert row["position"] == 7
+    assert schema_version(conn) == SCHEMA_VERSION
+
+
 def test_future_schema_is_rejected_without_downgrade():
     conn = get_connection(":memory:")
     init_schema(conn)

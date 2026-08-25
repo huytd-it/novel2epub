@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, memo } from "react";
 import type { ReactNode } from "react";
 import clsx from "clsx";
 
-import { DEFAULT_FILTERS, useInfiniteChapters } from "@/lib/ebook";
+import { DEFAULT_FILTERS, useInfiniteChapters, type ChapterFilters } from "@/lib/ebook";
 import type { FindReplacePreviewItem, FindSource, SearchHit } from "@/lib/chapter";
 import { num } from "@/lib/format";
 import { InputWithIcon } from "@/components/ui/Field";
@@ -84,6 +84,9 @@ export function ChapterListDrawer({
   onSelectAll,
   onClearSelected,
   onBulkLocalMt,
+  applyEbookFilters,
+  onToggleApplyEbookFilters,
+  sharedFilters,
 }: {
   open: boolean;
   onClose: () => void;
@@ -116,9 +119,16 @@ export function ChapterListDrawer({
   onSelectAll: (indexes: number[]) => void;
   onClearSelected: () => void;
   onBulkLocalMt: () => void;
+  applyEbookFilters: boolean;
+  onToggleApplyEbookFilters: () => void;
+  /** Bộ lọc tái dùng từ trang Sách — khi có, thay base của drawer để danh
+      sách này lọc cùng tập chương như bảng trên EbookPage. */
+  sharedFilters?: ChapterFilters | null;
 }) {
   const [search, setSearch] = useState("");
-  const filters = useMemo(() => ({ ...DEFAULT_FILTERS, search }), [search]);
+  const base = sharedFilters ?? DEFAULT_FILTERS;
+  // Ô tìm tiêu đề của drawer luôn hoạt động, chồng lên bộ lọc đang dùng.
+  const filters = useMemo(() => ({ ...base, search }), [base, search]);
   const { data, isFetching, isPending, isError, error, fetchNextPage, hasNextPage, refetch } =
     useInfiniteChapters(slug, filters, 100);
 
@@ -288,6 +298,15 @@ export function ChapterListDrawer({
                 placeholder="Tìm tiêu đề chương"
                 className="w-full"
               />
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] opacity-70">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-xs"
+                  checked={applyEbookFilters}
+                  onChange={onToggleApplyEbookFilters}
+                />
+                Áp dụng bộ lọc của trang Sách
+              </label>
               <div className="flex items-center justify-between gap-2 text-[11px]">
                 <button
                   type="button"

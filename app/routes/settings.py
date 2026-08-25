@@ -967,7 +967,7 @@ def local_mt_install(request: Request, payload: dict):
 
     `ensure_model_files` idempotent: file đủ rồi trả ngay không tải gì; thiếu
     thì snapshot_download bổ sung đúng pattern còn thiếu (cập nhật cũng là gọi
-    lại hàm này). Job category "both" — chiếm độc quyền vì tải nặng CPU/IO.
+    lại hàm này). Job dùng pool `automation` riêng, không chặn worker khác.
     """
     import threading
 
@@ -987,7 +987,7 @@ def local_mt_install(request: Request, payload: dict):
     started = request.app.state.job.start_custom(
         f"local-mt-install-{model_key}",
         _target,
-        category="both",
+        category="automation",
         cancel_event=cancel_event,
         label=job_label("local-mt-install", title=label),
     )

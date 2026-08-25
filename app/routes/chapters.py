@@ -665,6 +665,41 @@ async def api_batch_update_skip(slug: str, indexes: str = Form(...), skip: bool 
     return JSONResponse({"updated": updated, "skip": skip})
 
 
+@router.post("/api/ebooks/{slug}/batch/set-branch")
+async def api_batch_set_branch(slug: str, indexes: str = Form(...), branch: str = Form(...)):
+    """Đổi nhánh đang hoạt động (bản đi vào EPUB/Reader) cho hàng loạt chương.
+
+    Chỉ chuyển những chương ĐÃ CÓ bản dịch ở nhánh đích — chương chưa có text ở
+    nhánh đó bị bỏ qua để không làm hỏng EPUB. Đổi nhánh là lựa chọn workspace,
+    không ghi đè nội dung nên chạy trực tiếp, không qua job queue. Tiêu đề hiển
+    thị (TOC/Reader) sẽ tự cập nhật theo tiêu đề của nhánh được chọn."""
+    from novel2epub import revisions as _rev
+
+    if branch not in _rev.BRANCHES:
+        raise HTTPException(status_code=400, detail=f"branch không hợp lệ: {branch!r}")
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào.")
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có manifest.")
+    target = _rev.normalize_branch(branch)
+    updated = 0
+    skipped = 0
+    for ch in manifest.chapters:
+        if ch.index not in index_list:
+            continue
+        if not storage.has_branch_text(ch, target):
+            skipped += 1
+            continue
+        if storage.active_branch(ch) != target:
+            storage.set_active_branch(ch, target)
+            updated += 1
+    return JSONResponse({"updated": updated, "skipped": skipped, "branch": target})
+
+
 _POLISH_PROMPT = """Bạn là biên tập viên truyện dịch Trung → Việt.
 Hãy BIÊN TẬP LẠI bản dịch Việt sau cho mượt mà, dễ hiểu, tự nhiên hơn.
 Tham khảo bản gốc Trung để hiểu đúng ngữ cảnh và nghĩa.

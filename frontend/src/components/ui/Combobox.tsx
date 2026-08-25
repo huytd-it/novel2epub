@@ -15,6 +15,7 @@ export function Combobox({
   placeholder,
   className,
   onFocus,
+  disabled,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -22,6 +23,7 @@ export function Combobox({
   placeholder?: string;
   className?: string;
   onFocus?: () => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
@@ -80,11 +82,13 @@ export function Combobox({
         aria-expanded={open}
         aria-controls={listId}
         value={value}
+        disabled={disabled}
         onChange={(e) => {
           onChange(e.target.value);
           setOpen(true);
         }}
         onFocus={() => {
+          if (disabled) return;
           setOpen(true);
           onFocus?.();
         }}

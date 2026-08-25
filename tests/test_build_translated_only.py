@@ -152,6 +152,30 @@ def test_publication_bo_ai_dang_dich_do_va_fallback_local_mt(tmp_path):
     assert selected.text == "BẢN LOCAL MT HOÀN CHỈNH"
 
 
+def test_publication_title_uu_tien_ai_khong_bater_ban_tan_suat(tmp_path):
+    storage = Storage(tmp_path, "t")
+    ch = Chapter(index=1, url="http://x/1", title="Chương 1")
+    storage.save_manifest(Manifest(slug="t", title="Truyện", chapters=[ch]))
+    storage.write_branch_text(ch, "local_mt", "BẢN LOCAL MT HOÀN CHỈNH")
+    storage.write_branch_titles(ch, "local_mt", "Tiêu đề Local MT")
+    storage.write_branch_text(ch, "ai", "BẢN AI DỞ DANG")
+    storage.write_branch_titles(ch, "ai", "Tiêu đề AI")
+    # AI chưa hoàn chỉnh → `publication_version` phải rơi về Local MT (thân),
+    # nhưng tiêu đề EPUB vẫn lấy của nhánh AI.
+    storage.write_meta(ch, {"complete": False, "local_mt_complete": True})
+
+    selected = storage.publication_version(ch)
+    assert selected is not None
+    assert selected.branch == "local_mt"
+    assert storage.publication_title(ch) == "Tiêu đề AI"
+
+    out = pipeline.step_build_selected(_cfg(tmp_path), lambda m: None, strict_translated=False)
+    body = _text(out)
+    assert "BẢN LOCAL MT HOÀN CHỈNH" in body
+    assert "Tiêu đề AI" in body
+    assert "Tiêu đề Local MT" not in body
+
+
 def test_build_stale_theo_ban_xuat_ban_khong_theo_active_branch(tmp_path):
     storage = Storage(tmp_path, "t")
     ch = Chapter(index=1, url="http://x/1", title="Chương 1")

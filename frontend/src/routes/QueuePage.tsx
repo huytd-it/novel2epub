@@ -20,7 +20,7 @@ import { Loading } from "@/components/ui/Loading";
 import { Badge, Dot } from "@/components/ui/Badge";
 import { ConfirmDialog, Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { IconPlay, IconRetry, IconTrash } from "@/components/icons";
+import { IconMenu, IconPlay, IconRetry, IconTrash } from "@/components/icons";
 
 const WORKER_LABEL: Record<string, string> = {
   crawl: "crawl",
@@ -28,26 +28,90 @@ const WORKER_LABEL: Record<string, string> = {
   "ai-translate": "ai-translate",
   "ai-edit": "ai-edit",
   build: "build",
+  automation: "automation",
 };
 
 function JobRow({
   job,
+  position,
+  pendingTotal,
+  dragging,
+  dragOver,
   onAction,
   onViewLog,
+  onMove,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
 }: {
   job: Job;
+  position?: number;
+  pendingTotal: number;
+  dragging: boolean;
+  dragOver: boolean;
   onAction: (job: Job, action: string) => void;
   onViewLog: (job: Job) => void;
+  onMove: (job: Job, position: number) => void;
+  onDragStart: (job: Job) => void;
+  onDragOver: (job: Job) => void;
+  onDragEnd: () => void;
 }) {
   const tone = jobTone(job.state);
   const running = job.state === "running";
+  const reorderable = job.state === "pending";
 
   return (
     <tr
-      className="cursor-pointer border-b border-base-300 last:border-b-0 hover:bg-base-200/50"
-      title="Xem nhật ký"
+      draggable={reorderable}
+      className={clsx(
+        "cursor-pointer border-b border-base-300 last:border-b-0 hover:bg-base-200/50",
+        dragging && "opacity-45",
+        dragOver && "bg-warning/10 outline outline-1 -outline-offset-1 outline-warning/50",
+      )}
+      title={reorderable ? "Kéo để đổi thứ tự; bấm hàng để xem nhật ký" : "Xem nhật ký"}
       onClick={() => onViewLog(job)}
+      onDragStart={(event) => {
+        if (!reorderable) return;
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", job.id);
+        onDragStart(job);
+      }}
+      onDragOver={(event) => {
+        if (!reorderable) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        onDragOver(job);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDragOver(job);
+      }}
+      onDragEnd={onDragEnd}
     >
+      <td className="w-20 px-2 py-1.5" onClick={(event) => event.stopPropagation()}>
+        {reorderable && position !== undefined ? (
+          <div className="flex items-center gap-1">
+            <IconMenu className="shrink-0 cursor-grab opacity-35" aria-hidden="true" />
+            <input
+              type="number"
+              min={1}
+              max={pendingTotal}
+              defaultValue={position + 1}
+              key={`${job.id}-${position}`}
+              inputMode="numeric"
+              aria-label={`Thứ tự của ${job.label}`}
+              title="Nhập vị trí trong loại worker này"
+              className="h-7 w-11 rounded-field border border-base-300 bg-base-100 px-1 text-center text-xs focus:border-primary focus:outline-none"
+              onBlur={(event) => onMove(job, Number(event.currentTarget.value) - 1)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
+              }}
+            />
+          </div>
+        ) : (
+          <span className="pl-6 text-xs opacity-30">—</span>
+        )}
+      </td>
       <td className="px-3 py-1.5">
         <div className="flex items-center gap-2">
           <Dot tone={tone} pulse={running} />
@@ -125,19 +189,35 @@ function JobRow({
 
 function JobTable({
   jobs,
+  pendingByCategory,
   onAction,
   onViewLog,
+  onMove,
 }: {
   jobs: Job[];
+  pendingByCategory: Record<string, Job[]>;
   onAction: (job: Job, action: string) => void;
   onViewLog: (job: Job) => void;
+  onMove: (job: Job, position: number) => void;
 }) {
+  const [dragged, setDragged] = useState<Job | null>(null);
+  const [dragTarget, setDragTarget] = useState<Job | null>(null);
+
+  function finishDrag() {
+    if (dragged && dragTarget && dragged.id !== dragTarget.id && dragged.category === dragTarget.category) {
+      const targetPosition = pendingByCategory[dragged.category]?.findIndex((job) => job.id === dragTarget.id) ?? -1;
+      if (targetPosition >= 0) onMove(dragged, targetPosition);
+    }
+    setDragged(null);
+    setDragTarget(null);
+  }
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[46rem] border-collapse text-left">
+      <table className="w-full min-w-[50rem] border-collapse text-left">
         <thead>
           <tr className="border-b border-base-300 bg-base-200/60">
-            {["Việc", "Trạng thái", "Loại worker", "Thời gian", ""].map((h, i) => (
+            {["Thứ tự", "Việc", "Trạng thái", "Loại worker", "Thời gian", ""].map((h, i) => (
               <th
                 key={h || i}
                 className="px-3 py-1.5 text-[10px] font-semibold tracking-[0.1em] opacity-40 uppercase"
@@ -148,9 +228,31 @@ function JobTable({
           </tr>
         </thead>
         <tbody>
-          {jobs.map((job) => (
-            <JobRow key={job.id} job={job} onAction={onAction} onViewLog={onViewLog} />
-          ))}
+          {jobs.map((job) => {
+            const categoryPending = pendingByCategory[job.category] ?? [];
+            const position = categoryPending.findIndex((candidate) => candidate.id === job.id);
+            return (
+              <JobRow
+                key={job.id}
+                job={job}
+                position={position >= 0 ? position : undefined}
+                pendingTotal={categoryPending.length}
+                dragging={dragged?.id === job.id}
+                dragOver={dragTarget?.id === job.id && dragged?.category === job.category}
+                onAction={onAction}
+                onViewLog={onViewLog}
+                onMove={onMove}
+                onDragStart={(candidate) => {
+                  setDragged(candidate);
+                  setDragTarget(null);
+                }}
+                onDragOver={(candidate) => {
+                  if (dragged && dragged.category === candidate.category) setDragTarget(candidate);
+                }}
+                onDragEnd={finishDrag}
+              />
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -222,9 +324,24 @@ export function QueuePage() {
     onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
   });
 
+  const reorder = useMutation({
+    mutationFn: ({ job, position }: { job: Job; position: number }) => {
+      const categoryJobs = data?.pending[job.category] ?? [];
+      const withoutJob = categoryJobs.filter((candidate) => candidate.id !== job.id);
+      const nextPosition = Math.max(0, Math.min(position, withoutJob.length));
+      const beforeId = withoutJob[nextPosition]?.id ?? "";
+      return api.post<{ ok: boolean }>(`/api/queue/${job.id}/reorder`, {
+        form: { before_id: beforeId },
+      });
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: queueKey }),
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
   const active = useMemo(() => {
     if (!data) return [];
-    return [...data.running, ...Object.values(data.pending).flat()];
+    const pending = data.categories.flatMap((category) => data.pending[category] ?? []);
+    return [...data.running, ...pending];
   }, [data]);
 
   const failedCount = useMemo(
@@ -362,7 +479,13 @@ export function QueuePage() {
             }
           />
         ) : (
-          <JobTable jobs={jobs} onAction={onAction} onViewLog={setLogJob} />
+          <JobTable
+            jobs={jobs}
+            pendingByCategory={data?.pending ?? {}}
+            onAction={onAction}
+            onViewLog={setLogJob}
+            onMove={(job, position) => reorder.mutate({ job, position })}
+          />
         )}
       </Panel>
 

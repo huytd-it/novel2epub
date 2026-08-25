@@ -1,11 +1,10 @@
-"""Hàng đợi job FIFO theo category (crawl/local-mt/ai-translate/ai-edit/build)
-với N worker thread mỗi category, chạy song song trong giới hạn cấu hình. Step
-"run" là job "both" — chiếm quyền độc quyền trên tất cả category (đợi tất cả
-rỗng rồi mới chạy, chặn job mới bắt đầu trong lúc nó chạy).
+"""Hàng đợi job FIFO theo category
+(crawl/local-mt/ai-translate/ai-edit/build/automation) với N worker thread mỗi
+category. Mỗi loại worker có pool và lịch chạy riêng; job của một loại không
+chặn worker thuộc loại khác.
 
-Category cũ `translate` được giữ làm alias của `ai-translate` để job đã lưu
-trong DB và route cũ (start_custom(... category="translate")) vẫn chạy nguyên
-vẹn — xem `_CATEGORY_ALIASES`/`_normalize_category`.
+Category cũ `translate` và `both` được giữ làm alias để job đã lưu trong DB và
+route cũ vẫn chạy nguyên vẹn — xem `_CATEGORY_ALIASES`/`_normalize_category`.
 
 `JobRunner` (app/job.py) giữ làm shim mỏng gọi vào đây để các route cũ không
 phải đổi ngay (xem design.md D1/D2 của change pro-management-suite).
@@ -27,17 +26,16 @@ from novel2epub.db import get_thread_connection
 
 from .logging_config import job_log_capture, logger
 
-# Category vật lý. `translate` (category cũ) được ánh xạ về `ai-translate`.
-CATEGORIES = ("crawl", "local-mt", "ai-translate", "ai-edit", "build")
-# Alias cũ → category mới. Giữ job cũ (persisted trong DB) và route cũ hoạt động.
-_CATEGORY_ALIASES = {"translate": "ai-translate"}
-# Category "both" chiếm độc quyền mọi category (job `run`/`reindex`/automation).
+# Category vật lý. Mỗi category có pool worker độc lập.
+CATEGORIES = ("crawl", "local-mt", "ai-translate", "ai-edit", "build", "automation")
+# Alias cũ → category mới. Giữ job persisted và route cũ hoạt động.
+_CATEGORY_ALIASES = {"translate": "ai-translate", "both": "automation"}
 DEFAULT_HISTORY_LIMIT = 5000
 
-# Artifact mà mỗi category GHI vào. Hai job CÙNG EBOOK chỉ đụng nhau khi tập
-# artifact họ ghi giao nhau (write-write). Đọc (raw, bản dịch) KHÔNG chặn nhau
-# và KHÔNG chặn writer — ví dụ crawl (ghi raw) chạy song song ai-translate (đọc
-# raw), còn hai ai-translate cùng ebook (cùng ghi `ai`) phải nối đuôi.
+# Artifact mà mỗi category GHI vào. Khóa chỉ áp dụng BÊN TRONG cùng category:
+# không category nào chặn worker category khác. Trong cùng category và ebook,
+# hai job ghi cùng phạm vi phải nối đuôi; hai phạm vi chapter rời nhau được chạy
+# song song.
 CATEGORY_WRITES: dict[str, frozenset[str]] = {
     "crawl": frozenset({"raw"}),
     "local-mt": frozenset({"local_mt"}),
@@ -46,18 +44,21 @@ CATEGORY_WRITES: dict[str, frozenset[str]] = {
     # Build đọc active workspace của cả hai nhánh; xem như giữ read-lock trên
     # chúng để writer không đổi input giữa snapshot và đóng gói EPUB.
     "build": frozenset({"build", "ai", "local_mt"}),
+    # Automation điều phối nhiều bước. Write-set này chỉ khóa các automation
+    # cùng ebook; do khóa không vượt category nên crawl/dịch/build vẫn độc lập.
+    "automation": frozenset({"automation"}),
 }
 
 
 def _normalize_category(category: str) -> str:
-    """Chuẩn hoá category; alias cũ (`translate`) → category mới (`ai-translate`)."""
+    """Chuẩn hoá category cũ sang pool worker hiện hành."""
     return _CATEGORY_ALIASES.get(category, category)
 
 
 @dataclass
 class Job:
     id: str
-    category: str  # "crawl" | "local-mt" | "ai-translate" | "ai-edit" | "build" | "both"
+    category: str  # crawl | local-mt | ai-translate | ai-edit | build | automation
     step: str
     label: str = ""
     ebook: str = ""
@@ -106,8 +107,7 @@ class Job:
 
 
 def _categories_for(category: str) -> tuple[str, ...]:
-    category = _normalize_category(category)
-    return CATEGORIES if category == "both" else (category,)
+    return (_normalize_category(category),)
 
 
 class JobQueue:
@@ -134,12 +134,10 @@ class JobQueue:
         self._extra_workers: dict[str, int] = {c: 0 for c in CATEGORIES}
         # Số thread thực tế đã spawn cho mỗi category (tránh spawn thừa khi toggle pause)
         self._spawned: dict[str, int] = {c: 0 for c in CATEGORIES}
-        self._pending: dict[str, deque[Job]] = {c: deque() for c in (*CATEGORIES, "both")}
+        self._pending: dict[str, deque[Job]] = {c: deque() for c in CATEGORIES}
         self._running: dict[str, Job] = {}
         self._active: dict[str, int] = {c: 0 for c in CATEGORIES}
-        self._both_active = False
-        self._both_waiting = False
-        self._ebook_locks: dict[str, set[str]] = {c: set() for c in (*CATEGORIES, "both")}
+        self._ebook_locks: dict[str, set[str]] = {c: set() for c in CATEGORIES}
         self._history: deque[Job] = deque(maxlen=history_limit)
         self._jobs: dict[str, Job] = {}
         self._retired_ebooks: set[str] = set()
@@ -153,7 +151,6 @@ class JobQueue:
             for _ in range(initial):
                 self._spawn_worker(cat)
             self._spawned[cat] = initial
-        self._spawn_worker("both")
 
     def _spawn_worker(self, category: str) -> None:
         t = threading.Thread(target=self._worker_loop, args=(category,), daemon=True)
@@ -175,7 +172,7 @@ class JobQueue:
         chapter_indexes: list | None = None,
         spec: dict | None = None,
     ) -> Job:
-        if _normalize_category(category) not in (*CATEGORIES, "both"):
+        if _normalize_category(category) not in CATEGORIES:
             raise ValueError(f"category không hợp lệ: {category!r}")
         normalized = _normalize_category(category)
         job = Job(
@@ -345,19 +342,18 @@ class JobQueue:
             items.insert(0, job)
             q.clear()
             q.extend(items)
-            # Nếu category thông thường, đảm bảo có ít nhất 1 slot worker trống.
-            # So sánh với base_workers (không tính extra) để tránh thiếu worker
-            # khi start_now được gọi nhiều lần lúc queue đang paused.
-            if category != "both":
-                extra = self._extra_workers.get(category, 0)
-                base = self._workers[category] - extra
-                need_extra = base <= 0 or self._active[category] >= self._workers[category]
-                if need_extra:
-                    new_extra = extra + 1
-                    self._extra_workers[category] = new_extra
-                    # Bump workers để tất cả extra workers có thể chạy song song
-                    self._workers[category] = self._active[category] + new_extra
-                    self._spawn_worker(category)
+            # Đảm bảo có ít nhất 1 slot worker trống. So sánh với base_workers
+            # (không tính extra) để tránh thiếu worker khi start_now được gọi
+            # nhiều lần lúc queue đang paused.
+            extra = self._extra_workers.get(category, 0)
+            base = self._workers[category] - extra
+            need_extra = base <= 0 or self._active[category] >= self._workers[category]
+            if need_extra:
+                new_extra = extra + 1
+                self._extra_workers[category] = new_extra
+                # Bump workers để tất cả extra workers có thể chạy song song.
+                self._workers[category] = self._active[category] + new_extra
+                self._spawn_worker(category)
             self._cv.notify_all()
         return True
 
@@ -544,31 +540,18 @@ class JobQueue:
 
     def _can_start(self, category: str) -> Job | None:
         """Gọi khi đã giữ self._cv. Trả job kế tiếp có thể chạy ngay, hoặc None."""
-        if category == "both":
-            if not self._pending["both"]:
-                return None
-            if any(self._active[c] for c in CATEGORIES) or self._both_active:
-                return None
-            return self._pending["both"][0]
         if self._active[category] >= self._workers[category]:
             return None
         if not self._pending[category]:
             return None
-        # Build set of ebooks locked by running "both" jobs
-        both_ebooks: set[str] = set()
-        if self._both_active:
-            both_ebooks = {
-                j.ebook for j in self._running.values()
-                if j.category == "both" and j.ebook
-            }
         ebook_locks = self._ebook_locks.get(category, set())
         for candidate in self._pending[category]:
             # Chapter-scoped jobs dùng artifact lock bên dưới; ebook lock cũ chỉ
-            # dành cho job không khai phạm vi (toàn ebook).
+            # dành cho job không khai phạm vi (toàn ebook), và chỉ trong cùng
+            # category để worker loại khác không chặn nhau.
             whole_ebook = candidate.lock_ebook and not candidate.chapter_indexes
             cat_blocked = whole_ebook and candidate.ebook and candidate.ebook in ebook_locks
-            both_blocked = candidate.lock_ebook and candidate.ebook and candidate.ebook in both_ebooks
-            if cat_blocked or both_blocked:
+            if cat_blocked:
                 continue
             if self._artifact_conflict(candidate):
                 continue
@@ -579,9 +562,9 @@ class JobQueue:
         """True khi writer đụng cùng `(ebook, chapter, artifact)`.
 
         `chapter_indexes=[]` nghĩa là phạm vi toàn ebook/không biết rõ nên xung
-        đột với mọi writer cùng artifact. Hai job cùng artifact nhưng tập chapter
-        rời nhau được chạy song song; Local MT và AI translate luôn ghi artifact
-        khác nhau nên có thể cùng đọc raw.
+        đột với writer cùng category. Khóa không vượt qua ranh giới category:
+        mỗi loại worker hoạt động độc lập. Hai job cùng category nhưng tập chapter
+        rời nhau vẫn được chạy song song.
         """
         if not job.ebook or not job.lock_ebook:
             return False
@@ -590,10 +573,8 @@ class JobQueue:
             return False
         job_indexes = {int(i) for i in job.chapter_indexes}
         for other in self._running.values():
-            if other.ebook != job.ebook:
+            if other.category != job.category or other.ebook != job.ebook:
                 continue
-            if other.category == "both":
-                return True
             if not other.lock_ebook:
                 continue
             if not (writes & CATEGORY_WRITES.get(other.category, set())):
@@ -606,27 +587,16 @@ class JobQueue:
     def _worker_loop(self, category: str) -> None:
         while True:
             with self._cv:
-                if category == "both":
-                    self._both_waiting = bool(self._pending["both"])
                 job = self._can_start(category)
                 while job is None:
                     self._cv.wait(timeout=1.0)
-                    if category == "both":
-                        self._both_waiting = bool(self._pending["both"])
                     job = self._can_start(category)
-                # Dequeue (may not be at front if ebook-locking skipped jobs)
-                if category == "both":
-                    self._pending[category].popleft()
-                else:
-                    try:
-                        self._pending[category].remove(job)
-                    except ValueError:
-                        pass
-                if category == "both":
-                    self._both_active = True
-                    self._both_waiting = False
-                else:
-                    self._active[category] += 1
+                # Dequeue (may not be at front if ebook-locking skipped jobs).
+                try:
+                    self._pending[category].remove(job)
+                except ValueError:
+                    pass
+                self._active[category] += 1
                 if job.ebook and job.lock_ebook:
                     self._ebook_locks[category].add(job.ebook)
                 job.state = "running"
@@ -644,15 +614,12 @@ class JobQueue:
                 job.state = final_state
                 job.ended_at = time.time()
                 self._running.pop(job.id, None)
-                if category == "both":
-                    self._both_active = False
-                else:
-                    self._active[category] -= 1
+                self._active[category] -= 1
                 if job.ebook and job.lock_ebook:
                     self._ebook_locks[category].discard(job.ebook)
                 self._push_history(job)
-                # Worker tạm thời (start_now): thoát sau 1 job để restore worker count
-                if category != "both" and self._extra_workers.get(category, 0) > 0:
+                # Worker tạm thời (start_now): thoát sau 1 job để restore worker count.
+                if self._extra_workers.get(category, 0) > 0:
                     self._extra_workers[category] -= 1
                     self._workers[category] = max(0, self._workers[category] - 1)
                     stop_worker = True
@@ -713,7 +680,7 @@ class JobQueue:
             return 0
         conn = get_thread_connection(self._db_path)
         rows = conn.execute(
-            "SELECT category, step, label, ebook, spec_json FROM job_queue_pending"
+            "SELECT category, step, label, ebook, spec_json FROM job_queue_pending ORDER BY position, rowid"
         ).fetchall()
         restored = 0
         for row in rows:
@@ -755,11 +722,15 @@ class JobQueue:
         try:
             with conn:
                 conn.execute("DELETE FROM job_queue_pending")
-                for j in jobs:
+                for position, j in enumerate(jobs):
                     conn.execute(
-                        "INSERT INTO job_queue_pending (id, category, step, label, ebook, spec_json) "
-                        "VALUES (?, ?, ?, ?, ?, ?)",
-                        (j.id, j.category, j.step, j.label, j.ebook, json.dumps(j.spec, ensure_ascii=False)),
+                        "INSERT INTO job_queue_pending "
+                        "(id, category, step, label, ebook, spec_json, position) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            j.id, j.category, j.step, j.label, j.ebook,
+                            json.dumps(j.spec, ensure_ascii=False), position,
+                        ),
                     )
         except Exception:
             logger.exception("Không lưu được hàng đợi pending vào %s", self._db_path)

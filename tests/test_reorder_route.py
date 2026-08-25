@@ -30,7 +30,7 @@ class _FakeJob:
             "translate": {"running": False, "step": "", "error": "", "log": []},
         }
 
-    def start_custom(self, name, target, *, category="both", ebook=None, label=""):
+    def start_custom(self, name, target, *, category="automation", ebook=None, label=""):
         self.started.append(name)
         target(lambda msg: None)
         return True

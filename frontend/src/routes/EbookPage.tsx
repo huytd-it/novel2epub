@@ -16,9 +16,10 @@ import {
 } from "@/lib/automation";
 import { useCurrentBook } from "@/lib/books";
 import {
-  DEFAULT_FILTERS,
+  CHAPTER_FILTERS_KEY,
   chapterOrdinal,
   ebookKey,
+  loadChapterFilters,
   rowLabel,
   rowTone,
   rowWarnings,
@@ -51,35 +52,8 @@ import {
     đưa lựa chọn lớn hơn vào đây, người dùng sẽ thấy số hiển thị không khớp. */
 const PAGE_SIZES = [25, 50, 100, 200, 500] as const;
 const DEFAULT_PAGE_SIZE = 100;
-const FILTERS_KEY = (slug: string) => `ebooks.${slug}.chapterFilters`;
 const PAGE_KEY = (slug: string) => `ebooks.${slug}.chapterPage`;
 const PAGE_SIZE_KEY = (slug: string) => `ebooks.${slug}.chapterPageSize`;
-
-/** Nạp bộ lọc + sắp xếp đã lưu cho truyện, hợp nhất với mặc định để khỏi vỡ schema. */
-function loadFilters(slug: string): ChapterFilters {
-  try {
-    const raw = window.localStorage.getItem(FILTERS_KEY(slug));
-    if (raw) {
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      const merged = { ...DEFAULT_FILTERS };
-      const target = merged as unknown as Record<string, unknown>;
-      for (const key of Object.keys(merged) as (keyof ChapterFilters)[]) {
-        const value = parsed[key];
-        // Chỉ nhận đúng kiểu khai báo — string cho bộ lọc/sắp xếp, boolean
-        // cho cờ hiển thị (show_zh_title); kiểu khác bị bỏ qua.
-        if (typeof value === "string" && typeof DEFAULT_FILTERS[key] === "string") {
-          target[key] = value;
-        } else if (typeof value === "boolean" && typeof DEFAULT_FILTERS[key] === "boolean") {
-          target[key] = value;
-        }
-      }
-      return merged;
-    }
-  } catch {
-    // Mất localStorage là không đáng kể — dùng mặc định.
-  }
-  return DEFAULT_FILTERS;
-}
 
 /** Nạp trang đã lưu cho truyện. */
 function loadPage(slug: string): number {
@@ -1024,6 +998,25 @@ function BatchBar({
   const [aiEditOpen, setAiEditOpen] = useState(false);
   const [webChatOpen, setWebChatOpen] = useState(false);
   const [cleanupHanOpen, setCleanupHanOpen] = useState(false);
+  const [branchAiOpen, setBranchAiOpen] = useState(false);
+
+  const setBranchAi = useMutation({
+    mutationFn: () =>
+      api.post<{ updated: number; skipped: number; branch: string }>(
+        `/api/ebooks/${slug}/batch/set-branch`,
+        { form: { indexes: selected.join(","), branch: "ai" } },
+      ),
+    onSuccess: (res) => {
+      setBranchAiOpen(false);
+      onDone();
+      const skipped =
+        res.skipped > 0
+          ? `, bỏ qua ${num(res.skipped)} chương chưa có bản dịch AI`
+          : "";
+      toast(`Đã chuyển ${num(res.updated)} chương sang bản dịch AI${skipped}.`);
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
 
   const run = useMutation({
     mutationFn: (action: BatchAction) =>
@@ -1197,6 +1190,20 @@ function BatchBar({
 
           <div className="h-8 w-px bg-base-300" aria-hidden="true" />
 
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Nhánh</span>
+            <Button
+              size="sm"
+              variant="primary"
+              title="Chuyển các chương đã chọn sang bản dịch AI — tiêu đề sẽ hiển thị theo Tiêu đề bản Dịch AI (tránh bấm Chuyển thủ công từng chương)"
+              onClick={() => setBranchAiOpen(true)}
+            >
+              Dùng bản dịch AI
+            </Button>
+          </div>
+
+          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
+
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -1318,6 +1325,23 @@ function BatchBar({
         slug={slug}
         indexes={selected}
         onDone={onDone}
+      />
+
+      <ConfirmDialog
+        open={branchAiOpen}
+        onCancel={() => setBranchAiOpen(false)}
+        onConfirm={() => setBranchAi.mutate()}
+        title="Dùng bản dịch AI"
+        confirmLabel="Chuyển sang AI"
+        pending={setBranchAi.isPending}
+        body={
+          <p>
+            Chuyển <strong data-numeric>{num(selected.length)}</strong> chương đã chọn sang nhánh
+            bản dịch AI. Tiêu đề hiển thị (TOC/Reader/EPUB) sẽ tự cập nhật theo{" "}
+            <strong>Tiêu đề bản Dịch AI</strong>. Chương chưa có bản dịch AI sẽ bị bỏ qua. Thao tác
+            này không ghi đè nội dung bản dịch.
+          </p>
+        }
       />
 
       <ConfirmDialog
@@ -1696,7 +1720,7 @@ export function EbookPage() {
   const client = useQueryClient();
   const toast = useToast();
   const [, selectBook] = useCurrentBook();
-  const [filters, setFilters] = useState<ChapterFilters>(() => loadFilters(slug));
+  const [filters, setFilters] = useState<ChapterFilters>(() => loadChapterFilters(slug));
   const [offset, setOffset] = useState(() => loadPage(slug));
   const [pageSize, setPageSize] = useState(() => loadPageSize(slug));
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -1804,7 +1828,7 @@ export function EbookPage() {
   // Giữ bộ lọc + sắp xếp + trang + cỡ trang qua các lần vào lại trang truyện này.
   useEffect(() => {
     try {
-      window.localStorage.setItem(FILTERS_KEY(slug), JSON.stringify(filters));
+      window.localStorage.setItem(CHAPTER_FILTERS_KEY(slug), JSON.stringify(filters));
       window.localStorage.setItem(PAGE_KEY(slug), String(offset));
       window.localStorage.setItem(PAGE_SIZE_KEY(slug), String(pageSize));
     } catch {

@@ -41,6 +41,7 @@ _EXPECTED_TABLES = {
     "chapter_evidence",
     "chapter_eligibility_decisions",
     "chapter_pointers",
+    "app_logs",
 }
 
 

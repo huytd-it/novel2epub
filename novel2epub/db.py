@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 22
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -751,6 +751,25 @@ _SCHEMA_STATEMENTS = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_chapter_pointers_chapter ON chapter_pointers(ebook_slug, chapter_index, purpose)",
+    # ── nhật ký ứng dụng (v22) — thay logs/app.log xoay vòng theo dung lượng ──
+    # Mọi dòng log của novel2epub.* (crawler, translator, queue, scheduler...)
+    # ghi 1 hàng vào đây thay vì file text: lọc được theo mức/logger/thời gian
+    # ngay trong SQL, sống cùng bản backup `.db`, và bị giới hạn số hàng bởi
+    # retention (novel2epub/logstore.py). `job_id` nối dòng log với job trong
+    # job_queue_history khi dòng được ghi trong phạm vi job đó.
+    """
+    CREATE TABLE IF NOT EXISTS app_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts REAL NOT NULL,
+        level TEXT NOT NULL,
+        logger TEXT NOT NULL DEFAULT '',
+        message TEXT NOT NULL,
+        job_id TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_app_logs_ts ON app_logs(ts DESC, id DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level, ts DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_app_logs_job ON app_logs(job_id) WHERE job_id <> ''",
 ]
 
 # Cột thêm vào bảng ĐÃ TỒN TẠI ở các phiên bản schema sau. `_SCHEMA_STATEMENTS`
@@ -1221,6 +1240,16 @@ def _migration_v21(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE job_queue_pending SET category = 'automation' WHERE category = 'both'")
 
 
+def _migration_v22(conn: sqlite3.Connection) -> None:
+    """Thêm bảng nhật ký ứng dụng `app_logs` (thay logs/app.log xoay vòng).
+
+    Thuần additive — không đụng dữ liệu cũ, log file cũ còn lại nguyên vẹn
+    trên đĩa để đối chiếu khi cần."""
+    _ensure_columns(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+
 
 def _migration_v17(conn: sqlite3.Connection) -> None:
     """Gỡ cột `ebooks.name` — chỉ còn `title`.
@@ -1263,6 +1292,7 @@ _MIGRATIONS = {
     19: _migration_v19,
     20: _migration_v20,
     21: _migration_v21,
+    22: _migration_v22,
 }
 
 

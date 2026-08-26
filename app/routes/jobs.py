@@ -653,14 +653,24 @@ def api_queue_log(request: Request, job_id: str):
 
 @router.get("/api/logs/{source}")
 def api_logs(source: str, from_: int = Query(0, alias="from"), limit: int = Query(200)):
-    from ..logging_config import LOG_DIR
-    log_path = LOG_DIR / f"{source}.log"
-    if not log_path.exists():
-        return {"lines": [], "total": 0, "source": source}
-    with open(log_path, "r", encoding="utf-8", errors="replace") as f:
-        all_lines = f.read().splitlines()
-    lines = all_lines[from_:from_ + limit] if from_ > 0 else all_lines[:limit]
-    return {"lines": lines, "total": len(all_lines), "source": source}
+    """Legacy endpoint đọc nhật ký — giờ truy vấn bảng `app_logs` thay file.
+
+    `source` là tiền tố logger (vd `novel2epub.crawler`); rỗng hoặc `app` =
+    toàn bộ nhật ký. Trả `lines` dạng text giữ nguyên hợp đồng cũ.
+    """
+    from novel2epub.db import get_thread_connection
+    from novel2epub.logstore import LogFilter, format_entry, query_logs
+
+    conn = get_thread_connection(deps.DB_PATH)
+    flt = LogFilter(loggers=[source] if source and source != "app" else ())
+    # `from_` legacy là offset theo dòng trên file cũ; giờ dùng làm con trỏ
+    # id (asc). Với id AUTOINCREMENT tăng đơn điệu, from_=0 trả trang đầu như
+    # cũ; sau khi prune/xoá thì id nhảy lệch offset — chấp nhận được với
+    # endpoint giữ lại chỉ vì tương thích.
+    data = query_logs(conn, flt, limit=limit, order="asc", after_id=from_ or None)
+    lines = [format_entry(e) for e in data["entries"]]
+    return {"lines": lines, "total": data["total"], "source": source}
+
 
 @router.get("/api/logs")
 def api_logs_default(source: str = Query("app"), from_: int = Query(0, alias="from"), limit: int = Query(200)):
@@ -669,11 +679,15 @@ def api_logs_default(source: str = Query("app"), from_: int = Query(0, alias="fr
 
 @router.delete("/api/logs/{source}")
 def api_logs_delete(source: str):
-    from ..logging_config import LOG_DIR
-    log_path = LOG_DIR / f"{source}.log"
-    if log_path.exists():
-        log_path.write_text("")
-    return {"ok": True, "source": source}
+    """Xoá nhật ký theo logger prefix (`app`/rỗng = xoá toàn bộ)."""
+    from novel2epub.db import get_thread_connection
+    from novel2epub.logstore import LogFilter, clear_logs
+
+    deleted = clear_logs(
+        get_thread_connection(deps.DB_PATH),
+        LogFilter(loggers=[source] if source and source != "app" else ()),
+    )
+    return {"ok": True, "source": source, "deleted": deleted}
 
 
 @router.get("/download")

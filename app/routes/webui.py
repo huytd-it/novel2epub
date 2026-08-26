@@ -140,35 +140,131 @@ def _entries():
     return [("default", None)]
 
 
+def _log_filter(q: str = "", levels: str = "", source: str = "", older_than_days: float | None = None) -> "LogFilter":
+    """Ghép tham số query của SPA thành LogFilter dùng chung cho đọc/xoá/export."""
+    from novel2epub.logstore import LogFilter
+
+    # "cũ hơn N ngày" = chỉ giữ dòng có ts > mốc — xoá theo `until`.
+    until = None
+    if older_than_days is not None:
+        until = time.time() - max(0.0, float(older_than_days)) * 86400
+    return LogFilter(
+        q=q,
+        levels=[lv for lv in levels.split(",") if lv],
+        loggers=[source] if source else (),
+        until=until,
+    )
+
+
 @router.get("/logs")
-def logs_tail(source: str = "app", limit: int = 400):
-    """Đọc phần CUỐI file log.
+def logs_tail(
+    q: str = "",
+    levels: str = "",
+    source: str = "",
+    limit: int = 300,
+    before_id: int | None = None,
+):
+    """Trang log MỚI NHẤT từ bảng `app_logs` trong `.db`.
 
-    `/api/logs/{source}` chỉ cắt từ đầu file nên trang theo dõi phải đoán
-    offset qua hai lần gọi. Job đang chạy chỉ quan tâm dòng mới nhất, nên
-    endpoint này trả thẳng đuôi file.
+    Lọc server-side theo mức/nguồn (logger)/nội dung để UI không phải tải cả
+    kho log rồi tự cắt. `before_id` là con trỏ phân trang: trả các hàng cũ hơn
+    hàng đó — ổn định dù log mới cứ ghi thêm giữa hai lần tải.
     """
-    from ..logging_config import LOG_DIR
+    from novel2epub.db import get_thread_connection
+    from novel2epub.logstore import query_logs
 
-    path = LOG_DIR / f"{source}.log"
-    if ".." in source or "/" in source or "\\" in source:
-        raise HTTPException(status_code=400, detail="Tên nguồn log không hợp lệ.")
-    if not path.exists():
-        return {"source": source, "lines": [], "total": 0}
+    conn = get_thread_connection(deps.DB_PATH)
+    return query_logs(conn, _log_filter(q, levels, source), limit=limit, before_id=before_id)
 
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    limit = max(1, min(limit, 5000))
-    return {"source": source, "lines": lines[-limit:], "total": len(lines)}
+
+@router.get("/logs/stats")
+def logs_stats():
+    """Tổng quan nhật ký: tổng số dòng, đếm theo mức, biên thời gian."""
+    from novel2epub.db import get_thread_connection
+    from novel2epub.logstore import log_stats
+
+    return log_stats(get_thread_connection(deps.DB_PATH))
 
 
 @router.get("/logs/sources")
 def log_sources():
-    from ..logging_config import LOG_DIR
+    """Các logger đã ghi log (kèm số dòng) — dropdown 'nguồn' của trang Nhật ký."""
+    from novel2epub.db import get_thread_connection
+    from novel2epub.logstore import log_sources
 
-    if not LOG_DIR.exists():
-        return {"sources": []}
-    names = sorted(p.stem for p in LOG_DIR.glob("*.log"))
-    return {"sources": names}
+    return {"sources": log_sources(get_thread_connection(deps.DB_PATH))}
+
+
+@router.delete("/logs")
+def logs_clear(
+    q: str = "",
+    levels: str = "",
+    source: str = "",
+    older_than_days: float | None = None,
+):
+    """Xoá nhật ký khớp bộ lọc (bỏ trống hết = xoá toàn bộ).
+
+    `older_than_days` giữ lại log mới hơn số ngày chỉ định — dùng cho dọn
+    định kỳ mà không mất lịch sử gần. Trả số dòng đã xoá.
+    """
+    from novel2epub.db import get_thread_connection
+    from novel2epub.logstore import clear_logs
+
+    deleted = clear_logs(
+        get_thread_connection(deps.DB_PATH),
+        _log_filter(q, levels, source, older_than_days=older_than_days),
+    )
+    return {"ok": True, "deleted": deleted}
+
+
+@router.get("/logs/export")
+def logs_export(
+    q: str = "",
+    levels: str = "",
+    source: str = "",
+    limit: int = 50000,
+):
+    """Tải nhật ký khớp bộ lọc dưới dạng file text (định dạng như app.log cũ)."""
+    from fastapi.responses import Response
+
+    from novel2epub.db import get_thread_connection
+    from novel2epub.logstore import format_entry, query_logs
+
+    conn = get_thread_connection(deps.DB_PATH)
+    data = query_logs(conn, _log_filter(q, levels, source), limit=limit, order="asc")
+    body = "\n".join(format_entry(e) for e in data["entries"])
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    return Response(
+        content=body,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="novel2epub-logs-{stamp}.txt"'},
+    )
+
+
+# Route ĐỘNG `{entry_id}` phải đăng ký SAU CÙNG nhóm /logs/*: FastAPI khớp theo
+# thứ tự đăng ký và path param không tự loại trừ "export"/"stats" — đặt trước
+# sẽ nuốt các route tĩnh kia thành lỗi 422.
+@router.get("/logs/{entry_id}")
+def logs_entry(entry_id: int):
+    """Chi tiết đầy đủ 1 dòng log — UI rút gọn dòng lỗi, bấm vào mới tải đây."""
+    from novel2epub.db import get_thread_connection
+    from novel2epub.logstore import get_log_by_id
+
+    entry = get_log_by_id(get_thread_connection(deps.DB_PATH), entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Dòng log không tồn tại.")
+    return entry
+
+
+@router.delete("/logs/{entry_id}")
+def logs_delete_entry(entry_id: int):
+    """Xoá đúng 1 dòng log (nút Xoá trên từng dòng của trang Nhật ký)."""
+    from novel2epub.db import get_thread_connection
+    from novel2epub.logstore import delete_log_by_id
+
+    if not delete_log_by_id(get_thread_connection(deps.DB_PATH), entry_id):
+        raise HTTPException(status_code=404, detail="Dòng log không tồn tại.")
+    return {"ok": True}
 
 
 @router.get("/library")

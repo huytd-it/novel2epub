@@ -100,6 +100,40 @@ python -m novel2epub service uninstall
 
 Windows dùng Task Scheduler theo phiên đăng nhập. Linux dùng systemd user service; chạy trước khi đăng nhập cần bật linger cho user.
 
+## Nhật Ký
+
+Nhật ký runtime của crawler/dịch/biên tập/build/queue/scheduler được lưu **trong DB SQLite thống nhất**, bảng `app_logs` (từ schema v22) — không còn file `logs/app.log` xoay vòng như trước. Log đi cùng bản backup `.db` và lọc/xoá được bằng SQL.
+
+Đặc điểm vận hành:
+
+- **Ghi bất đồng bộ theo lô**: dòng log được đệm trong RAM rồi flush mỗi giây (hoặc khi đủ 100 dòng). Crash cứng có thể mất ≤ 1 giây log cuối; job history vẫn ghi transactional riêng nên không ảnh hưởng.
+- **Retention tự động**: giữ tối đa ~100.000 dòng mới nhất; prune chạy định kỳ khi ghi.
+- Job đang chạy hiển thị log trực tiếp trên UI Hàng đợi qua buffer trong bộ nhớ — bản trong `app_logs` là nơi lưu trữ dài hạn.
+
+Trang **Nhật ký** (`/logs`) trên Web UI hỗ trợ:
+
+- Mỗi dòng log hiển thị gọn trên **một hàng**; nội dung dài (đặc biệt traceback lỗi) được rút gọn bằng dấu "…" — bấm vào dòng để mở chi tiết đầy đủ, bấm lần nữa để thu gọn.
+- Rê chuột lên dòng hiện nút **Copy** (sao chép nguyên dòng kèm thời gian/mức/nguồn) và **Xoá** (xoá đúng dòng đó khỏi DB).
+- Lọc server-side theo mức (CRITICAL/ERROR/WARNING/INFO/DEBUG, chip kèm số đếm), theo nguồn (logger, vd `novel2epub.crawler`) và tìm chuỗi trong nội dung.
+- Theo dõi trực tiếp (tự tải lại mỗi 3 giây) hoặc tạm dừng để cuộn tự do; "Tải dòng cũ hơn" phân trang theo con trỏ ổn định kể cả khi log mới cứ ghi thêm.
+- **Xuất** file `.txt` đúng bộ lọc đang mở; **Dọn** xoá theo lựa chọn: toàn bộ / cũ hơn 7–30 ngày / chỉ dòng khớp bộ lọc.
+
+API tương ứng (đều dưới tiền tố `/api/ui`, cần token khi gọi từ máy khác):
+
+| Endpoint | Ý nghĩa |
+| --- | --- |
+| `GET /api/ui/logs?q=&levels=&source=&limit=&before_id=` | Trang log mới nhất khớp bộ lọc |
+| `GET /api/ui/logs/stats` | Tổng số dòng, đếm theo mức, biên thời gian |
+| `GET /api/ui/logs/sources` | Danh sách logger đã ghi kèm số dòng |
+| `GET /api/ui/logs/{id}` | Chi tiết đầy đủ 1 dòng |
+| `DELETE /api/ui/logs/{id}` | Xoá đúng 1 dòng |
+| `DELETE /api/ui/logs?older_than_days=30` | Xoá nhật ký (toàn bộ hoặc theo mốc/bộ lọc), trả số dòng đã xoá |
+| `GET /api/ui/logs/export` | Tải `.txt` định dạng giống app.log cũ |
+
+Endpoint cũ `GET /api/logs[/{source}]` và `DELETE /api/logs/{source}` vẫn hoạt động nhưng giờ truy vấn SQLite thay vì đọc file; `source=app` được hiểu là toàn bộ nhật ký.
+
+File log cũ `logs/app.log*` không bị xoá khi nâng cấp — dọn tay khi không còn cần đối chiếu.
+
 ## Backup Và Restore
 
 ```sh

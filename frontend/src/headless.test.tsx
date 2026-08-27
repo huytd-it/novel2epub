@@ -7,6 +7,14 @@ import React from "react";
 
 const captured: Record<string, unknown>[] = [];
 
+vi.mock("@/lib/api", () => ({
+  api: {
+    get: () => Promise.resolve({ translation_model: "", assistant_model: "" }),
+    post: () => Promise.resolve({ saved: true }),
+  },
+  apiUrl: (p: string) => p,
+}));
+
 vi.mock("@/lib/settings", async () => {
   const actual = await vi.importActual<typeof import("@/lib/settings")>("@/lib/settings");
   return {
@@ -44,7 +52,6 @@ vi.mock("@/lib/settings", async () => {
         },
         translate: {},
         ai: {},
-        global_ai: { base_url: "", api_key: "", api_key_configured: false, translation_model: "", assistant_model: "", timeout_seconds: 15, temperature: 0.7 },
         opds: { token: "", token_configured: false, cors_origins: "", auto_build: false },
         reader: {},
         output: {},

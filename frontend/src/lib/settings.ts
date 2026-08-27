@@ -94,7 +94,7 @@ export interface TranslateSettings {
 export interface AiSettings {
   base_url: string;
   api_key: string;
-  model: string;
+  api_key_configured: boolean;
   timeout_seconds: number;
   temperature: number;
 }
@@ -107,11 +107,6 @@ export interface GlobalAiSettings {
   assistant_model: string;
   timeout_seconds: number;
   temperature: number;
-}
-
-export interface ModelOverrides {
-  translation_model: string;
-  assistant_model: string;
 }
 
 export interface OpdsSettings {
@@ -153,7 +148,6 @@ export interface EbookSettings {
   source: SourceSettings;
   translate: TranslateSettings;
   ai: AiSettings;
-  global_ai: GlobalAiSettings;
   opds: OpdsSettings;
   reader: ReaderSettings;
   output: OutputSettings;
@@ -185,6 +179,61 @@ export function useSaveSettings<S extends SettingsSection>(slug: string, section
         body: payload,
       }),
     onSuccess: () => client.invalidateQueries({ queryKey: settingsKey(slug) }),
+  });
+}
+
+/* ── Cấu hình AI dùng chung (Global AI) ───────────────────────────────
+ * Trước đây là tab riêng "Global AI"; nay được quản lý ngay trong trang
+ * "Dịch chung" (GlobalTranslatePage) — xem useGlobalAi / useSaveGlobalAi.
+ */
+
+export const globalAiKey = ["settings", "global-ai"] as const;
+
+export function useGlobalAi() {
+  return useQuery({
+    queryKey: globalAiKey,
+    queryFn: () => api.get<GlobalAiSettings>("/api/ui/settings/global-ai"),
+  });
+}
+
+export function useSaveGlobalAi() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: GlobalAiSettings & { clear_api_key?: boolean }) =>
+      api.post<{ saved: boolean; global_ai: GlobalAiSettings }>("/api/ui/settings/global-ai", {
+        body: payload,
+      }),
+    onSuccess: () => client.invalidateQueries({ queryKey: globalAiKey }),
+  });
+}
+
+/* ── Ghi đè model riêng từng truyện (translation_model / assistant_model) ── */
+
+export interface EbookModelOverrides {
+  translation_model: string;
+  assistant_model: string;
+}
+
+export const ebookModelOverridesKey = (slug: string) => ["ebook-model-overrides", slug] as const;
+
+export function useEbookModelOverrides(slug: string) {
+  return useQuery({
+    queryKey: ebookModelOverridesKey(slug),
+    queryFn: () =>
+      api.get<EbookModelOverrides>(`/api/ui/ebooks/${slug}/settings/model-overrides`),
+    enabled: Boolean(slug),
+  });
+}
+
+export function useSaveEbookModelOverrides(slug: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: EbookModelOverrides) =>
+      api.post<{ saved: boolean; model_overrides: EbookModelOverrides }>(
+        `/api/ui/ebooks/${slug}/settings/model-overrides`,
+        { body: payload },
+      ),
+    onSuccess: () => client.invalidateQueries({ queryKey: ebookModelOverridesKey(slug) }),
   });
 }
 

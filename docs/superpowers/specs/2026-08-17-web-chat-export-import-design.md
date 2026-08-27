@@ -33,7 +33,7 @@ Người dùng muốn, ngay trong EbookPage: xuất một khối Markdown gồm 
 | `raw` | `config` | `build_translate_prompt_from_cfg(cfg)` | chương raw + glossary + nhân vật (hành vi hiện tại) |
 | `raw` | `static` | `TRANSLATE_PROMPT` | như trên |
 | `translated` | (bỏ qua) | `EDIT_PROMPT` | chương translated + glossary + nhân vật |
-| `glossary` | (bỏ qua) | `GLOSSARY_CLEAN_PROMPT` | **chỉ** khối `## GLOSSARY` — các mục detect trong chương đã chọn |
+| `glossary` | (bỏ qua) | `GLOSSARY_CLEAN_PROMPT` | **chỉ** khối `GLOSSARY:` — các mục detect trong chương đã chọn |
 
 - Glossary trong đường xuất web chat **luôn** được lọc bằng `_filter_glossary_for_batch(glossary, items)` — bỏ điều kiện `cfg.translate.glossary_filter`. Người dùng yêu cầu rõ "dữ liệu detect glossary có trong chương".
 - Với `source="glossary"`, items lấy từ nội dung **translated** (glossary là về thuật ngữ bản dịch); chương chưa dịch bị skip. Trả về `{text, count, source}`.
@@ -59,7 +59,7 @@ Người dùng muốn, ngay trong EbookPage: xuất một khối Markdown gồm 
 ### Tab Nhập
 
 - Profile chương: dán kết quả AI → "Xem trước" → `POST /batch/import` `mode=preview` → hiện summary (matched / unknown / missing / extra / glossary_new) → "Xác nhận" → `mode=confirm` → toast + `onDone` (refresh).
-- Profile "Dọn glossary": dán khối `## GLOSSARY` → nút "Nhập vào glossary" → `POST /glossary/import` → toast (giống GlossaryPage). Không có preview.
+- Profile "Dọn glossary": dán khối `GLOSSARY:` → nút "Nhập vào glossary" → `POST /glossary/import` → toast (giống GlossaryPage). Không có preview.
 - Tab Nhập nhớ profile đã xuất; nếu người dùng đổi profile ở tab Xuất thì nhập theo profile mới.
 
 ## 5. Xử lý lỗi
@@ -70,7 +70,7 @@ Người dùng muốn, ngay trong EbookPage: xuất một khối Markdown gồm 
 ## 6. Test — `tests/test_bulk_transfer_api.py`
 
 - `source=raw` + `prompt_profile=static` → văn bản chứa `TRANSLATE_PROMPT`, `prompt_profile=config` → prompt từ config.
-- `source=glossary` → chỉ có khối `## GLOSSARY`, đúng các mục detect trong chương; chương chưa dịch bị skip; `count` đúng.
+- `source=glossary` → chỉ có khối `GLOSSARY:`, đúng các mục detect trong chương; chương chưa dịch bị skip; `count` đúng.
 - Glossary luôn lọc theo chương đã chọn khi `glossary_filter=False`.
 
 ## 7. Rủi ro

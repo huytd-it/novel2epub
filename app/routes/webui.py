@@ -1162,7 +1162,7 @@ def ebook_settings(slug: str):
         "ai": {
             "base_url": ai.base_url,
             "api_key": "",
-            "model": ai.model,
+            "api_key_configured": bool(ai.api_key),
             "timeout_seconds": ai.timeout_seconds,
             "temperature": ai.temperature,
         },

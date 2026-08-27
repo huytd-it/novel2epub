@@ -19,7 +19,7 @@ def test_round_trip_build_then_parse():
 def test_export_includes_prompt_and_glossary_as_markdown():
     text = b.build_export([(1, "", "x")], glossary={"萧炎": "Tiêu Viêm", "斗气": "Đấu khí"})
     assert "biên tập" in text.lower()
-    assert "## GLOSSARY" in text
+    assert "GLOSSARY:" in text
     assert "## Glossary tham khảo" in text
     assert "萧炎 = Tiêu Viêm" in text
     assert "斗气 = Đấu khí" in text
@@ -40,7 +40,7 @@ def test_translate_prompt_used_for_raw_export():
     assert "## idx:1: Tiêu đề Hán" in text
     assert "原文内容" in text
     # Vẫn yêu cầu AI xuất GLOSSARY giống prompt biên tập, để round-trip nhất quán.
-    assert "## GLOSSARY" in text
+    assert "GLOSSARY:" in text
 
 
 def test_translate_prompt_distinct_from_edit_prompt():
@@ -88,8 +88,8 @@ def test_contextual_pronoun_rule_present_in_every_translation_prompt(prompt):
 def test_foreign_name_example_in_prompt_never_imported_as_glossary(prompt):
     """Ví dụ tên nước ngoài trong prompt KHÔNG được nạp thành entry glossary thật
     khi user dán ngược cả prompt — ví dụ dùng mũi tên `→` (không phải `=`) và
-    nằm trên heading `## GLOSSARY` mẫu, nên parse_glossary bỏ qua."""
-    text = b.build_export([(1, "", "x")], prompt=prompt) + "\n## GLOSSARY\n- 林动 = Lâm Động\n"
+    nằm trong khối `GLOSSARY:` mẫu, nên parse_glossary bỏ qua."""
+    text = b.build_export([(1, "", "x")], prompt=prompt) + "\nGLOSSARY:\n- 林动 = Lâm Động\n"
     assert b.parse_glossary(text) == {"林动": "Lâm Động"}
 
 
@@ -150,6 +150,17 @@ def test_parse_glossary_flat_markdown():
     )
     g = b.parse_glossary(text)
     assert g == {"林动": "Lâm Động", "萧炎": "Tiêu Viêm", "斗气": "Đấu khí"}
+
+
+@pytest.mark.parametrize(
+    "marker",
+    ["GLOSSARY:", "## GLOSSARY", "**GLOSSARY**", "===GLOSSARY===", "### glossary"],
+)
+def test_parse_glossary_tolerates_marker_variants(marker):
+    # AI hay tự restyle nhãn GLOSSARY: (bold, heading, hoa/thường...) — parser
+    # phải khoan dung mọi biến thể thay vì chỉ khớp đúng 1 dạng.
+    text = f"{marker}\n- 林动 = Lâm Động\n"
+    assert b.parse_glossary(text) == {"林动": "Lâm Động"}
 
 
 def test_parse_glossary_legacy_subheadings_still_parse_flat():
@@ -270,7 +281,7 @@ def test_glossary_export_round_trip_flat():
     """build_glossary_export → parse_glossary phải nạp lại đúng bảng phẳng."""
     glossary = {"萧炎": "Tiêu Viêm", "斗气": "Đấu khí"}
     text = b.build_glossary_export(glossary)
-    assert "## GLOSSARY" in text
+    assert "GLOSSARY:" in text
     assert b.parse_glossary(text) == glossary
 
 

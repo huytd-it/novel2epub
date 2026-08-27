@@ -686,9 +686,9 @@ def save_translate(
         "timeout_seconds": timeout_seconds,
         "temperature": temperature,
     }
-    if prompt_template.strip():
+    if (prompt_template or "").strip():
         openai_cfg["prompt_template"] = clean_prompt_text(prompt_template)
-    if title_prompt_template.strip():
+    if (title_prompt_template or "").strip():
         openai_cfg["title_prompt_template"] = clean_prompt_text(title_prompt_template)
 
     preset_model_key = (LOCAL_MT_MODEL_PRESETS.get(local_model) or {}).get("model_key")
@@ -758,30 +758,45 @@ def save_ai(
     slug: str,
     base_url: str = Form("http://localhost:20128/v1"),
     api_key: str = Form(""),
-    model: str = Form("free-stack"),
     timeout_seconds: int = Form(120000),
     temperature: float = Form(0.7),
+    api_key_configured: bool = Form(False),
 ):
-    """Lưu cấu hình AI biên tập (`ai.openai`) — tách riêng khỏi translate.openai.
+    """Lưu provider AI biên tập (`ai.openai`) RIÊNG cho từng ebook — ghi đè Global AI.
 
-    Dùng cho: glossary suggest/rewrite/evaluate. Không lưu prompt_template
-    vì AI biên tập dùng prompt cứng trong glossary_ai.py. Cấu hình RIÊNG của
-    từng ebook — defaults (config chung) chỉ dùng làm fallback/Reset.
+    Dùng cho: glossary suggest/rewrite/evaluate. Per-book override bao gồm cả
+    base_url, api_key, timeout, temperature (khác với model — translation_model
+    và assistant_model lưu riêng qua endpoint `model-overrides`). API key để
+    trống khi lưu sẽ GIỮ NGUYÊN secret hiện tại của truyện này (không ghi đè
+    bằng rỗng). `api_key_configured` chỉ để khớp hợp đồng trường với GET.
     """
+    from novel2epub.db import get_thread_connection
+
+    conn = get_thread_connection(Path(deps.DB_PATH).resolve())
+    row = conn.execute(
+        "SELECT ai_overrides_json FROM ebooks WHERE slug = ?", (slug,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Không có ebook {slug!r}.")
+    existing = json.loads(row["ai_overrides_json"] or "{}")
+    current_key = str((existing.get("openai") or {}).get("api_key") or "")
+
+    incoming = (api_key or "").strip()
+    stored_key = incoming if incoming else current_key
+
     ai_openai_cfg: dict = {
         "base_url": base_url,
-        "api_key": api_key,
-        "model": model,
+        "api_key": stored_key,
         "timeout_seconds": timeout_seconds,
         "temperature": temperature,
     }
     path = deps.ebook_config_path(slug)
     logger.info(
-        "[config][AI/BIÊN TẬP] slug=%s lưu riêng cho ebook (DB %s): base_url=%r model=%r timeout=%ss temperature=%s",
-        slug, path, base_url, model, timeout_seconds, temperature,
+        "[config][AI/BIÊN TẬP] slug=%s lưu riêng cho ebook (DB %s): base_url=%r timeout=%ss temperature=%s key_changed=%s",
+        slug, path, base_url, timeout_seconds, temperature, bool(incoming),
     )
     update_ebook(deps.WORKSPACE_PATH, slug, {"ai": {"openai": ai_openai_cfg}})
-    return RedirectResponse(url=f"/ebooks/{slug}/settings", status_code=303)
+    return {"saved": True, "api_key_configured": bool(stored_key)}
 
 
 @router.post("/ebooks/{slug}/settings/reader")

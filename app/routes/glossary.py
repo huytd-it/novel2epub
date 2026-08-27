@@ -539,8 +539,8 @@ def ebook_glossary_export(slug: str):
 
 @router.post("/api/ebooks/{slug}/glossary/import")
 def ebook_glossary_import(slug: str, text: str = Form(...)):
-    """Nhập glossary AI trả về: parse các dòng `Hán = Việt` trong khối
-    `## GLOSSARY` rồi MERGE vào glossary hiện tại (source trùng → giá trị mới
+    """Nhập glossary AI trả về: parse các dòng `Hán = Việt` sau nhãn
+    `GLOSSARY:` rồi MERGE vào glossary hiện tại (source trùng → giá trị mới
     thắng, giữ ghi chú cũ). Ghi tất cả vào names.txt + dọn vietphrase.txt
     (consolidation). Trả thống kê `{added, updated, total}`."""
     cfg = deps.resolved_cfg(slug)
@@ -549,7 +549,7 @@ def ebook_glossary_import(slug: str, text: str = Form(...)):
     if not parsed:
         raise HTTPException(
             status_code=400,
-            detail="Không tìm thấy mục glossary nào (cần khối ## GLOSSARY với các dòng `Hán = Việt`).",
+            detail="Không tìm thấy mục glossary nào (cần nhãn GLOSSARY: với các dòng `Hán = Việt`).",
         )
     for source in parsed:
         _validate_glossary_source(source)

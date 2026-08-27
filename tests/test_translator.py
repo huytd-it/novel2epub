@@ -570,6 +570,20 @@ def test_split_response_bullet_lines_and_prose_dropped():
     ]
 
 
+@pytest.mark.parametrize(
+    "marker",
+    ["GLOSSARY:", "## GLOSSARY", "**GLOSSARY**", "===GLOSSARY===", "### glossary"],
+)
+def test_split_response_tolerates_marker_variants(marker):
+    # AI hay tự restyle nhãn GLOSSARY: (bold, heading, hoa/thường...) — parser
+    # phải khoan dung mọi biến thể thay vì chỉ khớp đúng 1 dạng.
+    t = _openai_t()
+    text = f"Bản dịch.\n{marker}\n林凡 = Lâm Phàm"
+    translation, entries = t._split_response(text)
+    assert translation == "Bản dịch."
+    assert entries == [{"source": "林凡", "suggested": "Lâm Phàm"}]
+
+
 def test_split_response_bare_marker_returns_none():
     t = _openai_t()
     translation, entries = t._split_response("Bản dịch.\n===GLOSSARY===\n")

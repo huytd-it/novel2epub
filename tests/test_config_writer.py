@@ -111,6 +111,8 @@ def test_update_defaults_persists_prompt_template(tmp_path):
 
 
 def test_global_ai_provider_with_per_ebook_model_overrides(tmp_path):
+    """Per-book `ai.openai` provider GHI ĐÈ Global AI; translate provider vẫn
+    lấy từ global_ai (chỉ translation_model là override riêng từng truyện)."""
     path = tmp_path / "novel2epub.db"
     write_db_config(
         path,
@@ -136,24 +138,33 @@ def test_global_ai_provider_with_per_ebook_model_overrides(tmp_path):
                 },
                 "ai": {
                     "assistant_model": "assistant-ebook",
-                    "openai": {"api_key": "legacy-ai-secret"},
+                    "openai": {
+                        "base_url": "https://legacy-ai.example/v1",
+                        "api_key": "legacy-ai-secret",
+                        "timeout_seconds": 99,
+                        "temperature": 0.9,
+                    },
                 },
             }
         },
     )
 
     cfg = load_config(path, "a")
+    # translate provider vẫn lấy từ global_ai (chỉ model override riêng)
     assert cfg.translate.openai.base_url == "https://global.example/v1"
     assert cfg.translate.openai.api_key == "global-secret"
     assert cfg.translate.openai.model == "translate-ebook"
-    assert cfg.ai.openai.base_url == "https://global.example/v1"
-    assert cfg.ai.openai.api_key == "global-secret"
+    # ai.openai per-book GHI ĐÈ hoàn toàn Global AI
+    assert cfg.ai.openai.base_url == "https://legacy-ai.example/v1"
+    assert cfg.ai.openai.api_key == "legacy-ai-secret"
     assert cfg.ai.openai.model == "assistant-ebook"
-    assert cfg.translate.openai.timeout_seconds == 45
-    assert cfg.ai.openai.temperature == 0.2
+    assert cfg.ai.openai.timeout_seconds == 99
+    assert cfg.ai.openai.temperature == 0.9
 
 
-def test_update_ebook_discards_provider_credentials_but_keeps_model_overrides(tmp_path):
+def test_update_ebook_keeps_ai_provider_and_model_overrides(tmp_path):
+    """Per-book `ai.openai` provider (kể cả api_key) được LƯU nguyên; riêng
+    translate.openai provider vẫn bị lược (chỉ translation_model override được giữ)."""
     path = tmp_path / "novel2epub.db"
     write_db_config(path, ebooks={"a": {"novel": {"slug": "a"}}})
 
@@ -167,7 +178,7 @@ def test_update_ebook_discards_provider_credentials_but_keeps_model_overrides(tm
             },
             "ai": {
                 "assistant_model": "assistant-override",
-                "openai": {"api_key": "secret-2"},
+                "openai": {"api_key": "secret-2", "base_url": "https://ebook-ai.example/v1"},
             },
         },
     )
@@ -181,8 +192,13 @@ def test_update_ebook_discards_provider_credentials_but_keeps_model_overrides(tm
     ).fetchone()
     translate = json.loads(row[0])
     assistant = json.loads(row[1])
+    # translate.openai provider vẫn bị lược, chỉ giữ translation_model
     assert translate == {"translation_model": "translation-override"}
-    assert assistant == {"assistant_model": "assistant-override"}
+    # ai.openai provider (kể cả api_key) được lưu nguyên
+    assert assistant == {
+        "assistant_model": "assistant-override",
+        "openai": {"api_key": "secret-2", "base_url": "https://ebook-ai.example/v1"},
+    }
 
 
 def test_update_defaults_writes_shared_config_to_all_ebooks(tmp_path):

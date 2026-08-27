@@ -846,7 +846,7 @@ function WebChatDialog({
         <>
           <p className="mb-2 text-xs opacity-60">
             {profile === "glossary"
-              ? "Dán khối ## GLOSSARY AI trả về để merge vào glossary."
+              ? "Dán khối GLOSSARY: AI trả về để merge vào glossary."
               : "Dán kết quả AI (kèm marker ## idx:N) để ghi đè bản dịch."}
           </p>
           <Textarea
@@ -858,7 +858,7 @@ function WebChatDialog({
             }}
             rows={16}
             className="w-full font-mono text-xs"
-            placeholder={profile === "glossary" ? "## GLOSSARY\n李逸 = Lý Dịch" : "## idx:5: Chương 5: ..."}
+            placeholder={profile === "glossary" ? "GLOSSARY:\n李逸 = Lý Dịch" : "## idx:5: Chương 5: ..."}
           />
           {preview ? (
             <div className="mt-2 rounded-box border border-base-300 p-2.5 text-xs">

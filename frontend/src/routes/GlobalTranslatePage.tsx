@@ -1,24 +1,127 @@
 import { useEffect, useState } from "react";
+import clsx from "clsx";
 
 import { Page } from "@/app/Shell";
+import { api } from "@/lib/api";
 import {
+  useGlobalAi,
+  useSaveGlobalAi,
   useSaveTranslateDefaults,
   useTranslateDefaults,
+  type GlobalAiSettings,
   type TranslateDefaults,
 } from "@/lib/settings";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
+import { Loading } from "@/components/ui/Loading";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { fetchAndMergeModels, ModelField } from "@/components/AiProviderFields";
 
 /**
  * Trang DỊCH CHUNG — cấu hình mặc định của khâu dịch cho TOÀN HỆ THỐNG
  * (defaults.translate): prompt, thể loại/văn phong, giới hạn prompt (token/
  * chars), chunk, retry, glossary và dọn chữ Hán. Từng truyện vẫn ghi đè được ở
- * Cài đặt → Dịch; provider/key nằm ở Global AI; Local MT có trang riêng.
+ * Cài đặt → Dịch. Provider/API key (trước là tab "Global AI" riêng) giờ nằm
+ * ngay trong trang này; Local MT có trang riêng.
  */
+function GlobalAiPanel() {
+  const toast = useToast();
+  const { data, isPending, error } = useGlobalAi();
+  const save = useSaveGlobalAi();
+  const [values, setValues] = useState<GlobalAiSettings | null>(null);
+  const [test, setTest] = useState<{ ok: boolean; latency_ms?: number; model_count?: number; error?: string } | null>(null);
+  const [modelsStatus, setModelsStatus] = useState("");
+
+  useEffect(() => {
+    if (data) setValues({ ...data, api_key: "" });
+  }, [data]);
+
+  if (isPending || !values) {
+    return <Loading size="sm" label="Đang đọc cấu hình Global AI" />;
+  }
+  if (error) {
+    return <EmptyState title="Không đọc được cấu hình Global AI" hint={error instanceof Error ? error.message : String(error)} />;
+  }
+
+  const set = <K extends keyof GlobalAiSettings>(key: K, value: GlobalAiSettings[K]) =>
+    setValues((current) => (current ? { ...current, [key]: value } : current));
+
+  const onTest = async () => {
+    try {
+      const r = await api.post<{ ok: boolean; latency_ms?: number; model_count?: number; error?: string }>(
+        "/settings/ai/test",
+        { body: { base_url: values.base_url, api_key: values.api_key, timeout_seconds: 15 } },
+      );
+      setTest(r);
+    } catch (e) {
+      setTest({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const onLoadModels = async () => {
+    setModelsStatus("Đang tải danh sách model…");
+    const result = await fetchAndMergeModels(values.base_url, values.api_key);
+    setModelsStatus(result.error ?? `Đã tải ${result.count} model${result.total > result.count ? ` · ${result.total} trong cache` : ""}`);
+  };
+
+  const onSave = () =>
+    save.mutate(values, {
+      onSuccess: () => toast("Đã lưu cấu hình Global AI (Dịch chung)."),
+      onError: (e) => toast(e instanceof Error ? e.message : String(e), "error"),
+    });
+
+  return (
+    <Panel className="mb-4 overflow-hidden">
+      <PanelHeader
+        title="Provider AI chung (Global AI)"
+        hint="Một endpoint và credential dùng chung cho mọi tác vụ AI — trước là tab riêng “Global AI”"
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={onLoadModels}>Tải models</Button>
+            <Button size="sm" onClick={onTest}>Thử kết nối</Button>
+            <Button size="sm" variant="primary" onClick={onSave}>Lưu Global AI</Button>
+          </div>
+        }
+      />
+      <div className="border-b border-base-300 bg-base-200/50 px-4 py-3 text-[13px]">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={values.api_key_configured ? "celadon" : "gold"}>
+            {values.api_key_configured ? "Đã có API key" : "Chưa có API key"}
+          </Badge>
+          <span className="opacity-70">Để trống API key khi lưu sẽ giữ nguyên secret hiện tại.</span>
+        </div>
+        {test ? (
+          <p className={clsx("mt-2", test.ok ? "text-success" : "text-error")} role="status">
+            {test.ok ? `Kết nối OK · ${test.model_count} model · ${test.latency_ms}ms` : test.error}
+          </p>
+        ) : null}
+        {modelsStatus ? <p className="mt-2 opacity-70" role="status">{modelsStatus}</p> : null}
+      </div>
+      <div className="grid gap-4 p-4 md:grid-cols-2">
+        <div className="md:col-span-2">
+          <Field label="Base URL" hint="OpenAI-compatible endpoint, ví dụ https://host/v1">
+            <Input value={values.base_url} onChange={(e) => set("base_url", e.target.value)} spellCheck={false} />
+          </Field>
+        </div>
+        <Field label="API key" hint={values.api_key_configured ? "Nhập giá trị mới để thay key hiện tại" : "Credential dùng chung toàn hệ thống"}>
+          <Input type="password" autoComplete="new-password" value={values.api_key} onChange={(e) => set("api_key", e.target.value)} />
+        </Field>
+        <Field label="Timeout (giây)">
+          <Input type="number" min={1} value={values.timeout_seconds} onChange={(e) => set("timeout_seconds", Number(e.target.value))} />
+        </Field>
+        <ModelField label="Model dịch chương" hint="Mặc định cho pipeline dịch AI" value={values.translation_model} baseUrl={values.base_url} onChange={(value) => set("translation_model", String(value))} />
+        <ModelField label="Model trợ lý" hint="Glossary, rewrite, cleanup, Reader và metadata AI" value={values.assistant_model} baseUrl={values.base_url} onChange={(value) => set("assistant_model", String(value))} />
+        <Field label="Temperature" hint="0–2">
+          <Input type="number" min={0} max={2} step={0.1} value={values.temperature} onChange={(e) => set("temperature", Number(e.target.value))} />
+        </Field>
+      </div>
+    </Panel>
+  );
+}
+
 export function GlobalTranslatePage() {
   const toast = useToast();
   const { data, isPending, error } = useTranslateDefaults();
@@ -63,7 +166,7 @@ export function GlobalTranslatePage() {
     >
       <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-base-300 pb-3 text-[13px]">
         <Badge tone="indigo">defaults.translate</Badge>
-        <span className="opacity-70">Provider & API key quản lý ở Global AI; Local MT có trang riêng.</span>
+        <span className="opacity-70">Provider & API key quản lý ở mục “Provider AI chung” bên dưới; Local MT có trang riêng.</span>
         <div className="ml-auto flex gap-2">
           {dirty ? (
             <Button size="sm" onClick={() => setDraft({ ...data })}>
@@ -86,6 +189,8 @@ export function GlobalTranslatePage() {
           </Button>
         </div>
       </div>
+
+      <GlobalAiPanel />
 
       <Panel className="mb-4 overflow-hidden">
         <PanelHeader title="Văn phong & ngôn ngữ" />

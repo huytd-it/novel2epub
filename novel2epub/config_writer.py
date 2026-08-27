@@ -121,7 +121,10 @@ def update_ebook(
 
         ai_updates = updates.get("ai")
         if isinstance(ai_updates, dict):
-            filtered_ai = {k: v for k, v in ai_updates.items() if k != "openai"}
+            # Giữ nguyên khối `openai` (provider riêng từng truyện, có thể chứa
+            # api_key) — ghi đè AI config per-book được phép; credentials KHÔNG
+            # còn bị lược bỏ tại đây (trước chỉ lưu được model qua override).
+            filtered_ai = dict(ai_updates)
             if replace_ai:
                 new_ai = filtered_ai
             else:

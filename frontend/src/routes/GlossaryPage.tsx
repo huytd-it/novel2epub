@@ -322,7 +322,7 @@ function ExportImportModal({ open, onClose, slug }: { open: boolean; onClose: ()
       ) : (
         <>
           <p className="mb-2 text-xs opacity-60">
-            Dán khối <code>## GLOSSARY</code> với các dòng <code>Hán = Việt</code> — merge vào glossary hiện
+            Dán khối <code>GLOSSARY:</code> với các dòng <code>Hán = Việt</code> — merge vào glossary hiện
             có, source trùng thì giá trị mới thắng.
           </p>
           <Textarea
@@ -330,7 +330,7 @@ function ExportImportModal({ open, onClose, slug }: { open: boolean; onClose: ()
             onChange={(e) => setText(e.target.value)}
             rows={16}
             className="w-full font-mono text-xs"
-            placeholder={"## GLOSSARY\n李逸 = Lý Dịch"}
+            placeholder={"GLOSSARY:\n李逸 = Lý Dịch"}
           />
         </>
       )}

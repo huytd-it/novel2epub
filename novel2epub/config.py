@@ -865,13 +865,18 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         override.pop("translate", None)
 
     ebook_ai = _as_dict(override.get("ai"))
+    per_book_ai_openai = _as_dict(ebook_ai.get("openai"))
+    has_ai_override = bool(per_book_ai_openai)
     assistant_model_override = str(
         ebook_ai.get("assistant_model", "")
-        or _as_dict(ebook_ai.get("openai")).get("model", "")
+        or per_book_ai_openai.get("model", "")
         or ""
     ).strip()
+    # Giữ lại `openai` làm ghi đè provider riêng từng truyện (base_url, api_key,
+    # timeout, temperature...). Chỉ bỏ khoá `assistant_model` cấp cao vì nó
+    # không phải trường hợp lệ của OpenAIConfig — model trợ lý đã nằm trong
+    # `ai.openai.model` (lưu qua save_ai) hoặc `ai_overrides_json.assistant_model`.
     ebook_ai.pop("assistant_model", None)
-    ebook_ai.pop("openai", None)
     if ebook_ai:
         override["ai"] = ebook_ai
     else:
@@ -1058,12 +1063,13 @@ def load_config(path: str | Path, slug: str = "") -> Config:
 
     # --- AI (biên tập) config — fallback về translate.openai nếu không có khối `ai:` ---
     ai_raw = raw.get("ai") or {}
-    ai_openai_raw = _as_dict(ai_raw.get("openai"))
+    if has_ai_override:
+        ai_openai_raw = dict(per_book_ai_openai)
+    else:
+        ai_openai_raw = _as_dict(ai_raw.get("openai"))
     if not ai_openai_raw:
         # Chưa có ai.openai → dùng translate.openai làm mặc định (backward-compat)
         ai_openai_raw = dict(openai_raw)
-    else:
-        ai_openai_raw = dict(ai_openai_raw)
 
     from .presets.go import GO_PROMPT
     from .presets.omniroute import OMNIPROUTE_PROMPT
@@ -1099,11 +1105,20 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     translate.openai.model = translation_model_override or global_ai.translation_model
     translate.openai.timeout_seconds = global_ai.timeout_seconds
     translate.openai.temperature = global_ai.temperature
-    ai.openai.base_url = global_ai.base_url
-    ai.openai.api_key = global_ai.api_key
-    ai.openai.model = assistant_model_override or global_ai.assistant_model
-    ai.openai.timeout_seconds = global_ai.timeout_seconds
-    ai.openai.temperature = global_ai.temperature
+    if has_ai_override:
+        # Ghi đè provider AI biên tập RIÊNG từng truyện (base_url, api_key,
+        # timeout, temperature). Thiếu trường nào thì kế thừa từ Global AI.
+        ai.openai.base_url = per_book_ai_openai.get("base_url") or global_ai.base_url
+        ai.openai.api_key = per_book_ai_openai.get("api_key") or global_ai.api_key
+        ai.openai.timeout_seconds = per_book_ai_openai.get("timeout_seconds", global_ai.timeout_seconds)
+        ai.openai.temperature = per_book_ai_openai.get("temperature", global_ai.temperature)
+        ai.openai.model = assistant_model_override or global_ai.assistant_model
+    else:
+        ai.openai.base_url = global_ai.base_url
+        ai.openai.api_key = global_ai.api_key
+        ai.openai.model = assistant_model_override or global_ai.assistant_model
+        ai.openai.timeout_seconds = global_ai.timeout_seconds
+        ai.openai.temperature = global_ai.temperature
 
     if crawl.ai_fallback and preset_name != "go":
         warnings.append(

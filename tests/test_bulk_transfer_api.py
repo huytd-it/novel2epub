@@ -206,7 +206,7 @@ def test_export_raw_prompt_profile_static_uses_translate_prompt(tmp_path, monkey
 
 
 def test_export_glossary_source_returns_only_detected_terms(tmp_path, monkeypatch):
-    # source="glossary": chỉ xuất khối ## GLOSSARY gồm các mục detect trong
+    # source="glossary": chỉ xuất khối GLOSSARY: gồm các mục detect trong
     # chương đã chọn (nội dung translated); không kèm chương.
     cfg = _cfg(tmp_path)
     storage, chapters = _seed(tmp_path)
@@ -220,7 +220,7 @@ def test_export_glossary_source_returns_only_detected_terms(tmp_path, monkeypatc
     assert data["source"] == "glossary"
     assert data["count"] == 1
     assert data["skipped"] == []
-    assert "## GLOSSARY" in data["text"]
+    assert "GLOSSARY:" in data["text"]
     assert "萧炎 = Tiêu Viêm" in data["text"]
     assert "林动 = Lâm Động" not in data["text"]
     assert "## idx:" not in data["text"]

@@ -4,24 +4,25 @@ import { useMutation } from "@tanstack/react-query";
 import clsx from "clsx";
 
 import { Page } from "@/app/Shell";
-import { api, apiUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import {
   useEbookSettings,
+  useGlobalAi,
   useSaveSettings,
+  useEbookModelOverrides,
+  useSaveEbookModelOverrides,
+  type AiSettings,
   type EbookSettings,
-  type GlobalAiSettings,
-  type ModelOverrides,
   type OpdsSettings,
   type SettingsSection,
 } from "@/lib/settings";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
-import { Loading } from "@/components/ui/Loading";
 import { Badge } from "@/components/ui/Badge";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/Field";
-import { Combobox } from "@/components/ui/Combobox";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { fetchAndMergeModels, ModelField } from "@/components/AiProviderFields";
 
 /* ── Mô tả field dùng chung cho mọi tab ──────────────────────────────── */
 
@@ -152,62 +153,6 @@ function FieldControl({
   }
 }
 
-const MODELS_CACHE_KEY = "n2e-models-cache";
-const MODELS_UPDATED_EVENT = "n2e:models-updated";
-
-function readModelsCache(): Record<string, string[]> {
-  try {
-    return JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function writeModelsCache(cache: Record<string, string[]>) {
-  try {
-    localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    /* localStorage không có sẵn (private mode) — bỏ qua */
-  }
-}
-
-/** Tải model từ {base_url}/models, merge vào cache theo base_url rồi báo cho mọi
- * Combobox model đang mở nạp lại. Trả {count, total, error?}. */
-async function fetchAndMergeModels(
-  baseUrl: string,
-  apiKey: string,
-): Promise<{ count: number; total: number; error?: string }> {
-  const url = baseUrl.trim();
-  if (!url) return { count: 0, total: 0, error: "Nhập base_url trước." };
-  try {
-    const resp = await fetch(apiUrl("/settings/ai/models"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ base_url: url, api_key: apiKey.trim() }),
-    });
-    const data = (await resp.json()) as { models?: string[]; error?: string };
-    if (data.error) return { count: 0, total: 0, error: `Lỗi: ${data.error}` };
-    const fresh = data.models ?? [];
-    const cache = readModelsCache();
-    const existing = Array.isArray(cache[url]) ? cache[url] : [];
-    const merged = Array.from(new Set(existing.concat(fresh)));
-    cache[url] = merged;
-    writeModelsCache(cache);
-    window.dispatchEvent(new CustomEvent(MODELS_UPDATED_EVENT, { detail: url }));
-    return { count: fresh.length, total: merged.length };
-  } catch (e) {
-    return { count: 0, total: 0, error: `Lỗi: ${e instanceof Error ? e.message : String(e)}` };
-  }
-}
-
-/** Nạp models đã cache cho một base_url (rỗng nếu chưa có). */
-function cachedModelsFor(baseUrl: string): string[] {
-  const url = baseUrl.trim();
-  if (!url) return [];
-  const cached = readModelsCache()[url];
-  return Array.isArray(cached) ? cached : [];
-}
-
 /** Ô base_url gắn liền nút "Tải models": click sẽ tải model về cache theo url. */
 function BaseUrlField({
   label,
@@ -262,58 +207,6 @@ function BaseUrlField({
   );
 }
 
-/** Ô model: combobox đọc từ cache theo base_url, tự nạp lại khi có models mới. */
-function ModelField({
-  label,
-  hint,
-  value,
-  baseUrl,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  value: string;
-  baseUrl: string;
-  disabled?: boolean;
-  onChange: (next: unknown) => void;
-}) {
-  const [models, setModels] = useState<string[]>([]);
-  const [status, setStatus] = useState("");
-
-  useEffect(() => {
-    const url = baseUrl.trim();
-    const cached = cachedModelsFor(url);
-    setModels(cached);
-    setStatus(cached.length ? `Đã nạp ${cached.length} model từ cache.` : "");
-  }, [baseUrl]);
-
-  useEffect(() => {
-    const onUpdated = (e: Event) => {
-      const url = (e as CustomEvent<string>).detail;
-      if (url === baseUrl.trim()) {
-        const cached = cachedModelsFor(url);
-        setModels(cached);
-        setStatus(cached.length ? `Đã nạp ${cached.length} model từ cache.` : "");
-      }
-    };
-    window.addEventListener(MODELS_UPDATED_EVENT, onUpdated);
-    return () => window.removeEventListener(MODELS_UPDATED_EVENT, onUpdated);
-  }, [baseUrl]);
-
-  return (
-    <Field label={label} hint={hint}>
-      <Combobox
-        value={value}
-        onChange={(v) => onChange(v)}
-        options={models}
-        placeholder="Chọn model..."
-        disabled={disabled}
-      />
-      {status ? <span className="block text-xs italic opacity-60">{status}</span> : null}
-    </Field>
-  );
-}
 function SectionForm<S extends SettingsSection>({
   slug,
   section,
@@ -579,7 +472,7 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
       slug={slug}
       section="translate"
       title="Dịch API"
-      hint="Engine, văn phong, glossary và giới hạn prompt; provider/model được quản lý ở Global AI và Model override"
+      hint="Engine, văn phong, glossary và giới hạn prompt; provider/model được quản lý ở mục “Provider AI cho truyện này” bên dưới và Dịch chung"
       fields={fields}
       server={server}
       renderExtraActions={(draft, setDraft) => (
@@ -710,60 +603,124 @@ function LocalMtTab({ slug, server }: { slug: string; server: EbookSettings["tra
   );
 }
 
-function GlobalAiTab({ server }: { server: GlobalAiSettings }) {
+function TranslateAiProviderPanel({ slug, ai }: { slug: string; ai: AiSettings }) {
   const toast = useToast();
-  const [values, setValues] = useState<GlobalAiSettings>({ ...server, api_key: "" });
-  const [modelsStatus, setModelsStatus] = useState<string>("");
-  useEffect(() => setValues({ ...server, api_key: "" }), [server]);
+  const { data: globalAi } = useGlobalAi();
+  const saveProvider = useSaveSettings(slug, "ai");
+  const modelQuery = useEbookModelOverrides(slug);
+  const saveModels = useSaveEbookModelOverrides(slug);
 
-  const save = useMutation({
-    mutationFn: () => api.post<{ saved: boolean; global_ai: GlobalAiSettings }>(
-      "/api/ui/settings/global-ai",
-      { body: values },
-    ),
-    onSuccess: (result) => {
-      setValues({ ...result.global_ai, api_key: "" });
-      toast("Đã lưu cấu hình Global AI");
-    },
-    onError: (error) => toast(error instanceof Error ? error.message : String(error), "error"),
-  });
-  const test = useMutation({
-    mutationFn: () => api.post<{ ok: boolean; latency_ms?: number; model_count?: number; error?: string }>(
-      "/settings/ai/test",
-      { body: { base_url: values.base_url, api_key: values.api_key, timeout_seconds: 15 } },
-    ),
-  });
-  const loadModels = async () => {
+  const [baseUrl, setBaseUrl] = useState(ai.base_url);
+  const [apiKey, setApiKey] = useState("");
+  const [timeoutSeconds, setTimeoutSeconds] = useState(ai.timeout_seconds);
+  const [temperature, setTemperature] = useState(ai.temperature);
+  const [translationModel, setTranslationModel] = useState("");
+  const [assistantModel, setAssistantModel] = useState("");
+  const [test, setTest] = useState<{ ok: boolean; latency_ms?: number; model_count?: number; error?: string } | null>(null);
+  const [modelsStatus, setModelsStatus] = useState("");
+
+  useEffect(() => {
+    setBaseUrl(ai.base_url);
+    setTimeoutSeconds(ai.timeout_seconds);
+    setTemperature(ai.temperature);
+  }, [ai.base_url, ai.timeout_seconds, ai.temperature]);
+
+  useEffect(() => {
+    if (modelQuery.data) {
+      setTranslationModel(modelQuery.data.translation_model);
+      setAssistantModel(modelQuery.data.assistant_model);
+    }
+  }, [modelQuery.data]);
+
+  const baseUrlForModel = baseUrl || globalAi?.base_url || "";
+
+  const onTest = async () => {
+    try {
+      const r = await api.post<{ ok: boolean; latency_ms?: number; model_count?: number; error?: string }>(
+        "/settings/ai/test",
+        { body: { base_url: baseUrlForModel, api_key: apiKey || globalAi?.api_key || "", timeout_seconds: 15 } },
+      );
+      setTest(r);
+    } catch (e) {
+      setTest({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const onLoadModels = async () => {
     setModelsStatus("Đang tải danh sách model…");
-    const result = await fetchAndMergeModels(values.base_url, values.api_key);
+    const result = await fetchAndMergeModels(baseUrlForModel, apiKey || globalAi?.api_key || "");
     setModelsStatus(result.error ?? `Đã tải ${result.count} model${result.total > result.count ? ` · ${result.total} trong cache` : ""}`);
   };
-  const set = <K extends keyof GlobalAiSettings>(key: K, value: GlobalAiSettings[K]) =>
-    setValues((current) => ({ ...current, [key]: value }));
+
+  const onLoadFromGlobal = () => {
+    if (!globalAi) return;
+    setBaseUrl(globalAi.base_url);
+    setTimeoutSeconds(globalAi.timeout_seconds);
+    setTemperature(globalAi.temperature);
+    setTranslationModel(globalAi.translation_model);
+    setAssistantModel(globalAi.assistant_model);
+  };
+
+  const onReset = async () => {
+    try {
+      await api.post(`/ebooks/${slug}/settings/ai/reset`);
+      setBaseUrl(globalAi?.base_url ?? "");
+      setTimeoutSeconds(globalAi?.timeout_seconds ?? 120000);
+      setTemperature(globalAi?.temperature ?? 0.7);
+      setApiKey("");
+      setTranslationModel("");
+      setAssistantModel("");
+      toast("Đã reset AI riêng về mặc định chung (Dịch chung).");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
+
+  const onSave = async () => {
+    try {
+      await saveProvider.mutateAsync(
+        { base_url: baseUrl, api_key: apiKey, timeout_seconds: timeoutSeconds, temperature, api_key_configured: ai.api_key_configured },
+        { onSuccess: () => toast("Đã lưu provider AI riêng cho truyện này.") },
+      );
+      await saveModels.mutateAsync(
+        { translation_model: translationModel, assistant_model: assistantModel },
+        { onSuccess: () => toast("Đã lưu model AI riêng cho truyện này.") },
+      );
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "error");
+    }
+  };
 
   return (
-    <Panel>
+    <Panel className="mt-4 overflow-hidden">
       <PanelHeader
-        title="System AI / Global LLM"
-        hint="Một endpoint và credential dùng chung cho mọi tác vụ AI trong hệ thống"
+        title="AI riêng cho truyện này (ghi đè Dịch chung)"
+        hint="Mỗi truyện có thể dùng provider, API key, timeout, temperature và model riêng — ghi đè hoàn toàn config AI chung."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={loadModels}>Tải models</Button>
-            <Button size="sm" loading={test.isPending} onClick={() => test.mutate()}>Thử kết nối</Button>
-            <Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>Lưu Global AI</Button>
+            <Button size="sm" onClick={onLoadModels}>Tải models</Button>
+            <Button size="sm" onClick={onTest}>Thử kết nối</Button>
+            <Button size="sm" variant="ghost" onClick={onLoadFromGlobal}>Nạp lại từ Dịch chung</Button>
+            <Button size="sm" variant="ghost" onClick={onReset}>Reset về chung</Button>
+            <Button size="sm" variant="primary" loading={saveProvider.isPending || saveModels.isPending} onClick={onSave}>Lưu AI riêng</Button>
           </div>
         }
       />
       <div className="border-b border-base-300 bg-base-200/50 px-4 py-3 text-[13px]">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={values.api_key_configured ? "celadon" : "gold"}>
-            {values.api_key_configured ? "Đã có API key" : "Chưa có API key"}
+          <Badge tone={ai.api_key_configured ? "celadon" : "gold"}>
+            {ai.api_key_configured ? "Đã có API key riêng" : "Chưa có API key riêng (kế thừa chung)"}
           </Badge>
-          <span className="opacity-70">Để trống API key khi lưu sẽ giữ nguyên secret hiện tại.</span>
+          <span className="opacity-70">Để trống API key khi lưu sẽ giữ nguyên secret hiện tại của truyện này.</span>
         </div>
-        {test.data ? (
-          <p className={clsx("mt-2", test.data.ok ? "text-success" : "text-error")} role="status">
-            {test.data.ok ? `Kết nối OK · ${test.data.model_count} model · ${test.data.latency_ms}ms` : test.data.error}
+        {globalAi ? (
+          <p className="mt-2 opacity-70">
+            Dịch chung — Base URL: <code>{globalAi.base_url}</code> · Translation: <code>{globalAi.translation_model || "(trống)"}</code> · Assistant: <code>{globalAi.assistant_model || "(trống)"}</code> · Timeout: {globalAi.timeout_seconds}s · Temp: {globalAi.temperature}
+          </p>
+        ) : null}
+        {test ? (
+          <p className={clsx("mt-2", test.ok ? "text-success" : "text-error")} role="status">
+            {test.ok ? `Kết nối OK · ${test.model_count} model · ${test.latency_ms}ms` : test.error}
           </p>
         ) : null}
         {modelsStatus ? <p className="mt-2 opacity-70" role="status">{modelsStatus}</p> : null}
@@ -771,70 +728,33 @@ function GlobalAiTab({ server }: { server: GlobalAiSettings }) {
       <div className="grid gap-4 p-4 md:grid-cols-2">
         <div className="md:col-span-2">
           <Field label="Base URL" hint="OpenAI-compatible endpoint, ví dụ https://host/v1">
-            <Input value={values.base_url} onChange={(e) => set("base_url", e.target.value)} spellCheck={false} />
+            <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} spellCheck={false} />
           </Field>
         </div>
-        <Field label="API key" hint={values.api_key_configured ? "Nhập giá trị mới để thay key hiện tại" : "Credential dùng chung toàn hệ thống"}>
-          <Input type="password" autoComplete="new-password" value={values.api_key} onChange={(e) => set("api_key", e.target.value)} />
+        <Field label="API key" hint={ai.api_key_configured ? "Nhập giá trị mới để thay key hiện tại" : "Credential riêng cho truyện này; để trống giữ nguyên"}>
+          <Input type="password" autoComplete="new-password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
         </Field>
         <Field label="Timeout (giây)">
-          <Input type="number" min={1} value={values.timeout_seconds} onChange={(e) => set("timeout_seconds", Number(e.target.value))} />
+          <Input type="number" min={1} value={timeoutSeconds} onChange={(e) => setTimeoutSeconds(Number(e.target.value))} />
         </Field>
-        <ModelField label="Model dịch chương" hint="Mặc định cho pipeline dịch AI" value={values.translation_model} baseUrl={values.base_url} onChange={(value) => set("translation_model", String(value))} />
-        <ModelField label="Model trợ lý" hint="Glossary, rewrite, cleanup, Reader và metadata AI" value={values.assistant_model} baseUrl={values.base_url} onChange={(value) => set("assistant_model", String(value))} />
+        <ModelField
+          label="Model dịch chương"
+          hint="Để trống = dùng model chung từ Dịch chung"
+          value={translationModel}
+          baseUrl={baseUrlForModel}
+          onChange={(value) => setTranslationModel(String(value))}
+        />
+        <ModelField
+          label="Model trợ lý"
+          hint="Glossary, rewrite, cleanup, Reader và metadata AI. Để trống = dùng chung"
+          value={assistantModel}
+          baseUrl={baseUrlForModel}
+          onChange={(value) => setAssistantModel(String(value))}
+        />
         <Field label="Temperature" hint="0–2">
-          <Input type="number" min={0} max={2} step={0.1} value={values.temperature} onChange={(e) => set("temperature", Number(e.target.value))} />
+          <Input type="number" min={0} max={2} step={0.1} value={temperature} onChange={(e) => setTemperature(Number(e.target.value))} />
         </Field>
       </div>
-    </Panel>
-  );
-}
-
-function ModelOverridesTab({ slug, global }: { slug: string; global: GlobalAiSettings }) {
-  const toast = useToast();
-  const query = useMutation({
-    mutationFn: () => api.get<ModelOverrides>(`/api/ui/ebooks/${slug}/settings/model-overrides`),
-  });
-  const [values, setValues] = useState<ModelOverrides>({ translation_model: "", assistant_model: "" });
-  useEffect(() => { query.mutate(); }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (query.data) setValues(query.data); }, [query.data]);
-  const save = useMutation({
-    mutationFn: () => api.post<{ saved: boolean; model_overrides: ModelOverrides }>(
-      `/api/ui/ebooks/${slug}/settings/model-overrides`,
-      { body: values },
-    ),
-    onSuccess: (result) => {
-      setValues(result.model_overrides);
-      toast("Đã lưu model override");
-    },
-    onError: (error) => toast(error instanceof Error ? error.message : String(error), "error"),
-  });
-
-  return (
-    <Panel>
-      <PanelHeader
-        title="Model riêng cho ebook"
-        hint="Chỉ đổi model; endpoint, API key, timeout và temperature luôn lấy từ Global AI"
-        actions={<Button size="sm" variant="primary" loading={save.isPending} onClick={() => save.mutate()}>Lưu override</Button>}
-      />
-      {query.isPending ? <Loading size="sm" label="Đang đọc override" className="justify-start px-4" /> : (
-        <div className="grid gap-4 p-4 md:grid-cols-2">
-          <ModelField
-            label="Model dịch chương"
-            hint={`Để trống = Dùng global (${global.translation_model})`}
-            value={values.translation_model}
-            baseUrl={global.base_url}
-            onChange={(value) => setValues((current) => ({ ...current, translation_model: String(value) }))}
-          />
-          <ModelField
-            label="Model trợ lý"
-            hint={`Để trống = Dùng global (${global.assistant_model})`}
-            value={values.assistant_model}
-            baseUrl={global.base_url}
-            onChange={(value) => setValues((current) => ({ ...current, assistant_model: String(value) }))}
-          />
-        </div>
-      )}
     </Panel>
   );
 }
@@ -891,13 +811,11 @@ function OpdsTab({ server }: { server: OpdsSettings }) {
 /* ── Trang ───────────────────────────────────────────────────────────── */
 
 const TABS = [
-  { key: "global-ai", label: "Global AI" },
-  { key: "models", label: "Model override" },
-  { key: "opds", label: "OPDS" },
   { key: "novel", label: "Truyện" },
   { key: "source", label: "Nguồn" },
   { key: "translate", label: "Dịch" },
   { key: "localmt", label: "Local MT" },
+  { key: "opds", label: "OPDS" },
   { key: "reader", label: "Reader" },
   { key: "output", label: "Đầu ra" },
 ] as const;
@@ -905,7 +823,7 @@ const TABS = [
 export function SettingsPage() {
   const { slug = "" } = useParams();
   const { data, isPending, error } = useEbookSettings(slug);
-  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("global-ai");
+  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("translate");
 
   if (isPending) {
     return (
@@ -959,8 +877,6 @@ export function SettingsPage() {
         ))}
       </div>
 
-      {tab === "global-ai" ? <GlobalAiTab server={data.global_ai} /> : null}
-      {tab === "models" ? <ModelOverridesTab slug={slug} global={data.global_ai} /> : null}
       {tab === "opds" ? <OpdsTab server={data.opds} /> : null}
       {tab === "novel" ? (
         <SectionForm
@@ -983,7 +899,12 @@ export function SettingsPage() {
           banner={sourceBanner}
         />
       ) : null}
-      {tab === "translate" ? <TranslateTab slug={slug} server={data.translate} meta={data.meta} /> : null}
+      {tab === "translate" ? (
+        <>
+          <TranslateTab slug={slug} server={data.translate} meta={data.meta} />
+          <TranslateAiProviderPanel slug={slug} ai={data.ai} />
+        </>
+      ) : null}
       {tab === "localmt" ? <LocalMtTab slug={slug} server={data.translate} /> : null}
       {tab === "reader" ? (
         <SectionForm

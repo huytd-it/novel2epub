@@ -30,20 +30,28 @@ _PREAMBLE = re.compile(
     re.IGNORECASE,
 )
 
-# Marker để AI đánh dấu phần glossary trong response dịch.
-# Hỗ trợ cả `## GLOSSARY` (format mới, đồng bộ với bulk_transfer) và
-# `===GLOSSARY===` (cũ, tương thích ngược).
-_GLOSSARY_MARKER = re.compile(r"^(?:#{1,6}\s+)?GLOSSARY\s*$|^===GLOSSARY===\s*$", re.MULTILINE | re.IGNORECASE)
+# Marker để AI đánh dấu phần glossary trong response dịch — dòng literal
+# `GLOSSARY:` (không phải Markdown heading), để AI coi đây là một nhãn cố
+# định cần giữ nguyên thay vì tự do restyle (đây chính là lý do `## GLOSSARY`
+# hay bị AI trả về ngẫu nhiên thành `**GLOSSARY**`, `GLOSSARY` trần, v.v. —
+# heading là "tiêu đề" nên AI thấy tự do định dạng lại). Regex khoan dung mọi
+# decoration `#`/`=`/`*`/`:` AI có thể tự thêm ở đầu/cuối, vừa bắt được biến
+# thể AI tự bịa vừa tương thích ngược với format cũ (`## GLOSSARY`,
+# `===GLOSSARY===`).
+_GLOSSARY_MARKER = re.compile(r"^[#=*_>\s]*GLOSSARY[:#=*_\s]*$", re.MULTILINE | re.IGNORECASE)
 # Bullet `- `/`* `/`+ ` AI hay tự thêm trước mỗi dòng glossary.
 _GLOSSARY_BULLET_RE = re.compile(r"^[-*+]\s+")
 
 # Block hướng dẫn auto-glossary — được nhét vào prompt_template qua placeholder
 # {auto_glossary_block} khi cfg.auto_glossary bật. Nếu template cũ (pin từ autosave)
 # không chứa placeholder, fallback: append sau format (xem _build_prompt).
-# Dùng `## GLOSSARY` để đồng bộ với format trong bulk_transfer._GLOSSARY_OUTPUT_RULE.
+# Dùng `GLOSSARY:` để đồng bộ với format trong bulk_transfer._GLOSSARY_OUTPUT_RULE.
 _AUTO_GLOSSARY_BLOCK = (
-    "\n\nỞ CUỐI bản dịch, thêm một mục `## GLOSSARY` để liệt kê "
-    "các mục glossary MỚI, mỗi mục MỘT DÒNG theo đúng dạng:\n"
+    "\n\nỞ CUỐI bản dịch, thêm ĐÚNG một dòng `GLOSSARY:` — viết y nguyên như "
+    "một nhãn cố định, KHÔNG dùng `##`, `**` hay bất kỳ định dạng Markdown nào "
+    "cho dòng này (giống cách bạn giữ nguyên `idx:N` không tự ý định dạng lại) "
+    "— rồi liệt kê các mục glossary MỚI ngay bên dưới, mỗi mục MỘT DÒNG theo "
+    "đúng dạng:\n"
     "- <Hán> = <Việt>\n"
     "Glossary là bảng ĐỒNG BỘ cách dịch xuyên suốt truyện, KHÔNG phải "
     "từ điển — thà bỏ sót còn hơn đưa nhầm từ thông thường.\n"
@@ -58,7 +66,7 @@ _AUTO_GLOSSARY_BLOCK = (
     "lóng dịch thoát ý; từ hiện đại phổ thông; từ độc giả Việt hiểu ngay "
     "hoặc chỉ xuất hiện một lần.\n"
     "Không giải thích, không đánh số, không JSON. Nếu không có mục nào "
-    "đạt tiêu chí, để mục `## GLOSSARY` trống (chỉ ghi tiêu đề, không kèm mục con)."
+    "đạt tiêu chí, chỉ ghi dòng `GLOSSARY:` rồi dừng (không kèm mục con)."
 )
 
 
@@ -453,7 +461,7 @@ class OpenAITranslator:
         return prompt
 
     def _split_response(self, raw: str) -> tuple[str, list[dict] | None]:
-        """Tách phần dịch và glossary sau ===GLOSSARY===.
+        """Tách phần dịch và glossary sau marker `GLOSSARY:`.
 
         Format chuẩn: mỗi dòng `Hán = Việt` (parse bằng parse_glossary_line,
         chấp nhận bullet `- `/`* ` đầu dòng, bỏ dòng prose/placeholder).

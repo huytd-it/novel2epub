@@ -25,10 +25,12 @@ thay vì `Chương N` — tránh AI nhầm lẫn giữa số thứ tự này và
 thường nằm ngay trong tiêu đề gốc (vd tiêu đề "第1338章 番外一" bên trong dòng
 `## idx:1353: 第1338章 番外一` dễ khiến AI tưởng 1353 là số chương thật nếu
 marker viết "Chương 1353"). Web chat trả về các chương đã dịch/biên tập (giữ
-nguyên `idx:N`, chỉ dịch phần tiêu đề sau đó) kèm một mục `## GLOSSARY` mới ở
-cuối — `parse_import` tách chương, `parse_glossary` gom glossary. Marker
-`## Chương N` (định dạng cũ) và `===== CHƯƠNG N =====` (kiểu cũ hơn) vẫn được
-nhận diện để tương thích ngược với các bản xuất trước đó.
+nguyên `idx:N`, chỉ dịch phần tiêu đề sau đó) kèm một dòng `GLOSSARY:` mới ở
+cuối (nhãn literal, không phải Markdown heading — tránh AI tự restyle thành
+`## GLOSSARY`/`**GLOSSARY**`) — `parse_import` tách chương, `parse_glossary`
+gom glossary. Marker `## GLOSSARY` (định dạng cũ), `## Chương N` (định dạng
+cũ) và `===== CHƯƠNG N =====` (kiểu cũ hơn) vẫn được nhận diện để tương thích
+ngược với các bản xuất trước đó.
 """
 from __future__ import annotations
 
@@ -51,7 +53,9 @@ CHAPTER_MARKER_RE = re.compile(
     r"(?:IDX\s*[:.]?\s*|CHƯƠNG\s+)(\d+)\b\s*(.*)$",
     re.IGNORECASE,
 )
-GLOSSARY_MARKER_RE = re.compile(r"^(?:#{1,6}\s*|={3,}\s*)GLOSSARY\b", re.IGNORECASE)
+# Khoan dung mọi decoration `#`/`=`/`*`/`_`/`>` AI có thể tự thêm quanh nhãn
+# `GLOSSARY:` (kể cả bịa bold `**GLOSSARY**`) lẫn format cũ `## GLOSSARY`.
+GLOSSARY_MARKER_RE = re.compile(r"^[#=*_>\s]*GLOSSARY\b", re.IGNORECASE)
 
 _BULLET_RE = re.compile(r"^[-*+]\s+")
 
@@ -151,10 +155,13 @@ def chapter_marker(index: int, title: str = "") -> str:
 # TRANSLATE_PROMPT. Siết chặt tiêu chí để AI KHÔNG nhét từ đời thường vào
 # glossary (lỗi hay gặp: "kệ hàng", "cơm thừa canh cặn", "chạy việc vặt"...).
 # Ghép vào cuối mỗi prompt bằng nối chuỗi.
-_GLOSSARY_OUTPUT_RULE = """- Ở CUỐI kết quả, thêm một mục `## GLOSSARY`. \
-CHỈ liệt kê tên riêng/thuật ngữ MỚI (chưa có trong glossary tham khảo) mà \
-BẮT BUỘC phải nhất quán xuyên suốt truyện. Đây là bảng để đồng bộ cách dịch, \
-KHÔNG phải từ điển — thà bỏ sót còn hơn đưa nhầm từ thông thường vào.
+_GLOSSARY_OUTPUT_RULE = """- Ở CUỐI kết quả, thêm ĐÚNG một dòng `GLOSSARY:` — \
+viết y nguyên như một nhãn cố định, KHÔNG dùng `##`, `**` hay bất kỳ định dạng \
+Markdown nào cho dòng này (giữ nguyên y hệt cách bạn giữ nguyên `## idx:N`, \
+KHÔNG tự ý định dạng lại). Ngay bên dưới, CHỈ liệt kê tên riêng/thuật ngữ MỚI \
+(chưa có trong glossary tham khảo) mà BẮT BUỘC phải nhất quán xuyên suốt \
+truyện. Đây là bảng để đồng bộ cách dịch, KHÔNG phải từ điển — thà bỏ sót còn \
+hơn đưa nhầm từ thông thường vào.
 
 TIÊU CHÍ đưa vào (chỉ khi thỏa mãn): tên riêng — nhân vật, địa danh, môn \
 phái/tổ chức, chức danh/tước vị; hoặc thuật ngữ ĐẶC THÙ của thế giới truyện, \
@@ -175,10 +182,10 @@ lửa đẩy, công tác bên ngoài...) — TRỪ KHI là khái niệm đặc t
 lần và cần dịch thống nhất.
 - Bất kỳ từ nào độc giả Việt đọc hiểu ngay, hoặc chỉ xuất hiện một lần.
 
-Nếu không có mục nào đạt tiêu chí, để mục `## GLOSSARY` trống (chỉ ghi tiêu đề, \
-không kèm mục con). Định dạng:
+Nếu không có mục nào đạt tiêu chí, chỉ ghi dòng `GLOSSARY:` rồi dừng (không \
+kèm mục con). Định dạng:
 
-## GLOSSARY
+GLOSSARY:
 - <chữ Hán> = <tiếng Việt>
 """
 
@@ -260,8 +267,8 @@ cho người đọc hiểu, không dịch nguyên xi từng chữ kiểu Vietphr
 - CHỈ trả về bản dịch tiếng Việt thuần túy. KHÔNG thêm lời mở đầu, ghi chú, \
 giải thích, hay đánh dấu song ngữ.
 - KIỂM TRA CUỐI (bắt buộc): trước khi trả lời, rà lại toàn bộ nội dung các \
-chương; nếu còn BẤT KỲ ký tự Trung Quốc nào ngoài mục `## GLOSSARY`, dịch nốt \
-sang tiếng Việt rồi mới trả lời.
+chương; nếu còn BẤT KỲ ký tự Trung Quốc nào ngoài phần sau `GLOSSARY:`, dịch \
+nốt sang tiếng Việt rồi mới trả lời.
 - GIỮ NGUYÊN số `idx:N` ở đầu mỗi dòng tiêu đề — đây CHỈ LÀ SỐ THỨ TỰ để đối \
 chiếu, KHÔNG PHẢI số chương thật của truyện, TUYỆT ĐỐI không dùng số này khi \
 dịch tiêu đề. Dịch phần tiêu đề tiếng Trung đứng sau `idx:N:` sang tiếng Việt \
@@ -376,9 +383,11 @@ nhiều cách dịch khác nhau, chọn cách phù hợp nhất và bỏ các c�
 
 ## Quy tắc định dạng đầu ra (bắt buộc để nạp ngược vào hệ thống)
 
-Chỉ trả về đúng cấu trúc sau, mỗi mục một dòng dạng `- <chữ Hán> = <tiếng Việt>`:
+Bắt đầu bằng ĐÚNG một dòng `GLOSSARY:` — viết y nguyên như một nhãn cố định, \
+KHÔNG dùng `##`, `**` hay bất kỳ định dạng Markdown nào. Sau đó, mỗi mục một \
+dòng dạng `- <chữ Hán> = <tiếng Việt>`:
 
-## GLOSSARY
+GLOSSARY:
 - 萧炎 = Tiêu Viêm
 - 斗气 = Đấu khí
 """
@@ -389,12 +398,12 @@ def build_glossary_export(
 ) -> str:
     """Gom glossary hiện tại thành khối xuất cho web chat AI dọn lại.
 
-    Dùng heading `## GLOSSARY` + dòng `- Hán = Việt` để `parse_glossary` nạp
+    Dùng nhãn `GLOSSARY:` + dòng `- Hán = Việt` để `parse_glossary` nạp
     ngược được kết quả AI trả về (round-trip). Bảng rỗng vẫn xuất khung để
     AI biết định dạng mong muốn.
     """
     lines = "\n".join(f"- {s} = {t}" for s, t in glossary.items() if s and t)
-    parts: list[str] = [prompt.rstrip(), "## GLOSSARY\n" + (lines or "- ")]
+    parts: list[str] = [prompt.rstrip(), "GLOSSARY:\n" + (lines or "- ")]
     return "\n\n".join(parts) + "\n"
 
 

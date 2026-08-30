@@ -54,5 +54,14 @@ out/
 archify-out/
 
 # Env cục bộ cho dev server (không commit)
+.env
 .env.local
 .env.*.local
+
+# Build exe tray chạy ngầm (PyInstaller) — sinh lại được, không commit
+novel2epub-tray.exe
+novel2epub-tray.zip
+novel2epub-tray.spec
+build/
+logs/
+*.log

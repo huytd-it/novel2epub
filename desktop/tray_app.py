@@ -1,30 +1,42 @@
 #!/usr/bin/env python3
 """
-novel2epub — Desktop tray app chạy nền (Windows).
+novel2epub — Desktop tray app chạy nền (Windows) + build .exe không console.
 
-- Khởi uvicorn FastAPI ở thread nền (127.0.0.1:8010)
+- Khởi uvicorn FastAPI ở thread nền, tự chọn port rảnh nếu port mặc định bận
 - Hiện icon khay hệ thống: mở Web UI, mở thư mục, autostart, thoát
-- Chạy nền không console khi build --windowed/--noconsole
-- Single-instance: bind socket 8010 + lock file
+- Chạy nền không console khi build --windowed / --noconsole
+- Single-instance: lock file + socket fallback
 - Autostart: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run
+- Tự load .env: PORT / N2E_TRAY_PORT / N2E_PORT / N2E_TRAY_HOST
+
+Thứ tự ưu tiên port:
+  1. CLI --port
+  2. Biến môi trường N2E_TRAY_PORT / PORT / N2E_PORT
+  3. File .env cạnh exe / project root / CWD (PORT / N2E_TRAY_PORT / N2E_PORT)
+  4. Mặc định 8010 -> nếu bận thì chọn ngẫu nhiên
+  5. Nếu vẫn bận: pick random free port qua OS (bind 0)
+
+Thứ tự ưu tiên host tương tự: CLI --host > N2E_TRAY_HOST / HOST > .env > 127.0.0.1
 
 Chạy trực tiếp (dev):
     .venv\\Scripts\\python.exe desktop/tray_app.py
     .venv\\Scripts\\python.exe desktop/tray_app.py --port 8010 --no-browser
+    N2E_TRAY_PORT=0 .venv\\Scripts\\python.exe desktop/tray_app.py  # random port
 
 Build exe:
     powershell -ExecutionPolicy Bypass -File scripts/build-exe.ps1
 
-Env:
-    NOVEL2EPUB_DB  : đường dẫn DB (mặc định <exe-dir>/novel2epub.db hoặc <project>/novel2epub.db)
-    N2E_TRAY_PORT  : cổng (mặc định 8010)
-    N2E_TRAY_HOST  : host (mặc định 127.0.0.1)
+Env (.env hoặc biến môi trường):
+    NOVEL2EPUB_DB  : đường dẫn DB (mặc định <exe-dir>/novel2epub.db)
+    N2E_TRAY_PORT / PORT / N2E_PORT : cổng (mặc định 8010, 0 = random)
+    N2E_TRAY_HOST / HOST            : host (mặc định 127.0.0.1)
 """
 from __future__ import annotations
 
 import argparse
 import logging
 import os
+import random
 import socket
 import sys
 import threading
@@ -37,17 +49,16 @@ from pathlib import Path
 def _is_frozen() -> bool:
     return getattr(sys, "frozen", False)
 
+
 def get_base_dir() -> Path:
     """Thư mục gốc chứa DB, data, logs.
     - frozen (PyInstaller): thư mục chứa .exe
     - dev: project root (cha của desktop/)
     """
     if _is_frozen():
-        # sys.executable = .../novel2epub-tray.exe
-        # _MEIPASS là nơi chứa bundle, nhưng DB phải ở cạnh exe để persist
         return Path(sys.executable).resolve().parent
-    # desktop/tray_app.py -> project root
     return Path(__file__).resolve().parent.parent
+
 
 def get_resource_dir() -> Path:
     """Nơi chứa code/resources bundle (dùng cho icon, webui)."""
@@ -55,25 +66,96 @@ def get_resource_dir() -> Path:
         return Path(sys._MEIPASS)  # type: ignore[attr-defined]
     return get_base_dir()
 
+
 BASE_DIR = get_base_dir()
 RESOURCE_DIR = get_resource_dir()
 
-# Đảm bảo base_dir lên sys.path để import app/novel2epub khi frozen
-# (PyInstaller đã bundle, nhưng dev cần)
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 if str(RESOURCE_DIR) not in sys.path:
     sys.path.insert(0, str(RESOURCE_DIR))
 
+# ── .env loader (không cần python-dotenv) ─────────────────────────
+
+def _parse_env_file(path: Path) -> dict[str, str]:
+    data: dict[str, str] = {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception:
+        return data
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # bỏ export prefix
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key = key.strip()
+        val = val.strip().strip("\"'").strip()
+        # bỏ inline comment chưa trong quote
+        # đơn giản: nếu val chứa " #", cắt
+        if " #" in val:
+            # chỉ cắt nếu không nằm trong quote đã strip
+            val = val.split(" #", 1)[0].strip()
+        if key:
+            data[key] = val
+    return data
+
+
+def _load_dotenv() -> Path | None:
+    """Tìm và load .env, set vào os.environ nếu chưa có. Trả về path đã load."""
+    candidates: list[Path] = []
+    # thứ tự ưu tiên: cạnh exe > project root > CWD
+    try:
+        candidates.append(BASE_DIR / ".env")
+        candidates.append(RESOURCE_DIR / ".env")
+        candidates.append(Path.cwd() / ".env")
+        # khi dev: BASE_DIR là project root, nhưng frozen thì BASE_DIR là dist
+        # thử thêm parent của BASE_DIR
+        candidates.append(BASE_DIR.parent / ".env")
+        # desktop/tray_app.py -> project root/.env đã là BASE_DIR/.env ở dev
+    except Exception:
+        pass
+
+    seen: set[Path] = set()
+    for p in candidates:
+        try:
+            rp = p.resolve()
+        except Exception:
+            rp = p
+        if rp in seen:
+            continue
+        seen.add(rp)
+        if rp.is_file():
+            env = _parse_env_file(rp)
+            for k, v in env.items():
+                # không ghi đè biến đã có trong môi trường (env thật thắng .env)
+                if k not in os.environ:
+                    os.environ[k] = v
+            return rp
+    return None
+
+
+_DOTENV_PATH = _load_dotenv()
+
 # ── constants ──────────────────────────────────────────────────────
 
 APP_NAME = "novel2epub"
-DEFAULT_HOST = os.environ.get("N2E_TRAY_HOST", "127.0.0.1")
-DEFAULT_PORT = int(os.environ.get("N2E_TRAY_PORT", "8010"))
-APP_URL = f"http://{DEFAULT_HOST}:{DEFAULT_PORT}"
 LOCK_NAME = "novel2epub-tray.lock"
 REG_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 REG_VALUE_NAME = "novel2epub"
+
+# host/port mặc định — đã được _load_dotenv bơm vào os.environ nếu .env tồn tại
+_DEFAULT_HOST_RAW = os.environ.get("N2E_TRAY_HOST") or os.environ.get("HOST") or "127.0.0.1"
+try:
+    _PORT_RAW = os.environ.get("N2E_TRAY_PORT") or os.environ.get("PORT") or os.environ.get("N2E_PORT") or "8010"
+    DEFAULT_PORT = int(str(_PORT_RAW).strip())
+except (ValueError, TypeError):
+    DEFAULT_PORT = 8010
+DEFAULT_HOST = _DEFAULT_HOST_RAW.strip() or "127.0.0.1"
 
 log = logging.getLogger("tray")
 
@@ -81,6 +163,7 @@ log = logging.getLogger("tray")
 
 def _is_windows() -> bool:
     return sys.platform.startswith("win")
+
 
 def is_autostart_enabled() -> bool:
     if not _is_windows():
@@ -96,6 +179,7 @@ def is_autostart_enabled() -> bool:
     except OSError:
         return False
 
+
 def set_autostart(enable: bool) -> bool:
     """Bật/tắt khởi động cùng Windows. Trả True nếu thành công."""
     if not _is_windows():
@@ -104,10 +188,7 @@ def set_autostart(enable: bool) -> bool:
         import winreg
 
         exe = Path(sys.executable).resolve() if _is_frozen() else (BASE_DIR / ".venv" / "Scripts" / "pythonw.exe")
-        # Khi dev chưa có pythonw, fallback python
         if not _is_frozen():
-            # Tạo lệnh chạy ẩn: pythonw + tray_app.py --minimized
-            # Nếu không có pythonw, dùng python
             if not exe.exists():
                 exe = Path(sys.executable).resolve()
             cmd = f'"{exe}" "{Path(__file__).resolve()}" --minimized'
@@ -127,20 +208,90 @@ def set_autostart(enable: bool) -> bool:
         log.warning("autostart failed: %s", e)
         return False
 
+
+# ── port helpers ───────────────────────────────────────────────────
+
+def _is_port_free(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        try:
+            s.bind((host, port))
+            return True
+        except OSError:
+            return False
+
+
+def _get_random_free_port(host: str) -> int:
+    """Hỏi OS cấp port ngẫu nhiên (bind 0)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((host, 0))
+        return int(s.getsockname()[1])
+
+
+def _find_random_free_port(host: str, preferred: int | None = None, tries: int = 30) -> int:
+    """Ưu tiên preferred nếu rảnh, không thì thử ngẫu nhiên trong dải, cuối cùng bind 0."""
+    if preferred is not None and preferred != 0:
+        if _is_port_free(host, preferred):
+            return preferred
+    # thử random trong dải 8000-9500
+    candidates = random.sample(range(8000, 9500), min(tries, 200))
+    # cũng thử các port kế preferred để giữ tính tuần tự khi random fail
+    if preferred and preferred != 0:
+        for p in range(preferred + 1, preferred + 20):
+            if p not in candidates:
+                candidates.append(p)
+    for p in candidates:
+        if _is_port_free(host, p):
+            return p
+    # fallback: OS random
+    try:
+        return _get_random_free_port(host)
+    except OSError:
+        return preferred or 8010
+
+
+def _resolve_port(cli_port: int | None, host: str) -> int:
+    """Giải quyết port theo thứ tự: CLI > env (.env đã load) > default.
+    Nếu env/cli là 0 => random. Nếu port bận => random.
+    """
+    raw: int | None = cli_port
+    source = "cli" if cli_port is not None else "env/default"
+    if raw is None:
+        raw = DEFAULT_PORT
+        source = ".env/env/default"
+    if raw == 0:
+        port = _get_random_free_port(host)
+        log.info("Port yêu cầu 0 (random) -> chọn %s", port)
+        return port
+    if _is_port_free(host, raw):
+        log.info("Port %s (%s) rảnh", raw, source)
+        return raw
+    # bận -> random
+    new_port = _find_random_free_port(host, preferred=raw)
+    log.warning("Port %s bận, tự chọn %s", raw, new_port)
+    return new_port
+
+
+def _resolve_host(cli_host: str | None) -> str:
+    if cli_host:
+        return cli_host
+    # DEFAULT_HOST đã tính từ env/.env
+    return DEFAULT_HOST
+
+
 # ── single instance ────────────────────────────────────────────────
 
 _lock_fp = None
+
 
 def acquire_single_instance() -> bool:
     """Giữ lock file để tránh chạy 2 tray cùng lúc. Trả False nếu đã có instance."""
     global _lock_fp
     lock_path = BASE_DIR / LOCK_NAME
     try:
-        # Dùng exclusive open; nếu đã tồn tại và đang bị giữ, sẽ fail trên Windows
         import msvcrt  # type: ignore
 
         _lock_fp = open(lock_path, "w")
-        # Thử lock 1 byte đầu
         try:
             msvcrt.locking(_lock_fp.fileno(), msvcrt.LK_NBLCK, 1)  # type: ignore
         except OSError:
@@ -151,17 +302,17 @@ def acquire_single_instance() -> bool:
         _lock_fp.flush()
         return True
     except ImportError:
-        # non-Windows fallback: socket bind
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # dùng port lock = actual port + 1 hoặc random
             s.bind((DEFAULT_HOST, DEFAULT_PORT + 1))
-            # giữ socket sống trong global
             globals()["_lock_socket"] = s
             return True
         except OSError:
             return False
     except OSError:
         return False
+
 
 def release_single_instance():
     global _lock_fp
@@ -182,6 +333,7 @@ def release_single_instance():
     except Exception:
         pass
 
+
 # ── icon image ─────────────────────────────────────────────────────
 
 def load_icon_image(size: int = 64):
@@ -199,44 +351,39 @@ def load_icon_image(size: int = 64):
         if p and p.exists():
             try:
                 im = Image.open(p)
-                # ICO có nhiều size, chọn size gần nhất
                 if im.size[0] != size:
                     im = im.resize((size, size), Image.LANCZOS)
-                # Đảm bảo RGBA
                 if im.mode != "RGBA":
                     im = im.convert("RGBA")
                 return im
             except Exception:
                 continue
 
-    # Fallback: vẽ icon chữ N2E
     im = Image.new("RGBA", (size, size), (15, 15, 15, 0))
     draw = ImageDraw.Draw(im)
-    # nền bo tròn
     draw.rounded_rectangle([2, 2, size - 2, size - 2], radius=size // 6, fill=(99, 102, 241, 255))
-    # chữ N (đơn giản)
     try:
-        # cố gắng dùng font mặc định
         draw.text((size * 0.22, size * 0.18), "N", fill=(255, 255, 255, 255))
     except Exception:
         draw.rectangle([size // 3, size // 4, size * 2 // 3, size * 3 // 4], fill=(255, 255, 255, 255))
     return im
 
+
 # ── server ─────────────────────────────────────────────────────────
 
 _server = None
 _server_thread: threading.Thread | None = None
+_actual_port: int = DEFAULT_PORT
+_actual_host: str = DEFAULT_HOST
+
 
 def find_free_port(host: str, start: int) -> int:
+    """Giữ API cũ: thử tuần tự 20 port, fallback random."""
     for p in range(start, start + 20):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.5)
-            try:
-                s.bind((host, p))
-                return p
-            except OSError:
-                continue
-    return start
+        if _is_port_free(host, p):
+            return p
+    return _find_random_free_port(host, preferred=start)
+
 
 def wait_for_server(host: str, port: int, timeout: float = 20.0) -> bool:
     deadline = time.time() + timeout
@@ -248,20 +395,28 @@ def wait_for_server(host: str, port: int, timeout: float = 20.0) -> bool:
             time.sleep(0.4)
     return False
 
+
 def start_server(host: str, port: int):
-    global _server
-    # Đặt env DB nếu chưa có — để app/deps.py nhận đúng file cạnh exe
+    global _server, _actual_port, _actual_host
+    _actual_host = host
+    _actual_port = port
+    # Fix cho --windowed (frozen, không console): sys.stdout/stderr là None -> uvicorn formatter gọi isatty() sẽ crash
+    # dist/logs/tray.log:20 AttributeError: 'NoneType' object has no attribute 'isatty'
+    if _is_frozen():
+        import io
+
+        if sys.stdout is None:
+            sys.stdout = io.StringIO()  # type: ignore
+        if sys.stderr is None:
+            sys.stderr = io.StringIO()  # type: ignore
     db_path = os.environ.get("NOVEL2EPUB_DB") or os.environ.get("NOVEL2EPUB_FILE") or str(BASE_DIR / "novel2epub.db")
     os.environ["NOVEL2EPUB_DB"] = db_path
-    # Đảm bảo DB tồn tại (init nếu chưa)
     try:
         from novel2epub.db import get_connection, init_schema
 
         dbp = Path(db_path)
-        need_init = not dbp.exists()
-        if need_init:
+        if not dbp.exists():
             log.info("DB chưa có, khởi tạo %s", dbp)
-            # init_schema sẽ tạo file
             conn = get_connection(dbp)
             try:
                 init_schema(conn)
@@ -270,11 +425,19 @@ def start_server(host: str, port: int):
     except Exception as e:
         log.warning("DB init check failed: %s", e)
 
-    # Khởi uvicorn
+    # Ghi port thực tế ra file để external tools / lần chạy sau có thể đọc
+    try:
+        port_file = BASE_DIR / "logs" / "port.txt"
+        port_file.parent.mkdir(parents=True, exist_ok=True)
+        port_file.write_text(str(port), encoding="utf-8")
+    except Exception:
+        pass
+
     try:
         import uvicorn
 
-        # Tắt reload, log gọn khi chạy nền
+        # log_config=None tránh dictConfig với ColourizedFormatter (đòi isatty); dùng warning + file log riêng
+        uv_log_config = None if _is_frozen() else uvicorn.config.LOGGING_CONFIG  # type: ignore[attr-defined]
         config = uvicorn.Config(
             "app.main:app",
             host=host,
@@ -282,21 +445,24 @@ def start_server(host: str, port: int):
             log_level="warning",
             access_log=False,
             workers=1,
+            log_config=uv_log_config,
         )
         _server = uvicorn.Server(config)
-
-        # Chạy blocking trong thread này
-        # Nếu port bận, thử port kế
         try:
             _server.run()
         except OSError as e:
-            if "address already in use" in str(e).lower() or "10048" in str(e):
-                new_port = find_free_port(host, port + 1)
+            msg = str(e).lower()
+            if "address already in use" in msg or "10048" in msg or "10013" in msg:
+                new_port = _find_random_free_port(host, preferred=port + 1)
                 log.warning("Port %s bận, thử %s", port, new_port)
-                config = uvicorn.Config("app.main:app", host=host, port=new_port, log_level="warning", access_log=False)
+                uv_log_config2 = None if _is_frozen() else uvicorn.config.LOGGING_CONFIG  # type: ignore[attr-defined]
+                config = uvicorn.Config("app.main:app", host=host, port=new_port, log_level="warning", access_log=False, log_config=uv_log_config2)
                 _server = uvicorn.Server(config)
-                # cập nhật URL toàn cục cho menu "Mở Web UI"
-                globals()["_actual_port"] = new_port
+                _actual_port = new_port
+                try:
+                    (BASE_DIR / "logs" / "port.txt").write_text(str(new_port), encoding="utf-8")
+                except Exception:
+                    pass
                 _server.run()
             else:
                 raise
@@ -304,6 +470,7 @@ def start_server(host: str, port: int):
         pass
     except Exception as e:
         log.exception("server crashed: %s", e)
+
 
 def stop_server():
     global _server
@@ -314,36 +481,40 @@ def stop_server():
             pass
         _server = None
 
+
 # ── tray ───────────────────────────────────────────────────────────
 
-_actual_port = DEFAULT_PORT
-
 def _get_url() -> str:
-    return f"http://{DEFAULT_HOST}:{_actual_port}"
+    return f"http://{_actual_host}:{_actual_port}"
+
 
 def run_tray(host: str, port: int, minimized: bool, no_browser: bool):
-    global _actual_port
-    _actual_port = port
+    global _actual_port, _actual_host
+    # resolve lần cuối trước khi chạy — đảm bảo random nếu bận
+    resolved_port = _resolve_port(port if port != DEFAULT_PORT or port == 0 else None, host) if port else _resolve_port(None, host)
+    # Nếu caller truyền port rõ ràng (từ parse_args), đã resolve ở main; nhưng để an toàn:
+    # Ở đây host đã là resolved host, port đã là resolved port từ main — chỉ fallback thêm
+    _actual_port = resolved_port
+    _actual_host = host
 
-    # Khởi server thread
-    t = threading.Thread(target=start_server, args=(host, port), daemon=True, name="uvicorn")
+    t = threading.Thread(target=start_server, args=(host, resolved_port), daemon=True, name="uvicorn")
     t.start()
     globals()["_server_thread"] = t
 
-    # Chờ server sẵn sàng rồi mở browser (nếu không minimized)
     def _maybe_open():
-        ok = wait_for_server(host, port, timeout=25)
+        ok = wait_for_server(host, resolved_port, timeout=25)
+        # nếu start_server đã đổi port do conflict, chờ thêm actual
+        if not ok and _actual_port != resolved_port:
+            ok = wait_for_server(_actual_host, _actual_port, timeout=15)
         if ok and not minimized and not no_browser:
-            # delay nhỏ để SPA load
             time.sleep(0.6)
             try:
-                webbrowser.open(f"http://{host}:{port}/app/")
+                webbrowser.open(f"http://{_actual_host}:{_actual_port}/app/")
             except Exception:
                 pass
 
     threading.Thread(target=_maybe_open, daemon=True).start()
 
-    # Lazy import pystray để --help không cần cài
     try:
         import pystray  # type: ignore
         from pystray import MenuItem as Item  # type: ignore
@@ -360,7 +531,6 @@ def run_tray(host: str, port: int, minimized: bool, no_browser: bool):
 
     icon_image = load_icon_image(64)
 
-    # ——— actions ———
     def action_open(icon, item):
         webbrowser.open(_get_url() + "/app/")
 
@@ -393,13 +563,11 @@ def run_tray(host: str, port: int, minimized: bool, no_browser: bool):
     def action_toggle_autostart(icon, item):
         cur = is_autostart_enabled()
         set_autostart(not cur)
-        # Cập nhật lại menu (pystray cần rebuild)
         icon.menu = build_menu(icon)
 
     def action_quit(icon, item):
         icon.visible = False
         stop_server()
-        # Cho server chút thời gian tắt
         time.sleep(0.8)
         icon.stop()
         release_single_instance()
@@ -408,7 +576,6 @@ def run_tray(host: str, port: int, minimized: bool, no_browser: bool):
     def action_restart(icon, item):
         stop_server()
         time.sleep(1.0)
-        # Khởi lại thread
         nt = threading.Thread(target=start_server, args=(host, _actual_port), daemon=True)
         nt.start()
         globals()["_server_thread"] = nt
@@ -433,67 +600,94 @@ def run_tray(host: str, port: int, minimized: bool, no_browser: bool):
             Item("Thoát", action_quit),
         )
 
-    # Tooltip
     tooltip = f"novel2epub — {_get_url()}"
-
     icon = pystray.Icon(APP_NAME, icon_image, tooltip, menu=build_menu(None))  # type: ignore
-
-    # Double-click mở web UI (Windows)
     try:
         icon.on_click = lambda ic, btn: webbrowser.open(_get_url() + "/app/") if str(btn) == "left" else None  # type: ignore
     except Exception:
         pass
-
-    # Xử lý khi đóng: không thoát mà giữ tray (icon.run là blocking)
     try:
         icon.run()
     finally:
         stop_server()
         release_single_instance()
 
+
 # ── cli ────────────────────────────────────────────────────────────
 
 def parse_args():
-    p = argparse.ArgumentParser(description="novel2epub tray - chay nen trong khay he thong")
-    p.add_argument("--host", default=DEFAULT_HOST, help="host (mac dinh 127.0.0.1)")
-    p.add_argument("--port", type=int, default=DEFAULT_PORT, help="port (mac dinh 8010)")
+    # Lưu ý: default None để phân biệt user có truyền --port/--host hay không
+    # description/help giữ ascii để --help không lỗi cp1252 khi redirect (Windows cmd)
+    p = argparse.ArgumentParser(description="novel2epub tray - chay nen trong khay he thong (tu doc .env, tu chon port ranh)")
+    p.add_argument("--host", default=None, help="host (mac dinh tu .env N2E_TRAY_HOST/HOST hoac 127.0.0.1)")
+    p.add_argument("--port", type=int, default=None, help="port (mac dinh tu .env PORT/N2E_TRAY_PORT hoac 8010; 0 = random)")
     p.add_argument("--minimized", action="store_true", help="khong tu mo browser khi khoi dong")
     p.add_argument("--no-browser", action="store_true", help="khong mo browser")
     p.add_argument("--no-single-instance", action="store_true", help="cho phep chay nhieu instance")
     return p.parse_args()
 
+
 def main():
     args = parse_args()
 
-    # Single instance guard
+    # Resolve host/port theo thứ tự: CLI > env/.env > default, bận thì random
+    host = _resolve_host(args.host)
+    # args.port None => dùng DEFAULT_PORT (đã từ env/.env)
+    # args.port 0 => random
+    # args.port số => thử số đó, bận thì random
+    if args.port is not None:
+        port = _resolve_port(args.port, host)
+    else:
+        port = _resolve_port(None, host)
+
+    # Ghi lại actual để các nơi khác dùng
+    global _actual_port, _actual_host
+    _actual_port = port
+    _actual_host = host
+
     if not args.no_single_instance:
         if not acquire_single_instance():
-            # Da co instance: mo browser toi instance cu roi thoat
             print("Da co novel2epub dang chay - mo Web UI cua instance cu.")
+            # Cố mở URL của instance cũ (thử đọc logs/port.txt)
             try:
-                webbrowser.open(f"http://{args.host}:{args.port}/app/")
+                pf = BASE_DIR / "logs" / "port.txt"
+                if pf.exists():
+                    old_port = int(pf.read_text(encoding="utf-8").strip())
+                    webbrowser.open(f"http://{host}:{old_port}/app/")
+                else:
+                    webbrowser.open(f"http://{host}:{port}/app/")
             except Exception:
-                pass
+                try:
+                    webbrowser.open(f"http://{host}:{port}/app/")
+                except Exception:
+                    pass
             sys.exit(0)
 
-    # Logging ra file khi chạy nền (không console)
     try:
         log_dir = BASE_DIR / "logs"
         log_dir.mkdir(exist_ok=True)
         fh = logging.FileHandler(log_dir / "tray.log", encoding="utf-8")
         fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
-        logging.basicConfig(level=logging.INFO, handlers=[fh], force=False)
+        # tránh duplicate handler khi reload
+        root = logging.getLogger()
+        if not any(isinstance(h, logging.FileHandler) and getattr(h, "baseFilename", "") == str(fh.baseFilename) for h in root.handlers):
+            logging.basicConfig(level=logging.INFO, handlers=[fh], force=False)
+            # cũng add handler nếu basicConfig đã có
+            if fh not in root.handlers:
+                root.addHandler(fh)
+        # ghi nguồn port
+        dotenv_info = f" .env={_DOTENV_PATH}" if _DOTENV_PATH else " (không có .env)"
+        log.info("Starting tray app at http://%s:%s (frozen=%s, base=%s)%s", host, port, _is_frozen(), BASE_DIR, dotenv_info)
     except Exception:
         logging.basicConfig(level=logging.INFO)
+        log.info("Starting tray app at http://%s:%s (frozen=%s, base=%s)", host, port, _is_frozen(), BASE_DIR)
 
-    log.info("Starting tray app at http://%s:%s (frozen=%s, base=%s)", args.host, args.port, _is_frozen(), BASE_DIR)
-
-    # Bẫy Ctrl+C khi chạy console
     try:
-        run_tray(args.host, args.port, minimized=args.minimized, no_browser=args.no_browser)
+        run_tray(host, port, minimized=args.minimized, no_browser=args.no_browser)
     except KeyboardInterrupt:
         stop_server()
         release_single_instance()
+
 
 if __name__ == "__main__":
     main()

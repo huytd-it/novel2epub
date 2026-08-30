@@ -59,25 +59,29 @@ Pop-Location
 Write-Step "Vite build --mode tauri"
 Push-Location (Join-Path $Root "frontend")
 $oldEA=$ErrorActionPreference; $ErrorActionPreference="Continue"
-if($Debug){ npm run build 2>&1 | Write-Host } else { npm run build 2>&1 | Write-Host }
-# build:tauri = tsc -b && vite build --mode tauri
-npx tsc -b 2>&1 | Write-Host
-npx vite build --mode tauri 2>&1 | Write-Host
+# Dung build:tauri de dam bao dung mode tauri (base ./)
+npm run build:tauri 2>&1 | Write-Host
+$code=$LASTEXITCODE
 $ErrorActionPreference=$oldEA
 Pop-Location
+if($code -ne 0){ throw "vite build:tauri failed ($code)" }
 
 # -- Tauri build
 Write-Step "Tauri build ($mode)"
 Push-Location (Join-Path $Root "frontend")
 $oldEA=$ErrorActionPreference; $ErrorActionPreference="Continue"
-if($Debug){
-    npx tauri build --debug 2>&1 | Write-Host
+# Chay binary local truc tiep tranh npx tauri -> tauri@0.15.0 sai package (workspaces)
+$tauriBin = Join-Path $Root "frontend\node_modules\.bin\tauri.cmd"
+if(-not (Test-Path $tauriBin)){ $tauriBin = Join-Path $Root "frontend\node_modules\.bin\tauri" }
+if(Test-Path $tauriBin){
+    if($Debug){ & $tauriBin build --debug 2>&1 | Write-Host } else { & $tauriBin build 2>&1 | Write-Host }
 } else {
-    npx tauri build 2>&1 | Write-Host
+    # fallback npx @tauri-apps/cli
+    if($Debug){ npx --yes @tauri-apps/cli build --debug 2>&1 | Write-Host } else { npx --yes @tauri-apps/cli build 2>&1 | Write-Host }
 }
 $code=$LASTEXITCODE; $ErrorActionPreference=$oldEA
 Pop-Location
-if($code -ne 0){ throw "tauri build failed ($code)" }
+if($code -ne 0){ throw "tauri build failed ($code) - thu 'frontend\node_modules\.bin\tauri --help' de kiem tra CLI" }
 
 # -- Result
 $targetDir = Join-Path $Root "frontend\src-tauri\target\release\bundle"

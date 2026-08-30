@@ -330,7 +330,7 @@ export function Shell() {
           >
             <IconMenu size={18} />
           </label>
-          <span className="font-display text-sm font-semibold">novel2epub</span>
+          <span className="font-sans text-sm font-semibold">Xưởng Sách Nói</span>
         </div>
         <main className="min-w-0 flex-1">
           <Outlet />
@@ -353,10 +353,10 @@ export function Shell() {
           >
             {!collapsed ? (
               <>
-                <span className="font-display text-[15px] font-semibold tracking-tight">
-                  novel2epub
+                <span className="font-sans text-[15px] font-semibold tracking-tight">
+                  Xưởng Sách Nói
                 </span>
-                <span className="badge badge-xs badge-ghost">xưởng</span>
+                <span className="badge badge-xs badge-ghost font-sans">novel2epub</span>
               </>
             ) : null}
             <button

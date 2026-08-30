@@ -31,8 +31,8 @@ export default defineConfig(({ mode }) => {
             registerType: "autoUpdate",
             includeAssets: ["favicon.ico", "icons/favicon-16.png", "icons/favicon-32.png", "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png"],
             manifest: {
-              name: "novel2epub",
-              short_name: "novel2epub",
+              name: "Xưởng Sách Nói",
+              short_name: "Xưởng Sách Nói",
               description: "Xưởng crawl, dịch và đóng gói EPUB",
               lang: "vi",
               start_url: "/app/",
@@ -71,6 +71,17 @@ export default defineConfig(({ mode }) => {
       outDir: "../app/webui",
       emptyOutDir: true,
       sourcemap: mode !== "production",
+      chunkSizeWarningLimit: 600,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            react: ["react", "react-dom", "react-router"],
+            query: ["@tanstack/react-query"],
+            icons: ["react-icons"],
+            vendor: ["clsx", "qrcode.react"],
+          },
+        },
+      },
     },
     server: {
       port: 5183,

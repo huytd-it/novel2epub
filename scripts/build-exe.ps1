@@ -324,7 +324,7 @@ if (-not $built -and -not $SkipBuild -and $nodeOk) {
 } elseif ($built) {
     Write-Ok "SPA bundle sẵn: app/webui/index.html"
 } elseif (-not $nodeOk) {
-    Write-Warn "Bỏ qua build SPA (thiếu Node) - /app sẽ 404, Jinja2 vẫn chạy"
+    Write-Warn "Bỏ qua build SPA (thiếu Node) - /app sẽ 404"
 } else {
     Write-Warn "Bỏ qua build SPA (-SkipBuild) - /app sẽ 404 nếu chưa có bundle"
 }

@@ -60,6 +60,7 @@ archify-out/
 
 # Build exe tray chạy ngầm (PyInstaller) — sinh lại được, không commit
 novel2epub-tray.exe
+novel2epub-tray.lock
 novel2epub-tray.zip
 novel2epub-tray.spec
 build/

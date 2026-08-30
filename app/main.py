@@ -33,6 +33,7 @@ from .routes import (
     settings,
     sources,
     storage,
+    tailscale,
     webui,
     wireguard,
 )
@@ -279,6 +280,7 @@ app.include_router(automation.router)
 app.include_router(dashboard.router)
 app.include_router(opds.router)
 app.include_router(wireguard.router)
+app.include_router(tailscale.router)
 app.include_router(webui.router)
 
 

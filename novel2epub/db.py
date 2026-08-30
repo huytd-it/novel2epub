@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -58,6 +58,7 @@ _SCHEMA_STATEMENTS = [
         wireguard_json TEXT NOT NULL DEFAULT '{}',
         global_ai_json TEXT NOT NULL DEFAULT '{}',
         oidc_json TEXT NOT NULL DEFAULT '{}',
+        tailscale_json TEXT NOT NULL DEFAULT '{}',
         session_epoch INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -856,6 +857,8 @@ _ADDED_COLUMNS = [
     ("ebooks", "raw_source_hash", "TEXT NOT NULL DEFAULT ''"),
     ("ebooks", "raw_updated_at", "TEXT NOT NULL DEFAULT ''"),
     ("ebooks", "translated_metadata_source_hash", "TEXT NOT NULL DEFAULT ''"),
+    # v23: Tailscale Serve/Funnel config toàn cục
+    ("settings", "tailscale_json", "TEXT NOT NULL DEFAULT '{}'"),
 ]
 
 
@@ -1250,6 +1253,13 @@ def _migration_v22(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
 
+def _migration_v23(conn: sqlite3.Connection) -> None:
+    """Thêm cấu hình Tailscale Serve/Funnel toàn cục (settings.tailscale_json)."""
+    _ensure_columns(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+
 
 def _migration_v17(conn: sqlite3.Connection) -> None:
     """Gỡ cột `ebooks.name` — chỉ còn `title`.
@@ -1293,6 +1303,7 @@ _MIGRATIONS = {
     20: _migration_v20,
     21: _migration_v21,
     22: _migration_v22,
+    23: _migration_v23,
 }
 
 

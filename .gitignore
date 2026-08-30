@@ -49,6 +49,10 @@ logs
 .superpowers/
 models
 
+# Generated diagrams / showcase (archify, brandkit) — sinh lại được, không commit
+out/
+archify-out/
+
 # Env cục bộ cho dev server (không commit)
 .env.local
 .env.*.local

@@ -32,6 +32,7 @@ import {
   IconShield,
   IconSource,
   IconSun,
+  IconTailscale,
 } from "@/components/icons";
 
 type Item = { to: string; label: string; icon: typeof IconLibrary; end?: boolean };
@@ -51,6 +52,7 @@ const SYSTEM: Item[] = [
   { to: "/automation", label: "Tự động hóa", icon: IconClock },
   { to: "/storage", label: "Lưu trữ", icon: IconDisk },
   { to: "/wireguard", label: "WireGuard", icon: IconShield },
+  { to: "/tailscale", label: "Tailscale", icon: IconTailscale },
   { to: "/connection", label: "Kết nối", icon: IconPlug },
 ];
 

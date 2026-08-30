@@ -567,6 +567,22 @@ class WireGuardConfig:
 
 
 @dataclass
+class TailscaleConfig:
+    """Cấu hình Tailscale Serve/Funnel cho Web UI — CHỈ toàn cục.
+
+    Lưu trong `settings.tailscale_json`. Không chứa secret.
+    `binary` là đường dẫn tailscale executable (mặc định "tailscale" trong PATH).
+    `port` là cổng Web UI đang chạy (mặc định 8010).
+    """
+    binary: str = "tailscale"
+    port: int = 8010
+    serve_path: str = "/"
+    target: str = ""  # rỗng = http://127.0.0.1:<port>
+    use_https: bool = True
+    timeout_seconds: float = 15.0
+
+
+@dataclass
 class ApiConfig:
     """Truy cập API/OPDS từ ngoài localhost (tích hợp readest).
     web UI và readest desktop chạy cùng máy không cần cấu hình gì.
@@ -633,6 +649,7 @@ class Config:
     reader: ReaderConfig = field(default_factory=ReaderConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
     wireguard: WireGuardConfig = field(default_factory=WireGuardConfig)
+    tailscale: TailscaleConfig = field(default_factory=TailscaleConfig)
     # Tên source preset mà ebook này tham chiếu. Rỗng = không dùng preset.
     source: str = ""
     # Cảnh báo xung đột tính năng phát hiện lúc load config (vd preset ép đổi
@@ -732,8 +749,14 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
     settings_row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
     defaults: dict[str, Any] = {}
     if settings_row:
-        for section in ("novel", "crawl", "translate", "ai", "global_ai", "output", "queue", "reader", "api", "wireguard"):
-            data = json.loads(settings_row[f"{section}_json"] or "{}")
+        for section in ("novel", "crawl", "translate", "ai", "global_ai", "output", "queue", "reader", "api", "wireguard", "tailscale"):
+            # tailscale_json có thể chưa tồn tại trên DB cũ (migration v23 chưa chạy)
+            col = f"{section}_json"
+            try:
+                raw = settings_row[col]
+            except (KeyError, IndexError):
+                continue
+            data = json.loads(raw or "{}")
             if data:
                 defaults[section] = data
 
@@ -1205,4 +1228,15 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         wgcf=wgcf,
     )
 
-    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, global_ai=global_ai, output=output, queue=queue, reader=reader, api=api, wireguard=wireguard, source=source_name, warnings=warnings)
+    # --- Tailscale Serve/Funnel (CHỈ toàn cục) -------------------------------
+    ts_raw = _as_dict(raw.get("tailscale"))
+    tailscale = TailscaleConfig(
+        binary=str(ts_raw.get("binary", TailscaleConfig.binary)).strip() or TailscaleConfig.binary,
+        port=max(1, min(65535, int(ts_raw.get("port", TailscaleConfig.port)))),
+        serve_path=str(ts_raw.get("serve_path", TailscaleConfig.serve_path)).strip() or "/",
+        target=str(ts_raw.get("target", "")).strip(),
+        use_https=bool(ts_raw.get("use_https", TailscaleConfig.use_https)),
+        timeout_seconds=float(ts_raw.get("timeout_seconds", TailscaleConfig.timeout_seconds)),
+    )
+
+    return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, global_ai=global_ai, output=output, queue=queue, reader=reader, api=api, wireguard=wireguard, tailscale=tailscale, source=source_name, warnings=warnings)

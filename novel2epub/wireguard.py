@@ -522,8 +522,27 @@ def run_tool(
         raise WireGuardProfileError("chưa cấu hình đường dẫn executable (wg/wgcf)")
     cmd = [exe, *argv]
     try:
-        return subprocess.run(
-            cmd, cwd=cwd, shell=False, capture_output=True, text=True, timeout=timeout
+        # Bytes mode + decode utf-8 replace để tránh cp1252 UnicodeDecodeError
+        # khi wgcf/wg xuất byte ngoài cp1252. Giữ tương thích với fake_run trong test.
+        result = subprocess.run(
+            cmd,
+            cwd=cwd,
+            shell=False,
+            capture_output=True,
+            timeout=timeout,
+        )
+        def _dec(b: bytes | None) -> str:
+            if b is None:
+                return ""
+            if isinstance(b, str):
+                return b
+            return b.decode("utf-8", errors="replace")
+
+        return subprocess.CompletedProcess(
+            args=result.args,
+            returncode=result.returncode,
+            stdout=_dec(result.stdout),
+            stderr=_dec(result.stderr),
         )
     except FileNotFoundError:
         raise WireGuardProfileError(

@@ -31,6 +31,7 @@ import { SourcesPage } from "@/routes/SourcesPage";
 import { AutomationPage } from "@/routes/AutomationPage";
 import { StoragePage } from "@/routes/StoragePage";
 import { WireGuardPage } from "@/routes/WireGuardPage";
+import { TailscalePage } from "@/routes/TailscalePage";
 import { LocalMtPage } from "@/routes/LocalMtPage";
 import { GlobalTranslatePage } from "@/routes/GlobalTranslatePage";
 import { PlaceholderPage } from "@/routes/PlaceholderPage";
@@ -79,6 +80,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="automation" element={<AutomationPage />} />
               <Route path="storage" element={<StoragePage />} />
               <Route path="wireguard" element={<WireGuardPage />} />
+              <Route path="tailscale" element={<TailscalePage />} />
               <Route path="local-mt" element={<LocalMtPage />} />
               <Route path="translate-settings" element={<GlobalTranslatePage />} />
               <Route path="*" element={<PlaceholderPage title="Không có trang này" />} />

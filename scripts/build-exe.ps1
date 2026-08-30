@@ -379,7 +379,6 @@ $hidden = @(
 $addData = @()
 if ($built) { $addData += "app/webui;app/webui" }
 if (Test-Path (Join-Path $Root "frontend\src-tauri\icons")) { $addData += "frontend/src-tauri/icons;frontend/src-tauri/icons" }
-if (Test-Path (Join-Path $Root "app\templates")) { $addData += "app/templates;app/templates" }
 if (Test-Path (Join-Path $Root "novel2epub.example.yaml")) { $addData += "novel2epub.example.yaml;." }
 if (Test-Path (Join-Path $Root "sources.yaml")) { $addData += "sources.yaml;." }
 # kèm .env nếu có để exe đọc mặc định port

@@ -283,7 +283,6 @@ for h in "${HIDDEN[@]}"; do ARGS+=(--hidden-import "$h"); done
 
 if [[ -d "app/webui" ]]; then ARGS+=(--add-data "app/webui:app/webui"); fi
 if [[ -d "frontend/src-tauri/icons" ]]; then ARGS+=(--add-data "frontend/src-tauri/icons:frontend/src-tauri/icons"); fi
-if [[ -d "app/templates" ]]; then ARGS+=(--add-data "app/templates:app/templates"); fi
 if [[ -f "novel2epub.example.yaml" ]]; then ARGS+=(--add-data "novel2epub.example.yaml:."); fi
 if [[ -f "sources.yaml" ]]; then ARGS+=(--add-data "sources.yaml:."); fi
 if [[ -f ".env" ]]; then ARGS+=(--add-data ".env:."); fi

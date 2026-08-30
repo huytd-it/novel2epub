@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Xưởng Sách Nói",
+        "title": "novel2epub",
         "width": 1360,
         "height": 900,
         "minWidth": 880,

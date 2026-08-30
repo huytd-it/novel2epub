@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
         ? null
         : VitePWA({
             registerType: "autoUpdate",
-            includeAssets: ["icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png"],
+            includeAssets: ["favicon.ico", "icons/favicon-16.png", "icons/favicon-32.png", "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png"],
             manifest: {
               name: "novel2epub",
               short_name: "novel2epub",

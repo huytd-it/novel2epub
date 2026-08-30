@@ -17,6 +17,12 @@ edge-tts>=7.0
 # pip install scrapling[fetchers] && scrapling install
 scrapling[fetchers]>=0.2
 
+# Desktop tray exe chạy nền (Windows) — build exe không console
+# pip install pystray pillow pyinstaller  (tự cài bởi scripts/build-exe.ps1)
+# pystray>=0.19.0
+# pillow>=10.0
+# pyinstaller>=6.0
+
 # Optional: dung crawl.scrapling.proxy dang socks5:// - requests (tai anh bia)
 # can PySocks: pip install "requests[socks]" (Scrapling/curl_cffi khong can)
 # requests[socks]

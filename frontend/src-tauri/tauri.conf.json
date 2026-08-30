@@ -39,5 +39,10 @@
     "shortDescription": "Xưởng crawl, dịch và đóng gói EPUB",
     "longDescription": "Giao diện desktop cho novel2epub: quản lý thư viện, hàng đợi job, glossary và trang đọc."
   },
-  "plugins": {}
+  "plugins": {
+    "autostart": {
+      "active": false
+    },
+    "singleInstance": {}
+  }
 }

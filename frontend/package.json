@@ -6,13 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:tauri": "tsc -b && vite build --mode tauri",
-    "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit",
-    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "setup": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",
+    "install:all": "powershell -ExecutionPolicy Bypass -File scripts/install.ps1",
+    "dev:desktop": "powershell -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "build:desktop": "powershell -ExecutionPolicy Bypass -File scripts/build-desktop.ps1",
+    "build:desktop:debug": "powershell -ExecutionPolicy Bypass -File scripts/build-desktop.ps1 -Debug",
+    "build:desktop:clean": "powershell -ExecutionPolicy Bypass -File scripts/build-desktop.ps1 -Clean"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.1.1",

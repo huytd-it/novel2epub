@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:tauri": "tsc -b && vite build --mode tauri",
     "typecheck": "tsc -b --pretty false",
     "tauri": "tauri",
     "setup": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",

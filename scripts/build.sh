@@ -10,6 +10,7 @@ SKIP_INSTALL=0
 [[ "${1:-}" == "--skip-install" ]] && SKIP_INSTALL=1
 
 echo "==> Build SPA — frontend -> app/webui"
+echo "  Root: $ROOT"
 
 # Python check
 if command -v python3 >/dev/null 2>&1; then PY=python3; elif command -v python >/dev/null 2>&1; then PY=python; else echo "  [!] Khong tim thay Python - chi build frontend"; PY=""; fi

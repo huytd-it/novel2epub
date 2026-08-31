@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run.sh — Chay production SPA (uvicorn, khong con Jinja2)
+# run.sh — Chay production SPA (uvicorn, 1 port cho ca API + WebUI)
 # Tu dong lay port tu .env hoac random
 # Usage: ./scripts/run.sh [--port 8010] [--host 127.0.0.1] [--no-build] [--reload] [--env-file .env]
 set -euo pipefail

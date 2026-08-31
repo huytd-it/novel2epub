@@ -1,4 +1,4 @@
-﻿# build-desktop.ps1 - Build Tauri desktop (vite + tauri build)
+# build-desktop.ps1 - Build Tauri desktop (vite + tauri build)
 # Tu dong kiem tra moi truong, ho tro -Debug va -Clean
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File scripts/build-desktop.ps1
@@ -11,7 +11,7 @@ param(
     [switch]$SkipInstall
 )
 
-$ErrorActionPreference = "Continue"
+$ErrorActionPreference = "Stop"
 $Root = (Resolve-Path "$PSScriptRoot\..").Path
 Set-Location $Root
 

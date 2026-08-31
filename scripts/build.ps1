@@ -1,77 +1,79 @@
-﻿# build.ps1 - Build SPA production (frontend -> app/webui) - SPA only
-# Tu dong kiem tra moi truong (Python, Node, venv) va cai dat
-# Usage:
-#   powershell -ExecutionPolicy Bypass -File scripts/build.ps1
-#   powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -SkipInstall
-
-param(
-    [switch]$SkipInstall
-)
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+    Build SPA production (frontend -> app/webui).
+#>
+param([switch]$SkipInstall)
 
 $ErrorActionPreference = "Continue"
-$Root = (Resolve-Path "$PSScriptRoot\..").Path
+$Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
-function Write-Ok($msg)   { Write-Host "  [OK] $msg" -ForegroundColor Green }
-function Write-Warn($msg) { Write-Host "  [!] $msg" -ForegroundColor Yellow }
+function Write-Step($m) { Write-Host "`n==> $m" -ForegroundColor Cyan }
+function Write-Ok($m)   { Write-Host "  [OK] $m" -ForegroundColor Green }
+function Write-Warn($m) { Write-Host "  [!] $m" -ForegroundColor Yellow }
 
 Write-Step "Build SPA - frontend -> app/webui"
+Write-Host "  Root: $Root" -ForegroundColor DarkGray
 
-# -- Python check (de dam bao epub_builder co du)
+# -- Python check (best-effort) --
 $pyCmd = $null
-foreach ($c in @("python","python3","py")) { $f=Get-Command $c -ErrorAction SilentlyContinue; if($f){$pyCmd=$c;break} }
+foreach ($c in @("python", "python3", "py")) {
+    $f = Get-Command $c -ErrorAction SilentlyContinue
+    if ($f) { $pyCmd = $c; break }
+}
 if ($pyCmd) {
     $ver = & $pyCmd -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
     Write-Ok "Python $ver ($pyCmd)"
     $venvPython = Join-Path $Root ".venv\Scripts\python.exe"
-    if (Test-Path $venvPython) {
-        if (-not $SkipInstall) {
-            Write-Step "pip install -r requirements.txt"
-            $oldEA=$ErrorActionPreference; $ErrorActionPreference="Continue"
-            & $venvPython -m pip install -r requirements.txt --quiet 2>&1 | Out-Null
-            $ErrorActionPreference=$oldEA
-            if ($LASTEXITCODE -eq 0) { Write-Ok "Python deps OK" } else { Write-Warn "pip install co loi (bo qua)" }
-        }
-    } else {
-        Write-Warn ".venv chua co - build frontend van chay, backend chua san sang"
+    if ((Test-Path $venvPython) -and (-not $SkipInstall)) {
+        Write-Host "  pip install -r requirements.txt ..." -ForegroundColor DarkGray
+        $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+        & $venvPython -m pip install -r requirements.txt --quiet 2>&1 | Out-Null
+        $ErrorActionPreference = $old
+        if ($LASTEXITCODE -eq 0) { Write-Ok "Python deps OK" } else { Write-Warn "pip install loi (bo qua)" }
     }
 } else {
     Write-Warn "Khong tim thay Python - chi build frontend"
 }
 
-# -- Node check
+# -- Node --
 $nodeOk = $false
 try {
-    $nodeVer = node --version 2>$null; $npmVer = npm --version 2>$null
+    $nodeVer = node --version 2>$null
+    $npmVer = npm --version 2>$null
     if ($nodeVer) {
         $maj = [int]($nodeVer.Trim().TrimStart("v").Split(".")[0])
-        if ($maj -lt 18) { Write-Warn "Node $nodeVer < 18 - khuyen nghi 18+" } else { Write-Ok "Node $nodeVer / npm $npmVer" }
+        if ($maj -lt 18) { Write-Warn "Node $nodeVer < 18 - khuyen nghi 18+" }
+        else { Write-Ok "Node $nodeVer / npm $npmVer" }
         $nodeOk = $true
     }
 } catch {}
-if (-not $nodeOk) { throw "Can Node.js >=18 de build SPA (cai tu https://nodejs.org)" }
+if (-not $nodeOk) { throw "Can Node.js >=18 de build SPA (https://nodejs.org)" }
 
-# -- Frontend deps
+# -- Frontend deps --
 if (-not (Test-Path (Join-Path $Root "frontend\node_modules"))) {
     Write-Step "npm install (frontend)"
     Push-Location (Join-Path $Root "frontend")
-    $oldEA=$ErrorActionPreference; $ErrorActionPreference="Continue"
-    npm install 2>&1 | Write-Host
-    $code=$LASTEXITCODE; $ErrorActionPreference=$oldEA
-    Pop-Location
-    if ($code -ne 0) { throw "npm install failed ($code)" }
+    try {
+        $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+        npm install 2>&1 | Write-Host
+        $ok = ($LASTEXITCODE -eq 0); $ErrorActionPreference = $old
+        if (-not $ok) { throw "npm install failed ($LASTEXITCODE)" }
+    } finally { Pop-Location }
 }
 
+# -- Vite build --
 Write-Step "Vite build"
 Push-Location (Join-Path $Root "frontend")
-$oldEA=$ErrorActionPreference; $ErrorActionPreference="Continue"
-npm run build 2>&1 | Write-Host
-$code=$LASTEXITCODE; $ErrorActionPreference=$oldEA
-Pop-Location
-if ($code -ne 0) { throw "npm run build failed ($code)" }
+try {
+    $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+    npm run build 2>&1 | Write-Host
+    $ok = ($LASTEXITCODE -eq 0); $ErrorActionPreference = $old
+    if (-not $ok) { throw "npm run build failed ($LASTEXITCODE)" }
+} finally { Pop-Location }
 
-# Verify
+# -- Verify --
 $index = Join-Path $Root "app\webui\index.html"
 if (Test-Path $index) {
     Write-Ok "Build OK: $index"

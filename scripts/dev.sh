@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dev.sh — Dev mode: backend + Vite SPA (khong con Jinja2)
+# dev.sh — Dev mode: backend + Vite SPA
 # Tu dong lay port tu .env hoac random
 # Usage: ./scripts/dev.sh [--skip-install] [--port 8011] [--env-file .env]
 set -euo pipefail
@@ -22,7 +22,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 parse_env_file(){ local f="$1" k="$2"; [[ -f "$f" ]] || return 1; grep -E "^[[:space:]]*(export[[:space:]]+)?${k}[[:space:]]*=" "$f" 2>/dev/null | tail -n1 | sed -E "s/^[[:space:]]*(export[[:space:]]+)?${k}[[:space:]]*=[[:space:]]*//" | sed -E "s/^[\"']//;s/[\"'].*$//" | tr -d "\"'" | xargs 2>/dev/null || true; }
-find_free_port(){ python3 -c "import socket,random,sys;h=sys.argv[1];p=int(sys.argv[2]); 
+find_free_port(){ python3 -c "import socket,random,sys;h=sys.argv[1];p=int(sys.argv[2]);
 def f(x):
  import socket as s
  s=socket.socket(s.AF_INET,s.SOCK_STREAM);s.settimeout(0.5)
@@ -42,7 +42,6 @@ if [[ -z "$PORT" ]]; then
   fi
   PORT="${PORT:-8011}"
 fi
-# bận -> random
 FREE=$(find_free_port "127.0.0.1" "$PORT" 2>/dev/null || echo "$PORT")
 if [[ "$FREE" != "$PORT" ]]; then echo "  Port $PORT ban -> $FREE"; PORT="$FREE"; fi
 echo "  Port: $PORT"
@@ -67,7 +66,7 @@ echo "  Backend : http://127.0.0.1:$PORT"
 echo "  SPA dev : http://localhost:5183/app/"
 echo "  Bam Ctrl+C de dung"
 if [[ "$PORT" != "8011" ]]; then export N2E_DEV_API_TARGET="http://127.0.0.1:$PORT"; fi
-$PY -m uvicorn app.main:app --reload --port "$PORT" &
+$PY -m uvicorn app.main:app --reload --port "$PORT" --host 127.0.0.1 &
 BACK_PID=$!
 trap 'kill $BACK_PID 2>/dev/null; wait $BACK_PID 2>/dev/null || true' EXIT INT TERM
 sleep 2

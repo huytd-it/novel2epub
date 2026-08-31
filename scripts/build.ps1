@@ -52,7 +52,18 @@ try {
 if (-not $nodeOk) { throw "Can Node.js >=18 de build SPA (https://nodejs.org)" }
 
 # -- Frontend deps --
-if (-not (Test-Path (Join-Path $Root "frontend\node_modules"))) {
+$nodeModules = Join-Path $Root "frontend\node_modules"
+$needInstall = -not (Test-Path $nodeModules)
+if (-not $needInstall) {
+    # package.json / package-lock.json moi hon node_modules -> deps da thay doi, can cai lai
+    $lock = Join-Path $Root "frontend\package-lock.json"
+    foreach ($f in @((Join-Path $Root "frontend\package.json"), $lock)) {
+        $stamp = (Get-Item $f -ErrorAction SilentlyContinue).LastWriteTime
+        $nmStamp = (Get-Item $nodeModules -ErrorAction SilentlyContinue).LastWriteTime
+        if ($stamp -and $nmStamp -and $stamp -gt $nmStamp) { $needInstall = $true; break }
+    }
+}
+if ($needInstall) {
     Write-Step "npm install (frontend)"
     Push-Location (Join-Path $Root "frontend")
     try {

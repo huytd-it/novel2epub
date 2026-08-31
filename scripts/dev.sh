@@ -63,7 +63,7 @@ else echo "  frontend/node_modules OK"; fi
 
 echo "==> Dev — backend :$PORT + Vite :5183 (SPA only)"
 echo "  Backend : http://127.0.0.1:$PORT"
-echo "  SPA dev : http://localhost:5183/app/"
+echo "  SPA dev : http://localhost:5183/"
 echo "  Bam Ctrl+C de dung"
 if [[ "$PORT" != "8011" ]]; then export N2E_DEV_API_TARGET="http://127.0.0.1:$PORT"; fi
 $PY -m uvicorn app.main:app --reload --port "$PORT" --host 127.0.0.1 &

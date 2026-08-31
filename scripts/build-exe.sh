@@ -245,7 +245,7 @@ if [[ ! -f "app/webui/index.html" && "$SKIP_BUILD" == 0 && "$NODE_OK" == 1 ]]; t
 elif [[ -f "app/webui/index.html" ]]; then
   echo "  ✔ SPA bundle sẵn: app/webui/index.html"
 elif [[ "$NODE_OK" == 0 ]]; then
-  echo "  ! Bỏ qua build SPA (thiếu Node) — /app sẽ 404"
+  echo "  ! Bỏ qua build SPA (thiếu Node) — / sẽ 404"
 else
   echo "  ! Bỏ qua build SPA (--skip-build)"
 fi
@@ -277,7 +277,7 @@ HIDDEN=(
   app.routes.storage app.routes.tailscale app.routes.webui app.routes.wireguard app.routes.dashboard app.routes.automation
   novel2epub.config novel2epub.db novel2epub.storage novel2epub.pipeline novel2epub.crawler novel2epub.translator novel2epub.epub_builder novel2epub.sources
   uvicorn.logging uvicorn.loops.auto uvicorn.protocols.http.auto uvicorn.protocols.websockets.auto uvicorn.lifespan.on
-  jinja2.ext yaml PIL pystray
+  yaml PIL pystray
 )
 for h in "${HIDDEN[@]}"; do ARGS+=(--hidden-import "$h"); done
 
@@ -304,7 +304,7 @@ else
   echo "✔ Build OK: dist/novel2epub-tray/"
 fi
 echo "  Port tự chọn: $PORT ($PORT_SOURCE)"
-echo "  Mở UI: http://${HOST_ADDR}:$PORT/app/"
+echo "  Mở UI: http://${HOST_ADDR}:$PORT/"
 echo "  Chạy: ./dist/novel2epub-tray --help"
 echo "        ./dist/novel2epub-tray --minimized   (chạy nền)"
 echo "  Đổi port: sửa .env (N2E_TRAY_PORT=...) hoặc: ./dist/novel2epub-tray --port 0  (random)"

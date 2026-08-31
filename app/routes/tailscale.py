@@ -218,4 +218,4 @@ def tailscale_config_form(
 ):
     """Placeholder cho form POST cũ — chuyển hướng về SPA."""
     from fastapi.responses import RedirectResponse
-    return RedirectResponse("/app/tailscale", status_code=303)
+    return RedirectResponse("/tailscale", status_code=303)

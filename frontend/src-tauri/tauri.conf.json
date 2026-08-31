@@ -5,7 +5,7 @@
   "identifier": "app.novel2epub.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:5183/app/",
+    "devUrl": "http://localhost:5183/",
     "beforeBuildCommand": "npm run build:tauri",
     "frontendDist": "../../app/webui"
   },

@@ -125,12 +125,12 @@ if (-not $built -and -not $NoBuild) {
     } finally { Pop-Location }
     $built = Test-Path (Join-Path $Root "app\webui\index.html")
 }
-if (-not $built -and $NoBuild) { Write-Warn "Chua build frontend - SPA /app se 404" }
+if (-not $built -and $NoBuild) { Write-Warn "Chua build frontend - SPA / se 404" }
 elseif ($built) { Write-Ok "SPA bundle: app/webui/index.html OK" }
 
 # -- start --
 Write-Step "Khoi dong production SPA - http://${HostAddr}:$Port"
-Write-Host "  SPA  : http://${HostAddr}:$Port/app/" -ForegroundColor White
+Write-Host "  SPA  : http://${HostAddr}:$Port/" -ForegroundColor White
 Write-Host "  Docs : http://${HostAddr}:$Port/docs" -ForegroundColor DarkGray
 Write-Host "  .env : $EnvFile -> $Port" -ForegroundColor DarkGray
 

@@ -66,10 +66,10 @@ if [[ ! -f app/webui/index.html && $NO_BUILD -eq 0 ]]; then
   echo "  Chua co app/webui/index.html — build frontend..."
   [[ -d frontend/node_modules ]] || (cd frontend && npm install)
   (cd frontend && npm run build)
-elif [[ ! -f app/webui/index.html ]]; then echo "  [!] Chua build frontend — SPA /app se 404"; else echo "  [OK] SPA bundle OK"; fi
+elif [[ ! -f app/webui/index.html ]]; then echo "  [!] Chua build frontend — SPA / se 404"; else echo "  [OK] SPA bundle OK"; fi
 
 echo "==> Production SPA — http://$HOST_ADDR:$PORT"
-echo "  SPA  : http://$HOST_ADDR:$PORT/app/"
+echo "  SPA  : http://$HOST_ADDR:$PORT/"
 echo "  Docs : http://$HOST_ADDR:$PORT/docs"
 echo "  .env : $ENV_FILE -> $PORT"
 

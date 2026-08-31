@@ -509,7 +509,7 @@ def run_tray(host: str, port: int, minimized: bool, no_browser: bool):
         if ok and not minimized and not no_browser:
             time.sleep(0.6)
             try:
-                webbrowser.open(f"http://{_actual_host}:{_actual_port}/app/")
+                webbrowser.open(f"http://{_actual_host}:{_actual_port}/")
             except Exception:
                 pass
 
@@ -532,9 +532,6 @@ def run_tray(host: str, port: int, minimized: bool, no_browser: bool):
     icon_image = load_icon_image(64)
 
     def action_open(icon, item):
-        webbrowser.open(_get_url() + "/app/")
-
-    def action_open_jinja(icon, item):
         webbrowser.open(_get_url() + "/")
 
     def action_open_folder(icon, item):
@@ -547,7 +544,7 @@ def run_tray(host: str, port: int, minimized: bool, no_browser: bool):
             webbrowser.open(path.as_uri())
 
     def action_copy_url(icon, item):
-        url = _get_url() + "/app/"
+        url = _get_url() + "/"
         try:
             import tkinter  # type: ignore
 
@@ -585,8 +582,7 @@ def run_tray(host: str, port: int, minimized: bool, no_browser: bool):
         return pystray.Menu(
             Item(f"novel2epub  ·  {_get_url()}", None, enabled=False),
             pystray.Menu.SEPARATOR,
-            Item("Mở Web UI (SPA)", action_open, default=True),
-            Item("Mở Jinja2 (/ )", action_open_jinja),
+            Item("Mở Web UI", action_open, default=True),
             Item("Mở thư mục dữ liệu", action_open_folder),
             Item("Sao chép URL", action_copy_url),
             pystray.Menu.SEPARATOR,
@@ -603,7 +599,7 @@ def run_tray(host: str, port: int, minimized: bool, no_browser: bool):
     tooltip = f"novel2epub — {_get_url()}"
     icon = pystray.Icon(APP_NAME, icon_image, tooltip, menu=build_menu(None))  # type: ignore
     try:
-        icon.on_click = lambda ic, btn: webbrowser.open(_get_url() + "/app/") if str(btn) == "left" else None  # type: ignore
+        icon.on_click = lambda ic, btn: webbrowser.open(_get_url() + "/") if str(btn) == "left" else None  # type: ignore
     except Exception:
         pass
     try:
@@ -653,12 +649,12 @@ def main():
                 pf = BASE_DIR / "logs" / "port.txt"
                 if pf.exists():
                     old_port = int(pf.read_text(encoding="utf-8").strip())
-                    webbrowser.open(f"http://{host}:{old_port}/app/")
+                    webbrowser.open(f"http://{host}:{old_port}/")
                 else:
-                    webbrowser.open(f"http://{host}:{port}/app/")
+                    webbrowser.open(f"http://{host}:{port}/")
             except Exception:
                 try:
-                    webbrowser.open(f"http://{host}:{port}/app/")
+                    webbrowser.open(f"http://{host}:{port}/")
                 except Exception:
                     pass
             sys.exit(0)

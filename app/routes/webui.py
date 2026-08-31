@@ -1,6 +1,6 @@
-"""JSON API riêng cho SPA (`/app`).
+"""JSON API riêng cho SPA (`/`).
 
-Tách khỏi các router cũ có chủ đích: route Jinja2 hiện tại vẫn phải chạy
+Tách khỏi các router cũ có chủ đích: route hiện tại vẫn phải chạy
 nguyên vẹn trong lúc SPA được port dần từng trang, nên phần này chỉ ĐỌC lại
 cùng domain logic (`Storage`, `chapter_progress`) và không đụng vào chúng.
 

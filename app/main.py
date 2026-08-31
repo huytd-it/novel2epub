@@ -247,22 +247,17 @@ async def lifespan(app: FastAPI):
 app.router.lifespan_context = lifespan
 
 # SPA React build ra `app/webui/`. Chỉ gắn khi đã build — thiếu bundle thì
-# server vẫn chạy bình thường với UI Jinja2 và `/app` trả 404.
+# server vẫn chạy bình thường và `/` trả 404.
 _SPA_DIR = BASE_DIR / "webui"
 _SPA_BUILT = (_SPA_DIR / "index.html").exists()
 
+# Giữ tương thích bookmark/link cũ trỏ `/app/*` → chuyển về `/*`.
 if _SPA_BUILT:
-    # Giao diện mặc định là SPA. Đăng ký TRƯỚC `ebooks.router` vì router đó
-    # cũng khai báo `/` (trang Thư viện Jinja2) và FastAPI khớp theo thứ tự
-    # đăng ký — route nào vào trước thắng.
-    #
-    # Chỉ redirect chứ KHÔNG chuyển Jinja2 xuống tiền tố khác: SPA vẫn link
-    # sang các trang cũ cho phần chưa port (wizard AI dò selector, nhập YAML
-    # nguồn, TTS/dịch nhanh trong trang đọc, tải archive .zip), và mọi href
-    # nội bộ trong template đều là đường dẫn tuyệt đối hiện tại.
-    @app.get("/", include_in_schema=False)
-    def spa_default():
-        return RedirectResponse(url="/app/", status_code=307)
+    @app.get("/app", include_in_schema=False)
+    @app.get("/app/{path:path}", include_in_schema=False)
+    def legacy_app_redirect(path: str = ""):
+        target = f"/{path}" if path else "/"
+        return RedirectResponse(url=target, status_code=308)
 
 app.include_router(ebooks.router)
 app.include_router(chapters.router)
@@ -285,16 +280,23 @@ app.include_router(webui.router)
 
 
 if _SPA_BUILT:
-    app.mount("/app/assets", StaticFiles(directory=str(_SPA_DIR / "assets")), name="spa-assets")
+    app.mount("/assets", StaticFiles(directory=str(_SPA_DIR / "assets")), name="spa-assets")
 
-    @app.get("/app")
-    @app.get("/app/{path:path}")
+    @app.get("/", include_in_schema=False)
+    @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str = ""):
         """Mọi đường dẫn con trả về index.html để router phía client tự xử lý.
 
         File tĩnh ngoài `assets/` (favicon, font tải rời) vẫn phải trả đúng
         file, nếu không trình duyệt nhận HTML với đuôi `.woff2`.
+        Không chặn `/api/*` và `/opds/*` để response 404 JSON tới client
+        thay vì HTML.
         """
+        # API / OPDS không qua SPA fallback
+        if path.startswith("api/") or path.startswith("opds/"):
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
         candidate = (_SPA_DIR / path).resolve()
         if path and candidate.is_file() and candidate.is_relative_to(_SPA_DIR):
             return FileResponse(candidate)

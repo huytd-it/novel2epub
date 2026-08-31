@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "N2E_");
   // Tauri loads the bundle off `tauri://` with no server prefix, so it needs
-  // relative asset URLs; FastAPI serves the same build under /app/.
+  // relative asset URLs; FastAPI serves the same build at / (root).
   const isTauri = env.N2E_TARGET === "tauri";
   // Backend mà dev server proxy tới. Có máy không bind được 8011 (Windows giữ
   // sẵn dải 8001–8100 cho Hyper-V/WSL) nên cho phép trỏ sang cổng khác qua
@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
   const devApiTarget = env.N2E_DEV_API_TARGET || "http://127.0.0.1:8011";
 
   return {
-    base: isTauri ? "./" : "/app/",
+    base: isTauri ? "./" : "/",
     // Cho phép code client đọc `N2E_API_BASE` — bản deploy lên Vercel/Cloudflare
     // Pages phải biết backend ở đâu ngay từ lần tải đầu, không thể chờ người
     // dùng nhập vào trang Kết nối.
@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       // Service worker không chạy được trên `tauri://` nên bỏ hẳn khỏi bản
-      // desktop. Bản web lấy scope `/app/` (cùng nơi FastAPI phục vụ SPA).
+      // desktop. Bản web lấy scope `/` (FastAPI phục vụ SPA ở gốc).
       isTauri
         ? null
         : VitePWA({
@@ -35,8 +35,8 @@ export default defineConfig(({ mode }) => {
               short_name: "novel2epub",
               description: "Xưởng crawl, dịch và đóng gói EPUB",
               lang: "vi",
-              start_url: "/app/",
-              scope: "/app/",
+              start_url: "/",
+              scope: "/",
               display: "standalone",
               orientation: "portrait",
               background_color: "#0e1116",
@@ -56,8 +56,8 @@ export default defineConfig(({ mode }) => {
               // Asset đã hash nên cache vĩnh viễn là an toàn; font + ảnh nằm
               // trong danh sách precache. Không cache API — dữ liệu luôn mới.
               globPatterns: ["**/*.{js,css,html,svg,png,woff2,woff,eot,ttf,ico}"],
-              navigateFallback: "/app/index.html",
-              navigateFallbackDenylist: [/^\/app\/api\//],
+              navigateFallback: "/index.html",
+              navigateFallbackDenylist: [/^\/api\//, /^\/opds\//],
             },
             devOptions: { enabled: false },
           }),

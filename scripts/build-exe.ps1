@@ -198,7 +198,7 @@ try {
     }
 } catch {}
 if (-not $nodeOk) {
-    Write-Warn "Không tìm thấy Node.js - build SPA sẽ bỏ qua (cài từ https://nodejs.org để có /app)"
+    Write-Warn "Không tìm thấy Node.js - build SPA sẽ bỏ qua (cài từ https://nodejs.org để có SPA /)"
 }
 
 # pip
@@ -300,7 +300,7 @@ if (-not $SkipInstall) {
     Write-Ok "Deps OK (skip)"
 }
 
-# ── 2. Build SPA (để exe phục vụ /app) ───────────────────────────
+# ── 2. Build SPA (để exe phục vụ /) ─────────────────────────────
 
 $built = Test-Path (Join-Path $Root "app\webui\index.html")
 if (-not $built -and -not $SkipBuild -and $nodeOk) {
@@ -324,9 +324,9 @@ if (-not $built -and -not $SkipBuild -and $nodeOk) {
 } elseif ($built) {
     Write-Ok "SPA bundle sẵn: app/webui/index.html"
 } elseif (-not $nodeOk) {
-    Write-Warn "Bỏ qua build SPA (thiếu Node) - /app sẽ 404"
+    Write-Warn "Bỏ qua build SPA (thiếu Node) - / sẽ 404"
 } else {
-    Write-Warn "Bỏ qua build SPA (-SkipBuild) - /app sẽ 404 nếu chưa có bundle"
+    Write-Warn "Bỏ qua build SPA (-SkipBuild) - / sẽ 404 nếu chưa có bundle"
 }
 
 # ── 3. Icon ───────────────────────────────────────────────────────
@@ -373,7 +373,7 @@ $hidden = @(
     "uvicorn.protocols", "uvicorn.protocols.http", "uvicorn.protocols.http.auto",
     "uvicorn.protocols.websockets", "uvicorn.protocols.websockets.auto",
     "uvicorn.lifespan", "uvicorn.lifespan.on",
-    "jinja2.ext", "yaml", "PIL", "pystray"
+    "yaml", "PIL", "pystray"
 )
 
 $addData = @()
@@ -439,7 +439,7 @@ if (Test-Path $distExe) {
     Write-Host "  Chạy thử (help):  `"$distExe`" --help" -ForegroundColor Yellow
     Write-Host "  Chạy nền:         `"$distExe`" --minimized" -ForegroundColor Yellow
     Write-Host "  Port tự chọn:     $Port (từ $portSource)" -ForegroundColor White
-    Write-Host "  Mở UI:            http://${HostAddr}:$Port/app/" -ForegroundColor White
+    Write-Host "  Mở UI:            http://${HostAddr}:$Port/" -ForegroundColor White
     if ($NoWindow) {
         Write-Host "  Ghi chú: exe --windowed nên double-click sẽ ẩn xuống khay (không hiện console)" -ForegroundColor DarkGray
         Write-Host "           Xem log: logs/tray.log  hoặc  logs/port.txt" -ForegroundColor DarkGray

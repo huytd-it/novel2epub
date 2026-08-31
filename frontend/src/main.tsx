@@ -49,7 +49,7 @@ const queryClient = new QueryClient({
   },
 });
 
-// Bản web chạy dưới /app/; bản Tauri build với base "./" (đường dẫn tương đối
+// Bản web chạy ở /; bản Tauri build với base "./" (đường dẫn tương đối
 // cho asset) nhưng router vẫn phải neo ở gốc.
 const basename = import.meta.env.BASE_URL.startsWith("/") ? import.meta.env.BASE_URL : "/";
 

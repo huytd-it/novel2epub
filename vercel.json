@@ -4,15 +4,9 @@
   "outputDirectory": "app/webui",
   "cleanUrls": true,
   "redirects": [
-    { "source": "/", "destination": "/app/", "permanent": false }
+    { "source": "/app/:path*", "destination": "/:path*", "permanent": true }
   ],
   "rewrites": [
-    { "source": "/app/assets/:path*", "destination": "/assets/:path*" },
-    { "source": "/app/icons/:path*", "destination": "/icons/:path*" },
-    { "source": "/app/manifest.webmanifest", "destination": "/manifest.webmanifest" },
-    { "source": "/app/registerSW.js", "destination": "/registerSW.js" },
-    { "source": "/app/sw.js", "destination": "/sw.js" },
-    { "source": "/app/workbox-:path*", "destination": "/workbox-:path*" },
-    { "source": "/app/:path*", "destination": "/index.html" }
+    { "source": "/:path*", "destination": "/index.html" }
   ]
 }

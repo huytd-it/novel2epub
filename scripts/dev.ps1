@@ -134,7 +134,7 @@ if (-not (Test-Path (Join-Path $Root "frontend\node_modules"))) {
 # 5. Start
 Write-Step "Khoi dong DEV - backend :$resolvedPort + Vite :5183 (SPA only)"
 Write-Host "  Backend : http://127.0.0.1:$resolvedPort" -ForegroundColor White
-Write-Host "  SPA dev : http://localhost:5183/app/ (proxy /api -> 127.0.0.1:$resolvedPort)" -ForegroundColor White
+Write-Host "  SPA dev : http://localhost:5183/ (proxy /api -> 127.0.0.1:$resolvedPort)" -ForegroundColor White
 Write-Host "  Bam Ctrl+C de dung" -ForegroundColor Yellow
 
 $backendJob = Start-Process -FilePath $venvPython -ArgumentList @("-m", "uvicorn", "app.main:app", "--reload", "--port", "$resolvedPort", "--host", "127.0.0.1") -WorkingDirectory $Root -PassThru

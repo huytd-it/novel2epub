@@ -350,8 +350,26 @@ if ($IconPath -and (Test-Path $IconPath)) {
 
 Write-Step "Đóng gói exe với PyInstaller (chạy ngầm --windowed)"
 
-if (Test-Path (Join-Path $Root "dist"))  { Remove-Item -Recurse -Force (Join-Path $Root "dist") }
-if (Test-Path (Join-Path $Root "build")) { Remove-Item -Recurse -Force (Join-Path $Root "build") }
+# Dọn toàn bộ config/build cũ để file ra luôn là mới nhất và đúng nhất
+# (yêu cầu: build phải dọn sạch artifact cũ trước khi đóng gói)
+$toClean = @(
+    (Join-Path $Root "dist"),
+    (Join-Path $Root "build"),
+    (Join-Path $Root "novel2epub-tray.spec.bak"),
+    (Join-Path $Root "novel2epub-tray.exe"),
+    (Join-Path $Root "novel2epub-tray.zip")
+)
+foreach ($p in $toClean) {
+    if (Test-Path $p) {
+        try { Remove-Item -Recurse -Force $p -ErrorAction SilentlyContinue } catch {}
+        Write-Host "  dọn: $p" -ForegroundColor DarkGray
+    }
+}
+# Dist có thể còn DB/log rác từ lần chạy trước — dọn luôn nếu còn sót
+foreach ($leaf in @("novel2epub.db", "novel2epub.db-shm", "novel2epub.db-wal")) {
+    $dp = Join-Path $Root "dist\$leaf"
+    if (Test-Path $dp) { Remove-Item -Force $dp -ErrorAction SilentlyContinue }
+}
 # giữ .env, không xóa
 
 $exeName = "novel2epub-tray"
@@ -373,7 +391,16 @@ $hidden = @(
     "uvicorn.protocols", "uvicorn.protocols.http", "uvicorn.protocols.http.auto",
     "uvicorn.protocols.websockets", "uvicorn.protocols.websockets.auto",
     "uvicorn.lifespan", "uvicorn.lifespan.on",
-    "yaml", "PIL", "pystray"
+    "yaml", "PIL", "pystray",
+    # Scrapling fetcher (bat len la chay duoc — chi can curl_cffi, khong doi browser)
+    # Phai khai bao hidden-import vi scrapling dung lazy __getattr__ (ma PyInstaller khong tu dong duoc)
+    "scrapling", "scrapling.fetchers", "scrapling.fetchers.requests",
+    "scrapling.parser", "scrapling.core.custom_types", "scrapling.core.utils",
+    "scrapling.core._types", "scrapling.engines.static", "scrapling.engines.toolbelt.custom",
+    "scrapling.engines.toolbelt.convertor", "scrapling.engines.constants",
+    "playwright", "playwright.sync_api", "playwright.async_api",
+    "curl_cffi", "curl_cffi.requests",
+    "charset_normalizer", "lxml", "cssselect"
 )
 
 $addData = @()
@@ -398,13 +425,18 @@ if ($IconPath) { $args += @("--icon", $IconPath) }
 foreach ($h in $hidden)  { $args += @("--hidden-import", $h) }
 foreach ($d in $addData) { $args += @("--add-data", $d) }
 
+# Thu gom toan bo scrapling + curl_cffi + playwright (dam bao _wrapper.pyd va data files duoc bundle)
+# scrapling 0.4+ import playwright ngay ca trong fetcher path (toolbelt.convertor) nen
+# phai bundle playwright — neu exclude thi fetcher cung loi "Chua cai scrapling" trong exe.
+$args += @("--collect-all", "scrapling", "--collect-all", "curl_cffi", "--collect-all", "playwright")
+
 $args += @("--exclude-module", "tkinter.test", "--exclude-module", "sqlite3.test")
 # Loại trừ các module nặng không cần cho exe tray (giảm thời gian build + dung lượng)
 # torch (+cu128 ~2GB) không cần cho chế độ API/translate online; nếu cần local MT thì user tự cài.
 $heavyExcludes = @(
     "torch", "torch.utils.tensorboard", "tensorboard",
     "scipy", "trimesh", "shapely", "networkx", "rtree",
-    "playwright", "patchright", "Crawl4AI"
+    "Crawl4AI"
 )
 foreach ($hm in $heavyExcludes) { $args += @("--exclude-module", $hm) }
 

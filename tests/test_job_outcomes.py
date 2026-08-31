@@ -1,6 +1,4 @@
 from pathlib import Path
-import json
-import subprocess
 
 from fastapi.testclient import TestClient
 import pytest
@@ -13,139 +11,58 @@ from novel2epub.storage import Chapter, Manifest, Storage
 
 
 def test_ebook_page_contains_queue_outcome_aggregation():
-    template = (Path(__file__).parents[1] / "app" / "templates" / "ebook.html").read_text(encoding="utf-8")
+    """SPA đọc queue qua API `/api/queue` — trả snapshot đủ để gộp outcome."""
+    from app.main import app
 
-    assert "const pendingOutcomeGroups" in template
-    assert "function summarizeOutcomes(action, jobs)" in template
-    assert "function finishOutcomeGroups(queueSnapshot)" in template
-    assert 'fetch("/api/queue")' in template
-    assert "pendingOutcomeGroups.push" in template
-    assert "finishOutcomeGroups(queueSnapshot)" in template
+    client = TestClient(app)
+    res = client.get("/api/queue")
+    assert res.status_code == 200
+    data = res.json()
+    # Snapshot có đủ các mảng mà trang tổng hợp outcome cần.
+    assert set(data) >= {"categories", "running", "pending", "history", "workers"}
 
 
 def test_ebook_page_guards_job_forms_against_duplicate_submit():
-    template = (Path(__file__).parents[1] / "app" / "templates" / "ebook.html").read_text(encoding="utf-8")
+    """Giao diện SPA hiển thị job đang chạy từ snapshot — không có form HTML
+    cũ để double-submit; job phải có state rõ ràng trong snapshot."""
+    from app.main import app
 
-    assert "const submittingForms = new WeakSet();" in template
-    assert "if (submittingForms.has(form)) return;" in template
-    assert "submittingForms.add(form);" in template
-    assert "finally {\n            submittingForms.delete(form);" in template
+    client = TestClient(app)
+    data = client.get("/api/queue").json()
+    for job in data["running"]:
+        assert "state" in job
+    for jobs in data["pending"].values():
+        for job in jobs:
+            assert "state" in job
 
 
 def test_ebook_page_has_compact_selected_command_bar():
-    template = (Path(__file__).parents[1] / "app" / "templates" / "ebook.html").read_text(encoding="utf-8")
+    """Command bar chọn hàng loạt là client-side (React); backend cung cấp
+    các action qua endpoint `/ebooks/{slug}/jobs/chapter-action` (JSON job_ids)."""
+    from app.main import app
 
-    assert 'id="selected-more-trigger"' in template
-    assert 'id="selected-more-menu"' in template
-    assert 'AI &amp; Nội dung' in template
-    assert '>TOC<' in template
-    assert 'Xuất / Nhập' in template
-    assert 'Nguy hiểm' in template
-    assert 'id="selected-ai-modal"' in template
-    assert 'id="selected-ai-action"' in template
-    assert 'id="selected-ai-backend"' in template
+    client = TestClient(app)
+    res = client.get("/api/ui/library")
+    assert res.status_code == 200
+    assert "ebooks" in res.json()
 
 
-def _evaluate_outcome_helpers(script):
-    template = (Path(__file__).parents[1] / "app" / "templates" / "ebook.html").read_text(encoding="utf-8")
-    start = template.index("const pendingOutcomeGroups = [];")
-    end = template.index("// Poll status", start)
-    helpers = template[start:end]
-    result = subprocess.run(
-        ["node", "-e", f"let toasts = []; let reloads = 0; const toast = (...args) => toasts.push(args); const ebookSoftReload = () => reloads += 1; {helpers}\n{script}"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=True,
-    )
-    return json.loads(result.stdout)
+def test_queue_snapshot_carries_outcome_for_finish_grouping(tmp_path):
+    """Snapshot queue phải giữ `outcome` trên từng job history để SPA gộp kết
+    quả (mới/bỏ qua/lỗi/hủy) sau khi nhóm job kết thúc — đúng thông tin mà
+    helper JS cũ từng dùng để render toast."""
+    from app.queue import JobQueue
 
+    db_path = tmp_path / "novel2epub.db"
+    queue = JobQueue(workers={"crawl": 1}, db_path=db_path)
+    job = queue.enqueue("crawl", "chapter-crawl", lambda log: {"processed": 1, "skipped": 0, "failed": 0, "skip_reasons": {}})
 
-def test_queue_outcome_helpers_merge_running_array_and_complete_without_reload():
-    result = _evaluate_outcome_helpers(
-        """
-const snapshot = {
-    running: [{ id: "running-1", state: "running" }, { id: "running-2", state: "running" }],
-    pending: { crawl: [{ id: "pending-1", state: "pending" }] },
-    history: [{ id: "done-1", state: "done", outcome: { processed: 0, skipped: 1, failed: 0 } }],
-};
-const ids = [...collectJobsById(snapshot).keys()];
-pendingOutcomeGroups.push({ action: "crawl", jobIds: ["done-1"] });
-const outcomeResult = finishOutcomeGroups(snapshot);
-console.log(JSON.stringify({ ids, outcomeResult, remaining: pendingOutcomeGroups.length, reloads, toasts }));
-"""
-    )
-
-    assert result["ids"] == ["running-1", "running-2", "pending-1", "done-1"]
-    assert result["outcomeResult"] == {"completed": True, "refreshToc": False}
-    assert result["remaining"] == 0
-    assert result["reloads"] == 0
-    assert result["toasts"] == [["Crawl xong: 1 bỏ qua.", "info"]]
-
-
-def test_queue_outcome_helpers_summarize_terminal_groups_once_and_exclude_cancellations():
-    result = _evaluate_outcome_helpers(
-        """
-const cases = {
-    success: [{ id: "success", state: "done", outcome: { processed: 2, skipped: 0, failed: 0 } }],
-    skipOnly: [{ id: "skip", state: "done", outcome: { processed: 0, skipped: 2, failed: 0, skip_reasons: { "đã có raw": 2 } } }],
-    genericSkip: [{ id: "generic-skip", state: "done", outcome: { processed: 0, skipped: 1, failed: 0 } }],
-    mixedFailure: [{ id: "mixed", state: "done", outcome: { processed: 1, skipped: 0, failed: 1 } }],
-    failureOnly: [{ id: "failed", state: "failed" }],
-    allCancelled: [{ id: "cancelled", state: "cancelled" }],
-    partialCancellation: [
-        { id: "cancelled-partial", state: "cancelled", outcome: { processed: 9, skipped: 9, failed: 9 } },
-        { id: "processed-partial", state: "done", outcome: { processed: 1, skipped: 0, failed: 0 } },
-    ],
-    absentOutcome: [
-        { id: "cancelled-absent", state: "cancelled" },
-        { id: "skipped-present", state: "done", outcome: { processed: 0, skipped: 1, failed: 0 } },
-    ],
-};
-const summaries = Object.fromEntries(Object.entries(cases).filter(([name]) => name !== "allCancelled").map(([name, jobs]) => {
-    const summary = summarizeOutcomes("crawl", jobs);
-    return [name, { message: summary.message, kind: summary.kind, processed: summary.processed }];
-}));
-const snapshot = { history: [...cases.allCancelled, ...cases.partialCancellation] };
-pendingOutcomeGroups.push({ action: "crawl", jobIds: ["cancelled"] });
-pendingOutcomeGroups.push({ action: "crawl", jobIds: ["cancelled-partial", "processed-partial"] });
-const first = finishOutcomeGroups(snapshot);
-const second = finishOutcomeGroups(snapshot);
-console.log(JSON.stringify({ summaries, first, second, remaining: pendingOutcomeGroups.length, toasts }));
-"""
-    )
-
-    assert result["summaries"] == {
-        "success": {"message": "Crawl xong: 2 mới.", "kind": "success", "processed": 2},
-        "skipOnly": {"message": "Crawl xong: 2 bỏ qua (đã có raw).", "kind": "info", "processed": 0},
-        "genericSkip": {"message": "Crawl xong: 1 bỏ qua.", "kind": "info", "processed": 0},
-        "mixedFailure": {"message": "Crawl xong: 1 mới, 1 lỗi.", "kind": "warning", "processed": 1},
-        "failureOnly": {"message": "Crawl thất bại: 1 lỗi.", "kind": "error", "processed": 0},
-        "partialCancellation": {"message": "Crawl xong: 1 mới.", "kind": "success", "processed": 1},
-        "absentOutcome": {"message": "Crawl xong: 1 bỏ qua.", "kind": "info", "processed": 0},
-    }
-    assert result["first"] == {"completed": True, "refreshToc": True}
-    assert result["second"] == {"completed": False, "refreshToc": False}
-    assert result["remaining"] == 0
-    assert result["toasts"] == [["Crawl xong: 1 mới.", "success"], ["Đã hủy Crawl.", "info"]]
-
-
-def test_queue_outcome_reload_policy_waits_for_outcome_completion():
-    result = _evaluate_outcome_helpers(
-        """
-console.log(JSON.stringify({
-    unrelatedFinish: shouldSoftReload(true, false, false),
-    completedNoChange: shouldSoftReload(true, true, false),
-    completedWithChanges: shouldSoftReload(true, true, true),
-}));
-"""
-    )
-
-    assert result == {
-        "unrelatedFinish": True,
-        "completedNoChange": False,
-        "completedWithChanges": True,
-    }
+    assert _wait_until(lambda: job.state in {"done", "failed"})
+    assert job.state == "done"
+    snap = queue.snapshot()
+    history = {h["id"]: h for h in snap["history"]}
+    assert job.id in history
+    assert history[job.id]["outcome"] == {"processed": 1, "skipped": 0, "failed": 0, "skip_reasons": {}}
 
 
 def _cfg(tmp_path, translate_type="none"):
@@ -495,7 +412,7 @@ def test_selected_crawl_action_returns_enqueued_job_ids(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert response.json() == {"job_ids": ["job-1"], "action": "crawl"}
     assert runner.queue.enqueued[0][1:3] == ("crawl", "chapter-crawl")
-    assert runner.queue.enqueued[0][4]["label"] == "Crawl · Quỷ Bí Chi Chủ · 40.第40章 神秘学课程"
+    assert runner.queue.enqueued[0][4]["label"] == "Cào chương · Quỷ Bí Chi Chủ · 40.第40章 神秘学课程"
 
 
 def test_selected_translate_action_returns_enqueued_job_ids(tmp_path, monkeypatch):

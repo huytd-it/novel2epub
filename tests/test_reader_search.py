@@ -100,14 +100,17 @@ def test_search_no_matches_returns_empty_list(tmp_path, monkeypatch):
 
 
 def test_reader_page_renders_toc_and_search_ui(tmp_path, monkeypatch):
+    """Trang đọc là SPA fallback (`/ebooks/t/read/1` → index.html); dữ liệu tìm
+    kiếm chương đi qua API `/api/ebooks/t/search`."""
     _seed(tmp_path)
     client = _client(_cfg(tmp_path), monkeypatch)
     res = client.get("/ebooks/t/read/1")
     assert res.status_code == 200
-    # Mục lục + thanh tìm kiếm được render, và chương hiện tại đánh dấu active.
-    assert 'id="toc-sidebar"' in res.text
-    assert 'id="toc-search-input"' in res.text
-    assert 'id="toc-search-status"' in res.text
-    assert 'id="search-bar"' in res.text
-    assert 'toc-chapter-item active' in res.text
-    assert "function filterToc()" in res.text
+    assert '<div id="root"></div>' in res.text
+    assert res.headers.get("content-type", "").startswith("text/html")
+
+    # Thanh tìm kiếm mục lục render từ dữ liệu API — chương hiện tại phải có
+    # dữ liệu để đánh dấu active.
+    search = client.get("/api/ebooks/t/search", params={"q": "Trương Tam"})
+    assert search.status_code == 200
+    assert search.json()[0]["chapter_index"] == 1

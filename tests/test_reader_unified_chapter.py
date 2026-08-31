@@ -49,89 +49,82 @@ def _seed(tmp_path, *, raw=None, translated=None):
     return storage, ch
 
 
+def _chapter_data(client, index=7):
+    res = client.get(f"/api/ebooks/t/read/{index}/data")
+    assert res.status_code == 200
+    return res.json()
+
+
 def test_reader_missing_raw_shows_large_crawl_cta(tmp_path, monkeypatch):
     _seed(tmp_path)
     client = _client(tmp_path, monkeypatch)
 
-    res = client.get("/ebooks/t/read/7")
+    data = _chapter_data(client)
 
-    assert res.status_code == 200
-    assert 'class="reader-empty-action-card"' in res.text
-    assert 'name="action" value="crawl"' in res.text
-    assert ">Crawl<" in res.text
+    assert data["index"] == 7
+    assert data["has_raw"] is False
+    assert data["has_translated"] is False
+    assert data["edit_paras"] == []  # CTA crawl lớn: chưa có nội dung nào
 
 
 def test_reader_raw_without_translation_shows_large_translate_cta(tmp_path, monkeypatch):
     _seed(tmp_path, raw="原文")
     client = _client(tmp_path, monkeypatch)
 
-    res = client.get("/ebooks/t/read/7")
+    data = _chapter_data(client)
 
-    assert res.status_code == 200
-    assert 'class="reader-empty-action-card"' in res.text
-    assert 'name="action" value="translate"' in res.text
-    assert ">Dịch<" in res.text
+    assert data["has_raw"] is True
+    assert data["raw_paras"] == ["原文"]
+    assert data["has_translated"] is False  # CTA dịch lớn
 
 
 def test_reader_with_translation_contains_edit_mode_toolbar(tmp_path, monkeypatch):
     _seed(tmp_path, raw="原文", translated="Bản dịch")
     client = _client(tmp_path, monkeypatch)
 
-    res = client.get("/ebooks/t/read/7")
+    data = _chapter_data(client)
 
-    assert res.status_code == 200
-    assert 'id="edit-mode-toggle-btn"' in res.text
-    assert 'id="reader-edit-toolbar"' in res.text
-    assert 'name="action" value="cleanup-han"' in res.text
-    assert 'id="local-mt-cleanup-btn"' in res.text
-    assert 'id="undo-edit-btn"' in res.text
-    assert 'id="redo-edit-btn"' in res.text
-    assert 'action="/ebooks/t/chapters/7/delete-raw"' in res.text
-    assert 'action="/ebooks/t/chapters/7/delete-translation"' in res.text
-    assert 'href="/ebooks/t/glossary"' in res.text
+    assert data["has_translated"] is True
+    assert data["translated_paras"] == ["Bản dịch"]
+    assert data["edit_paras"] == ["Bản dịch"]
+    assert data["word_count"] > 0
 
 
 def test_reader_hides_legacy_edit_controls_until_edit_mode_is_enabled(tmp_path, monkeypatch):
     _seed(tmp_path, raw="原文", translated="Bản dịch")
     client = _client(tmp_path, monkeypatch)
 
-    default = client.get("/ebooks/t/read/7")
-    edit_mode = client.get("/ebooks/t/read/7?edit=1")
+    default = _chapter_data(client)
+    edit_mode = _chapter_data(client)
 
-    assert 'class="reader-toolbar-btn edit-mode-control" role="menuitem" hidden' in default.text
-    assert 'class="reader-para" data-para="0"' in default.text
-    assert "para.contentEditable = on ? 'true' : 'false'" in default.text
-    assert "savePara(para)" in default.text
-    assert "para-edit-btn" not in default.text
-    assert "para-copy-btn" not in default.text
-    assert "document.querySelectorAll('.edit-mode-control').forEach(control => {" in default.text
-    assert "control.hidden = !on;" in default.text
-    assert "setEditMode(initialEditMode);" in edit_mode.text
+    assert default["has_translated"] is True
+    # Dữ liệu biên tập sẵn sàng cho mọi chế độ — UI quyết định bật toolbar lúc nào.
+    assert edit_mode["edit_paras"] == ["Bản dịch"]
+    assert edit_mode["raw_paras"] == ["原文"]
 
 
 def test_reader_does_not_register_global_keyboard_shortcuts(tmp_path, monkeypatch):
+    """Shortcut bàn phím là client-side (SPA); server chỉ cung cấp dữ liệu
+    chương — không có HTML chứa xử lý phím."""
     _seed(tmp_path, raw="原文", translated="Bản dịch")
     client = _client(tmp_path, monkeypatch)
 
     res = client.get("/ebooks/t/read/7")
+    assert res.status_code == 200
+    assert '<div id="root"></div>' in res.text
 
-    assert "document.addEventListener('keydown'" not in res.text
-    assert "content.addEventListener('keydown'" not in res.text
-    assert "Ctrl+Shift+F" not in res.text
-    assert "Mục lục (T)" not in res.text
-    assert "Bookmark (B)" not in res.text
+    data = _chapter_data(client)
+    assert "Ctrl+Shift+F" not in str(data)
+    assert "Bookmark" not in str(data)
 
 
 def test_reader_with_raw_and_translation_contains_raw_compare_view(tmp_path, monkeypatch):
     _seed(tmp_path, raw="甲。\n\n乙。", translated="Một.\n\nHai.")
     client = _client(tmp_path, monkeypatch)
 
-    res = client.get("/ebooks/t/read/7")
+    data = _chapter_data(client)
 
-    assert res.status_code == 200
-    assert 'id="raw-compare-toggle-btn"' in res.text
-    assert 'id="raw-compare-view"' in res.text
-    assert "ZH raw" in res.text
-    assert "VI biên tập" in res.text
-    assert "甲。" in res.text
-    assert "Một." in res.text
+    assert data["raw_paras"] == ["甲。", "乙。"]
+    assert data["translated_paras"] == ["Một.", "Hai."]
+    # Cột ZH raw và VI biên tập được đối soát qua paras đã pad cùng độ dài.
+    assert len(data["raw_paras"]) == len(data["translated_paras"])

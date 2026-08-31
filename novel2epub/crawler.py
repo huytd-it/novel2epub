@@ -342,25 +342,34 @@ class ScraplingCrawler:
     def __init__(self, cfg: CrawlConfig):
         self.cfg = cfg
         self._last_response_html: str = ""
+        mode = (cfg.scrapling.mode or "fetcher").lower()
+        # Scrapling 0.4+ import playwright ngay ca trong Fetcher path
+        # (engines.toolbelt.convertor) nen build exe phai bundle playwright
+        # (xem build-exe.ps1 --collect-all playwright). O day chi can import
+        # dung Fetcher can dung theo mode de thong bao loi ro rang.
         try:
-            from scrapling.fetchers import (  # noqa: F401
-                DynamicFetcher,
-                Fetcher,
-                StealthyFetcher,
-            )
+            if mode == "fetcher":
+                from scrapling.fetchers import Fetcher
+
+                self._fetcher_cls = Fetcher
+            elif mode == "dynamic":
+                from scrapling.fetchers import DynamicFetcher
+
+                self._fetcher_cls = DynamicFetcher
+            else:  # stealthy
+                from scrapling.fetchers import StealthyFetcher
+
+                self._fetcher_cls = StealthyFetcher
         except ImportError as e:  # pragma: no cover
+            if mode == "fetcher":
+                raise ImportError(
+                    "Chưa cài scrapling. "
+                    "Chạy: pip install scrapling[fetchers]"
+                ) from e
             raise ImportError(
                 "Chưa cài scrapling. "
                 "Chạy: pip install scrapling[fetchers] && scrapling install"
             ) from e
-
-        mode = (cfg.scrapling.mode or "fetcher").lower()
-        if mode == "fetcher":
-            self._fetcher_cls = Fetcher
-        elif mode == "dynamic":
-            self._fetcher_cls = DynamicFetcher
-        else:  # stealthy
-            self._fetcher_cls = StealthyFetcher
         self._mode = mode
 
     # ---------- internal ----------

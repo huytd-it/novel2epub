@@ -256,10 +256,12 @@ def test_sync_to_source_tu_gan_nguon_khop_url(monkeypatch, tmp_path):
 
 def test_settings_page_hien_banner_nguon_tu_nhan_dien(monkeypatch, tmp_path):
     db, client = _client(monkeypatch, tmp_path)
-    r = client.get("/ebooks/c/settings")
+    r = client.get("/api/ui/ebooks/c/settings")
     assert r.status_code == 200
-    assert "tự nhận diện" in r.text
-    assert "aixdzs" in r.text
+    meta = r.json()["meta"]
+    # Ebook chưa gắn nguồn nhưng URL khớp domain preset → API đánh dấu "tự nhận diện".
+    assert meta["source_detected"] is True
+    assert meta["source_name"] == "aixdzs"
 
 
 def test_sync_to_source_khong_ghi_vao_ebook_khac(monkeypatch, tmp_path):

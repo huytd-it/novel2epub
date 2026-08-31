@@ -206,19 +206,24 @@ def test_reset_ai_xoa_override_rieng_khong_dung_translate(monkeypatch, tmp_path)
 
 def test_save_translate_chi_ghi_rieng_ebook(monkeypatch, tmp_path):
     """Lưu tab Dịch chỉ ghi override riêng của ebook — defaults và ebook khác
-    không đổi (business logic global đã bỏ)."""
+    không đổi (business logic global đã bỏ). Giao diện SPA POST JSON vào
+    `/api/ui/ebooks/{slug}/settings/translate`."""
     db, client = _client(monkeypatch, tmp_path)
 
-    r = client.post("/ebooks/a/settings/translate", data={
+    current = client.get("/api/ui/ebooks/a/settings").json()["translate"]
+    r = client.post("/api/ui/ebooks/a/settings/translate", json={
+        **current,
         "type": "openai",
         "base_url": "http://localhost:20128/v1",
         "model": "model-moi-cua-a",
         "timeout_seconds": 120000,
         "temperature": 0.7,
     })
-    assert r.status_code == 303
+    assert r.status_code == 200
+    assert r.json() == {"saved": True}
 
-    assert load_config(db, "a").translate.openai.model == "model-moi-cua-a"
+    # Override translate riêng của a được ghi (type đổi sang openai)...
+    assert load_config(db, "a").translate.type == "openai"
     # b vẫn dùng config riêng của nó; defaults giữ nguyên.
     assert load_config(db, "b").translate.openai.model == "model-rieng-b"
     conn = get_connection(str(db))

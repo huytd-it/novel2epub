@@ -255,18 +255,21 @@ def test_manual_chapter_duplicate_url_returns_400_without_mutation(tmp_path, mon
 
 
 def test_manual_chapter_template_assertions(tmp_path, monkeypatch):
-    """Template contains IDs add-manual-chapter-btn and manual-chapter-modal,
-    form action, and named fields index, title, url."""
+    """Giao diện là SPA (server trả index.html); endpoint thêm chương thủ công
+    vẫn là route form `/ebooks/{slug}/chapters/manual` dùng bởi SPA."""
     client = _client(tmp_path, monkeypatch)
     Storage(tmp_path, "t").save_manifest(Manifest(slug="t"))
 
     res = client.get("/ebooks/t")
-
     assert res.status_code == 200
-    html = res.text
-    assert 'id="add-manual-chapter-btn"' in html
-    assert 'id="manual-chapter-modal"' in html
-    assert 'action="/ebooks/t/chapters/manual"' in html
-    assert 'name="index"' in html
-    assert 'name="title"' in html
-    assert 'name="url"' in html
+    assert '<div id="root"></div>' in res.text
+    assert res.headers.get("content-type", "").startswith("text/html")
+
+    # Endpoint thêm chương thủ công vẫn nhận form (index/title/url).
+    res = client.post(
+        "/ebooks/t/chapters/manual",
+        data={"index": 1, "title": "Mới", "url": "https://x/moi"},
+        follow_redirects=False,
+    )
+    assert res.status_code == 303
+    assert res.headers["location"] == "/ebooks/t"

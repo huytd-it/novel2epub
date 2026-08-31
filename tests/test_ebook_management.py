@@ -41,38 +41,56 @@ def _cfg(tmp_path, slug):
 def _client(monkeypatch, tmp_path, slugs=("a", "b")):
     from app import deps
     from app.main import app
+    from tests.conftest import write_db_config
 
-    library = LibraryConfig(ebooks={slug: LibraryEntry(slug=slug, title=f"Truyện {slug}") for slug in slugs})
-    monkeypatch.setattr(deps, "library", lambda: library)
-    monkeypatch.setattr(deps, "resolved_cfg", lambda slug: _cfg(tmp_path, slug))
+    db = write_db_config(
+        tmp_path / "novel2epub.db",
+        ebooks={
+            slug: {"novel": {"slug": slug, "title": f"Truyện {slug}"}}
+            for slug in slugs
+        },
+    )
+    monkeypatch.setattr(deps, "DB_PATH", db)
+    monkeypatch.setattr(deps, "WORKSPACE_PATH", str(db))
+    monkeypatch.setattr(deps, "SOURCES_PATH", str(db))
     monkeypatch.setattr(deps, "LIBRARY_STATE_PATH", tmp_path / "library_state.json")
+    monkeypatch.setattr(deps, "library", lambda: LibraryConfig(ebooks={slug: LibraryEntry(slug=slug, title=f"Truyện {slug}") for slug in slugs}))
+    monkeypatch.setattr(deps, "resolved_cfg", lambda slug: _cfg(tmp_path, slug))
     fake_job = _FakeJob()
     app.state.job = fake_job
     return app, TestClient(app), fake_job
 
 
 def test_index_hides_archived_by_default(monkeypatch, tmp_path):
+    from app import deps
     from app.library_state import set_archived
 
     app, client, _job = _client(monkeypatch, tmp_path)
-    set_archived(tmp_path / "library_state.json", "a", True)
+    set_archived(deps.DB_PATH, "a", True)
 
-    res = client.get("/library")
+    # Trang `/library` là SPA (trả bundle); dữ liệu qua API `/api/ui/library`.
+    res = client.get("/api/ui/library")
     assert res.status_code == 200
-    assert "Truyện a" not in res.text
-    assert "Truyện b" in res.text
+    data = res.json()
+    assert data["total"] == 1  # chỉ còn ebook chưa archived
+    slugs = {e["slug"] for e in data["ebooks"]}
+    assert "a" not in slugs  # đã archived → ẩn
+    assert "b" in slugs
 
 
 def test_index_shows_archived_with_query_param(monkeypatch, tmp_path):
+    from app import deps
     from app.library_state import set_archived
 
     app, client, _job = _client(monkeypatch, tmp_path)
-    set_archived(tmp_path / "library_state.json", "a", True)
+    set_archived(deps.DB_PATH, "a", True)
 
-    res = client.get("/library?show_archived=1")
+    res = client.get("/api/ui/library", params={"show_archived": True})
     assert res.status_code == 200
-    assert "Truyện a" in res.text
-    assert "Truyện b" in res.text
+    data = res.json()
+    slugs = {e["slug"] for e in data["ebooks"]}
+    assert "a" in slugs  # show_archived → hiện cả archived
+    assert "b" in slugs
 
 
 def test_archive_then_unarchive_roundtrip(monkeypatch, tmp_path):

@@ -47,7 +47,19 @@ class _FakeJob:
             "translate": {"running": False, "step": "", "error": "", "log": []},
         }
 
-    def start_custom(self, name, target, *, category):
+    def start_custom(
+        self,
+        name,
+        target,
+        *,
+        category,
+        ebook="",
+        spec=None,
+        cancel_event=None,
+        chapter_indexes=None,
+        lock_ebook=True,
+        label="",
+    ):
         self.started.append({"name": name, "target": target, "category": category})
         target(lambda msg: None)  # chạy sync để file bị xoá ngay trong test
         return True

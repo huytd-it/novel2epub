@@ -13,12 +13,13 @@ def _client(monkeypatch, tmp_path):
     monkeypatch.setattr(deps, "WORKSPACE_PATH", str(tmp_path / "novel2epub.yaml"))
     monkeypatch.setattr(deps, "SOURCES_PATH", str(tmp_path / "sources.yaml"))
     monkeypatch.setattr(deps, "AUTOMATIONS_PATH", tmp_path / "automations.yaml")
+    monkeypatch.setattr(deps, "DB_PATH", tmp_path / "novel2epub.yaml")
     return app, TestClient(app)
 
 
 def test_create_rejects_invalid_schedule(monkeypatch, tmp_path):
     app, client = _client(monkeypatch, tmp_path)
-    res = client.post("/automation", data={
+    res = client.post("/api/ui/automation", json={
         "ebook": "e", "steps": ["build"], "schedule": "daily@03:00",
     })
     assert res.status_code == 400
@@ -27,10 +28,10 @@ def test_create_rejects_invalid_schedule(monkeypatch, tmp_path):
 
 def test_create_accepts_cron_schedule(monkeypatch, tmp_path):
     app, client = _client(monkeypatch, tmp_path)
-    res = client.post("/automation", data={
+    res = client.post("/api/ui/automation", json={
         "ebook": "e", "steps": ["build"], "schedule": "*/30 * * * *",
-    }, follow_redirects=False)
-    assert res.status_code == 303
+    })
+    assert res.status_code == 200
     automations = load_automations(tmp_path / "automations.yaml")
     assert len(automations) == 1
     assert next(iter(automations.values())).schedule == "*/30 * * * *"
@@ -38,11 +39,11 @@ def test_create_accepts_cron_schedule(monkeypatch, tmp_path):
 
 def test_create_persists_automation_workers(monkeypatch, tmp_path):
     app, client = _client(monkeypatch, tmp_path)
-    res = client.post("/automation", data={
+    res = client.post("/api/ui/automation", json={
         "ebook": "e", "steps": ["crawl-new", "translate-pending"],
-        "crawl_workers": "6", "translate_workers": "8",
-    }, follow_redirects=False)
-    assert res.status_code == 303
+        "crawl_workers": 6, "translate_workers": 8,
+    })
+    assert res.status_code == 200
     automation = next(iter(load_automations(tmp_path / "automations.yaml").values()))
     assert automation.crawl_workers == 6
     assert automation.translate_workers == 8
@@ -51,8 +52,8 @@ def test_create_persists_automation_workers(monkeypatch, tmp_path):
 def test_update_rejects_invalid_schedule(monkeypatch, tmp_path):
     app, client = _client(monkeypatch, tmp_path)
     a = add_automation(tmp_path / "automations.yaml", "e", ["build"], "*/30 * * * *")
-    res = client.post(f"/automation/{a.id}/update", data={
-        "steps": ["build"], "schedule": "not-a-cron", "enabled": "true",
+    res = client.post(f"/api/ui/automation/{a.id}/update", json={
+        "steps": ["build"], "schedule": "not-a-cron", "enabled": True,
     })
     assert res.status_code == 400
     loaded = load_automations(tmp_path / "automations.yaml")
@@ -71,9 +72,9 @@ def test_page_shows_next_run(monkeypatch, tmp_path):
         .get_next(datetime)
         .strftime("%Y-%m-%d %H:%M")
     )
-    res = client.get("/automation")
+    res = client.get("/api/ui/automation")
     assert res.status_code == 200
-    assert expected in res.text  # cột "Chạy kế tiếp" hiện mốc 3h sáng kế tiếp
+    assert res.json()["automations"][0]["next_run"] == expected  # cột "Chạy kế tiếp" hiện mốc 3h sáng kế tiếp
 
 
 def test_validate_schedule_api(monkeypatch, tmp_path):

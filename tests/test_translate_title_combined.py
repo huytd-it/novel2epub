@@ -171,11 +171,14 @@ def test_local_mt_translates_title_separately_from_body(tmp_path, monkeypatch):
 
     ch = _reload_chapter(storage)
     assert tr.seen == ["正文第一段。\n\n正文第二段。"]
+    # `_translate_one` tự chuyển nhánh active sang `local_mt` sau khi dịch xong
+    # (xem pipeline.py — nhánh hoàn tất trở thành bản đang đọc/biên tập).
+    assert storage.active_branch(ch) == "local_mt"
     assert storage.read_branch_title(ch, "local_mt") == "Chương 12: MT:Chương 12 起风"
     assert storage.read_branch_title_zh(ch, "local_mt") == "第12章 起风"
     assert storage.read_branch_text(ch, "local_mt") == "Nội dung dịch Local MT."
     assert storage.read_branch_mt_snapshot(ch, "local_mt") == "Nội dung dịch Local MT."
 
-    assert storage.read_active_branch_title(ch) == "第12章 起风"
-    storage.set_active_branch(ch, "local_mt")
     assert storage.read_active_branch_title(ch) == "Chương 12: MT:Chương 12 起风"
+    storage.set_active_branch(ch, "ai")
+    assert storage.read_active_branch_title(ch) == "第12章 起风"

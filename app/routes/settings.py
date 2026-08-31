@@ -916,7 +916,7 @@ def save_output(
 
 @router.get("/api/ui/settings/local-mt")
 def local_mt_overview():
-    from novel2epub.hachimimt.translator import (
+    from novel2epub.hachimimt.models import (
         MODELS,
         MODELS_DIR,
         is_model_downloaded,
@@ -958,7 +958,7 @@ def local_mt_overview():
 @router.post("/api/ui/settings/local-mt/config")
 def local_mt_config_save(payload: dict):
     """Lưu model/beam/chunk mode MẶC ĐỊNH dùng chung (`defaults.translate`)."""
-    from novel2epub.hachimimt.translator import MODELS
+    from novel2epub.hachimimt.models import MODELS
 
     current = deps.cfg().translate
     model_key = str(payload.get("model_key") or "").strip()
@@ -990,7 +990,8 @@ def local_mt_install(request: Request, payload: dict):
     """
     import threading
 
-    from novel2epub.hachimimt.translator import Backend, MODELS, ensure_model_files
+    from novel2epub.hachimimt.models import Backend, MODELS
+    from novel2epub.hachimimt.translator import ensure_model_files
 
     model_key = str(payload.get("model_key") or "").strip()
     if model_key not in MODELS:

@@ -197,9 +197,14 @@ def test_model_discovery_accepts_key_in_body_not_query(client, monkeypatch):
         "api_key": "body-secret",
         "timeout": 12,
     }
-    assert client.get(
+    # GET không được khai cho /settings/ai/models (chỉ POST) → rơi vào SPA
+    # fallback `/` trả index.html (HTML, 200), KHÔNG có endpoint API. Route này
+    # cũng không nhận api_key qua query; việc phát hiện model chỉ qua POST body.
+    get_resp = client.get(
         "/settings/ai/models?base_url=https://provider.example/v1&api_key=query-secret"
-    ).status_code == 405
+    )
+    assert get_resp.status_code == 200
+    assert get_resp.headers["content-type"].startswith("text/html")
 
 
 def test_model_override_can_use_global_without_losing_other_translate_settings(client):

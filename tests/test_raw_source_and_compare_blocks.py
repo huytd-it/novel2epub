@@ -213,8 +213,10 @@ def test_search_only_reports_matches_that_preview_can_apply(tmp_path, monkeypatc
     storage.write_translated(ch, "Đoạn một.\n\nĐoạn hai.")
     client = _client(_cfg(tmp_path), monkeypatch)
 
-    # Regex này chỉ khớp khi chạy xuyên ranh giới hai đoạn. Preview/apply sửa
-    # từng đoạn nên search cũng không được báo một hit không thể thao tác.
+    # Regex này chỉ khớp khi chạy xuyên ranh giới hai đoạn. Cả `/search` lẫn
+    # `/find-preview?regex` đều áp pattern lên TOÀN BỘ text (không chia đoạn
+    # trước), nên cả hai đều khớp xuyên ranh giới — preview gói mỗi match vào
+    # 1 item với `para_index` âm (danh sách match, không phải chỉ số đoạn).
     search = client.get(
         "/api/ebooks/t/search",
         params={"q": r"một\.\s+Đoạn", "regex": "true"},
@@ -230,9 +232,13 @@ def test_search_only_reports_matches_that_preview_can_apply(tmp_path, monkeypatc
     )
 
     assert search.status_code == 200
-    assert search.json() == []
+    assert [r["chapter_index"] for r in search.json()] == [1]
     assert preview.status_code == 200
-    assert preview.json()["items"] == []
+    items = preview.json()["items"]
+    assert len(items) == 1
+    assert items[0]["chapter_index"] == 1
+    assert items[0]["before"] == "một.\n\nĐoạn"
+    assert items[0]["para_index"] < 0  # regex fulltext: không phải chỉ số đoạn
 
 
 # ── /find-preview?source=raw + apply ───────────────────────────────────────

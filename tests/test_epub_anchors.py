@@ -142,14 +142,19 @@ def test_chi_chuong_da_dich_moi_duoc_gan_neo(tmp_path):
     import zipfile
 
     from novel2epub.pipeline import step_build_selected
+    from novel2epub.revisions import BRANCH_AI
     from novel2epub.storage import Chapter, Manifest, Storage
     from tests.test_opds_routes import _cfg  # dựng Config tối thiểu
 
     storage = Storage(tmp_path, "t")
     da_dich = Chapter(index=1, url="http://x/1", title="Đã dịch")
-    chua_dich = Chapter(index=2, url="http://x/2", title="Chưa dịch")
+    chua_dich = Chapter(index=2, url="http://x/2", title="Chưa dịch", skipped=True)
     storage.save_manifest(Manifest(slug="t", title="T", chapters=[da_dich, chua_dich]))
-    storage.write_translated(da_dich, "# Đã dịch\n\nĐoạn tiếng Việt.")
+    # `step_build_selected(strict_translated=True)` CHẶN cứng nếu có chương
+    # non-skipped chưa có bản AI/Local MT hoàn chỉnh — chương chưa dịch phải
+    # đánh dấu `skipped` mới nằm ngoài phạm vi build (chính sách: không bao
+    # giờ đưa raw vào EPUB, xem `build_blockers`).
+    storage.write_branch_text(da_dich, BRANCH_AI, "# Đã dịch\n\nĐoạn tiếng Việt.")
     storage.mark_translated_complete(da_dich)
     storage.write_raw(chua_dich, "# 第二章\n\n这是中文。")
 

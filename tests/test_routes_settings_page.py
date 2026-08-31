@@ -36,6 +36,7 @@ def test_settings_page_renders_with_source_preset(monkeypatch, tmp_path):
         },
     )
     db = str(db)
+    monkeypatch.setattr(deps, "DB_PATH", db)
     monkeypatch.setattr(deps, "WORKSPACE_PATH", db)
     monkeypatch.setattr(deps, "SOURCES_PATH", db)
     monkeypatch.setattr(settings_route, "load_presets", lambda path: __import__(
@@ -46,6 +47,11 @@ def test_settings_page_renders_with_source_preset(monkeypatch, tmp_path):
     app.state.job = _fake_job()
     client = TestClient(app)
 
-    res = client.get("/ebooks/chua-biet-ten-2/settings")
+    res = client.get("/api/ui/ebooks/chua-biet-ten-2/settings")
     assert res.status_code == 200
-    assert "Chưa Biết Tên" in res.text
+    data = res.json()
+    assert data["novel"]["title"] == "Chưa Biết Tên"
+    # Preset được resolve — override .override hiện ở source, preset giữ #content.
+    assert data["source"]["content_selector"] == ".override"
+    assert data["meta"]["source_name"] == "shuhaige"
+    assert "content_selector" in data["meta"]["overridden_fields"]

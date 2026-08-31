@@ -7,8 +7,6 @@ import sys
 import time
 from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass
-from enum import Enum
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Iterator
@@ -17,6 +15,7 @@ import sentencepiece as spm
 from huggingface_hub import snapshot_download
 
 from .chunker import split_chunks
+from .ct2_safe_import import import_ctranslate2
 from .hardware import (
     HardwareProfile,
     auto_all_gpus_by_default,
@@ -29,121 +28,28 @@ from .line_restore import (
     paragraph_chunk_fallback_indices,
     split_layout_lines,
 )
+from .models import (
+    DEFAULT_CT2_SUBDIR,
+    DEFAULT_MODEL_KEY,
+    MODELS,
+    MODELS_DIR,
+    Backend,
+    ModelConfig,
+    model_local_dir,
+    _ct2_ready,
+    _pytorch_ready,
+    _tokenizer_ready,
+)
 from .token_chunker import (
     source_token_ids,
     split_for_translation,
     split_paragraphs_with_plan,
     split_sentence_lines_with_plan,
 )
-from .ct2_safe_import import import_ctranslate2
 
-ctranslate2 = import_ctranslate2()
-
-ROOT = Path(__file__).resolve().parent.parent.parent
-MODELS_DIR = Path(os.environ.get("HACHIMIMT_MODELS_DIR", ROOT / "models"))
 SPECIAL_ID_TO_TOKEN = {0: "<pad>", 1: "<s>", 2: "</s>", 3: "<unk>"}
 SPECIAL_TOKEN_TO_ID = {token: token_id for token_id, token in SPECIAL_ID_TO_TOKEN.items()}
 EOS_TOKEN_ID = 2
-
-
-class Backend(str, Enum):
-    CT2 = "ct2"
-    TRANSFORMERS = "transformers"
-
-
-@dataclass(frozen=True)
-class ModelConfig:
-    label: str
-    model_id: str
-    use_marian_class: bool
-    generate_kwargs: dict
-    ct2_max_input_tokens: int
-    ct2_max_output_tokens: int
-    ct2_max_batch_size: int = 8
-    default_beam: int = 2
-    ct2_size_mb: int | None = None
-    ct2_subdir: str = "ct2-int8_float32"
-    ct2_model_id: str | None = None
-
-
-MODELS: dict[str, ModelConfig] = {
-    "HachimiMT-60": ModelConfig(
-        label="HachimiMT-60",
-        model_id="ngocdang83/HachimiMT-60-zh-vi",
-        use_marian_class=True,
-        generate_kwargs={
-            "max_new_tokens": 300,
-            "repetition_penalty": 1.2,
-        },
-        ct2_max_input_tokens=160,
-        ct2_max_output_tokens=300,
-        default_beam=2,
-        ct2_size_mb=57,
-    ),
-    "HachimiMT-30": ModelConfig(
-        label="HachimiMT-30",
-        model_id="ngocdang83/HachimiMT-30-zh-vi",
-        use_marian_class=False,
-        generate_kwargs={"max_length": 512},
-        ct2_max_input_tokens=160,
-        ct2_max_output_tokens=512,
-        default_beam=1,
-        ct2_size_mb=35,
-    ),
-    "MoxhiMT-60": ModelConfig(
-        label="MoxhiMT-60",
-        model_id="DanVP/MoxhiMT-60",
-        use_marian_class=True,
-        generate_kwargs={
-            "max_new_tokens": 300,
-            "repetition_penalty": 1.2,
-        },
-        ct2_max_input_tokens=160,
-        ct2_max_output_tokens=300,
-        default_beam=2,
-        ct2_size_mb=58,
-        ct2_subdir="ct2-int8",
-    ),
-    "MoxhiMT-30": ModelConfig(
-        label="MoxhiMT-30",
-        model_id="DanVP/MoxhiMT-30",
-        use_marian_class=True,
-        generate_kwargs={
-            "max_new_tokens": 300,
-            "repetition_penalty": 1.2,
-        },
-        ct2_max_input_tokens=160,
-        ct2_max_output_tokens=512,
-        default_beam=2,
-        ct2_size_mb=38,
-    ),
-    "HirashibaMT-Medium": ModelConfig(
-        label="HirashibaMT-Medium",
-        model_id="Moleys/hirashiba-mt-medium",
-        use_marian_class=True,
-        generate_kwargs={"max_new_tokens": 256},
-        ct2_max_input_tokens=128,
-        ct2_max_output_tokens=256,
-        default_beam=4,
-        ct2_size_mb=62,
-        ct2_model_id="ngungodan/hirashiba-mt-medium-ct2",
-    ),
-    "HirashibaMT-Tiny": ModelConfig(
-        label="HirashibaMT-Tiny",
-        model_id="chi-vi/hirashiba-mt-tiny-zh-vi",
-        use_marian_class=True,
-        generate_kwargs={"max_length": 512},
-        ct2_max_input_tokens=160,
-        ct2_max_output_tokens=512,
-        default_beam=1,
-        ct2_size_mb=17,
-        ct2_subdir="ct2-int8-keeppad",
-        ct2_model_id="ngungodan/hirashiba-mt-tiny-zh-vi-ct2",
-    ),
-}
-
-DEFAULT_MODEL_KEY = "HachimiMT-60"
-DEFAULT_CT2_SUBDIR = "ct2-int8_float32"
 
 
 def _ct2_download_patterns(config: ModelConfig) -> list[str]:
@@ -464,38 +370,6 @@ def _load_ct2_tokenizer(model_path: Path):
     raise RuntimeError("Không tìm thấy tokenizer CT2: cần source.spm/target.spm hoặc tokenizer.json.")
 
 
-def model_local_dir(config: ModelConfig) -> Path:
-    return MODELS_DIR / config.model_id.split("/")[-1]
-
-
-def _ct2_ready(path: Path, ct2_subdir: str = DEFAULT_CT2_SUBDIR) -> bool:
-    ct2_path = path / ct2_subdir
-    return ct2_path.is_dir() and any(ct2_path.iterdir())
-
-
-def _pytorch_ready(path: Path) -> bool:
-    return any(path.glob("*.safetensors")) or any(path.glob("pytorch_model*.bin"))
-
-
-def _tokenizer_ready(path: Path) -> bool:
-    has_sentencepiece = (path / "source.spm").exists() and (path / "target.spm").exists()
-    return has_sentencepiece or (path / "tokenizer.json").exists()
-
-
-def is_model_downloaded(model_key: str, backend: Backend | str = Backend.CT2) -> bool:
-    if isinstance(backend, str):
-        backend = Backend(backend)
-    if model_key not in MODELS:
-        return False
-    config = MODELS[model_key]
-    path = model_local_dir(config)
-    if backend == Backend.CT2:
-        weights_ready = _ct2_ready(path, config.ct2_subdir)
-    else:
-        weights_ready = _pytorch_ready(path)
-    return weights_ready and _tokenizer_ready(path)
-
-
 def ensure_model_files(config: ModelConfig, backend: Backend) -> Path:
     local_dir = model_local_dir(config)
     local_dir.mkdir(parents=True, exist_ok=True)
@@ -673,6 +547,7 @@ class HachimiTranslator:
         return decoded
 
     def _load_ct2(self, config: ModelConfig) -> None:
+        ct2 = import_ctranslate2()
         model_path = ensure_model_files(config, Backend.CT2)
         tokenizer = _load_ct2_tokenizer(model_path)
         env_compute_type = os.environ.get("HACHIMIMT_COMPUTE_TYPE", "").strip()
@@ -680,7 +555,7 @@ class HachimiTranslator:
         attempts: list[tuple[str, str, list[int] | None]] = []
         if ct2_device == "cuda":
             try:
-                cuda_count = ctranslate2.get_cuda_device_count()
+                cuda_count = ct2.get_cuda_device_count()
             except Exception:
                 cuda_count = 0
             gpu_indices = resolve_gpu_indices(
@@ -712,7 +587,7 @@ class HachimiTranslator:
                     inter_threads=self._ct2_inter_threads,
                     gpu_indices=gpu_indices,
                 )
-                translator = ctranslate2.Translator(str(model_path / config.ct2_subdir), **kwargs)
+                translator = ct2.Translator(str(model_path / config.ct2_subdir), **kwargs)
                 self._ct2_compute_type = compute_type
                 self._ct2_actual_intra_threads = int(kwargs["intra_threads"])
                 self._ct2_actual_inter_threads = int(kwargs["inter_threads"])

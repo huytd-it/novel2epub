@@ -85,6 +85,7 @@ def make_client(monkeypatch, db: Path, *, active: bool = False):
     monkeypatch.setattr(deps, "WORKSPACE_PATH", str(db))
     monkeypatch.setattr(deps, "LIBRARY_PATH", str(db))
     monkeypatch.setattr(deps, "SOURCES_PATH", str(db))
+    monkeypatch.setattr(deps, "LIBRARY_STATE_PATH", str(db))
     monkeypatch.setattr(deps, "library", lambda: __import__(
         "novel2epub.config", fromlist=["load_library"]
     ).load_library(db))
@@ -152,18 +153,17 @@ def test_delete_ebook_removes_epub_data_and_automation_but_keeps_history(tmp_pat
     assert row_count(db, "job_queue_history", "id = ?", ("history-a",)) == 1
 
 
-def test_delete_route_success_redirects_to_library(monkeypatch, tmp_path):
+def test_delete_route_success_returns_ok(monkeypatch, tmp_path):
     db, _epub = make_ebook_db(tmp_path)
     client = make_client(monkeypatch, db)
 
     response = client.post(
-        "/library/ebooks/book-a/delete",
+        "/api/ui/library/ebooks/book-a/delete",
         data={"confirm_slug": "book-a"},
-        follow_redirects=False,
     )
 
-    assert response.status_code == 303
-    assert response.headers["location"] == "/library"
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
     assert row_count(db, "ebooks", "slug = ?", ("book-a",)) == 0
 
 
@@ -182,7 +182,7 @@ def test_delete_route_maps_expected_failures(
     client = make_client(monkeypatch, db, active=active)
 
     response = client.post(
-        f"/library/ebooks/{url_slug}/delete",
+        f"/api/ui/library/ebooks/{url_slug}/delete",
         data={"confirm_slug": confirm_slug},
     )
 
@@ -196,7 +196,7 @@ def test_delete_route_maps_epub_failure_to_500(monkeypatch, tmp_path):
 
     with patch("app.ebook_deletion.Path.unlink", side_effect=OSError("locked")):
         response = client.post(
-            "/library/ebooks/book-a/delete",
+            "/api/ui/library/ebooks/book-a/delete",
             data={"confirm_slug": "book-a"},
         )
 
@@ -205,25 +205,25 @@ def test_delete_route_maps_epub_failure_to_500(monkeypatch, tmp_path):
     assert row_count(db, "ebooks", "slug = ?", ("book-a",)) == 1
 
 
-def test_library_renders_per_ebook_delete_trigger_and_no_bulk_delete(monkeypatch, tmp_path):
+def test_library_api_reports_book_with_delete_metadata(monkeypatch, tmp_path):
     db, _epub = make_ebook_db(tmp_path)
     client = make_client(monkeypatch, db)
 
-    response = client.get("/library")
+    response = client.get("/api/ui/library")
 
     assert response.status_code == 200
-    assert 'data-delete-ebook="book-a"' in response.text
-    assert 'id="delete-ebook-modal"' in response.text
-    assert "bulkDelete()" not in response.text
+    data = response.json()
+    slugs = {ebook["slug"] for ebook in data["ebooks"]}
+    assert "book-a" in slugs
 
 
-def test_settings_renders_delete_danger_zone(monkeypatch, tmp_path):
+def test_settings_api_exposes_delete_danger_zone_data(monkeypatch, tmp_path):
     db, _epub = make_ebook_db(tmp_path)
     client = make_client(monkeypatch, db)
 
-    response = client.get("/ebooks/book-a/settings")
+    response = client.get("/api/ui/ebooks/book-a/settings")
 
     assert response.status_code == 200
-    assert 'data-delete-ebook="book-a"' in response.text
-    assert 'id="delete-ebook-modal"' in response.text
-    assert "Vùng nguy hiểm" in response.text
+    data = response.json()
+    assert data["slug"] == "book-a"
+    assert data["novel"]["title"] == "Book A"

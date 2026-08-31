@@ -1,9 +1,7 @@
-"""Trang /storage render được và hiện đúng số liệu.
+"""Trang /storage giờ là route SPA — server trả bundle, dữ liệu qua API.
 
-Trang này từng KHÔNG BAO GIỜ render nổi: template dùng ternary kiểu JS
-(`a ? b : c`) — lỗi cú pháp Jinja nên chết ngay lúc compile — và tham chiếu
-loạt trường (`epub_size`, `raw_files`, ...) mà `ebook_storage_report` chưa bao
-giờ trả về. Không có test nào chạm tới route nên bug lọt qua. Test này giữ cửa.
+Giao diện Jinja2 đã gỡ; `/storage` fallback về index.html của SPA (React
+router tự xử lý). Dữ liệu lưu trữ client đọc qua API JSON.
 """
 from __future__ import annotations
 
@@ -33,8 +31,8 @@ def _seed(tmp_path):
     storage = Storage(tmp_path, "t")
     storage.ensure_dirs()
     ch1, ch2 = Chapter(index=1, url="http://x/1"), Chapter(index=2, url="http://x/2")
-    storage.write_raw(ch1, "你好世界" * 10)
-    storage.write_raw(ch2, "再见世界" * 10)
+    storage.write_raw(ch1, "第一章 开始" * 10)
+    storage.write_raw(ch2, "第二章 剧情" * 10)
     storage.write_translated(ch2, "Xin chào thế giới")
     storage.save_manifest(Manifest(slug="t", chapters=[ch1, ch2]))
     return storage
@@ -50,41 +48,47 @@ def _client(monkeypatch, cfg):
 
 
 def test_storage_page_renders(tmp_path, monkeypatch):
+    """Route /storage trả SPA bundle (index.html), không phải Jinja2."""
     _seed(tmp_path)
     client = _client(monkeypatch, _cfg(tmp_path))
 
     res = client.get("/storage")
 
-    assert res.status_code == 200, res.text[:400]
-    assert "Truyện T" in res.text
+    assert res.status_code == 200
+    assert '<div id="root"></div>' in res.text
+    assert res.headers.get("content-type", "").startswith("text/html")
 
 
 def test_storage_page_shows_counts(tmp_path, monkeypatch):
+    """Số liệu lưu trữ do SPA đọc qua API storage report."""
+    from app.storage_report import ebook_storage_report
+
     _seed(tmp_path)
-    client = _client(monkeypatch, _cfg(tmp_path))
+    _client(monkeypatch, _cfg(tmp_path))
 
-    text = client.get("/storage").text
-
-    assert "2 chương" in text, "phải hiện 2 chương có raw"
-    assert "1 chương" in text, "phải hiện 1 chương đã dịch"
+    report = ebook_storage_report(Storage(tmp_path, "t"), _cfg(tmp_path).epub_path)
+    assert report["raw"] > 0  # raw chương tồn tại
+    assert report["translated"] > 0  # bản dịch chương 2
 
 
 def test_storage_page_marks_epub_missing(tmp_path, monkeypatch):
     _seed(tmp_path)
-    client = _client(monkeypatch, _cfg(tmp_path, epub_path=tmp_path / "missing.epub"))
+    _client(monkeypatch, _cfg(tmp_path, epub_path=tmp_path / "missing.epub"))
 
-    text = client.get("/storage").text
+    from app.storage_report import ebook_storage_report
 
-    assert "Chưa có" in text
+    report = ebook_storage_report(Storage(tmp_path, "t"), tmp_path / "missing.epub")
+    assert report["epub_exists"] is False
 
 
 def test_storage_page_shows_epub_size_when_built(tmp_path, monkeypatch):
     _seed(tmp_path)
     epub = tmp_path / "out.epub"
     epub.write_bytes(b"x" * (2 * 1024 * 1024))
-    client = _client(monkeypatch, _cfg(tmp_path, epub_path=epub))
+    _client(monkeypatch, _cfg(tmp_path, epub_path=epub))
 
-    text = client.get("/storage").text
+    from app.storage_report import ebook_storage_report
 
-    assert "2.0 MB" in text
-    assert "Chưa có" not in text
+    report = ebook_storage_report(Storage(tmp_path, "t"), epub)
+    assert report["epub_exists"] is True
+    assert report["epub"] >= 2 * 1024 * 1024

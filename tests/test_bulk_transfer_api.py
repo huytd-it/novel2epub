@@ -804,7 +804,8 @@ def test_batch_translate_keeps_existing_title_zh(tmp_path, monkeypatch):
     assert res.status_code == 200
 
     ch2 = storage.load_manifest().chapters[0]
-    assert ch2.title == "Tiêu đề mới VI"
+    # title gốc 第一章 → ensure_title_number gắn lại prefix "Chương N: ".
+    assert ch2.title == "Chương 1: Tiêu đề mới VI"
     assert ch2.title_zh == "第一章"
 
 

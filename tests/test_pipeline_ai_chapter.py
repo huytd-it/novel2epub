@@ -5,7 +5,7 @@ meta của chương và preview KHÔNG ghi đè bản dịch hiện tại.
 """
 import pytest
 
-from novel2epub import glossary_ai, pipeline
+from novel2epub import glossary_ai, pipeline, revisions
 from novel2epub.config import (
     Config,
     CrawlConfig,
@@ -31,6 +31,7 @@ def _seed(tmp_path, *, translated="bản dịch cũ"):
     storage.save_manifest(Manifest(slug="t", chapters=[ch]))
     storage.write_raw(ch, "原文")
     if translated is not None:
+        storage.write_branch_text(ch, revisions.BRANCH_LOCAL_MT, translated)
         storage.write_translated(ch, translated)
     return storage, ch
 
@@ -79,7 +80,7 @@ def test_rewrite_preview_does_not_overwrite_translation(tmp_path, monkeypatch):
     pipeline.step_rewrite_preview(_cfg(tmp_path), lambda m: None, index=1)
 
     # Bản dịch hiện tại GIỮ NGUYÊN; bản nháp nằm trong meta để người review duyệt.
-    assert storage.read_translated(ch) == "bản dịch cũ"
+    assert storage.read_branch_text(ch, revisions.BRANCH_LOCAL_MT) == "bản dịch cũ"
     assert storage.read_meta(ch)["ai_rewrite"]["text"] == "bản nháp mới"
 
 

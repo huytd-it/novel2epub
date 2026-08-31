@@ -110,8 +110,6 @@ def _guard_ct2_cuda_before_import() -> None:
 _detect_nvidia_gpu()
 _guard_ct2_cuda_before_import()
 
-ctranslate2 = import_ctranslate2(block_torch=not CT2_IMPORT_ALLOW_TORCH)
-
 BATCH_MIN = 4
 BATCH_MAX = 128
 THREAD_MIN = 1
@@ -235,7 +233,7 @@ def recommend_ct2_threads(cpu_logical: int, *, has_cuda: bool) -> int:
 
 def _ct2_has_cuda() -> bool:
     try:
-        return ctranslate2.get_cuda_device_count() > 0
+        return import_ctranslate2(block_torch=not CT2_IMPORT_ALLOW_TORCH).get_cuda_device_count() > 0
     except Exception:
         return False
 

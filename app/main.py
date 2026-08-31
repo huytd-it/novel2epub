@@ -282,20 +282,19 @@ app.include_router(webui.router)
 if _SPA_BUILT:
     app.mount("/assets", StaticFiles(directory=str(_SPA_DIR / "assets")), name="spa-assets")
 
-    @app.get("/", include_in_schema=False)
-    @app.get("/{path:path}", include_in_schema=False)
-    def spa(path: str = ""):
-        """Mọi đường dẫn con trả về index.html để router phía client tự xử lý.
+    @app.exception_handler(404)
+    async def _spa_fallback(request: Request, exc):
+        """SPA fallback: mọi GET chưa khớp route → trả index.html để React
+        router tự xử lý (pattern chuẩn cho SPA, tránh catch-all `/{path:path}`
+        nuốt các route JSON cụ thể đăng ký sau).
 
         File tĩnh ngoài `assets/` (favicon, font tải rời) vẫn phải trả đúng
-        file, nếu không trình duyệt nhận HTML với đuôi `.woff2`.
-        Không chặn `/api/*` và `/opds/*` để response 404 JSON tới client
-        thay vì HTML.
+        file. API/OPDS không có route → 404 JSON (không trả HTML cho client).
         """
-        # API / OPDS không qua SPA fallback
+        if request.method != "GET":
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        path = request.url.path.lstrip("/")
         if path.startswith("api/") or path.startswith("opds/"):
-            from fastapi.responses import JSONResponse
-
             return JSONResponse({"detail": "Not Found"}, status_code=404)
         candidate = (_SPA_DIR / path).resolve()
         if path and candidate.is_file() and candidate.is_relative_to(_SPA_DIR):

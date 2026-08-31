@@ -285,19 +285,33 @@ _lock_fp = None
 
 
 def acquire_single_instance() -> bool:
-    """Giữ lock file để tránh chạy 2 tray cùng lúc. Trả False nếu đã có instance."""
+    """Chặn 2 tray chạy cùng lúc (cùng workspace/port).
+
+    Khóa file bằng `msvcrt.locking` — PHẢI mở `"a+"` (append, KHÔNG truncate):
+    mở `"w"` sẽ cắt về 0 byte và phá khóa byte của instance trước, khiến hai
+    instance chạy song song (bug gốc). Khóa byte 0 của file `novel2epub-tray.lock`.
+    """
     global _lock_fp
     lock_path = BASE_DIR / LOCK_NAME
     try:
         import msvcrt  # type: ignore
 
-        _lock_fp = open(lock_path, "w")
+        _lock_fp = open(lock_path, "a+")
+        _lock_fp.seek(0)
+        if _lock_fp.read(1) == "":
+            # file trống mới tạo — ghi 1 byte giữ chỗ để vùng khóa tồn tại
+            _lock_fp.seek(0)
+            _lock_fp.write("\0")
+            _lock_fp.flush()
+        _lock_fp.seek(0)
         try:
             msvcrt.locking(_lock_fp.fileno(), msvcrt.LK_NBLCK, 1)  # type: ignore
         except OSError:
             _lock_fp.close()
             _lock_fp = None
             return False
+        # ghi PID ở offset 1+ (byte 0 đang bị khóa)
+        _lock_fp.seek(1)
         _lock_fp.write(str(os.getpid()))
         _lock_fp.flush()
         return True

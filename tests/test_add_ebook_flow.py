@@ -139,7 +139,12 @@ def test_create_ebook_calls_add_ebook(monkeypatch, tmp_path):
 
 
 def test_new_ebook_page_renders(monkeypatch, tmp_path):
-    """Trang riêng Thêm ebook: hiện config global Dịch/AI để duyệt trước khi lưu."""
+    """Trang Thêm ebook là route SPA (`/library/new`) — server trả bundle SPA.
+
+    Giao diện Jinja2 đã gỡ; `/library/ebooks/new` cũ fallback về index.html
+    của SPA (React router tự xử lý). Config global Dịch/AI do client đọc qua
+    API (`/api/ui/...`) chứ không nhúng vào HTML.
+    """
     from tests.conftest import write_db_config
 
     db = write_db_config(
@@ -158,13 +163,13 @@ def test_new_ebook_page_renders(monkeypatch, tmp_path):
 
     res = client.get("/library/ebooks/new")
     assert res.status_code == 200
-    assert "Thêm ebook mới" in res.text
-    assert "model-xem-truoc" in res.text  # config global hiển thị trong preview
-    assert "Hệ thống dịch và AI dùng chung" in res.text
-    assert "Dịch nhanh bằng Local MT" in res.text
-    assert 'aria-live="polite"' in res.text
-    assert "metadataTranslationPending" in res.text
-    assert "Local MT chưa sẵn sàng" in res.text
+    assert '<div id="root"></div>' in res.text  # SPA bundle
+    assert res.headers.get("content-type", "").startswith("text/html")
+
+    # Legacy redirect /app/* → /* vẫn giữ
+    res2 = client.get("/app/library/new", follow_redirects=False)
+    assert res2.status_code == 308
+    assert res2.headers["location"] == "/library/new"
 
 
 def test_preview_returns_crawl_preview(monkeypatch, tmp_path):

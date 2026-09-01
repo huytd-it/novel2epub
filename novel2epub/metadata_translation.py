@@ -62,13 +62,49 @@ def _ai_prompt(title: str, author: str, description: str, subjects: list[str]) -
         }.items()
         if value not in ("", [])
     }
-    return """Bạn là biên tập viên metadata sách sang tiếng Việt.
-Dịch đúng các field có trong JSON đầu vào. Giữ nguyên tên riêng khi không chắc.
-Không thêm thông tin. Giữ nguyên số lượng, thứ tự và boundary từng phần tử subjects.
-Chỉ trả về một JSON object hợp lệ với đúng các key đầu vào; subjects phải là mảng chuỗi.
+    # Mô tả trống nhưng có title/author → yêu cầu AI tự sinh tóm tắt.
+    needs_enrich_description = not description.strip() and bool(title.strip() or author.strip())
+    expected_keys = ["title", "author", "description"]
+    if subjects:
+        expected_keys.append("subjects")
+    # Gợi ý thể loại từ subjects để AI viết mô tả đúng tone hơn
+    hint_subjects = f" Gợi ý thể loại/tag: {', '.join(subjects)}." if subjects else ""
+    enrich_instruction = ""
+    if needs_enrich_description:
+        enrich_instruction = (
+            "\n- description (enrich): JSON đầu vào KHÔNG có description nhưng CÓ title"
+            f"{' / author' if author.strip() else ''}{hint_subjects} → HÃY VIẾT MỚI một đoạn giới thiệu "
+            "ngắn gọn bằng tiếng Việt dựa trên tiêu đề (+ tác giả/thể loại nếu có) và kiến thức về tác phẩm nếu nhận diện được. "
+            "Yêu cầu: 2–4 câu, 70–150 từ, giọng giới thiệu sách hấp dẫn, phù hợp thể loại suy ra từ tiêu đề, "
+            "không spoiler nặng, không bịa chi tiết nhạy cảm/nhân vật không có trong gốc, không thêm disclaimer/hashtag/emoji, "
+            "không để lại tiếng Trung. Nếu không nhận diện được tác phẩm, hãy viết mô tả chung chung nhưng hợp thể loại từ tiêu đề."
+        )
+    else:
+        enrich_instruction = (
+            "\n- description: nếu JSON có description → dịch trọn vẹn sang tiếng Việt mượt, giữ nguyên ý, không thêm bớt."
+        )
 
-JSON đầu vào:
-""" + json.dumps(source, ensure_ascii=False)
+    return (
+        "Bạn là biên tập viên metadata tiểu thuyết (Trung/Anh → Việt) cho hệ thống novel2epub.\n"
+        "Nhiệm vụ: dựa trên JSON đầu vào (có thể chỉ có title/author) để trả về metadata tiếng Việt đầy đủ để hiển thị trên kệ sách và EPUB.\n"
+        "\n"
+        "QUY TẮC DỊCH\n"
+        "- title: dịch sang tiếng Việt tự nhiên, có hồn, không dịch máy/Hán-Việt cứng nhắc; giữ chất liệu gốc nhưng dễ hiểu với độc giả Việt. "
+        "Tên riêng nước ngoài trong tiêu đề giữ dạng Latin gốc khi nhận diện chắc chắn (vd 夏洛克→Sherlock).\n"
+        "- author: phiên âm Hán-Việt hoặc giữ nguyên nếu đã là Latin/Việt; không tự bịa tên mới.\n"
+        "- subjects (thể loại/tag): dịch từng phần tử, giữ nguyên số lượng/thứ tự/boundary, mỗi tag là chuỗi ngắn.\n"
+        f"{enrich_instruction}\n"
+        "- CHUNG: chỉ trả về JSON thuần (không markdown, không ```, không giải thích ngoài JSON). Giữ nguyên tên riêng khi không chắc. Không thêm field ngoài danh sách yêu cầu.\n"
+        "\n"
+        f"FIELD YÊU CẦU TRẢ VỀ: luôn trả JSON object với các key {json.dumps(expected_keys, ensure_ascii=False)}"
+        " (mỗi key là chuỗi tiếng Việt; description là đoạn 2–4 câu; subjects là mảng chuỗi nếu input có subjects).\n"
+        "Nếu input thiếu field nhưng field đó có thể suy ra (đặc biệt description khi có title), hãy điền giá trị tiếng Việt mới thay vì bỏ trống.\n"
+        "\n"
+        "JSON đầu vào:\n"
+        + json.dumps(source, ensure_ascii=False)
+        + f"\n\nYÊU CẦU OUTPUT: trả duy nhất 1 JSON object với key {json.dumps(expected_keys, ensure_ascii=False)}. Ví dụ: "
+        + json.dumps({"title": "Tiêu đề Việt", "author": "Tác giả Việt", "description": "Đoạn giới thiệu 2–4 câu bằng tiếng Việt."}, ensure_ascii=False)
+    )
 
 
 def _parse_ai_json(raw: str) -> dict[str, Any]:
@@ -106,15 +142,29 @@ def _translate_with_ai(
         "description": description,
         "subjects": subjects,
     }
+    # Description có thể được AI "enrich" (tự viết mới) khi input trống nhưng có title/author.
+    needs_enrich_description = not description.strip() and bool(title.strip() or author.strip())
     for field in ("title", "author", "description"):
-        if not source[field]:
-            continue
         value = parsed.get(field)
-        if not isinstance(value, str) or not value.strip():
-            errors[field] = f"AI không trả về {field} hợp lệ."
-            draft[field] = source[field]
+        is_valid = isinstance(value, str) and value.strip()
+        if source[field]:
+            if not is_valid:
+                errors[field] = f"AI không trả về {field} hợp lệ."
+                draft[field] = source[field]
+            else:
+                draft[field] = value.strip()  # type: ignore[union-attr]
         else:
-            draft[field] = value.strip()
+            # source trống: chỉ tự điền khi là description cần enrich, hoặc khi AI trả về title/author dù input thiếu (hiếm).
+            if field == "description" and needs_enrich_description:
+                if is_valid:
+                    draft[field] = value.strip()  # type: ignore[union-attr]
+                else:
+                    errors[field] = "AI không sinh được mô tả từ tiêu đề/tác giả."
+                    draft[field] = ""
+            elif is_valid:
+                draft[field] = value.strip()  # type: ignore[union-attr]
+            else:
+                draft[field] = ""
     if subjects:
         value = parsed.get("subjects")
         if not isinstance(value, list) or len(value) != len(subjects) or not all(
@@ -124,6 +174,13 @@ def _translate_with_ai(
             draft["subjects"] = subjects
         else:
             draft["subjects"] = [item.strip() for item in value]
+    else:
+        # Không có subjects đầu vào nhưng AI có thể gợi ý thể loại từ title (enrich). Nhận nếu hợp lệ, không tính lỗi.
+        value = parsed.get("subjects")
+        if isinstance(value, list) and all(isinstance(item, str) and item.strip() for item in value):
+            cleaned = [item.strip() for item in value if item.strip()]
+            if cleaned:
+                draft["subjects"] = cleaned[:MAX_SUBJECTS]
     return draft, errors
 
 

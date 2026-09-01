@@ -485,8 +485,52 @@ class ScraplingCrawler:
             return text.strip() if text else ""
         return ""
 
+    def _sel_img_url(self, page, selector: str) -> str:
+        """Lấy URL ảnh từ phần tử đầu tiên khớp ``selector`` — ưu tiên attr
+        lazy-load (data-src, data-original, data-lazy-src) rồi src/srcset.
+        Selector khớp trực tiếp <img> hoặc khớp wrapper chứa <img> đều được:
+        nếu phần tử không phải img thì tìm <img> con đầu tiên. Trả "" nếu
+        không tìm thấy URL ảnh."""
+        if not selector:
+            return ""
+        try:
+            results = page.css(selector)
+        except Exception:
+            return ""
+        if not results:
+            return ""
+        el = results[0] if hasattr(results, '__getitem__') else results
+        tag_name = (getattr(el, "tag", "") or "").lower()
+        candidates: list[Any] = [el]
+        # selector trỏ vào wrapper (div/span/a...) — tìm <img> con đầu tiên
+        if tag_name not in ("img", "source", "picture") and not tag_name.endswith("image"):
+            try:
+                children = el.css("img, source")
+                if children:
+                    candidates = list(children)
+            except Exception:
+                pass
+        for node in candidates:
+            for attr in ("data-src", "data-original", "data-lazy-src", "src"):
+                val = (node.attrib.get(attr) or "").strip()
+                if val:
+                    return val
+            srcset = (node.attrib.get("srcset") or "").strip()
+            if srcset:
+                u = srcset.split(",")[0].strip().split(" ")[0]
+                if u:
+                    return u
+        return ""
+
     def _extract_meta(self, page) -> tuple[str, str, str, str]:
-        """Trả (title, author, description, cover_url) từ thẻ OG/meta chuẩn."""
+        """Trả (title, author, description, cover_url).
+
+        Thứ tự ưu tiên: OG/meta chuẩn trước (og:novel:book_name → <title>),
+        sau đó fallback sang wrapper selector của nguồn (title_selector,
+        author_selector, desc_selector — cấu hình trong SourcePreset/CrawlConfig)
+        khi meta chuẩn thiếu. cover_url: og:image → cover_selector →
+        cover_url_pattern (quét URL ảnh trong DOM).
+        """
         title = self._meta_tag(page, "og:novel:book_name", "og:title")
         if not title:
             title_tags = page.css("title")
@@ -494,13 +538,21 @@ class ScraplingCrawler:
                 el = title_tags[0] if hasattr(title_tags, '__getitem__') else title_tags
                 text = el.text if hasattr(el, 'text') else ""
                 title = text.strip() if text else ""
+        if not title:
+            title = self._sel_text(page, self.cfg.title_selector)
 
         author = self._meta_tag(page, "og:novel:author", "author")
+        if not author:
+            author = self._sel_text(page, self.cfg.author_selector)
         description = self._meta_tag(page, "og:description", "description")
+        if not description:
+            description = self._sel_text(page, self.cfg.desc_selector)
 
         cover_url = ""
         og_img = self._meta_tag(page, "og:image")
         cover_url = urljoin(self.cfg.toc_url, og_img) if og_img else ""
+        if not cover_url and self.cfg.cover_selector:
+            cover_url = urljoin(self.cfg.toc_url, self._sel_img_url(page, self.cfg.cover_selector))
         if not cover_url and self.cfg.cover_url_pattern:
             cover_url = self._cover_url_from_pattern(page)
 

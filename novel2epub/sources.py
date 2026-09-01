@@ -83,13 +83,16 @@ class SourcePreset:
     def crawl_overrides(self) -> dict[str, Any]:
         """Dict áp lên nhánh `crawl` của config (bỏ name, url, domains,
         engine, search_*, và field chỉ dùng trong source preset mà không
-        thuộc CrawlConfig: metadata selectors, legacy browser settings)."""
+        thuộc CrawlConfig: legacy browser settings).
+
+        `title_selector/author_selector/desc_selector/cover_selector` thuộc
+        CrawlConfig (wrapper metadata fallback sau OG meta) nên được giữ lại
+        và đi theo preset vào config hiệu lực."""
         data = asdict(self)
         # Field không thuộc CrawlConfig — chỉ là metadata source preset
         _source_only = {
             "name", "url", "domains", "engine",
-            "toc_selector", "chapter_title_selector", "title_selector",
-            "author_selector", "desc_selector", "cover_selector",
+            "toc_selector", "chapter_title_selector",
             "encoding", "user_agent", "magic", "js_code",
             "max_search_results",
             "ai_glossary_enabled", "ai_glossary_extract_prompt", "ai_glossary_merge_prompt",

@@ -131,6 +131,15 @@ class CrawlConfig:
     # Số trang mục lục tối đa (1 = chỉ trang đầu, không phân trang)
     toc_max_pages: int = 5
 
+    # ----- wrapper metadata (trang mục lục) -----
+    # Selector wrapper lấy metadata khi OG/meta chuẩn thiếu — cấu hình theo
+    # nguồn (SourcePreset), đi theo preset vào CrawlConfig để _extract_meta
+    # dùng làm fallback sau og:title/og:novel:author/og:description/og:image.
+    title_selector: str = ""
+    author_selector: str = ""
+    desc_selector: str = ""
+    cover_selector: str = ""
+
     # Regex suy ra URL ảnh bìa từ HTML mục lục khi thẻ og:image thiếu/sai —
     # áp trên các URL ảnh tìm thấy trong DOM (img src, srcset, data-original...)
     cover_url_pattern: str = ""

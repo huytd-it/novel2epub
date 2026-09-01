@@ -8,6 +8,7 @@ import pytest
 
 from novel2epub.config import CrawlConfig, ScraplingConfig
 from novel2epub.crawler import ScraplingCrawler
+from tests.html_dom_mock import _mock_meta_dom_page
 
 
 class TestScraplingImport:
@@ -106,6 +107,80 @@ class TestScraplingFetchToc:
             assert result.author == "Author"
 
 
+class TestExtractMetaWrappers:
+    """_extract_meta fallback wrapper selector từ nguồn (preset) khi OG meta thiếu."""
+
+    def _crawler(self, cfg: CrawlConfig) -> ScraplingCrawler:
+        mock_fetchers = MagicMock()
+        mock_fetchers.Fetcher = MagicMock()
+        mock_fetchers.StealthyFetcher = MagicMock()
+        mock_fetchers.DynamicFetcher = MagicMock()
+        with patch.dict(sys.modules, {"scrapling": MagicMock(), "scrapling.fetchers": mock_fetchers}):
+            return ScraplingCrawler(cfg)
+
+    def test_wrapper_fallback_when_og_missing(self):
+        """OG meta thiếu → lấy title/author/description từ wrapper selector."""
+        page = _mock_meta_dom_page(
+            html=(
+                '<div class="book-title">Tên Truyện Wrapper</div>'
+                '<div class="author">Tác Giả Wrapper</div>'
+                '<div id="intro">Mô tả wrapper.</div>'
+            ),
+        )
+        cfg = CrawlConfig(
+            toc_url="http://example.com/book/1/",
+            title_selector=".book-title",
+            author_selector=".author",
+            desc_selector="#intro",
+        )
+        crawler = self._crawler(cfg)
+        title, author, description, cover = crawler._extract_meta(page)
+        assert title == "Tên Truyện Wrapper"
+        assert author == "Tác Giả Wrapper"
+        assert description == "Mô tả wrapper."
+        assert cover == ""
+
+    def test_og_meta_wins_over_wrapper(self):
+        """OG meta có → wrapper selector không ghi đè."""
+        page = _mock_meta_dom_page(
+            meta={"og:title": "Tên OG", "og:novel:author": "Tác giả OG"},
+            html='<div class="book-title">Tên Wrapper</div><div class="author">TG Wrapper</div>',
+        )
+        cfg = CrawlConfig(toc_url="http://example.com/", title_selector=".book-title", author_selector=".author")
+        crawler = self._crawler(cfg)
+        title, author, _description, _cover = crawler._extract_meta(page)
+        assert title == "Tên OG"
+        assert author == "Tác giả OG"
+
+    def test_cover_selector_wrapper_with_img_child(self):
+        """cover_selector trỏ wrapper chứa <img data-src> → urljoin tuyệt đối."""
+        page = _mock_meta_dom_page(
+            html='<div class="book-img"><img data-src="/img/cover.webp"></div>',
+        )
+        cfg = CrawlConfig(toc_url="http://example.com/book/1/", cover_selector=".book-img")
+        crawler = self._crawler(cfg)
+        _t, _a, _d, cover = crawler._extract_meta(page)
+        assert cover == "http://example.com/img/cover.webp"
+
+    def test_cover_selector_direct_img(self):
+        """cover_selector khớp trực tiếp <img src> → lấy src, urljoin."""
+        page = _mock_meta_dom_page(
+            html='<img class="cover" src="http://cdn.example.com/c.jpg">',
+        )
+        cfg = CrawlConfig(toc_url="http://example.com/book/1/", cover_selector="img.cover")
+        crawler = self._crawler(cfg)
+        _t, _a, _d, cover = crawler._extract_meta(page)
+        assert cover == "http://cdn.example.com/c.jpg"
+
+    def test_cover_url_pattern_used_when_no_cover_selector(self):
+        """Không og:image, không cover_selector → cover_url_pattern quét DOM."""
+        page = _mock_meta_dom_page(
+            html='<div class="book-img"><img src="/static/cover123.webp"></div>',
+        )
+        cfg = CrawlConfig(toc_url="http://example.com/book/1/", cover_url_pattern=r"/cover\d+\.webp")
+        crawler = self._crawler(cfg)
+        _t, _a, _d, cover = crawler._extract_meta(page)
+        assert cover == "http://example.com/static/cover123.webp"
 class TestScraplingFetchChapter:
     def test_fetch_chapter_extracts_text(self):
         """fetch_chapter() extract text từ content_selector."""

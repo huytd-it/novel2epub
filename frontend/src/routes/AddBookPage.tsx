@@ -360,15 +360,17 @@ function TranslateMetaControl({
 
   // Build engine options: Local MT + models từ Dịch chung (global_ai)
   const options = useMemo(() => {
-    const opts: { value: string; label: string }[] = [{ value: "localmt", label: "Local MT (offline)" }];
+    const opts: { value: string; label: string }[] = [{ value: "localmt", label: "Local MT (offline — chỉ dịch y nguyên)" }];
     const t = globalAi.data?.translation_model?.trim();
     const a = globalAi.data?.assistant_model?.trim();
-    if (t) opts.push({ value: `ai:${t}`, label: `AI — ${t} (dịch chương)` });
-    if (a && a !== t) opts.push({ value: `ai:${a}`, label: `AI — ${a} (trợ lý)` });
-    // also allow raw "ai" without model if no modelos set — uses server default
-    if (!t && !a) opts.push({ value: "ai", label: "AI (mặc định Dịch chung)" });
+    if (t) opts.push({ value: `ai:${t}`, label: `AI — ${t} (dịch + sinh mô tả)` });
+    if (a && a !== t) opts.push({ value: `ai:${a}`, label: `AI — ${a} (dịch + sinh mô tả)` });
+    if (!t && !a) opts.push({ value: "ai", label: "AI (mặc định Dịch chung — dịch + sinh mô tả)" });
     return opts;
   }, [globalAi.data]);
+
+  const isAi = engine.startsWith("ai");
+  const willEnrich = isAi && !values.description.trim() && !!values.title.trim();
 
   const translate = async () => {
     const raw = engine.startsWith("ai:") ? engine.slice(3) : engine === "ai" ? "" : "";
@@ -381,11 +383,15 @@ function TranslateMetaControl({
         engine: eng,
         ...(raw ? { model: raw } : {}),
       });
-      onTranslated({
-        title: result.title || values.title,
-        author: result.author || values.author,
-        description: result.description || values.description,
-      });
+      // AI có thể "enrich" description ngay cả khi input trống → ưu tiên result
+      const nextTitle = (result.title ?? "").trim() || values.title;
+      const nextAuthor = (result.author ?? "").trim() || values.author;
+      // description: nếu willEnrich thì luôn lấy result.description (dù values rỗng)
+      const nextDesc = (result.description ?? "").trim() || values.description;
+      onTranslated({ title: nextTitle, author: nextAuthor, description: nextDesc });
+      if (willEnrich && nextDesc && !values.description.trim()) {
+        toast("AI đã dịch tiêu đề/tác giả và tự viết tóm tắt mô tả từ tiêu đề.", "info");
+      }
       if (Object.keys(result.errors ?? {}).length) {
         toast("Dịch có 1 số field lỗi, giữ nguyên bản gốc.", "info");
       }
@@ -395,17 +401,42 @@ function TranslateMetaControl({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Select value={engine} onChange={(e) => setEngine(e.target.value)} className="min-w-[220px] max-w-[280px]" disabled={disabled}>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </Select>
-      <Button size="sm" variant="neutral" loading={mutation.isPending} disabled={disabled} onClick={translate}>
-        Dịch meta
-      </Button>
+    <div className="grid gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={engine} onChange={(e) => setEngine(e.target.value)} className="min-w-[220px] max-w-[280px]" disabled={disabled}>
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </Select>
+        <Button
+          size="sm"
+          variant={isAi ? "primary" : "neutral"}
+          loading={mutation.isPending}
+          disabled={disabled}
+          onClick={translate}
+          title={isAi ? "AI dựa vào tiêu đề + tác giả để dịch tên và tự viết tóm tắt 2–4 câu nếu mô tả trống" : "Dịch máy cục bộ, không sinh mô tả mới"}
+        >
+          {isAi ? "Dịch AI + sinh mô tả" : "Dịch meta"}
+        </Button>
+      </div>
+      {isAi ? (
+        <p className="text-[11px] leading-relaxed opacity-60">
+          {willEnrich ? (
+            <>
+              <span className="font-medium text-primary">AI sẽ dịch tiêu đề/tác giả và tự viết mô tả 2–4 câu</span> từ tiêu đề
+              {values.author.trim() ? ` + tác giả “${values.author.trim()}”` : ""} (mô tả đang trống).
+            </>
+          ) : values.description.trim() ? (
+            <>AI sẽ dịch trọn vẹn tiêu đề, tác giả và mô tả hiện có — không sinh thêm.</>
+          ) : (
+            <>Nhập tiêu đề (và tác giả nếu có) rồi bấm dịch — AI sẽ dịch tên và tự viết tóm tắt nếu mô tả để trống.</>
+          )}
+        </p>
+      ) : (
+        <p className="text-[11px] opacity-50">Local MT chỉ dịch y nguyên các field đã có; không tự sinh mô tả khi trống.</p>
+      )}
     </div>
   );
 }

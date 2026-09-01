@@ -202,6 +202,7 @@ def save_source(
     slug: str,
     toc_url: str = Form(""),
     chapter_link_pattern: str = Form(".*"),
+    cover_url_pattern: str = Form(""),
     max_chapters: int = Form(0),
     delay_seconds: float = Form(1.0),
     max_workers: int = Form(1),
@@ -233,6 +234,7 @@ def save_source(
     crawl: dict = {
         "toc_url": toc_url,
         "chapter_link_pattern": chapter_link_pattern,
+        "cover_url_pattern": cover_url_pattern,
         "max_chapters": max_chapters,
         "max_workers": max(1, max_workers),
         "concurrency_cap": max(0, concurrency_cap),

@@ -23,7 +23,7 @@ import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/Field"
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { fetchAndMergeModels, ModelField } from "@/components/AiProviderFields";
-import { DomInspector, RegexField, SelectorField, WrapperHint } from "@/components/CrawlSelectorLab";
+import { DomInspector, RegexField, SelectorField, extractImageUrls } from "@/components/CrawlSelectorLab";
 
 /* ── Mô tả field dùng chung cho mọi tab ──────────────────────────────── */
 
@@ -277,6 +277,72 @@ function SectionForm<S extends SettingsSection>({
   );
 }
 
+/* ── Helpers cho tab Nguồn — giống SourcesPage ─────────────────────── */
+
+const SETTINGS_DOM_CACHE_KEY = "n2e:domLab:settings:v1";
+
+function settingsDomCacheKey(slug: string): string {
+  return `settings:${slug}`;
+}
+
+function readSettingsDomCache(): Record<string, { toc: { html: string; sampleLinks: string[]; url: string } | null; chapter: { html: string; sampleLinks: string[]; url: string } | null }> {
+  try {
+    const raw = sessionStorage.getItem(SETTINGS_DOM_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, { toc: { html: string; sampleLinks: string[]; url: string } | null; chapter: { html: string; sampleLinks: string[]; url: string } | null }>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSettingsDomCache(all: Record<string, { toc: { html: string; sampleLinks: string[]; url: string } | null; chapter: { html: string; sampleLinks: string[]; url: string } | null }>) {
+  try {
+    sessionStorage.setItem(SETTINGS_DOM_CACHE_KEY, JSON.stringify(all));
+  } catch {
+    // quota exceeded — best effort
+  }
+}
+
+function getSettingsDomForKey(slug: string): { toc: { html: string; sampleLinks: string[]; url: string } | null; chapter: { html: string; sampleLinks: string[]; url: string } | null } | null {
+  try {
+    const all = readSettingsDomCache();
+    return all[settingsDomCacheKey(slug)] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function setSettingsDomForKey(slug: string, data: { toc: { html: string; sampleLinks: string[]; url: string } | null; chapter: { html: string; sampleLinks: string[]; url: string } | null }) {
+  const all = readSettingsDomCache();
+  all[settingsDomCacheKey(slug)] = data;
+  writeSettingsDomCache(all);
+}
+
+const SETTINGS_COVER_QUICK = [
+  { label: "\\.webp$", value: "\\.webp$", title: "Ảnh webp" },
+  { label: "jpe?g|png|webp", value: "\\.(?:jpe?g|png|webp)(?:[?\"']|$)", title: "Đuôi ảnh phổ biến" },
+  { label: "…cover…", value: "cover[^\"'\\s]*", title: "URL chứa 'cover'" },
+];
+
+function SettingsSubCard({ title, hint, children }: { title: string; hint?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="rounded-box border border-base-300 bg-base-200/30 p-3 space-y-3">
+      <div className="text-[11px] font-semibold tracking-wide uppercase opacity-60">{title}</div>
+      {hint ? <p className="text-[11px] leading-relaxed opacity-60">{hint}</p> : null}
+      {children}
+    </div>
+  );
+}
+
+function SettingsPairCard({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-box border border-base-300 bg-base-100 p-3 space-y-3">
+      <div className="text-[11px] font-semibold tracking-wide uppercase opacity-60">{title}</div>
+      {hint ? <p className="text-[11px] leading-relaxed opacity-60">{hint}</p> : null}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">{children}</div>
+    </div>
+  );
+}
+
 /* ── Enhanced Source tab với DOM lab ──────────────────────────────── */
 
 function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettings["source"]; banner?: React.ReactNode }) {
@@ -286,14 +352,16 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(server), [draft, server]);
   useEffect(() => { if (!dirty) setDraft(server); }, [server, dirty]);
 
-  const [tocDom, setTocDom] = useState<{ html: string; sampleLinks: string[]; url: string } | null>(null);
-  const [chapterDom, setChapterDom] = useState<{ html: string; sampleLinks: string[]; url: string } | null>(null);
+  const [tocDom, setTocDom] = useState<{ html: string; sampleLinks: string[]; url: string } | null>(() => getSettingsDomForKey(slug)?.toc ?? null);
+  const [chapterDom, setChapterDom] = useState<{ html: string; sampleLinks: string[]; url: string } | null>(() => getSettingsDomForKey(slug)?.chapter ?? null);
+  const [tab, setTab] = useState<"toc" | "chapter" | "meta" | "advanced">("toc");
   const [validateLoading, setValidateLoading] = useState(false);
   const [validateWarnings, setValidateWarnings] = useState<string[]>([]);
 
   const tocHtml = tocDom?.html || "";
   const chapterHtml = chapterDom?.html || "";
   const tocSampleLinks = tocDom?.sampleLinks || [];
+  const tocImageUrls = useMemo(() => extractImageUrls(tocHtml, tocDom?.url || ""), [tocHtml, tocDom?.url]);
 
   const set = (key: string, value: unknown) => setDraft((prev) => ({ ...prev, [key]: value as never }));
 
@@ -308,39 +376,95 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
   };
 
   const handleDom = (info: { html: string; sampleLinks: string[]; url: string; which: "toc" | "chapter" }) => {
-    if (info.which === "toc") setTocDom({ html: info.html, sampleLinks: info.sampleLinks, url: info.url });
-    else setChapterDom({ html: info.html, sampleLinks: info.sampleLinks, url: info.url });
+    const snap = { html: info.html, sampleLinks: info.sampleLinks, url: info.url };
+    if (info.which === "toc") {
+      const nextChapter = chapterDom;
+      setTocDom(snap);
+      setSettingsDomForKey(slug, { toc: snap, chapter: nextChapter });
+    } else {
+      const nextToc = tocDom;
+      setChapterDom(snap);
+      setSettingsDomForKey(slug, { toc: nextToc, chapter: snap });
+    }
   };
 
   const runValidate = async () => {
-    const html = tocHtml || chapterHtml;
-    if (!html.trim()) { toast("Tải DOM mục lục/chương trước đã.", "error"); return; }
-    const selectors: Record<string, string> = {};
-    const keys = ["content_selector", "toc_next_page_selector", "next_page_selector"] as const;
-    for (const k of keys) {
-      const v = String((draft as unknown as Record<string, unknown>)[k] || "").trim();
-      if (v) selectors[k] = v;
+    const hasToc = Boolean(tocDom?.html?.trim());
+    const hasChap = Boolean(chapterDom?.html?.trim());
+    if (!hasToc && !hasChap) { toast("Tải DOM mục lục/chương trước đã.", "error"); return; }
+    const pickSelectors = (keys: (keyof EbookSettings["source"] & string)[]) => {
+      const out: Record<string, string> = {};
+      for (const k of keys) {
+        const v = String((draft as unknown as Record<string, unknown>)[k] || "").trim();
+        if (v) out[k] = v;
+      }
+      return out;
+    };
+    type ValidateRes = { counts: Record<string, number>; pattern_hits: Record<string, { ok: boolean; matched: number; total: number; error?: string }>; warnings: string[] };
+    const TOC_KEYS = ["toc_next_page_selector"] as const;
+    const CHAPTER_KEYS = ["content_selector", "next_page_selector"] as const;
+    const coverPat = String((draft as unknown as Record<string, unknown>).cover_url_pattern || "").trim();
+    let coverPatternError = "";
+    if (coverPat) {
+      try { new RegExp(coverPat); } catch (e) { coverPatternError = `Ảnh bìa: cover_url_pattern lỗi cú pháp — ${e instanceof Error ? e.message : String(e)}`; }
     }
-    // wrapper metadata
-    const patterns: Record<string, string> = {};
-    const pat = String(draft.chapter_link_pattern || "").trim();
-    if (pat) patterns["chapter_link_pattern"] = pat;
-    const nxtPat = String(draft.next_page_url_pattern || "").trim();
-    if (nxtPat) patterns["next_page_url_pattern"] = nxtPat;
     setValidateLoading(true);
     try {
-      const res = await api.post<{ warnings: string[] }>("/api/ui/sources/validate-selectors", { body: { html, url: tocDom?.url || draft.toc_url, selectors, patterns, sample_links: tocSampleLinks } });
-      setValidateWarnings(res.warnings || []);
-      toast(res.warnings.length ? `Có ${res.warnings.length} cảnh báo.` : "Selector/regex OK.", res.warnings.length ? "info" : "ok");
+      const allWarnings: string[] = [];
+      if (coverPatternError) allWarnings.push(coverPatternError);
+      if (hasToc) {
+        const selectors = pickSelectors([...TOC_KEYS] as unknown as (keyof EbookSettings["source"] & string)[]);
+        const patterns: Record<string, string> = {};
+        const chap = String(draft.chapter_link_pattern || "").trim();
+        if (chap) patterns["chapter_link_pattern"] = chap;
+        if (Object.keys(selectors).length || Object.keys(patterns).length) {
+          const res = await api.post<ValidateRes>("/api/ui/sources/validate-selectors", { body: { html: tocDom!.html, url: tocDom!.url || draft.toc_url, selectors, patterns, sample_links: tocDom!.sampleLinks || [] } });
+          allWarnings.push(...(res.warnings || []).map((w) => `Mục lục: ${w}`));
+        }
+      }
+      if (hasChap) {
+        const selectors = pickSelectors([...CHAPTER_KEYS] as unknown as (keyof EbookSettings["source"] & string)[]);
+        const patterns: Record<string, string> = {};
+        const nxt = String(draft.next_page_url_pattern || "").trim();
+        if (nxt) patterns["next_page_url_pattern"] = nxt;
+        if (Object.keys(selectors).length || Object.keys(patterns).length) {
+          const res = await api.post<ValidateRes>("/api/ui/sources/validate-selectors", { body: { html: chapterDom!.html, url: chapterDom!.url || tocDom?.url || draft.toc_url, selectors, patterns, sample_links: [] } });
+          allWarnings.push(...(res.warnings || []).map((w) => `Chương: ${w}`));
+        }
+      }
+      if (allWarnings.length === 0) {
+        const hasAnySelector = [...TOC_KEYS, ...CHAPTER_KEYS].some((k) => String((draft as unknown as Record<string, unknown>)[k] || "").trim());
+        const hasAnyPattern = Boolean(String(draft.chapter_link_pattern || "").trim() || String(draft.next_page_url_pattern || "").trim() || coverPat);
+        if (!hasAnySelector && !hasAnyPattern) {
+          toast("Chưa nhập selector/regex nào để kiểm tra.", "info");
+          setValidateWarnings([]);
+          return;
+        }
+      }
+      setValidateWarnings(allWarnings);
+      toast(allWarnings.length ? `Có ${allWarnings.length} cảnh báo (đã tách theo DOM).` : "Selector/regex OK trên đúng DOM.", allWarnings.length ? "info" : "ok");
     } catch (e) { toast(e instanceof Error ? e.message : String(e), "error"); }
     finally { setValidateLoading(false); }
+  };
+
+  const tabs: { key: "toc" | "chapter" | "meta" | "advanced"; label: string }[] = [
+    { key: "toc", label: "① Mục lục" },
+    { key: "chapter", label: "② Chương" },
+    { key: "meta", label: "Ảnh bìa & Crawl" },
+    { key: "advanced", label: "Nâng cao" },
+  ];
+  const tabBadges: Record<"toc" | "chapter" | "meta" | "advanced", React.ReactNode> = {
+    toc: tocHtml ? <Badge tone="celadon" className="normal-case text-[10px]">{Math.round(tocHtml.length / 1024)} KB · {tocSampleLinks.length} link</Badge> : <Badge tone="gold" className="normal-case text-[10px]">chưa tải</Badge>,
+    chapter: chapterHtml ? <Badge tone="celadon" className="normal-case text-[10px]">{Math.round(chapterHtml.length / 1024)} KB</Badge> : <Badge tone="gold" className="normal-case text-[10px]">chưa tải</Badge>,
+    meta: tocHtml ? <Badge tone="celadon" className="normal-case text-[10px]">{tocImageUrls.length} ảnh</Badge> : <Badge tone="gold" className="normal-case text-[10px]">chưa có DOM</Badge>,
+    advanced: <Badge tone="indigo" className="normal-case text-[10px]">nâng cao</Badge>,
   };
 
   return (
     <Panel className="overflow-hidden">
       <PanelHeader
         title="Nguồn"
-        hint="Cách crawl mục lục và nội dung chương — wrapper thu hẹp phạm vi, regex lọc link"
+        hint="Cách crawl mục lục và nội dung chương — wrapper thu hẹp phạm vi, regex lọc link; DOM riêng từng truyện được lưu qua sessionStorage"
         actions={
           <>
             {dirty ? <Button size="sm" onClick={() => setDraft(server)}>Hủy thay đổi</Button> : null}
@@ -350,88 +474,138 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
       />
       {banner}
       <div className="p-4 space-y-4">
-        {/* URL + chế độ */}
+        {/* URL mục lục — luôn hiện vì là nguồn của DOM lab */}
         <Field label="URL mục lục" hint="Dán link trang danh sách chương để test selector/regex bên dưới">
           <Input value={String(draft.toc_url || "")} onChange={(e) => set("toc_url", e.target.value)} placeholder="https://example.com/book/123/" spellCheck={false} className="w-full font-mono text-xs" />
         </Field>
 
-        {/* Wrapper + regex lọc link */}
-        <fieldset className="rounded-box border border-base-300 p-3 space-y-3">
-          <legend className="px-1 text-[11px] font-semibold tracking-wide uppercase opacity-60">Wrapper mục lục &amp; regex lọc link chương</legend>
-          <WrapperHint />
-          <RegexField
-            label="Regex lọc link chương"
-            hint="Chỉ khớp URL CHƯƠNG tuyệt đối. Tránh '.*' — sẽ lấy cả menu/nav/footer → crawl hàng trăm URL rác. VD: /chuong-\\d+\\.html$ hoặc /book/\\d+/\\d+\\.html$"
-            value={String(draft.chapter_link_pattern || "")}
-            onChange={(v) => set("chapter_link_pattern", v)}
-            sampleLinks={tocSampleLinks}
-            placeholder="vd: /chuong-\\d+\\.html$"
-          />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <SelectorField label="Wrapper trang kế (mục lục)" hint="Link 'Trang kế' ở mục lục — để trống = chỉ 1 trang." value={String(draft.toc_next_page_selector || "")} onChange={(v) => set("toc_next_page_selector", v)} html={tocHtml} placeholder=".pagination a.next" expectOne />
-            <Field label="Số trang mục lục tối đa" hint="1 = chỉ trang đầu"><Input type="number" value={String((draft as unknown as { toc_max_pages: number }).toc_max_pages ?? 5)} onChange={(e) => set("toc_max_pages", e.target.value === "" ? 5 : Number(e.target.value))} /></Field>
-          </div>
-        </fieldset>
-
-        {/* DOM lab */}
-        <fieldset className="rounded-box border border-base-300 p-3 space-y-3">
-          <legend className="px-1 text-[11px] font-semibold tracking-wide uppercase opacity-60">Phòng thí nghiệm DOM — lưu trữ &amp; kiểm tra</legend>
-          <DomInspector tocUrl={String(draft.toc_url || "")} chapterUrl={tocSampleLinks[0] || ""} scraplingMode={String(draft.scrapling_mode || "fetcher")} onDom={handleDom} html={tocHtml || chapterHtml} sampleLinks={tocSampleLinks} />
+        {/* DOM lab — lưu riêng TOC + Chương mẫu cho truyện này, ghi đè khi tải lại */}
+        <div className="space-y-2 rounded-box border border-base-300 bg-base-100 p-3">
+          <DomInspector tocUrl={String(draft.toc_url || "")} chapterUrl={tocSampleLinks[0] || ""} scraplingMode={String(draft.scrapling_mode || "fetcher")} onDom={handleDom} toc={tocDom} chapter={chapterDom} />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" loading={validateLoading} onClick={runValidate} disabled={!tocHtml && !chapterHtml}>Kiểm tra wrapper/regex trên DOM</Button>
-            {tocDom || chapterDom ? <span className="text-xs opacity-50 self-center">TOC {tocDom ? `${Math.round(tocDom.html.length / 1024)} KB` : "—"} · Chương {chapterDom ? `${Math.round(chapterDom.html.length / 1024)} KB` : "—"}</span> : null}
+            {tocDom || chapterDom ? <span className="text-xs opacity-50 self-center">TOC {tocDom ? `${Math.round(tocDom.html.length / 1024)} KB` : "—"} · Chương {chapterDom ? `${Math.round(chapterDom.html.length / 1024)} KB` : "—"} · tải lại sẽ ghi đè</span> : <span className="text-xs opacity-50 self-center">Tải cả 2 loại DOM để kiểm chính xác — DOM lưu riêng theo truyện, qua sessionStorage.</span>}
           </div>
           {validateWarnings.length > 0 ? (
             <ul className="list-disc pl-5 text-xs space-y-1">
               {validateWarnings.map((w, i) => <li key={i} className={clsx(w.includes("quá rộng") || w.includes("toàn bộ") ? "text-warning" : w.includes("lỗi") || w.includes("không khớp") ? "text-error" : "opacity-80")}>{w}</li>)}
             </ul>
           ) : null}
-        </fieldset>
+        </div>
 
-        {/* Content wrapper + next page + other fields */}
-        <fieldset className="rounded-box border border-base-300 p-3">
-          <legend className="px-1 text-[11px] font-semibold tracking-wide uppercase opacity-60">Wrapper nội dung &amp; phân trang chương</legend>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <SelectorField label="Wrapper nội dung chương" hint="Container hẹp nhất bao trọn phần chữ — fallback #content nếu trống." value={String(draft.content_selector || "")} onChange={(v) => set("content_selector", v)} html={chapterHtml || tocHtml} placeholder="#content, #chaptercontent, .read-content" expectOne wrapperNote="wrapper" />
-            </div>
-            <SelectorField label="Wrapper trang kế (nội dung)" hint="Khi 1 chương chia nhiều trang" value={String(draft.next_page_selector || "")} onChange={(v) => set("next_page_selector", v)} html={chapterHtml || tocHtml} placeholder="a.next, #next_url" expectOne />
-            <RegexField label="Regex URL trang kế" hint="Phải có 1 nhóm bắt (\\d+)" value={String(draft.next_page_url_pattern || "")} onChange={(v) => set("next_page_url_pattern", v)} sampleLinks={[]} placeholder="(\\d+)\\.html$" />
-            <Field label="Số trang tối đa / chương"><Input type="number" value={String(draft.max_pages_per_chapter ?? 10)} onChange={(e) => set("max_pages_per_chapter", e.target.value === "" ? 10 : Number(e.target.value))} /></Field>
+        {/* Tabs: Toc | Chapter | Meta | Advanced */}
+        <div role="tablist" className="tabs tabs-box tabs-sm w-fit">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              role="tab"
+              type="button"
+              className={clsx("tab gap-1.5 whitespace-nowrap", tab === t.key && "tab-active")}
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+              <span className="hidden sm:inline">{tabBadges[t.key]}</span>
+            </button>
+          ))}
+        </div>
+
+        {tab === "toc" ? (
+          <div className="space-y-3">
+            <p className="text-[11px] leading-relaxed opacity-60">Các field bên dưới chỉ đếm khớp trên <b>DOM Mục lục</b> đã tải ở phòng lab trên. “Chọn từ DOM” sẽ mở đúng HTML Mục lục. {!tocHtml ? <span className="text-warning">Tải DOM Mục lục để bật đếm khớp &amp; gợi ý.</span> : null}</p>
+            <SettingsPairCard
+              title="Link chương — wrapper + regex phối hợp"
+              hint="Crawler chỉ xét các <a> nằm trong Wrapper mục lục, rồi mới lọc bằng Regex. Thu hẹp wrapper (vd #list) + regex cụ thể (vd /chuong-\\d+\\.html$) loại menu/nav."
+            >
+              <div className="space-y-1 text-[11px] opacity-60">Wrapper mục lục sẽ dùng preset/mặc định nếu để trống ở đây. Chỉ ghi đè khi muốn test riêng truyện này.</div>
+              <RegexField
+                label="Regex lọc link chương"
+                hint="Chỉ khớp URL CHƯƠNG tuyệt đối. Tránh '.*' — sẽ lấy cả menu/nav/footer → crawl hàng trăm URL rác. VD: /chuong-\\d+\\.html$ hoặc /book/\\d+/\\d+\\.html$"
+                value={String(draft.chapter_link_pattern || "")}
+                onChange={(v) => set("chapter_link_pattern", v)}
+                sampleLinks={tocSampleLinks}
+                placeholder="vd: /chuong-\\d+\\.html$"
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <SelectorField label="Wrapper trang kế (mục lục)" hint="Link 'Trang kế' ở mục lục — để trống = chỉ 1 trang." value={String(draft.toc_next_page_selector || "")} onChange={(v) => set("toc_next_page_selector", v)} html={tocHtml} placeholder=".pagination a.next" expectOne candidateKind="next-link" />
+                <Field label="Số trang mục lục tối đa" hint="1 = chỉ trang đầu"><Input type="number" value={String((draft as unknown as { toc_max_pages: number }).toc_max_pages ?? 5)} onChange={(e) => set("toc_max_pages", e.target.value === "" ? 5 : Number(e.target.value))} /></Field>
+              </div>
+            </SettingsPairCard>
+          </div>
+        ) : null}
+
+        {tab === "chapter" ? (
+          <div className="space-y-3">
+            <p className="text-[11px] leading-relaxed opacity-60">Các field bên dưới chỉ đếm khớp trên <b>DOM Chương mẫu</b>. “Chọn từ DOM” sẽ mở đúng HTML chương. {!chapterHtml ? <span className="text-warning">Tải DOM Chương mẫu để bật đếm khớp &amp; gợi ý.</span> : null}</p>
+            <SettingsSubCard title="Wrapper nội dung chương" hint="Container hẹp nhất bao trọn phần chữ — fallback #content nếu trống. DOM Chương mẫu.">
+              <SelectorField label="Wrapper nội dung chương" hint="Container nội dung thực của trang chương" value={String(draft.content_selector || "")} onChange={(v) => set("content_selector", v)} html={chapterHtml || tocHtml} placeholder="#content, #chaptercontent, .read-content" expectOne wrapperNote="wrapper" candidateKind="text-wrapper" />
+            </SettingsSubCard>
+            <SettingsPairCard
+              title="Phân trang chương — wrapper + regex phối hợp"
+              hint="Ưu tiên tìm link trang kế qua wrapper selector; regex là fallback khi chỉ có URL tăng số (nhóm bắt \\d+). Giới hạn số trang / chương tránh vòng lặp."
+            >
+              <SelectorField label="Wrapper trang kế (nội dung)" hint="DOM Chương mẫu" value={String(draft.next_page_selector || "")} onChange={(v) => set("next_page_selector", v)} html={chapterHtml || tocHtml} placeholder="a.next, #next_url" expectOne candidateKind="next-link" />
+              <div className="space-y-3">
+                <RegexField label="Regex URL trang kế" hint="Phải có 1 nhóm bắt (\\d+)" value={String(draft.next_page_url_pattern || "")} onChange={(v) => set("next_page_url_pattern", v)} sampleLinks={[]} placeholder="(\\d+)\\.html$" allowEmpty />
+                <Field label="Số trang tối đa / chương"><Input type="number" value={String(draft.max_pages_per_chapter ?? 10)} onChange={(e) => set("max_pages_per_chapter", e.target.value === "" ? 10 : Number(e.target.value))} /></Field>
+              </div>
+            </SettingsPairCard>
             <Field label="Giới hạn số chương" hint="0 = không giới hạn"><Input type="number" value={String(draft.max_chapters ?? 0)} onChange={(e) => set("max_chapters", e.target.value === "" ? 0 : Number(e.target.value))} /></Field>
           </div>
-        </fieldset>
+        ) : null}
 
-        {/* Các field crawl còn lại */}
-        <fieldset className="rounded-box border border-base-300 p-3">
-          <legend className="px-1 text-[11px] font-semibold tracking-wide uppercase opacity-60">Crawl nâng cao</legend>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-            <Field label="Delay giữa các request (giây)"><Input type="number" step={0.1} value={String(draft.delay_seconds ?? 1)} onChange={(e) => set("delay_seconds", e.target.value === "" ? 1 : Number(e.target.value))} /></Field>
-            <Field label="Số luồng crawl song song"><Input type="number" value={String(draft.max_workers ?? 1)} onChange={(e) => set("max_workers", e.target.value === "" ? 1 : Number(e.target.value))} /></Field>
-            <Field label="Trần song song theo nguồn" hint="0 = mặc định theo chế độ crawl"><Input type="number" value={String(draft.concurrency_cap ?? 0)} onChange={(e) => set("concurrency_cap", e.target.value === "" ? 0 : Number(e.target.value))} /></Field>
-            <Field label="Impersonate (fingerprint trình duyệt)"><Input value={String(draft.impersonate || "")} onChange={(e) => set("impersonate", e.target.value)} spellCheck={false} /></Field>
-            <Field label="Proxy"><Input value={String(draft.proxy || "")} onChange={(e) => set("proxy", e.target.value)} placeholder="http://... hoặc socks5://host:port" spellCheck={false} /></Field>
-            <Field label="Chế độ crawl">
-              <Select value={String(draft.scrapling_mode || "fetcher")} onChange={(e) => set("scrapling_mode", e.target.value)}>
-                <option value="fetcher">fetcher (nhanh nhất)</option>
-                <option value="stealthy">stealthy</option>
-                <option value="dynamic">dynamic (render JS)</option>
-              </Select>
-            </Field>
-            <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.headless)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("headless", e.target.checked)} />Chạy headless {draft.scrapling_mode === "fetcher" ? <span className="text-xs opacity-50">— không áp dụng ở fetcher</span> : null}</label>
-            <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.solve_cloudflare)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("solve_cloudflare", e.target.checked)} />Giải Cloudflare challenge</label>
-            <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.network_idle)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("network_idle", e.target.checked)} />Đợi mạng nhàn rỗi</label>
-            <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.dns_over_https)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("dns_over_https", e.target.checked)} />DNS-over-HTTPS</label>
-            <Field label="Số lần thử lại"><Input type="number" value={String(draft.retry_attempts ?? 3)} onChange={(e) => set("retry_attempts", e.target.value === "" ? 3 : Number(e.target.value))} /></Field>
-            <Field label="Delay thử lại (giây)"><Input type="number" step={0.1} value={String(draft.retry_delay_seconds ?? 5)} onChange={(e) => set("retry_delay_seconds", e.target.value === "" ? 5 : Number(e.target.value))} /></Field>
-            <Field label="Hệ số backoff"><Input type="number" step={0.1} value={String(draft.retry_backoff ?? 2)} onChange={(e) => set("retry_backoff", e.target.value === "" ? 2 : Number(e.target.value))} /></Field>
-            <Field label="Delay thử lại tối đa (giây)"><Input type="number" value={String(draft.retry_max_delay_seconds ?? 120)} onChange={(e) => set("retry_max_delay_seconds", e.target.value === "" ? 120 : Number(e.target.value))} /></Field>
-            <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.retry_respect_retry_after)} onChange={(e) => set("retry_respect_retry_after", e.target.checked)} />Tôn trọng header Retry-After</label>
-            <div className="md:col-span-2 lg:col-span-3">
-              <Field label="Regex loại bỏ nội dung thừa" hint="1 pattern / dòng — loại bỏ dòng chứa quảng cáo/rác"><Textarea rows={4} value={String(draft.strip_patterns || "")} onChange={(e) => set("strip_patterns", e.target.value)} className="font-mono text-xs" spellCheck={false} /></Field>
-            </div>
+        {tab === "meta" ? (
+          <div className="space-y-3">
+            <p className="text-[11px] leading-relaxed opacity-60">Ảnh bìa lấy từ <b>DOM Mục lục</b>. og:image là mặc định; regex bên dưới là fallback khi og:image thiếu/sai (quét <code className="px-1 py-0.5 rounded bg-base-200">&lt;img&gt;</code> trong DOM mục lục, URL đầu khớp được dùng).</p>
+            <SettingsPairCard
+              title="Ảnh bìa — regex URL ảnh (fallback og:image)"
+              hint="Regex quét URL ảnh tuyệt đối từ DOM Mục lục; URL đầu tiên khớp được dùng nếu og:image thiếu. Đếm khớp dưới regex dựa trên URL ảnh đã trích từ DOM."
+            >
+              <RegexField
+                label="Regex URL ảnh bìa"
+                hint="Quét URL ảnh trong DOM mục lục; URL đầu khớp làm ảnh bìa khi og:image thiếu. VD: https://cdn\\.example\\.com/covers/.*\\.jpg"
+                value={String((draft as unknown as Record<string, unknown>).cover_url_pattern || "")}
+                onChange={(v) => set("cover_url_pattern", v)}
+                sampleLinks={tocImageUrls}
+                placeholder="vd: https://cdn\\.example\\.com/covers/.*\\.jpg"
+                quick={SETTINGS_COVER_QUICK}
+                allowEmpty
+              />
+            </SettingsPairCard>
+            <p className="text-[11px] opacity-60">Các field crawl cơ bản (delay, proxy, retry…) nằm ở tab <b>Nâng cao</b>. Override ở đây chỉ ghi đè preset/mặc định khi cần test riêng truyện này.</p>
           </div>
-        </fieldset>
+        ) : null}
+
+        {tab === "advanced" ? (
+          <fieldset className="rounded-box border border-base-300 p-3">
+            <legend className="px-1 text-[11px] font-semibold tracking-wide uppercase opacity-60">Crawl nâng cao — ghi đè riêng truyện này</legend>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              <Field label="Delay giữa các request (giây)"><Input type="number" step={0.1} value={String(draft.delay_seconds ?? 1)} onChange={(e) => set("delay_seconds", e.target.value === "" ? 1 : Number(e.target.value))} /></Field>
+              <Field label="Số luồng crawl song song"><Input type="number" value={String(draft.max_workers ?? 1)} onChange={(e) => set("max_workers", e.target.value === "" ? 1 : Number(e.target.value))} /></Field>
+              <Field label="Trần song song theo nguồn" hint="0 = mặc định theo chế độ crawl"><Input type="number" value={String(draft.concurrency_cap ?? 0)} onChange={(e) => set("concurrency_cap", e.target.value === "" ? 0 : Number(e.target.value))} /></Field>
+              <Field label="Impersonate (fingerprint trình duyệt)"><Input value={String(draft.impersonate || "")} onChange={(e) => set("impersonate", e.target.value)} spellCheck={false} /></Field>
+              <Field label="Proxy"><Input value={String(draft.proxy || "")} onChange={(e) => set("proxy", e.target.value)} placeholder="http://... hoặc socks5://host:port" spellCheck={false} /></Field>
+              <Field label="Chế độ crawl">
+                <Select value={String(draft.scrapling_mode || "fetcher")} onChange={(e) => set("scrapling_mode", e.target.value)}>
+                  <option value="fetcher">fetcher (nhanh nhất)</option>
+                  <option value="stealthy">stealthy</option>
+                  <option value="dynamic">dynamic (render JS)</option>
+                </Select>
+              </Field>
+              <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.headless)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("headless", e.target.checked)} />Chạy headless {draft.scrapling_mode === "fetcher" ? <span className="text-xs opacity-50">— không áp dụng ở fetcher</span> : null}</label>
+              <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.solve_cloudflare)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("solve_cloudflare", e.target.checked)} />Giải Cloudflare challenge</label>
+              <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.network_idle)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("network_idle", e.target.checked)} />Đợi mạng nhàn rỗi</label>
+              <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.dns_over_https)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("dns_over_https", e.target.checked)} />DNS-over-HTTPS</label>
+              <Field label="Số lần thử lại"><Input type="number" value={String(draft.retry_attempts ?? 3)} onChange={(e) => set("retry_attempts", e.target.value === "" ? 3 : Number(e.target.value))} /></Field>
+              <Field label="Delay thử lại (giây)"><Input type="number" step={0.1} value={String(draft.retry_delay_seconds ?? 5)} onChange={(e) => set("retry_delay_seconds", e.target.value === "" ? 5 : Number(e.target.value))} /></Field>
+              <Field label="Hệ số backoff"><Input type="number" step={0.1} value={String(draft.retry_backoff ?? 2)} onChange={(e) => set("retry_backoff", e.target.value === "" ? 2 : Number(e.target.value))} /></Field>
+              <Field label="Delay thử lại tối đa (giây)"><Input type="number" value={String(draft.retry_max_delay_seconds ?? 120)} onChange={(e) => set("retry_max_delay_seconds", e.target.value === "" ? 120 : Number(e.target.value))} /></Field>
+              <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.retry_respect_retry_after)} onChange={(e) => set("retry_respect_retry_after", e.target.checked)} />Tôn trọng header Retry-After</label>
+              <div className="md:col-span-2 lg:col-span-3">
+                <Field label="Regex loại bỏ nội dung thừa" hint="1 pattern / dòng — loại bỏ dòng chứa quảng cáo/rác"><Textarea rows={4} value={String(draft.strip_patterns || "")} onChange={(e) => set("strip_patterns", e.target.value)} className="font-mono text-xs" spellCheck={false} /></Field>
+              </div>
+            </div>
+          </fieldset>
+        ) : null}
       </div>
     </Panel>
   );
@@ -675,11 +849,11 @@ export function SettingsPage() {
         ))}
       </div>
 
-      {tab === "opds" ? <OpdsTab server={data.opds} /> : null}
       {tab === "novel" ? <SectionForm slug={slug} section="novel" title="Truyện" hint="Metadata dùng khi build EPUB" fields={NOVEL_FIELDS} server={data.novel} /> : null}
       {tab === "source" ? <SourceTab slug={slug} server={data.source} banner={sourceBanner} /> : null}
       {tab === "translate" ? <><TranslateTab slug={slug} server={data.translate} meta={data.meta} /><TranslateAiProviderPanel slug={slug} ai={data.ai} /></> : null}
       {tab === "localmt" ? <LocalMtTab slug={slug} server={data.translate} /> : null}
+      {tab === "opds" ? <OpdsTab server={data.opds} /> : null}
       {tab === "reader" ? <SectionForm slug={slug} section="reader" title="Reader" hint="Đẩy bản dịch sang app đọc novel-reader" fields={READER_FIELDS} server={data.reader} /> : null}
       {tab === "output" ? <SectionForm slug={slug} section="output" title="Đầu ra" hint="Vị trí lưu dữ liệu và số luồng xử lý" fields={OUTPUT_FIELDS} server={data.output} /> : null}
 

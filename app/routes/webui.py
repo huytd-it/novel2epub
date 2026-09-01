@@ -1099,6 +1099,7 @@ def ebook_settings(slug: str):
         "source": {
             "toc_url": crawl.toc_url,
             "chapter_link_pattern": crawl.chapter_link_pattern,
+            "cover_url_pattern": crawl.cover_url_pattern,
             "max_chapters": crawl.max_chapters,
             "delay_seconds": crawl.delay_seconds,
             "max_workers": crawl.max_workers,

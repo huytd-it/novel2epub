@@ -25,6 +25,7 @@ export interface NovelSettings {
 export interface SourceSettings {
   toc_url: string;
   chapter_link_pattern: string;
+  cover_url_pattern: string;
   max_chapters: number;
   delay_seconds: number;
   max_workers: number;

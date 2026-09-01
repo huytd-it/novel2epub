@@ -35,6 +35,7 @@ Các field quan trọng:
 | --- | --- |
 | `toc_url` | URL mục lục |
 | `chapter_link_pattern` | Regex chọn link chương |
+| `cover_url_pattern` | Regex suy URL ảnh bìa từ HTML mục lục khi thiếu `og:image` (rỗng = không dùng) |
 | `content_selector` | CSS selector vùng nội dung |
 | `max_chapters` | Giới hạn thử nghiệm, `0` là tất cả |
 | `max_workers` | Số tác vụ crawl yêu cầu |

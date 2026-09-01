@@ -22,9 +22,9 @@ type LibrarySort = "title" | "title_desc" | "created_at" | "created_at_asc" | "u
 function loadViewMode(): ViewMode {
   try {
     const value = localStorage.getItem("n2e-library-view");
-    return value === "list" || value === "table" ? value : "grid";
+    return (value === "grid" || value === "list" || value === "table") ? value : "table";
   } catch {
-    return "grid";
+    return "table";
   }
 }
 
@@ -173,7 +173,7 @@ export function LibraryPage() {
   const navigate = useNavigate();
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<LibrarySort>("title");
+  const [sort, setSort] = useState<LibrarySort>("updated_at");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(loadPageSize);
   const [view, setView] = useState<ViewMode>(loadViewMode);

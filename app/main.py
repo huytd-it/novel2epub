@@ -279,6 +279,11 @@ app.include_router(tailscale.router)
 app.include_router(webui.router)
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
+
+
 if _SPA_BUILT:
     app.mount("/assets", StaticFiles(directory=str(_SPA_DIR / "assets")), name="spa-assets")
 

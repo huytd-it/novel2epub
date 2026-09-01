@@ -400,7 +400,20 @@ $hidden = @(
     "scrapling.engines.toolbelt.convertor", "scrapling.engines.constants",
     "playwright", "playwright.sync_api", "playwright.async_api",
     "curl_cffi", "curl_cffi.requests",
-    "charset_normalizer", "lxml", "cssselect"
+    "charset_normalizer", "lxml", "cssselect",
+    # Local MT engine (hachimimt) — lazy __getattr__ nên PyInstaller không tự phát hiện
+    "novel2epub.hachimimt", "novel2epub.hachimimt.translator",
+    "novel2epub.hachimimt.models", "novel2epub.hachimimt.hardware",
+    "novel2epub.hachimimt.ct2_safe_import", "novel2epub.hachimimt.token_chunker",
+    "novel2epub.hachimimt.text_preprocess", "novel2epub.hachimimt.postprocess_policy",
+    "novel2epub.hachimimt.line_restore", "novel2epub.hachimimt.honorific_normalize",
+    "novel2epub.hachimimt.gpu_setup", "novel2epub.hachimimt.feedback_log",
+    "novel2epub.hachimimt.chunker",
+    "novel2epub.han_cleanup", "novel2epub.idioms", "novel2epub.metadata_translation",
+    "novel2epub.revisions", "novel2epub.characters",
+    # Native deps cho Local MT (ctranslate2 + tokenizer)
+    "ctranslate2", "sentencepiece",
+    "tokenizers", "huggingface_hub", "huggingface_hub.utils"
 )
 
 $addData = @()
@@ -428,11 +441,13 @@ foreach ($d in $addData) { $args += @("--add-data", $d) }
 # Thu gom toan bo scrapling + curl_cffi + playwright (dam bao _wrapper.pyd va data files duoc bundle)
 # scrapling 0.4+ import playwright ngay ca trong fetcher path (toolbelt.convertor) nen
 # phai bundle playwright — neu exclude thi fetcher cung loi "Chua cai scrapling" trong exe.
-$args += @("--collect-all", "scrapling", "--collect-all", "curl_cffi", "--collect-all", "playwright")
+$args += @("--collect-all", "scrapling", "--collect-all", "curl_cffi", "--collect-all", "playwright", "--collect-all", "browserforge", "--collect-all", "apify_fingerprint_datapoints")
+# Local MT native libs (ctranslate2 chứa .dll/.pyd, sentencepiece chứa .pyd)
+$args += @("--collect-all", "ctranslate2", "--collect-all", "sentencepiece", "--collect-all", "tokenizers")
 
 $args += @("--exclude-module", "tkinter.test", "--exclude-module", "sqlite3.test")
 # Loại trừ các module nặng không cần cho exe tray (giảm thời gian build + dung lượng)
-# torch (+cu128 ~2GB) không cần cho chế độ API/translate online; nếu cần local MT thì user tự cài.
+# torch (+cu128 ~2GB) không cần — Local MT dùng ctranslate2 (đã bundle), không cần PyTorch.
 $heavyExcludes = @(
     "torch", "torch.utils.tensorboard", "tensorboard",
     "scipy", "trimesh", "shapely", "networkx", "rtree",

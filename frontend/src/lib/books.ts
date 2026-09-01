@@ -203,7 +203,7 @@ export function usePreviewEbooksBulk() {
 
 export function useTranslateMetadata() {
   return useMutation({
-    mutationFn: (input: { title?: string; author?: string; description?: string; engine?: "localmt" | "ai" }) =>
+    mutationFn: (input: { title?: string; author?: string; description?: string; engine?: "localmt" | "ai"; model?: string }) =>
       api.post<TranslateMetaResult>("/api/ui/library/ebooks/translate-metadata", { body: input }),
   });
 }

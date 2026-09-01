@@ -458,9 +458,12 @@ def _bulk_items(payload: dict) -> dict[str, dict]:
 
 @router.post("/library/ebooks/translate-metadata")
 def library_ebooks_translate_metadata(payload: dict = Body(...)):
-    """JSON API cho SPA: dịch metadata preview (title/author/description) — Local
-    MT là engine mặc định, trả bản nháp tiếng Việt để duyệt, không lưu gì."""
+    """JSON API cho SPA: dịch metadata preview (title/author/description).
+
+    Engine mặc định localmt; AI có thể override model từ Dịch chung.
+    Trả bản nháp tiếng Việt để duyệt, không lưu gì."""
     engine = str(payload.get("engine") or "localmt").strip().lower()
+    model = str(payload.get("model") or "").strip()
     try:
         return library_routes.translate_ebook_metadata(
             deps.cfg(),
@@ -468,6 +471,7 @@ def library_ebooks_translate_metadata(payload: dict = Body(...)):
             author=str(payload.get("author") or ""),
             description=str(payload.get("description") or ""),
             engine=engine,
+            model=model,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -2048,7 +2052,7 @@ def wireguard_delete_api(profile_id: str):
 _SOURCE_EDITABLE_FIELDS = {
     "engine", "url", "domains", "chapter_link_pattern", "content_selector",
     "toc_selector", "chapter_title_selector", "title_selector", "author_selector",
-    "desc_selector", "cover_selector", "encoding", "user_agent", "headless",
+    "desc_selector", "cover_selector", "cover_url_pattern", "encoding", "user_agent", "headless",
     "magic", "js_code", "delay_seconds", "next_page_selector", "next_page_url_pattern",
     "max_pages_per_chapter", "scrapling_mode", "solve_cloudflare", "network_idle",
     "impersonate", "proxy", "dns_over_https", "concurrency_cap", "strip_patterns",
@@ -2159,6 +2163,291 @@ def sources_test_api(request: Request, name: str, payload: dict = Body(...)):
 
     request.app.state.job.start_custom(f"test-source-{name}", _target, category="crawl")
     return {"started": True}
+
+
+@router.post("/sources/inspect")
+def sources_inspect_api(payload: dict = Body(...)):
+    """Fetch 1 URL bằng Scrapling để lấy DOM snapshot — phục vụ picker và
+    kiểm tra selectorwrapper/regex ngay trong modal mà không cần đoán bằng AI.
+
+    Body: {url: str, scrapling_mode?: str, max_chars?: int}
+    Trả: {ok, url, html, truncated, hrefs[], sample_links[]}
+    Lưu trữ DOM ở client (state), backend chỉ fetch và trả HTML."""
+    from novel2epub.config import CrawlConfig, ScraplingConfig
+    from novel2epub.crawler import ScraplingCrawler
+    from novel2epub.selector_ai import collect_sample_links
+
+    url = str(payload.get("url") or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="Thiếu URL.")
+    mode = str(payload.get("scrapling_mode") or "stealthy").strip().lower()
+    if mode not in ("fetcher", "stealthy", "dynamic"):
+        mode = "stealthy"
+    max_chars = int(payload.get("max_chars") or 200_000)
+    max_chars = max(5_000, min(max_chars, 500_000))
+    crawl_cfg = CrawlConfig(toc_url=url)
+    crawl_cfg.scrapling = ScraplingConfig(mode=mode)
+    try:
+        crawler = ScraplingCrawler(crawl_cfg)
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    try:
+        try:
+            page = crawler._fetch_page(url)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"Không tải được trang: {e}") from e
+        raw_html = crawler._last_response_html or ""
+        truncated = len(raw_html) > max_chars
+        html = raw_html[:max_chars]
+        # hrefs cho preview regex
+        hrefs: list[str] = []
+        try:
+            links = page.css("a[href]")
+            if links:
+                for a in links:
+                    href = a.attrib.get("href", "") if hasattr(a, "attrib") else ""
+                    if href:
+                        hrefs.append(str(href).strip())
+                        if len(hrefs) >= 80:
+                            break
+        except Exception:
+            hrefs = []
+        # sample tuyệt đối cùng host có số — dùng cho regex hint
+        try:
+            sample_links = collect_sample_links(url, hrefs if hrefs else [], limit=40)
+        except Exception:
+            sample_links = []
+    finally:
+        try:
+            crawler.close()
+        except Exception:
+            pass
+    return {
+        "ok": True,
+        "url": url,
+        "html": html,
+        "truncated": truncated,
+        "html_length": len(raw_html),
+        "hrefs": hrefs[:80],
+        "sample_links": sample_links,
+        "mode": mode,
+    }
+
+
+@router.post("/sources/validate-selectors")
+def sources_validate_selectors_api(payload: dict = Body(...)):
+    """Đếm số phần tử khớp từng selector trên 1 HTML snapshot.
+
+    Body: {html: str, url?: str, selectors: {field: selector}, patterns?: {field: regex}}
+    Trả: {counts: {field: int (-1=lỗi cú pháp)}, pattern_hits: {field: {ok, matched, total}}, warnings: []}
+    Dùng để hiển thị cảnh báo 'khớp N phần tử' ngay khi user gõ selector/regex."""
+    import re
+
+    from novel2epub.selector_ai import validate_pattern
+
+    html = str(payload.get("html") or "")
+    url = str(payload.get("url") or "").strip()
+    selectors = payload.get("selectors") or {}
+    patterns = payload.get("patterns") or {}
+    sample_links = payload.get("sample_links") or []
+    if not isinstance(selectors, dict):
+        selectors = {}
+    if not isinstance(patterns, dict):
+        patterns = {}
+    if not html or not html.strip():
+        raise HTTPException(status_code=400, detail="Thiếu HTML để kiểm tra selector.")
+    # Chọn parser: ưu tiên scrapling Selector (khớp engine crawl thật), fallback bs4
+    page = None
+    use_scrapling = False
+    try:
+        from scrapling.parser import Selector as ScraplingSelector
+
+        try:
+            page = ScraplingSelector(content=html.encode("utf-8", errors="ignore"), url=url or "http://example.com", encoding="utf-8")
+            use_scrapling = True
+        except Exception:
+            page = None
+    except ImportError:
+        page = None
+    # Fallback soup
+    soup = None
+    if page is None:
+        try:
+            from bs4 import BeautifulSoup
+
+            soup = BeautifulSoup(html, "html.parser")
+        except ImportError:
+            raise HTTPException(status_code=500, detail="Thiếu parser (cần scrapling hoặc beautifulsoup4).")
+
+    counts: dict[str, int] = {}
+    for field, sel in selectors.items():
+        sel = str(sel or "").strip()
+        if not sel:
+            counts[field] = 0
+            continue
+        try:
+            if use_scrapling and page is not None:
+                res = page.css(sel)
+                if res is None:
+                    counts[field] = 0
+                else:
+                    try:
+                        counts[field] = len(res)
+                    except TypeError:
+                        counts[field] = 1 if res else 0
+            else:
+                assert soup is not None
+                counts[field] = len(soup.select(sel))
+        except Exception:
+            counts[field] = -1
+    # pattern validation
+    pattern_hits: dict[str, dict] = {}
+    # nếu không có sample_links, thử rút từ html (a[href])
+    if not sample_links and html:
+        try:
+            if soup is None and page is not None:
+                pass
+            else:
+                if soup is None:
+                    from bs4 import BeautifulSoup
+
+                    soup = BeautifulSoup(html, "html.parser")
+                sample_links = [a.get("href", "") for a in soup.select("a[href]")][:40]
+        except Exception:
+            sample_links = []
+    total = len(sample_links) if isinstance(sample_links, list) else 0
+    for field, pat in patterns.items():
+        pat = str(pat or "").strip()
+        if not pat:
+            pattern_hits[field] = {"ok": True, "matched": 0, "total": total}
+            continue
+        try:
+            re.compile(pat)
+        except re.error as e:
+            pattern_hits[field] = {"ok": False, "error": str(e), "matched": 0, "total": total}
+            continue
+        ok, matched = validate_pattern(pat, sample_links if isinstance(sample_links, list) else [])
+        pattern_hits[field] = {"ok": ok, "matched": matched, "total": total}
+    warnings: list[str] = []
+    for field, cnt in counts.items():
+        if cnt == -1:
+            warnings.append(f"{field}: selector lỗi cú pháp.")
+        elif cnt == 0:
+            warnings.append(f"{field}: không khớp phần tử nào.")
+        elif cnt > 10:
+            warnings.append(f"{field}: khớp {cnt} phần tử — quá rộng, nên thu hẹp wrapper hoặc thêm :nth-child.")
+        elif cnt > 1 and field in ("content_selector", "next_page_selector", "toc_next_page_selector"):
+            # các wrapper đơn trị nên 1
+            warnings.append(f"{field}: khớp {cnt} phần tử — dự kiến 0-1, thêm positional helper (đầu/cuối) nếu cần.")
+        elif cnt > 5 and field in ("title_selector", "author_selector", "cover_selector", "desc_selector", "chapter_title_selector"):
+            warnings.append(f"{field}: khớp {cnt} phần tử — nên 1.")
+    for field, pat in patterns.items():
+        # cover_url_pattern khớp URL ảnh chứ không phải link chương —
+        # sample_links là link chương nên bỏ qua cảnh báo matched=0.
+        if field == "cover_url_pattern":
+            pat_s = str(pat or "").strip()
+            if pat_s:
+                try:
+                    re.compile(pat_s)
+                except re.error as e:
+                    warnings.append(f"{field}: regex lỗi — {e}")
+            continue
+    for field, info in pattern_hits.items():
+        if field == "cover_url_pattern":
+            continue  # đã kiểm riêng ở trên (chỉ kiểm cú pháp, không đối chiếu link chương)
+        if not info.get("ok"):
+            warnings.append(f"{field}: regex lỗi — {info.get('error','')}")
+        elif info.get("total") and info.get("matched") == info.get("total") and info.get("total", 0) > 5:
+            warnings.append(f"{field}: regex khớp toàn bộ {info['total']} link mẫu (.*) — sẽ crawl cả menu, hãy thu hẹp (vd /chuong-\\d+\\.html$).")
+        elif info.get("total") and info.get("matched") == 0:
+            warnings.append(f"{field}: regex không khớp link mẫu nào.")
+    return {"counts": counts, "pattern_hits": pattern_hits, "warnings": warnings, "total_links": total}
+
+
+@router.post("/sources/suggest")
+def sources_suggest_selectors_api(payload: dict = Body(...)):
+    """AI gợi ý selector cho preset từ HTML snapshot đã lưu ở client.
+
+    Không tự fetch — `SourcesPage` đã tải DOM bằng `sources/inspect` thành công
+    mới gọi endpoint này. Body: {html_toc, html_chapter, toc_url, chapter_url,
+    sample_links?} (chấp nhận alias {html, chapter_html, url}). Trả:
+    {ok, fields: {selector field → selector}, diagnostics: {field: count},
+    pattern_ok, pattern_hits, toc_digest, chapter_digest}.
+    """
+    from novel2epub import selector_ai
+    from novel2epub.selector_ai import validate_pattern
+
+    html_toc = str(payload.get("html_toc") or payload.get("html") or "")
+    html_chapter = str(payload.get("html_chapter") or payload.get("chapter_html") or "")
+    if not html_toc and not html_chapter:
+        raise HTTPException(status_code=400, detail="Trả HTML snapshot ở 'html_toc'/'html_chapter' (hoặc 'html').")
+    toc_url = str(payload.get("toc_url") or payload.get("url") or "").strip()
+    chapter_url = str(payload.get("chapter_url") or "").strip()
+    # chapter_url fallback: đoán từ link TOC, giống route cũ
+    sample_links = payload.get("sample_links")
+    if not isinstance(sample_links, list):
+        sample_links = None
+    hrefs: list[str] = []
+    if sample_links is None or len(sample_links) == 0:
+        try:
+            from bs4 import BeautifulSoup
+
+            soups = [BeautifulSoup(html_toc or html_chapter, "html.parser")]
+            for soup in soups:
+                for a in soup.select("a[href]"):
+                    href = a.get("href", "")
+                    if href:
+                        hrefs.append(str(href).strip())
+            sample_links = selector_ai.collect_sample_links(toc_url or "http://example.com", hrefs)
+        except Exception:
+            sample_links = []
+    if not chapter_url and hrefs:
+        guessed = selector_ai.guess_chapter_url(toc_url or "http://example.com", hrefs)
+        if guessed:
+            chapter_url = guessed
+    # Khử kính: đừng cho AI "thấy" HTML thô — chỉ cho digest.
+    try:
+        ai_cfg = deps.cfg().ai.openai
+    except HTTPException:
+        raise
+    if not ai_cfg.base_url or not ai_cfg.model:
+        raise HTTPException(status_code=400, detail="Chưa cấu hình AI (base_url/model) ở Settings › AI biên tập.")
+    from novel2epub import openai_client
+
+    toc_digest, toc_map = selector_ai.build_dom_digest(html_toc or html_chapter, selector_ai.TOC_FIELD_SPECS)
+    chapter_digest, chapter_map = selector_ai.build_dom_digest(html_chapter or html_toc, selector_ai.CHAPTER_FIELD_SPECS)
+    label_map = {**toc_map, **chapter_map}
+    if not label_map and not sample_links:
+        raise HTTPException(status_code=422, detail="Không trích được ứng viên DOM nào — thử tải DOM ở tab 'Mục lục' và 'Chương mẫu' trước.")
+    prompt = selector_ai.build_suggest_prompt(toc_url, chapter_url, toc_digest, chapter_digest, sample_links or [])
+    try:
+        raw = openai_client.run_chat(ai_cfg, prompt)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Gọi AI thất bại: {e}") from e
+    try:
+        fields = selector_ai.parse_suggestion(raw, label_map)
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=f"AI trả về không đọc được: {e}") from e
+
+    chapter_html_fields = {"content_selector", "chapter_title_selector", "next_page_selector"}
+    diagnostics: dict[str, int] = {}
+    for field, sel in fields.items():
+        if field == "chapter_link_pattern" or not sel:
+            continue
+        html = html_chapter if field in chapter_html_fields else html_toc or html_chapter
+        diagnostics[field] = selector_ai.count_matches(html, sel) if html else 0
+    pattern_ok, pattern_hits = validate_pattern(fields.get("chapter_link_pattern", ""), sample_links or [])
+    return {
+        "ok": True,
+        "fields": fields,
+        "diagnostics": diagnostics,
+        "chapter_url": chapter_url,
+        "sample_count": len(sample_links or []),
+        "pattern_ok": pattern_ok,
+        "pattern_hits": pattern_hits,
+        "toc_digest": toc_digest,
+        "chapter_digest": chapter_digest,
+    }
 
 
 # ═══════════════════════════ Workflow / Blockers / Queue ═════════════════

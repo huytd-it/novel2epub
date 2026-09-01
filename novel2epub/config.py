@@ -131,6 +131,10 @@ class CrawlConfig:
     # Số trang mục lục tối đa (1 = chỉ trang đầu, không phân trang)
     toc_max_pages: int = 5
 
+    # Regex suy ra URL ảnh bìa từ HTML mục lục khi thẻ og:image thiếu/sai —
+    # áp trên các URL ảnh tìm thấy trong DOM (img src, srcset, data-original...)
+    cover_url_pattern: str = ""
+
     def __post_init__(self) -> None:
         err = next_page_url_pattern_error(self.next_page_url_pattern)
         if err:

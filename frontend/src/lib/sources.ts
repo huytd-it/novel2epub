@@ -14,6 +14,7 @@ export interface SourcePreset {
   author_selector: string;
   desc_selector: string;
   cover_selector: string;
+  cover_url_pattern: string;
   encoding: string;
   user_agent: string;
   headless: boolean;
@@ -118,6 +119,7 @@ export const EMPTY_PRESET: SourcePreset = {
   author_selector: "",
   desc_selector: "",
   cover_selector: "",
+  cover_url_pattern: "",
   encoding: "",
   user_agent: "",
   headless: false,

@@ -11,6 +11,7 @@ export function Modal({
   children,
   footer,
   wide,
+  xl,
   fullscreen,
 }: {
   open: boolean;
@@ -19,6 +20,8 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  /** Rộng hơn `wide` — dùng cho form nhiều field/cột (vd preset nguồn có DOM lab). */
+  xl?: boolean;
   fullscreen?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -38,6 +41,7 @@ export function Modal({
         className={clsx(
           "modal-box border border-base-300 p-0",
           wide && "max-w-3xl",
+          xl && "max-w-6xl",
           fullscreen && "flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none flex-col sm:h-[calc(100dvh-2rem)] sm:w-[calc(100vw-2rem)]",
         )}
       >
@@ -47,7 +51,7 @@ export function Modal({
             ✕
           </Button>
         </div>
-        <div className={clsx("scroll-slim overflow-y-auto px-4 py-3", fullscreen ? "min-h-0 flex-1" : "max-h-[65vh]")}>
+        <div className={clsx("scroll-slim overflow-y-auto px-4 py-3", fullscreen ? "min-h-0 flex-1" : xl ? "max-h-[80vh]" : "max-h-[65vh]")}>
           {children}
         </div>
         {footer ? (

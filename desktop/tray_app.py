@@ -80,7 +80,7 @@ if str(RESOURCE_DIR) not in sys.path:
 def _parse_env_file(path: Path) -> dict[str, str]:
     data: dict[str, str] = {}
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")
     except Exception:
         return data
     for raw_line in text.splitlines():
@@ -423,6 +423,10 @@ def start_server(host: str, port: int):
             sys.stdout = io.StringIO()  # type: ignore
         if sys.stderr is None:
             sys.stderr = io.StringIO()  # type: ignore
+        if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
+            _default_browsers = Path(os.path.expanduser("~")) / "AppData" / "Local" / "ms-playwright"
+            if _default_browsers.is_dir():
+                os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(_default_browsers)
     db_path = os.environ.get("NOVEL2EPUB_DB") or os.environ.get("NOVEL2EPUB_FILE") or str(BASE_DIR / "novel2epub.db")
     os.environ["NOVEL2EPUB_DB"] = db_path
     try:

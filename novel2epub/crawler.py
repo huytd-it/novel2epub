@@ -501,8 +501,56 @@ class ScraplingCrawler:
         cover_url = ""
         og_img = self._meta_tag(page, "og:image")
         cover_url = urljoin(self.cfg.toc_url, og_img) if og_img else ""
+        if not cover_url and self.cfg.cover_url_pattern:
+            cover_url = self._cover_url_from_pattern(page)
 
         return title, author, description, cover_url
+
+    def _cover_url_from_pattern(self, page) -> str:
+        """Suy URL ảnh bìa bằng `cover_url_pattern` — quét các URL ảnh trong
+        DOM (img src/srcset, lazy-load attrs, style background) rồi trả URL đầu
+        tiên khớp pattern. Ưu tiên ảnh xuất hiện sớm trong trang (ảnh bìa thường
+        ở đầu). Trả "" nếu không có ảnh nào khớp."""
+        pattern_raw = (self.cfg.cover_url_pattern or "").strip()
+        if not pattern_raw:
+            return ""
+        try:
+            pattern = re.compile(pattern_raw)
+        except re.error as e:
+            logger.warning("cover_url_pattern lỗi regex: %s", e)
+            return ""
+        urls: list[str] = []
+        try:
+            for img in page.css("img"):
+                for attr in ("src", "data-src", "data-original", "data-lazy-src"):
+                    val = (img.attrib.get(attr) or "").strip()
+                    if val and val not in urls:
+                        urls.append(val)
+                srcset = (img.attrib.get("srcset") or "").strip()
+                if srcset:
+                    for part in srcset.split(","):
+                        u = part.strip().split(" ")[0]
+                        if u and u not in urls:
+                            urls.append(u)
+        except Exception:
+            pass
+        # cả background-image inline và thẻ <source> trong <picture>
+        try:
+            for el in page.css("[style*='background'], source"):
+                style = " ".join(
+                    filter(None, [el.attrib.get("style", ""), el.attrib.get("srcset", "")])
+                )
+                for m in re.finditer(r"url\((['\"]?)([^'\")]+)\1\)|([^\s,]+\.(?:jpe?g|png|webp|gif|avif))", style, re.IGNORECASE):
+                    u = (m.group(2) or m.group(3) or "").strip()
+                    if u and u not in urls:
+                        urls.append(u)
+        except Exception:
+            pass
+        for u in urls:
+            full = urljoin(self.cfg.toc_url, u)
+            if pattern.search(full):
+                return full
+        return ""
 
     # ---------- mục lục ----------
     def _page_chapter_pairs(self, page_obj, base_url: str, pattern: re.Pattern) -> list[tuple[str, str]]:

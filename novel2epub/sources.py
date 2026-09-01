@@ -30,6 +30,8 @@ class SourcePreset:
     author_selector: str = ""
     desc_selector: str = ""
     cover_selector: str = ""
+    # Regex suy URL ảnh bìa khi og:image thiếu — quét URL ảnh trong DOM mục lục.
+    cover_url_pattern: str = ""
     encoding: str = ""
     user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     headless: bool = True

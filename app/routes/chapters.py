@@ -165,8 +165,14 @@ def ebook_chapter_manual(slug: str, index: int = Form(...), title: str = Form(..
 
 
 @router.get("/ebooks/{slug}/chapters/{index}")
-def ebook_chapter_detail(request: Request, slug: str, index: int):
-    return RedirectResponse(url=f"/ebooks/{slug}/read/{index}?edit=1", status_code=302)
+def ebook_chapter_detail(request: Request, slug: str, index: str):
+    if index == "favicon.ico":
+        return Response(status_code=204)
+    try:
+        idx_int = int(index)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Không có chương {index}.")
+    return RedirectResponse(url=f"/ebooks/{slug}/read/{idx_int}?edit=1", status_code=302)
 
 
 @router.post("/chapters/{index}")

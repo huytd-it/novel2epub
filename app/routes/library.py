@@ -44,11 +44,18 @@ def vn_slugify(value: str) -> str:
     value = value.translate(_VN_CHAR_MAP)
     value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
     value = re.sub(r"[^a-zA-Z0-9]+", "-", value).strip("-").lower()
-    return value or "novel"
+    # Nếu không có ký tự latin nào thì để trống — frontend/backend sẽ validate.
+    if not value or not re.search(r"[a-z]", value):
+        return ""
+    return value
 
 
 def slugify(value: str) -> str:
     return vn_slugify(value)
+
+
+def _has_latin(value: str) -> bool:
+    return bool(re.search(r"[a-zA-Z]", value))
 
 
 def _build_meta_crawl_cfg(
@@ -166,17 +173,20 @@ def preview_ebook_api(
 @router.post("/library/ebooks/translate-metadata")
 def translate_ebook_metadata_api(
     title: str = Form(""),
+    author: str = Form(""),
     description: str = Form(""),
     engine: str = Form("localmt"),
+    model: str = Form(""),
 ):
     """Translate preview metadata before an ebook exists.
 
-    Local MT is the fast default; AI uses the shared editorial AI config.
-    The result is returned for review and is never persisted automatically.
+    Local MT is the fast default; AI uses the shared editorial AI config
+    (global_ai or per-ebook override) and optional model override from
+    Dịch chung. The result is returned for review and is never persisted automatically.
     """
     try:
         return JSONResponse(translate_ebook_metadata(
-            deps.cfg(), title=title, description=description, engine=engine
+            deps.cfg(), title=title, author=author, description=description, engine=engine, model=model
         ))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -243,6 +253,9 @@ def _write_new_ebook(
     """
     if not slug:
         slug = vn_slugify(title)
+    # Slug phải có ký tự latin — chặn tạo slug lỗi (vd "novel" từ tiêu đề Hán thuần).
+    if not slug or not _has_latin(slug):
+        raise HTTPException(status_code=400, detail="Slug không hợp lệ: cần ít nhất 1 ký tự latin (a-z). Hãy dịch tiêu đề hoặc nhập slug thủ công.")
     lib = deps.library()
     if slug in lib.ebooks:
         raise HTTPException(status_code=409, detail=f"Ebook '{slug}' đã tồn tại.")

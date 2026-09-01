@@ -9,9 +9,7 @@ import yaml
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
-from novel2epub import openai_client, selector_ai
-from novel2epub.config import CrawlConfig, ScraplingConfig, next_page_url_pattern_error
-from novel2epub.crawler import ScraplingCrawler
+from novel2epub.config import next_page_url_pattern_error
 from novel2epub.sources import SourcePreset, delete_preset, save_preset, save_presets
 
 from .. import deps
@@ -76,6 +74,7 @@ def save_source_preset(
     author_selector: str = Form(""),
     desc_selector: str = Form(""),
     cover_selector: str = Form(""),
+    cover_url_pattern: str = Form(""),
     encoding: str = Form(""),
     user_agent: str = Form(""),
     headless: bool = Form(False),
@@ -121,6 +120,7 @@ def save_source_preset(
             author_selector=author_selector,
             desc_selector=desc_selector,
             cover_selector=cover_selector,
+            cover_url_pattern=cover_url_pattern,
             encoding=encoding,
             headless=headless,
             magic=magic,
@@ -253,22 +253,17 @@ def _count_matches(page, selector: str) -> int:
         return 1
 
 
-@router.post("/sources/detect")
-def detect_source_selectors(
-    toc_url: str = Form(...),
-    chapter_url: str = Form(""),
-    scrapling_mode: str = Form("stealthy"),
-):
-    """AI phân tích trang mục lục + 1 trang chương, đề xuất selector cho preset.
-
-    Fetch đồng bộ (người dùng đang chờ trước nút "Phân tích"): lấy HTML 2 trang
-    bằng ScraplingCrawler, gọi AI biên tập (`ai.openai`), rồi validate selector
-    trả về ngay trên trang đã fetch. Trả JSON để JS điền vào form preset.
-    """
-    toc_url = toc_url.strip()
-    chapter_url = chapter_url.strip()
-    if not toc_url:
-        raise HTTPException(status_code=400, detail="Thiếu URL mục lục.")
+def _api_suggest_selectors_core(
+    toc_url: str,
+    chapter_url: str,
+    toc_html_raw: str,
+    chapter_html_raw: str,
+    sample_links: list[str],
+    scrapling_page=None,  # Scrapling Selector khi có caller cung cấp
+) -> dict:
+    """Nội lõi `suggest` (digest→AI→parse→validate), dùng chung cho route webui
+    và bất kỳ caller nào khác. Không lo fetch hay lỗi HTTP."""
+    from novel2epub import openai_client, selector_ai
 
     try:
         ai_cfg = deps.cfg().ai.openai
@@ -280,46 +275,19 @@ def detect_source_selectors(
             detail="Chưa cấu hình AI (base_url/model) ở Settings › AI biên tập.",
         )
 
-    mode = (scrapling_mode or "stealthy").strip().lower()
-    if mode not in ("stealthy", "fetcher", "dynamic"):
-        mode = "stealthy"
-    crawl_cfg = CrawlConfig(toc_url=toc_url)
-    crawl_cfg.scrapling = ScraplingConfig(mode=mode)
+    # 🔑 Tuỳ chọn: mode/label nếu caller muốn đổi prompt nhanh
+    toc_digest, toc_map = selector_ai.build_dom_digest(toc_html_raw, selector_ai.TOC_FIELD_SPECS)
+    chapter_digest, chapter_map = selector_ai.build_dom_digest(chapter_html_raw, selector_ai.CHAPTER_FIELD_SPECS)
+    label_map = {**toc_map, **chapter_map}
+    # Hỗ trợ fallback khi cả 2 digest rỗng (trang lỗi/Cloudflare): vẫn cho AI suy regex từ link.
+    if not label_map and not sample_links:
+        raise HTTPException(status_code=422, detail="Không trích được ứng viên DOM nào — trang có thể lỗi/Cloudflare. Thử tải lại với chế độ dynamic.")
 
-    try:
-        crawler = ScraplingCrawler(crawl_cfg)
-    except ImportError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-    try:
-        try:
-            toc_page = crawler._fetch_page(toc_url)
-        except Exception as e:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=f"Không tải được trang mục lục: {e}") from e
-        toc_html_raw = crawler._last_response_html
-        hrefs = _page_hrefs(toc_page)
-        sample_links = selector_ai.collect_sample_links(toc_url, hrefs)
-
-        if not chapter_url:
-            chapter_url = selector_ai.guess_chapter_url(toc_url, hrefs)
-        if not chapter_url:
-            raise HTTPException(
-                status_code=422,
-                detail="Không đoán được URL chương từ trang mục lục — hãy nhập tay 'URL chương mẫu'.",
-            )
-
-        try:
-            chapter_page = crawler._fetch_page(chapter_url)
-        except Exception as e:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=f"Không tải được trang chương {chapter_url}: {e}") from e
-        chapter_html_raw = crawler._last_response_html
-    finally:
-        crawler.close()
-
-    prompt = selector_ai.build_detect_prompt(
+    prompt = selector_ai.build_suggest_prompt(
         toc_url=toc_url,
         chapter_url=chapter_url,
-        toc_html=selector_ai.clean_html_for_ai(toc_html_raw),
-        chapter_html=selector_ai.clean_html_for_ai(chapter_html_raw),
+        toc_digest=toc_digest,
+        chapter_digest=chapter_digest,
         sample_links=sample_links,
     )
     try:
@@ -327,24 +295,24 @@ def detect_source_selectors(
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Gọi AI thất bại: {e}") from e
     try:
-        fields = selector_ai.parse_detection(raw)
+        fields = selector_ai.parse_suggestion(raw, label_map)
     except ValueError as e:
         raise HTTPException(status_code=502, detail=f"AI trả về không đọc được: {e}") from e
 
-    # Validate selector trên đúng trang tương ứng để cảnh báo selector "chết".
-    chapter_page_fields = {"content_selector", "chapter_title_selector", "next_page_selector"}
+    # Validate ngay trên chính DOM đã fetch (scrapling nếu có, fallback bs4).
+    chapter_html_fields = {"content_selector", "chapter_title_selector", "next_page_selector"}
     diagnostics: dict[str, int] = {}
     for field, sel in fields.items():
         if field == "chapter_link_pattern" or not sel:
             continue
-        page = chapter_page if field in chapter_page_fields else toc_page
-        diagnostics[field] = _count_matches(page, sel)
+        html = chapter_html_raw if field in chapter_html_fields else toc_html_raw
+        diagnostics[field] = selector_ai.count_matches(html, sel) if html else 0
 
     pattern_ok, pattern_hits = selector_ai.validate_pattern(
         fields.get("chapter_link_pattern", ""), sample_links
     )
 
-    return JSONResponse({
+    return {
         "ok": True,
         "fields": fields,
         "diagnostics": diagnostics,
@@ -352,7 +320,9 @@ def detect_source_selectors(
         "sample_count": len(sample_links),
         "pattern_ok": pattern_ok,
         "pattern_hits": pattern_hits,
-    })
+        "toc_digest": toc_digest,
+        "chapter_digest": chapter_digest,
+    }
 
 
 @router.get("/sources/export")

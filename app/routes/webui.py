@@ -1463,16 +1463,14 @@ def ebook_build_confirm(request: Request, slug: str, payload: dict = Body(defaul
     def _target(log):
         step_build_selected(cfg, log)
 
-    job = request.app.state.job.queue.start_custom(
+    job = request.app.state.job.queue.enqueue(
+        "build",
         "build",
         _target,
-        category="build",
-        ebook=slug,
         label=job_label("build", title=cfg.novel.title, slug=slug),
+        ebook=slug,
     )
-    if not job:
-        raise HTTPException(status_code=409, detail="Không thể xếp job build — hàng đợi đang bận.")
-    return {"ok": True, "job_id": job.id if hasattr(job, "id") else None, "ebook": slug}
+    return {"ok": True, "job_id": job.id, "ebook": slug}
 
 
 @router.get("/ebooks/{slug}/chapters/{index}/validation")

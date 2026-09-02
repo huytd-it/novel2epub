@@ -97,7 +97,7 @@ quả về form để người dùng duyệt, không tự ghi metadata vào DB.
 
 FastAPI render giao diện Jinja2 và cung cấp API nội bộ. `JobQueue` chia worker thành các loại `crawl`, `local-mt`, `ai-translate`, `ai-edit`, `build` và `automation`. Mỗi loại có pool và hàng chờ độc lập; job của một loại không chặn worker loại khác. `both` chỉ còn là alias migration sang `automation` cho job cũ. Thứ tự job chờ được lưu trong SQLite và có thể đổi bằng kéo-thả hoặc nhập vị trí trên SPA.
 
-`AutomationScheduler` kiểm tra cron định kỳ và enqueue toàn bộ chuỗi bước như một job tuần tự. Lịch bị lỡ khi máy tắt được chạy bù tối đa một lần.
+`AutomationScheduler` kiểm tra cron định kỳ và enqueue toàn bộ chuỗi bước như một job tuần tự. Lịch bị lỡ khi máy tắt được chạy bù tối đa một lần. Mỗi automation có thêm 4 ngưỡng batch (`translate_threshold`, `cleanup_threshold`, `publish_threshold`, `build_threshold` — DB `automations` v24, `app/scheduler.py:_threshold_for_step`); `run_automation_steps` skip bước khi pending < ngưỡng và log `step:skip` (không tính lỗi).
 
 ## Giao Diện SPA (`frontend/`)
 

@@ -92,7 +92,6 @@ function useDebouncedValue(value: string, delay = 250) {
 const STEPS = [
   { step: "fetch-toc", label: "Lấy mục lục" },
   { step: "crawl", label: "Crawl" },
-  { step: "build", label: "Build EPUB" },
 ] as const;
 
 function PipelineBar({ slug, epubExists }: { slug: string; epubExists: boolean }) {
@@ -201,13 +200,16 @@ function PipelineBar({ slug, epubExists }: { slug: string; epubExists: boolean }
           {label}
         </Button>
       ))}
+      <Link to={`/ebooks/${slug}/build`} className="btn btn-sm">
+        Build sách
+      </Link>
       <Button icon={<IconPlay size={14} />} onClick={openAutomation}>
         Tự động
       </Button>
       <Button
         icon={<IconDownload size={14} />}
         disabled={!epubExists}
-        title={epubExists ? "Tải tệp EPUB đã build" : "Chưa có EPUB — hãy chạy Build EPUB trước"}
+        title={epubExists ? "Tải tệp EPUB đã build" : "Chưa có EPUB — mở trang Build sách để kiểm tra trước"}
         onClick={() => { window.location.href = apiUrl(`/ebooks/${slug}/download`); }}
       >
         Tải EPUB

@@ -287,8 +287,28 @@ async def favicon():
 if _SPA_BUILT:
     app.mount("/assets", StaticFiles(directory=str(_SPA_DIR / "assets")), name="spa-assets")
 
+    async def _spa_or_json(request: Request, status_code: int):
+        """Dùng chung cho 404 và 405: GET không khớp hoặc sai method nhưng là
+        trang SPA (không phải /api/, /opds/) → trả index.html để React router
+        xử lý. Ngược lại giữ JSON lỗi với status gốc.
+
+        405 xảy ra khi path khớp route nhưng sai method — ví dụ GET /sources
+        trong khi chỉ có POST /sources (preset form cũ). Không có handler 405
+        thì Ctrl+F5 trả JSON 'Method Not Allowed' thay vì SPA.
+        """
+        detail = "Method Not Allowed" if status_code == 405 else "Not Found"
+        if request.method != "GET":
+            return JSONResponse({"detail": detail}, status_code=status_code)
+        path = request.url.path.lstrip("/")
+        if path.startswith("api/") or path.startswith("opds/"):
+            return JSONResponse({"detail": detail}, status_code=status_code)
+        candidate = (_SPA_DIR / path).resolve()
+        if path and candidate.is_file() and candidate.is_relative_to(_SPA_DIR):
+            return FileResponse(candidate)
+        return FileResponse(_SPA_DIR / "index.html")
+
     @app.exception_handler(404)
-    async def _spa_fallback(request: Request, exc):
+    async def _spa_fallback_404(request: Request, exc):
         """SPA fallback: mọi GET chưa khớp route → trả index.html để React
         router tự xử lý (pattern chuẩn cho SPA, tránh catch-all `/{path:path}`
         nuốt các route JSON cụ thể đăng ký sau).
@@ -296,12 +316,13 @@ if _SPA_BUILT:
         File tĩnh ngoài `assets/` (favicon, font tải rời) vẫn phải trả đúng
         file. API/OPDS không có route → 404 JSON (không trả HTML cho client).
         """
-        if request.method != "GET":
-            return JSONResponse({"detail": "Not Found"}, status_code=404)
-        path = request.url.path.lstrip("/")
-        if path.startswith("api/") or path.startswith("opds/"):
-            return JSONResponse({"detail": "Not Found"}, status_code=404)
-        candidate = (_SPA_DIR / path).resolve()
-        if path and candidate.is_file() and candidate.is_relative_to(_SPA_DIR):
-            return FileResponse(candidate)
-        return FileResponse(_SPA_DIR / "index.html")
+        return await _spa_or_json(request, 404)
+
+    @app.exception_handler(405)
+    async def _spa_fallback_405(request: Request, exc):
+        """Tương tự _spa_fallback_404 nhưng cho 405 Method Not Allowed.
+
+        Cần thiết vì GET /sources khớp POST /sources cũ → FastAPI trả 405 thay
+        vì 404, nên handler 404 không bao giờ được gọi và SPA không fallback.
+        """
+        return await _spa_or_json(request, 405)

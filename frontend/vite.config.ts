@@ -101,10 +101,27 @@ export default defineConfig(({ mode }) => {
           "/idioms",
           "/download",
           "/static",
-        ].map((path) => [
-          path,
-          { target: devApiTarget, changeOrigin: true },
-        ]),
+        ].map((path) => {
+          const isApi = path === "/api" || path === "/opds";
+          return [
+            path,
+            {
+              target: devApiTarget,
+              changeOrigin: true,
+              // SPA route trùng prefix legacy (vd GET /sources) — trình duyệt
+              // gửi Accept: text/html khi Ctrl+F5 / gõ trực tiếp. Bỏ qua proxy
+              // để Vite trả index.html cho React Router thay vì proxy tới
+              // FastAPI và nhận 405 Method Not Allowed (chỉ có POST /sources).
+              // /api và /opds là JSON thuần nên luôn proxy.
+              bypass: isApi
+                ? undefined
+                : ((req: any) => {
+                    const accept = (req.headers.accept as string) || "";
+                    if (req.method === "GET" && accept.includes("text/html")) return req.url;
+                  }) as any,
+            },
+          ];
+        }),
       ),
     },
   };

@@ -34,7 +34,7 @@ import {
    hướng ngay), chỉ khác là `mode` bật về "list" để chủ động xem danh sách
    lại. */
 
-export type FindMode = "list" | "search";
+export type FindMode = "list" | "search" | "errors";
 
 export interface ChapterFindState {
   query: string;
@@ -87,6 +87,8 @@ export function ChapterListDrawer({
   applyEbookFilters,
   onToggleApplyEbookFilters,
   sharedFilters,
+  validation,
+  onScrollToPara,
 }: {
   open: boolean;
   onClose: () => void;
@@ -122,8 +124,10 @@ export function ChapterListDrawer({
   applyEbookFilters: boolean;
   onToggleApplyEbookFilters: () => void;
   /** Bộ lọc tái dùng từ trang Sách — khi có, thay base của drawer để danh
-      sách này lọc cùng tập chương như bảng trên EbookPage. */
+       sách này lọc cùng tập chương như bảng trên EbookPage. */
   sharedFilters?: ChapterFilters | null;
+  validation?: { summary: { error: number; warning: number; info: number; total: number }; issues: { code: string; level: string; message: string; hint?: string; paraIndex: number; start: number; end: number; snippet: string }[] };
+  onScrollToPara?: (paraIndex: number, start: number, end: number) => void;
 }) {
   const [search, setSearch] = useState("");
   const base = sharedFilters ?? DEFAULT_FILTERS;
@@ -273,7 +277,7 @@ export function ChapterListDrawer({
               <button
                 type="button"
                 onClick={() => handleModeChange("list")}
-                className={clsx("btn btn-sm join-item flex-1", mode === "list" && "btn-active")}
+                className={clsx("btn btn-xs join-item flex-1", mode === "list" && "btn-active")}
                 aria-pressed={mode === "list"}
               >
                 Danh sách
@@ -281,10 +285,23 @@ export function ChapterListDrawer({
               <button
                 type="button"
                 onClick={() => handleModeChange("search")}
-                className={clsx("btn btn-sm join-item flex-1", mode === "search" && "btn-active")}
+                className={clsx("btn btn-xs join-item flex-1", mode === "search" && "btn-active")}
                 aria-pressed={mode === "search"}
               >
                 Tìm/thay
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeChange("errors")}
+                className={clsx("btn btn-xs join-item flex-1 gap-1", mode === "errors" && "btn-active")}
+                aria-pressed={mode === "errors"}
+              >
+                Lỗi
+                {validation && validation.summary.total > 0 ? (
+                  <span className={clsx("badge badge-xs", validation.summary.error ? "badge-error" : validation.summary.warning ? "badge-warning" : "badge-ghost")}>
+                    {validation.summary.error ? validation.summary.error : validation.summary.warning ? validation.summary.warning : validation.summary.total}
+                  </span>
+                ) : null}
               </button>
             </div>
           </div>
@@ -328,7 +345,9 @@ export function ChapterListDrawer({
           ) : null}
 
           <div ref={listRootRef} className="scroll-slim flex-1 overflow-y-auto">
-            {mode === "search" ? (
+            {mode === "errors" ? (
+              <ErrorsPanel validation={validation} onScrollToPara={onScrollToPara} />
+            ) : mode === "search" ? (
               <FindReplacePanel
                 find={find}
                 activeFindQuery={activeFindQuery}
@@ -919,6 +938,74 @@ function ChapterPreviewSection({
         onApply={onApplySelected}
         onOpenChapter={() => onOpenChapter(chapterIndex)}
       />
+    </div>
+  );
+}
+
+function ErrorsPanel({
+  validation,
+  onScrollToPara,
+}: {
+  validation?: { summary: { error: number; warning: number; info: number; total: number }; issues: { code: string; level: string; message: string; hint?: string; paraIndex: number; start: number; end: number; snippet: string }[] };
+  onScrollToPara?: (paraIndex: number, start: number, end: number) => void;
+}) {
+  if (!validation) {
+    return <p className="px-3 py-6 text-center text-xs opacity-50">Đang kiểm tra lỗi…</p>;
+  }
+  if (validation.summary.total === 0) {
+    return (
+      <div className="px-3 py-6 text-center">
+        <p className="text-sm font-medium text-success">Không có lỗi</p>
+        <p className="mt-1 text-xs opacity-50">Chương này không phát hiện vấn đề về chính tả, mã hóa hay dấu lạ.</p>
+      </div>
+    );
+  }
+  // group by level order error > warning > info, then by para
+  const sorted = [...validation.issues].sort((a, b) => {
+    const order = { error: 0, warning: 1, info: 2 } as const;
+    const ao = order[a.level as keyof typeof order] ?? 3;
+    const bo = order[b.level as keyof typeof order] ?? 3;
+    if (ao !== bo) return ao - bo;
+    return a.paraIndex - b.paraIndex;
+  });
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2 border-b border-base-300 px-3 py-2">
+        <span className="text-xs font-semibold">Tổng {validation.summary.total} vấn đề</span>
+        <span className="ml-auto flex gap-1">
+          {validation.summary.error ? <span className="badge badge-xs badge-error">{validation.summary.error} lỗi</span> : null}
+          {validation.summary.warning ? <span className="badge badge-xs badge-warning">{validation.summary.warning} cảnh báo</span> : null}
+          {validation.summary.info ? <span className="badge badge-xs badge-ghost">{validation.summary.info} gợi ý</span> : null}
+        </span>
+      </div>
+      <div className="scroll-slim flex-1 overflow-y-auto">
+        <ul className="divide-y divide-base-300">
+          {sorted.map((iss, idx) => (
+            <li key={`${iss.paraIndex}-${iss.start}-${idx}`} className="px-2 py-2 hover:bg-base-200/50">
+              <div className="flex items-center gap-1.5">
+                <span className={clsx("badge badge-xs", iss.level === "error" ? "badge-error" : iss.level === "warning" ? "badge-warning" : "badge-ghost")}>
+                  {iss.level === "error" ? "Lỗi" : iss.level === "warning" ? "Cảnh báo" : "Gợi ý"}
+                </span>
+                <span className="font-mono text-[10px] opacity-50">{iss.code}</span>
+                <span className="ml-auto text-[10px] opacity-40">#{iss.paraIndex >= 0 ? iss.paraIndex + 1 : "Tiêu đề"}</span>
+              </div>
+              <p className="mt-1 text-xs font-medium leading-tight">{iss.message}</p>
+              {iss.snippet ? <p className="mt-1 line-clamp-1 font-mono text-[11px] opacity-60">“{iss.snippet}”</p> : null}
+              {iss.hint ? <p className="text-[11px] opacity-50">{iss.hint}</p> : null}
+              <button
+                type="button"
+                onClick={() => onScrollToPara?.(iss.paraIndex, iss.start, iss.end)}
+                className="btn btn-ghost btn-xs mt-1.5 w-full justify-start gap-1"
+              >
+                → Đi tới {iss.paraIndex >= 0 ? `đoạn ${iss.paraIndex + 1}` : "tiêu đề"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <p className="border-t border-base-300 bg-base-200/30 px-3 py-2 text-[11px] opacity-60">
+        Bấm “Đi tới” sẽ cuộn đến vị trí lỗi và highlight. Highlight hiển thị ở cả chế độ Đọc và Sửa khi tab Lỗi đang mở.
+      </p>
     </div>
   );
 }

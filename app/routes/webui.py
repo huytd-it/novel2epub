@@ -1415,6 +1415,100 @@ def ebook_build_status(slug: str):
     return {"build": build, "build_stale": storage.build_stale(), "build_blockers": blockers}
 
 
+@router.get("/ebooks/{slug}/build/preview")
+def ebook_build_preview(slug: str):
+    """Preview đầy đủ cho trang Build: stats, validation, metadata, EPUB preview.
+
+    Không gọi model, chỉ đọc DB/manifest. Dùng cho trang /ebooks/:slug/build mới:
+    hiển thị thống kê, validate chính tả/mã hóa/dấu lạ, preview nội dung sẽ đóng gói.
+    """
+    from novel2epub.build_validation import build_preview_payload
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    return build_preview_payload(cfg, storage)
+
+
+@router.post("/ebooks/{slug}/build/confirm")
+def ebook_build_confirm(request: Request, slug: str, payload: dict = Body(default={})):
+    """Xác nhận build sau khi đã xem preview/validation.
+
+    Body: {force?: bool} — khi force=true, bỏ qua validate mềm (vẫn chặn nếu không có gì để build).
+    Enqueue job build nền (category build), trả job_id để UI poll queue.
+    """
+    from novel2epub.pipeline import step_build_selected
+    from novel2epub.queue_labels import job_label
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=400, detail="Chưa có manifest — hãy crawl trước.")
+
+    force = bool(payload.get("force"))
+    if not force:
+        blockers = storage.build_blockers(manifest.chapters)
+        if blockers:
+            detail = "; ".join(f"Chương {b['index']}: {b['reason']}" for b in blockers[:5])
+            raise HTTPException(
+                status_code=409,
+                detail=f"Không build được — còn {len(blockers)} chương chưa có bản dịch hoàn chỉnh: {detail}",
+            )
+
+    # chặn duplicate build đang chạy — kiểm tra artifact status
+    build = storage.read_build()
+    if build.get("status") == "building":
+        raise HTTPException(status_code=409, detail="Đang có build khác chạy cho ebook này — chờ xong rồi thử lại.")
+
+    def _target(log):
+        step_build_selected(cfg, log)
+
+    job = request.app.state.job.queue.start_custom(
+        "build",
+        _target,
+        category="build",
+        ebook=slug,
+        label=job_label("build", title=cfg.novel.title, slug=slug),
+    )
+    if not job:
+        raise HTTPException(status_code=409, detail="Không thể xếp job build — hàng đợi đang bận.")
+    return {"ok": True, "job_id": job.id if hasattr(job, "id") else None, "ebook": slug}
+
+
+@router.get("/ebooks/{slug}/chapters/{index}/validation")
+def ebook_chapter_validation(slug: str, index: int):
+    """Chi tiết lỗi per-para cho 1 chương — dùng cho tab Lỗi của ChapterPage.
+
+    Trả validation chi tiết (paraIndex, start, end) để highlight và scroll. Highlight hoạt động ở cả
+    chế độ đọc và sửa; edit mode dùng paraIndex để cuộn textarea.
+    """
+    from novel2epub.build_validation import validate_chapter_detailed
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+    ch = next((c for c in manifest.chapters if c.index == index), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail=f"Không có chương {index}.")
+    # Dùng bản sẽ xuất bản (publication_version) nếu có, fallback active_branch
+    pv = storage.publication_version(ch)
+    if pv is not None:
+        text = pv.text
+        title = pv.title
+    else:
+        text = storage.read_branch_text(ch, storage.active_branch(ch))
+        title = storage.read_branch_title(ch, storage.active_branch(ch)) or ch.title
+    # Nếu vẫn rỗng, thử fallback raw? Không highlight raw
+    result = validate_chapter_detailed(text, title)
+    # Thêm context chương
+    result["index"] = ch.index
+    result["title"] = title
+    # Title issues riêng đã có paraIndex -1
+    return result
+
+
 @router.post("/ebooks/{slug}/build")
 def ebook_build_start(request: Request, slug: str, payload: dict = Body(...)):
     """Build là bulk action và bắt buộc đi qua preview + confirm."""
@@ -1422,7 +1516,8 @@ def ebook_build_start(request: Request, slug: str, payload: dict = Body(...)):
         status_code=409,
         detail={
             "reason": "Build phải preview readiness và tập chương trước khi xác nhận.",
-            "preview_url": f"/api/ui/ebooks/{slug}/chapters/bulk-preview",
+            "preview_url": f"/api/ui/ebooks/{slug}/build/preview",
+            "confirm_url": f"/api/ui/ebooks/{slug}/build/confirm",
             "action": "build",
         },
     )
@@ -1814,13 +1909,27 @@ def automation_create_api(payload: dict = Body(...)):
     schedule = str(payload.get("schedule", "manual")).strip() or "manual"
     _require_valid_schedule(schedule)
     steps = [s for s in payload.get("steps", []) if s in AUTOMATION_STEPS] or ["build"]
+
+    def _thr(key: str) -> int:
+        try:
+            v = int(payload.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"{key} phải là số nguyên 0–10000.")
+        if not 0 <= v <= 10000:
+            raise HTTPException(status_code=400, detail=f"{key} phải trong khoảng 0–10000.")
+        return v
+
     automation = add_automation(
         deps.AUTOMATIONS_PATH,
         ebook,
         steps,
         schedule,
-        crawl_workers=max(1, int(payload.get("crawl_workers", 4) or 4)),
-        translate_workers=max(1, int(payload.get("translate_workers", 4) or 4)),
+        crawl_workers=max(1, min(64, int(payload.get("crawl_workers", 4) or 4))),
+        translate_workers=max(1, min(64, int(payload.get("translate_workers", 4) or 4))),
+        translate_threshold=_thr("translate_threshold"),
+        cleanup_threshold=_thr("cleanup_threshold"),
+        publish_threshold=_thr("publish_threshold"),
+        build_threshold=_thr("build_threshold"),
     )
     return asdict(automation)
 
@@ -1830,6 +1939,16 @@ def automation_update_api(automation_id: str, payload: dict = Body(...)):
     schedule = str(payload.get("schedule", "manual")).strip() or "manual"
     _require_valid_schedule(schedule)
     steps = [s for s in payload.get("steps", []) if s in AUTOMATION_STEPS] or ["build"]
+
+    def _thr(key: str) -> int:
+        try:
+            v = int(payload.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"{key} phải là số nguyên 0–10000.")
+        if not 0 <= v <= 10000:
+            raise HTTPException(status_code=400, detail=f"{key} phải trong khoảng 0–10000.")
+        return v
+
     try:
         update_automation(
             deps.AUTOMATIONS_PATH,
@@ -1838,8 +1957,12 @@ def automation_update_api(automation_id: str, payload: dict = Body(...)):
                 "steps": steps,
                 "schedule": schedule,
                 "enabled": bool(payload.get("enabled", True)),
-                "crawl_workers": max(1, int(payload.get("crawl_workers", 4) or 4)),
-                "translate_workers": max(1, int(payload.get("translate_workers", 4) or 4)),
+                "crawl_workers": max(1, min(64, int(payload.get("crawl_workers", 4) or 4))),
+                "translate_workers": max(1, min(64, int(payload.get("translate_workers", 4) or 4))),
+                "translate_threshold": _thr("translate_threshold"),
+                "cleanup_threshold": _thr("cleanup_threshold"),
+                "publish_threshold": _thr("publish_threshold"),
+                "build_threshold": _thr("build_threshold"),
             },
         )
     except KeyError as e:

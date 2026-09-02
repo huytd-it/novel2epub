@@ -86,6 +86,10 @@ function FormModal({
   const [selectedSteps, setSelectedSteps] = useState<string[]>([]);
   const [crawlWorkers, setCrawlWorkers] = useState("4");
   const [translateWorkers, setTranslateWorkers] = useState("4");
+  const [translateThreshold, setTranslateThreshold] = useState("0");
+  const [cleanupThreshold, setCleanupThreshold] = useState("0");
+  const [publishThreshold, setPublishThreshold] = useState("0");
+  const [buildThreshold, setBuildThreshold] = useState("0");
   const [schedule, setSchedule] = useState("manual");
   const create = useCreateAutomation();
   const update = useUpdateAutomation();
@@ -101,6 +105,10 @@ function FormModal({
     setSelectedSteps(source?.steps ?? steps);
     setCrawlWorkers(String(source?.crawl_workers ?? 4));
     setTranslateWorkers(String(source?.translate_workers ?? 4));
+    setTranslateThreshold(String(source?.translate_threshold ?? 0));
+    setCleanupThreshold(String(source?.cleanup_threshold ?? 0));
+    setPublishThreshold(String(source?.publish_threshold ?? 0));
+    setBuildThreshold(String(source?.build_threshold ?? 0));
     setSchedule(source?.schedule ?? "manual");
   }, [open, automation, copyFrom, ebooks, steps]);
 
@@ -144,11 +152,20 @@ function FormModal({
     }
     const parsedCrawlWorkers = Number(crawlWorkers);
     const parsedTranslateWorkers = Number(translateWorkers);
+    const parsedTranslateThreshold = Number(translateThreshold);
+    const parsedCleanupThreshold = Number(cleanupThreshold);
+    const parsedPublishThreshold = Number(publishThreshold);
+    const parsedBuildThreshold = Number(buildThreshold);
     if (
       !Number.isInteger(parsedCrawlWorkers) || parsedCrawlWorkers < 1 || parsedCrawlWorkers > 64 ||
       !Number.isInteger(parsedTranslateWorkers) || parsedTranslateWorkers < 1 || parsedTranslateWorkers > 64
     ) {
       toast("Số luồng phải là số nguyên từ 1 đến 64.", "error");
+      return;
+    }
+    const thresholds = [parsedTranslateThreshold, parsedCleanupThreshold, parsedPublishThreshold, parsedBuildThreshold];
+    if (thresholds.some((v) => !Number.isInteger(v) || v < 0 || v > 10000)) {
+      toast("Ngưỡng phải là số nguyên từ 0 đến 10000 (0 = luôn chạy).", "error");
       return;
     }
     const input = {
@@ -157,6 +174,10 @@ function FormModal({
       schedule: schedule.trim() || "manual",
       crawl_workers: parsedCrawlWorkers,
       translate_workers: parsedTranslateWorkers,
+      translate_threshold: parsedTranslateThreshold,
+      cleanup_threshold: parsedCleanupThreshold,
+      publish_threshold: parsedPublishThreshold,
+      build_threshold: parsedBuildThreshold,
     };
     const options = {
       onSuccess: () => {
@@ -266,7 +287,7 @@ function FormModal({
           <section aria-labelledby="automation-workers-heading">
             <div className="mb-3 flex items-baseline justify-between gap-3">
               <h3 id="automation-workers-heading" className="text-sm font-semibold">Tài nguyên</h3>
-              <span className="text-[11px] opacity-50">3 / 4</span>
+              <span className="text-[11px] opacity-50">3 / 5</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Luồng cào">
@@ -279,10 +300,32 @@ function FormModal({
             <p className="mt-2 text-[11px] leading-relaxed opacity-50">Từ 1–64 luồng. Local MT tự quản lý tài nguyên riêng.</p>
           </section>
 
+          <section aria-labelledby="automation-thresholds-heading">
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <h3 id="automation-thresholds-heading" className="text-sm font-semibold">Ngưỡng batch</h3>
+              <span className="text-[11px] opacity-50">4 / 5</span>
+            </div>
+            <p className="mb-3 text-[11px] leading-relaxed opacity-50">Số chương tối thiểu để kích hoạt bước kế tiếp (0 = luôn chạy). Ví dụ: sau khi crawl 5 chương thì dịch, dịch 5 chương thì dọn Hán.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Dịch sau N chương cào" hint="0 = luôn dịch">
+                <Input type="number" min={0} max={10000} value={translateThreshold} onChange={(e) => setTranslateThreshold(e.target.value)} inputMode="numeric" />
+              </Field>
+              <Field label="Dọn Hán sau N chương dịch" hint="0 = luôn dọn">
+                <Input type="number" min={0} max={10000} value={cleanupThreshold} onChange={(e) => setCleanupThreshold(e.target.value)} inputMode="numeric" />
+              </Field>
+              <Field label="Đăng Reader sau N chương sẵn sàng" hint="0 = luôn đăng">
+                <Input type="number" min={0} max={10000} value={publishThreshold} onChange={(e) => setPublishThreshold(e.target.value)} inputMode="numeric" />
+              </Field>
+              <Field label="Build EPUB sau N chương sẵn sàng" hint="0 = luôn build">
+                <Input type="number" min={0} max={10000} value={buildThreshold} onChange={(e) => setBuildThreshold(e.target.value)} inputMode="numeric" />
+              </Field>
+            </div>
+          </section>
+
           <section aria-labelledby="automation-schedule-heading">
             <div className="mb-3 flex items-baseline justify-between gap-3">
               <h3 id="automation-schedule-heading" className="text-sm font-semibold">Lịch chạy</h3>
-              <span className="text-[11px] opacity-50">4 / 4</span>
+              <span className="text-[11px] opacity-50">5 / 5</span>
             </div>
             <div className="mb-3 grid grid-cols-2 gap-1.5">
               {SCHEDULE_PRESETS.map((preset) => (
@@ -309,6 +352,7 @@ function FormModal({
               <dt>Truyện</dt><dd className="truncate text-right font-medium">{selectedEbook?.title ?? "Chưa chọn"}</dd>
               <dt>Pipeline</dt><dd data-numeric className="text-right">{selectedSteps.length} bước</dd>
               <dt>Lịch</dt><dd className="truncate text-right font-mono text-[11px]">{schedule === "manual" ? "Thủ công" : schedule}</dd>
+              <dt>Ngưỡng</dt><dd data-numeric className="text-right text-[11px]">D{translateThreshold}·H{cleanupThreshold}·R{publishThreshold}·B{buildThreshold}</dd>
             </dl>
           </div>
         </aside>
@@ -391,6 +435,9 @@ function AutomationCard({ a, title, job, onEdit, onCopy, onDelete }: { a: Automa
             <span><span className="opacity-70">Lần cuối</span> <span data-numeric>{a.last_run_at || "—"}</span></span>
             {a.next_run ? <span><span className="opacity-70">Kế tiếp</span> <span data-numeric>{a.next_run}</span></span> : null}
             <span data-numeric>{a.steps.length} bước · {a.crawl_workers} luồng cào · {a.translate_workers} luồng dịch</span>
+            {(a.translate_threshold || a.cleanup_threshold || a.publish_threshold || a.build_threshold) ? (
+              <span data-numeric className="rounded bg-base-200 px-1.5 py-0.5 text-[11px]">Ngưỡng D{a.translate_threshold ?? 0}·H{a.cleanup_threshold ?? 0}·R{a.publish_threshold ?? 0}·B{a.build_threshold ?? 0}</span>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
@@ -401,7 +448,7 @@ function AutomationCard({ a, title, job, onEdit, onCopy, onDelete }: { a: Automa
               checked={a.enabled}
               disabled={update.isPending}
               onChange={(e) => update.mutate(
-                { id: a.id, ebook: a.ebook, steps: a.steps, schedule: a.schedule, enabled: e.target.checked, crawl_workers: a.crawl_workers, translate_workers: a.translate_workers },
+                { id: a.id, ebook: a.ebook, steps: a.steps, schedule: a.schedule, enabled: e.target.checked, crawl_workers: a.crawl_workers, translate_workers: a.translate_workers, translate_threshold: a.translate_threshold ?? 0, cleanup_threshold: a.cleanup_threshold ?? 0, publish_threshold: a.publish_threshold ?? 0, build_threshold: a.build_threshold ?? 0 },
                 { onError: (err) => toast(err instanceof Error ? err.message : String(err), "error") },
               )}
               className="toggle toggle-sm"

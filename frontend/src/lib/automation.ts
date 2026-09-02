@@ -28,6 +28,10 @@ export interface Automation {
   last_run_stats: Record<string, number>;
   crawl_workers: number;
   translate_workers: number;
+  translate_threshold: number;
+  cleanup_threshold: number;
+  publish_threshold: number;
+  build_threshold: number;
   created_at: string;
   next_run: string;
 }
@@ -64,6 +68,10 @@ export interface AutomationInput {
   schedule: string;
   crawl_workers?: number;
   translate_workers?: number;
+  translate_threshold?: number;
+  cleanup_threshold?: number;
+  publish_threshold?: number;
+  build_threshold?: number;
 }
 
 export function useCreateAutomation() {

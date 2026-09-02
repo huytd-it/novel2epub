@@ -35,6 +35,7 @@ export {
   PiUsersThree as IconCharacters,
   PiDatabase as IconSource,
   PiDownloadSimple as IconDownload,
+  PiPackage as IconBuild,
   PiGauge as IconGauge,
   PiHardDrives as IconDisk,
   PiList as IconMenu,
@@ -50,6 +51,7 @@ export {
   PiSun as IconSun,
   PiSwap as IconReplace,
   PiTrash as IconTrash,
+  PiWarningCircle as IconWarning,
   PiX as IconClose,
 } from "react-icons/pi";
 

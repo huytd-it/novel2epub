@@ -326,8 +326,10 @@ def main() -> int:
                         """
                         INSERT OR REPLACE INTO automations
                             (id, ebook, steps_json, schedule, enabled, last_run_at,
-                             last_run_outcome, last_run_error, last_run_stats_json)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             last_run_outcome, last_run_error, last_run_stats_json,
+                             crawl_workers, translate_workers, created_at,
+                             translate_threshold, cleanup_threshold, publish_threshold, build_threshold)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             aid, item.get("ebook", ""),
@@ -336,6 +338,10 @@ def main() -> int:
                             item.get("last_run_at", ""), item.get("last_run_outcome", ""),
                             item.get("last_run_error", ""),
                             json.dumps(item.get("last_run_stats", {}), ensure_ascii=False),
+                            int(item.get("crawl_workers", 4) or 4), int(item.get("translate_workers", 4) or 4),
+                            item.get("created_at", ""),
+                            int(item.get("translate_threshold", 0) or 0), int(item.get("cleanup_threshold", 0) or 0),
+                            int(item.get("publish_threshold", 0) or 0), int(item.get("build_threshold", 0) or 0),
                         ),
                     )
                     counts["automations"] += 1

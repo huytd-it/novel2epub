@@ -89,7 +89,7 @@ def _count_progress(cfg) -> dict:
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
     if manifest is None:
-        return {"chapters_total": 0, "raw": 0, "translated": 0, "han_fixed": 0}
+        return {"chapters_total": 0, "raw": 0, "translated": 0, "han_fixed": 0, "pending_cleanup": 0, "pending_publish": 0}
     raw = sum(1 for ch in manifest.chapters if storage.has_raw(ch))
     translated = sum(1 for ch in manifest.chapters if storage.has_active_branch_text(ch))
     han_fixed = sum(
@@ -97,19 +97,61 @@ def _count_progress(cfg) -> dict:
         for ch in manifest.chapters
         if storage.has_meta(ch)
     )
+    # pending cleanup = translated nhưng chưa đánh dấu han_cleanup_complete
+    pending_cleanup = 0
+    pending_publish = 0
+    for ch in manifest.chapters:
+        if storage.has_active_branch_text(ch):
+            meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
+            if not meta.get("han_cleanup_complete"):
+                pending_cleanup += 1
+            if storage.publication_version(ch) is not None:
+                pending_publish += 1
     return {
         "chapters_total": len(manifest.chapters),
         "raw": raw,
         "translated": translated,
         "han_fixed": han_fixed,
+        "pending_cleanup": pending_cleanup,
+        "pending_publish": pending_publish,
+        "pending_translate": max(0, raw - translated),
     }
+
+
+def _threshold_for_step(step: str, automation: Automation) -> tuple[int, str]:
+    """Trả (ngưỡng, tên hiển thị) cho step — 0 nghĩa là luôn chạy."""
+    if step in ("translate-pending", "translate-local-mt"):
+        return int(getattr(automation, "translate_threshold", 0) or 0), "translate"
+    if step == "cleanup-han":
+        return int(getattr(automation, "cleanup_threshold", 0) or 0), "cleanup"
+    if step == "publish-reader":
+        return int(getattr(automation, "publish_threshold", 0) or 0), "publish"
+    if step == "build":
+        return int(getattr(automation, "build_threshold", 0) or 0), "build"
+    return 0, ""
+
+
+def _pending_for_step(cfg, step: str, snap: dict) -> int:
+    """Số chương pending cho step đó tại thời điểm snap."""
+    if step in ("translate-pending", "translate-local-mt"):
+        return int(snap.get("pending_translate", 0))
+    if step == "cleanup-han":
+        return int(snap.get("pending_cleanup", 0))
+    if step in ("publish-reader", "build"):
+        return int(snap.get("pending_publish", 0))
+    return 0
 
 
 def run_automation_steps(workspace_path, automation: Automation, log) -> dict:
     """Chạy tuần tự các step của automation, dừng ở step lỗi đầu tiên.
 
+    Hỗ trợ ngưỡng batch: mỗi step có thể yêu cầu số chương pending tối thiểu
+    (translate_threshold / cleanup_threshold / publish_threshold / build_threshold).
+    Nếu pending < ngưỡng → skip step, log và tiếp tục step kế tiếp (không tính
+    là lỗi, outcome vẫn success nếu không có lỗi thực sự).
+
     Trả dict {"outcome", "error", "stats"}:
-      - outcome: "success" (mọi step xong), "failure" (step đầu tiên đã lỗi),
+      - outcome: "success" (mọi step xong hoặc skip do ngưỡng), "failure" (step đầu tiên đã lỗi),
         hoặc "partial" (một số step xong trước khi gặp lỗi).
       - error: "{step}: {lỗi}" của step đầu tiên gặp lỗi, "" nếu không có lỗi.
       - stats: delta số chương cào/dịch/sửa Hán trước-sau (đo bằng Storage vì
@@ -117,12 +159,25 @@ def run_automation_steps(workspace_path, automation: Automation, log) -> dict:
     cfg = load_config(workspace_path, automation.ebook)
     before = _count_progress(cfg)
     succeeded = 0
+    skipped = 0
     error = ""
     for step in automation.steps:
         fn = _STEP_FN.get(step)
         if fn is None:
             log(f"[automation] step không hợp lệ: {step!r}, bỏ qua.")
+            skipped += 1
             continue
+        # ── ngưỡng batch gate ──
+        threshold, _ = _threshold_for_step(step, automation)
+        if threshold > 0:
+            snap = _count_progress(cfg)
+            pending = _pending_for_step(cfg, step, snap)
+            if pending < threshold:
+                log(f"[automation:step:skip] {step} — pending {pending} < ngưỡng {threshold}, bỏ qua.")
+                skipped += 1
+                continue
+            else:
+                log(f"[automation:threshold] {step} — pending {pending} >= ngưỡng {threshold}, tiếp tục.")
         log(f"[automation:step:start] {step}")
         try:
             if step == "crawl-new" and hasattr(cfg, "crawl"):
@@ -144,12 +199,12 @@ def run_automation_steps(workspace_path, automation: Automation, log) -> dict:
         "translated": after["translated"] - before["translated"],
         "han_fixed": after["han_fixed"] - before["han_fixed"],
     }
-    if succeeded == 0:
-        outcome = "failure"
-    elif succeeded == len(automation.steps):
-        outcome = "success"
+    if skipped:
+        stats["skipped"] = skipped
+    if error:
+        outcome = "failure" if succeeded == 0 else "partial"
     else:
-        outcome = "partial"
+        outcome = "success"
     return {"outcome": outcome, "error": error, "stats": stats}
 
 

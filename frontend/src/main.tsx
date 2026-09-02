@@ -35,6 +35,8 @@ import { WireGuardPage } from "@/routes/WireGuardPage";
 import { TailscalePage } from "@/routes/TailscalePage";
 import { LocalMtPage } from "@/routes/LocalMtPage";
 import { GlobalTranslatePage } from "@/routes/GlobalTranslatePage";
+import { SystemPage } from "@/routes/SystemPage";
+import { BuildPage } from "@/routes/BuildPage";
 import { PlaceholderPage } from "@/routes/PlaceholderPage";
 
 /** `/read/:index` cũ → `/chapters/:index`. Giữ để bookmark/link đã lưu không chết. */
@@ -69,6 +71,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="ebooks/:slug/chapters/:index" element={<ChapterPage />} />
               <Route path="ebooks/:slug/read" element={<ChapterEntryPage />} />
               <Route path="ebooks/:slug/read/:index" element={<LegacyReadRedirect />} />
+              <Route path="ebooks/:slug/build" element={<BuildPage />} />
               <Route path="ebooks/:slug/settings" element={<SettingsPage />} />
               <Route path="ebooks/:slug/glossary" element={<GlossaryPage />} />
               <Route path="ebooks/:slug/characters" element={<CharactersPage />} />
@@ -84,6 +87,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="tailscale" element={<TailscalePage />} />
               <Route path="local-mt" element={<LocalMtPage />} />
               <Route path="translate-settings" element={<GlobalTranslatePage />} />
+              <Route path="system" element={<SystemPage />} />
               <Route path="*" element={<PlaceholderPage title="Không có trang này" />} />
             </Route>
           </Routes>

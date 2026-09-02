@@ -11,6 +11,7 @@ import { GlobalLoadingBar, Loading } from "@/components/ui/Loading";
 import { decodeStrip } from "@/lib/strip";
 import {
   IconBook,
+  IconBuild,
   IconCharacters,
   IconChevronLeft,
   IconChevronRight,
@@ -44,7 +45,8 @@ const WORKSHOP: Item[] = [
   { to: "/logs", label: "Nhật ký", icon: IconLog },
 ];
 
-const SYSTEM: Item[] = [
+/** Danh mục đầy đủ cho trang hub /system — giữ để search & highlight. */
+const SYSTEM_ITEMS: Item[] = [
   { to: "/translate-settings", label: "Dịch chung", icon: IconLanguages },
   { to: "/local-mt", label: "Local MT chung", icon: IconChip },
   { to: "/sources", label: "Nguồn", icon: IconSource },
@@ -56,6 +58,12 @@ const SYSTEM: Item[] = [
   { to: "/connection", label: "Kết nối", icon: IconPlug },
 ];
 
+/** Nav chính chỉ giữ 1 mục Hệ thống — bấm vào mở hub card có search. */
+const SYSTEM: Item[] = [{ to: "/system", label: "Hệ thống", icon: IconSettings }];
+
+/** Mọi path thuộc nhóm Hệ thống (hub + 9 trang con) để highlight nav. */
+const SYSTEM_PATHS = ["/system", ...SYSTEM_ITEMS.map((i) => i.to)];
+
 /** Trang của một truyện đã port sang SPA.
  *
  * `end: false` cho "Chương": trang chương thật nằm ở `/chapters/:index` (route
@@ -66,6 +74,7 @@ function bookRoutes(slug: string) {
   return [
     { to: `/ebooks/${slug}`, label: "Tổng quan", icon: IconOverview, end: true },
     { to: `/ebooks/${slug}/chapters`, label: "Chương", icon: IconRead, end: false },
+    { to: `/ebooks/${slug}/build`, label: "Build sách", icon: IconBuild, end: true },
     { to: `/ebooks/${slug}/glossary`, label: "Glossary", icon: IconGlossary, end: true },
     { to: `/ebooks/${slug}/characters`, label: "Nhân vật", icon: IconCharacters, end: true },
     { to: `/ebooks/${slug}/settings`, label: "Cài đặt", icon: IconSettings, end: true },
@@ -96,6 +105,7 @@ function SidebarLink({
   icon: Icon,
   collapsed,
   trailing,
+  active,
 }: {
   to: string;
   end?: boolean;
@@ -103,6 +113,8 @@ function SidebarLink({
   icon: typeof IconLibrary;
   collapsed: boolean;
   trailing?: React.ReactNode;
+  /** Ép active thủ công — dùng cho hub Hệ thống khi đang ở trang con. */
+  active?: boolean;
 }) {
   if (collapsed) {
     return (
@@ -112,14 +124,15 @@ function SidebarLink({
           end={end}
           title={label}
           aria-label={label}
-          className={({ isActive }) =>
-            clsx(
+          className={({ isActive }) => {
+            const on = active ?? isActive;
+            return clsx(
               "flex size-10 items-center justify-center rounded-full ring-1 transition-[background-color,color,box-shadow] duration-150",
-              isActive
+              on
                 ? "bg-primary/15 text-primary ring-primary/30 shadow-sm"
                 : "text-base-content/65 ring-transparent hover:bg-base-200 hover:text-base-content hover:ring-base-300",
-            )
-          }
+            );
+          }}
         >
           <Icon size={18} className="shrink-0" />
         </NavLink>
@@ -134,14 +147,15 @@ function SidebarLink({
         to={to}
         end={end}
         title={label}
-        className={({ isActive }) =>
-          clsx(
+        className={({ isActive }) => {
+          const on = active ?? isActive;
+          return clsx(
             navItem,
-            isActive
+            on
               ? "bg-base-200 font-medium text-base-content shadow-[inset_0_0_0_1px_var(--color-base-300)]"
               : "text-base-content/72",
-          )
-        }
+          );
+        }}
       >
         <Icon size={17} className="shrink-0 opacity-75 transition-opacity group-hover:opacity-100" />
         <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -260,23 +274,19 @@ function WorkshopSection({ collapsed }: { collapsed: boolean }) {
 function SystemSection({ open, collapsed }: { open: boolean; collapsed: boolean }) {
   return (
     <li>
-      {/* Nhóm này hiếm khi dùng — thu lại để phần "đang làm" luôn nằm trên nếp gấp. */}
-      <details open={open || collapsed}>
-        <summary
-          title="Mở hoặc đóng nhóm Hệ thống"
-          className={clsx(
-            "mx-1.5 mt-2 rounded-field px-2 py-1.5 text-[10px] font-semibold tracking-[0.12em] uppercase opacity-55 transition-colors hover:bg-base-200 hover:opacity-80",
-            collapsed && "sr-only",
-          )}
-        >
-          Hệ thống
-        </summary>
-        <ul className="!ms-0 !ps-0">
-          {SYSTEM.map(({ to, label, icon: Icon }) => (
-            <SidebarLink key={to} to={to} label={label} icon={Icon} collapsed={collapsed} />
-          ))}
-        </ul>
-      </details>
+      <GroupTitle collapsed={collapsed}>Hệ thống</GroupTitle>
+      <ul className="!ms-0 !ps-0">
+        {SYSTEM.map(({ to, label, icon: Icon }) => (
+          <SidebarLink
+            key={to}
+            to={to}
+            label={label}
+            icon={Icon}
+            collapsed={collapsed}
+            active={open}
+          />
+        ))}
+      </ul>
     </li>
   );
 }
@@ -292,7 +302,7 @@ export function Shell() {
     }
   });
   const location = useLocation();
-  const inSystem = SYSTEM.some((item) => location.pathname.startsWith(item.to));
+  const inSystem = SYSTEM_PATHS.some((p) => location.pathname === p || location.pathname.startsWith(p + "/"));
 
   useEffect(() => setDrawer(false), [location.pathname]);
 

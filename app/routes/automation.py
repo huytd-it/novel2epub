@@ -51,14 +51,20 @@ def automation_create(
     ebook: str = Form(...),
     steps: Annotated[list[str], Form()] = [],
     schedule: str = Form("manual"),
-    crawl_workers: int = Form(4, ge=1),
-    translate_workers: int = Form(4, ge=1),
+    crawl_workers: int = Form(4, ge=1, le=64),
+    translate_workers: int = Form(4, ge=1, le=64),
+    translate_threshold: int = Form(0, ge=0, le=10000),
+    cleanup_threshold: int = Form(0, ge=0, le=10000),
+    publish_threshold: int = Form(0, ge=0, le=10000),
+    build_threshold: int = Form(0, ge=0, le=10000),
 ):
     _require_valid_schedule(schedule)
     steps = [s for s in steps if s in STEPS] or ["build"]
     add_automation(
         deps.AUTOMATIONS_PATH, ebook, steps, schedule,
         crawl_workers=crawl_workers, translate_workers=translate_workers,
+        translate_threshold=translate_threshold, cleanup_threshold=cleanup_threshold,
+        publish_threshold=publish_threshold, build_threshold=build_threshold,
     )
     return RedirectResponse(url="/automation", status_code=303)
 
@@ -69,12 +75,18 @@ def automation_update(
     steps: Annotated[list[str], Form()] = [],
     schedule: str = Form("manual"),
     enabled: bool = Form(False),
+    translate_threshold: int = Form(0, ge=0, le=10000),
+    cleanup_threshold: int = Form(0, ge=0, le=10000),
+    publish_threshold: int = Form(0, ge=0, le=10000),
+    build_threshold: int = Form(0, ge=0, le=10000),
 ):
     _require_valid_schedule(schedule)
     steps = [s for s in steps if s in STEPS] or ["build"]
     try:
         update_automation(deps.AUTOMATIONS_PATH, automation_id, {
             "steps": steps, "schedule": schedule, "enabled": enabled,
+            "translate_threshold": translate_threshold, "cleanup_threshold": cleanup_threshold,
+            "publish_threshold": publish_threshold, "build_threshold": build_threshold,
         })
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

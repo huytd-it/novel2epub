@@ -43,6 +43,7 @@ import {
   type ChapterPreviewState,
   type FindMode,
 } from "@/components/chapter/ChapterListDrawer";
+import { validateChapterText, type ValidationIssue } from "@/lib/validation";
 import { NotesPanel } from "@/components/chapter/NotesPanel";
 import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
 import {
@@ -57,6 +58,7 @@ import {
   IconRevert,
   IconSearch,
   IconSparkle,
+  IconWarning,
 } from "@/components/icons";
 
 /* ── Bôi đen văn bản trong đoạn -> đánh dấu ghi chú ─────────────────── */
@@ -663,6 +665,57 @@ export function ChapterPage() {
     }
   }, [slug, chapterIndex, data, loadedKey]);
 
+  const chapterValidation = useMemo(() => {
+    if (!data) return { issues: [] as ValidationIssue[], summary: { error: 0, warning: 0, info: 0, total: 0 }, perPara: new Map<number, ValidationIssue[]>() };
+    const text = editMode ? documentDraft : data.translated;
+    try {
+      return validateChapterText(text, { title: data.title });
+    } catch {
+      return { issues: [] as ValidationIssue[], summary: { error: 0, warning: 0, info: 0, total: 0 }, perPara: new Map<number, ValidationIssue[]>() };
+    }
+  }, [data?.translated, data?.title, documentDraft, editMode]);
+
+  const handleScrollToPara = (paraIndex: number, start: number, end: number) => {
+    setHighlighted({ paraIndex, start, end });
+    if (paraIndex === -1) {
+      // title
+      const titleEl = document.querySelector("h1");
+      titleEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+      titleEl?.classList.add("ring-2", "ring-primary");
+      setTimeout(() => titleEl?.classList.remove("ring-2", "ring-primary"), 2000);
+      return;
+    }
+    if (editMode && editorRef.current) {
+      const editor = editorRef.current;
+      // tìm offset của para trong documentDraft
+      const lines = documentDraft.split("\n");
+      const paraLineIndexes: number[] = [];
+      lines.forEach((line, idx) => { if (line.trim()) paraLineIndexes.push(idx); });
+      const lineIdx = paraLineIndexes[paraIndex];
+      if (lineIdx !== undefined) {
+        // offset đến đầu dòng
+        let offset = 0;
+        for (let i = 0; i < lineIdx; i++) offset += lines[i].length + 1; // +1 cho \n
+        const selStart = offset + start;
+        const selEnd = offset + end;
+        editor.focus();
+        // scroll: ước lượng dòng * lineHeight
+        const lineHeightPx = Math.round(fontSize * readerPrefs.lineHeight);
+        editor.scrollTop = Math.max(0, lineIdx * lineHeightPx - 80);
+        try {
+          editor.setSelectionRange(selStart, selEnd);
+        } catch {}
+      }
+    } else {
+      const el = document.querySelector(`[data-para-index="${paraIndex}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+    // clear highlight after 3s
+    window.setTimeout(() => setHighlighted(null), 3000);
+  };
+
   useLayoutEffect(() => {
     if (!editMode || !editorRef.current) return;
     const editor = editorRef.current;
@@ -692,6 +745,8 @@ export function ChapterPage() {
      áp dụng đều tự động hiển thị "chapter thật" của kết quả đang xem. */
 
   const [findMode, setFindMode] = useState<FindMode>("list");
+  const [highlighted, setHighlighted] = useState<{ paraIndex: number; start: number; end: number } | null>(null);
+  const highlightActive = findMode === "errors";
   const [findState, setFindState] = useState<ChapterFindState>(() => loadFindState(slug));
   const [findSubmitted, setFindSubmitted] = useState(false);
   const [findQuery, setFindQuery] = useState("");
@@ -898,6 +953,12 @@ export function ChapterPage() {
     setChaptersOpen(true);
   };
 
+  const openErrorsMode = () => {
+    setFindMode("errors");
+    setChaptersCollapsed(false);
+    setChaptersOpen(true);
+  };
+
   const notesByPara = useMemo(() => {
     const map = new Map<number, Note[]>();
     for (const n of notes ?? []) {
@@ -1081,6 +1142,28 @@ export function ChapterPage() {
             <div className="relative">
               <Button
                 size="sm"
+                variant={highlightActive ? "primary" : "ghost"}
+                icon={<IconWarning size={15} />}
+                className="min-h-9 min-w-9 px-2 sm:min-h-0 sm:min-w-0"
+                onClick={openErrorsMode}
+                aria-label="Lỗi chương"
+                title="Lỗi chính tả, mã hóa, dấu lạ — highlight và cuộn tới vị trí lỗi (kể cả khi đang sửa)"
+              />
+              {chapterValidation.summary.total > 0 ? (
+                <span
+                  data-numeric
+                  className={clsx(
+                    "absolute -top-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full text-[9px] font-medium",
+                    chapterValidation.summary.error ? "bg-error text-error-content" : chapterValidation.summary.warning ? "bg-warning text-warning-content" : "bg-base-300 text-base-content",
+                  )}
+                >
+                  {chapterValidation.summary.total > 9 ? "9+" : chapterValidation.summary.total}
+                </span>
+              ) : null}
+            </div>
+            <div className="relative">
+              <Button
+                size="sm"
                 variant="ghost"
                 icon={<IconNote size={15} />}
                 onClick={() => setNotesOpen(true)}
@@ -1242,12 +1325,20 @@ export function ChapterPage() {
             onSave={(t) =>
               updateTitle.mutate(t, { onError: () => toast("Không lưu được tiêu đề.", "error") })
             }
+            highlightActive={highlightActive}
+            hasError={chapterValidation.issues.some((i) => i.paraIndex === -1 && i.level === "error")}
+            hasWarning={chapterValidation.issues.some((i) => i.paraIndex === -1 && i.level === "warning")}
           />
 
           {editMode ? (
             <div className="mb-5">
               <div className="mb-2 flex items-center justify-between text-xs">
                 <span className={dirty ? "text-warning" : "opacity-50"}>{dirty ? "Có thay đổi chưa lưu" : "Đã đồng bộ"}</span>
+                {highlightActive && chapterValidation.summary.total > 0 ? (
+                  <span className={clsx("badge badge-sm", chapterValidation.summary.error ? "badge-error" : "badge-warning")}>
+                    {chapterValidation.summary.error ? `${chapterValidation.summary.error} lỗi` : `${chapterValidation.summary.warning} cảnh báo`} đang highlight
+                  </span>
+                ) : null}
                 <Button size="sm" variant="primary" disabled={!dirty} loading={saveChapterText.isPending} onClick={saveDocument}>Lưu chương <span className="opacity-60">Ctrl+S</span></Button>
               </div>
               <textarea
@@ -1259,6 +1350,8 @@ export function ChapterPage() {
                   readerPrefs.fontFamily === "serif" && "font-read",
                   readerPrefs.fontFamily === "mono" && "font-mono",
                   readerPrefs.fontFamily === "sans" && "font-sans",
+                  highlightActive && chapterValidation.summary.error && "border-error/50 ring-1 ring-error/20",
+                  highlightActive && !chapterValidation.summary.error && chapterValidation.summary.warning && "border-warning/50 ring-1 ring-warning/20",
                 )}
                 style={{ fontSize: `${fontSize}px`, lineHeight: readerPrefs.lineHeight }}
                 spellCheck
@@ -1290,6 +1383,9 @@ export function ChapterPage() {
               lineHeight={readerPrefs.lineHeight}
               notesByPara={notesByPara}
               onOpenNote={() => setNotesOpen(true)}
+              validationPerPara={chapterValidation.perPara}
+              highlightActive={highlightActive}
+              highlighted={highlighted}
             />
           )}
 
@@ -1460,6 +1556,8 @@ export function ChapterPage() {
         onSelectAll={(indexes) => setSelectedChapterIndexes(new Set(indexes))}
         onClearSelected={() => setSelectedChapterIndexes(new Set())}
         onBulkLocalMt={() => setBulkLocalMtOpen(true)}
+        validation={chapterValidation}
+        onScrollToPara={handleScrollToPara}
       />
       <NotesPanel
         open={notesOpen}
@@ -1477,10 +1575,16 @@ function ChapterTitle({
   title,
   editMode,
   onSave,
+  highlightActive,
+  hasError,
+  hasWarning,
 }: {
   title: string;
   editMode: boolean;
   onSave: (title: string) => void;
+  highlightActive?: boolean;
+  hasError?: boolean;
+  hasWarning?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
@@ -1517,7 +1621,11 @@ function ChapterTitle({
             e.preventDefault();
           }
         }}
-        className="textarea textarea-ghost mb-5 min-h-0 w-full resize-none overflow-hidden rounded-field border border-dashed border-base-300 bg-transparent px-2 py-1 text-center font-display text-2xl leading-tight outline-none focus:border-solid focus:border-primary"
+        className={clsx(
+          "textarea textarea-ghost mb-5 min-h-0 w-full resize-none overflow-hidden rounded-field border border-dashed border-base-300 bg-transparent px-2 py-1 text-center font-display text-2xl leading-tight outline-none focus:border-solid focus:border-primary",
+          highlightActive && hasError && "border-error/50 ring-1 ring-error/30",
+          highlightActive && !hasError && hasWarning && "border-warning/50 ring-1 ring-warning/30",
+        )}
         aria-label="Sửa tiêu đề chương"
       />
     );
@@ -1528,6 +1636,8 @@ function ChapterTitle({
       className={clsx(
         "mb-5 whitespace-pre-wrap text-center font-display text-2xl leading-tight",
         editMode && "cursor-text rounded-field outline-dashed outline-1 outline-base-300",
+        highlightActive && hasError && "rounded-field bg-error/10 ring-2 ring-error/30",
+        highlightActive && !hasError && hasWarning && "rounded-field bg-warning/10 ring-2 ring-warning/30",
       )}
       onClick={() => editMode && setEditing(true)}
     >
@@ -1538,6 +1648,118 @@ function ChapterTitle({
 
 /* ── Thân chương: danh sách đoạn, sửa tại chỗ + chèn đoạn mới ───────── */
 
+function renderParaWithHighlights(
+  text: string,
+  notes: Note[],
+  highlights: ValidationIssue[],
+  highlightedRange: { start: number; end: number } | null,
+  onOpenNote: (note: Note) => void,
+  highlightActive: boolean,
+): ReactNode {
+  if (!highlightActive || highlights.length === 0) {
+    return renderWithNotes(text, notes, onOpenNote);
+  }
+  // Build boundary set from highlights + notes
+  const boundaries = new Set<number>([0, text.length]);
+  for (const h of highlights) {
+    boundaries.add(Math.max(0, Math.min(text.length, h.start)));
+    boundaries.add(Math.max(0, Math.min(text.length, h.end)));
+  }
+  for (const n of notes) {
+    if (!n.selected_text) continue;
+    const idx = text.indexOf(n.selected_text);
+    if (idx !== -1) {
+      boundaries.add(idx);
+      boundaries.add(idx + n.selected_text.length);
+    }
+  }
+  if (highlightedRange) {
+    boundaries.add(highlightedRange.start);
+    boundaries.add(highlightedRange.end);
+  }
+  const sorted = [...boundaries].sort((a, b) => a - b);
+  const segments: ReactNode[] = [];
+  // helper to find level for segment
+  const levelFor = (s: number, e: number): ValidationIssue | null => {
+    // pick highest priority highlight covering this segment
+    let best: ValidationIssue | null = null;
+    for (const h of highlights) {
+      if (s >= h.start && e <= h.end) {
+        if (!best || (h.level === "error" && best.level !== "error") || (h.level === "warning" && best.level === "info")) best = h;
+      }
+    }
+    return best;
+  };
+  const isHighlighted = (s: number, e: number) => highlightedRange && s >= highlightedRange.start && e <= highlightedRange.end;
+
+  // also need note map for quick lookup
+  const noteAt = (s: number, e: number): Note | null => {
+    for (const n of notes) {
+      if (!n.selected_text) continue;
+      const idx = text.indexOf(n.selected_text);
+      if (idx !== -1 && s >= idx && e <= idx + n.selected_text.length) return n;
+    }
+    return null;
+  };
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    if (a >= b) continue;
+    const slice = text.slice(a, b);
+    if (!slice) continue;
+    const hl = levelFor(a, b);
+    const note = noteAt(a, b);
+    const highlighted = isHighlighted(a, b);
+    let node: ReactNode = slice;
+    if (note) {
+      node = (
+        <mark
+          key={`n-${a}`}
+          className={clsx("cursor-pointer rounded-sm px-0.5", note.status === "open" ? "bg-warning/30" : "bg-base-300/60 line-through")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenNote(note);
+          }}
+        >
+          {slice}
+        </mark>
+      );
+    }
+    if (hl) {
+      const tone =
+        hl.level === "error"
+          ? "bg-error/25 text-error ring-1 ring-error/30"
+          : hl.level === "warning"
+            ? "bg-warning/25 text-warning ring-1 ring-warning/30"
+            : "bg-info/15 ring-1 ring-info/20";
+      const pulse = highlighted ? " ring-2 ring-offset-1 animate-pulse" : "";
+      if (note) {
+        // wrap note node inside highlight span
+        node = (
+          <span key={`h-${a}`} className={clsx("rounded-sm", tone, pulse)} title={`${hl.code}: ${hl.message}`}>
+            {node}
+          </span>
+        );
+      } else {
+        node = (
+          <span key={`h-${a}`} className={clsx("rounded-sm px-0.5", tone, pulse)} title={`${hl.code}: ${hl.message}`}>
+            {slice}
+          </span>
+        );
+      }
+    } else if (highlighted && !note) {
+      node = (
+        <span key={`hl-${a}`} className="rounded-sm bg-primary/20 ring-2 ring-primary/40">
+          {slice}
+        </span>
+      );
+    }
+    segments.push(<span key={a}>{node}</span>);
+  }
+  return <>{segments}</>;
+}
+
 function ChapterBody({
   paragraphs,
   fontSize,
@@ -1545,6 +1767,9 @@ function ChapterBody({
   lineHeight,
   notesByPara,
   onOpenNote,
+  validationPerPara,
+  highlightActive,
+  highlighted,
 }: {
   paragraphs: string[];
   editMode: boolean;
@@ -1553,17 +1778,37 @@ function ChapterBody({
   lineHeight: number;
   notesByPara: Map<number, Note[]>;
   onOpenNote: () => void;
+  validationPerPara?: Map<number, ValidationIssue[]>;
+  highlightActive?: boolean;
+  highlighted?: { paraIndex: number; start: number; end: number } | null;
 }) {
   return (
     <div
       className={clsx(fontFamily === "serif" && "font-read", fontFamily === "mono" && "font-mono", fontFamily === "sans" && "font-sans")}
       style={{ fontSize: `${fontSize}px`, lineHeight }}
     >
-      {paragraphs.map((text, i) => (
-        <p key={i} data-para-index={i} className="mb-3 text-justify">
-          {renderWithNotes(text, notesByPara.get(i) ?? [], onOpenNote)}
-        </p>
-      ))}
+      {paragraphs.map((text, i) => {
+        const highlights = validationPerPara?.get(i) ?? [];
+        const isHighlightedPara = highlighted?.paraIndex === i;
+        const paraHighlight = isHighlightedPara ? highlighted : null;
+        const hasIssue = highlights.length > 0 && highlightActive;
+        return (
+          <p
+            key={i}
+            data-para-index={i}
+            className={clsx(
+              "mb-3 rounded-field px-1 py-0.5 text-justify transition-colors",
+              hasIssue && "border-l-2 pl-2",
+              hasIssue && highlights.some((h) => h.level === "error") ? "border-error/60 bg-error/5" : hasIssue && highlights.some((h) => h.level === "warning") ? "border-warning/50 bg-warning/5" : hasIssue ? "border-info/30 bg-info/5" : "border-transparent",
+              isHighlightedPara && "ring-2 ring-primary/40 bg-primary/5",
+            )}
+          >
+            {hasIssue || isHighlightedPara
+              ? renderParaWithHighlights(text, notesByPara.get(i) ?? [], highlights, paraHighlight ? { start: paraHighlight.start, end: paraHighlight.end } : null, onOpenNote, !!highlightActive)
+              : renderWithNotes(text, notesByPara.get(i) ?? [], onOpenNote)}
+          </p>
+        );
+      })}
     </div>
   );
 }

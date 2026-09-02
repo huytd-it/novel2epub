@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 23
+SCHEMA_VERSION = 24
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -401,7 +401,11 @@ _SCHEMA_STATEMENTS = [
         last_run_stats_json TEXT NOT NULL DEFAULT '{}',
         crawl_workers INTEGER NOT NULL DEFAULT 4,
         translate_workers INTEGER NOT NULL DEFAULT 4,
-        created_at TEXT NOT NULL DEFAULT ''
+        created_at TEXT NOT NULL DEFAULT '',
+        translate_threshold INTEGER NOT NULL DEFAULT 0,
+        cleanup_threshold INTEGER NOT NULL DEFAULT 0,
+        publish_threshold INTEGER NOT NULL DEFAULT 0,
+        build_threshold INTEGER NOT NULL DEFAULT 0
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_automations_ebook ON automations(ebook)",
@@ -857,8 +861,13 @@ _ADDED_COLUMNS = [
     ("ebooks", "raw_source_hash", "TEXT NOT NULL DEFAULT ''"),
     ("ebooks", "raw_updated_at", "TEXT NOT NULL DEFAULT ''"),
     ("ebooks", "translated_metadata_source_hash", "TEXT NOT NULL DEFAULT ''"),
-    # v23: Tailscale Serve/Funnel config toàn cục
+     # v23: Tailscale Serve/Funnel config toàn cục
     ("settings", "tailscale_json", "TEXT NOT NULL DEFAULT '{}'"),
+    # v24: ngưỡng batch cho automation — số chương tối thiểu để kích bước kế tiếp
+    ("automations", "translate_threshold", "INTEGER NOT NULL DEFAULT 0"),
+    ("automations", "cleanup_threshold", "INTEGER NOT NULL DEFAULT 0"),
+    ("automations", "publish_threshold", "INTEGER NOT NULL DEFAULT 0"),
+    ("automations", "build_threshold", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 
@@ -1260,6 +1269,13 @@ def _migration_v23(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
 
+def _migration_v24(conn: sqlite3.Connection) -> None:
+    """Thêm ngưỡng batch cho automation (translate/cleanup/publish/build)."""
+    _ensure_columns(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+
 
 def _migration_v17(conn: sqlite3.Connection) -> None:
     """Gỡ cột `ebooks.name` — chỉ còn `title`.
@@ -1304,6 +1320,7 @@ _MIGRATIONS = {
     21: _migration_v21,
     22: _migration_v22,
     23: _migration_v23,
+    24: _migration_v24,
 }
 
 

@@ -88,6 +88,15 @@ fetch-toc, crawl-new, translate-pending, cleanup-han, build, publish-reader
 
 Ví dụ `0 3 * * *` chạy lúc 03:00 mỗi ngày. Scheduler polling khoảng 30 giây, không chạy trùng một chuỗi cho cùng thời điểm và chạy bù tối đa một lần sau downtime.
 
+Mỗi automation có thể đặt **ngưỡng batch** (0 = luôn chạy):
+
+- `translate_threshold` — sau khi cào N chương mới thì mới dịch (kiểm pending `raw - translated`)
+- `cleanup_threshold` — sau khi dịch N chương thì mới dọn Hán (pending cleanup chưa `han_cleanup_complete`)
+- `publish_threshold` — sau khi có N chương sẵn sàng thì mới đẩy Reader (pending publishable)
+- `build_threshold` — sau khi có N chương sẵn sàng thì mới build EPUB
+
+Trong `run_automation_steps`, trước mỗi bước có ngưỡng, hệ thống đo pending hiện tại; nếu `pending < ngưỡng` thì skip bước đó, log `[automation:step:skip]` và tiếp tục bước kế tiếp (không tính lỗi). Điều này cho phép pipeline tích lũy đủ batch mới kích hoạt các bước tốn tài nguyên (dịch LLM, dọn Hán, publish).
+
 Tại trang chi tiết ebook, thanh pipeline có nút **Tự động**. Nếu ebook đã có workflow, UI hiển thị trước thứ tự bước, lịch và số luồng rồi mới cho chạy. Nếu chưa có, UI cho chọn bước, tạo workflow lịch `manual` và chạy ngay; cron có thể chỉnh tiếp tại trang **Tự động hóa**. Nút **Tải EPUB** trên cùng thanh chỉ bật sau khi ebook đã được build và tải qua `/ebooks/{slug}/download`.
 
 ## Chạy Nền

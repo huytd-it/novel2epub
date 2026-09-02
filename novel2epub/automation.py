@@ -86,6 +86,24 @@ class Automation:
     crawl_workers: int = 4
     translate_workers: int = 4
     created_at: str = ""  # ISO datetime lúc tạo — base tính đến hạn khi chưa từng chạy
+    # Ngưỡng batch: số chương tối thiểu để kích hoạt bước kế tiếp. 0 = luôn chạy.
+    # translate_threshold: sau khi crawl N chương mới thì dịch
+    # cleanup_threshold: sau khi dịch N chương thì dọn Hán
+    # publish_threshold: sau khi có N chương sẵn sàng thì đẩy Reader
+    # build_threshold: sau khi có N chương sẵn sàng thì build EPUB
+    translate_threshold: int = 0
+    cleanup_threshold: int = 0
+    publish_threshold: int = 0
+    build_threshold: int = 0
+
+
+def _col(row, name: str, default=0):
+    """Đọc cột có thể chưa tồn tại trên DB cũ (pre-migration) — trả default."""
+    try:
+        v = row[name]
+    except (KeyError, IndexError):
+        return default
+    return v if v is not None else default
 
 
 def load_automations(db_path: str | Path) -> dict[str, Automation]:
@@ -110,9 +128,13 @@ def load_automations(db_path: str | Path) -> dict[str, Automation]:
             last_run_outcome=r["last_run_outcome"],
             last_run_error=r["last_run_error"],
             last_run_stats=json.loads(r["last_run_stats_json"] or "{}"),
-            crawl_workers=r["crawl_workers"],
-            translate_workers=r["translate_workers"],
+            crawl_workers=int(_col(r, "crawl_workers", 4)),
+            translate_workers=int(_col(r, "translate_workers", 4)),
             created_at=created_at,
+            translate_threshold=int(_col(r, "translate_threshold", 0)),
+            cleanup_threshold=int(_col(r, "cleanup_threshold", 0)),
+            publish_threshold=int(_col(r, "publish_threshold", 0)),
+            build_threshold=int(_col(r, "build_threshold", 0)),
         )
     if changed:
         save_automations(db_path, result)
@@ -129,14 +151,17 @@ def save_automations(db_path: str | Path, automations: dict[str, Automation]) ->
                 INSERT INTO automations
                     (id, ebook, steps_json, schedule, enabled,
                      last_run_at, last_run_outcome, last_run_error, last_run_stats_json,
-                     crawl_workers, translate_workers, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     crawl_workers, translate_workers, created_at,
+                     translate_threshold, cleanup_threshold, publish_threshold, build_threshold)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     a.id, a.ebook, json.dumps(a.steps, ensure_ascii=False), a.schedule,
                     int(a.enabled), a.last_run_at, a.last_run_outcome, a.last_run_error,
                     json.dumps(a.last_run_stats, ensure_ascii=False), a.crawl_workers,
                     a.translate_workers, a.created_at,
+                    int(a.translate_threshold), int(a.cleanup_threshold),
+                    int(a.publish_threshold), int(a.build_threshold),
                 ),
             )
 
@@ -148,12 +173,18 @@ def add_automation(
     schedule: str = "manual",
     crawl_workers: int = 4,
     translate_workers: int = 4,
+    translate_threshold: int = 0,
+    cleanup_threshold: int = 0,
+    publish_threshold: int = 0,
+    build_threshold: int = 0,
 ) -> Automation:
     automations = load_automations(db_path)
     new_id = str(uuid.uuid4())
     automation = Automation(
         id=new_id, ebook=ebook, steps=list(steps), schedule=schedule,
         crawl_workers=crawl_workers, translate_workers=translate_workers,
+        translate_threshold=translate_threshold, cleanup_threshold=cleanup_threshold,
+        publish_threshold=publish_threshold, build_threshold=build_threshold,
         created_at=datetime.now().isoformat(),
     )
     automations[new_id] = automation

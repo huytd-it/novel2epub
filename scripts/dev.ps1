@@ -137,13 +137,30 @@ Write-Host "  Backend : http://127.0.0.1:$resolvedPort" -ForegroundColor White
 Write-Host "  SPA dev : http://localhost:5183/ (proxy /api -> 127.0.0.1:$resolvedPort)" -ForegroundColor White
 Write-Host "  Bam Ctrl+C de dung" -ForegroundColor Yellow
 
-$backendJob = Start-Process -FilePath $venvPython -ArgumentList @("-m", "uvicorn", "app.main:app", "--reload", "--port", "$resolvedPort", "--host", "127.0.0.1") -WorkingDirectory $Root -PassThru
-Write-Ok "Backend PID $($backendJob.Id) - doi 2s..."
-Start-Sleep -Seconds 2
-if ($backendJob.HasExited) {
-    Write-Host "  [ERR] Backend thoat som (exit $($backendJob.ExitCode))" -ForegroundColor Red
+$backendLog = Join-Path $Root "logs\dev-backend.log"
+New-Item -ItemType Directory -Path (Split-Path $backendLog) -Force | Out-Null
+$backendJob = Start-Process -FilePath $venvPython -ArgumentList @("-m", "uvicorn", "app.main:app", "--reload", "--port", "$resolvedPort", "--host", "127.0.0.1") -WorkingDirectory $Root -RedirectStandardOutput $backendLog -RedirectStandardError $backendLog -PassThru
+Write-Ok "Backend PID $($backendJob.Id) - log: $backendLog"
+# Doi backend sẵn sàng (uvicorn --reload cần >2s) thay vì sleep cứng.
+$ready = $false
+for ($i = 1; $i -le 30; $i++) {
+    if ($backendJob.HasExited) { break }
+    try {
+        $tcp = New-Object Net.Sockets.TcpClient
+        $iar = $tcp.BeginConnect("127.0.0.1", $resolvedPort, $null, $null)
+        if ($iar.AsyncWaitHandle.WaitOne(500) -and $tcp.Connected) { $ready = $true; $tcp.Close(); break }
+        $tcp.Close()
+    } catch {}
+    Start-Sleep -Milliseconds 500
+}
+if (-not $ready) {
+    Write-Host "  [ERR] Backend chưa nghe :$resolvedPort sau ~15s (exit? $($backendJob.HasExited))" -ForegroundColor Red
+    Write-Host "  --- $backendLog ---" -ForegroundColor Yellow
+    Get-Content $backendLog -Tail 40 -ErrorAction SilentlyContinue | Write-Host
+    if (-not $backendJob.HasExited) { Stop-Process -Id $backendJob.Id -Force -ErrorAction SilentlyContinue }
     exit 1
 }
+Write-Ok "Backend sẵn sàng :$resolvedPort"
 try {
     Push-Location (Join-Path $Root "frontend")
     try {

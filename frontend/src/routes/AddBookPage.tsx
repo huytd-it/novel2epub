@@ -21,6 +21,11 @@ import {
   type EbookCreateResult,
   type EbookPreview,
 } from "@/lib/books";
+import {
+  previewUpload,
+  useCreateFromUpload,
+  type UploadPreview,
+} from "@/lib/upload";
 import { useSources, type SourcePreset } from "@/lib/sources";
 import { useGlobalAi, useLocalMt, useTranslateDefaults } from "@/lib/settings";
 
@@ -101,7 +106,7 @@ function FetchToc({ checked, onChange }: { checked: boolean; onChange: (value: b
   );
 }
 
-function SingleResult({ result, reset }: { result: EbookCreateResult; reset: () => void }) {
+function SingleResult({ result, reset, extra }: { result: EbookCreateResult; reset: () => void; extra?: string }) {
   return (
     <Panel className="border-success/40 bg-success/5 p-4" aria-live="polite">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -111,6 +116,7 @@ function SingleResult({ result, reset }: { result: EbookCreateResult; reset: () 
           <p className="text-xs opacity-60">
             {result.slug}
             {result.toc_job ? " · Đã xếp job lấy mục lục" : ""}
+            {extra ? ` · ${extra}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -442,9 +448,9 @@ function TranslateMetaControl({
 }
 
 export function AddBookPage() {
-  const [tab, setTab] = useState<"single" | "bulk">("single");
+  const [tab, setTab] = useState<"single" | "bulk" | "upload">("single");
   return (
-    <Page title="Thêm truyện" hint="Tạo từ một URL mục lục hoặc nhập tối đa 20 URL cùng lúc — cấu hình được copy từ Nguồn">
+    <Page title="Thêm truyện" hint="Tạo từ URL mục lục, nhập hàng loạt, hoặc upload file .txt/.epub có sẵn">
       <div role="tablist" className="tabs tabs-box mb-4 w-fit" aria-label="Kiểu nhập truyện">
         <button role="tab" className={`tab ${tab === "single" ? "tab-active" : ""}`} onClick={() => setTab("single")}>
           Nhập 1 link
@@ -452,8 +458,11 @@ export function AddBookPage() {
         <button role="tab" className={`tab ${tab === "bulk" ? "tab-active" : ""}`} onClick={() => setTab("bulk")}>
           Nhập hàng loạt
         </button>
+        <button role="tab" className={`tab ${tab === "upload" ? "tab-active" : ""}`} onClick={() => setTab("upload")}>
+          Upload file
+        </button>
       </div>
-      {tab === "single" ? <SingleForm /> : <BulkForm />}
+      {tab === "single" ? <SingleForm /> : tab === "bulk" ? <BulkForm /> : <UploadForm />}
     </Page>
   );
 }
@@ -668,6 +677,169 @@ function SingleForm() {
       ) : (
         <Panel className="hidden place-items-center p-8 text-center text-sm opacity-55 xl:grid">
           Metadata và cấu hình crawl sẽ hiện ở đây sau khi xem trước. Chọn nguồn phía trái để xem config được copy.
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+/* ── Upload file .txt/.epub → tạo ebook từ chương raw ────────────────────── */
+
+function UploadForm() {
+  const toast = useToast();
+  const createMutation = useCreateFromUpload();
+  const [file, setFile] = useState<File | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [preview, setPreview] = useState<UploadPreview | null>(null);
+  const [form, setForm] = useState({ slug: "", title: "", author: "", description: "" });
+  const [result, setResult] = useState<(EbookCreateResult & { chapter_count: number }) | null>(null);
+  const showError = (error: unknown) => toast(error instanceof Error ? error.message : String(error), "error");
+
+  const pick = async (next: File | null) => {
+    setFile(next);
+    setPreview(null);
+    setResult(null);
+    if (!next) return;
+    if (!/\.(txt|epub)$/i.test(next.name)) {
+      toast("Chỉ chấp nhận file .txt và .epub.", "error");
+      return;
+    }
+    setPreviewing(true);
+    try {
+      const p = await previewUpload(next);
+      setPreview(p);
+      setForm({ slug: p.slug, title: p.title, author: p.author, description: "" });
+      if (!p.slug) toast("Không gợi ý được slug latin từ file — hãy nhập slug thủ công.", "info");
+    } catch (error) {
+      showError(error);
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const handleTranslated = (patch: { title: string; author: string; description: string }) => {
+    const nextSlug = deriveSlug(patch.title);
+    setForm((current) => ({ ...current, ...patch, slug: nextSlug }));
+    if (!nextSlug) toast("Tiêu đề dịch không tạo được slug latin — hãy nhập slug thủ công.", "info");
+  };
+
+  const create = async () => {
+    if (!file) return;
+    const slug = form.slug.trim() || deriveSlug(form.title);
+    if (!slug.trim() || !hasLatin(slug)) {
+      toast("Slug không hợp lệ — cần ít nhất 1 ký tự latin.", "error");
+      return;
+    }
+    try {
+      const created = await createMutation.mutateAsync({ file, meta: { ...form, slug } });
+      setResult({ status: "created", slug: created.slug, title: created.title, source: "", toc_job: null, chapter_count: created.chapter_count });
+      toast(`Đã tạo truyện với ${created.chapter_count} chương raw.`);
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const reset = () => {
+    setFile(null);
+    setPreview(null);
+    setForm({ slug: "", title: "", author: "", description: "" });
+    setResult(null);
+  };
+
+  if (result) {
+    return <SingleResult result={result} reset={reset} extra={`${result.chapter_count} chương raw`} />;
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,.8fr)]">
+      <div className="grid gap-4">
+        <Panel>
+          <PanelHeader title="File nguồn" hint="Mỗi lần 1 file .txt (nhiều chương) hoặc .epub — chương raw đi tiếp qua dịch/biên tập/build như luồng crawl." />
+          <div className="grid gap-4 p-4">
+            <Field label="Chọn file" hint="TXT tách chương theo tiêu đề (Chương N / Chapter N / 第N章) · EPUB tách theo file con, giữ ảnh bìa.">
+              <input
+                type="file"
+                accept=".txt,.epub"
+                className="file-input file-input-sm w-full"
+                onChange={(e) => pick(e.target.files?.[0] ?? null)}
+              />
+            </Field>
+            {previewing ? <p className="text-sm opacity-60">Đang đọc file…</p> : null}
+            {preview ? (
+              <div className="grid gap-1 text-sm">
+                <p>
+                  <Badge tone="gold">{preview.chapter_count} chương</Badge>{" "}
+                  {preview.has_cover ? <Badge tone="celadon">Có bìa</Badge> : null}
+                </p>
+                <p className="text-xs opacity-60">{preview.filename}</p>
+                {preview.chapters_preview.length ? (
+                  <ol className="mt-1 max-h-56 list-decimal overflow-auto rounded-box border border-base-300 bg-base-200/30 px-3 py-2 pl-8 text-xs">
+                    {preview.chapters_preview.map((title, index) => (
+                      <li key={index} className="truncate py-0.5" title={title}>
+                        {title || <span className="opacity-50">(không tiêu đề)</span>}
+                      </li>
+                    ))}
+                    {preview.chapter_count > preview.chapters_preview.length ? (
+                      <li className="opacity-50">…và {preview.chapter_count - preview.chapters_preview.length} chương nữa</li>
+                    ) : null}
+                  </ol>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="primary" loading={createMutation.isPending} disabled={!preview || !form.slug.trim() || !hasLatin(form.slug)} onClick={create}>
+                Tạo truyện từ file
+              </Button>
+              <Link className="btn btn-ghost btn-sm" to="/">
+                Hủy
+              </Link>
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      {preview ? (
+        <div className="grid gap-4">
+          <Panel>
+            <PanelHeader title="Duyệt trước khi tạo" hint={`${preview.chapter_count} chương · toc_url để trống, có thể điền sau để crawl bổ sung`} />
+            <div className="grid gap-3 p-4">
+              <Field
+                label="Slug"
+                hint={
+                  !form.slug.trim()
+                    ? "Slug trống — cần ký tự latin. Hãy nhập thủ công."
+                    : !hasLatin(form.slug)
+                      ? "Slug cần ký tự latin."
+                      : undefined
+                }
+              >
+                <Input
+                  value={form.slug}
+                  onChange={(e) => setForm({ ...form, slug: e.target.value })}
+                  placeholder="slug-latin (vd truyen-moi)"
+                  className={!form.slug.trim() || !hasLatin(form.slug) ? "input-error" : undefined}
+                />
+              </Field>
+              <Field label="Tên truyện">
+                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              </Field>
+              <Field label="Tác giả">
+                <Input value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} />
+              </Field>
+              <Field label="Mô tả">
+                <Textarea rows={5} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              </Field>
+              <TranslateMetaControl
+                values={{ title: form.title, author: form.author, description: form.description }}
+                onTranslated={handleTranslated}
+                disabled={!form.title.trim()}
+              />
+            </div>
+          </Panel>
+        </div>
+      ) : (
+        <Panel className="hidden place-items-center p-8 text-center text-sm opacity-55 xl:grid">
+          Chọn file .txt/.epub để xem trước metadata và danh sách chương trước khi tạo.
         </Panel>
       )}
     </div>

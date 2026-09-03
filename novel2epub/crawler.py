@@ -162,8 +162,11 @@ def fetch_chapter_paginated(
     fetch_page,
     extract_text,
     next_page_url,
-) -> str:
+) -> tuple[str, int]:
     """Tải và ghép nội dung nhiều trang con của một chương.
+
+    Trả ``(nội dung ghép, số trang con đã ghép)`` — số trang dùng cho cột
+    "Trang" ở bảng chương (0 = không tải được nội dung nào).
 
     3 closure:
       - ``fetch_page(url) -> page_obj``: tải URL, trả về Scrapling Adaptor.
@@ -192,7 +195,7 @@ def fetch_chapter_paginated(
         current_page = fetch_page(current_url)
     except Exception as e:
         logger.warning("Pagination chương %s — lỗi fetch trang đầu: %s", ch.stem, e)
-        return ""
+        return "", 0
     try:
         next_url = next_page_url(current_url, current_page)
     except Exception as e:
@@ -204,7 +207,7 @@ def fetch_chapter_paginated(
     first_text = (extract_text(current_page) or "").strip()
     if not first_text:
         logger.info("Pagination chương %s — nội dung trang đầu rỗng, kết thúc", ch.stem)
-        return first_text
+        return first_text, 0
 
     pages: list[str] = [first_text]
     title_line = first_text.splitlines()[0].strip() if first_text else ""
@@ -247,7 +250,7 @@ def fetch_chapter_paginated(
 
     result = "\n\n".join(p for p in pages if p)
     logger.info("Pagination chương %s — hoàn tất: %s trang, %s ký tự", ch.stem, len(pages), len(result))
-    return result
+    return result, len(pages)
 
 
 def _make_css_resolver(cfg: CrawlConfig):
@@ -342,6 +345,10 @@ class ScraplingCrawler:
     def __init__(self, cfg: CrawlConfig):
         self.cfg = cfg
         self._last_response_html: str = ""
+        # Số trang con của LẦN fetch_chapter vừa chạy (1 trang = chương đơn,
+        # >1 = chương multi-page đã ghép). 0 khi chưa fetch gì. Caller đọc để
+        # lưu cột `crawl_pages` cùng raw — xem `_crawl_one` trong pipeline.py.
+        self.last_page_count: int = 0
         mode = (cfg.scrapling.mode or "fetcher").lower()
         # Scrapling 0.4+ import playwright ngay ca trong Fetcher path
         # (engines.toolbelt.convertor) nen build exe phai bundle playwright
@@ -716,16 +723,23 @@ class ScraplingCrawler:
                 return pattern_resolver(current_url, page_obj)
             return None
 
-        text = fetch_chapter_paginated(
+        text, pages = fetch_chapter_paginated(
             self.cfg,
             ch,
             fetch_page=fetch_page,
             extract_text=extract_text,
             next_page_url=next_page_url,
         )
-        if text or not self.cfg.ai_fallback or self.cfg._openai_fallback is None:
+        # Ghi ngay để caller (pipeline._crawl_one) đọc qua last_page_count
+        self.last_page_count = pages if text else 0
+        if text:
             return text
-        return self._ai_fallback_extract(ch.url)
+        if not self.cfg.ai_fallback or self.cfg._openai_fallback is None:
+            return text
+        fb = self._ai_fallback_extract(ch.url)
+        if fb:
+            self.last_page_count = 1
+        return fb
 
     def _fetch_chapter_single(self, ch: Chapter) -> str:
         logger.info("Tải chương 1 trang: %s %s", ch.stem, ch.url)
@@ -733,13 +747,21 @@ class ScraplingCrawler:
         text = self._extract_text(page)
         if text:
             logger.info("Tải chương %s — %s ký tự", ch.stem, len(text))
+            self.last_page_count = 1
         elif self.cfg.ai_fallback and self.cfg._openai_fallback:
             logger.info("Tải chương %s — nội dung rỗng, thử AI fallback", ch.stem)
+            self.last_page_count = 0
         else:
             logger.info("Tải chương %s — nội dung rỗng", ch.stem)
-        if text or not self.cfg.ai_fallback or self.cfg._openai_fallback is None:
+            self.last_page_count = 0
+        if text:
             return text
-        return self._ai_fallback_extract(ch.url)
+        if not self.cfg.ai_fallback or self.cfg._openai_fallback is None:
+            return text
+        fb = self._ai_fallback_extract(ch.url)
+        if fb:
+            self.last_page_count = 1
+        return fb
 
     def _extract_text(self, page) -> str:
         node = None

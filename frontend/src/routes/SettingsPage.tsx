@@ -54,7 +54,7 @@ function FieldControl({
 }) {
   const disabled = spec.disabledWhen ? spec.disabledWhen(values) : false;
   const disabledNote = disabled ? (
-    <span className="text-xs opacity-50">— không áp dụng ở chế độ hiện tại</span>
+    <span className="text-xs opacity-50">- không áp dụng ở chế độ hiện tại</span>
   ) : null;
   switch (spec.kind) {
     case "checkbox":
@@ -62,7 +62,7 @@ function FieldControl({
         <label className={clsx("flex items-center gap-2 py-1 text-[13px]", disabled && "opacity-50")}>
           <Checkbox checked={Boolean(value)} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
           {spec.label}
-          {spec.hint ? <span className="text-xs opacity-50">— {spec.hint}</span> : null}
+          {spec.hint ? <span className="text-xs opacity-50">- {spec.hint}</span> : null}
           {disabled ? disabledNote : null}
         </label>
       );
@@ -277,7 +277,7 @@ function SectionForm<S extends SettingsSection>({
   );
 }
 
-/* ── Helpers cho tab Nguồn — giống SourcesPage ─────────────────────── */
+/* ── Helpers cho tab Nguồn - giống SourcesPage ─────────────────────── */
 
 const SETTINGS_DOM_CACHE_KEY = "n2e:domLab:settings:v1";
 
@@ -298,7 +298,7 @@ function writeSettingsDomCache(all: Record<string, { toc: { html: string; sample
   try {
     sessionStorage.setItem(SETTINGS_DOM_CACHE_KEY, JSON.stringify(all));
   } catch {
-    // quota exceeded — best effort
+    // quota exceeded - best effort
   }
 }
 
@@ -367,7 +367,7 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
 
   const onSave = () => {
     if (String(draft.chapter_link_pattern || "").trim() === ".*") {
-      toast("Regex link chương đang là '.*' — sẽ khớp toàn bộ link. Hãy thu hẹp trước khi lưu.", "info");
+      toast("Regex link chương đang là '.*' - sẽ khớp toàn bộ link. Hãy thu hẹp trước khi lưu.", "info");
     }
     save.mutate(draft, {
       onSuccess: () => toast("Đã lưu nguồn."),
@@ -406,7 +406,7 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
     const coverPat = String((draft as unknown as Record<string, unknown>).cover_url_pattern || "").trim();
     let coverPatternError = "";
     if (coverPat) {
-      try { new RegExp(coverPat); } catch (e) { coverPatternError = `Ảnh bìa: cover_url_pattern lỗi cú pháp — ${e instanceof Error ? e.message : String(e)}`; }
+      try { new RegExp(coverPat); } catch (e) { coverPatternError = `Ảnh bìa: cover_url_pattern lỗi cú pháp - ${e instanceof Error ? e.message : String(e)}`; }
     }
     setValidateLoading(true);
     try {
@@ -464,7 +464,7 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
     <Panel className="overflow-hidden">
       <PanelHeader
         title="Nguồn"
-        hint="Cách crawl mục lục và nội dung chương — wrapper thu hẹp phạm vi, regex lọc link; DOM riêng từng truyện được lưu qua sessionStorage"
+        hint="Cách crawl mục lục và nội dung chương - wrapper thu hẹp phạm vi, regex lọc link; DOM riêng từng truyện được lưu qua sessionStorage"
         actions={
           <>
             {dirty ? <Button size="sm" onClick={() => setDraft(server)}>Hủy thay đổi</Button> : null}
@@ -474,17 +474,17 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
       />
       {banner}
       <div className="p-4 space-y-4">
-        {/* URL mục lục — luôn hiện vì là nguồn của DOM lab */}
+        {/* URL mục lục - luôn hiện vì là nguồn của DOM lab */}
         <Field label="URL mục lục" hint="Dán link trang danh sách chương để test selector/regex bên dưới">
           <Input value={String(draft.toc_url || "")} onChange={(e) => set("toc_url", e.target.value)} placeholder="https://example.com/book/123/" spellCheck={false} className="w-full font-mono text-xs" />
         </Field>
 
-        {/* DOM lab — lưu riêng TOC + Chương mẫu cho truyện này, ghi đè khi tải lại */}
+        {/* DOM lab - lưu riêng TOC + Chương mẫu cho truyện này, ghi đè khi tải lại */}
         <div className="space-y-2 rounded-box border border-base-300 bg-base-100 p-3">
           <DomInspector tocUrl={String(draft.toc_url || "")} chapterUrl={tocSampleLinks[0] || ""} scraplingMode={String(draft.scrapling_mode || "fetcher")} onDom={handleDom} toc={tocDom} chapter={chapterDom} />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" loading={validateLoading} onClick={runValidate} disabled={!tocHtml && !chapterHtml}>Kiểm tra wrapper/regex trên DOM</Button>
-            {tocDom || chapterDom ? <span className="text-xs opacity-50 self-center">TOC {tocDom ? `${Math.round(tocDom.html.length / 1024)} KB` : "—"} · Chương {chapterDom ? `${Math.round(chapterDom.html.length / 1024)} KB` : "—"} · tải lại sẽ ghi đè</span> : <span className="text-xs opacity-50 self-center">Tải cả 2 loại DOM để kiểm chính xác — DOM lưu riêng theo truyện, qua sessionStorage.</span>}
+            {tocDom || chapterDom ? <span className="text-xs opacity-50 self-center">TOC {tocDom ? `${Math.round(tocDom.html.length / 1024)} KB` : "-"} · Chương {chapterDom ? `${Math.round(chapterDom.html.length / 1024)} KB` : "-"} · tải lại sẽ ghi đè</span> : <span className="text-xs opacity-50 self-center">Tải cả 2 loại DOM để kiểm chính xác - DOM lưu riêng theo truyện, qua sessionStorage.</span>}
           </div>
           {validateWarnings.length > 0 ? (
             <ul className="list-disc pl-5 text-xs space-y-1">
@@ -513,20 +513,20 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
           <div className="space-y-3">
             <p className="text-[11px] leading-relaxed opacity-60">Các field bên dưới chỉ đếm khớp trên <b>DOM Mục lục</b> đã tải ở phòng lab trên. “Chọn từ DOM” sẽ mở đúng HTML Mục lục. {!tocHtml ? <span className="text-warning">Tải DOM Mục lục để bật đếm khớp &amp; gợi ý.</span> : null}</p>
             <SettingsPairCard
-              title="Link chương — wrapper + regex phối hợp"
+              title="Link chương - wrapper + regex phối hợp"
               hint="Crawler chỉ xét các <a> nằm trong Wrapper mục lục, rồi mới lọc bằng Regex. Thu hẹp wrapper (vd #list) + regex cụ thể (vd /chuong-\\d+\\.html$) loại menu/nav."
             >
               <div className="space-y-1 text-[11px] opacity-60">Wrapper mục lục sẽ dùng preset/mặc định nếu để trống ở đây. Chỉ ghi đè khi muốn test riêng truyện này.</div>
               <RegexField
                 label="Regex lọc link chương"
-                hint="Chỉ khớp URL CHƯƠNG tuyệt đối. Tránh '.*' — sẽ lấy cả menu/nav/footer → crawl hàng trăm URL rác. VD: /chuong-\\d+\\.html$ hoặc /book/\\d+/\\d+\\.html$"
+                hint="Chỉ khớp URL CHƯƠNG tuyệt đối. Tránh '.*' - sẽ lấy cả menu/nav/footer → crawl hàng trăm URL rác. VD: /chuong-\\d+\\.html$ hoặc /book/\\d+/\\d+\\.html$"
                 value={String(draft.chapter_link_pattern || "")}
                 onChange={(v) => set("chapter_link_pattern", v)}
                 sampleLinks={tocSampleLinks}
                 placeholder="vd: /chuong-\\d+\\.html$"
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <SelectorField label="Wrapper trang kế (mục lục)" hint="Link 'Trang kế' ở mục lục — để trống = chỉ 1 trang." value={String(draft.toc_next_page_selector || "")} onChange={(v) => set("toc_next_page_selector", v)} html={tocHtml} placeholder=".pagination a.next" expectOne candidateKind="next-link" />
+                <SelectorField label="Wrapper trang kế (mục lục)" hint="Link 'Trang kế' ở mục lục - để trống = chỉ 1 trang." value={String(draft.toc_next_page_selector || "")} onChange={(v) => set("toc_next_page_selector", v)} html={tocHtml} placeholder=".pagination a.next" expectOne candidateKind="next-link" />
                 <Field label="Số trang mục lục tối đa" hint="1 = chỉ trang đầu"><Input type="number" value={String((draft as unknown as { toc_max_pages: number }).toc_max_pages ?? 5)} onChange={(e) => set("toc_max_pages", e.target.value === "" ? 5 : Number(e.target.value))} /></Field>
               </div>
             </SettingsPairCard>
@@ -536,11 +536,11 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
         {tab === "chapter" ? (
           <div className="space-y-3">
             <p className="text-[11px] leading-relaxed opacity-60">Các field bên dưới chỉ đếm khớp trên <b>DOM Chương mẫu</b>. “Chọn từ DOM” sẽ mở đúng HTML chương. {!chapterHtml ? <span className="text-warning">Tải DOM Chương mẫu để bật đếm khớp &amp; gợi ý.</span> : null}</p>
-            <SettingsSubCard title="Wrapper nội dung chương" hint="Container hẹp nhất bao trọn phần chữ — fallback #content nếu trống. DOM Chương mẫu.">
+            <SettingsSubCard title="Wrapper nội dung chương" hint="Container hẹp nhất bao trọn phần chữ - fallback #content nếu trống. DOM Chương mẫu.">
               <SelectorField label="Wrapper nội dung chương" hint="Container nội dung thực của trang chương" value={String(draft.content_selector || "")} onChange={(v) => set("content_selector", v)} html={chapterHtml || tocHtml} placeholder="#content, #chaptercontent, .read-content" expectOne wrapperNote="wrapper" candidateKind="text-wrapper" />
             </SettingsSubCard>
             <SettingsPairCard
-              title="Phân trang chương — wrapper + regex phối hợp"
+              title="Phân trang chương - wrapper + regex phối hợp"
               hint="Ưu tiên tìm link trang kế qua wrapper selector; regex là fallback khi chỉ có URL tăng số (nhóm bắt \\d+). Giới hạn số trang / chương tránh vòng lặp."
             >
               <SelectorField label="Wrapper trang kế (nội dung)" hint="DOM Chương mẫu" value={String(draft.next_page_selector || "")} onChange={(v) => set("next_page_selector", v)} html={chapterHtml || tocHtml} placeholder="a.next, #next_url" expectOne candidateKind="next-link" />
@@ -557,7 +557,7 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
           <div className="space-y-3">
             <p className="text-[11px] leading-relaxed opacity-60">Ảnh bìa lấy từ <b>DOM Mục lục</b>. og:image là mặc định; regex bên dưới là fallback khi og:image thiếu/sai (quét <code className="px-1 py-0.5 rounded bg-base-200">&lt;img&gt;</code> trong DOM mục lục, URL đầu khớp được dùng).</p>
             <SettingsPairCard
-              title="Ảnh bìa — regex URL ảnh (fallback og:image)"
+              title="Ảnh bìa - regex URL ảnh (fallback og:image)"
               hint="Regex quét URL ảnh tuyệt đối từ DOM Mục lục; URL đầu tiên khớp được dùng nếu og:image thiếu. Đếm khớp dưới regex dựa trên URL ảnh đã trích từ DOM."
             >
               <RegexField
@@ -577,7 +577,7 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
 
         {tab === "advanced" ? (
           <fieldset className="rounded-box border border-base-300 p-3">
-            <legend className="px-1 text-[11px] font-semibold tracking-wide uppercase opacity-60">Crawl nâng cao — ghi đè riêng truyện này</legend>
+            <legend className="px-1 text-[11px] font-semibold tracking-wide uppercase opacity-60">Crawl nâng cao - ghi đè riêng truyện này</legend>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
               <Field label="Delay giữa các request (giây)"><Input type="number" step={0.1} value={String(draft.delay_seconds ?? 1)} onChange={(e) => set("delay_seconds", e.target.value === "" ? 1 : Number(e.target.value))} /></Field>
               <Field label="Số luồng crawl song song"><Input type="number" value={String(draft.max_workers ?? 1)} onChange={(e) => set("max_workers", e.target.value === "" ? 1 : Number(e.target.value))} /></Field>
@@ -591,7 +591,7 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
                   <option value="dynamic">dynamic (render JS)</option>
                 </Select>
               </Field>
-              <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.headless)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("headless", e.target.checked)} />Chạy headless {draft.scrapling_mode === "fetcher" ? <span className="text-xs opacity-50">— không áp dụng ở fetcher</span> : null}</label>
+              <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.headless)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("headless", e.target.checked)} />Chạy headless {draft.scrapling_mode === "fetcher" ? <span className="text-xs opacity-50">- không áp dụng ở fetcher</span> : null}</label>
               <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.solve_cloudflare)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("solve_cloudflare", e.target.checked)} />Giải Cloudflare challenge</label>
               <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.network_idle)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("network_idle", e.target.checked)} />Đợi mạng nhàn rỗi</label>
               <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.dns_over_https)} disabled={draft.scrapling_mode === "fetcher"} onChange={(e) => set("dns_over_https", e.target.checked)} />DNS-over-HTTPS</label>
@@ -601,7 +601,7 @@ function SourceTab({ slug, server, banner }: { slug: string; server: EbookSettin
               <Field label="Delay thử lại tối đa (giây)"><Input type="number" value={String(draft.retry_max_delay_seconds ?? 120)} onChange={(e) => set("retry_max_delay_seconds", e.target.value === "" ? 120 : Number(e.target.value))} /></Field>
               <label className="flex items-center gap-2 py-1 text-[13px]"><Checkbox checked={Boolean(draft.retry_respect_retry_after)} onChange={(e) => set("retry_respect_retry_after", e.target.checked)} />Tôn trọng header Retry-After</label>
               <div className="md:col-span-2 lg:col-span-3">
-                <Field label="Regex loại bỏ nội dung thừa" hint="1 pattern / dòng — loại bỏ dòng chứa quảng cáo/rác"><Textarea rows={4} value={String(draft.strip_patterns || "")} onChange={(e) => set("strip_patterns", e.target.value)} className="font-mono text-xs" spellCheck={false} /></Field>
+                <Field label="Regex loại bỏ nội dung thừa" hint="1 pattern / dòng - loại bỏ dòng chứa quảng cáo/rác"><Textarea rows={4} value={String(draft.strip_patterns || "")} onChange={(e) => set("strip_patterns", e.target.value)} className="font-mono text-xs" spellCheck={false} /></Field>
               </div>
             </div>
           </fieldset>
@@ -758,10 +758,10 @@ function TranslateAiProviderPanel({ slug, ai }: { slug: string; ai: AiSettings }
   const onSave = async () => { try { await saveProvider.mutateAsync({ base_url: baseUrl, api_key: apiKey, timeout_seconds: timeoutSeconds, temperature, api_key_configured: ai.api_key_configured }, { onSuccess: () => toast("Đã lưu provider AI riêng cho truyện này.") }); await saveModels.mutateAsync({ translation_model: translationModel, assistant_model: assistantModel }, { onSuccess: () => toast("Đã lưu model AI riêng cho truyện này.") }); } catch (e) { toast(e instanceof Error ? e.message : String(e), "error"); } };
   return (
     <Panel className="mt-4 overflow-hidden">
-      <PanelHeader title="AI riêng cho truyện này (ghi đè Dịch chung)" hint="Mỗi truyện có thể dùng provider, API key, timeout, temperature và model riêng — ghi đè hoàn toàn config AI chung." actions={<div className="flex flex-wrap gap-2"><Button size="sm" onClick={onLoadModels}>Tải models</Button><Button size="sm" onClick={onTest}>Thử kết nối</Button><Button size="sm" variant="ghost" onClick={onLoadFromGlobal}>Nạp lại từ Dịch chung</Button><Button size="sm" variant="ghost" onClick={onReset}>Reset về chung</Button><Button size="sm" variant="primary" loading={saveProvider.isPending || saveModels.isPending} onClick={onSave}>Lưu AI riêng</Button></div>} />
+      <PanelHeader title="AI riêng cho truyện này (ghi đè Dịch chung)" hint="Mỗi truyện có thể dùng provider, API key, timeout, temperature và model riêng - ghi đè hoàn toàn config AI chung." actions={<div className="flex flex-wrap gap-2"><Button size="sm" onClick={onLoadModels}>Tải models</Button><Button size="sm" onClick={onTest}>Thử kết nối</Button><Button size="sm" variant="ghost" onClick={onLoadFromGlobal}>Nạp lại từ Dịch chung</Button><Button size="sm" variant="ghost" onClick={onReset}>Reset về chung</Button><Button size="sm" variant="primary" loading={saveProvider.isPending || saveModels.isPending} onClick={onSave}>Lưu AI riêng</Button></div>} />
       <div className="border-b border-base-300 bg-base-200/50 px-4 py-3 text-[13px]">
         <div className="flex flex-wrap items-center gap-2"><Badge tone={ai.api_key_configured ? "celadon" : "gold"}>{ai.api_key_configured ? "Đã có API key riêng" : "Chưa có API key riêng (kế thừa chung)"}</Badge><span className="opacity-70">Để trống API key khi lưu sẽ giữ nguyên secret hiện tại của truyện này.</span></div>
-        {globalAi ? <p className="mt-2 opacity-70">Dịch chung — Base URL: <code>{globalAi.base_url}</code> · Translation: <code>{globalAi.translation_model || "(trống)"}</code> · Assistant: <code>{globalAi.assistant_model || "(trống)"}</code> · Timeout: {globalAi.timeout_seconds}s · Temp: {globalAi.temperature}</p> : null}
+        {globalAi ? <p className="mt-2 opacity-70">Dịch chung - Base URL: <code>{globalAi.base_url}</code> · Translation: <code>{globalAi.translation_model || "(trống)"}</code> · Assistant: <code>{globalAi.assistant_model || "(trống)"}</code> · Timeout: {globalAi.timeout_seconds}s · Temp: {globalAi.temperature}</p> : null}
         {test ? <p className={clsx("mt-2", test.ok ? "text-success" : "text-error")} role="status">{test.ok ? `Kết nối OK · ${test.model_count} model · ${test.latency_ms}ms` : test.error}</p> : null}
         {modelsStatus ? <p className="mt-2 opacity-70" role="status">{modelsStatus}</p> : null}
       </div>
@@ -857,7 +857,7 @@ export function SettingsPage() {
       {tab === "reader" ? <SectionForm slug={slug} section="reader" title="Reader" hint="Đẩy bản dịch sang app đọc novel-reader" fields={READER_FIELDS} server={data.reader} /> : null}
       {tab === "output" ? <SectionForm slug={slug} section="output" title="Đầu ra" hint="Vị trí lưu dữ liệu và số luồng xử lý" fields={OUTPUT_FIELDS} server={data.output} /> : null}
 
-      <p className="mt-3 text-xs opacity-50">Đồng bộ vào nguồn dùng chung, tải ảnh bìa từ máy và reset override vẫn chưa có mặt trong giao diện mới — tạm thời chỉnh thẳng trong file cấu hình nếu cần.</p>
+      <p className="mt-3 text-xs opacity-50">Đồng bộ vào nguồn dùng chung, tải ảnh bìa từ máy và reset override vẫn chưa có mặt trong giao diện mới - tạm thời chỉnh thẳng trong file cấu hình nếu cần.</p>
     </Page>
   );
 }

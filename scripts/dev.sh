@@ -69,5 +69,10 @@ if [[ "$PORT" != "8011" ]]; then export N2E_DEV_API_TARGET="http://127.0.0.1:$PO
 $PY -m uvicorn app.main:app --reload --port "$PORT" --host 127.0.0.1 &
 BACK_PID=$!
 trap 'kill $BACK_PID 2>/dev/null; wait $BACK_PID 2>/dev/null || true' EXIT INT TERM
-sleep 2
+# Doi backend sẵn sàng (uvicorn --reload cần >2s) thay vì sleep cứng.
+for _ in $(seq 1 30); do
+  if ! kill -0 $BACK_PID 2>/dev/null; then echo "  [ERR] Backend thoat som" >&2; exit 1; fi
+  if python3 -c "import socket,sys; s=socket.socket(); s.settimeout(0.5); s.connect(('127.0.0.1', int(sys.argv[1])))" "$PORT" 2>/dev/null; then break; fi
+  sleep 0.5
+done
 (cd frontend && npm run dev)

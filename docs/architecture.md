@@ -133,6 +133,18 @@ song song: route Jinja2 cũ giữ nguyên đường dẫn, SPA phục vụ tại
   URL. Hai luồng chỉ enqueue `fetch-toc` khi người dùng bật tùy chọn, mặc định
   tắt; bulk SPA không tạo automation. Các form Jinja2 cũ vẫn giữ nguyên hành vi
   automation của chúng và dùng cùng giới hạn 20 URL.
+- Tab "Upload file" trong cùng trang tạo ebook từ 1 file `.txt`/`.epub`:
+  `POST /api/ui/library/ebooks/upload/preview` parse file trả metadata gợi ý
+  (không ghi DB); `POST /api/ui/library/ebooks/upload` tạo ebook với
+  `toc_url` rỗng rồi ghi từng chương qua `write_raw` (+ bìa qua `write_cover`).
+  Nút "Upload thêm chương" ở trang chi tiết (`POST
+  /api/ui/ebooks/{slug}/chapters/upload`) đối chiếu theo index rút từ tiêu đề —
+  index đã có raw thì bỏ qua, chưa có thì lấp đúng index đó — và luôn
+  `save_manifest` với full chapter list để không xóa nhầm chương cũ. Parser nằm
+  ở `novel2epub/upload_parser.py` (regex tiêu đề Chương/Chapter/第N章, encoding
+  UTF-8 → GB18030 → Big5). Cả ba route đều là multipart (`UploadFile`) nên
+  frontend gọi thẳng `fetch` với `FormData` qua `frontend/src/lib/upload.ts`,
+  cùng pattern với `useImportWireGuardProfile`.
 - Bảng chương (`GET /api/ui/ebooks/{slug}/chapters`) lọc và phân trang phía
   server, uỷ quyền cho `apply_chapter_query` — cùng hàm mà thao tác hàng loạt
   dùng, nên "chọn tất cả kết quả đang lọc" trỏ đúng tập chương backend sẽ xử

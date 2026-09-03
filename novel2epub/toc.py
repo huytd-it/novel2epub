@@ -170,6 +170,9 @@ class ChapterRow:
     # Tiêu đề nguồn tiếng Trung — dùng cho "Hiển thị zh_title" và suy luận số
     # chương thật khi tiêu đề dịch thiếu/mất số.
     title_zh: str = ""
+    # Số trang con đã ghép khi crawl chương multi-page (0 = chưa đo/chưa crawl,
+    # 1 = chương đơn trang, >1 = ghép từ nhiều URL).
+    crawl_pages: int = 0
 
     @property
     def has_missing(self) -> bool:
@@ -251,6 +254,7 @@ def chapter_rows(
             word_count = (s.get("translated_len") or 0) // 5 if has_translated else 0
             zh_char_count = (s.get("raw_len") or 0) // 3 if has_raw else 0
             edit_state = s.get("edit_state", "")
+            crawl_pages = int(s.get("crawl_pages", 0) or 0)
         else:
             active_branch = storage.active_branch(ch)
             has_ai_translation = storage.has_branch_text(ch, "ai")
@@ -263,6 +267,7 @@ def chapter_rows(
             word_count = count_words(storage.read_translated(ch)) if has_translated else 0
             has_raw = storage.has_raw(ch)
             zh_char_count = count_han_chars(storage.read_raw(ch)) if has_raw else 0
+            crawl_pages = storage.crawl_pages(ch)
             meta = storage.read_meta(ch) if (has_translated and storage.has_meta(ch)) else {}
             edit_state = ""
 
@@ -326,6 +331,7 @@ def chapter_rows(
             skipped=ch.skipped,
             title_format_ok=title_format_ok(active_title),
             title_zh=ch.title_zh or "",
+            crawl_pages=crawl_pages,
         ))
     return rows
 
@@ -425,6 +431,9 @@ def apply_chapter_query(
         # "words" = số từ bản dịch. Index là tie-breaker để thứ tự ổn định.
         attr = "zh_char_count" if key == "zh_chars" else "word_count"
         return sorted(out, key=lambda r: (getattr(r, attr), r.index), reverse=desc)
+    if key == "pages":
+        # Số trang con đã ghép khi crawl (0 = chưa crawl/chưa đo).
+        return sorted(out, key=lambda r: (r.crawl_pages, r.index), reverse=desc)
     # "source" (default): preserve manifest list order, chỉ reverse nếu desc
     if desc:
         out.reverse()

@@ -50,7 +50,7 @@ function writeDomCache(all: Record<string, { toc: DomSnapshot | null; chapter: D
   try {
     sessionStorage.setItem(DOM_CACHE_KEY, JSON.stringify(all));
   } catch {
-    // quota exceeded — best effort, ignore
+    // quota exceeded - best effort, ignore
   }
 }
 
@@ -85,7 +85,7 @@ interface FieldSpec {
 
 const BASIC_FIELDS: FieldSpec[] = [
   { key: "url", label: "URL trang chủ / mục lục mẫu", kind: "text", wide: true, hint: "Dùng để gợi ý domain và test selector. Không lưu vào preset crawl." },
-  { key: "domains", label: "Domain nhận diện (phẩy)", kind: "text", hint: "vd: 69shuba.com,69shu.com — ebook có URL chứa domain này sẽ tự gắn preset" },
+  { key: "domains", label: "Domain nhận diện (phẩy)", kind: "text", hint: "vd: 69shuba.com,69shu.com - ebook có URL chứa domain này sẽ tự gắn preset" },
   {
     key: "scrapling_mode",
     label: "Chế độ crawl",
@@ -120,7 +120,7 @@ const CRAWL_FIELDS: FieldSpec[] = [
   { key: "retry_max_delay_seconds", label: "Delay thử lại tối đa (giây)", kind: "number" },
   { key: "retry_respect_retry_after", label: "Tôn trọng header Retry-After", kind: "checkbox" },
   { key: "js_code", label: "JS chạy sau khi tải trang", kind: "textarea", wide: true },
-  { key: "strip_patterns", label: "Regex loại bỏ nội dung thừa (1 dòng / pattern)", kind: "textarea", wide: true, hint: "Mỗi dòng 1 regex Python — loại bỏ dòng chứa quảng cáo/rác sau khi trích nội dung." },
+  { key: "strip_patterns", label: "Regex loại bỏ nội dung thừa (1 dòng / pattern)", kind: "textarea", wide: true, hint: "Mỗi dòng 1 regex Python - loại bỏ dòng chứa quảng cáo/rác sau khi trích nội dung." },
 ];
 
 function FieldControl({
@@ -239,7 +239,7 @@ function PresetModal({
   // Tab form: toc (mục lục) | chapter (chương) | meta (ảnh bìa + crawl) | advanced
   const [tab, setTab] = useState<"toc" | "chapter" | "meta" | "advanced">("toc");
 
-  // DOM lab — lưu trữ snapshot để picker/warning dùng chung (persist qua sessionStorage, ghi đè khi tải lại)
+  // DOM lab - lưu trữ snapshot để picker/warning dùng chung (persist qua sessionStorage, ghi đè khi tải lại)
   const cacheKey = domCacheKey(preset);
   const [tocDom, setTocDom] = useState<DomSnapshot | null>(() => getDomForKey(cacheKey)?.toc ?? null);
   const [chapterDom, setChapterDom] = useState<DomSnapshot | null>(() => getDomForKey(cacheKey)?.chapter ?? null);
@@ -292,7 +292,7 @@ function PresetModal({
     const TOC_KEYS = ["toc_selector", "title_selector", "author_selector", "desc_selector", "cover_selector", "toc_next_page_selector"] as const;
     const CHAPTER_KEYS = ["content_selector", "chapter_title_selector", "next_page_selector"] as const;
 
-    // cover_url_pattern: chỉ kiểm cú pháp regex phía client — sample links là
+    // cover_url_pattern: chỉ kiểm cú pháp regex phía client - sample links là
     // link chương nên endpoint không đối chiếu được. Lỗi cú pháp gom vào
     // allWarnings sau khi khai báo.
     const coverPat = String(draft.cover_url_pattern || "").trim();
@@ -301,7 +301,7 @@ function PresetModal({
       try {
         new RegExp(coverPat);
       } catch (e) {
-        coverPatternError = `Ảnh bìa: cover_url_pattern lỗi cú pháp regex — ${e instanceof Error ? e.message : String(e)}`;
+        coverPatternError = `Ảnh bìa: cover_url_pattern lỗi cú pháp regex - ${e instanceof Error ? e.message : String(e)}`;
       }
     }
 
@@ -356,7 +356,7 @@ function PresetModal({
   };
 
   const runAiSuggest = async () => {
-    if (!tocDom?.html && !chapterDom?.html) { toast("Tải DOM trước đã — bấm 'Tải DOM' ở 2 tab Mục lục / Chương mẫu.", "error"); return; }
+    if (!tocDom?.html && !chapterDom?.html) { toast("Tải DOM trước đã - bấm 'Tải DOM' ở 2 tab Mục lục / Chương mẫu.", "error"); return; }
     setAiSuggestLoading(true);
     try {
       const res = await api.post<{
@@ -384,7 +384,7 @@ function PresetModal({
       }
       const dc = res.diagnostics || {};
       const zero = Object.entries(dc).filter(([, c]) => c === 0).map(([k]) => k);
-      if (zero.length) toast(`AI đã điền ${applied} field — nhưng ${zero.join(", ")} đang "0 khớp" trên DOM đã tải. Nên kiểm tra lại và dùng "Chọn từ DOM".`, "info");
+      if (zero.length) toast(`AI đã điền ${applied} field - nhưng ${zero.join(", ")} đang "0 khớp" trên DOM đã tải. Nên kiểm tra lại và dùng "Chọn từ DOM".`, "info");
       else toast(`Đã điền ${applied} field từ AI gợi ý. Kiểm tra indicator màu bên dưới rồi bấm "Kiểm tra selector trên DOM".`, "ok");
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "error");
@@ -397,7 +397,7 @@ function PresetModal({
       return;
     }
     if (draft.chapter_link_pattern.trim() === ".*" || draft.chapter_link_pattern.trim() === ".+" ) {
-      toast("Regex link chương đang là '.*' — sẽ khớp toàn bộ link trên trang. Hãy thu hẹp trước khi lưu.", "info");
+      toast("Regex link chương đang là '.*' - sẽ khớp toàn bộ link trên trang. Hãy thu hẹp trước khi lưu.", "info");
     }
     const strip = draft.strip_patterns;
     save.mutate(
@@ -440,7 +440,7 @@ function PresetModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={preset ? `Sửa nguồn — ${preset.name}` : "Thêm nguồn"}
+      title={preset ? `Sửa nguồn - ${preset.name}` : "Thêm nguồn"}
       xl
       footer={
         <>
@@ -452,7 +452,7 @@ function PresetModal({
       }
     >
       <div className="grid gap-4">
-        {/* ── 0. Phòng thí nghiệm DOM — ghim lên đầu (dùng chung cho cả tabs) ── */}
+        {/* ── 0. Phòng thí nghiệm DOM - ghim lên đầu (dùng chung cho cả tabs) ── */}
         <div className="space-y-2">
           <DomInspector
             tocUrl={draft.url || ""}
@@ -466,7 +466,7 @@ function PresetModal({
             <Button size="sm" variant="primary" loading={aiSuggestLoading} onClick={runAiSuggest} disabled={!tocHtml && !chapterHtml}>✦ AI gợi ý selector</Button>
             <Button size="sm" loading={validateLoading} onClick={runValidate} disabled={!tocHtml && !chapterHtml}>Kiểm tra selector trên DOM</Button>
             {tocDom || chapterDom ? (
-              <span className="text-xs opacity-60">TOC {tocDom ? `${Math.round(tocDom.html.length / 1024)} KB` : "—"} · Chương {chapterDom ? `${Math.round(chapterDom.html.length / 1024)} KB` : "—"} · tải lại sẽ ghi đè</span>
+              <span className="text-xs opacity-60">TOC {tocDom ? `${Math.round(tocDom.html.length / 1024)} KB` : "-"} · Chương {chapterDom ? `${Math.round(chapterDom.html.length / 1024)} KB` : "-"} · tải lại sẽ ghi đè</span>
             ) : (
               <span className="text-xs opacity-50">Tải cả 2 loại DOM để selector đếm khớp chính xác nhất.</span>
             )}
@@ -484,7 +484,7 @@ function PresetModal({
           <Input value={name} onChange={(e) => setName(e.target.value)} disabled={Boolean(preset)} className="w-full" />
         </Field>
 
-        {/* ── Tab bar (tabs-box — dùng mẫu GlossaryPage/AddBookPage) ── */}
+        {/* ── Tab bar (tabs-box - dùng mẫu GlossaryPage/AddBookPage) ── */}
         <div role="tablist" className="tabs tabs-box Tabs tabs-sm w-fit">
           {tabs.map((t) => (
             <button
@@ -504,9 +504,9 @@ function PresetModal({
         {tab === "toc" ? (
           <div className="grid gap-3">
             <p className="text-[11px] leading-relaxed opacity-60">Các field bên dưới chỉ đếm khớp trên <b>DOM Mục lục</b> đã tải ở phòng lab trên. “Chọn từ DOM” sẽ mở đúng HTML Mục lục. {!tocHtml ? <span className="text-warning">Tải DOM Mục lục để bật đếm khớp &amp; gợi ý.</span> : null}</p>
-            {/* Wrapper + Regex phối hợp — nhóm chính */}
+            {/* Wrapper + Regex phối hợp - nhóm chính */}
             <PairCard
-              title="Link chương — wrapper + regex phối hợp"
+              title="Link chương - wrapper + regex phối hợp"
               hint="Crawler chỉ xét các <a> nằm trong Wrapper mục lục, rồi mới lọc bằng Regex. Thu hẹp wrapper (vd #list) + regex cụ thể (vd /chuong-\d+\.html$) loại menu/nav."
             >
               <SelectorField
@@ -521,7 +521,7 @@ function PresetModal({
               />
               <RegexField
                 label="Regex lọc link chương"
-                hint="Chỉ khớp URL CHƯƠNG tuyệt đối. Tránh '.*' — lấy cả menu/nav. VD: /chuong-\\d+\\.html$"
+                hint="Chỉ khớp URL CHƯƠNG tuyệt đối. Tránh '.*' - lấy cả menu/nav. VD: /chuong-\\d+\\.html$"
                 value={String(draft.chapter_link_pattern || "")}
                 onChange={(v) => set("chapter_link_pattern", v)}
                 sampleLinks={tocSampleLinks}
@@ -529,7 +529,7 @@ function PresetModal({
               />
             </PairCard>
 
-            <SubCard title="Metadata truyện — DOM Mục lục" hint="Thông tin trích từ trang mục lục (tiêu đề, tác giả, mô tả).">
+            <SubCard title="Metadata truyện - DOM Mục lục" hint="Thông tin trích từ trang mục lục (tiêu đề, tác giả, mô tả).">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                 <SelectorField label="Wrapper tên truyện" hint="Ở trang mục lục" value={String(draft.title_selector || "")} onChange={(v) => set("title_selector", v)} html={tocHtml} placeholder="h1, .book-title" expectOne candidateKind="heading" />
                 <SelectorField label="Wrapper tác giả" hint="DOM Mục lục" value={String(draft.author_selector || "")} onChange={(v) => set("author_selector", v)} html={tocHtml} placeholder=".author, #author" expectOne candidateKind="keyword" candidateKeywords={["author", "zuozhe", "tac-gia", "tacgia"]} />
@@ -538,7 +538,7 @@ function PresetModal({
             </SubCard>
 
             <PairCard
-              title="Phân trang mục lục — wrapper trang kế + số trang"
+              title="Phân trang mục lục - wrapper trang kế + số trang"
               hint="Link 'Trang kế' ở mục lục; để trống = chỉ 1 trang."
             >
               <SelectorField
@@ -563,8 +563,8 @@ function PresetModal({
           <div className="grid gap-3">
             <p className="text-[11px] leading-relaxed opacity-60">Các field bên dưới chỉ đếm khớp trên <b>DOM Chương mẫu</b>. “Chọn từ DOM” sẽ mở đúng HTML chương. {!chapterHtml ? <span className="text-warning">Tải DOM Chương mẫu để bật đếm khớp &amp; gợi ý.</span> : null}</p>
             <SubCard
-              title="Nội dung chương — wrapper chính"
-              hint="Container hẹp nhất bao trọn phần chữ — fallback #content nếu trống. DOM Chương mẫu."
+              title="Nội dung chương - wrapper chính"
+              hint="Container hẹp nhất bao trọn phần chữ - fallback #content nếu trống. DOM Chương mẫu."
             >
               <SelectorField
                 label="Wrapper nội dung chương"
@@ -582,7 +582,7 @@ function PresetModal({
             <SelectorField label="Wrapper tiêu đề chương" hint="Ở TRANG CHƯƠNG · DOM Chương mẫu" value={String(draft.chapter_title_selector || "")} onChange={(v) => set("chapter_title_selector", v)} html={chapterHtml} placeholder="h1, .bookname h1" expectOne candidateKind="heading" />
 
             <PairCard
-              title="Phân trang chương — wrapper + regex phối hợp"
+              title="Phân trang chương - wrapper + regex phối hợp"
               hint="Ưu tiên tìm link trang kế qua wrapper selector; regex là fallback khi chỉ có URL tăng số (nhóm bắt \\d+). Giới hạn số trang / chương tránh vòng lặp."
             >
               <SelectorField label="Wrapper trang kế (nội dung)" hint="DOM Chương mẫu" value={String(draft.next_page_selector || "")} onChange={(v) => set("next_page_selector", v)} html={chapterHtml} placeholder="a.next, #next_url" expectOne candidateKind="next-link" />
@@ -602,7 +602,7 @@ function PresetModal({
             <p className="text-[11px] leading-relaxed opacity-60">Ảnh bìa lấy từ <b>DOM Mục lục</b>. og:image là nguồn mặc định; regex bên dưới là fallback khi og:image thiếu/sai (quét <code className="px-1 py-0.5 rounded bg-base-200">&lt;img&gt;</code> trong DOM mục lục).</p>
 
             <PairCard
-              title="Ảnh bìa — wrapper + regex URL ảnh phối hợp"
+              title="Ảnh bìa - wrapper + regex URL ảnh phối hợp"
               hint="og:image (meta chuẩn) → cover_selector → cover_url_pattern. Regex quét URL ảnh tuyệt đối từ DOM Mục lục; URL đầu tiên khớp được dùng nếu og:image thiếu. Đếm khớp dưới regex dựa trên URL ảnh đã trích từ DOM."
             >
               <SelectorField label="Wrapper ảnh bìa" hint="DOM Mục lục" value={String(draft.cover_selector || "")} onChange={(v) => set("cover_selector", v)} html={tocHtml} placeholder=".book-img img" expectOne candidateKind="image" />
@@ -646,7 +646,7 @@ function TestModal({ open, onClose, name }: { open: boolean; onClose: () => void
     <Modal
       open={open}
       onClose={onClose}
-      title={`Test nguồn — ${name}`}
+      title={`Test nguồn - ${name}`}
       footer={
         <>
           <Button onClick={onClose}>Đóng</Button>
@@ -658,7 +658,7 @@ function TestModal({ open, onClose, name }: { open: boolean; onClose: () => void
                 { name, tocUrl },
                 {
                   onSuccess: () => {
-                    toast("Đang test — kết quả hiện lại ở thẻ nguồn sau vài giây.");
+                    toast("Đang test - kết quả hiện lại ở thẻ nguồn sau vài giây.");
                     onClose();
                   },
                   onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
@@ -708,17 +708,17 @@ function PresetCard({
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="truncate font-display text-[15px] font-semibold">{preset.name}</h3>
-          <p className="truncate text-xs opacity-60">{preset.domains || preset.url || "—"}</p>
+          <p className="truncate text-xs opacity-60">{preset.domains || preset.url || "-"}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {isWildcard ? (
             <Badge tone="vermilion" className="cursor-help">
-              <span title="Regex '.*' khớp toàn bộ link — hãy thu hẹp">regex rộng</span>
+              <span title="Regex '.*' khớp toàn bộ link - hãy thu hẹp">regex rộng</span>
             </Badge>
           ) : null}
           {!hasTightWrapper && preset.chapter_link_pattern ? (
             <Badge tone="gold" className="cursor-help">
-              <span title="Thiếu wrapper mục lục — regex sẽ quét toàn trang">thiếu wrapper</span>
+              <span title="Thiếu wrapper mục lục - regex sẽ quét toàn trang">thiếu wrapper</span>
             </Badge>
           ) : null}
           {validation ? (
@@ -808,7 +808,7 @@ export function SourcesPage() {
   return (
     <Page
       title="Nguồn"
-      hint="Preset crawl dùng lại cho nhiều truyện — selector wrapper, regex lọc link, chế độ crawl, delay, proxy"
+      hint="Preset crawl dùng lại cho nhiều truyện - selector wrapper, regex lọc link, chế độ crawl, delay, proxy"
       actions={
         <>
           <InputWithIcon

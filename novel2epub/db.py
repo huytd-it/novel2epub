@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 24
+SCHEMA_VERSION = 25
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -157,6 +157,9 @@ _SCHEMA_STATEMENTS = [
         duplicate_of INTEGER,
         last_action_status TEXT NOT NULL DEFAULT '',
         skipped INTEGER NOT NULL DEFAULT 0,
+        -- Số trang con đã ghép khi crawl 1 chương multi-page
+        -- (fetch_chapter_paginated). 0 = chưa đo/chưa crawl.
+        crawl_pages INTEGER NOT NULL DEFAULT 0,
         raw_text TEXT,
         translated_text TEXT,
         translated_mt_text TEXT,
@@ -194,6 +197,7 @@ _SCHEMA_STATEMENTS = [
         has_translated INTEGER NOT NULL DEFAULT 0,
         raw_len INTEGER NOT NULL DEFAULT 0,
         translated_len INTEGER NOT NULL DEFAULT 0,
+        crawl_pages INTEGER NOT NULL DEFAULT 0,
         edit_state TEXT NOT NULL DEFAULT '',
         han_fixed_count INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (ebook_slug, idx)
@@ -207,7 +211,7 @@ _SCHEMA_STATEMENTS = [
         INSERT INTO chapter_ui_state (
             ebook_slug, idx, active_branch, has_raw, has_ai_translation,
             has_local_mt_translation, has_translated, raw_len, translated_len,
-            edit_state, han_fixed_count
+            crawl_pages, edit_state, han_fixed_count
         ) VALUES (
             NEW.ebook_slug, NEW.idx, COALESCE(NEW.active_branch, 'ai'),
             CASE WHEN COALESCE(NEW.raw_text, '') != '' THEN 1 ELSE 0 END,
@@ -224,6 +228,7 @@ _SCHEMA_STATEMENTS = [
                     (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete'), 0) != 0) THEN 1 ELSE 0 END END,
             LENGTH(COALESCE(NEW.raw_text, '')),
             CASE WHEN COALESCE(NEW.active_branch, 'ai') = 'local_mt' THEN LENGTH(COALESCE(NEW.local_mt_text, '')) ELSE LENGTH(COALESCE(NEW.translated_text, '')) END,
+            COALESCE(NEW.crawl_pages, 0),
             CASE WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') IS NOT NULL THEN 'draft'
                  WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') IS NOT NULL THEN 'edited_ai'
                  WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') IS NOT NULL THEN 'edited_local_mt'
@@ -234,16 +239,17 @@ _SCHEMA_STATEMENTS = [
     """,
     """
     CREATE TRIGGER IF NOT EXISTS chapters_ui_state_after_update
-    AFTER UPDATE OF active_branch, raw_text, translated_text, local_mt_text, meta_json ON chapters
+    AFTER UPDATE OF active_branch, raw_text, translated_text, local_mt_text, meta_json, crawl_pages ON chapters
     BEGIN
         DELETE FROM chapter_ui_state WHERE ebook_slug=NEW.ebook_slug AND idx=NEW.idx;
-        INSERT INTO chapter_ui_state (ebook_slug, idx, active_branch, has_raw, has_ai_translation, has_local_mt_translation, has_translated, raw_len, translated_len, edit_state, han_fixed_count)
+        INSERT INTO chapter_ui_state (ebook_slug, idx, active_branch, has_raw, has_ai_translation, has_local_mt_translation, has_translated, raw_len, translated_len, crawl_pages, edit_state, han_fixed_count)
         SELECT NEW.ebook_slug, NEW.idx, COALESCE(NEW.active_branch, 'ai'),
             COALESCE(NEW.raw_text, '') != '',
             COALESCE(NEW.translated_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete'), 0) != 0),
             COALESCE(NEW.local_mt_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete'), 0) != 0),
             CASE WHEN COALESCE(NEW.active_branch, 'ai') = 'local_mt' THEN COALESCE(NEW.local_mt_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete'), 0) != 0) ELSE COALESCE(NEW.translated_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete'), 0) != 0) END,
             LENGTH(COALESCE(NEW.raw_text, '')), CASE WHEN COALESCE(NEW.active_branch, 'ai') = 'local_mt' THEN LENGTH(COALESCE(NEW.local_mt_text, '')) ELSE LENGTH(COALESCE(NEW.translated_text, '')) END,
+            COALESCE(NEW.crawl_pages, 0),
             CASE WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') IS NOT NULL THEN 'draft' WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') IS NOT NULL THEN 'edited_ai' WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') IS NOT NULL THEN 'edited_local_mt' ELSE '' END,
             COALESCE(CAST(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.han_cleanup.fixed_count') AS INTEGER), 0);
     END
@@ -868,6 +874,11 @@ _ADDED_COLUMNS = [
     ("automations", "cleanup_threshold", "INTEGER NOT NULL DEFAULT 0"),
     ("automations", "publish_threshold", "INTEGER NOT NULL DEFAULT 0"),
     ("automations", "build_threshold", "INTEGER NOT NULL DEFAULT 0"),
+    # v25: số trang con đã ghép khi crawl 1 chương multi-page (0 = chưa đo).
+    # Chỉ sống trong trigger projection nên bảng `chapter_ui_state` mới cần cột;
+    # bảng `chapters` khai báo sẵn trong CREATE TABLE.
+    ("chapters", "crawl_pages", "INTEGER NOT NULL DEFAULT 0"),
+    ("chapter_ui_state", "crawl_pages", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 
@@ -1276,6 +1287,23 @@ def _migration_v24(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
 
+def _migration_v25(conn: sqlite3.Connection) -> None:
+    """Thêm `chapters.crawl_pages` — số trang con ghép khi crawl multi-page.
+
+    Cột cũ không có → ALTER TABLE; trigger cũ dùng `CREATE TRIGGER IF NOT
+    EXISTS` nên phải DROP trước khi tạo lại định nghĩa có `crawl_pages`
+    (theo lối `_migration_v20`). Projection `chapter_ui_state` được cập nhật
+    lại toàn bộ bằng một UPDATE no-op (cùng lối `_migration_v19`).
+    """
+    _ensure_columns(conn)
+    conn.execute("DROP TRIGGER IF EXISTS chapters_ui_state_after_insert")
+    conn.execute("DROP TRIGGER IF EXISTS chapters_ui_state_after_update")
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+    _ensure_columns(conn)
+    conn.execute("UPDATE chapters SET meta_json=meta_json")
+
+
 
 def _migration_v17(conn: sqlite3.Connection) -> None:
     """Gỡ cột `ebooks.name` — chỉ còn `title`.
@@ -1321,6 +1349,7 @@ _MIGRATIONS = {
     22: _migration_v22,
     23: _migration_v23,
     24: _migration_v24,
+    25: _migration_v25,
 }
 
 

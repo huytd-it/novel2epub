@@ -9,10 +9,11 @@ export default defineConfig(({ mode }) => {
   // Tauri loads the bundle off `tauri://` with no server prefix, so it needs
   // relative asset URLs; FastAPI serves the same build at / (root).
   const isTauri = env.N2E_TARGET === "tauri";
-  // Backend mà dev server proxy tới. Có máy không bind được 8011 (Windows giữ
-  // sẵn dải 8001–8100 cho Hyper-V/WSL) nên cho phép trỏ sang cổng khác qua
-  // `N2E_DEV_API_TARGET` trong `frontend/.env.local`.
-  const devApiTarget = env.N2E_DEV_API_TARGET || "http://127.0.0.1:8011";
+  // Backend mà dev server proxy tới. scripts/dev.ps1|sh truyền cổng động qua
+  // biến môi trường N2E_DEV_API_TARGET — phải ưu tiên process.env vì
+  // loadEnv chỉ đọc file .env, không đọc env của process cha.
+  const devApiTarget =
+    process.env.N2E_DEV_API_TARGET || env.N2E_DEV_API_TARGET || "http://127.0.0.1:8011";
 
   return {
     base: isTauri ? "./" : "/",

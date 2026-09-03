@@ -231,7 +231,7 @@ class Storage:
 
     def _chapter_row(self, ch: Chapter) -> sqlite3.Row | None:
         return self.conn.execute(
-            "SELECT raw_text, translated_text, translated_mt_text, active_branch, "
+            "SELECT raw_text, crawl_pages, translated_text, translated_mt_text, active_branch, "
             "title, title_zh, "
             "local_mt_text, local_mt_revision, local_mt_title, local_mt_title_zh, "
             "local_mt_mt_snapshot, meta_json, translated_updated_at "
@@ -273,7 +273,7 @@ class Storage:
         rows = self.conn.execute(
             "SELECT idx, active_branch, has_raw, has_ai_translation, "
             "has_local_mt_translation, has_translated, raw_len, translated_len, "
-            "edit_state, han_fixed_count "
+            "crawl_pages, edit_state, han_fixed_count "
             "FROM chapter_ui_state WHERE ebook_slug = ?",
             (self.slug,),
         ).fetchall()
@@ -287,6 +287,7 @@ class Storage:
                 "has_local_mt_translation": bool(row["has_local_mt_translation"]),
                 "translated_len": row["translated_len"] or 0,
                 "raw_len": row["raw_len"] or 0,
+                "crawl_pages": int(row["crawl_pages"] or 0),
                 "edit_state": row["edit_state"] or "",
                 "han_fixed_count": row["han_fixed_count"] or 0,
             }
@@ -606,14 +607,31 @@ class Storage:
             return None
         return len(row["raw_text"])
 
-    def write_raw(self, ch: Chapter, content: str) -> None:
+    def crawl_pages(self, ch: Chapter) -> int:
+        """Số trang con đã ghép khi crawl 1 chương (0 = chưa đo/chưa crawl)."""
+        row = self._chapter_row(ch)
+        return int(row["crawl_pages"] or 0) if row and row["crawl_pages"] is not None else 0
+
+    def write_raw(self, ch: Chapter, content: str, crawl_pages: int | None = None) -> None:
+        """Ghi nội dung raw và (tùy chọn) số trang đã ghép.
+
+        `crawl_pages=None` giữ nguyên giá trị cũ — dùng cho find-replace, sửa
+        block... những chỗ KHÔNG đổi số trang con. Crawl pipeline truyền giá trị
+        thực (0..max_pages).
+        """
         self.ensure_dirs()
         with self.conn:
             self._ensure_chapter_row(ch)
-            self.conn.execute(
-                "UPDATE chapters SET raw_text = ? WHERE ebook_slug=? AND idx=?",
-                (content, self.slug, ch.index),
-            )
+            if crawl_pages is None:
+                self.conn.execute(
+                    "UPDATE chapters SET raw_text = ? WHERE ebook_slug=? AND idx=?",
+                    (content, self.slug, ch.index),
+                )
+            else:
+                self.conn.execute(
+                    "UPDATE chapters SET raw_text = ?, crawl_pages = ? WHERE ebook_slug=? AND idx=?",
+                    (content, int(crawl_pages), self.slug, ch.index),
+                )
 
     def read_raw(self, ch: Chapter) -> str:
         row = self._chapter_row(ch)

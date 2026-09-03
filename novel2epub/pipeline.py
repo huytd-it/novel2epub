@@ -524,9 +524,13 @@ def step_crawl_chapter_outcome(
 
 
 def _crawl_one(crawler, storage: Storage, ch: Chapter, force: bool, retry: CrawlRetryConfig, log: LogFn, i: int, total: int) -> str:
-    """Tải 1 chương, ghi raw, trả về last_action_status ('completed'/'replaced'/'failed').
+    """Tải 1 chương, ghi raw + crawl_pages, trả last_action_status ('completed'/'replaced'/'failed').
 
-    Dùng chung cho cả nhánh tuần tự và song song.
+    Dùng chung cho cả nhánh tuần tự và song song. `crawl_pages` được đọc từ
+    `crawler.last_page_count` ngay sau `fetch_chapter` (1 = đơn trang, >1 =
+    đã ghép — xem `crawler.fetch_chapter_paginated`). Khi nội dung rỗng ta vẫn
+    lưu `crawl_pages=0` để cột "Trang" phản ánh đúng; find-replace raw giữ nguyên
+    giá trị cũ (không đổi trang).
     """
     had_raw = storage.has_raw(ch)
     log(f"[crawl] ({i}/{total}) {ch.url}")
@@ -537,7 +541,14 @@ def _crawl_one(crawler, storage: Storage, ch: Chapter, force: bool, retry: Crawl
         return "failed"
     if not content.strip():
         log(f"[crawl]   ! Chương {ch.stem} rỗng, bỏ qua.")
-    storage.write_raw(ch, content)
+    # last_page_count do ScraplingCrawler set trong fetch_chapter (0 nếu rỗng).
+    # Preview crawler / fake crawler trong test có thể không có attr → mặc định 1
+    # khi có nội dung, 0 khi rỗng.
+    if hasattr(crawler, "last_page_count"):
+        crawl_pages = int(getattr(crawler, "last_page_count", 0) or 0)
+    else:
+        crawl_pages = 1 if content.strip() else 0
+    storage.write_raw(ch, content, crawl_pages=crawl_pages)
     ch.last_action_status = "replaced" if had_raw and force else "completed"
     return ch.last_action_status
 

@@ -578,6 +578,251 @@ def library_ebook_delete(request: Request, slug: str, confirm_slug: str = Form(.
     return {"ok": True}
 
 
+# ── Upload file (TXT/EPUB) ────────────────────────────────────────────────
+
+
+@router.post("/library/ebooks/upload/preview")
+async def upload_preview(file: UploadFile = File(...)):
+    """Parse file upload và trả metadata gợi ý — KHÔNG ghi DB."""
+    from novel2epub.upload_parser import ParseError, parse_upload_file, suggest_slug
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Thiếu tên file.")
+    name_lower = file.filename.lower()
+    if not name_lower.endswith(".txt") and not name_lower.endswith(".epub"):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file .txt và .epub.")
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="File trống.")
+
+    try:
+        parsed = parse_upload_file(file.filename, file_bytes)
+    except ParseError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    slug = suggest_slug(parsed.title, file.filename)
+    return {
+        "title": parsed.title,
+        "author": parsed.author,
+        "slug": slug,
+        "chapter_count": len(parsed.chapters),
+        "chapters_preview": [ch.title for ch in parsed.chapters[:20]],
+        "has_cover": parsed.cover_bytes is not None,
+        "filename": file.filename,
+    }
+
+
+@router.post("/library/ebooks/upload")
+async def upload_create_ebook(
+    request: Request,
+    file: UploadFile = File(...),
+    slug: str = Form(""),
+    title: str = Form(""),
+    author: str = Form(""),
+    description: str = Form(""),
+):
+    """Tạo ebook mới từ file upload (TXT/EPUB). Tạo chapter raw trong DB."""
+    from novel2epub.config_writer import add_ebook
+    from novel2epub.storage import Chapter, Manifest
+    from novel2epub.upload_parser import ParseError, parse_upload_file, suggest_slug
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Thiếu tên file.")
+    name_lower = file.filename.lower()
+    if not name_lower.endswith(".txt") and not name_lower.endswith(".epub"):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file .txt và .epub.")
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="File trống.")
+
+    try:
+        parsed = parse_upload_file(file.filename, file_bytes)
+    except ParseError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Resolve slug
+    if not slug:
+        slug = suggest_slug(parsed.title, file.filename)
+    if not slug:
+        slug = library_routes.vn_slugify(title.strip() or parsed.title or file.filename)
+    if not slug or not library_routes._has_latin(slug):
+        raise HTTPException(status_code=400, detail="Slug không hợp lệ: cần ít nhất 1 ký tự latin.")
+    lib = deps.library()
+    if slug in lib.ebooks:
+        raise HTTPException(status_code=409, detail=f"Ebook '{slug}' đã tồn tại.")
+
+    # Dùng title từ form nếu có, fallback parsed
+    final_title = title.strip() or parsed.title
+    final_author = author.strip() or parsed.author
+
+    # Ghi ebook vào config — toc_url rỗng vì từ upload
+    add_ebook(
+        deps.WORKSPACE_PATH,
+        slug,
+        title=final_title,
+        author=final_author,
+        toc_url="",
+    )
+    library_routes._save_ebook_metadata(slug, description=description.strip())
+
+    # Ghi raw chapters + cover vào Storage
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    storage.ensure_dirs()
+
+    manifest = storage.load_manifest()
+    if manifest is None:
+        manifest = Manifest(
+            slug=slug,
+            source_url="",
+            title=final_title,
+            author=final_author,
+        )
+
+    # Ghi cover nếu có
+    if parsed.cover_bytes and parsed.cover_ext:
+        cover_file = storage.write_cover(parsed.cover_bytes, parsed.cover_ext)
+        manifest.cover_file = cover_file
+
+    # Ghi chapters — assign index tuần tự nếu index None
+    next_idx = 1
+    chapters_list = list(manifest.chapters) if manifest.chapters else []
+    existing_indexes = {ch.index for ch in chapters_list}
+
+    for ch_parsed in parsed.chapters:
+        idx = ch_parsed.index
+        if idx is None:
+            while next_idx in existing_indexes:
+                next_idx += 1
+            idx = next_idx
+            next_idx += 1
+        elif idx in existing_indexes:
+            # Index đã tồn tại → skip
+            while next_idx in existing_indexes:
+                next_idx += 1
+            next_idx = max(next_idx, idx + 1)
+            continue
+        else:
+            next_idx = max(next_idx, idx + 1)
+
+        ch = Chapter(index=idx, url="", title=ch_parsed.title)
+        storage.write_raw(ch, ch_parsed.content)
+        chapters_list.append(ch)
+        existing_indexes.add(idx)
+
+    # Sort chapters theo index
+    chapters_list.sort(key=lambda c: c.index)
+    manifest.chapters = chapters_list
+
+    # Save manifest (full list, KHÔNG xóa chapter cũ)
+    storage.save_manifest(manifest)
+
+    # Restore ebook vào queue
+    request.app.state.job.queue.restore_ebook(slug)
+
+    return {"slug": slug, "title": final_title, "chapter_count": len(chapters_list)}
+
+
+@router.post("/ebooks/{slug}/chapters/upload")
+async def upload_append_chapters(slug: str, file: UploadFile = File(...)):
+    """Bổ sung chương từ file TXT/EPUB vào ebook đã có.
+
+    Đối chiếu theo index rút từ tiêu đề: index đã có raw → bỏ qua (không
+    ghi đè); chưa có → ghi vào đúng index đó. Không rút được số → gán
+    max_existing+1, +2... Luôn save_manifest với FULL chapter list để không
+    xóa nhầm chương cũ.
+    """
+    from novel2epub.storage import Chapter
+    from novel2epub.upload_parser import ParseError, parse_upload_file
+
+    lib = deps.library()
+    if slug not in lib.ebooks:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy ebook '{slug}'.")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Thiếu tên file.")
+    name_lower = file.filename.lower()
+    if not name_lower.endswith(".txt") and not name_lower.endswith(".epub"):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file .txt và .epub.")
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="File trống.")
+
+    try:
+        parsed = parse_upload_file(file.filename, file_bytes)
+    except ParseError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not parsed.chapters:
+        raise HTTPException(status_code=400, detail="File không chứa chương nào.")
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+
+    raw_indexes = {ch.index for ch in manifest.chapters if storage.has_raw(ch)}
+    used_indexes = {ch.index for ch in manifest.chapters}
+    next_idx = max(used_indexes) + 1 if used_indexes else 1
+
+    added = 0
+    skipped = 0
+    added_indexes: list[int] = []
+    skipped_titles: list[str] = []
+    new_chapters = list(manifest.chapters)
+
+    for ch_parsed in parsed.chapters:
+        target = ch_parsed.index
+        if target is None:
+            while next_idx in used_indexes:
+                next_idx += 1
+            target = next_idx
+            next_idx += 1
+        elif target in raw_indexes:
+            # Index đã có raw (cũ hoặc vừa thêm từ chính file này) → bỏ qua,
+            # không ghi đè.
+            skipped += 1
+            skipped_titles.append(ch_parsed.title)
+            continue
+        elif target in used_indexes:
+            # Index tồn tại trong manifest nhưng chưa có raw (lỗ hổng crawl) →
+            # lấp đúng index đó.
+            pass
+        else:
+            if target >= next_idx:
+                next_idx = target + 1
+
+        existing = next((c for c in new_chapters if c.index == target), None)
+        if existing is not None:
+            # Lấp lỗ hổng: giữ nguyên row, chỉ cập nhật tiêu đề nếu trống
+            if not existing.title:
+                existing.title = ch_parsed.title
+        else:
+            new_chapters.append(Chapter(index=target, url="", title=ch_parsed.title))
+        storage.write_raw(Chapter(index=target, url="", title=ch_parsed.title),
+                           ch_parsed.content)
+        used_indexes.add(target)
+        raw_indexes.add(target)
+        added += 1
+        added_indexes.append(target)
+
+    # EPUB kèm bìa mà ebook chưa có → giữ bìa
+    if parsed.cover_bytes and parsed.cover_ext and not manifest.cover_file:
+        manifest.cover_file = storage.write_cover(parsed.cover_bytes, parsed.cover_ext)
+
+    new_chapters.sort(key=lambda c: c.index)
+    manifest.chapters = new_chapters
+    storage.save_manifest(manifest)
+
+    return {
+        "added": added,
+        "skipped": skipped,
+        "total": len(new_chapters),
+        "added_indexes": added_indexes,
+        "skipped_titles": skipped_titles[:20],
+    }
+
+
 @router.get("/ebooks/{slug}")
 def ebook_detail(request: Request, slug: str):
     """Tổng quan một truyện: tiến độ, EPUB, chi phí, chương có vấn đề.

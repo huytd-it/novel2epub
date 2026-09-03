@@ -58,6 +58,8 @@ export interface ChapterRow {
   skipped: boolean;
   /** Tiêu đề nhánh active đúng mẫu "Chương N[: tên]" và không còn chữ Hán. */
   title_format_ok: boolean;
+  /** Số trang con đã ghép khi crawl (0 = chưa crawl, 1 = đơn trang, >1 = multi-page). */
+  crawl_pages: number;
 }
 
 export interface ChapterPage {

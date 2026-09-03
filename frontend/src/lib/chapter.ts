@@ -63,6 +63,18 @@ export function useSaveChapterText(slug: string, index: number) {
   });
 }
 
+export function useSaveRawText(slug: string, index: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { raw: string; expectedRaw: string }) =>
+      api.post<{ saved: boolean; raw_char_count: number }>(
+        `/api/ui/ebooks/${slug}/chapters/${index}/raw`,
+        { body: { raw: vars.raw, expected_raw: vars.expectedRaw } },
+      ),
+    onSuccess: () => invalidateChapter(client, slug, index),
+  });
+}
+
 export function useSaveParagraph(slug: string, index: number) {
   const client = useQueryClient();
   return useMutation({

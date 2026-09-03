@@ -1131,6 +1131,45 @@ def ebook_chapter_save(slug: str, index: int, payload: dict = Body(...)):
     }
 
 
+@router.post("/ebooks/{slug}/chapters/{index}/raw")
+def ebook_chapter_save_raw(slug: str, index: int, payload: dict = Body(...)):
+    """Ghi TOÀN VĂN bản gốc của một chương.
+
+    Nhận JSON `{raw: string, expected_raw?: string}`. Khi client gửi
+    `expected_raw` (bản gốc lúc mở trang), chỉ ghi khi bản gốc hiện tại
+    vẫn khớp — lệch → 409, chống ghi đè do crawl lại hay sửa ở tab khác.
+    Không gửi `expected_raw` thì ghi thẳng (tương thích luồng cũ).
+    """
+    raw = payload.get("raw")
+    if not isinstance(raw, str):
+        raise HTTPException(status_code=400, detail="Thiếu trường 'raw'.")
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+    chapter = next((c for c in manifest.chapters if c.index == index), None)
+    if chapter is None:
+        raise HTTPException(status_code=404, detail=f"Không có chương {index}.")
+
+    expected_raw = payload.get("expected_raw")
+    if isinstance(expected_raw, str):
+        current = storage.read_raw(chapter) if storage.has_raw(chapter) else ""
+        if current.replace("\r\n", "\n") != expected_raw.replace("\r\n", "\n"):
+            raise HTTPException(status_code=409, detail="Bản gốc đã thay đổi — tải lại trang trước khi ghi.")
+        # Chương chưa từng crawl: raw_text IS NULL nên write_raw_conditional
+        # (WHERE raw_text IS NOT NULL) sẽ luôn fail — ghi thẳng trong trường hợp
+        # expected rỗng này để cho phép tạo bản gốc thủ công.
+        if not storage.has_raw(chapter) and expected_raw.strip() == "":
+            storage.write_raw(chapter, raw)
+        elif not storage.write_raw_conditional(chapter, expected_raw, raw):
+            raise HTTPException(status_code=409, detail="Bản gốc đã thay đổi — tải lại trang trước khi ghi.")
+    else:
+        storage.write_raw(chapter, raw)
+    return {"saved": True, "raw_char_count": len(raw)}
+
+
 @router.post("/ebooks/{slug}/chapters/{index}/compare/block")
 def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)):
     """Sửa/xóa ĐOẠN trong khung đối chiếu 3 cột (bản gốc | dịch máy | bản hiện tại).

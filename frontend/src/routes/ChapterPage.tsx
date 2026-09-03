@@ -23,6 +23,7 @@ import {
   useReaderPreferences,
   useRevertEdits,
   useSaveChapterText,
+  useSaveRawText,
   useSetActiveBranch,
   useUpdateChapterTitle,
   type FindReplacePreviewItem,
@@ -556,6 +557,44 @@ function RawContentView({ text }: { text: string }) {
   );
 }
 
+function RawMetaHeader({ title, url }: { title: string; url: string }) {
+  const toast = useToast();
+  const copy = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast(`Đã sao chép ${label}.`);
+    } catch {
+      toast("Không sao chép được.", "error");
+    }
+  };
+  return (
+    <div className="border-b border-base-300 bg-base-200/40 px-4 py-3">
+      <h2 className="font-display text-[15px] font-semibold leading-snug">{title || "Chưa có tiêu đề"}</h2>
+      {url ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="link link-primary max-w-full break-all text-xs"
+            title={url}
+          >
+            {url}
+          </a>
+          <span className="inline-flex gap-1">
+            <Button size="sm" variant="ghost" className="h-6 min-h-6 px-2 text-[11px]" onClick={() => copy(url, "link raw")}>
+              Sao chép link
+            </Button>
+            <Button size="sm" variant="ghost" className="h-6 min-h-6 px-2 text-[11px]" onClick={() => window.open(url, "_blank", "noopener")}>
+              Mở link
+            </Button>
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /* ── Trang ───────────────────────────────────────────────────────────── */
 
 export function ChapterPage() {
@@ -651,6 +690,14 @@ export function ChapterPage() {
   const contentRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const [loadedKey, setLoadedKey] = useState("");
+  // Raw edit state — chỉ dùng khi view === "raw"
+  const saveRawText = useSaveRawText(slug, chapterIndex);
+  const [rawEditMode, setRawEditMode] = useState(false);
+  const [rawDraft, setRawDraft] = useState("");
+  const [rawExpected, setRawExpected] = useState("");
+  const [rawLoadedKey, setRawLoadedKey] = useState("");
+  const rawEditorRef = useRef<HTMLTextAreaElement>(null);
+  const rawDirty = Boolean(data && rawLoadedKey === `${slug}:${chapterIndex}` && rawDraft !== rawExpected);
 
   const chapterDataKey = data ? `${slug}:${chapterIndex}:${data.active_branch}` : "";
   const dirty = Boolean(data && loadedKey === chapterDataKey && documentDraft !== data.translated);
@@ -664,6 +711,49 @@ export function ChapterPage() {
       setDocumentRevision(data.revision);
     }
   }, [slug, chapterIndex, data, loadedKey]);
+
+  // Đồng bộ raw draft khi đổi chương hoặc fetch lại raw — không đè khi đang sửa.
+  useEffect(() => {
+    if (!data) return;
+    const key = `${slug}:${chapterIndex}`;
+    if (rawLoadedKey !== key) {
+      setRawLoadedKey(key);
+      setRawExpected(data.raw);
+      setRawDraft(data.raw);
+      return;
+    }
+    if (rawEditMode) return;
+    if (rawExpected !== data.raw) {
+      setRawExpected(data.raw);
+      setRawDraft(data.raw);
+    }
+  }, [slug, chapterIndex, data?.raw, rawLoadedKey, rawExpected, rawEditMode]);
+  // Khi đổi chương reset chế độ sửa raw
+  useEffect(() => {
+    setRawEditMode(false);
+  }, [slug, chapterIndex]);
+
+  useLayoutEffect(() => {
+    if (!rawEditMode || !rawEditorRef.current) return;
+    const editor = rawEditorRef.current;
+    editor.style.height = "0px";
+    editor.style.height = `${editor.scrollHeight}px`;
+  }, [rawDraft, rawEditMode]);
+
+  const saveRaw = () => {
+    if (!rawDirty || saveRawText.isPending) return;
+    saveRawText.mutate(
+      { raw: rawDraft, expectedRaw: rawExpected },
+      {
+        onSuccess: () => {
+          setRawExpected(rawDraft);
+          setRawEditMode(false);
+          toast("Đã lưu bản gốc.");
+        },
+        onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+      },
+    );
+  };
 
   const chapterValidation = useMemo(() => {
     if (!data) return { issues: [] as ValidationIssue[], summary: { error: 0, warning: 0, info: 0, total: 0 }, perPara: new Map<number, ValidationIssue[]>() };
@@ -1015,7 +1105,7 @@ export function ChapterPage() {
 
   const go = (target: number | null) => {
     if (target === null) return;
-    if (dirty && !window.confirm("Chương có thay đổi chưa lưu. Rời chương và bỏ thay đổi?")) return;
+    if ((dirty || rawDirty) && !window.confirm("Chương có thay đổi chưa lưu. Rời chương và bỏ thay đổi?")) return;
     navigate(`/ebooks/${slug}/chapters/${target}`);
   };
 
@@ -1024,7 +1114,8 @@ export function ChapterPage() {
       const modifier = event.ctrlKey || event.metaKey;
       if (modifier && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        saveDocument();
+        if (view === "raw" && rawEditMode) saveRaw();
+        else saveDocument();
       } else if (modifier && ["f", "h"].includes(event.key.toLowerCase())) {
         event.preventDefault();
         openFindMode();
@@ -1039,7 +1130,7 @@ export function ChapterPage() {
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [dirty, saveChapterText.isPending, documentDraft, documentRevision, data, openFindMode]);
+  }, [dirty, rawDirty, rawEditMode, view, saveChapterText.isPending, saveRawText.isPending, documentDraft, documentRevision, rawDraft, rawExpected, data, openFindMode]);
 
   if (isPending) {
     return (
@@ -1302,12 +1393,70 @@ export function ChapterPage() {
                   ? `${num(data.raw_char_count)} ký tự · chương chưa dịch vẫn xem được`
                   : "Chương chưa crawl được nội dung gốc."
               }
+              actions={
+                <Button
+                  size="sm"
+                  variant={rawEditMode ? "primary" : "ghost"}
+                  onClick={() => setRawEditMode((v) => !v)}
+                >
+                  {rawEditMode ? "Đang sửa raw" : "Sửa raw"}
+                </Button>
+              }
             />
-            {data.has_raw ? (
+            <RawMetaHeader title={data.title} url={data.url} />
+            {rawEditMode ? (
+              <div className="p-3">
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className={rawDirty ? "text-warning" : "opacity-50"}>
+                    {rawDirty ? "Có thay đổi chưa lưu" : "Đã đồng bộ"}
+                  </span>
+                  <span className="opacity-40">{num(rawDraft.length)} ký tự</span>
+                </div>
+                <textarea
+                  ref={rawEditorRef}
+                  value={rawDraft}
+                  onChange={(e) => setRawDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setRawDraft(rawExpected);
+                      setRawEditMode(false);
+                      e.preventDefault();
+                    }
+                  }}
+                  placeholder={data.has_raw ? "Nội dung bản gốc…" : "Chưa có bản gốc — nhập nội dung rồi Lưu."}
+                  className="textarea textarea-bordered min-h-[50vh] w-full resize-none overflow-hidden font-read text-[14px] leading-relaxed"
+                  aria-label="Sửa bản gốc"
+                />
+                <div className="mt-2 flex justify-end gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setRawDraft(rawExpected);
+                      setRawEditMode(false);
+                    }}
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={!rawDirty}
+                    loading={saveRawText.isPending}
+                    onClick={saveRaw}
+                  >
+                    Lưu bản gốc <span className="opacity-60">Ctrl+S</span>
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs opacity-50">
+                  Lưu dùng khóa <code>expected_raw</code> để tránh ghi đè khi tab khác hoặc crawl vừa đổi bản gốc.
+                </p>
+              </div>
+            ) : data.has_raw ? (
               <RawContentView text={data.raw} />
             ) : (
               <p className="px-4 py-10 text-center text-sm opacity-50">
-                Chương chưa có bản gốc. Chạy bước Crawl ở trang truyện trước.
+                Chương chưa có bản gốc. Chạy bước Crawl ở trang truyện trước hoặc bấm <strong>Sửa raw</strong> để nhập thủ công.
               </p>
             )}
           </Panel>

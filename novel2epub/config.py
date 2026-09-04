@@ -131,19 +131,6 @@ class CrawlConfig:
     # Số trang mục lục tối đa (1 = chỉ trang đầu, không phân trang)
     toc_max_pages: int = 5
 
-    # ----- wrapper metadata (trang mục lục) -----
-    # Selector wrapper lấy metadata khi OG/meta chuẩn thiếu — cấu hình theo
-    # nguồn (SourcePreset), đi theo preset vào CrawlConfig để _extract_meta
-    # dùng làm fallback sau og:title/og:novel:author/og:description/og:image.
-    title_selector: str = ""
-    author_selector: str = ""
-    desc_selector: str = ""
-    cover_selector: str = ""
-
-    # Regex suy ra URL ảnh bìa từ HTML mục lục khi thẻ og:image thiếu/sai —
-    # áp trên các URL ảnh tìm thấy trong DOM (img src, srcset, data-original...)
-    cover_url_pattern: str = ""
-
     def __post_init__(self) -> None:
         err = next_page_url_pattern_error(self.next_page_url_pattern)
         if err:
@@ -888,10 +875,18 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         }
 
     ebook_translate = _as_dict(override.get("translate"))
+    ebook_translate_openai = _as_dict(ebook_translate.get("openai"))
     translation_model_override = str(
         ebook_translate.get("translation_model", "")
-        or _as_dict(ebook_translate.get("openai")).get("model", "")
+        or ebook_translate_openai.get("model", "")
         or ""
+    ).strip()
+    # Prompt dịch RIÊNG từng ebook — ghi đè lên defaults/preset/EN-auto-inject.
+    # Rỗng = không ghi đè (rơi về defaults), áp dụng ở dưới trước khi dựng
+    # OpenAIConfig (xem khối "EN source" ngay bên dưới).
+    prompt_template_override = str(ebook_translate_openai.get("prompt_template", "") or "").strip()
+    title_prompt_template_override = str(
+        ebook_translate_openai.get("title_prompt_template", "") or ""
     ).strip()
     ebook_translate.pop("translation_model", None)
     ebook_translate.pop("openai", None)
@@ -1019,6 +1014,12 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         for _k, _v in _en_overrides.items():
             if not openai_raw.get(_k):
                 openai_raw[_k] = _v
+
+    # Ghi đè prompt RIÊNG từng ebook — thắng defaults/preset/EN-auto-inject ở trên.
+    if prompt_template_override:
+        openai_raw["prompt_template"] = prompt_template_override
+    if title_prompt_template_override:
+        openai_raw["title_prompt_template"] = title_prompt_template_override
 
     # Resolve local NMT model preset: translate.model tên preset → model_key.
     translate_model = translate_raw.get("model", "") or ""

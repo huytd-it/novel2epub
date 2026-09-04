@@ -202,7 +202,6 @@ def save_source(
     slug: str,
     toc_url: str = Form(""),
     chapter_link_pattern: str = Form(".*"),
-    cover_url_pattern: str = Form(""),
     max_chapters: int = Form(0),
     delay_seconds: float = Form(1.0),
     max_workers: int = Form(1),
@@ -234,7 +233,6 @@ def save_source(
     crawl: dict = {
         "toc_url": toc_url,
         "chapter_link_pattern": chapter_link_pattern,
-        "cover_url_pattern": cover_url_pattern,
         "max_chapters": max_chapters,
         "max_workers": max(1, max_workers),
         "concurrency_cap": max(0, concurrency_cap),
@@ -298,6 +296,20 @@ def _read_crawl_overrides(db_path, slug: str) -> dict:
         "SELECT crawl_overrides_json FROM ebooks WHERE slug = ?", (slug,)
     ).fetchone()
     return json.loads(row["crawl_overrides_json"] or "{}") if row else {}
+
+
+def _read_translate_openai_overrides(db_path, slug: str) -> dict:
+    """Đọc raw `translate_overrides_json.openai` của ebook (KHÔNG resolve
+    defaults/preset) — dùng để biết prompt nào đang thật sự ghi đè riêng, phân
+    biệt với giá trị hiệu lực (có thể chỉ là kế thừa defaults)."""
+    from novel2epub.db import get_thread_connection
+
+    conn = get_thread_connection(Path(db_path).resolve())
+    row = conn.execute(
+        "SELECT translate_overrides_json FROM ebooks WHERE slug = ?", (slug,)
+    ).fetchone()
+    translate_over = json.loads(row["translate_overrides_json"] or "{}") if row else {}
+    return translate_over.get("openai") or {}
 
 
 def _read_defaults_crawl(db_path) -> dict:
@@ -688,10 +700,11 @@ def save_translate(
         "timeout_seconds": timeout_seconds,
         "temperature": temperature,
     }
-    if (prompt_template or "").strip():
-        openai_cfg["prompt_template"] = clean_prompt_text(prompt_template)
-    if (title_prompt_template or "").strip():
-        openai_cfg["title_prompt_template"] = clean_prompt_text(title_prompt_template)
+    # Luôn ghi cả khi rỗng: rỗng nghĩa là "bỏ ghi đè, dùng lại Dịch chung" — merge
+    # đè (không xoá được key vắng mặt), nên phải ghi rỗng tường minh mới xoá được
+    # ghi đè cũ. Xem load_config: chuỗi rỗng bị bỏ qua, không áp dụng làm override.
+    openai_cfg["prompt_template"] = clean_prompt_text(prompt_template)
+    openai_cfg["title_prompt_template"] = clean_prompt_text(title_prompt_template)
 
     preset_model_key = (LOCAL_MT_MODEL_PRESETS.get(local_model) or {}).get("model_key")
     hachimimt_cfg: dict = {

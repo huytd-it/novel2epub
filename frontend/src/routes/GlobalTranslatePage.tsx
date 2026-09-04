@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { fetchAndMergeModels, ModelField } from "@/components/AiProviderFields";
+import { fetchAndMergeModels, ModelField, ProviderPickerField } from "@/components/AiProviderFields";
 
 /**
  * Trang DỊCH CHUNG — cấu hình mặc định của khâu dịch cho TOÀN HỆ THỐNG
@@ -102,9 +102,12 @@ function GlobalAiPanel() {
       </div>
       <div className="grid gap-4 p-4 md:grid-cols-2">
         <div className="md:col-span-2">
-          <Field label="Base URL" hint="OpenAI-compatible endpoint, ví dụ https://host/v1">
-            <Input value={values.base_url} onChange={(e) => set("base_url", e.target.value)} spellCheck={false} />
-          </Field>
+          <ProviderPickerField
+            label="Base URL"
+            hint="OpenAI-compatible endpoint, ví dụ https://host/v1 — chọn provider đã lưu hoặc gõ tay"
+            value={values.base_url}
+            onChange={(v) => set("base_url", v)}
+          />
         </div>
         <Field label="API key" hint={values.api_key_configured ? "Nhập giá trị mới để thay key hiện tại" : "Credential dùng chung toàn hệ thống"}>
           <Input type="password" autoComplete="new-password" value={values.api_key} onChange={(e) => set("api_key", e.target.value)} />
@@ -128,6 +131,7 @@ export function GlobalTranslatePage() {
   const save = useSaveTranslateDefaults();
   const [draft, setDraft] = useState<TranslateDefaults | null>(null);
   const [promptFullscreen, setPromptFullscreen] = useState(false);
+  const [loadingPrompts, setLoadingPrompts] = useState(false);
 
   useEffect(() => {
     if (data) setDraft({ ...data });
@@ -252,11 +256,34 @@ export function GlobalTranslatePage() {
       <Panel className="mb-4 overflow-hidden">
         <PanelHeader
           title="Prompt dịch"
-          hint="Placeholder ({text}, {glossary}, {tone}…) được pipeline điền khi dịch"
+          hint="Placeholder ({text}, {glossary}, {tone}…) được pipeline điền khi dịch — nguồn zh/en có prompt mặc định riêng, đích luôn là tiếng Việt"
           actions={
-            <Button size="sm" onClick={() => setPromptFullscreen(true)}>
-              Xem toàn màn hình
-            </Button>
+            <>
+              <Button
+                size="sm"
+                loading={loadingPrompts}
+                onClick={async () => {
+                  setLoadingPrompts(true);
+                  try {
+                    const language = encodeURIComponent(draft.source_language ?? "");
+                    const prompts = await api.get<Pick<TranslateDefaults, "prompt_template" | "title_prompt_template">>(
+                      `/settings/translate/default-prompts?source_language=${language}`,
+                    );
+                    setDraft((current) => (current ? { ...current, ...prompts } : current));
+                    toast("Đã nạp prompt mặc định theo ngôn ngữ nguồn. Bấm Lưu để áp dụng.");
+                  } catch (error) {
+                    toast(error instanceof Error ? error.message : String(error), "error");
+                  } finally {
+                    setLoadingPrompts(false);
+                  }
+                }}
+              >
+                Nạp prompt mặc định
+              </Button>
+              <Button size="sm" onClick={() => setPromptFullscreen(true)}>
+                Xem toàn màn hình
+              </Button>
+            </>
           }
         />
         <div className="grid gap-x-4 gap-y-3 p-4 lg:grid-cols-2">

@@ -107,9 +107,15 @@ def update_ebook(
 
         translate_updates = updates.get("translate")
         if isinstance(translate_updates, dict):
+            # `openai` (prompt_template/title_prompt_template/model...) GIỜ được giữ
+            # lại — đây là cách duy nhất per-ebook prompt override thật sự có tác
+            # dụng (xem load_config: chỉ prompt_template/title_prompt_template/model
+            # được đọc lại từ đây, base_url/api_key/timeout/temperature vẫn luôn lấy
+            # từ Global AI). Trước đây khối này bị lọc bỏ hoàn toàn khiến prompt sửa ở
+            # UI "Cài đặt → Dịch" của từng truyện không bao giờ được lưu.
             filtered = {
                 k: v for k, v in translate_updates.items()
-                if k not in _DEPRECATED_TRANSLATE_FIELDS and k != "openai"
+                if k not in _DEPRECATED_TRANSLATE_FIELDS
             }
             if replace_translate:
                 new_translate = filtered

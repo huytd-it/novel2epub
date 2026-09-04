@@ -163,8 +163,11 @@ def test_global_ai_provider_with_per_ebook_model_overrides(tmp_path):
 
 
 def test_update_ebook_keeps_ai_provider_and_model_overrides(tmp_path):
-    """Per-book `ai.openai` provider (kể cả api_key) được LƯU nguyên; riêng
-    translate.openai provider vẫn bị lược (chỉ translation_model override được giữ)."""
+    """Per-book `ai.openai` provider (kể cả api_key) được LƯU nguyên. `translate.openai`
+    giờ cũng được lưu nguyên (trước đây bị lược hoàn toàn — bug khiến prompt ghi đè
+    riêng từng ebook không bao giờ được lưu, xem load_config: chỉ model/prompt_template/
+    title_prompt_template thật sự được ĐỌC LẠI từ đây, base_url/api_key/timeout/
+    temperature vẫn luôn lấy từ Global AI dù có lưu trong JSON)."""
     path = tmp_path / "novel2epub.db"
     write_db_config(path, ebooks={"a": {"novel": {"slug": "a"}}})
 
@@ -174,7 +177,11 @@ def test_update_ebook_keeps_ai_provider_and_model_overrides(tmp_path):
         {
             "translate": {
                 "translation_model": "translation-override",
-                "openai": {"base_url": "https://forbidden", "api_key": "secret"},
+                "openai": {
+                    "base_url": "https://forbidden",
+                    "api_key": "secret",
+                    "prompt_template": "Dịch: {text}",
+                },
             },
             "ai": {
                 "assistant_model": "assistant-override",
@@ -192,8 +199,14 @@ def test_update_ebook_keeps_ai_provider_and_model_overrides(tmp_path):
     ).fetchone()
     translate = json.loads(row[0])
     assistant = json.loads(row[1])
-    # translate.openai provider vẫn bị lược, chỉ giữ translation_model
-    assert translate == {"translation_model": "translation-override"}
+    assert translate == {
+        "translation_model": "translation-override",
+        "openai": {
+            "base_url": "https://forbidden",
+            "api_key": "secret",
+            "prompt_template": "Dịch: {text}",
+        },
+    }
     # ai.openai provider (kể cả api_key) được lưu nguyên
     assert assistant == {
         "assistant_model": "assistant-override",

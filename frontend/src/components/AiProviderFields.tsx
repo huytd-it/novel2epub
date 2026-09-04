@@ -2,8 +2,12 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 
 import { apiUrl } from "@/lib/api";
-import { Field } from "@/components/ui/Field";
+import { useAiProviders, useDeleteAiProvider, useSaveAiProvider } from "@/lib/aiProviders";
+import { Field, Input, Select } from "@/components/ui/Field";
 import { Combobox } from "@/components/ui/Combobox";
+import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
+import { IconPlus, IconTrash } from "@/components/icons";
 
 const MODELS_CACHE_KEY = "n2e-models-cache";
 const MODELS_UPDATED_EVENT = "n2e:models-updated";
@@ -110,6 +114,150 @@ export function ModelField({
         disabled={disabled}
       />
       {status ? <span className={clsx("block text-xs italic opacity-60")}>{status}</span> : null}
+    </Field>
+  );
+}
+
+/** Ô base_url + preset provider dùng lại (name → base_url, lưu trong DB, dùng
+ * chung mọi truyện): chọn từ danh sách để điền base_url thay vì gõ tay, vẫn
+ * gõ tay được bình thường cho URL chưa lưu preset. */
+export function ProviderPickerField({
+  label,
+  hint,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (next: string) => void;
+}) {
+  const { data } = useAiProviders();
+  const presets = data?.presets ?? [];
+  const save = useSaveAiProvider();
+  const del = useDeleteAiProvider();
+  const toast = useToast();
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  const matched = presets.find((p) => p.base_url === value.trim());
+
+  const onPick = (name: string) => {
+    const preset = presets.find((p) => p.name === name);
+    if (preset) onChange(preset.base_url);
+  };
+
+  const onSaveCurrent = () => {
+    const name = newName.trim();
+    if (!name) return;
+    save.mutate(
+      { name, base_url: value },
+      {
+        onSuccess: () => {
+          toast(`Đã lưu provider "${name}".`);
+          setAdding(false);
+          setNewName("");
+        },
+        onError: (e) => toast(e instanceof Error ? e.message : String(e), "error"),
+      },
+    );
+  };
+
+  const onDeleteMatched = () => {
+    if (!matched) return;
+    del.mutate(matched.name, {
+      onSuccess: () => toast(`Đã xóa provider "${matched.name}".`),
+      onError: (e) => toast(e instanceof Error ? e.message : String(e), "error"),
+    });
+  };
+
+  return (
+    <Field label={label} hint={hint}>
+      <div className="flex flex-col gap-1.5">
+        <div className="join w-full">
+          <Select
+            className="join-item w-36 shrink-0"
+            disabled={disabled}
+            value={matched?.name ?? ""}
+            onChange={(e) => onPick(e.target.value)}
+          >
+            <option value="">— provider đã lưu —</option>
+            {presets.map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+          <Input
+            type="text"
+            className="join-item min-w-0 flex-1"
+            value={value}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+            spellCheck={false}
+            placeholder="https://host/v1"
+          />
+          {matched ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="join-item shrink-0"
+              disabled={disabled || del.isPending}
+              onClick={onDeleteMatched}
+              title={`Xóa provider đã lưu "${matched.name}"`}
+            >
+              <IconTrash size={12} />
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="join-item shrink-0"
+              disabled={disabled || !value.trim()}
+              onClick={() => setAdding((v) => !v)}
+              title="Lưu base_url hiện tại làm provider mới"
+            >
+              <IconPlus size={12} />
+            </Button>
+          )}
+        </div>
+        {adding ? (
+          <div className="join w-full">
+            <Input
+              autoFocus
+              type="text"
+              className="join-item min-w-0 flex-1"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Tên provider, vd: OpenRouter"
+              spellCheck={false}
+            />
+            <Button
+              size="sm"
+              variant="primary"
+              className="join-item shrink-0"
+              loading={save.isPending}
+              disabled={!newName.trim()}
+              onClick={onSaveCurrent}
+            >
+              Lưu
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="join-item shrink-0"
+              onClick={() => {
+                setAdding(false);
+                setNewName("");
+              }}
+            >
+              Hủy
+            </Button>
+          </div>
+        ) : null}
+      </div>
     </Field>
   );
 }

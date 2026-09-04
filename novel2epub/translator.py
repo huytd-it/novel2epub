@@ -880,13 +880,9 @@ class LocalMTTranslator:
         if self._inner is not None:
             return
         from .hachimimt.translator import HachimiTranslator, Backend
-        
-        # Tạo instance tạm, load model xong mới gán vào self._inner.
-        # Nếu load fail, exception bubble lên, instance không bao giờ được gán,
-        # giúp các lần request sau (sau khi fix nguồn model) có thể thử lại.
-        temp = HachimiTranslator(profile=None)
-        temp.load(self.hmt.model_key, backend=Backend.CT2)
-        self._inner = temp
+
+        self._inner = HachimiTranslator(profile=None)
+        self._inner.load(self.hmt.model_key, backend=Backend.CT2)
 
     def translate(
         self,

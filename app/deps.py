@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from novel2epub.ai_providers import load_presets as load_ai_providers
 from novel2epub.config import load_config, load_library
 from novel2epub.sources import load_presets
 
@@ -161,6 +162,10 @@ def library():
 
 def presets():
     return load_presets(SOURCES_PATH)
+
+
+def ai_providers():
+    return load_ai_providers(DB_PATH)
 
 
 def resolve_path(base: Path, value: str) -> str:

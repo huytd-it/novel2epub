@@ -17,6 +17,7 @@ _EXPECTED_TABLES = {
     "_meta",
     "settings",
     "sources",
+    "ai_providers",
     "ebooks",
     "chapters",
     "glossary_entries",

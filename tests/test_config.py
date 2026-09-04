@@ -286,6 +286,48 @@ def test_translate_and_ai_per_ebook_override_wins(tmp_path):
     assert cfg_b.ai.openai.model == "global-editor"
 
 
+def test_translate_prompt_per_ebook_override_wins(tmp_path):
+    """`translate.openai.prompt_template`/`title_prompt_template` ghi đè riêng từng
+    ebook giờ thật sự có tác dụng (trước đây bị `load_config` bỏ qua hoàn toàn).
+    Chuỗi RỖNG không phải là override — ebook không set gì thì rơi về defaults."""
+    path = write_db_config(
+        tmp_path / "novel2epub.db",
+        defaults={
+            "translate": {
+                "type": "openai",
+                "openai": {
+                    "prompt_template": "global prompt {text}",
+                    "title_prompt_template": "global title {text}",
+                },
+            },
+        },
+        ebooks={
+            "a": {
+                "novel": {"slug": "a"},
+                "translate": {
+                    "openai": {
+                        "prompt_template": "per-ebook prompt {text}",
+                        "title_prompt_template": "per-ebook title {text}",
+                    }
+                },
+            },
+            "b": {
+                "novel": {"slug": "b"},
+                "translate": {"openai": {"prompt_template": "", "title_prompt_template": ""}},
+            },
+        },
+    )
+
+    cfg_a = load_config(path, "a")
+    assert cfg_a.translate.openai.prompt_template == "per-ebook prompt {text}"
+    assert cfg_a.translate.openai.title_prompt_template == "per-ebook title {text}"
+
+    # Rỗng tường minh = không ghi đè, KHÔNG phải "prompt rỗng" — rơi về defaults.
+    cfg_b = load_config(path, "b")
+    assert cfg_b.translate.openai.prompt_template == "global prompt {text}"
+    assert cfg_b.translate.openai.title_prompt_template == "global title {text}"
+
+
 def test_unified_file_unknown_slug_raises(tmp_path):
     path = write_db_config(
         tmp_path / "novel2epub.db",

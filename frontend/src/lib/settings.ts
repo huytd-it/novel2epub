@@ -25,7 +25,6 @@ export interface NovelSettings {
 export interface SourceSettings {
   toc_url: string;
   chapter_link_pattern: string;
-  cover_url_pattern: string;
   max_chapters: number;
   delay_seconds: number;
   max_workers: number;
@@ -141,6 +140,8 @@ export interface SettingsMeta {
   source_presets: string[];
   overridden_fields: string[];
   genres: { value: string; label: string }[];
+  prompt_template_overridden: boolean;
+  title_prompt_template_overridden: boolean;
 }
 
 export interface EbookSettings {

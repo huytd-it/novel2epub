@@ -7,7 +7,7 @@ import { Field, Input } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 
-/* ΓöÇΓöÇ helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* ── helpers ─────────────────────────────────────────────────────── */
 
 function countMatches(html: string, selector: string): number {
   if (!selector.trim() || !html.trim()) return 0;
@@ -44,7 +44,7 @@ function buildSelector(el: Element): string {
         const allSibs = Array.from(parent.children);
         if (allSibs.length > 1) {
           const idxAll = allSibs.indexOf(cur) + 1;
-          // only add nth if needed for uniqueness ΓÇô keep short
+          // only add nth if needed for uniqueness – keep short
           if (allSibs.length > 6) parts.unshift(`${base}:nth-child(${idxAll})`);
           else parts.unshift(base);
         } else parts.unshift(base);
@@ -83,37 +83,37 @@ function positionalVariant(selector: string, which: "first" | "last" | "n2" | "n
   return base;
 }
 
-/* ΓöÇΓöÇ Match badge ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* ── Match badge ─────────────────────────────────────────────────── */
 
 function MatchBadge({ html, selector, expectOne }: { html: string; selector: string; expectOne?: boolean }) {
   const cnt = useMemo(() => countMatches(html, selector), [html, selector]);
-  if (!selector.trim()) return <span className="text-xs opacity-40">ch╞░a nhß║¡p</span>;
-  if (cnt === -1) return <Badge tone="vermilion">lß╗ùi c├║ ph├íp</Badge>;
-  if (cnt === 0) return <Badge tone="vermilion">0 khß╗¢p ΓÇö rß╗ùng</Badge>;
-  if (expectOne && cnt > 1) return <Badge tone="gold">ΓÜá∩╕Å {cnt} khß╗¢p ΓÇö dß╗▒ kiß║┐n 1</Badge>;
-  if (cnt > 10) return <Badge tone="gold">ΓÜá∩╕Å {cnt} khß╗¢p ΓÇö qu├í rß╗Öng</Badge>;
-  if (cnt > 1) return <Badge tone="gold">{cnt} khß╗¢p</Badge>;
-  return <Badge tone="celadon">{cnt} khß╗¢p ΓÇö OK</Badge>;
+  if (!selector.trim()) return <span className="text-xs opacity-40">chưa nhập</span>;
+  if (cnt === -1) return <Badge tone="vermilion">lỗi cú pháp</Badge>;
+  if (cnt === 0) return <Badge tone="vermilion">0 khớp — rỗng</Badge>;
+  if (expectOne && cnt > 1) return <Badge tone="gold">⚠️ {cnt} khớp — dự kiến 1</Badge>;
+  if (cnt > 10) return <Badge tone="gold">⚠️ {cnt} khớp — quá rộng</Badge>;
+  if (cnt > 1) return <Badge tone="gold">{cnt} khớp</Badge>;
+  return <Badge tone="celadon">{cnt} khớp — OK</Badge>;
 }
 
 function RegexBadge({ pattern, sampleLinks }: { pattern: string; sampleLinks: string[] }) {
-  if (!pattern.trim()) return <span className="text-xs opacity-40">trß╗æng</span>;
+  if (!pattern.trim()) return <span className="text-xs opacity-40">trống</span>;
   if (pattern.trim() === ".*" || pattern.trim() === ".+" || pattern.trim() === "") {
-    return <Badge tone="vermilion">ΓÜá∩╕Å khß╗¢p to├án bß╗Ö ΓÇö nguy hiß╗âm</Badge>;
+    return <Badge tone="vermilion">⚠️ khớp toàn bộ — nguy hiểm</Badge>;
   }
   try {
     const re = new RegExp(pattern);
     const hits = sampleLinks.filter((u) => re.test(u)).length;
     if (sampleLinks.length === 0) return <Badge tone="indigo">{hits} test</Badge>;
-    if (hits === 0) return <Badge tone="vermilion">0/{sampleLinks.length} khß╗¢p</Badge>;
-    if (hits === sampleLinks.length && sampleLinks.length > 5) return <Badge tone="gold">ΓÜá∩╕Å {hits}/{sampleLinks.length} khß╗¢p hß║┐t ΓÇö qu├í rß╗Öng</Badge>;
-    return <Badge tone={hits > 0 ? "celadon" : "vermilion"}>{hits}/{sampleLinks.length} khß╗¢p</Badge>;
+    if (hits === 0) return <Badge tone="vermilion">0/{sampleLinks.length} khớp</Badge>;
+    if (hits === sampleLinks.length && sampleLinks.length > 5) return <Badge tone="gold">⚠️ {hits}/{sampleLinks.length} khớp hết — quá rộng</Badge>;
+    return <Badge tone={hits > 0 ? "celadon" : "vermilion"}>{hits}/{sampleLinks.length} khớp</Badge>;
   } catch (e) {
-    return <Badge tone="vermilion">lß╗ùi regex</Badge>;
+    return <Badge tone="vermilion">lỗi regex</Badge>;
   }
 }
 
-/* ΓöÇΓöÇ DOM Picker Modal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* ── DOM Picker Modal ────────────────────────────────────────────── */
 
 export function DomPickerModal({
   open,
@@ -172,15 +172,15 @@ export function DomPickerModal({
   if (!open) return null;
 
   return (
-    <Modal open={open} onClose={onClose} title="Chß╗ìn selector tß╗½ DOM" wide
+    <Modal open={open} onClose={onClose} title="Chọn selector từ DOM" wide
       footer={<>
-        <span className="mr-auto text-xs opacity-60 hidden sm:inline">Click v├áo phß║ºn tß╗¡ trong khung ─æß╗â sinh selector ┬╖ hover xem ─æ╞░ß╗¥ng dß║½n</span>
-        <Button onClick={onClose}>─É├│ng</Button>
+        <span className="mr-auto text-xs opacity-60 hidden sm:inline">Click vào phần tử trong khung để sinh selector · hover xem đường dẫn</span>
+        <Button onClick={onClose}>Đóng</Button>
       </>}
     >
       <div className="grid gap-3">
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="opacity-60">─Éang thß╗¡:</span> <code className="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">{selector || "ΓÇö"}</code>
+          <span className="opacity-60">Đang thử:</span> <code className="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">{selector || "—"}</code>
           <MatchBadge html={html} selector={selector} />
         </div>
         {hoverPath ? <div className="truncate rounded bg-base-200 px-2 py-1 font-mono text-[11px] opacity-70">hover: {hoverPath}</div> : null}
@@ -189,16 +189,16 @@ export function DomPickerModal({
           className="max-h-[50vh] overflow-auto rounded-box border border-base-300 p-2 text-base-content [&_a]:text-primary [&_a]:underline"
           onClick={handleClick}
           onMouseMove={handleMouseMove}
-          dangerouslySetInnerHTML={{ __html: sanitized || '<p class="opacity-50 p-4">DOM trß╗æng ΓÇö h├úy tß║úi lß║íi trang.</p>' }}
+          dangerouslySetInnerHTML={{ __html: sanitized || '<p class="opacity-50 p-4">DOM trống — hãy tải lại trang.</p>' }}
         />
-        <p className="text-[11px] opacity-50">Tip: bß║Ñm v├áo ti├¬u ─æß╗ü, khß╗æi nß╗Öi dung, hoß║╖c 1 link ch╞░╞íng ─æß╗â lß║Ñy selector gß╗úi ├╜. Sau ─æ├│ d├╣ng n├║t ─Éß║ºu/Cuß╗æi/Thß╗⌐ 2 b├¬n ngo├ái ─æß╗â tinh chß╗ënh.</p>
+        <p className="text-[11px] opacity-50">Tip: bấm vào tiêu đề, khối nội dung, hoặc 1 link chương để lấy selector gợi ý. Sau đó dùng nút Đầu/Cuối/Thứ 2 bên ngoài để tinh chỉnh.</p>
       </div>
     </Modal>
   );
 }
 
-/* ΓöÇΓöÇ Client-side heuristic ranking (mirror of selector_ai.py finders) ΓöÇΓöÇ
-   Kh├┤ng tß╗æn token/AI ΓÇö chß╗ë duyß╗çt DOM ─æ├ú tß║úi sß║╡n trong state.                */
+/* ── Client-side heuristic ranking (mirror of selector_ai.py finders) ──
+   Không tốn token/AI — chỉ duyệt DOM đã tải sẵn trong state.                */
 
 type CandidateKind = "link-wrapper" | "text-wrapper" | "heading" | "keyword" | "image" | "next-link";
 
@@ -257,7 +257,7 @@ function rankLinkWrapperCandidates(doc: Document, maxCandidates = 3): RankedCand
       .slice(0, 2)
       .map((a) => (a.getAttribute("href") || "").trim())
       .filter(Boolean);
-    const detail = `${linkCount(el)} link${hrefs.length ? `, mß║½u: ${hrefs.join(", ")}` : ""}`;
+    const detail = `${linkCount(el)} link${hrefs.length ? `, mẫu: ${hrefs.join(", ")}` : ""}`;
     out.push({ selector: sel, detail });
     if (out.length >= maxCandidates) break;
   }
@@ -285,7 +285,7 @@ function rankTextWrapperCandidates(doc: Document, maxCandidates = 3): RankedCand
     if (!sel || seen.has(sel)) continue;
     seen.add(sel);
     const pcount = el.querySelectorAll("p").length;
-    out.push({ selector: sel, detail: `${textLen(el)} k├╜ tß╗▒, ${pcount} <p>, mß╗ƒ ─æß║ºu: "${previewText(el, 40)}"` });
+    out.push({ selector: sel, detail: `${textLen(el)} ký tự, ${pcount} <p>, mở đầu: "${previewText(el, 40)}"` });
     if (out.length >= maxCandidates) break;
   }
   return out;
@@ -393,7 +393,7 @@ export function rankCandidates(html: string, kind: CandidateKind | undefined, ke
   }
 }
 
-/* ΓöÇΓöÇ Selector field ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* ── Selector field ──────────────────────────────────────────────── */
 
 export function SelectorField({
   label,
@@ -431,14 +431,14 @@ export function SelectorField({
       <Field label={<span className="inline-flex items-center gap-2">{label} {wrapperNote ? <Badge tone="indigo" className="normal-case font-normal tracking-normal">{wrapperNote}</Badge> : null}</span>} hint={hint}>
         <div className="join w-full">
           <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} spellCheck={false} className={clsx("join-item flex-1 min-w-0 font-mono text-xs", showWarning && "input-error")} />
-          <Button size="sm" className="join-item shrink-0" onClick={() => setPickerOpen(true)} disabled={!html} title={html ? "Chß╗ìn trß╗▒c tiß║┐p tß╗½ DOM ─æ├ú tß║úi" : "Tß║úi DOM tr╞░ß╗¢c"}>
-            Chß╗ìn tß╗½ DOM
+          <Button size="sm" className="join-item shrink-0" onClick={() => setPickerOpen(true)} disabled={!html} title={html ? "Chọn trực tiếp từ DOM đã tải" : "Tải DOM trước"}>
+            Chọn từ DOM
           </Button>
         </div>
       </Field>
       {suggestions.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] opacity-50">gß╗úi ├╜:</span>
+          <span className="text-[11px] opacity-50">gợi ý:</span>
           {suggestions.map((c) => (
             <button
               key={c.selector}
@@ -454,18 +454,18 @@ export function SelectorField({
       ) : null}
       <div className="flex flex-wrap items-center gap-1.5">
         <MatchBadge html={html} selector={value} expectOne={expectOne} />
-        <span className="text-[11px] opacity-50">vß╗ï tr├¡:</span>
+        <span className="text-[11px] opacity-50">vị trí:</span>
         <div className="join">
           {(["first", "last", "n2", "n3", "clear"] as const).map((k) => (
-            <button key={k} type="button" className="btn btn-xs join-item" title={k === "clear" ? "X├│a hß║¡u tß╗æ vß╗ï tr├¡" : `Th├¬m :${k}`} onClick={() => onChange(positionalVariant(value || ".item", k))}>
-              {k === "first" ? "─Éß║ºu" : k === "last" ? "Cuß╗æi" : k === "n2" ? "Thß╗⌐ 2" : k === "n3" ? "Thß╗⌐ 3" : "X├│a"}
+            <button key={k} type="button" className="btn btn-xs join-item" title={k === "clear" ? "Xóa hậu tố vị trí" : `Thêm :${k}`} onClick={() => onChange(positionalVariant(value || ".item", k))}>
+              {k === "first" ? "Đầu" : k === "last" ? "Cuối" : k === "n2" ? "Thứ 2" : k === "n3" ? "Thứ 3" : "Xóa"}
             </button>
           ))}
         </div>
       </div>
-      {showWarning && cnt === 0 ? <p className="text-xs text-error">Kh├┤ng khß╗¢p phß║ºn tß╗¡ n├áo ΓÇö selector kh├┤ng t├¼m thß║Ñy trong DOM ─æ├ú tß║úi.</p> : null}
-      {showWarning && cnt !== 0 && cnt !== -1 ? <p className="text-xs text-warning">ΓÜá∩╕Å Khß╗¢p {cnt} phß║ºn tß╗¡ ΓÇö h├úy thu hß║╣p wrapper (th├¬m class/id cha) hoß║╖c d├╣ng n├║t vß╗ï tr├¡ b├¬n tr├¬n.</p> : null}
-      {cnt === -1 ? <p className="text-xs text-error">C├║ ph├íp selector kh├┤ng hß╗úp lß╗ç.</p> : null}
+      {showWarning && cnt === 0 ? <p className="text-xs text-error">Không khớp phần tử nào — selector không tìm thấy trong DOM đã tải.</p> : null}
+      {showWarning && cnt !== 0 && cnt !== -1 ? <p className="text-xs text-warning">⚠️ Khớp {cnt} phần tử — hãy thu hẹp wrapper (thêm class/id cha) hoặc dùng nút vị trí bên trên.</p> : null}
+      {cnt === -1 ? <p className="text-xs text-error">Cú pháp selector không hợp lệ.</p> : null}
       <DomPickerModal open={pickerOpen} onClose={() => setPickerOpen(false)} html={html} selector={value} onPick={(sel) => onChange(sel)} />
     </div>
   );
@@ -478,10 +478,10 @@ export interface RegexQuickPattern {
 }
 
 const DEFAULT_QUICK_PATTERNS: RegexQuickPattern[] = [
-  { label: ".*", value: ".*", title: "Khß╗¢p tß║Ñt cß║ú" },
-  { label: "/\\d+\\.html$", value: "/\\d+\\.html$", title: "ID sß╗æ + .html" },
+  { label: ".*", value: ".*", title: "Khớp tất cả" },
+  { label: "/\\d+\\.html$", value: "/\\d+\\.html$", title: "ID số + .html" },
   { label: "/chuong-\\d+", value: "/chuong-\\d+", title: "chuong-123" },
-  { label: "/book/ΓÇª", value: "/book/\\d+/\\d+\\.html$", title: "/book/1/2.html" },
+  { label: "/book/…", value: "/book/\\d+/\\d+\\.html$", title: "/book/1/2.html" },
 ];
 
 export function RegexField({
@@ -501,7 +501,7 @@ export function RegexField({
   sampleLinks: string[];
   placeholder?: string;
   quick?: RegexQuickPattern[];
-  /** Cho ph├⌐p rß╗ùng kh├┤ng b├ío cß║únh b├ío (vd regex dß╗▒ ph├▓ng ΓÇö rß╗ùng = bß╗Å qua). */
+  /** Cho phép rỗng không báo cảnh báo (vd regex dự phòng — rỗng = bỏ qua). */
   allowEmpty?: boolean;
 }) {
   const isWildcard = value.trim() === ".*" || value.trim() === ".+";
@@ -514,7 +514,7 @@ export function RegexField({
       </Field>
       <div className="flex flex-wrap items-center gap-1.5">
         <RegexBadge pattern={value} sampleLinks={sampleLinks} />
-        <span className="text-[11px] opacity-50">mß║½u nhanh:</span>
+        <span className="text-[11px] opacity-50">mẫu nhanh:</span>
         <div className="join">
           {quicks.map((q) => (
             <button key={q.value} type="button" className="btn btn-xs join-item" onClick={() => onChange(q.value)} title={q.title}>
@@ -523,14 +523,14 @@ export function RegexField({
           ))}
         </div>
       </div>
-      {isWildcard ? <p className="text-xs text-warning">ΓÜá∩╕Å Regex n├áy khß╗¢p TO├ÇN Bß╗ÿ link trong trang ΓÇö sß║╜ crawl cß║ú menu/nav. H├úy thu hß║╣p (vd <code>/chuong-\d+\.html$</code>).</p> : null}
-      {isEmpty && !allowEmpty ? <p className="text-xs text-warning">ΓÜá∩╕Å Regex trß╗æng ΓÇö mß╗ìi link ─æß╗üu lß╗ìt qua. H├úy thu hß║╣p hoß║╖c giß╗» ".*" nß║┐u trang chß╗ë c├│ link ch╞░╞íng.</p> : null}
-      {sampleLinks.length > 0 ? <p className="text-[11px] opacity-50 truncate">Mß║½u: {sampleLinks.slice(0, 3).join(" ┬╖ ")} {sampleLinks.length > 3 ? `+${sampleLinks.length - 3}` : ""}</p> : null}
+      {isWildcard ? <p className="text-xs text-warning">⚠️ Regex này khớp TOÀN BỘ link trong trang — sẽ crawl cả menu/nav. Hãy thu hẹp (vd <code>/chuong-\d+\.html$</code>).</p> : null}
+      {isEmpty && !allowEmpty ? <p className="text-xs text-warning">⚠️ Regex trống — mọi link đều lọt qua. Hãy thu hẹp hoặc giữ ".*" nếu trang chỉ có link chương.</p> : null}
+      {sampleLinks.length > 0 ? <p className="text-[11px] opacity-50 truncate">Mẫu: {sampleLinks.slice(0, 3).join(" · ")} {sampleLinks.length > 3 ? `+${sampleLinks.length - 3}` : ""}</p> : null}
     </div>
   );
 }
 
-/* ΓöÇΓöÇ Dom Inspector Panel ΓÇö dual DOM (TOC + Chapter), overwrite on reload ΓöÇΓöÇ */
+/* ── Dom Inspector Panel — dual DOM (TOC + Chapter), overwrite on reload ── */
 
 type DomSnapshot = { html: string; sampleLinks: string[]; url: string };
 
@@ -553,7 +553,7 @@ export function DomInspector({
   toc?: DomSnapshot | null;
   chapter?: DomSnapshot | null;
 }) {
-  // dual storage ΓÇö prefer explicit toc/chapter props, fallback to legacy html/sampleLinks
+  // dual storage — prefer explicit toc/chapter props, fallback to legacy html/sampleLinks
   const tocSnap = toc !== undefined ? toc : (html ? { html: html || "", sampleLinks: sampleLinks || [], url: tocUrl } : null);
   const chapSnap = chapter !== undefined ? chapter : null;
 
@@ -564,14 +564,14 @@ export function DomInspector({
   const [tocError, setTocError] = useState("");
   const [chapError, setChapError] = useState("");
 
-  // ─Éß╗ông bß╗Ö URL tß╗½ preset/preset change ΓÇö nh╞░ng kh├┤ng ghi ─æ├¿ nß║┐u ─æ├ú c├│ snapshot hoß║╖c user ─æ├ú sß╗¡a input
+  // Đồng bộ URL từ preset/preset change — nhưng không ghi đè nếu đã có snapshot hoặc user đã sửa input
   useEffect(() => {
     if (!tocSnap?.html) setTocInput(tocUrl);
   }, [tocUrl, tocSnap?.html]);
   useEffect(() => {
     if (!chapSnap?.html) setChapInput(chapterUrl || tocUrl);
   }, [chapterUrl, tocUrl, chapSnap?.html]);
-  // Khi ─æß╗òi sang preset kh├íc (snapshot thay ─æß╗òi) m├á snapshot mß╗¢i c├│ URL kh├íc ΓÇö nß║íp lß║íi URL tß╗½ snapshot
+  // Khi đổi sang preset khác (snapshot thay đổi) mà snapshot mới có URL khác — nạp lại URL từ snapshot
   useEffect(() => {
     if (tocSnap?.url) setTocInput(tocSnap.url);
   }, [tocSnap?.url]);
@@ -581,7 +581,7 @@ export function DomInspector({
 
   const fetchDom = async (which: "toc" | "chapter") => {
     const url = (which === "toc" ? tocInput : chapInput).trim();
-    if (!url) { (which === "toc" ? setTocError : setChapError)("Nhß║¡p URL tr╞░ß╗¢c."); return; }
+    if (!url) { (which === "toc" ? setTocError : setChapError)("Nhập URL trước."); return; }
     const setLoading = which === "toc" ? setTocLoading : setChapLoading;
     const setError = which === "toc" ? setTocError : setChapError;
     setLoading(true); setError("");
@@ -621,9 +621,9 @@ export function DomInspector({
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold tracking-wide">{title}</span>
         {snap?.html ? (
-          <Badge tone="celadon" className="shrink-0">{Math.round(snap.html.length / 1024)} KB ┬╖ {snap.sampleLinks.length} link</Badge>
+          <Badge tone="celadon" className="shrink-0">{Math.round(snap.html.length / 1024)} KB · {snap.sampleLinks.length} link</Badge>
         ) : (
-          <Badge tone="gold" className="shrink-0">Ch╞░a c├│</Badge>
+          <Badge tone="gold" className="shrink-0">Chưa có</Badge>
         )}
       </div>
       <p className="text-[11px] opacity-50 leading-relaxed">{hint}</p>
@@ -636,25 +636,25 @@ export function DomInspector({
           className="join-item flex-1 min-w-0 font-mono text-xs"
         />
         <Button size="sm" variant={snap?.html ? "neutral" : "primary"} loading={loading} onClick={onFetch} className="join-item shrink-0">
-          {snap?.html ? "Ghi ─æ├¿" : "Tß║úi DOM"}
+          {snap?.html ? "Ghi đè" : "Tải DOM"}
         </Button>
       </div>
       {error ? <p className="text-xs text-error">{error}</p> : null}
       {snap?.html ? (
         <>
-          <p className="text-[11px] opacity-60 truncate">─É├ú l╞░u: <span className="font-mono">{snap.url}</span></p>
+          <p className="text-[11px] opacity-60 truncate">Đã lưu: <span className="font-mono">{snap.url}</span></p>
           {snap.sampleLinks.length > 0 ? (
             <div className="rounded bg-base-200 px-2 py-1.5 text-[11px] leading-relaxed">
-              <span className="opacity-60">Mß║½u link ({snap.sampleLinks.length}):</span>{" "}
-              <span className="font-mono break-all">{snap.sampleLinks.slice(0, 2).join(" ┬╖ ")}</span>
+              <span className="opacity-60">Mẫu link ({snap.sampleLinks.length}):</span>{" "}
+              <span className="font-mono break-all">{snap.sampleLinks.slice(0, 2).join(" · ")}</span>
               {snap.sampleLinks.length > 2 ? <span className="opacity-50"> +{snap.sampleLinks.length - 2}</span> : null}
             </div>
           ) : (
-            <p className="text-[11px] opacity-40">Kh├┤ng ph├ít hiß╗çn link mß║½u trong DOM n├áy.</p>
+            <p className="text-[11px] opacity-40">Không phát hiện link mẫu trong DOM này.</p>
           )}
         </>
       ) : (
-        <p className="text-[11px] opacity-40">Nhß║¡p URL rß╗ôi bß║Ñm ΓÇ£Tß║úi DOMΓÇ¥ ΓÇö tß║úi lß║íi sß║╜ <b>ghi ─æ├¿</b> snapshot c┼⌐.</p>
+        <p className="text-[11px] opacity-40">Nhập URL rồi bấm “Tải DOM” — tải lại sẽ <b>ghi đè</b> snapshot cũ.</p>
       )}
     </div>
   );
@@ -664,24 +664,24 @@ export function DomInspector({
   return (
     <div className="rounded-box border border-base-300 bg-base-100 overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-base-300 bg-base-200/60 px-3 py-2">
-        <span className="text-xs font-semibold tracking-wide">Ph├▓ng th├¡ nghiß╗çm DOM</span>
-        <span className="hidden sm:inline text-[11px] opacity-50">ΓÇö l╞░u HTML thß╗▒c tß║┐ ─æß╗â ─æß║┐m khß╗¢p &amp; ΓÇ£Chß╗ìn tß╗½ DOMΓÇ¥</span>
+        <span className="text-xs font-semibold tracking-wide">Phòng thí nghiệm DOM</span>
+        <span className="hidden sm:inline text-[11px] opacity-50">— lưu HTML thực tế để đếm khớp &amp; “Chọn từ DOM”</span>
         <span className="flex-1" />
         {hasAny ? (
           <span className="text-[11px] opacity-60">
-            {tocSnap?.html ? "TOC Γ£ô" : "TOC ΓÇö"} ┬╖ {chapSnap?.html ? "Ch╞░╞íng Γ£ô" : "Ch╞░╞íng ΓÇö"}
+            {tocSnap?.html ? "TOC ✓" : "TOC —"} · {chapSnap?.html ? "Chương ✓" : "Chương —"}
           </span>
         ) : (
-          <Badge tone="gold">Ch╞░a c├│ DOM</Badge>
+          <Badge tone="gold">Chưa có DOM</Badge>
         )}
       </div>
       <div className="p-3 space-y-2">
         <p className="text-xs opacity-60 leading-relaxed">
-          Tß║úi <b>Mß╗Ñc lß╗Ñc</b> v├á <b>Ch╞░╞íng mß║½u</b> ri├¬ng biß╗çt. Mß╗ùi lß║ºn ΓÇ£Tß║úi DOMΓÇ¥ sß║╜ <b>ghi ─æ├¿</b> snapshot c┼⌐ ΓÇö c├íc ├┤ selector ph├¡a d╞░ß╗¢i tß╗▒ ─æß╗Öng ─æß║┐m khß╗¢p, t├┤ cß║únh b├ío v├á cho ph├⌐p ΓÇ£Chß╗ìn tß╗½ DOMΓÇ¥ ngay.
+          Tải <b>Mục lục</b> và <b>Chương mẫu</b> riêng biệt. Mỗi lần “Tải DOM” sẽ <b>ghi đè</b> snapshot cũ — các ô selector phía dưới tự động đếm khớp, tô cảnh báo và cho phép “Chọn từ DOM” ngay.
         </p>
         <div className="grid gap-3 md:grid-cols-2">
-          <Card which="toc" title="≡ƒôæ Mß╗Ñc lß╗Ñc" hint="D├╣ng cho: wrapper mß╗Ñc lß╗Ñc, regex lß╗ìc link, title/author/desc/cover" snap={tocSnap} input={tocInput} setInput={setTocInput} loading={tocLoading} error={tocError} onFetch={() => fetchDom("toc")} />
-          <Card which="chapter" title="≡ƒôä Ch╞░╞íng mß║½u" hint="D├╣ng cho: wrapper nß╗Öi dung, ti├¬u ─æß╗ü ch╞░╞íng, ph├ón trang ch╞░╞íng" snap={chapSnap} input={chapInput} setInput={setChapInput} loading={chapLoading} error={chapError} onFetch={() => fetchDom("chapter")} />
+          <Card which="toc" title="📑 Mục lục" hint="Dùng cho: wrapper mục lục, regex lọc link, title/author/desc/cover" snap={tocSnap} input={tocInput} setInput={setTocInput} loading={tocLoading} error={tocError} onFetch={() => fetchDom("toc")} />
+          <Card which="chapter" title="📄 Chương mẫu" hint="Dùng cho: wrapper nội dung, tiêu đề chương, phân trang chương" snap={chapSnap} input={chapInput} setInput={setChapInput} loading={chapLoading} error={chapError} onFetch={() => fetchDom("chapter")} />
         </div>
       </div>
     </div>
@@ -692,15 +692,15 @@ export function DomInspector({
 export function WrapperHint() {
   return (
     <div className="rounded-box border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-relaxed">
-      <span className="font-semibold">C├ích wrapper + regex phß╗æi hß╗úp:</span> <span className="opacity-80">Crawler chß╗ë x├⌐t c├íc <code className="px-1 py-0.5 rounded bg-base-200">&lt;a&gt;</code> Nß║░M TRONG wrapper <code className="px-1 py-0.5 rounded bg-base-200">toc_selector</code>, rß╗ôi mß╗¢i lß╗ìc bß║▒ng <code className="px-1 py-0.5 rounded bg-base-200">chapter_link_pattern</code>. Thu hß║╣p wrapper (vd <code>#list</code>) v├á regex cß╗Ñ thß╗â (vd <code>/chuong-\d+\.html$</code>) sß║╜ loß║íi menu/nav/footer.</span>
+      <span className="font-semibold">Cách wrapper + regex phối hợp:</span> <span className="opacity-80">Crawler chỉ xét các <code className="px-1 py-0.5 rounded bg-base-200">&lt;a&gt;</code> NẰM TRONG wrapper <code className="px-1 py-0.5 rounded bg-base-200">toc_selector</code>, rồi mới lọc bằng <code className="px-1 py-0.5 rounded bg-base-200">chapter_link_pattern</code>. Thu hẹp wrapper (vd <code>#list</code>) và regex cụ thể (vd <code>/chuong-\d+\.html$</code>) sẽ loại menu/nav/footer.</span>
     </div>
   );
 }
 
-/* ΓöÇΓöÇ Image URL extraction (cho regex ß║únh b├¼a) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+/* ── Image URL extraction (cho regex ảnh bìa) ────────────────────── */
 
-/** Tr├¡ch c├íc URL ß║únh tß╗½ DOM snapshot ΓÇö img src/srcset + lazy-load attrs +
- *  background-image inline + <source srcset>. Thß╗⌐ tß╗▒ xuß║Ñt hiß╗çn trong trang. */
+/** Trích các URL ảnh từ DOM snapshot — img src/srcset + lazy-load attrs +
+ *  background-image inline + <source srcset>. Thứ tự xuất hiện trong trang. */
 export function extractImageUrls(html: string, baseUrl: string, max = 40): string[] {
   if (!html.trim()) return [];
   try {

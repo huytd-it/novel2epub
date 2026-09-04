@@ -70,7 +70,130 @@ _AUTO_GLOSSARY_BLOCK = (
 )
 
 
-def _clean_output(text: str) -> str:
+# Regex validate/strip Markdown mà LLM hay "rò rỉ" vào bản dịch
+# (dù prompt đã dặn trả plain-text): heading `## ...`, emphasis `*Tên*`,
+# `**Tên**`, `__Tên__`, `_Tên_`, strikethrough, inline code, link, quote `>`.
+_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
+_BLOCKQUOTE_RE = re.compile(r"^\s{0,3}(>\s?)+")
+_HRULE_RE = re.compile(r"^\s*([*\-_]\s*){3,}\s*$")
+_MD_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
+_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_MD_TRIPLE_EM_RE = re.compile(r"(\*\*\*|___)(.+?)\1")
+_MD_DOUBLE_EM_RE = re.compile(r"(\*\*|__)(.+?)\1")
+_MD_SINGLE_ASTERISK_RE = re.compile(r"\*(.+?)\*")
+_MD_SINGLE_UNDERSCORE_RE = re.compile(r"(?<!\w)_([^_\n]+?)_(?!\w)")
+_MD_STRIKE_RE = re.compile(r"~~(.+?)~~")
+_MD_INLINE_CODE_RE = re.compile(r"`{1,3}(.+?)`{1,3}")
+_MD_EDGE_RE = re.compile(r"^(\*\*|\*|__|~~|`)+|(\*\*|\*|__|~~|`)+$")
+_MD_ATX_CLOSE_RE = re.compile(r"\s+#{1,6}\s*$")
+
+def _strip_markdown_line(line: str) -> str:
+    """Loại bỏ decoration Markdown khỏi MỘT dòng bản dịch, giữ nguyên nội dung.
+
+    - `## Tiêu đề`, `### ...` (kể cả `## ... ##` đóng kiểu ATX) → bỏ `#`.
+    - `> quote` → bỏ `>`.
+    - Dòng chỉ gồm `---`/`***`/`___` (rule) → trả rỗng.
+    - `*Tên*`, `**Tên**`, `_Tên_`, `__Tên__`, `~~Tên~~`, `` `Tên` ``,
+      `[Tên](url)`, `![alt](url)` → giữ `Tên`.
+    - Không đụng tới `- ` đầu dòng (hội thoại) hay đánh số `1. ` (tiêu đề batch).
+    """
+    s = _BLOCKQUOTE_RE.sub("", line)
+    s = _HEADING_RE.sub("", s)
+    s = _MD_ATX_CLOSE_RE.sub("", s)
+    if s.strip() and _HRULE_RE.match(s):
+        return ""
+    # Ảnh/link trước để không bị emphasis ăn nhầm dấu `[]`.
+    s = _MD_IMAGE_RE.sub(r"\1", s)
+    s = _MD_LINK_RE.sub(r"\1", s)
+    # Lặp vài vòng để bóc lồng nhau kiểu `**_Tên_**`.
+    for _ in range(3):
+        new = s
+        new = _MD_INLINE_CODE_RE.sub(r"\1", new)
+        new = _MD_STRIKE_RE.sub(r"\1", new)
+        new = _MD_TRIPLE_EM_RE.sub(r"\2", new)
+        new = _MD_DOUBLE_EM_RE.sub(r"\2", new)
+        new = _MD_SINGLE_ASTERISK_RE.sub(r"\1", new)
+        new = _MD_SINGLE_UNDERSCORE_RE.sub(r"\1", new)
+        if new == s:
+            break
+        s = new
+    # Dọn marker lẻ còn sót ở 2 đầu dòng (VD: `**Tên gọi` thiếu đóng).
+    s = s.strip()
+    s = _MD_EDGE_RE.sub("", s).strip()
+    s = _MD_ATX_CLOSE_RE.sub("", s).strip()
+    return s
+
+
+def _strip_markdown(text: str) -> str:
+    return "\n".join(_strip_markdown_line(l) for l in text.splitlines())
+
+
+def normalize_translation_text(text: str, *, markdown: bool = True, punct: bool = True) -> str:
+    """Dọn nhanh bản dịch đã lưu: bóc Markdown rò rỉ + chuẩn hoá dấu câu Hán.
+
+    Dùng cho nút "xử lý nhanh" hàng loạt (áp lại quy tắc `_clean_output` lên
+    dữ liệu cũ được dịch trước khi có validate). Không đụng `title_zh`/raw —
+    caller chỉ truyền text Việt (thân chương, tiêu đề nhánh).
+    """
+    if not text:
+        return text
+    if markdown:
+        text = _strip_markdown(text)
+    if punct:
+        text = _normalize_cjk_punctuation(text)
+    return text.strip()
+
+
+# Bảng 1:1 dấu câu CHỈ dùng trong tiếng Trung → ký tự tiếng Việt tương đương.
+# Fullwidth ASCII (！？；：，．（）［］｛｝…) gộp bằng fold U+FF01–U+FF5E;
+# dưới đây là các ký tự CJK không fold được + khoảng trắng/dấu tách tên.
+_CJK_PUNCT_MAP = {
+    "\u3001": ",",  # 、 ideographic comma
+    "\u3002": ".",  # 。 ideographic full stop
+    "\u3008": '"',  # 〈
+    "\u3009": '"',  # 〉
+    "\u300a": '"',  # 《
+    "\u300b": '"',  # 》
+    "\u300c": '"',  # 「
+    "\u300d": '"',  # 」
+    "\u300e": '"',  # 『
+    "\u300f": '"',  # 』
+    "\u3010": "[",  # 【
+    "\u3011": "]",  # 】
+    "\u301c": "~",  # 〜 wave dash
+    "\u00b7": " ",  # · dấu tách tên phiên âm (路易斯·威登)
+    "\u30fb": " ",  # ・ katakana middle dot
+    "\uff65": " ",  # ･ halfwidth middle dot
+    "\u3000": " ",  # ideographic space
+}
+_CJK_PUNCT_TABLE = {
+    **{i: i - 0xFEE0 for i in range(0xFF01, 0xFF5F)},
+    **{ord(k): v for k, v in _CJK_PUNCT_MAP.items()},
+}
+_EM_DASH_RUN_RE = re.compile("\u2014{2,}")  # —— kiểu Trung → — kiểu Việt
+_ELLIPSIS_RUN_RE = re.compile("\u2026{2,}")  # …… kiểu Trung → …
+_WS_RUN_RE = re.compile(r"[ \t]{2,}")
+
+
+def _normalize_cjk_punctuation(text: str) -> str:
+    """Đổi dấu câu chỉ dùng trong tiếng Trung sang ký tự tiếng Việt (giữ nội dung).
+
+    - `，。！？；：（）［］｛｝` (fullwidth) → halfwidth; `、。` → `,.`.
+    - Ngoặc/trích dẫn `「」『』《》〈〉` → `"`; `【】` → `[]`.
+    - `——` → `—`, `……` → `…`, `～〜` → `~`.
+    - Dấu tách tên `·・･` và space ideographic → space thường (gộp space thừa).
+    - KHÔNG đụng tới `“”‘’` (xuất bản Việt vẫn dùng), `- ` hội thoại,
+      hay chèn thêm space sau dấu phẩy (tránh phá URL/giờ `3:30`).
+    """
+    if not text:
+        return text
+    text = text.translate(_CJK_PUNCT_TABLE)
+    text = _EM_DASH_RUN_RE.sub("\u2014", text)
+    text = _ELLIPSIS_RUN_RE.sub("\u2026", text)
+    return _WS_RUN_RE.sub(" ", text)
+
+
+def _clean_output(text: str, *, normalize_punctuation: bool = True) -> str:
     """Bỏ ```fence``` và dòng mở đầu kiểu 'Đây là bản dịch:' nếu có."""
     text = text.strip()
     if text.startswith("```"):
@@ -85,7 +208,12 @@ def _clean_output(text: str) -> str:
         lines = lines[1:]
         if lines and not lines[0].strip():
             lines = lines[1:]
-    return "\n".join(lines).strip()
+    # normalize_punctuation=False cho đường parse JSON (glossary/characters/eval):
+    # field Hán (source/evidence) phải giữ nguyên dấu câu gốc.
+    cleaned = _strip_markdown("\n".join(lines)).strip()
+    if normalize_punctuation:
+        cleaned = _normalize_cjk_punctuation(cleaned).strip()
+    return cleaned
 
 
 _TITLE_LINE = re.compile(r"^\s*TI[ÊE]U\s*Đ[ỀE]\s*:\s*(.*)$", re.IGNORECASE)
@@ -781,6 +909,8 @@ class LocalMTTranslator:
         out = _apply_glossary(translated, self.glossary)
         # Khôi phục placeholder → natural, rồi chuẩn hoá literal → natural.
         out = idioms_mod.apply_mt_post(out, self.idioms, restore_map)
+        # Model NMT cũng có thể lọt dấu câu CJK (。、…) → chuẩn hoá như LLM.
+        out = _normalize_cjk_punctuation(out)
         if on_chunk is not None:
             on_chunk(1, 1, out, True)
         return out
@@ -791,7 +921,7 @@ class LocalMTTranslator:
         if not text.strip():
             return text, ""
         translated = self._inner.translate_chunk(text.strip(), beam_size=self.hmt.beam_size)
-        return _apply_glossary(translated, self.glossary), ""
+        return _normalize_cjk_punctuation(_apply_glossary(translated, self.glossary)), ""
 
     def translate_titles(self, titles: list[str]) -> list[str]:
         self._ensure_loaded()
@@ -802,7 +932,7 @@ class LocalMTTranslator:
                 result.append(t)
             else:
                 translated = self._inner.translate_chunk(t.strip(), beam_size=self.hmt.beam_size)
-                result.append(_apply_glossary(translated, self.glossary))
+                result.append(_normalize_cjk_punctuation(_apply_glossary(translated, self.glossary)))
         return result
 
 

@@ -1446,6 +1446,58 @@ def step_cleanup_han_local_mt_selected(
     return manifest
 
 
+def step_normalize_text_selected(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    selected_indexes: list[int] | None = None,
+    mode: str = "all",
+) -> dict:
+    """Dọn nhanh format bản dịch ĐÃ LƯU (không gọi AI/model).
+
+    Áp lại quy tắc validate của `_clean_output` lên dữ liệu cũ được dịch trước
+    khi có validate: `mode="markdown"` bóc Markdown rò rỉ (`**`, `##`…),
+    `mode="punct"` đổi dấu câu kiểu Hán (，。「」…) sang dấu tiếng Việt,
+    `mode="all"` làm cả hai. Quét CẢ hai nhánh có nội dung + tiêu đề nhánh
+    (không đụng `title_zh`/raw). Chỉ ghi chương thực sự đổi (revision +1,
+    token preview cũ hết hiệu lực). Trả dict JSON-safe cho route batch.
+    """
+    from .translator import normalize_translation_text
+
+    mode = (mode or "all").strip().lower()
+    if mode not in {"markdown", "punct", "all"}:
+        raise ValueError(f"mode không hợp lệ: {mode!r} (markdown|punct|all)")
+    do_markdown = mode in {"markdown", "all"}
+    do_punct = mode in {"punct", "all"}
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+    selected = _chapter_selection(manifest.chapters, None, None, None, selected_indexes)
+    scanned = len(selected)
+    updated = 0
+    for ch in selected:
+        changed = False
+        for branch in revisions.BRANCHES:
+            text = storage.read_branch_text(ch, branch)
+            if text:
+                fixed = normalize_translation_text(text, markdown=do_markdown, punct=do_punct)
+                if fixed != text:
+                    storage.write_branch_text(ch, branch, fixed)
+                    storage.invalidate_preview_tokens(ch, branch)
+                    changed = True
+            title = storage.read_branch_title(ch, branch)
+            if title:
+                fixed_title = normalize_translation_text(title, markdown=do_markdown, punct=do_punct)
+                if fixed_title != title:
+                    storage.write_branch_titles(ch, branch, fixed_title, storage.read_branch_title_zh(ch, branch))
+                    changed = True
+        if changed:
+            updated += 1
+    log(f"[normalize-text] Hoàn tất mode={mode}: đã sửa {updated}/{scanned} chương.")
+    return {"scanned": scanned, "updated": updated, "mode": mode}
+
+
 def step_translate_toc_selected(
     cfg: Config,
     log: LogFn = _print,

@@ -97,9 +97,15 @@ Bật tự động sau mỗi chương bằng `translate.auto_cleanup_han`, hoặ
 
 - **CLI**: `cleanup-han [--engine local_mt|openai]`.
 - **Trang chương / trình đọc**: nút Clear Hán.
-- **Hàng loạt ở trang truyện**: chọn chương trong bảng rồi bấm **Dọn chữ Hán** ở thanh hành động. Hộp thoại cho chọn engine (bỏ trống = theo cấu hình truyện) và tuỳ chọn quét lại chương đã dọn. Gọi `POST /api/ebooks/{slug}/batch/cleanup-han` với `indexes`, `engine`, `force`; cả lô chạy trong MỘT job nên Local MT chỉ nạp model một lần.
+- **Hàng loạt ở trang truyện**: chọn chương trong bảng rồi bấm **Dọn chữ Hán** ở thanh hành động. Hộp thoại cho chọn engine (bỏ trống = theo cấu hình truyện) và tuỳ chọn quét lại chương đã dọn. Gọi `POST /api/ebooks/{slug}/batch/cleanup-han` với `indexes`, `engine`, `force`; cả lô chạy trong MỘT job nên Local MT chỉ nạp model một lần. Nút **Dọn Hán (MT)** cạnh bên xếp job thẳng với `engine=local_mt`, bỏ qua hộp thoại.
 
 Bản dịch trước khi dọn được giữ trong snapshot để so sánh và khôi phục.
+
+## Dọn nhanh Markdown / dấu câu kiểu Hán
+
+Bản dịch cũ (dịch trước khi có validate `_clean_output`) có thể dính format Markdown rò rỉ (`**in đậm**`, `## …`) hoặc dấu câu kiểu Hán (`，。「」…`). Hai nút **Sửa Markdown** / **Sửa dấu câu** ở nhóm **Dọn nhanh** (thanh hành động trang truyện) áp lại đúng quy tắc đó lên dữ liệu đã lưu: gọi `POST /api/ebooks/{slug}/batch/normalize-text` với `indexes` và `mode` (`markdown`|`punct`|`all`).
+
+Endpoint chạy đồng bộ (thuần string-op, không qua job queue), quét cả hai nhánh có nội dung + tiêu đề nhánh (không đụng `title_zh`/raw), chỉ ghi chương thực sự đổi (revision +1, token preview cũ hết hiệu lực) và trả `{scanned, updated, mode}`.
 
 ## Dọn tiêu đề TOC
 

@@ -586,6 +586,26 @@ const NORMALIZE_TOC_ACTION: BatchAction = {
     `Chuẩn hóa tiêu đề ${n} chương đã chọn? Mặc định chỉ dọn tiêu đề đã dịch và các nhánh Local MT/AI; tiêu đề gốc được giữ nguyên để lần cập nhật mục lục sau không nhận nhầm thành chương mới.`,
 };
 
+/** Dọn nhanh format bản dịch đã lưu (đồng bộ, không qua job queue): quét cả
+    hai nhánh có nội dung + tiêu đề nhánh, chỉ ghi chương thực sự đổi. */
+const NORMALIZE_MARKDOWN_ACTION: BatchAction = {
+  key: "normalize-markdown",
+  label: "Sửa Markdown",
+  path: "batch/normalize-text",
+  form: { mode: "markdown" },
+  confirm: (n) =>
+    `Bóc format Markdown rò rỉ (**in đậm**, ## tiêu đề…) khỏi bản dịch ${n} chương đã chọn? Chỉ ghi chương thực sự đổi; tiêu đề gốc và bản gốc giữ nguyên.`,
+};
+
+const NORMALIZE_PUNCT_ACTION: BatchAction = {
+  key: "normalize-punct",
+  label: "Sửa dấu câu",
+  path: "batch/normalize-text",
+  form: { mode: "punct" },
+  confirm: (n) =>
+    `Đổi dấu câu kiểu Hán (，。「」…) sang dấu tiếng Việt trong bản dịch ${n} chương đã chọn? Chỉ ghi chương thực sự đổi; tiêu đề gốc và bản gốc giữ nguyên.`,
+};
+
 /** Crawl chỉ tải chương CHƯA có raw; force tải LẠI tất cả (raw cũ bị ghi đè,
     bản dịch giữ nguyên). Cả hai chạy qua `batch/crawl` — job nền, có thể dừng. */
 const CRAWL_ACTION: BatchAction = {
@@ -979,6 +999,8 @@ function CleanupHanDialog({
  * - "Dịch": đọc bản gốc, ghi thẳng vào nhánh đã chọn → phải preview + confirm.
  * - "Biên tập AI": đọc bản dịch đang có, sinh bản nháp chờ duyệt → không ghi
  *   đè gì nên bấm một cái là xếp job luôn, không qua hộp thoại.
+ * - "Dọn nhanh": dọn chữ Hán bằng Local MT (job nền, một chạm), sửa Markdown /
+ *   dấu câu kiểu Hán (đồng bộ, ghi ngay, qua hộp thoại xác nhận).
  * - "Khác": các thao tác phụ trợ, gom vào menu cho gọn.
  */
 function BatchBar({
@@ -1005,6 +1027,20 @@ function BatchBar({
   const [webChatOpen, setWebChatOpen] = useState(false);
   const [cleanupHanOpen, setCleanupHanOpen] = useState(false);
   const [branchAiOpen, setBranchAiOpen] = useState(false);
+
+  /** Nút nhanh "Dọn Hán (MT)": xếp job cleanup-han thẳng với engine
+      local_mt, bỏ qua hộp thoại chọn engine (job nền, giữ snapshot, hủy được). */
+  const cleanupHanQuick = useMutation({
+    mutationFn: () =>
+      api.post<{ started: boolean; total: number }>(`/api/ebooks/${slug}/batch/cleanup-han`, {
+        form: { indexes: selected.join(","), engine: "local_mt" },
+      }),
+    onSuccess: (res) => {
+      onDone();
+      toast(`Dọn Hán (Local MT): đã xếp ${num(res.total)} chương vào hàng đợi.`);
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
 
   const setBranchAi = useMutation({
     mutationFn: () =>
@@ -1034,10 +1070,14 @@ function BatchBar({
       setTocPreview(null);
       onDone();
       const started = typeof res.started === "number" ? res.started : null;
+      const updated = typeof res.updated === "number" ? res.updated : null;
+      const scanned = typeof res.scanned === "number" ? res.scanned : null;
       toast(
         started !== null
           ? `${action.label}: đã xếp ${started} chương vào hàng đợi.`
-          : `${action.label}: xong ${selected.length} chương.`,
+          : updated !== null && scanned !== null
+            ? `${action.label}: đã sửa ${updated}/${scanned} chương.`
+            : `${action.label}: xong ${selected.length} chương.`,
       );
     },
     onError: (err) => {
@@ -1191,6 +1231,34 @@ function BatchBar({
               onClick={() => setCleanupHanOpen(true)}
             >
               Dọn chữ Hán
+            </Button>
+          </div>
+
+          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Dọn nhanh</span>
+            <Button
+              size="sm"
+              loading={cleanupHanQuick.isPending}
+              title="Xếp job dọn chữ Hán bằng Local MT (offline, miễn phí) — bỏ qua hộp thoại chọn engine"
+              onClick={() => cleanupHanQuick.mutate()}
+            >
+              Dọn Hán (MT)
+            </Button>
+            <Button
+              size="sm"
+              title="Bóc format Markdown rò rỉ (**in đậm**, ## …) khỏi bản dịch các chương đã chọn"
+              onClick={() => trigger(NORMALIZE_MARKDOWN_ACTION)}
+            >
+              Sửa Markdown
+            </Button>
+            <Button
+              size="sm"
+              title="Đổi dấu câu kiểu Hán (，。「」…) sang dấu tiếng Việt trong bản dịch các chương đã chọn"
+              onClick={() => trigger(NORMALIZE_PUNCT_ACTION)}
+            >
+              Sửa dấu câu
             </Button>
           </div>
 

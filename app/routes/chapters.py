@@ -18,6 +18,7 @@ from novel2epub.pipeline import (
     step_cleanup_han_selected,
     step_crawl_selected,
     step_delete_translation_selected,
+    step_normalize_text_selected,
     step_retranslate_title,
     step_review_chapter,
     step_rewrite_preview,
@@ -1030,6 +1031,32 @@ async def api_batch_cleanup_han(
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return JSONResponse({"started": True, "total": len(index_list)})
+
+
+@router.post("/api/ebooks/{slug}/batch/normalize-text")
+async def api_batch_normalize_text(
+    slug: str,
+    indexes: str = Form(...),
+    mode: str = Form("all"),
+):
+    """Dọn nhanh format bản dịch đã lưu cho các chương đã chọn (đồng bộ).
+
+    `mode`: `markdown` (bóc `**`/`##`… rò rỉ), `punct` (dấu câu kiểu Hán → Việt),
+    `all` (cả hai). Quét cả hai nhánh có nội dung + tiêu đề nhánh, chỉ ghi
+    chương thực sự đổi. Thuần string-op nên chạy trực tiếp, không qua job queue.
+    """
+    cfg = deps.resolved_cfg(slug)
+    index_list = [int(i.strip()) for i in indexes.split(",") if i.strip()]
+    if not index_list:
+        raise HTTPException(status_code=400, detail="Chưa chọn chương nào. Hãy tick checkbox trước.")
+    mode = (mode or "all").strip().lower()
+    if mode not in {"markdown", "punct", "all"}:
+        raise HTTPException(status_code=400, detail="mode phải là 'markdown', 'punct' hoặc 'all'.")
+    try:
+        result = step_normalize_text_selected(cfg, lambda m: None, selected_indexes=index_list, mode=mode)
+    except RuntimeError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return JSONResponse(result)
 
 
 @router.post("/api/ebooks/{slug}/batch/suggest-glossary")

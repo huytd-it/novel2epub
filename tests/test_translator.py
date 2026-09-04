@@ -2,7 +2,14 @@ import pytest
 import requests
 
 from novel2epub import openai_client
-from novel2epub.translator import _apply_glossary, _clean_output, _parse_title_response, load_glossary_dict
+from novel2epub.translator import (
+    _apply_glossary,
+    _clean_output,
+    _normalize_cjk_punctuation,
+    _parse_title_response,
+    load_glossary_dict,
+    normalize_translation_text,
+)
 from novel2epub.config import OpenAIConfig, TranslateConfig, GlossaryFilesConfig
 
 
@@ -51,6 +58,49 @@ def test_clean_output_strips_preamble_line():
 
 def test_clean_output_passthrough_plain_text():
     assert _clean_output("Xin chào thế giới") == "Xin chào thế giới"
+
+
+def test_normalize_cjk_punctuation_maps_to_vietnamese():
+    assert _normalize_cjk_punctuation("Hắn nói、rồi đi。") == "Hắn nói,rồi đi."
+    assert (
+        _normalize_cjk_punctuation("Ngươi！Thật sao？Ừ；nghe：đây，xong．(ghi chú)")
+        == "Ngươi!Thật sao?Ừ;nghe:đây,xong.(ghi chú)"
+    )
+
+
+def test_normalize_cjk_punctuation_quotes_and_brackets():
+    assert _normalize_cjk_punctuation("「Sư huynh」đi tới『núi』") == '"Sư huynh"đi tới"núi"'
+    assert _normalize_cjk_punctuation("《Đấu Phá》〈ngoài〉【trong】") == '"Đấu Phá""ngoài"[trong]'
+
+
+def test_normalize_cjk_punctuation_runs_and_spaces():
+    assert _normalize_cjk_punctuation("Hắn nói——rồi im……lặng") == "Hắn nói—rồi im…lặng"
+    assert _normalize_cjk_punctuation("Sherlock·Holmes　tới") == "Sherlock Holmes tới"
+    assert _normalize_cjk_punctuation("ＡＢＣ１２３") == "ABC123"
+
+
+def test_normalize_cjk_punctuation_keeps_vietnamese_conventions():
+    # Ngoặc kép cong, hội thoại `- `, giờ `3:30` không bị đụng tới.
+    assert _normalize_cjk_punctuation("\u201cTrích\u201d giữ nguyên") == "\u201cTrích\u201d giữ nguyên"
+    assert _normalize_cjk_punctuation("- Ta đi đây!") == "- Ta đi đây!"
+    assert _normalize_cjk_punctuation("3:30 chiều") == "3:30 chiều"
+
+
+def test_clean_output_normalizes_cjk_punctuation_by_default():
+    assert _clean_output("**Lâm Phàm** nói：「Đi thôi。」") == 'Lâm Phàm nói:"Đi thôi."'
+
+
+def test_clean_output_opt_out_keeps_han_punctuation():
+    raw = '[{"source": "X，Y。", "suggested": "Z"}]'
+    assert _clean_output(raw, normalize_punctuation=False) == raw
+
+
+def test_normalize_translation_text_modes():
+    raw = "**Lâm Phàm** nói：「Đi thôi。」"
+    assert normalize_translation_text(raw, markdown=True, punct=False) == 'Lâm Phàm nói：「Đi thôi。」'
+    assert normalize_translation_text(raw, markdown=False, punct=True) == '**Lâm Phàm** nói:"Đi thôi."'
+    assert normalize_translation_text(raw) == 'Lâm Phàm nói:"Đi thôi."'
+    assert normalize_translation_text("") == ""
 
 
 def test_apply_glossary_replaces_all_occurrences():

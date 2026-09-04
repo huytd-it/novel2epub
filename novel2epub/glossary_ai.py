@@ -110,7 +110,8 @@ _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 
 
 def _parse_suggestions(text: str) -> list[dict]:
-    text = _clean_output(text)
+    # JSON chứa field Hán (source) — giữ nguyên dấu câu gốc, không chuẩn hoá.
+    text = _clean_output(text, normalize_punctuation=False)
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
@@ -285,7 +286,7 @@ def _format_fix_notes(notes: list[dict]) -> str:
 
 def _parse_fixes(text: str, valid_ids: set[str]) -> list[dict]:
     """Parse JSON array đề xuất sửa. Loại mục có id lạ hoặc fixed_text rỗng."""
-    text = _clean_output(text)
+    text = _clean_output(text, normalize_punctuation=False)
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
@@ -357,7 +358,7 @@ _EMPTY_REPORT = {"summary": "", "score": None, "issues": []}
 
 def _parse_evaluation(text: str) -> dict:
     """Parse JSON object báo cáo đánh giá. Lỗi parse -> report rỗng (không raise)."""
-    text = _clean_output(text)
+    text = _clean_output(text, normalize_punctuation=False)
     try:
         data = json.loads(text)
     except json.JSONDecodeError:

@@ -37,6 +37,9 @@ frontend/src-tauri/target/
 frontend/src-tauri/gen/
 frontend/src-tauri/Cargo.lock
 
+# Local agent/skill tooling cache (Claude Code), không phải source
+.agents/
+
 # OS/editor temporary files
 .DS_Store
 Thumbs.db

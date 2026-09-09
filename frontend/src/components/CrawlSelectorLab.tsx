@@ -3,7 +3,7 @@ import clsx from "clsx";
 
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
-import { Field, Input } from "@/components/ui/Field";
+import { Checkbox, Field, Input, Select } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 
@@ -534,10 +534,46 @@ export function RegexField({
 
 type DomSnapshot = { html: string; sampleLinks: string[]; url: string };
 
+export const SCRAPLING_MODES: { value: string; label: string }[] = [
+  { value: "fetcher", label: "fetcher (nhanh nhất)" },
+  { value: "stealthy", label: "stealthy" },
+  { value: "dynamic", label: "dynamic (render JS)" },
+];
+
+/** Các field crawl nâng cao mà backend thực sự áp khi fetch 1 trang
+ *  (xem `ScraplingCrawler._fetch_page`). Truyền vào để "Tải DOM" đi đúng
+ *  đường như lúc crawl thật — proxy, Cloudflare, DoH, fingerprint. */
+export type DomFetchOptions = {
+  headless?: boolean;
+  network_idle?: boolean;
+  solve_cloudflare?: boolean;
+  dns_over_https?: boolean;
+  impersonate?: string;
+  proxy?: string;
+};
+
+/** Nhãn ngắn cho các tùy chọn nâng cao ĐANG có hiệu lực với mode hiện tại. */
+function advancedSummary(mode: string, adv: DomFetchOptions | undefined): string[] {
+  if (!adv) return [];
+  const out: string[] = [];
+  const isBrowser = mode === "stealthy" || mode === "dynamic";
+  if (adv.proxy?.trim()) out.push("proxy");
+  if (isBrowser) {
+    if (adv.headless === false) out.push("headful");
+    if (adv.network_idle) out.push("network idle");
+    if (adv.dns_over_https) out.push("DoH");
+  }
+  if (mode === "stealthy" && adv.solve_cloudflare) out.push("Cloudflare");
+  if (mode === "fetcher" && adv.impersonate?.trim()) out.push(`impersonate ${adv.impersonate.trim()}`);
+  return out;
+}
+
 export function DomInspector({
   tocUrl,
   chapterUrl,
   scraplingMode,
+  onScraplingModeChange,
+  advanced,
   onDom,
   html,
   sampleLinks,
@@ -547,6 +583,9 @@ export function DomInspector({
   tocUrl: string;
   chapterUrl?: string;
   scraplingMode: string;
+  /** Có hàm này thì hiện select chế độ crawl ngay trong phòng lab. */
+  onScraplingModeChange?: (mode: string) => void;
+  advanced?: DomFetchOptions;
   onDom: (info: { html: string; hrefs: string[]; sampleLinks: string[]; url: string; which: "toc" | "chapter" }) => void;
   html?: string;
   sampleLinks?: string[];
@@ -563,6 +602,9 @@ export function DomInspector({
   const [chapLoading, setChapLoading] = useState(false);
   const [tocError, setTocError] = useState("");
   const [chapError, setChapError] = useState("");
+  // Mặc định BẬT: tải DOM giống hệt lúc crawl thật. Tắt khi muốn thử nguồn
+  // "trần" để khoanh vùng lỗi do proxy/browser setting.
+  const [useAdvanced, setUseAdvanced] = useState(true);
 
   // Đồng bộ URL từ preset/preset change — nhưng không ghi đè nếu đã có snapshot hoặc user đã sửa input
   useEffect(() => {
@@ -588,7 +630,13 @@ export function DomInspector({
     try {
       const res = await api.post<{ ok: boolean; html: string; hrefs: string[]; sample_links: string[]; url: string; truncated: boolean }>(
         "/api/ui/sources/inspect",
-        { body: { url, scrapling_mode: scraplingMode } },
+        {
+          body: {
+            url,
+            scrapling_mode: scraplingMode,
+            ...(useAdvanced && advanced ? { advanced } : {}),
+          },
+        },
       );
       onDom({ html: res.html, hrefs: res.hrefs, sampleLinks: res.sample_links, url: res.url, which });
     } catch (e) {
@@ -660,6 +708,7 @@ export function DomInspector({
   );
 
   const hasAny = Boolean(tocSnap?.html || chapSnap?.html);
+  const advActive = advancedSummary(scraplingMode, advanced);
 
   return (
     <div className="rounded-box border border-base-300 bg-base-100 overflow-hidden">
@@ -676,6 +725,46 @@ export function DomInspector({
         )}
       </div>
       <div className="p-3 space-y-2">
+        {/* Chế độ crawl + cấu hình nâng cao — quyết định DOM tải về giống hay
+            khác lúc crawl thật, nên đặt ngay cạnh nút "Tải DOM". */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-box border border-base-300 bg-base-200/40 px-3 py-2">
+          {onScraplingModeChange ? (
+            <label className="flex items-center gap-2 text-xs">
+              <span className="opacity-70">Chế độ crawl</span>
+              <Select
+                value={scraplingMode}
+                onChange={(e) => onScraplingModeChange(e.target.value)}
+                className="select-xs min-w-[10rem]"
+              >
+                {SCRAPLING_MODES.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          ) : (
+            <span className="text-xs opacity-70">
+              Chế độ crawl: <b className="font-mono">{scraplingMode}</b>
+            </span>
+          )}
+
+          {advanced ? (
+            <>
+              <label className="flex items-center gap-2 text-xs" title="Áp proxy / headless / Cloudflare / DoH / impersonate của tab Nâng cao khi tải DOM">
+                <Checkbox checked={useAdvanced} onChange={(e) => setUseAdvanced(e.target.checked)} />
+                Dùng cấu hình nâng cao
+              </label>
+              <span className="text-[11px] opacity-60">
+                {!useAdvanced
+                  ? "đang tải DOM với thiết lập mặc định"
+                  : advActive.length
+                    ? `áp dụng: ${advActive.join(" · ")}`
+                    : "không có tùy chọn nâng cao nào áp cho chế độ này"}
+              </span>
+            </>
+          ) : null}
+        </div>
         <p className="text-xs opacity-60 leading-relaxed">
           Tải <b>Mục lục</b> và <b>Chương mẫu</b> riêng biệt. Mỗi lần “Tải DOM” sẽ <b>ghi đè</b> snapshot cũ — các ô selector phía dưới tự động đếm khớp, tô cảnh báo và cho phép “Chọn từ DOM” ngay.
         </p>

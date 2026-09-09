@@ -122,7 +122,9 @@ export const EMPTY_PRESET: SourcePreset = {
   cover_url_pattern: "",
   encoding: "",
   user_agent: "",
-  headless: false,
+  // Khớp mặc định của dataclass `SourcePreset` (novel2epub/sources.py) — preset
+  // mới không được vô tình mở browser hiện hình khi crawl / tải DOM.
+  headless: true,
   magic: false,
   js_code: "",
   delay_seconds: 1,
@@ -138,7 +140,7 @@ export const EMPTY_PRESET: SourcePreset = {
   retry_respect_retry_after: true,
   scrapling_mode: "stealthy",
   solve_cloudflare: false,
-  network_idle: false,
+  network_idle: true,
   impersonate: "",
   proxy: "",
   dns_over_https: false,

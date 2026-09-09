@@ -24,8 +24,10 @@ import { IconExternal, IconPlus, IconSearch, IconTrash } from "@/components/icon
 import {
   DomInspector,
   RegexField,
+  SCRAPLING_MODES,
   SelectorField,
   extractImageUrls,
+  type DomFetchOptions,
 } from "@/components/CrawlSelectorLab";
 import { api } from "@/lib/api";
 
@@ -90,11 +92,8 @@ const BASIC_FIELDS: FieldSpec[] = [
     key: "scrapling_mode",
     label: "Chế độ crawl",
     kind: "select",
-    options: [
-      { value: "fetcher", label: "fetcher (nhanh nhất)" },
-      { value: "stealthy", label: "stealthy" },
-      { value: "dynamic", label: "dynamic (render JS)" },
-    ],
+    hint: "Cũng là chế độ dùng khi bấm “Tải DOM” ở phòng lab phía trên.",
+    options: SCRAPLING_MODES,
   },
   // chapter_link_pattern sẽ render riêng bằng RegexField có wrapper hint
 ];
@@ -421,6 +420,20 @@ function PresetModal({
   const tocSampleLinks = tocDom?.sampleLinks || [];
   const tocImageUrls = useMemo(() => extractImageUrls(tocHtml, tocDom?.url || ""), [tocHtml, tocDom?.url]);
 
+  // Cấu hình nâng cao đang soạn ở tab "Nâng cao" — dùng luôn cho lần tải DOM
+  // tiếp theo (nguồn cần proxy / giải Cloudflare mới vào được).
+  const domFetchOptions: DomFetchOptions = useMemo(
+    () => ({
+      headless: Boolean(draft.headless),
+      network_idle: Boolean(draft.network_idle),
+      solve_cloudflare: Boolean(draft.solve_cloudflare),
+      dns_over_https: Boolean(draft.dns_over_https),
+      impersonate: String(draft.impersonate || ""),
+      proxy: String(draft.proxy || ""),
+    }),
+    [draft.headless, draft.network_idle, draft.solve_cloudflare, draft.dns_over_https, draft.impersonate, draft.proxy],
+  );
+
   // tabs: toc (mục lục + ảnh bìa) | chapter (nội dung + phân trang) | advanced (crawl nâng cao)
   type TabKey = "toc" | "chapter" | "meta" | "advanced";
   const tabs: { key: TabKey; label: string }[] = [
@@ -458,6 +471,8 @@ function PresetModal({
             tocUrl={draft.url || ""}
             chapterUrl={tocSampleLinks[0] || draft.url || ""}
             scraplingMode={String(draft.scrapling_mode || "stealthy")}
+            onScraplingModeChange={(m) => set("scrapling_mode", m)}
+            advanced={domFetchOptions}
             onDom={handleInspectDom}
             toc={tocDom}
             chapter={chapterDom}
@@ -624,7 +639,12 @@ function PresetModal({
 
         {/* ── Tab Nâng cao ── */}
         {tab === "advanced" ? (
-          <FieldGroup title="Crawl nâng cao" fields={CRAWL_FIELDS} draft={draft} onChange={set} />
+          <div className="grid gap-3">
+            <p className="text-[11px] leading-relaxed opacity-60">
+              <b>Proxy · Headless · Cloudflare · DNS-over-HTTPS · Impersonate · Đợi mạng nhàn rỗi</b> được áp luôn khi bấm “Tải DOM” ở phòng lab phía trên (nếu bật “Dùng cấu hình nâng cao”) — nguồn chỉ vào được qua proxy hay phải giải Cloudflare vẫn lấy được DOM để chọn selector. Các field còn lại (delay, retry, JS, strip) chỉ dùng lúc crawl thật.
+            </p>
+            <FieldGroup title="Crawl nâng cao" fields={CRAWL_FIELDS} draft={draft} onChange={set} />
+          </div>
         ) : null}
       </div>
     </Modal>

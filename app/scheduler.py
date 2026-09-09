@@ -87,32 +87,26 @@ def _count_progress(cfg) -> dict:
     """Snapshot số chương đã cào/dịch/sửa Hán hiện có — dùng để tính delta trước/sau khi
     chạy chuỗi step (step_* không trả về số liệu, nên phải tự đo bằng Storage)."""
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    if manifest is None:
+    if not storage.exists():
         return {"chapters_total": 0, "raw": 0, "translated": 0, "han_fixed": 0, "pending_cleanup": 0, "pending_publish": 0}
-    raw = sum(1 for ch in manifest.chapters if storage.has_raw(ch))
-    translated = sum(1 for ch in manifest.chapters if storage.has_active_branch_text(ch))
-    han_fixed = sum(
-        storage.read_meta(ch).get("han_cleanup", {}).get("fixed_count", 0)
-        for ch in manifest.chapters
-        if storage.has_meta(ch)
+    # Toàn bộ số liệu lấy từ projection hẹp `chapter_ui_state` (+1 query cho
+    # cờ han_cleanup_complete nằm trong meta): hàm này chạy TRƯỚC và SAU mỗi
+    # step automation, mà bản cũ hỏi Storage vài lần cho MỖI chương — mỗi lần
+    # là một lượt đọc trọn bản ghi kèm blob raw/dịch.
+    stats = storage.bulk_chapter_stats().values()
+    raw = sum(1 for s in stats if s["has_raw"])
+    translated = sum(1 for s in stats if s["has_translated"])
+    han_fixed = sum(int(s["han_fixed_count"] or 0) for s in stats)
+    pending_publish = sum(
+        1 for s in stats
+        if s["has_translated"] and (s["has_ai_translation"] or s["has_local_mt_translation"])
     )
-    # pending cleanup = translated nhưng chưa đánh dấu han_cleanup_complete
-    pending_cleanup = 0
-    pending_publish = 0
-    for ch in manifest.chapters:
-        if storage.has_active_branch_text(ch):
-            meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-            if not meta.get("han_cleanup_complete"):
-                pending_cleanup += 1
-            if storage.publication_version(ch) is not None:
-                pending_publish += 1
     return {
-        "chapters_total": len(manifest.chapters),
+        "chapters_total": len(stats),
         "raw": raw,
         "translated": translated,
         "han_fixed": han_fixed,
-        "pending_cleanup": pending_cleanup,
+        "pending_cleanup": storage.count_pending_han_cleanup(),
         "pending_publish": pending_publish,
         "pending_translate": max(0, raw - translated),
     }

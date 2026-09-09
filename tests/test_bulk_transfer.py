@@ -176,7 +176,7 @@ def test_parse_glossary_legacy_subheadings_still_parse_flat():
 
 
 def test_parse_glossary_skips_placeholder_lines_from_prompt():
-    # Khi user dán cả prompt mẫu (chứa "<chữ Hán> = <Hán Việt>") thì không nạp nhầm.
+    # Khi user dán cả prompt mẫu (chứa "<Chinese> = <Vietnamese>") thì không nạp nhầm.
     text = b.build_export([(1, "", "x")]) + "\n## GLOSSARY\n- 林动 = Lâm Động\n"
     g = b.parse_glossary(text)
     assert g == {"林动": "Lâm Động"}

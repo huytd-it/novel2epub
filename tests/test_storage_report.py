@@ -28,6 +28,16 @@ def test_ebook_storage_report_sums_by_category(tmp_path):
     )
 
 
+def test_ebook_storage_report_counts_utf8_bytes_not_characters(tmp_path):
+    """Số liệu đọc từ projection `chapter_ui_state` và là BYTE thật trên đĩa —
+    "你好" là 2 ký tự nhưng 6 byte."""
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_raw(Chapter(index=1, url="http://x/1"), "你好")
+
+    assert ebook_storage_report(storage)["raw"] == len("你好".encode("utf-8"))
+
+
 def test_ebook_storage_report_includes_epub_when_present(tmp_path):
     storage, ch = _storage_with_data(tmp_path)
     epub_path = tmp_path / "out.epub"

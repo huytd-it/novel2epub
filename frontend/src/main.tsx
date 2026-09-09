@@ -35,6 +35,7 @@ import { WireGuardPage } from "@/routes/WireGuardPage";
 import { TailscalePage } from "@/routes/TailscalePage";
 import { LocalMtPage } from "@/routes/LocalMtPage";
 import { GlobalTranslatePage } from "@/routes/GlobalTranslatePage";
+import { AiProvidersPage } from "@/routes/AiProvidersPage";
 import { SystemPage } from "@/routes/SystemPage";
 import { BuildPage } from "@/routes/BuildPage";
 import { PlaceholderPage } from "@/routes/PlaceholderPage";
@@ -87,6 +88,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="tailscale" element={<TailscalePage />} />
               <Route path="local-mt" element={<LocalMtPage />} />
               <Route path="translate-settings" element={<GlobalTranslatePage />} />
+              <Route path="ai-providers" element={<AiProvidersPage />} />
               <Route path="system" element={<SystemPage />} />
               <Route path="*" element={<PlaceholderPage title="Không có trang này" />} />
             </Route>

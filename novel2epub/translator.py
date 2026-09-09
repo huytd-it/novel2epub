@@ -52,7 +52,7 @@ _AUTO_GLOSSARY_BLOCK = (
     "cho dòng này (giống cách bạn giữ nguyên `idx:N` không tự ý định dạng lại) "
     "— rồi liệt kê các mục glossary MỚI ngay bên dưới, mỗi mục MỘT DÒNG theo "
     "đúng dạng:\n"
-    "- <Hán> = <Việt>\n"
+    "- <Chinese> = <Vietnamese>\n"
     "Glossary là bảng ĐỒNG BỘ cách dịch xuyên suốt truyện, KHÔNG phải "
     "từ điển — thà bỏ sót còn hơn đưa nhầm từ thông thường.\n"
     "CHỈ đưa vào: tên riêng (nhân vật, địa danh, môn phái/tổ chức, "
@@ -60,7 +60,7 @@ _AUTO_GLOSSARY_BLOCK = (
     "chiêu thức, cảnh giới, pháp bảo, đan dược, chủng tộc, hệ thống "
     "sức mạnh, biệt danh cố định).\n"
     "Tên người nước ngoài ghi dạng chữ Latin gốc (夏洛克 → Sherlock), "
-    "không ghi Hán Việt.\n"
+    "không ghi Sino-Vietnamese (Hán Việt).\n"
     "TUYỆT ĐỐI KHÔNG đưa vào: từ đời thường (đồ ăn, mua sắm, động tác, "
     "cảm xúc, nghề nghiệp, vật dụng phổ thông); thành ngữ/khẩu ngữ/tiếng "
     "lóng dịch thoát ý; từ hiện đại phổ thông; từ độc giả Việt hiểu ngay "
@@ -623,7 +623,7 @@ class OpenAITranslator:
                 continue  # dòng prose/heading — bỏ qua
             source, target, _note = parsed
             if "<" in source or ">" in source or "<" in target or ">" in target:
-                continue  # placeholder `<Hán> = <Việt>` bị AI echo lại
+                continue  # placeholder `<Chinese> = <Vietnamese>` bị AI echo lại
             entries.append({"source": source, "suggested": target})
         return translation, entries if entries else None
 
@@ -814,10 +814,12 @@ class OpenAITranslator:
             f"{len(titles)} tiêu đề chương sau sang tiếng Việt thật HAY, có hồn, "
             "KHÔNG dịch sát nghĩa kiểu máy/Quick Translate.\n\n"
             "Nguyên tắc bắt buộc:\n"
-            "1. Không bê nguyên âm Hán Việt nếu người đọc Việt không hiểu nghĩa.\n"
-            "2. Có thể đảo cấu trúc, dùng hình ảnh/ẩn dụ tương đương trong tiếng Việt, "
-            "miễn giữ đúng tinh thần và nội dung cốt lõi.\n"
-            "3. Xóa các hậu tố quảng bá/kêu gọi độc giả như cầu phiếu, xin phiếu, "
+            "1. Không bê nguyên âm Sino-Vietnamese (Hán Việt) nếu người đọc Việt không hiểu nghĩa.\n"
+            "2. Có thể đảo cấu trúc và diễn đạt tự nhiên hình ảnh/ẩn dụ đã có trong nguyên tác, "
+            "nhưng không thêm hình ảnh, cảm xúc, quan hệ hoặc tình tiết mới.\n"
+            "3. Ưu tiên đúng nghĩa và đúng sắc thái trước độ hoa mỹ; tiêu đề gọn, tự nhiên, "
+            "không tiết lộ thêm nội dung.\n"
+            "4. Xóa các hậu tố quảng bá/kêu gọi độc giả như cầu phiếu, xin phiếu, "
             "cầu vé tháng, xin đề cử; không đưa chúng vào tiêu đề dịch.\n\n"
             f"{glossary_block}"
             f"Trả lời ĐÚNG {len(titles)} dòng, mỗi dòng một tiêu đề đã dịch, giữ NGUYÊN "

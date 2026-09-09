@@ -169,7 +169,7 @@ lặp lại nhiều lần — công pháp, chiêu thức, cảnh giới tu luy�
 dược, chủng tộc, hệ thống sức mạnh, biệt danh/xưng hiệu cố định của nhân vật.
 
 Tên người nước ngoài ghi ở dạng chữ Latin gốc đúng như trong bản dịch \
-(vd 夏洛克 → Sherlock), KHÔNG ghi Hán Việt.
+(vd 夏洛克 → Sherlock), KHÔNG ghi Sino-Vietnamese (Hán Việt).
 
 TUYỆT ĐỐI KHÔNG đưa vào (đây là lỗi làm bẩn glossary):
 - Từ ngữ đời thường: đồ ăn thức uống, mua sắm, động tác, cảm xúc, nghề nghiệp \
@@ -186,7 +186,7 @@ Nếu không có mục nào đạt tiêu chí, chỉ ghi dòng `GLOSSARY:` rồi
 kèm mục con). Định dạng:
 
 GLOSSARY:
-- <chữ Hán> = <tiếng Việt>
+- <Chinese> = <Vietnamese>
 """
 
 
@@ -207,12 +207,12 @@ Không thay mọi 他 bằng "hắn", không lặp đại từ dày đặc và k
 thống xưng hô đang đúng chỉ vì sở thích văn phong.
 3. Sửa NGỮ PHÁP và trật tự từ cho thuần tiếng Việt (đưa trạng ngữ lên đầu câu, \
 câu đủ chủ – vị, ngắt câu/dấu câu hợp lý).
-4. CÂN BẰNG Hán – Việt và thuần Việt: giữ sắc thái (nhất là truyện cổ đại) nhưng \
+4. CÂN BẰNG Sino-Vietnamese và thuần Việt: giữ sắc thái (nhất là truyện cổ đại) nhưng \
 đừng để câu khó hiểu; thành ngữ/tục ngữ phải đúng nghĩa gốc.
-5. TÊN RIÊNG (nhân vật, địa danh, môn phái, chức danh) giữ ở dạng Hán Việt viết \
+5. TÊN RIÊNG (nhân vật, địa danh, môn phái, chức danh) giữ ở dạng Sino-Vietnamese (Hán Việt) viết \
 hoa, NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary tham khảo.
 6. TÊN NGƯỜI NƯỚC NGOÀI (Âu-Mỹ, Nhật, Hàn...) phải ở dạng chữ Latin gốc, KHÔNG \
-phải Hán Việt: gặp "Hạ Lạc Khắc" → sửa thành "Sherlock", "Minh Nhân" → \
+phải Sino-Vietnamese: gặp "Hạ Lạc Khắc" → sửa thành "Sherlock", "Minh Nhân" → \
 "Naruto", "Tiểu Anh" → "Sakura". CHỈ sửa khi nhận ra CHẮC CHẮN tên gốc; không \
 chắc thì giữ nguyên như bản dịch. Ưu tiên tên trong Glossary tham khảo.
 
@@ -242,22 +242,22 @@ Lời kể được dùng "hắn" khi tự nhiên, kể cả truyện hiện đ�
 thành "anh/anh ta/anh ấy". "ta/ngươi" hợp lệ trong lời kể đúng ngôi, thoại và \
 nội tâm khi đúng giọng, thân phận và quan hệ. Không ánh xạ máy móc 我→ta, \
 你→ngươi, 他→hắn; không thay mọi 他 bằng "hắn" hoặc lặp đại từ dày đặc.
-3. Tên riêng, công pháp, địa danh, chiêu thức: giữ Hán Việt quen thuộc, viết \
+3. Tên riêng, công pháp, địa danh, chiêu thức: giữ Sino-Vietnamese (Hán Việt) quen thuộc, viết \
 hoa và NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary tham khảo.
 4. NGOẠI LỆ của luật 3 — tên người nước ngoài (Âu-Mỹ, Nhật, Hàn...) được bản \
-gốc phiên âm sang chữ Hán: trả về ĐÚNG dạng chữ Latin gốc (夏洛克 → Sherlock, \
-鸣人 → Naruto, 小樱 → Sakura), KHÔNG chuyển thành Hán Việt (KHÔNG "Hạ Lạc Khắc", \
+gốc phiên âm sang chữ Trung Quốc (Chinese): trả về ĐÚNG dạng chữ Latin gốc (夏洛克 → Sherlock, \
+鸣人 → Naruto, 小樱 → Sakura), KHÔNG chuyển thành Sino-Vietnamese (KHÔNG "Hạ Lạc Khắc", \
 "Minh Nhân"). Viết hoa và NHẤT QUÁN xuyên suốt. CHỈ áp dụng khi nhận ra CHẮC \
-CHẮN tên gốc; không chắc thì giữ Hán Việt theo luật 3.
-5. Hạn chế lạm dụng từ Hán Việt khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, \
+CHẮN tên gốc; không chắc thì giữ Sino-Vietnamese theo luật 3.
+5. Hạn chế lạm dụng từ Sino-Vietnamese khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, \
 nhưng giữ chất cổ trang khi cần.
 6. Giữ nguyên cách chia đoạn của bản gốc.
 7. Thành ngữ, tục ngữ, khẩu ngữ: dịch thoát ý bằng cách nói tự nhiên của người \
 Việt, không máy móc (khẩu ngữ chỉ sự e dè thì dịch "ngại", "ngại ngùng"; chê \
 tác phong ăn uống thì "ăn uống khó coi"...).
 8. Từ vựng đời thường (động tác, nấu nướng, ăn uống, cảm giác, tiếng lóng...): \
-dịch tự nhiên như văn nói tiếng Việt thông thường, không cần giữ sắc thái Hán, \
-không phiên âm Hán Việt cứng nhắc.
+dịch tự nhiên như văn nói tiếng Việt thông thường, không cần giữ sắc thái Chinese, \
+không phiên âm Sino-Vietnamese cứng nhắc.
 9. Thơ từ, ca phú, trích dẫn cổ văn: nếu có bản dịch phổ biến thì dùng và ghi \
 tên dịch giả trong ngoặc (vd: "— (bản dịch Tản Đà)"); nếu không, tự chuyển ngữ \
 cho người đọc hiểu, không dịch nguyên xi từng chữ kiểu Vietphrase.
@@ -372,11 +372,11 @@ Bạn là biên tập viên xây dựng glossary nhất quán cho truyện dịc
 bảng glossary hiện tại (tên riêng + thuật ngữ). Hãy RÀ SOÁT và trả về bảng đã \
 được dọn sạch, theo các nguyên tắc sau:
 
-1. GỘP TRÙNG LẶP: nếu cùng một chữ Hán xuất hiện nhiều lần, chỉ giữ MỘT mục với \
+1. GỘP TRÙNG LẶP: nếu cùng một Chinese source xuất hiện nhiều lần, chỉ giữ MỘT mục với \
 cách dịch tốt nhất, nhất quán.
-2. XỬ LÝ MÂU THUẪN: một chữ Hán chỉ nên có MỘT cách dịch tiếng Việt. Nếu đang có \
+2. XỬ LÝ MÂU THUẪN: một Chinese source chỉ nên có MỘT cách dịch tiếng Việt. Nếu đang có \
 nhiều cách dịch khác nhau, chọn cách phù hợp nhất và bỏ các cách còn lại.
-3. SỬA HÁN-VIỆT SAI hoặc khó hiểu: chỉnh lại phiên âm Hán Việt cho đúng và tự nhiên.
+3. SỬA SINO-VIETNAMESE SAI hoặc khó hiểu: chỉnh lại phiên âm Sino-Vietnamese (Hán Việt) cho đúng và tự nhiên.
 4. LOẠI mục rác: từ đời thường, thành ngữ/khẩu ngữ dịch thoát ý, từ độc giả Việt \
 đọc hiểu ngay — những mục KHÔNG cần đồng bộ xuyên suốt truyện.
 5. KHÔNG bịa thêm mục mới không có trong bảng gốc. KHÔNG thêm bình luận, giải thích.
@@ -385,7 +385,7 @@ nhiều cách dịch khác nhau, chọn cách phù hợp nhất và bỏ các c�
 
 Bắt đầu bằng ĐÚNG một dòng `GLOSSARY:` — viết y nguyên như một nhãn cố định, \
 KHÔNG dùng `##`, `**` hay bất kỳ định dạng Markdown nào. Sau đó, mỗi mục một \
-dòng dạng `- <chữ Hán> = <tiếng Việt>`:
+dòng dạng `- <Chinese> = <Vietnamese>`:
 
 GLOSSARY:
 - 萧炎 = Tiêu Viêm
@@ -471,7 +471,7 @@ def parse_glossary(text: str) -> dict[str, str]:
         parsed = parse_glossary_line(_BULLET_RE.sub("", line.strip()))
         if parsed:
             source, target, _note = parsed
-            # Bỏ qua dòng mẫu placeholder trong prompt (vd "<chữ Hán> = <tiếng Việt>").
+            # Bỏ qua dòng mẫu placeholder trong prompt (vd "<Chinese> = <Vietnamese>").
             if "<" in source or ">" in source or "<" in target or ">" in target:
                 continue
             glossary[source] = target

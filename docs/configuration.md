@@ -60,6 +60,8 @@ Thiết lập chung gồm:
 - `auto_glossary`, `ai_glossary_analysis`, `use_idioms`.
 - `auto_cleanup_han` và `cleanup_han` (`cleanup_han.engine`: `local_mt` mặc định | `openai`).
 
+Prompt dịch mặc định có bản tiếng Việt, tiếng Anh và tiếng Trung. `source_language=en` tự chọn bản tiếng Anh; `zh`, `cn`, `zh-cn` hoặc `zh-tw` tự chọn bản tiếng Trung khi ebook chưa ghi đè prompt riêng. Trong các prompt gửi LLM, nguồn glossary dùng format rõ nghĩa `<Chinese> = <Vietnamese>`.
+
 OpenAI-compatible cần `base_url`, `api_key`, `model`, `timeout_seconds`, `temperature`. URL phải trỏ đến API root hỗ trợ `/chat/completions`; ví dụ local gateway thường dùng `http://localhost:20128/v1`.
 
 Local MT chọn model qua `translate.model` hoặc `translate.hachimimt.model_key` (khoá config engine cục bộ giữ tên `hachimimt`). Model được tải ở lần chạy đầu nếu chưa có cache.

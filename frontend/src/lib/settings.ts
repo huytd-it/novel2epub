@@ -342,8 +342,15 @@ export function useTranslateDefaults() {
 }
 
 export function useSaveTranslateDefaults() {
+  const client = useQueryClient();
   return useMutation({
     mutationFn: (payload: TranslateDefaults) =>
       api.post<{ saved: boolean }>("/api/ui/settings/translate-defaults", { body: payload }),
+    onSuccess: (_result, payload) => {
+      // Đồng bộ snapshot vừa lưu để `dirty` tắt ngay và lần render sau không
+      // khôi phục prompt cũ từ cache React Query.
+      client.setQueryData(translateDefaultsKey, payload);
+      client.invalidateQueries({ queryKey: translateDefaultsKey });
+    },
   });
 }

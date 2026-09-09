@@ -44,19 +44,23 @@ def _record_validation(name: str, ok: bool, message: str) -> None:
 def _preset_usage(presets, library):
     """Map preset name -> list of ebook slugs có ``source == preset_name``.
 
-    Đọc field ``source`` trực tiếp từ ebook config (không brute-force so sánh).
+    Đọc thẳng cột ``ebooks.source_preset`` — đúng giá trị mà ``cfg.source`` được
+    dựng ra từ đó (xem ``config._resolve_source_overrides``) — bằng MỘT query,
+    thay vì resolve toàn bộ cấu hình hiệu lực của từng ebook chỉ để lấy tên
+    preset.
     """
+    from novel2epub.db import get_thread_connection
+
     usage = {name: [] for name in presets}
     if not library.ebooks or not presets:
         return usage
-    for slug in library.ebooks:
-        try:
-            cfg = deps.resolved_cfg(slug)
-        except Exception:
-            continue
-        source = getattr(cfg, "source", "")
-        if source and source in usage:
-            usage[source].append(slug)
+    conn = get_thread_connection(deps.DB_PATH)
+    for row in conn.execute(
+        "SELECT slug, source_preset FROM ebooks "
+        "WHERE COALESCE(source_preset, '') != '' ORDER BY slug"
+    ):
+        if row["source_preset"] in usage:
+            usage[row["source_preset"]].append(row["slug"])
     return usage
 
 

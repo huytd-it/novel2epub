@@ -21,6 +21,71 @@ from .db import get_thread_connection, resolve_db_path
 from . import entities, preview, revisions
 
 
+# Số tham số tối đa nhồi vào một mệnh đề `IN (...)`. SQLITE_MAX_VARIABLE_NUMBER
+# mặc định là 999 trên các bản cũ; chia lô cho chắc thay vì đoán giới hạn.
+_IN_CHUNK = 400
+
+
+def _chunks(items: list[str], size: int = _IN_CHUNK):
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
+
+
+def bulk_chapter_states(data_dir: str | Path, slugs) -> dict[str, list[dict]]:
+    """Trạng thái hẹp của MỌI chương thuộc `slugs`, đã sắp theo `idx`.
+
+    Thay cho `load_manifest()` + `bulk_chapter_stats()` chạy riêng từng ebook ở
+    các màn hình liệt kê (Thư viện, Dashboard): `load_manifest` quét bảng
+    `chapters` — bảng giữ blob raw/dịch, hàng GB — chỉ để lấy vài cờ trạng thái,
+    và làm việc đó một lần cho MỖI ebook. Ở đây toàn bộ danh sách chỉ tốn 2
+    query trên dữ liệu hẹp: projection `chapter_ui_state`, cộng một lượt đọc
+    `idx` của chương bị bỏ qua bằng COVERING INDEX `idx_chapters_skipped` (không
+    chạm vào một byte blob nào).
+
+    Mỗi phần tử: `{"index", "skipped", "has_raw", "has_translated",
+    "edit_state", "raw_len", "han_fixed_count"}`.
+
+    Chương KHÔNG có hàng `chapter_ui_state` sẽ không xuất hiện — projection được
+    trigger giữ 1-1 với `chapters` trong cùng transaction (và migration v19 đã
+    backfill dữ liệu cũ) nên trong thực tế hai bảng luôn khớp.
+    """
+    slugs = list(dict.fromkeys(slugs))
+    result: dict[str, list[dict]] = {slug: [] for slug in slugs}
+    if not slugs:
+        return result
+    conn = get_thread_connection(resolve_db_path(data_dir))
+
+    skipped: dict[str, set[int]] = {slug: set() for slug in slugs}
+    for chunk in _chunks(slugs):
+        placeholders = ",".join("?" * len(chunk))
+        for row in conn.execute(
+            f"SELECT ebook_slug, idx FROM chapters "
+            f"WHERE ebook_slug IN ({placeholders}) AND skipped = 1",
+            chunk,
+        ):
+            skipped[row["ebook_slug"]].add(row["idx"])
+
+    for chunk in _chunks(slugs):
+        placeholders = ",".join("?" * len(chunk))
+        for row in conn.execute(
+            f"SELECT ebook_slug, idx, has_raw, has_translated, edit_state, raw_len, "
+            f"han_fixed_count FROM chapter_ui_state WHERE ebook_slug IN ({placeholders}) "
+            f"ORDER BY ebook_slug, idx",
+            chunk,
+        ):
+            slug = row["ebook_slug"]
+            result[slug].append({
+                "index": row["idx"],
+                "skipped": row["idx"] in skipped[slug],
+                "has_raw": bool(row["has_raw"]),
+                "has_translated": bool(row["has_translated"]),
+                "edit_state": row["edit_state"] or "",
+                "raw_len": row["raw_len"] or 0,
+                "han_fixed_count": row["han_fixed_count"] or 0,
+            })
+    return result
+
+
 def parse_glossary_line(line: str) -> tuple[str, str, str] | None:
     """Tách 1 dòng glossary `Hán = Việt | ghi chú` thành (source, target, note).
 
@@ -250,12 +315,17 @@ class Storage:
         đang dịch dở cũng được đếm. Chấp nhận được — kết quả chỉ dùng để
         quyết định CÓ build hay không, còn bản thân `step_build_selected`
         vẫn lọc bằng `has_translated` nên chương dở không lọt vào EPUB.
+
+        Đọc từ projection `chapter_ui_state` (v26): `translated_updated_at` nằm
+        SAU các cột blob trong bản ghi `chapters`, nên hỏi nó trực tiếp buộc
+        SQLite nạp trọn từng chương — mỗi request OPDS là một lượt đọc hàng
+        trăm MB cho MỖI ebook.
         """
         row = self.conn.execute(
             "SELECT COUNT(*) AS n, COALESCE(MAX(translated_updated_at), 0.0) AS ts "
-            "FROM chapters WHERE ebook_slug = ? AND ("
-            " (active_branch = 'local_mt' AND local_mt_text IS NOT NULL AND local_mt_text != '') OR"
-            " (COALESCE(active_branch, 'ai') = 'ai' AND translated_text IS NOT NULL AND translated_text != '')"
+            "FROM chapter_ui_state WHERE ebook_slug = ? AND ("
+            " (active_branch = 'local_mt' AND local_mt_bytes > 0) OR"
+            " (COALESCE(active_branch, 'ai') = 'ai' AND translated_bytes > 0)"
             ")",
             (self.slug,),
         ).fetchone()
@@ -292,6 +362,24 @@ class Storage:
                 "han_fixed_count": row["han_fixed_count"] or 0,
             }
         return result
+
+    def count_pending_han_cleanup(self) -> int:
+        """Số chương ĐÃ có bản dịch ở nhánh active nhưng chưa đánh dấu
+        `meta.han_cleanup_complete` — bằng MỘT query thay vì đọc meta của từng
+        chương (mỗi lần đọc meta kéo theo cả blob raw/dịch của chương đó)."""
+        row = self.conn.execute(
+            """
+            SELECT COUNT(*) AS n
+            FROM chapters AS c
+            JOIN chapter_ui_state AS s ON s.ebook_slug = c.ebook_slug AND s.idx = c.idx
+            WHERE c.ebook_slug = ? AND s.has_translated = 1
+              AND COALESCE(json_extract(
+                    CASE WHEN json_valid(c.meta_json) THEN c.meta_json ELSE '{}' END,
+                    '$.han_cleanup_complete'), 0) = 0
+            """,
+            (self.slug,),
+        ).fetchone()
+        return int(row["n"] or 0) if row else 0
 
     def bulk_active_titles(self) -> dict[int, str]:
         """Tiêu đề nhánh active của mọi chương bằng MỘT query hẹp.
@@ -864,6 +952,44 @@ class Storage:
             )
         return None
 
+    def bulk_publication_versions(self) -> dict[int, PublicationVersion | None]:
+        """`{idx: bản xuất bản}` cho MỌI chương bằng MỘT query (None = chưa có).
+
+        Cùng chính sách với `publication_version` nhưng gọi hàm đó cho từng
+        chương là ~5 lượt đọc TRỌN bản ghi (kèm blob raw + cả hai bản dịch) mỗi
+        chương — với truyện vài nghìn chương là hàng chục nghìn round-trip, thủ
+        phạm chính khiến `build_stale`/readiness mất hàng chục giây.
+        """
+        rows = self.conn.execute(
+            "SELECT idx, title, translated_text, revision, local_mt_title, local_mt_text, "
+            "local_mt_revision, meta_json FROM chapters WHERE ebook_slug = ? ORDER BY idx",
+            (self.slug,),
+        ).fetchall()
+        out: dict[int, PublicationVersion | None] = {}
+        for row in rows:
+            try:
+                meta = json.loads(row["meta_json"] or "{}")
+            except json.JSONDecodeError:
+                meta = {}
+            selected: PublicationVersion | None = None
+            for branch in (revisions.BRANCH_AI, revisions.BRANCH_LOCAL_MT):
+                cols = self._BRANCH_COLUMNS[branch]
+                text = row[cols["text"]]
+                if not text:
+                    continue
+                if not bool(meta.get(self._BRANCH_COMPLETE_META[branch], True)):
+                    continue
+                selected = PublicationVersion(
+                    branch=branch,
+                    revision=int(row[cols["revision"]] or 0),
+                    title=(row[cols["title"]] or "") or (row["title"] or "")
+                    or f"Chương {row['idx']}",
+                    text=text,
+                )
+                break
+            out[row["idx"]] = selected
+        return out
+
     def publication_title(self, ch: Chapter) -> str:
         """Tiêu đề cho TOC/heading EPUB — ưu tiên nhánh AI bất kể bản dịch có
         hoàn chỉnh hay không, fallback về tiêu đề của bản xuất bản.
@@ -1030,13 +1156,11 @@ class Storage:
         """Fingerprint đúng bản mà chính sách xuất bản chọn cho Reader/EPUB."""
         from .reader_sync import content_hash as _content_hash
 
-        manifest = self.load_manifest()
-        if manifest is None:
+        if not self.exists():
             return {}
         out: dict[int, dict] = {}
-        for ch in manifest.chapters:
-            selected = self.publication_version(ch)
-            out[ch.index] = {
+        for index, selected in self.bulk_publication_versions().items():
+            out[index] = {
                 "branch": selected.branch if selected else "",
                 "revision": selected.revision if selected else 0,
                 "has_text": selected is not None,
@@ -1722,10 +1846,18 @@ class Storage:
         return json.dumps(current, sort_keys=True) != json.dumps(stored, sort_keys=True)
 
     def build_blockers(self, chapters: list[Chapter]) -> list[dict]:
-        """Chương non-skipped chưa có AI hoặc Local MT hoàn chỉnh để xuất bản."""
+        """Chương non-skipped chưa có AI hoặc Local MT hoàn chỉnh để xuất bản.
+
+        Chỉ cần biết CÓ hay KHÔNG có bản hoàn chỉnh, nên đọc projection hẹp
+        (`has_ai_translation`/`has_local_mt_translation` — trigger dựng theo
+        đúng luật của `has_branch_text`) thay vì gọi `publication_version` cho
+        từng chương, vốn kéo trọn cả bản dịch về chỉ để vứt đi."""
+        stats = self.bulk_chapter_stats()
         blockers: list[dict] = []
         for ch in chapters:
-            if ch.skipped or self.publication_version(ch) is not None:
+            state = stats.get(ch.index, {})
+            publishable = state.get("has_ai_translation") or state.get("has_local_mt_translation")
+            if ch.skipped or publishable:
                 continue
             blockers.append({
                 "index": ch.index,
@@ -1796,15 +1928,36 @@ class Storage:
         return True
 
     def legacy_ai_rewrite_report(self) -> dict:
-        """Báo cáo bản nháp legacy: {chapters, legacy, migrated, remaining}."""
-        manifest = self.load_manifest()
-        if manifest is None:
+        """Báo cáo bản nháp legacy: {chapters, legacy, migrated, remaining}.
+
+        Projection đã đánh dấu chương có `meta.ai_rewrite` bằng
+        `edit_state='draft'` — tập cha của "nháp legacy". Không có chương nào
+        như vậy (trường hợp thường gặp) thì trả về ngay, còn có thì chỉ đọc
+        `meta_json` của ĐÚNG các chương đó thay vì cả ebook."""
+        counts = self.conn.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(edit_state = 'draft'), 0) AS drafts "
+            "FROM chapter_ui_state WHERE ebook_slug = ?",
+            (self.slug,),
+        ).fetchone()
+        total = int(counts["n"] or 0) if counts else 0
+        if not total:
             return {"chapters": 0, "legacy": 0, "migrated": 0, "remaining": 0}
+        if not int(counts["drafts"] or 0):
+            return {"chapters": total, "legacy": 0, "migrated": 0, "remaining": 0}
+
         legacy = migrated = remaining = 0
-        for ch in manifest.chapters:
-            if not self.has_meta(ch):
+        rows = self.conn.execute(
+            "SELECT c.meta_json AS meta_json FROM chapters AS c "
+            "JOIN chapter_ui_state AS s ON s.ebook_slug = c.ebook_slug AND s.idx = c.idx "
+            "WHERE c.ebook_slug = ? AND s.edit_state = 'draft'",
+            (self.slug,),
+        ).fetchall()
+        for row in rows:
+            try:
+                meta = json.loads(row["meta_json"] or "{}")
+            except json.JSONDecodeError:
                 continue
-            draft = self.read_meta(ch).get("ai_rewrite")
+            draft = meta.get("ai_rewrite")
             if not isinstance(draft, dict) or not (draft.get("text") or "").strip():
                 continue
             legacy += 1
@@ -1813,7 +1966,7 @@ class Storage:
             else:
                 remaining += 1
         return {
-            "chapters": len(manifest.chapters),
+            "chapters": total,
             "legacy": legacy,
             "migrated": migrated,
             "remaining": remaining,
@@ -1936,6 +2089,15 @@ class Storage:
             "SELECT ext, content FROM ebook_covers WHERE ebook_slug = ?", (self.slug,)
         ).fetchone()
         return (row["content"], row["ext"]) if row else None
+
+    def cover_ext(self) -> str | None:
+        """Đuôi ảnh bìa (`jpg`/`png`/...) hoặc None nếu chưa có bìa — KHÔNG kéo
+        blob về. Feed OPDS chỉ cần biết "có bìa không" và media type; đọc cả
+        `content` cho từng cuốn là tải vài MB ảnh chỉ để vứt đi."""
+        row = self.conn.execute(
+            "SELECT ext FROM ebook_covers WHERE ebook_slug = ?", (self.slug,)
+        ).fetchone()
+        return row["ext"] if row else None
 
     def cover_fs_path(self, manifest: "Manifest") -> Path | None:
         """Shim tương thích ngược cho code còn cần 1 Path thật (ebooklib,
@@ -2758,17 +2920,21 @@ class Storage:
 
     # ----- báo cáo dung lượng + dọn dẹp (thay app/storage_report.py cũ) -----
     def content_bytes(self) -> dict[str, int]:
-        """Ước lượng dung lượng (byte, UTF-8) theo từng loại nội dung của
-        ebook — dùng cho trang /storage. `epub`/tổng epub không tính ở đây
-        (file build ra vẫn nằm ngoài DB, xem `app/storage_report.py`)."""
+        """Dung lượng (byte UTF-8) theo từng loại nội dung của ebook — dùng cho
+        trang /storage. `epub`/tổng epub không tính ở đây (file build ra vẫn nằm
+        ngoài DB, xem `app/storage_report.py`).
+
+        Đọc từ projection `chapter_ui_state` (v26): cộng `LENGTH()` trên chính
+        bảng `chapters` buộc SQLite nạp trọn bản ghi của từng chương — hàng trăm
+        MB blob cho mỗi lần mở trang."""
         row = self.conn.execute(
             """
             SELECT
-                COALESCE(SUM(LENGTH(raw_text)), 0) AS raw,
-                COALESCE(SUM(LENGTH(translated_text)), 0) AS translated,
-                COALESCE(SUM(LENGTH(translated_mt_text)), 0) AS translated_mt,
-                COALESCE(SUM(LENGTH(meta_json)), 0) AS meta
-            FROM chapters WHERE ebook_slug = ?
+                COALESCE(SUM(raw_bytes), 0) AS raw,
+                COALESCE(SUM(translated_bytes), 0) AS translated,
+                COALESCE(SUM(translated_mt_bytes), 0) AS translated_mt,
+                COALESCE(SUM(meta_bytes), 0) AS meta
+            FROM chapter_ui_state WHERE ebook_slug = ?
             """,
             (self.slug,),
         ).fetchone()
@@ -2798,10 +2964,10 @@ class Storage:
         row = self.conn.execute(
             """
             SELECT
-                COALESCE(SUM(CASE WHEN raw_text IS NOT NULL AND raw_text != '' THEN 1 ELSE 0 END), 0) AS raw,
-                COALESCE(SUM(CASE WHEN translated_text IS NOT NULL AND translated_text != '' THEN 1 ELSE 0 END), 0) AS translated,
-                COALESCE(SUM(CASE WHEN translated_mt_text IS NOT NULL AND translated_mt_text != '' THEN 1 ELSE 0 END), 0) AS translated_mt
-            FROM chapters WHERE ebook_slug = ?
+                COALESCE(SUM(raw_bytes > 0), 0) AS raw,
+                COALESCE(SUM(translated_bytes > 0), 0) AS translated,
+                COALESCE(SUM(translated_mt_bytes > 0), 0) AS translated_mt
+            FROM chapter_ui_state WHERE ebook_slug = ?
             """,
             (self.slug,),
         ).fetchone()
@@ -2818,9 +2984,10 @@ class Storage:
 
     def purge_raw(self) -> int:
         """Xóa toàn bộ raw_text (bản gốc đã crawl). KHÔNG đụng translated_text
-        (bản đã biên tập tay). Trả số byte ước lượng đã giải phóng."""
+        (bản đã biên tập tay). Trả số byte đã giải phóng (từ projection hẹp,
+        không quét lại blob)."""
         row = self.conn.execute(
-            "SELECT COALESCE(SUM(LENGTH(raw_text)), 0) AS n FROM chapters WHERE ebook_slug=?",
+            "SELECT COALESCE(SUM(raw_bytes), 0) AS n FROM chapter_ui_state WHERE ebook_slug=?",
             (self.slug,),
         ).fetchone()
         with self.conn:
@@ -2833,7 +3000,7 @@ class Storage:
         """Xóa snapshot máy dịch (translated_mt_text, cột "VI"). KHÔNG đụng
         translated_text (cột đã biên tập)."""
         row = self.conn.execute(
-            "SELECT COALESCE(SUM(LENGTH(translated_mt_text)), 0) AS n FROM chapters WHERE ebook_slug=?",
+            "SELECT COALESCE(SUM(translated_mt_bytes), 0) AS n FROM chapter_ui_state WHERE ebook_slug=?",
             (self.slug,),
         ).fetchone()
         with self.conn:

@@ -37,14 +37,14 @@ Ràng buộc chung:
 Glossary hiện tại (không đề xuất lại các mục này):
 {existing}
 
---- Bản gốc (Trung) ---
+--- Bản gốc (Chinese source text) ---
 {raw}
 
 --- Bản dịch hiện tại (Việt) ---
 {translated}
 
 Chỉ trả về JSON array, không kèm giải thích, không dùng code fence. Mỗi phần tử có dạng:
-{{"source": "<Hán>", "suggested": "<Việt>", "type": "name|place|skill|item|term|phrase", "reason": "<lý do ngắn>"}}
+{{"source": "<Chinese>", "suggested": "<Vietnamese>", "type": "name|place|skill|item|term|phrase", "reason": "<lý do ngắn>"}}
 Nếu không có gì để đề xuất, trả về [].
 """
 
@@ -54,7 +54,7 @@ EDIT_HAY_GUIDELINES = """Nguyên tắc "edit hay" (biên tập lại bản dịc
 3. Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > thể loại. Giữ "hắn" trong lời kể khi tự nhiên, kể cả truyện hiện đại; không máy móc đổi thành "anh/anh ta/anh ấy". "Ta/ngươi" hợp lệ trong lời kể đúng ngôi, thoại và nội tâm khi đúng giọng, thân phận và quan hệ. Không ánh xạ máy móc 我/你/他 và không sửa một hệ thống xưng hô đang đúng chỉ vì sở thích văn phong.
 4. Câu rõ nghĩa nhưng khô/máy móc cần viết lại tự nhiên hơn, không đổi nghĩa gốc.
 5. Thành ngữ, tục ngữ, thơ từ, điển tích nên dịch thoát ý hoặc dùng bản dịch quen thuộc nếu có, không dịch từng chữ.
-6. Tên chương cần chuyển ngữ hay, có ý vị, không giữ nguyên Hán Việt khô khó hiểu.
+6. Tên chương cần chuyển ngữ hay, có ý vị, không giữ nguyên Sino-Vietnamese khô khó hiểu.
 7. Không spoil, không chèn bình luận/nhận xét ngoài truyện, không thêm/bớt nội dung so với bản gốc.
 """
 
@@ -80,7 +80,7 @@ def _format_genre_block(genre: str) -> str:
 EVALUATE_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, nhiệm vụ là ĐÁNH GIÁ (review) chứ KHÔNG sửa.
 
 Hãy đọc glossary hiện tại + các cặp bản gốc/bản dịch dưới đây rồi đánh giá:
-1. Chất lượng & tính nhất quán của GLOSSARY: mục trùng lặp, mâu thuẫn (một Hán -> nhiều cách dịch khác nhau), Hán-Việt sai hoặc khó hiểu, mục nên có nhưng còn thiếu.
+1. Chất lượng & tính nhất quán của GLOSSARY: mục trùng lặp, mâu thuẫn (một Chinese source -> nhiều cách dịch khác nhau), Sino-Vietnamese sai hoặc khó hiểu, mục nên có nhưng còn thiếu.
 2. Chất lượng BẢN DỊCH: trung thành với bản gốc, văn phong mượt/tự nhiên, ngôi xưng hợp ngữ cảnh, câu không khô/máy móc.
 3. ĐỐI CHIẾU CHÉO glossary <-> bản dịch: chương có dùng đúng cách dịch trong glossary không; thuật ngữ/tên riêng nào trong chương đang dịch lệch so với bảng.
 
@@ -91,7 +91,7 @@ Nguyên tắc:
 Glossary hiện tại:
 {glossary}
 
---- Bản gốc (Trung) ---
+--- Bản gốc (Chinese source text) ---
 {raw}
 
 --- Bản dịch hiện tại (Việt) ---
@@ -99,7 +99,7 @@ Glossary hiện tại:
 
 Chỉ trả về JSON object, không kèm giải thích, không dùng code fence. Dạng:
 {{"summary": "<nhận xét tổng quan ngắn>", "score": <số 0-10 hoặc null>, "issues": [
-  {{"category": "glossary|consistency|mistranslation|hanviet|fluency|other", "severity": "high|medium|low", "chapter": "<số chương/tên hoặc rỗng>", "source": "<Hán liên quan hoặc rỗng>", "current": "<chỗ dịch có vấn đề>", "suggestion": "<đề xuất sửa>", "reason": "<lý do ngắn>"}}
+  {{"category": "glossary|consistency|mistranslation|hanviet|fluency|other", "severity": "high|medium|low", "chapter": "<số chương/tên hoặc rỗng>", "source": "<Chinese source hoặc rỗng>", "current": "<chỗ dịch có vấn đề>", "suggestion": "<đề xuất sửa>", "reason": "<lý do ngắn>"}}
 ]}}
 Nếu không có vấn đề, trả về "issues": [].
 """
@@ -193,13 +193,13 @@ def _rewrite_prompt_template(ai_cfg: OpenAIConfig) -> str:
     prompt_template của nó sang `AI_EDIT_PROMPT`, nhưng config cũ/test dựng tay
     vẫn để prompt DỊCH (DEFAULT_PROMPT, OMNIPROUTE_PROMPT, GO_PROMPT...) không hợp cho biên tập → bỏ qua."""
     tpl = str(getattr(ai_cfg, "prompt_template", "") or "").strip()
-    from .config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT
+    from .config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT, ZH_DEFAULT_PROMPT
     from .presets.go import GO_PROMPT
     from .presets.omniroute import OMNIPROUTE_PROMPT
 
     if (
         not tpl
-        or tpl in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, OMNIPROUTE_PROMPT, GO_PROMPT)
+        or tpl in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, ZH_DEFAULT_PROMPT, OMNIPROUTE_PROMPT, GO_PROMPT)
         or "{translated}" not in tpl
     ):
         return REWRITE_PROMPT
@@ -253,7 +253,7 @@ FIX_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt. Ng�
 {guidelines}
 {glossary}
 
---- Bản gốc (Trung), dùng để đối chiếu ---
+--- Bản gốc (Chinese source text), dùng để đối chiếu ---
 {raw}
 
 --- Bản dịch hiện tại (Việt) ---

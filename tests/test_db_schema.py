@@ -590,6 +590,92 @@ def test_v21_migrates_legacy_both_queue_category_and_adds_position():
     assert schema_version(conn) == SCHEMA_VERSION
 
 
+def _insert_chapter(conn, *, raw="你好", translated="Xin chào", ts=1700000000.0):
+    with conn:
+        conn.execute("INSERT INTO ebooks (slug, title) VALUES ('t', 'Truyện')")
+        conn.execute(
+            "INSERT INTO chapters (ebook_slug, idx, url, raw_text, translated_text, "
+            "translated_mt_text, meta_json, translated_updated_at) "
+            "VALUES ('t', 1, 'http://x/1', ?, ?, ?, '{}', ?)",
+            (raw, translated, "MT", ts),
+        )
+
+
+def test_v26_projection_tracks_byte_sizes_and_translated_timestamp():
+    """Trang dung lượng và OPDS đọc các số này từ projection thay vì quét blob."""
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    _insert_chapter(conn)
+
+    row = conn.execute(
+        "SELECT raw_bytes, translated_bytes, translated_mt_bytes, meta_bytes, "
+        "translated_updated_at FROM chapter_ui_state WHERE ebook_slug='t' AND idx=1"
+    ).fetchone()
+
+    # BYTE UTF-8, không phải số ký tự: "你好" là 2 ký tự nhưng 6 byte.
+    assert row["raw_bytes"] == len("你好".encode("utf-8")) == 6
+    assert row["translated_bytes"] == len("Xin chào".encode("utf-8"))
+    assert row["translated_mt_bytes"] == 2
+    assert row["meta_bytes"] == 2
+    assert row["translated_updated_at"] == 1700000000.0
+
+
+def test_v26_projection_follows_updates_to_mt_text_and_timestamp():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    _insert_chapter(conn)
+    with conn:
+        conn.execute(
+            "UPDATE chapters SET translated_mt_text = NULL, translated_updated_at = 1800000000.0 "
+            "WHERE ebook_slug='t' AND idx=1"
+        )
+
+    row = conn.execute(
+        "SELECT translated_mt_bytes, translated_updated_at FROM chapter_ui_state "
+        "WHERE ebook_slug='t' AND idx=1"
+    ).fetchone()
+
+    assert row["translated_mt_bytes"] == 0
+    assert row["translated_updated_at"] == 1800000000.0
+
+
+def test_v26_backfills_existing_projection_rows():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    _insert_chapter(conn)
+    with conn:
+        # Giả lập DB v25: hàng projection có sẵn nhưng chưa có số liệu mới.
+        conn.execute(
+            "UPDATE chapter_ui_state SET raw_bytes=0, translated_bytes=0, "
+            "translated_mt_bytes=0, local_mt_bytes=0, meta_bytes=0, translated_updated_at=0"
+        )
+        conn.execute("UPDATE _meta SET value = '25' WHERE key = 'schema_version'")
+
+    init_schema(conn)
+
+    row = conn.execute(
+        "SELECT raw_bytes, translated_bytes, translated_updated_at FROM chapter_ui_state"
+    ).fetchone()
+    assert row["raw_bytes"] == 6
+    assert row["translated_bytes"] == len("Xin chào".encode("utf-8"))
+    assert row["translated_updated_at"] == 1700000000.0
+    assert schema_version(conn) == SCHEMA_VERSION
+
+
+def test_missing_code_index_keeps_backfill_off_the_chapters_table():
+    """`backfill_codes` chạy ở mỗi kết nối mới — phải có index cho hàng thiếu code."""
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    indexes = {row["name"] for row in conn.execute("PRAGMA index_list(chapters)")}
+    assert "idx_chapters_missing_code" in indexes
+
+    _insert_chapter(conn)
+    plan = conn.execute(
+        "EXPLAIN QUERY PLAN SELECT idx FROM chapters WHERE ebook_slug = 't' AND code = ''"
+    ).fetchall()
+    assert any("idx_chapters_missing_code" in str(step[3]) for step in plan)
+
+
 def test_future_schema_is_rejected_without_downgrade():
     conn = get_connection(":memory:")
     init_schema(conn)

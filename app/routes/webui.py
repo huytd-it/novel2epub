@@ -2,7 +2,7 @@
 
 Tách khỏi các router cũ có chủ đích: route hiện tại vẫn phải chạy
 nguyên vẹn trong lúc SPA được port dần từng trang, nên phần này chỉ ĐỌC lại
-cùng domain logic (`Storage`, `chapter_progress`) và không đụng vào chúng.
+cùng domain logic (`Storage`, `progress_from_states`) và không đụng vào chúng.
 
 Endpoint đều nằm dưới `/api/ui/` để phân biệt với `/api/v1/` (hợp đồng công
 khai cho readest, có CORS) và `/api/` (các endpoint nội bộ đã có).
@@ -31,10 +31,10 @@ from novel2epub.automation import (
 from novel2epub.ai_providers import AiProviderPreset
 from novel2epub.ai_providers import delete_preset as delete_ai_provider_preset
 from novel2epub.ai_providers import save_preset as save_ai_provider_preset
-from novel2epub.progress import chapter_progress
+from novel2epub.progress import progress_from_states
 from novel2epub.queue_labels import batch_job_label, chapter_job_label
 from novel2epub.sources import SourcePreset, delete_preset, save_preset
-from novel2epub.storage import Storage
+from novel2epub.storage import Storage, bulk_chapter_states
 from novel2epub.toc import apply_chapter_query, chapter_rows, count_words
 from novel2epub.wireguard import WireGuardProfileError
 
@@ -49,6 +49,7 @@ from ..ebook_deletion import (
     delete_ebook as delete_ebook_data,
 )
 from ..library_state import archived_slugs
+from ..overview import chapter_states_by_slug
 from ..scheduler import next_run_at
 from ..storage_report import ebook_storage_report, purge_raw, purge_translated_mt, remove_epub
 from . import settings as settings_routes
@@ -65,12 +66,14 @@ _EDITED = "e"
 _SKIP = "s"
 
 
-def _chapter_state(chapter, stats: dict) -> str:
-    if getattr(chapter, "skipped", False):
+def _chapter_state(state: dict) -> str:
+    """Mã trạng thái 1 ký tự của một chương, từ trạng thái hẹp của
+    `storage.bulk_chapter_states()`."""
+    if state.get("skipped"):
         return _SKIP
-    if not stats.get("has_translated"):
-        return _RAW if stats.get("has_raw") else _NONE
-    return _EDITED if stats.get("edit_state") in ("edited_ai", "edited_local_mt") else _MT
+    if not state.get("has_translated"):
+        return _RAW if state.get("has_raw") else _NONE
+    return _EDITED if state.get("edit_state") in ("edited_ai", "edited_local_mt") else _MT
 
 
 def _encode_strip(states: list[str]) -> str:
@@ -97,6 +100,14 @@ def _encode_strip(states: list[str]) -> str:
     return ",".join(parts)
 
 
+def _epub_stat(path: Path) -> tuple[bool, int]:
+    """`(tồn tại, kích thước)` bằng MỘT lần chạm đĩa thay vì exists()+stat()."""
+    try:
+        return True, path.stat().st_size
+    except OSError:
+        return False, 0
+
+
 def _ebook_summary(
     slug: str,
     cfg,
@@ -105,17 +116,23 @@ def _ebook_summary(
     in_library: bool,
     created_at: str = "",
     updated_at: str = "",
+    chapter_states: list[dict] | None = None,
 ) -> dict:
-    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    stats_map = storage.bulk_chapter_stats()
-    progress = chapter_progress(storage, manifest, stats_map=stats_map)
+    """Thẻ tóm tắt một ebook cho trang Thư viện.
 
-    chapters = manifest.chapters if manifest else []
-    states = [_chapter_state(ch, stats_map.get(ch.index, {})) for ch in chapters]
+    `chapter_states` (từ `overview.chapter_states_by_slug`) cho phép trang liệt
+    kê nạp trạng thái của CẢ trang bằng một query; bỏ trống thì tự truy vấn
+    riêng ebook này.
+    """
+    if chapter_states is None:
+        chapter_states = bulk_chapter_states(cfg.output.data_dir, [cfg.novel.slug])[cfg.novel.slug]
+    progress = progress_from_states(chapter_states)
+
+    states = [_chapter_state(state) for state in chapter_states]
     counts = {code: states.count(code) for code in (_NONE, _RAW, _MT, _EDITED, _SKIP)}
 
     epub_path = Path(cfg.epub_path)
+    epub_exists, epub_size = _epub_stat(epub_path)
     return {
         "slug": slug,
         "title": cfg.novel.title,
@@ -131,8 +148,8 @@ def _ebook_summary(
         "translated_count": progress["translated_count"],
         "strip": _encode_strip(states),
         "counts": counts,
-        "epub_exists": epub_path.exists(),
-        "epub_size": epub_path.stat().st_size if epub_path.exists() else 0,
+        "epub_exists": epub_exists,
+        "epub_size": epub_size,
     }
 
 
@@ -321,17 +338,6 @@ def library_list(
         [*params, limit, page * limit],
     ).fetchall()
 
-    def summary(row):
-        slug = row["slug"]
-        return _ebook_summary(
-            slug,
-            deps.resolved_cfg(slug),
-            archived=bool(row["archived"]),
-            in_library=True,
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-        )
-
     # Giữ chế độ một ebook mặc định cho cài đặt mới chưa có entry library.
     if total == 0 and not q and not show_archived:
         return {
@@ -343,15 +349,35 @@ def library_list(
             "current": None,
         }
 
-    current = None
+    current_row = None
     if current_slug:
         current_row = conn.execute(
             "SELECT slug, archived, created_at, updated_at FROM ebooks WHERE slug = ?",
             (current_slug,),
         ).fetchone()
-        if current_row is not None:
-            current = summary(current_row)
 
+    # `current` được hydrate cùng lô với trang đang xem: cùng một query trạng
+    # thái, không thêm lượt quét nào.
+    hydrate = list(rows)
+    if current_row is not None and current_row["slug"] not in {r["slug"] for r in rows}:
+        hydrate.insert(0, current_row)
+    pairs = [(row["slug"], deps.resolved_cfg(row["slug"])) for row in hydrate]
+    states = chapter_states_by_slug(pairs)
+    cfgs = dict(pairs)
+
+    def summary(row):
+        slug = row["slug"]
+        return _ebook_summary(
+            slug,
+            cfgs[slug],
+            archived=bool(row["archived"]),
+            in_library=True,
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            chapter_states=states[slug],
+        )
+
+    current = summary(current_row) if current_row is not None else None
     return {
         "ebooks": [summary(row) for row in rows],
         "archived_count": archived_count,
@@ -584,17 +610,16 @@ def ebook_detail(request: Request, slug: str):
     KHÔNG kèm danh sách chương — bảng chương phân trang riêng qua
     `/chapters` để trang không phải tải lại vài nghìn dòng mỗi lần đổi bộ lọc.
     """
-    from novel2epub.toc import crawl_problem_indexes
+    from novel2epub.toc import crawl_problem_indexes_from_states
 
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    manifest = storage.load_manifest()
-    stats_map = storage.bulk_chapter_stats()
-    progress = chapter_progress(storage, manifest, stats_map=stats_map)
+    chapter_states = bulk_chapter_states(cfg.output.data_dir, [cfg.novel.slug])[cfg.novel.slug]
+    progress = progress_from_states(chapter_states)
 
-    chapters = manifest.chapters if manifest else []
-    states = [_chapter_state(ch, stats_map.get(ch.index, {})) for ch in chapters]
+    states = [_chapter_state(state) for state in chapter_states]
     epub_path = Path(cfg.epub_path)
+    epub_exists, epub_size = _epub_stat(epub_path)
 
     return {
         "slug": slug,
@@ -606,18 +631,16 @@ def ebook_detail(request: Request, slug: str):
         "crawl_mode": cfg.crawl.scrapling.mode,
         "translate_type": cfg.translate.type,
         "translate_model": cfg.translate.model or cfg.translate.openai.model,
-        "has_manifest": manifest is not None,
+        "has_manifest": storage.exists(),
         "total": progress["total"],
         "raw_count": progress["raw_count"],
         "translated_count": progress["translated_count"],
         "strip": _encode_strip(states),
         "counts": {code: states.count(code) for code in (_NONE, _RAW, _MT, _EDITED, _SKIP)},
-        "crawl_problems": crawl_problem_indexes(chapters, storage, stats_map=stats_map)
-        if manifest
-        else [],
-        "epub_exists": epub_path.exists(),
+        "crawl_problems": crawl_problem_indexes_from_states(chapter_states),
+        "epub_exists": epub_exists,
         "epub_path": str(epub_path),
-        "epub_size": epub_path.stat().st_size if epub_path.exists() else 0,
+        "epub_size": epub_size,
         "cost_summary": read_cost_summary(storage),
         "reader_configured": cfg.reader.configured,
         "active_jobs": [
@@ -1389,11 +1412,16 @@ def ebook_readiness(slug: str):
         }
     chapters = manifest.chapters
     total = len(chapters)
+    # Đếm theo projection hẹp: `has_branch_text` cho từng chương là một lượt
+    # đọc TRỌN bản ghi (raw + cả hai bản dịch) — nhân với 2 nhánh × vài nghìn
+    # chương là lý do endpoint này từng mất hàng chục giây.
+    stats_map = storage.bulk_chapter_stats()
+    _branch_flag = {"ai": "has_ai_translation", "local_mt": "has_local_mt_translation"}
     branches: dict[str, dict] = {}
     for branch in revisions.BRANCHES:
-        count = sum(1 for ch in chapters if storage.has_branch_text(ch, branch))
+        flag = _branch_flag[branch]
         branches[branch] = {
-            "count": count,
+            "count": sum(1 for state in stats_map.values() if state.get(flag)),
             "label": revisions.branch_label(branch),
         }
     build = storage.read_build()
@@ -1771,13 +1799,16 @@ def storage_remove_epub_api(slug: str):
 
 
 def _automation_ebook_options() -> list[dict[str, str]]:
+    """Dropdown chọn ebook — tiêu đề lấy thẳng từ `library` (cùng cột
+    `ebooks.title` mà `cfg.novel.title` đọc), không resolve cả cấu hình hiệu
+    lực của từng ebook chỉ để lấy một chuỗi."""
     library = deps.library()
     if not library.ebooks:
         return [{"slug": "default", "title": "default"}]
-    options = []
-    for slug in library.ebooks:
-        cfg = deps.resolved_cfg(slug)
-        options.append({"slug": slug, "title": cfg.novel.title or slug})
+    options = [
+        {"slug": slug, "title": entry.title or slug}
+        for slug, entry in library.ebooks.items()
+    ]
     return sorted(options, key=lambda ebook: ebook["title"].casefold())
 
 

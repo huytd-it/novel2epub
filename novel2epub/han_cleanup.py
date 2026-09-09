@@ -17,7 +17,7 @@ from .config import OpenAIConfig
 
 _HAN_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
 
-CLEANUP_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, chuyên sửa các lỗi sót chữ Hán.
+CLEANUP_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, chuyên sửa các lỗi sót ký tự Trung Quốc (Chinese characters).
 
 Đoạn văn dưới đây là bản dịch tiếng Việt, NHƯNG còn chứa một số ký tự/ký hiệu Trung Quốc được đánh dấu bằng <HAN>...</HAN>.
 NHIỆM VỤ: Chỉ sửa các phần được đánh dấu <HAN>...</HAN> thành tiếng Việt tự nhiên, GIỮ NGUYÊN phần còn lại.
@@ -28,10 +28,10 @@ NGUYÊN TẮC:
 - KHÔNG thêm lời mở đầu, giải thích, code fence.
 - KHÔNG dùng định dạng song ngữ.
 
---- Bản đối chiếu gốc (Trung), dùng làm ngữ cảnh ---
+--- Bản đối chiếu gốc (Chinese source), dùng làm ngữ cảnh ---
 {raw_paragraph}
 
---- Bản dịch cần sửa (vùng Hán đã đánh dấu) ---
+--- Bản dịch cần sửa (vùng Chinese đã đánh dấu) ---
 {marked_text}
 
 Chỉ trả về toàn bộ đoạn văn đã sửa (giữ nguyên mọi thứ, chỉ thay thế nội dung trong <HAN>...</HAN> bằng tiếng Việt)."""
@@ -124,7 +124,7 @@ def build_cleanup_prompt(
     )
 
 
-BATCH_CLEANUP_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, chuyên sửa các lỗi sót chữ Hán.
+BATCH_CLEANUP_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, chuyên sửa các lỗi sót ký tự Trung Quốc (Chinese characters).
 
 Dưới đây là {count} đoạn văn trích từ CÙNG MỘT chương bản dịch tiếng Việt. Mỗi đoạn còn chứa ký tự/ký hiệu Trung Quốc được đánh dấu bằng <HAN>...</HAN>, kèm bản gốc tiếng Trung (nếu có) để đối chiếu ngữ cảnh.
 
@@ -147,7 +147,7 @@ KHÔNG thêm bất kỳ nội dung nào ngoài các khối <DOAN>.
 _BATCH_ITEM_TEMPLATE = """=== ĐOẠN id={id} ===
 --- Gốc Trung (đối chiếu) ---
 {raw}
---- Bản dịch cần sửa (vùng Hán đã đánh dấu) ---
+--- Bản dịch cần sửa (vùng Chinese đã đánh dấu) ---
 {marked}
 """
 

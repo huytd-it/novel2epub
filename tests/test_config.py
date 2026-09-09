@@ -430,11 +430,39 @@ def test_genre_no_longer_deprecated():
 
 
 def test_default_prompts_carry_characters_placeholder():
-    from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT
+    from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT, ZH_DEFAULT_PROMPT
     from novel2epub.presets.go import GO_PROMPT
     from novel2epub.presets.omniroute import OMNIPROUTE_PROMPT
-    for tpl in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, GO_PROMPT, OMNIPROUTE_PROMPT):
+    for tpl in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, ZH_DEFAULT_PROMPT, GO_PROMPT, OMNIPROUTE_PROMPT):
         assert "{characters}" in tpl
+
+
+def test_chinese_default_prompts_are_llm_explicit():
+    from novel2epub.config import ZH_DEFAULT_PROMPT, ZH_TITLE_PROMPT
+
+    assert "Chinese characters" in ZH_DEFAULT_PROMPT
+    assert "Sino-Vietnamese" in ZH_DEFAULT_PROMPT
+    assert "Sino-Vietnamese" in ZH_TITLE_PROMPT
+    for placeholder in (
+        "{text}", "{glossary}", "{idioms}", "{characters}", "{tone}",
+        "{pronoun_policy}", "{keep_paragraphs}", "{title_mode}",
+        "{han_viet_level}", "{auto_glossary_block}",
+    ):
+        assert placeholder in ZH_DEFAULT_PROMPT
+
+
+@pytest.mark.parametrize("source_language", ["zh", "cn", "zh-cn", "zh-tw"])
+def test_chinese_source_language_selects_chinese_prompts(tmp_path, source_language):
+    from novel2epub.config import ZH_DEFAULT_PROMPT, ZH_TITLE_PROMPT
+
+    path = _write_config(
+        tmp_path,
+        extra={"translate": {"type": "openai", "source_language": source_language}},
+    )
+    cfg = load_config(path)
+
+    assert cfg.translate.openai.prompt_template == ZH_DEFAULT_PROMPT
+    assert cfg.translate.openai.title_prompt_template == ZH_TITLE_PROMPT
 
 
 def test_default_prompt_no_longer_bans_ta_nguoi_globally():
@@ -491,9 +519,9 @@ def test_epub_path_default_thieu_tac_gia_va_ky_tu_khong_hop_le(tmp_path):
 
 def test_default_prompts_define_pronoun_priority_and_avoid_overuse():
     from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT
-    assert "BẢNG NHÂN VẬT > ngôi kể thực tế của đoạn > quan hệ/ngữ cảnh > gợi ý thể loại" in DEFAULT_PROMPT
+    assert "NGUYÊN TÁC (ngôi kể, người nói, người nghe, sự kiện) > BẢNG NHÂN VẬT" in DEFAULT_PROMPT
     assert 'không thay mọi 他 bằng "hắn"' in DEFAULT_PROMPT
     assert "tránh lặp đại từ dày đặc" in DEFAULT_PROMPT
-    assert "CHARACTER TABLE > the passage's actual narrative person > relationship/context > genre suggestions" in EN_DEFAULT_PROMPT
+    assert "SOURCE TEXT (narrative person, speaker, addressee, and events) > CONFIRMED CHARACTER TABLE" in EN_DEFAULT_PROMPT
     assert 'Do not translate every he/him as "hắn"' in EN_DEFAULT_PROMPT
     assert "Write in uppercase" not in EN_DEFAULT_PROMPT

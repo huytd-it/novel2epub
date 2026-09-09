@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 24
+SCHEMA_VERSION = 26
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -84,19 +84,19 @@ _SCHEMA_STATEMENTS = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_wireguard_profiles_position ON wireguard_profiles(position, enabled)",
+    # ── preset provider AI OpenAI-compatible (name → base_url dùng lại) ───
+    """
+    CREATE TABLE IF NOT EXISTS ai_providers (
+        name TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
     # ── preset site (thay sources.yaml) ──────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS sources (
         name TEXT PRIMARY KEY,
         code TEXT NOT NULL DEFAULT '',
-        data_json TEXT NOT NULL DEFAULT '{}',
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-    """,
-    # ── preset provider AI OpenAI-compatible (name → base_url dùng lại) ───
-    """
-    CREATE TABLE IF NOT EXISTS ai_providers (
-        name TEXT PRIMARY KEY,
         data_json TEXT NOT NULL DEFAULT '{}',
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -165,6 +165,9 @@ _SCHEMA_STATEMENTS = [
         duplicate_of INTEGER,
         last_action_status TEXT NOT NULL DEFAULT '',
         skipped INTEGER NOT NULL DEFAULT 0,
+        -- Số trang con đã ghép khi crawl 1 chương multi-page
+        -- (fetch_chapter_paginated). 0 = chưa đo/chưa crawl.
+        crawl_pages INTEGER NOT NULL DEFAULT 0,
         raw_text TEXT,
         translated_text TEXT,
         translated_mt_text TEXT,
@@ -189,6 +192,11 @@ _SCHEMA_STATEMENTS = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_code ON sources(code) WHERE code <> ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_ebooks_code ON ebooks(code) WHERE code <> ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_chapters_code ON chapters(code) WHERE code <> ''",
+    # Chỉ chứa chương CHƯA có code — ở trạng thái ổn định là index RỖNG. Không
+    # có nó, `codes.backfill_codes` phải quét cả bảng `chapters` (kèm blob) một
+    # lần cho MỖI ebook, mà hàm đó chạy ở cả `init_schema` (tức mỗi kết nối mới,
+    # tức request đầu tiên của mỗi thread web) lẫn sau mỗi lần lưu manifest.
+    "CREATE INDEX IF NOT EXISTS idx_chapters_missing_code ON chapters(ebook_slug) WHERE code = ''",
     # Trạng thái hẹp cho các màn hình tổng quan.  Không đọc blob raw/dịch từ
     # `chapters` chỉ để vẽ tiến độ: bảng chapters có thể lớn hàng GB.
     """
@@ -202,8 +210,19 @@ _SCHEMA_STATEMENTS = [
         has_translated INTEGER NOT NULL DEFAULT 0,
         raw_len INTEGER NOT NULL DEFAULT 0,
         translated_len INTEGER NOT NULL DEFAULT 0,
+        crawl_pages INTEGER NOT NULL DEFAULT 0,
         edit_state TEXT NOT NULL DEFAULT '',
         han_fixed_count INTEGER NOT NULL DEFAULT 0,
+        -- Kích thước THẬT (byte UTF-8) của từng loại nội dung + mốc dịch mới
+        -- nhất. Đọc mấy con số này từ `chapters` buộc SQLite nạp trọn bản ghi
+        -- (cột nằm SAU các blob), tức mỗi báo cáo dung lượng / mỗi lần OPDS hỏi
+        -- "EPUB cũ chưa" là một lượt đọc hàng trăm MB.
+        raw_bytes INTEGER NOT NULL DEFAULT 0,
+        translated_bytes INTEGER NOT NULL DEFAULT 0,
+        translated_mt_bytes INTEGER NOT NULL DEFAULT 0,
+        local_mt_bytes INTEGER NOT NULL DEFAULT 0,
+        meta_bytes INTEGER NOT NULL DEFAULT 0,
+        translated_updated_at REAL NOT NULL DEFAULT 0,
         PRIMARY KEY (ebook_slug, idx)
     ) WITHOUT ROWID
     """,
@@ -215,7 +234,9 @@ _SCHEMA_STATEMENTS = [
         INSERT INTO chapter_ui_state (
             ebook_slug, idx, active_branch, has_raw, has_ai_translation,
             has_local_mt_translation, has_translated, raw_len, translated_len,
-            edit_state, han_fixed_count
+            crawl_pages, edit_state, han_fixed_count,
+            raw_bytes, translated_bytes, translated_mt_bytes, local_mt_bytes,
+            meta_bytes, translated_updated_at
         ) VALUES (
             NEW.ebook_slug, NEW.idx, COALESCE(NEW.active_branch, 'ai'),
             CASE WHEN COALESCE(NEW.raw_text, '') != '' THEN 1 ELSE 0 END,
@@ -232,28 +253,45 @@ _SCHEMA_STATEMENTS = [
                     (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete'), 0) != 0) THEN 1 ELSE 0 END END,
             LENGTH(COALESCE(NEW.raw_text, '')),
             CASE WHEN COALESCE(NEW.active_branch, 'ai') = 'local_mt' THEN LENGTH(COALESCE(NEW.local_mt_text, '')) ELSE LENGTH(COALESCE(NEW.translated_text, '')) END,
+            COALESCE(NEW.crawl_pages, 0),
             CASE WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') IS NOT NULL THEN 'draft'
                  WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') IS NOT NULL THEN 'edited_ai'
                  WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') IS NOT NULL THEN 'edited_local_mt'
                  ELSE '' END,
-            COALESCE(CAST(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.han_cleanup.fixed_count') AS INTEGER), 0)
+            COALESCE(CAST(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.han_cleanup.fixed_count') AS INTEGER), 0),
+            -- CAST ... AS BLOB = độ dài BYTE, chạy trên mọi bản SQLite (khác
+            -- octet_length() chỉ có từ 3.43). Giá trị đã nằm sẵn trong bộ nhớ
+            -- lúc ghi nên đo ở đây gần như miễn phí.
+            LENGTH(CAST(COALESCE(NEW.raw_text, '') AS BLOB)),
+            LENGTH(CAST(COALESCE(NEW.translated_text, '') AS BLOB)),
+            LENGTH(CAST(COALESCE(NEW.translated_mt_text, '') AS BLOB)),
+            LENGTH(CAST(COALESCE(NEW.local_mt_text, '') AS BLOB)),
+            LENGTH(CAST(COALESCE(NEW.meta_json, '') AS BLOB)),
+            COALESCE(NEW.translated_updated_at, 0.0)
         );
     END
     """,
     """
     CREATE TRIGGER IF NOT EXISTS chapters_ui_state_after_update
-    AFTER UPDATE OF active_branch, raw_text, translated_text, local_mt_text, meta_json ON chapters
+    AFTER UPDATE OF active_branch, raw_text, translated_text, translated_mt_text, local_mt_text, meta_json, crawl_pages, translated_updated_at ON chapters
     BEGIN
         DELETE FROM chapter_ui_state WHERE ebook_slug=NEW.ebook_slug AND idx=NEW.idx;
-        INSERT INTO chapter_ui_state (ebook_slug, idx, active_branch, has_raw, has_ai_translation, has_local_mt_translation, has_translated, raw_len, translated_len, edit_state, han_fixed_count)
+        INSERT INTO chapter_ui_state (ebook_slug, idx, active_branch, has_raw, has_ai_translation, has_local_mt_translation, has_translated, raw_len, translated_len, crawl_pages, edit_state, han_fixed_count, raw_bytes, translated_bytes, translated_mt_bytes, local_mt_bytes, meta_bytes, translated_updated_at)
         SELECT NEW.ebook_slug, NEW.idx, COALESCE(NEW.active_branch, 'ai'),
             COALESCE(NEW.raw_text, '') != '',
             COALESCE(NEW.translated_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete'), 0) != 0),
             COALESCE(NEW.local_mt_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete'), 0) != 0),
             CASE WHEN COALESCE(NEW.active_branch, 'ai') = 'local_mt' THEN COALESCE(NEW.local_mt_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_complete'), 0) != 0) ELSE COALESCE(NEW.translated_text, '') != '' AND (json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete') IS NULL OR COALESCE(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.complete'), 0) != 0) END,
             LENGTH(COALESCE(NEW.raw_text, '')), CASE WHEN COALESCE(NEW.active_branch, 'ai') = 'local_mt' THEN LENGTH(COALESCE(NEW.local_mt_text, '')) ELSE LENGTH(COALESCE(NEW.translated_text, '')) END,
+            COALESCE(NEW.crawl_pages, 0),
             CASE WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.ai_rewrite') IS NOT NULL THEN 'draft' WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.before_rewrite') IS NOT NULL THEN 'edited_ai' WHEN json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') NOT IN ('null') AND json_type(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.local_mt_ai_edited') IS NOT NULL THEN 'edited_local_mt' ELSE '' END,
-            COALESCE(CAST(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.han_cleanup.fixed_count') AS INTEGER), 0);
+            COALESCE(CAST(json_extract(CASE WHEN json_valid(NEW.meta_json) THEN NEW.meta_json ELSE '{}' END, '$.han_cleanup.fixed_count') AS INTEGER), 0),
+            LENGTH(CAST(COALESCE(NEW.raw_text, '') AS BLOB)),
+            LENGTH(CAST(COALESCE(NEW.translated_text, '') AS BLOB)),
+            LENGTH(CAST(COALESCE(NEW.translated_mt_text, '') AS BLOB)),
+            LENGTH(CAST(COALESCE(NEW.local_mt_text, '') AS BLOB)),
+            LENGTH(CAST(COALESCE(NEW.meta_json, '') AS BLOB)),
+            COALESCE(NEW.translated_updated_at, 0.0);
     END
     """,
     """
@@ -409,7 +447,11 @@ _SCHEMA_STATEMENTS = [
         last_run_stats_json TEXT NOT NULL DEFAULT '{}',
         crawl_workers INTEGER NOT NULL DEFAULT 4,
         translate_workers INTEGER NOT NULL DEFAULT 4,
-        created_at TEXT NOT NULL DEFAULT ''
+        created_at TEXT NOT NULL DEFAULT '',
+        translate_threshold INTEGER NOT NULL DEFAULT 0,
+        cleanup_threshold INTEGER NOT NULL DEFAULT 0,
+        publish_threshold INTEGER NOT NULL DEFAULT 0,
+        build_threshold INTEGER NOT NULL DEFAULT 0
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_automations_ebook ON automations(ebook)",
@@ -865,8 +907,25 @@ _ADDED_COLUMNS = [
     ("ebooks", "raw_source_hash", "TEXT NOT NULL DEFAULT ''"),
     ("ebooks", "raw_updated_at", "TEXT NOT NULL DEFAULT ''"),
     ("ebooks", "translated_metadata_source_hash", "TEXT NOT NULL DEFAULT ''"),
-    # v23: Tailscale Serve/Funnel config toàn cục
+     # v23: Tailscale Serve/Funnel config toàn cục
     ("settings", "tailscale_json", "TEXT NOT NULL DEFAULT '{}'"),
+    # v24: ngưỡng batch cho automation — số chương tối thiểu để kích bước kế tiếp
+    ("automations", "translate_threshold", "INTEGER NOT NULL DEFAULT 0"),
+    ("automations", "cleanup_threshold", "INTEGER NOT NULL DEFAULT 0"),
+    ("automations", "publish_threshold", "INTEGER NOT NULL DEFAULT 0"),
+    ("automations", "build_threshold", "INTEGER NOT NULL DEFAULT 0"),
+    # v25: số trang con đã ghép khi crawl 1 chương multi-page (0 = chưa đo).
+    # Chỉ sống trong trigger projection nên bảng `chapter_ui_state` mới cần cột;
+    # bảng `chapters` khai báo sẵn trong CREATE TABLE.
+    ("chapters", "crawl_pages", "INTEGER NOT NULL DEFAULT 0"),
+    ("chapter_ui_state", "crawl_pages", "INTEGER NOT NULL DEFAULT 0"),
+    # v26: dung lượng theo byte + mốc dịch mới nhất trong projection hẹp.
+    ("chapter_ui_state", "raw_bytes", "INTEGER NOT NULL DEFAULT 0"),
+    ("chapter_ui_state", "translated_bytes", "INTEGER NOT NULL DEFAULT 0"),
+    ("chapter_ui_state", "translated_mt_bytes", "INTEGER NOT NULL DEFAULT 0"),
+    ("chapter_ui_state", "local_mt_bytes", "INTEGER NOT NULL DEFAULT 0"),
+    ("chapter_ui_state", "meta_bytes", "INTEGER NOT NULL DEFAULT 0"),
+    ("chapter_ui_state", "translated_updated_at", "REAL NOT NULL DEFAULT 0"),
 ]
 
 
@@ -884,6 +943,14 @@ def get_connection(db_path: str | Path) -> sqlite3.Connection:
     return conn
 
 
+# `Path.resolve()` + `mkdir` là syscall thật (~1ms/lần trên Windows) và
+# `resolve_db_path` được gọi trong MỌI `Storage(...)` — một request liệt kê tạo
+# hàng chục Storage nên riêng phần này đã tốn hàng trăm ms. Kết quả chỉ phụ
+# thuộc chuỗi đường dẫn nên nhớ luôn theo tiến trình. Hệ quả: thư mục bị xoá
+# giữa chừng sẽ KHÔNG được tạo lại (lúc đó SQLite cũng hỏng sẵn rồi).
+_resolved_db_paths: dict[str, Path] = {}
+
+
 def resolve_db_path(data_dir: str | Path) -> Path:
     """Đường dẫn file `.db` thống nhất cho 1 `data_dir` (`<data_dir>/
     novel2epub.db`). `app/deps.py` derive `DB_PATH` bằng CHÍNH hàm này (cùng
@@ -891,9 +958,15 @@ def resolve_db_path(data_dir: str | Path) -> Path:
     đúng file `.db` mà `Storage(cfg.output.data_dir, slug)` cũng dùng —
     không dùng biến môi trường global vì sẽ rò rỉ giữa các test/tiến trình
     dùng `data_dir` khác nhau trong cùng 1 process."""
+    key = str(data_dir)
+    cached = _resolved_db_paths.get(key)
+    if cached is not None:
+        return cached
     path = Path(data_dir).resolve()
     path.mkdir(parents=True, exist_ok=True)
-    return path / "novel2epub.db"
+    db_path = path / "novel2epub.db"
+    _resolved_db_paths[key] = db_path
+    return db_path
 
 
 _thread_local = threading.local()
@@ -1269,11 +1342,64 @@ def _migration_v23(conn: sqlite3.Connection) -> None:
 
 
 def _migration_v24(conn: sqlite3.Connection) -> None:
-    """Thêm bảng `ai_providers` — preset base_url dùng lại cho provider AI
-    OpenAI-compatible (chọn thay vì gõ tay), tương tự bảng `sources`."""
+    """Thêm ngưỡng batch cho automation (translate/cleanup/publish/build)."""
     _ensure_columns(conn)
     for stmt in _SCHEMA_STATEMENTS:
         conn.execute(stmt)
+
+
+def _migration_v25(conn: sqlite3.Connection) -> None:
+    """Thêm `chapters.crawl_pages` — số trang con ghép khi crawl multi-page.
+
+    Cột cũ không có → ALTER TABLE; trigger cũ dùng `CREATE TRIGGER IF NOT
+    EXISTS` nên phải DROP trước khi tạo lại định nghĩa có `crawl_pages`
+    (theo lối `_migration_v20`). Projection `chapter_ui_state` được cập nhật
+    lại toàn bộ bằng một UPDATE no-op (cùng lối `_migration_v19`).
+    """
+    _ensure_columns(conn)
+    conn.execute("DROP TRIGGER IF EXISTS chapters_ui_state_after_insert")
+    conn.execute("DROP TRIGGER IF EXISTS chapters_ui_state_after_update")
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+    _ensure_columns(conn)
+    conn.execute("UPDATE chapters SET meta_json=meta_json")
+
+
+
+def _migration_v26(conn: sqlite3.Connection) -> None:
+    """Đưa dung lượng (byte) từng loại nội dung + `translated_updated_at` vào
+    projection `chapter_ui_state`.
+
+    Các số này trước đây phải đọc từ `chapters`, mà chúng nằm SAU các cột blob
+    trong bản ghi nên SQLite buộc phải nạp trọn cả chương: báo cáo dung lượng
+    (/storage, dashboard) và kiểm tra "EPUB đã cũ chưa" của OPDS trở thành một
+    lượt quét hàng trăm MB cho MỖI ebook.
+
+    Trigger cũ tạo bằng `CREATE TRIGGER IF NOT EXISTS` nên phải DROP rồi dựng
+    lại (theo lối `_migration_v25`). Backfill KHÔNG dùng `UPDATE chapters SET
+    meta_json=meta_json` như v19/v25: với DB đã lớn, phép đó viết lại nguyên
+    bảng blob. Ở đây chỉ đọc một lượt `chapters` rồi ghi vào các hàng projection
+    (nhỏ, sẵn có).
+    """
+    _ensure_columns(conn)
+    conn.execute("DROP TRIGGER IF EXISTS chapters_ui_state_after_insert")
+    conn.execute("DROP TRIGGER IF EXISTS chapters_ui_state_after_update")
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+    _ensure_columns(conn)
+    conn.execute(
+        """
+        UPDATE chapter_ui_state AS s SET
+            raw_bytes = LENGTH(CAST(COALESCE(c.raw_text, '') AS BLOB)),
+            translated_bytes = LENGTH(CAST(COALESCE(c.translated_text, '') AS BLOB)),
+            translated_mt_bytes = LENGTH(CAST(COALESCE(c.translated_mt_text, '') AS BLOB)),
+            local_mt_bytes = LENGTH(CAST(COALESCE(c.local_mt_text, '') AS BLOB)),
+            meta_bytes = LENGTH(CAST(COALESCE(c.meta_json, '') AS BLOB)),
+            translated_updated_at = COALESCE(c.translated_updated_at, 0.0)
+        FROM chapters AS c
+        WHERE c.ebook_slug = s.ebook_slug AND c.idx = s.idx
+        """
+    )
 
 
 def _migration_v17(conn: sqlite3.Connection) -> None:
@@ -1320,6 +1446,8 @@ _MIGRATIONS = {
     22: _migration_v22,
     23: _migration_v23,
     24: _migration_v24,
+    25: _migration_v25,
+    26: _migration_v26,
 }
 
 

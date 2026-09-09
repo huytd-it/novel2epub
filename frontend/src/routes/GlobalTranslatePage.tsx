@@ -131,7 +131,7 @@ export function GlobalTranslatePage() {
   const save = useSaveTranslateDefaults();
   const [draft, setDraft] = useState<TranslateDefaults | null>(null);
   const [promptFullscreen, setPromptFullscreen] = useState(false);
-  const [loadingPrompts, setLoadingPrompts] = useState(false);
+  const [loadingPromptLanguage, setLoadingPromptLanguage] = useState<"vi" | "en" | "zh" | null>(null);
 
   useEffect(() => {
     if (data) setDraft({ ...data });
@@ -162,6 +162,24 @@ export function GlobalTranslatePage() {
 
   const set = <K extends keyof TranslateDefaults>(key: K, value: TranslateDefaults[K]) =>
     setDraft((current) => (current ? { ...current, [key]: value } : current));
+
+  const loadDefaultPrompts = async (promptLanguage: "vi" | "en" | "zh") => {
+    setLoadingPromptLanguage(promptLanguage);
+    try {
+      const sourceLanguage = draft.source_language === "en" || draft.source_language === "vi" ? draft.source_language : "zh";
+      const prompts = await api.get<Pick<TranslateDefaults, "prompt_template" | "title_prompt_template">>(
+        `/settings/translate/default-prompts?source_language=${encodeURIComponent(sourceLanguage)}&prompt_language=${encodeURIComponent(promptLanguage)}`,
+      );
+      setDraft((current) => (current ? { ...current, ...prompts } : current));
+      const promptLabel = promptLanguage === "vi" ? "Tiếng Việt" : promptLanguage === "en" ? "Tiếng Anh" : "Tiếng Trung";
+      const sourceLabel = sourceLanguage === "vi" ? "Việt" : sourceLanguage === "en" ? "Anh" : "Trung";
+      toast(`Đã nạp prompt viết bằng ${promptLabel} cho nguồn ${sourceLabel} → Việt. Bấm Lưu để áp dụng.`);
+    } catch (loadError) {
+      toast(loadError instanceof Error ? loadError.message : String(loadError), "error");
+    } finally {
+      setLoadingPromptLanguage(null);
+    }
+  };
 
   return (
     <Page
@@ -259,27 +277,17 @@ export function GlobalTranslatePage() {
           hint="Placeholder ({text}, {glossary}, {tone}…) được pipeline điền khi dịch — nguồn zh/en có prompt mặc định riêng, đích luôn là tiếng Việt"
           actions={
             <>
-              <Button
-                size="sm"
-                loading={loadingPrompts}
-                onClick={async () => {
-                  setLoadingPrompts(true);
-                  try {
-                    const language = encodeURIComponent(draft.source_language ?? "");
-                    const prompts = await api.get<Pick<TranslateDefaults, "prompt_template" | "title_prompt_template">>(
-                      `/settings/translate/default-prompts?source_language=${language}`,
-                    );
-                    setDraft((current) => (current ? { ...current, ...prompts } : current));
-                    toast("Đã nạp prompt mặc định theo ngôn ngữ nguồn. Bấm Lưu để áp dụng.");
-                  } catch (error) {
-                    toast(error instanceof Error ? error.message : String(error), "error");
-                  } finally {
-                    setLoadingPrompts(false);
-                  }
-                }}
-              >
-                Nạp prompt mặc định
-              </Button>
+              {(["vi", "en", "zh"] as const).map((language) => (
+                <Button
+                  key={language}
+                  size="sm"
+                  loading={loadingPromptLanguage === language}
+                  disabled={loadingPromptLanguage !== null && loadingPromptLanguage !== language}
+                  onClick={() => void loadDefaultPrompts(language)}
+                >
+                  Prompt {language === "vi" ? "Tiếng Việt" : language === "en" ? "Tiếng Anh" : "Tiếng Trung"}
+                </Button>
+              ))}
               <Button size="sm" onClick={() => setPromptFullscreen(true)}>
                 Xem toàn màn hình
               </Button>

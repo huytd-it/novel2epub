@@ -247,7 +247,12 @@ def chapter_rows(
             s = stats_map.get(ch.index, {})
             has_raw = s.get("has_raw", False)
             has_translated = s.get("has_translated", False)
-            active_branch = s.get("active_branch", storage.active_branch(ch))
+            # KHÔNG dùng `s.get(..., storage.active_branch(ch))`: Python tính
+            # tham số mặc định TRƯỚC, nên mỗi chương vẫn tốn một lượt đọc trọn
+            # bản ghi (kèm blob) dù bulk stats đã có sẵn giá trị.
+            active_branch = (
+                s["active_branch"] if "active_branch" in s else storage.active_branch(ch)
+            )
             has_ai_translation = s.get("has_ai_translation", False)
             has_local_mt_translation = s.get("has_local_mt_translation", False)
             # ponytail: byte-length estimates for display only, not business logic
@@ -370,6 +375,16 @@ def crawl_problem_indexes(
         for ch in chapters
         if stats_map.get(ch.index, {}).get("raw_len", 0) < min_chars
     ]
+
+
+def crawl_problem_indexes_from_states(states: Iterable[dict], min_chars: int = 30) -> list[int]:
+    """Như `crawl_problem_indexes` nhưng nhận trạng thái hẹp của
+    `storage.bulk_chapter_states()` — cho màn hình tổng quan không dựng Manifest.
+
+    Giữ chung ngưỡng `min_chars` với `chapter_crawl_status` để "chương cần
+    retry" ở mọi màn hình là cùng một tập.
+    """
+    return [s["index"] for s in states if (s.get("raw_len") or 0) < min_chars]
 
 
 def _matches_filter(value: bool, flt: str) -> bool:

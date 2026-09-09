@@ -11,12 +11,13 @@ from fastapi.responses import JSONResponse
 
 from novel2epub.automation import load_automations
 from novel2epub.db import resolve_db_path
-from novel2epub.progress import chapter_progress, han_fixed_total
+from novel2epub.progress import progress_from_states
 from novel2epub.storage import Storage
-from novel2epub.toc import crawl_problem_indexes
+from novel2epub.toc import crawl_problem_indexes_from_states
 
 from .. import deps
 from ..cost_summary import read_cost_summary
+from ..overview import chapter_states_by_slug
 from ..storage_report import ebook_storage_report
 
 router = APIRouter()
@@ -78,19 +79,17 @@ def _build_ebook_rows(cfgs: list[tuple[str, object]]) -> tuple[list[dict], dict]
     total_raw = total_translated = total_chapters = 0
     error_count = 0
 
+    # Trạng thái chương của TẤT CẢ ebook trong một lượt truy vấn projection hẹp:
+    # dựng Manifest từng ebook là một lượt quét bảng `chapters` (chứa blob
+    # raw/dịch) cho mỗi cuốn, tức phần đắt nhất của cả endpoint này.
+    states_by_slug = chapter_states_by_slug(cfgs)
+
     for slug, cfg in cfgs:
         storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-        manifest = storage.load_manifest()
-        # 1 query/ebook cho cả 3 số liệu dưới đây; không có nó thì mỗi hàm tự
-        # chạy 1 query/chương và kéo về nguyên văn raw/translated của cả bộ.
-        stats_map = storage.bulk_chapter_stats()
-        progress = chapter_progress(storage, manifest, stats_map=stats_map)
-        crawl_problems = (
-            crawl_problem_indexes(manifest.chapters, storage, stats_map=stats_map)
-            if manifest
-            else []
-        )
-        han_fixed = han_fixed_total(storage, manifest, stats_map=stats_map)
+        chapter_states = states_by_slug[slug]
+        progress = progress_from_states(chapter_states)
+        crawl_problems = crawl_problem_indexes_from_states(chapter_states)
+        han_fixed = sum(int(s.get("han_fixed_count") or 0) for s in chapter_states)
         disk_report = ebook_storage_report(storage, cfg.epub_path)
         cost_summary = read_cost_summary(storage)
         ebook_automations = [a for a in automations.values() if a.ebook == slug]

@@ -1,10 +1,13 @@
 """Đọc và xác thực file cấu hình YAML."""
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
+import threading
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -131,6 +134,19 @@ class CrawlConfig:
     # Số trang mục lục tối đa (1 = chỉ trang đầu, không phân trang)
     toc_max_pages: int = 5
 
+    # ----- wrapper metadata (trang mục lục) -----
+    # Selector wrapper lấy metadata khi OG/meta chuẩn thiếu — cấu hình theo
+    # nguồn (SourcePreset), đi theo preset vào CrawlConfig để _extract_meta
+    # dùng làm fallback sau og:title/og:novel:author/og:description/og:image.
+    title_selector: str = ""
+    author_selector: str = ""
+    desc_selector: str = ""
+    cover_selector: str = ""
+
+    # Regex suy ra URL ảnh bìa từ HTML mục lục khi thẻ og:image thiếu/sai —
+    # áp trên các URL ảnh tìm thấy trong DOM (img src, srcset, data-original...)
+    cover_url_pattern: str = ""
+
     def __post_init__(self) -> None:
         err = next_page_url_pattern_error(self.next_page_url_pattern)
         if err:
@@ -198,11 +214,12 @@ NGUYÊN TẮC DỊCH
 
 1. NGỮ NGHĨA VÀ CÂU VĂN
 - Dịch đầy đủ nội dung, không tự ý thêm, bớt hoặc giải thích.
+- Giữ nguyên mức độ chắc chắn, sự mơ hồ có chủ ý, cảm xúc và mức kịch tính của nguyên tác; không suy diễn để "làm rõ".
 - Viết theo ngữ pháp tiếng Việt tự nhiên; được phép đảo trật tự từ, tách hoặc nối câu khi cần để câu rõ nghĩa và mượt.
 - Không dịch sát từng chữ hoặc giữ cấu trúc câu tiếng Trung nếu làm câu tiếng Việt cứng, tối nghĩa.
 
 2. NGÔI KỂ VÀ XƯNG HÔ
-Thứ tự ưu tiên bắt buộc: BẢNG NHÂN VẬT > ngôi kể thực tế của đoạn > quan hệ/ngữ cảnh > gợi ý thể loại.
+Thứ tự ưu tiên bắt buộc: NGUYÊN TÁC (ngôi kể, người nói, người nghe, sự kiện) > BẢNG NHÂN VẬT VÀ QUAN HỆ ĐÃ XÁC NHẬN > ngữ cảnh > gợi ý thể loại. Bảng nhân vật dùng để giữ cách gọi nhất quán, không được làm sai thông tin thể hiện trực tiếp trong nguyên tác.
 
 - [LỜI KỂ NGÔI BA] Chọn cách gọi theo điểm nhìn, giới tính, sắc thái và khoảng cách trần thuật. Có thể dùng "hắn" khi tự nhiên và nhất quán, kể cả trong truyện hiện đại; không bắt buộc đổi thành "anh", "anh ta" hoặc "anh ấy". Tuy nhiên, không thay mọi 他 bằng "hắn": có thể dùng tên riêng, danh xưng, đại từ khác hoặc lược chủ ngữ khi tự nhiên và không gây nhầm lẫn. Giữ hệ thống quy chiếu nhất quán nhưng tránh lặp đại từ dày đặc.
 - [LỜI KỂ NGÔI MỘT / NGÔI HAI] Giữ đúng giọng người kể. "Ta/ngươi" chỉ dùng khi phù hợp với thời đại, thân phận, tính cách và sắc thái; không phải lựa chọn mặc định.
@@ -212,28 +229,28 @@ Thứ tự ưu tiên bắt buộc: BẢNG NHÂN VẬT > ngôi kể thực tế c
 - Không ánh xạ đại từ một-một: 我 không mặc định là "ta"; 你 không mặc định là "ngươi"; 他 không mặc định là "hắn". Luôn chọn theo chức năng của câu và ngữ cảnh cụ thể.
 
 3. TÊN RIÊNG VÀ THUẬT NGỮ
-- Tên người Trung Quốc, địa danh, môn phái, công pháp, cảnh giới và chiêu thức: dùng dạng Hán Việt quen thuộc, viết hoa và giữ nhất quán.
-- Tên người nước ngoài được phiên âm bằng chữ Hán: trả về dạng Latin gốc khi nhận diện chắc chắn, ví dụ 夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura.
-- Không chắc tên Latin gốc thì dùng phương án an toàn theo glossary hoặc quy tắc Hán Việt; không tự bịa.
+- Tên người Trung Quốc, địa danh, môn phái, công pháp, cảnh giới và chiêu thức: dùng dạng Sino-Vietnamese (Hán Việt) quen thuộc, viết hoa và giữ nhất quán.
+- Tên người nước ngoài được phiên âm bằng chữ Trung Quốc (Chinese characters): trả về dạng Latin gốc khi nhận diện chắc chắn, ví dụ 夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura.
+- Không chắc tên Latin gốc thì dùng phương án an toàn theo glossary hoặc quy tắc Sino-Vietnamese; không tự bịa.
 
-4. HÁN VIỆT VÀ THUẦN VIỆT
-- Hạn chế từ Hán Việt khó hiểu khi có cách nói thuần Việt rõ ràng hơn.
-- Giữ sắc thái Hán Việt cần thiết trong truyện cổ trang, tiên hiệp, huyền huyễn và các khái niệm thuộc thế giới truyện.
+4. SINO-VIETNAMESE (HÁN VIỆT) VÀ THUẦN VIỆT
+- Hạn chế từ Sino-Vietnamese khó hiểu khi có cách nói thuần Việt rõ ràng hơn.
+- Giữ sắc thái Sino-Vietnamese cần thiết trong truyện cổ trang, tiên hiệp, huyền huyễn và các khái niệm thuộc thế giới truyện.
 - Từ đời thường, động tác, cảm giác, ăn uống, nấu nướng và tiếng lóng phải được diễn đạt tự nhiên như tiếng Việt thông thường.
 
 5. THÀNH NGỮ VÀ VĂN BẢN ĐẶC BIỆT
 - Thành ngữ, tục ngữ và khẩu ngữ: dịch theo ý và sắc thái, không ghép nghĩa từng chữ.
 - Thơ, ca phú và trích dẫn cổ văn: dùng bản dịch tiếng Việt phổ biến nếu nhận diện chắc chắn; nếu không, chuyển ngữ rõ nghĩa và có văn phong phù hợp.
-- Không để lại câu Vietphrase hoặc chữ Hán chưa dịch.
+- Không để lại câu Vietphrase hoặc ký tự Trung Quốc (Chinese characters) chưa dịch.
 
 6. ĐỊNH DẠNG
 - Giữ nguyên cách chia đoạn.
 - Nếu dòng đầu là tiêu đề chương, dịch tiêu đề gọn, tự nhiên và có ý vị.
-- Chỉ trả về bản dịch tiếng Việt; không thêm lời mở đầu, ghi chú, giải thích hoặc đánh dấu song ngữ.
+- Chỉ trả về bản dịch tiếng Việt; không thêm lời mở đầu, ghi chú, giải thích hoặc đánh dấu song ngữ. Nếu bên dưới có yêu cầu xuất `GLOSSARY:`, đó là phần dữ liệu duy nhất được phép đặt sau bản dịch.
 
 PHONG CÁCH THEO CẤU HÌNH
 - Tông giọng: {tone}
-- Mức Hán Việt: {han_viet_level}
+- Mức Sino-Vietnamese (Hán Việt): {han_viet_level}
 - Xử lý tiêu đề: {title_mode}
 - Gợi ý thể loại và chính sách xưng hô bổ sung:
 {pronoun_policy}
@@ -243,7 +260,7 @@ KIỂM TRA CUỐI
 - Đã dịch đầy đủ, không thêm hoặc bỏ ý.
 - Ngôi kể và xưng hô nhất quán, đúng quan hệ.
 - Không thay "hắn/ta/ngươi" chỉ vì định kiến thể loại; cũng không lạm dụng chúng.
-- Không còn ký tự Trung Quốc chưa dịch.
+- Không còn ký tự Trung Quốc (Chinese characters) chưa dịch.
 - Đầu ra chỉ chứa bản dịch tiếng Việt.
 {glossary}
 {idioms}
@@ -255,11 +272,11 @@ KIỂM TRA CUỐI
 TITLE_PROMPT = """Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt. Nhiệm vụ: chuyển ngữ {kind} sau sang tiếng Việt thật HAY, có hồn, KHÔNG dịch sát nghĩa kiểu máy/Quick Translate.
 
 Nguyên tắc bắt buộc:
-1. Không bê nguyên âm Hán Việt nếu người đọc Việt không hiểu nghĩa.
-2. Có thể đảo cấu trúc, dùng hình ảnh/ẩn dụ tương đương trong tiếng Việt, miễn giữ đúng tinh thần và nội dung cốt lõi.
-3. Ví dụ: "Nắm tay người, kéo người đi" nên dịch thành "Tay nắm tay, cùng nhau cất bước" — hay và tự nhiên hơn nhiều so với dịch sát chữ.
-4. Tên người nước ngoài giữ dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto), không chuyển Hán Việt.
-5. Nếu thực sự không tìm được cách chuyển ngữ hay mà vẫn giữ đúng nghĩa, hãy dịch nghĩa rõ ràng dù kém mượt hơn là giữ Hán Việt khó hiểu, và điền dòng GIẢI THÍCH để người đọc hiểu nghĩa gốc/lý do chọn từ.
+1. Không bê nguyên âm Sino-Vietnamese (Hán Việt) nếu người đọc Việt không hiểu nghĩa.
+2. Có thể đảo cấu trúc và dùng hình ảnh tương đương đã có trong nguyên tác, nhưng không thêm hình ảnh, cảm xúc, quan hệ hoặc tình tiết mới.
+3. Ưu tiên đúng nghĩa và đúng sắc thái trước độ hoa mỹ; tiêu đề gọn, tự nhiên và không tiết lộ thêm nội dung.
+4. Tên người nước ngoài giữ dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto), không chuyển sang Sino-Vietnamese.
+5. Nếu thực sự không tìm được cách chuyển ngữ hay mà vẫn giữ đúng nghĩa, hãy dịch nghĩa rõ ràng dù kém mượt hơn là giữ Sino-Vietnamese khó hiểu, và điền dòng GIẢI THÍCH để người đọc hiểu nghĩa gốc/lý do chọn từ.
 
 {glossary}
 Trả lời ĐÚNG 2 dòng theo định dạng sau, không thêm gì khác:
@@ -276,11 +293,12 @@ TRANSLATION RULES
 
 1. MEANING AND PROSE
 - Translate all content without adding, omitting, or explaining it.
+- Preserve the source's certainty, intentional ambiguity, emotion, and dramatic intensity; do not infer details merely to make them clearer.
 - Restructure, split, or join sentences when needed for clear and natural Vietnamese.
 - Do not preserve English syntax when it makes the Vietnamese stiff or ambiguous.
 
 2. NARRATIVE PERSON AND FORMS OF ADDRESS
-Mandatory priority: CHARACTER TABLE > the passage's actual narrative person > relationship/context > genre suggestions.
+Mandatory priority: SOURCE TEXT (narrative person, speaker, addressee, and events) > CONFIRMED CHARACTER TABLE/RELATIONSHIP DATA > context > genre suggestions. Use character data for consistency, but never let it override facts explicitly established by the source passage.
 
 - [THIRD-PERSON NARRATION] Choose references by viewpoint, gender, tone, and narrative distance. "Hắn" is valid when natural, including in modern fiction; do not mechanically replace it with "anh", "anh ta", or "anh ấy". Do not translate every he/him as "hắn": use names, titles, other suitable references, or omit the subject when natural and unambiguous. Keep references consistent without repeating pronouns excessively.
 - [FIRST-/SECOND-PERSON NARRATION] Preserve the narrator's voice. Use "ta/ngươi" only when period, status, personality, and tone support it; they are not defaults for first or second person.
@@ -290,12 +308,12 @@ Mandatory priority: CHARACTER TABLE > the passage's actual narrative person > re
 - Never map source pronouns one-to-one. Choose Vietnamese references by each sentence's function and context.
 
 3. NAMES AND TERMS
-- Use familiar Hán Việt forms for Chinese names, places, sects, techniques, realms, and setting-specific terms; capitalize proper names consistently.
-- For established pinyin or English renderings, resolve them to familiar Hán Việt forms only when confident (for example, Xie Lian → Tạ Liên and Wei Wuxian → Ngụy Vô Tiện). Otherwise keep the source spelling; do not invent a name.
+- Use familiar Sino-Vietnamese (Hán Việt) forms for Chinese names, places, sects, techniques, realms, and setting-specific terms; capitalize proper names consistently.
+- For established pinyin or English renderings, resolve them to familiar Sino-Vietnamese forms only when confident (for example, Xie Lian → Tạ Liên and Wei Wuxian → Ngụy Vô Tiện). Otherwise keep the source spelling; do not invent a name.
 
-4. HÁN VIỆT AND NATURAL VIETNAMESE
-- Avoid obscure Hán Việt when clear Vietnamese is more natural.
-- Preserve appropriate Hán Việt flavor in historical, xianxia, fantasy, and setting-specific concepts.
+4. SINO-VIETNAMESE (HÁN VIỆT) AND NATURAL VIETNAMESE
+- Avoid obscure Sino-Vietnamese when clear Vietnamese is more natural.
+- Preserve appropriate Sino-Vietnamese flavor in historical, xianxia, fantasy, and setting-specific concepts.
 - Render everyday actions, sensations, food, body language, and slang as natural Vietnamese.
 
 5. IDIOMS AND SPECIAL TEXT
@@ -305,7 +323,7 @@ Mandatory priority: CHARACTER TABLE > the passage's actual narrative person > re
 6. FORMAT
 - Preserve paragraph breaks.
 - If the first line is a chapter title, translate it concisely and naturally.
-- Return only the Vietnamese translation, with no preamble, notes, explanation, or bilingual annotation.
+- Return only the Vietnamese translation, with no preamble, notes, explanation, or bilingual annotation. If a `GLOSSARY:` section is explicitly requested below, it is the only permitted data after the translation.
 
 CONFIGURED STYLE
 - Tone: {tone}
@@ -319,6 +337,7 @@ FINAL CHECK
 - The translation is complete and faithful.
 - Narrative person and forms of address are consistent with relationships.
 - "Hắn/ta/ngươi" were neither rejected because of genre nor overused.
+- No untranslated Chinese characters remain in the output.
 - The output contains only the Vietnamese translation.
 {glossary}
 {idioms}
@@ -332,7 +351,7 @@ EN_TITLE_PROMPT = """You are a title editor for English-to-Vietnamese translated
 Mandatory rules:
 1. Do not keep English words when a Vietnamese equivalent sounds better.
 2. You may restructure, use metaphors or imagery natural to Vietnamese, as long as the core meaning is preserved.
-3. Character names: resolve pinyin/English-gloss names to familiar Hán Việt when confident (e.g. "Xie Lian" → "Tạ Liên"), otherwise keep as-is.
+3. Character names: resolve pinyin/English-gloss names to familiar Sino-Vietnamese (Hán Việt) when confident (e.g. "Xie Lian" → "Tạ Liên"), otherwise keep as-is.
 4. If you truly cannot find a good translation that preserves meaning, translate for clarity even if less poetic, and fill in the GIẢI THÍCH line to explain.
 
 {glossary}
@@ -341,6 +360,82 @@ TIÊU ĐỀ: <Vietnamese translation>
 GIẢI THÍCH: <leave blank if name is already clear/natural; only fill if extra explanation helps readers>
 
 --- {kind} to translate ---
+{text}"""
+
+
+ZH_DEFAULT_PROMPT = """你是一名专业的中国网络小说越南语译者。请将原文完整翻译成忠实、流畅、自然，并符合越南读者阅读习惯的越南语。
+
+翻译规则
+
+1. 语义与行文
+- 完整翻译全部内容，不得擅自增删或解释。
+- 保留原文的确定程度、刻意含混、情绪和戏剧强度，不得为了“说清楚”而自行推断。
+- 必要时可调整语序、拆分或合并句子，使越南语清晰自然。
+- 不要逐字硬译，也不要保留会导致越南语生硬或歧义的中文句法。
+
+2. 叙述视角与称谓
+强制优先级：原文（叙述视角、说话者、听话者和事件）> 已确认的角色表与关系 > 上下文 > 类型建议。角色资料只用于保持称谓一致，不得覆盖原文直接表达的事实。
+- [第三人称叙述] 根据视角、性别、语气和叙述距离选择称谓。自然且一致时可以使用“hắn”，但不要把所有“他”机械翻译为“hắn”。可使用姓名、身份称谓、其他合适代词，或在不产生歧义时省略主语。
+- [第一/第二人称叙述] 保持叙述者口吻。只有时代、身份、性格和语气合适时才使用“ta/ngươi”，不能将其作为默认选择。
+- [对话] 根据年龄、辈分、身份、亲疏、情绪和关系阶段选择称谓，不要机械地把“我/你”映射为“ta/ngươi”。
+- [内心独白] 使用角色对自己的称呼。若符合角色口吻，即使外部叙述为第三人称，内心独白也可以使用“ta”。
+- [系统消息] 保持机械、无感情的语气；上下文合适时使用“Ký chủ”或“Người chơi”。
+
+3. 专名与术语
+- 中国人名、地名、门派、功法、境界和招式使用常见的 Sino-Vietnamese（Hán Việt，汉越音）形式，专名统一大写并保持全文一致。
+- 外国人名若在中文中采用音译，只有在能够可靠识别时才恢复为原拉丁字母拼写，例如 夏洛克 → Sherlock、鸣人 → Naruto、小樱 → Sakura。
+- 无法确定原拉丁拼写时，遵循 glossary 或采用安全的 Sino-Vietnamese 方案，不得臆造。
+
+4. SINO-VIETNAMESE 与自然越南语
+- 有清晰自然的越南语表达时，避免使用晦涩的 Sino-Vietnamese 词语。
+- 历史、仙侠、玄幻及世界观专属概念可保留必要的 Sino-Vietnamese 风格。
+- 日常动作、感受、饮食、肢体语言和俚语必须写成自然的越南语。
+
+5. 成语与特殊文本
+- 成语、俗语和口语应按含义与语气翻译，不要逐字拼接。
+- 诗词和古文引用：有把握时使用通行越南语译法，否则清晰传达含义并保持合适文风。
+- 不得留下 Vietphrase 或任何未翻译的中文字符（Chinese characters）。
+
+6. 格式
+- 保留原段落划分。
+- 若首行为章节标题，应译得简洁、自然且有意境。
+- 只输出越南语译文，不要添加开场白、注释、解释或双语标记。若下文明确要求输出 `GLOSSARY:`，则它是译文后唯一允许附加的数据。
+
+配置风格
+- 语气：{tone}
+- Sino-Vietnamese（Hán Việt）程度：{han_viet_level}
+- 标题处理：{title_mode}
+- 补充的类型与称谓规则：
+{pronoun_policy}
+- 保留换行：{keep_paragraphs}
+
+最终检查
+- 内容完整忠实，没有增删原意。
+- 叙述视角和称谓与人物关系一致。
+- 不因题材偏见排斥“hắn/ta/ngươi”，也不滥用。
+- 输出中没有未翻译的中文字符（Chinese characters）。
+- 输出只包含越南语译文。
+{glossary}
+{idioms}
+{characters}
+--- 待翻译的中文原文 ---
+{text}{auto_glossary_block}"""
+
+
+ZH_TITLE_PROMPT = """你是一名中译越小说标题编辑。请将下面的{kind}译成优美、自然、有意境的越南语，不要使用生硬的机器直译或 Quick Translate 风格。
+
+强制规则：
+1. 若直用 Sino-Vietnamese（Hán Việt，汉越音）会令越南读者难以理解，应改为清晰自然的越南语表达。
+2. 可以调整结构，并自然表达原文已有的意象或隐喻，但不得添加原文没有的意象、情绪、关系或情节信息。
+3. 外国人名保留可靠识别出的原拉丁字母形式，例如 夏洛克 → Sherlock、鸣人 → Naruto；不要转为 Sino-Vietnamese。
+4. 准确的含义与语气优先于华丽表达；标题应简洁自然，不得额外泄露情节。若确实无法兼顾文采与原意，应优先清晰准确地翻译，并在 GIẢI THÍCH 行简要说明。
+
+{glossary}
+严格只按以下格式输出两行，不要添加其他内容：
+TIÊU ĐỀ: <越南语标题>
+GIẢI THÍCH: <标题已清晰自然则留空；仅在确有必要时说明>
+
+--- 待翻译的{kind} ---
 {text}"""
 
 
@@ -356,7 +451,7 @@ AI_EDIT_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt.
 {genre_rules}
 {glossary}
 
---- Bản gốc (Trung), dùng để đối chiếu khi cần ---
+--- Bản gốc (Chinese source), dùng để đối chiếu khi cần ---
 {raw}
 
 --- Bản dịch hiện tại (Việt), cần biên tập lại ---
@@ -727,8 +822,16 @@ def _resolve_source_overrides(
     return preset.crawl_overrides(), source_name, []
 
 
+@lru_cache(maxsize=64)
+def _resolved_db_path(path: str) -> Path:
+    """`Path.resolve()` có nhớ đệm — syscall thật (~1ms trên Windows) và
+    `load_config`/`load_library` chạy hàng chục lần mỗi request liệt kê, luôn
+    trên cùng một đường dẫn DB."""
+    return Path(path).resolve()
+
+
 def load_library(path: str | Path) -> LibraryConfig:
-    db_path = Path(path).resolve()
+    db_path = _resolved_db_path(str(path))
     if not db_path.exists():
         return LibraryConfig()
 
@@ -808,6 +911,37 @@ def _load_raw_from_db(conn) -> dict[str, Any]:
     return {"defaults": defaults, "sources": sources, "ebooks": ebooks}
 
 
+# Ảnh chụp raw config theo THREAD — cùng vòng đời với kết nối SQLite của thread
+# (xem `db.get_thread_connection`). Một request "liệt kê" gọi `load_config` cho
+# hàng chục ebook và mỗi lần lại đọc + json.loads NGUYÊN ba bảng
+# settings/sources/ebooks vốn không đổi giữa các lần gọi đó (~70% chi phí của
+# `load_config`).
+#
+# Khoá hợp lệ = (PRAGMA data_version, conn.total_changes):
+#   - `data_version` đổi khi một KẾT NỐI KHÁC (thread/tiến trình khác) commit;
+#   - `total_changes` đổi khi CHÍNH kết nối này ghi (data_version cố ý không đổi
+#     cho commit của bản thân kết nối).
+# Hai vế cộng lại bắt được mọi thay đổi, và cả hai đều là phép đọc vài micro
+# giây không chạm đĩa — rẻ hơn nhiều so với dựng lại snapshot.
+_snapshot_cache = threading.local()
+
+
+def _raw_config_snapshot(conn, db_path: Path) -> dict[str, Any]:
+    """`_load_raw_from_db` có nhớ đệm; CHỈ ĐỌC — caller phải copy trước khi sửa."""
+    cache: dict[str, tuple] | None = getattr(_snapshot_cache, "by_db", None)
+    if cache is None:
+        cache = {}
+        _snapshot_cache.by_db = cache
+    key = str(db_path)
+    version = (conn.execute("PRAGMA data_version").fetchone()[0], conn.total_changes)
+    cached = cache.get(key)
+    if cached is not None and cached[0] == version:
+        return cached[1]
+    raw = _load_raw_from_db(conn)
+    cache[key] = (version, raw)
+    return raw
+
+
 def _normalize_translate_type(value: str) -> str:
     """Chuẩn hóa `translate.type` về tập hợp lệ hiện tại (openai | localmt | none).
 
@@ -842,15 +976,19 @@ def _build_style(raw: dict[str, Any]) -> TranslationStyleConfig:
 def load_config(path: str | Path, slug: str = "") -> Config:
     from .db import get_thread_connection
 
-    db_path = Path(path).resolve()
+    db_path = _resolved_db_path(str(path))
     if not db_path.exists():
         raise FileNotFoundError(f"Không tìm thấy DB cấu hình: {db_path}")
     conn = get_thread_connection(db_path)
     base_dir = db_path.parent
 
-    raw_all = _load_raw_from_db(conn)
-    defaults = raw_all["defaults"]
-    sources_raw = raw_all["sources"]
+    # Snapshot dùng chung giữa các lần gọi trong cùng thread → PHẢI copy sâu
+    # phần đi vào Config: `_deep_merge_raw` giữ nguyên các dict/list con không
+    # bị ghi đè, nên `NovelConfig.subjects`, `ApiConfig.cors_origins`... sẽ trỏ
+    # thẳng vào snapshot và một caller sửa tại chỗ là hỏng cache của cả thread.
+    raw_all = _raw_config_snapshot(conn, db_path)
+    defaults = copy.deepcopy(raw_all["defaults"])
+    sources_raw = raw_all["sources"]  # chỉ đọc: SourcePreset.crawl_overrides() tự copy
     ebooks = raw_all["ebooks"]
 
     if slug:
@@ -861,7 +999,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         override = _as_dict(next(iter(ebooks.values())))
     else:
         override = {}
-    override = dict(override)
+    override = copy.deepcopy(override)
     # `translate` (AI dịch) và `ai` (AI biên tập) là cấu hình RIÊNG từng ebook
     # (translate_overrides_json/ai_overrides_json) merge đè lên `defaults:` —
     # defaults chỉ còn là fallback cho ebook chưa cấu hình riêng và là giá trị
@@ -940,8 +1078,10 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     # Legacy engine field — scrapling là engine duy nhất.
     crawl_raw.pop("engine", None)
     # Field cũ (http/crawl4ai) — bỏ qua không báo lỗi để migration mượt.
-    for old in ("toc_selector", "chapter_title_selector", "title_selector",
-                "author_selector", "desc_selector", "cover_selector",
+    # `title_selector/author_selector/desc_selector/cover_selector/cover_url_pattern`
+    # KHÔNG nằm ở đây: chúng là field hợp lệ của CrawlConfig (wrapper metadata
+    # fallback + regex ảnh bìa, xem crawler._extract_meta và SourcePreset).
+    for old in ("toc_selector", "chapter_title_selector",
                 "encoding", "user_agent", "js_code", "magic", "stealth"):
         crawl_raw.pop(old, None)
     # Legacy scrapling fields → map vào ScraplingConfig
@@ -1006,12 +1146,18 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         merged.update({k: v for k, v in openai_raw.items() if v != "" and v is not None})
         openai_raw = merged
 
-    # EN source: auto-select EN prompts (same mechanism as preset resolution).
+    # Auto-select prompts matching the source language. Explicit non-empty user
+    # values still win, including per-ebook prompt overrides applied below.
     # Explicit non-empty user values still win.
     _src_lang = translate_raw.get("source_language", "")
     if _src_lang == "en":
         _en_overrides = {"prompt_template": EN_DEFAULT_PROMPT, "title_prompt_template": EN_TITLE_PROMPT}
         for _k, _v in _en_overrides.items():
+            if not openai_raw.get(_k):
+                openai_raw[_k] = _v
+    elif str(_src_lang).strip().lower() in ("zh", "cn", "zh-cn", "zh-tw"):
+        _zh_overrides = {"prompt_template": ZH_DEFAULT_PROMPT, "title_prompt_template": ZH_TITLE_PROMPT}
+        for _k, _v in _zh_overrides.items():
             if not openai_raw.get(_k):
                 openai_raw[_k] = _v
 
@@ -1118,7 +1264,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     _ai_prompt = str(ai_openai_raw.get("prompt_template") or "").strip()
     if (
         not _ai_prompt
-        or _ai_prompt in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, OMNIPROUTE_PROMPT, GO_PROMPT)
+        or _ai_prompt in (DEFAULT_PROMPT, EN_DEFAULT_PROMPT, ZH_DEFAULT_PROMPT, OMNIPROUTE_PROMPT, GO_PROMPT)
         or "{translated}" not in _ai_prompt
     ):
         ai_openai_raw["prompt_template"] = AI_EDIT_PROMPT

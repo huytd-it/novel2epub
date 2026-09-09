@@ -155,6 +155,18 @@ Restore tự tạo pre-restore backup và yêu cầu xác nhận. Dùng `--yes` 
 
 Nên backup định kỳ và giữ ít nhất một bản ở ổ đĩa khác. DB có thể chứa API key và Reader service-role key, vì vậy backup phải được bảo vệ như secret.
 
+## Nâng Cấp Schema
+
+`init_schema` chạy migration còn thiếu ngay khi mở DB (CLI hoặc Web UI khởi
+động), tuần tự và atomic. DB có schema MỚI HƠN bản đang chạy bị từ chối
+(`SchemaVersionError`) thay vì đọc ghi mù — nên sau khi nâng cấp mã nguồn, mọi
+tiến trình đang chạy bản cũ (service nền, tray app đã đóng gói) phải được khởi
+động lại bằng bản mới.
+
+Schema v26 thêm cột vào projection `chapter_ui_state` và một index cho chương
+chưa có code. Với thư viện lớn, lần mở DB đầu tiên sau nâng cấp mất thêm vài
+giây để backfill và dựng index — chỉ một lần, các lần sau trở lại bình thường.
+
 ## Đọc Bằng Readest Qua OPDS
 
 novel2epub lộ một catalog OPDS (`/opds`) liệt kê mọi ebook đã build, cho phép readest (web, desktop, mobile) tải và cập nhật EPUB trực tiếp mà không cần copy file thủ công.

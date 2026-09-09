@@ -66,8 +66,8 @@ GENRE_PRESETS: dict[str, GenrePreset] = {
                   "tiểu nữ, đạo hữu, tiền bối, vãn bối, sư phụ, sư huynh, sư tỷ, "
                   "sư đệ, sư muội, công tử, cô nương",
         forbid_words="tôi, cậu, bạn, anh ấy, cô ấy",
-        han_viet_hint="Hán Việt cao: tên riêng, công pháp, cảnh giới, chức danh giữ "
-                      "nguyên dạng Hán Việt, viết hoa, nhất quán toàn truyện.",
+        han_viet_hint="Sino-Vietnamese cao: tên riêng, công pháp, cảnh giới, chức danh giữ "
+                      "nguyên dạng Sino-Vietnamese (Hán Việt), viết hoa, nhất quán toàn truyện.",
         extra_rules=(
             "Lời kể thường dùng hắn/y/gã (nam), nàng (nữ); chỉ dùng anh/cô ấy "
             "khi BẢNG NHÂN VẬT, ngôi kể hoặc ngữ cảnh yêu cầu.",
@@ -80,7 +80,7 @@ GENRE_PRESETS: dict[str, GenrePreset] = {
         label="Đô thị / Hiện đại",
         use_words="tôi, cậu, anh, chị, em, ông, bà, nó, tao, mày",
         forbid_words="chàng, tiểu tử, tại hạ, bổn tọa, lão phu",
-        han_viet_hint="Hán Việt thấp: 心动 → \"tim đập loạn\", KHÔNG \"tâm động\"; "
+        han_viet_hint="Sino-Vietnamese thấp: 心动 → \"tim đập loạn\", KHÔNG \"tâm động\"; "
                       "总裁 → \"tổng giám đốc\"; 微信 → \"WeChat\".",
         extra_rules=(
             "Xưng hô gia đình và công sở theo đúng thứ bậc (ba/mẹ/anh/chị, "
@@ -94,7 +94,7 @@ GENRE_PRESETS: dict[str, GenrePreset] = {
         label="Ngôn tình / Đam mỹ",
         use_words="tôi, cậu, anh, em, cô, mình",
         forbid_words="tại hạ, bổn tọa, lão phu",
-        han_viet_hint="Hán Việt thấp, ưu tiên từ mềm và tự nhiên.",
+        han_viet_hint="Sino-Vietnamese thấp, ưu tiên từ mềm và tự nhiên.",
         extra_rules=(
             "Xưng hô ĐỔI theo tiến triển quan hệ — tuân thủ đúng mốc ghi trong "
             "BẢNG NHÂN VẬT, không tự ý đổi sớm hay muộn.",
@@ -106,7 +106,7 @@ GENRE_PRESETS: dict[str, GenrePreset] = {
         label="Võng du / Hệ thống / Vô hạn lưu",
         use_words="tôi, cậu, anh, em, Ký chủ, Người chơi",
         forbid_words="tại hạ, bổn tọa, thiếp",
-        han_viet_hint="Hán Việt thấp; thuật ngữ game giữ nguyên hoặc thuần Việt "
+        han_viet_hint="Sino-Vietnamese thấp; thuật ngữ game giữ nguyên hoặc thuần Việt "
                       "nhất quán (HP, MP, buff, kỹ năng).",
         extra_rules=(
             "Khối thông báo hệ thống giữ nguyên cấu trúc ngoặc, chuẩn hoá 【】 "
@@ -119,7 +119,7 @@ GENRE_PRESETS: dict[str, GenrePreset] = {
         label="Khoa huyễn / Dị giới Tây phương",
         use_words="tôi, cậu, anh, cô, ngài",
         forbid_words="tại hạ, bổn tọa, đạo hữu",
-        han_viet_hint="Thuật ngữ kỹ thuật KHÔNG Hán Việt hoá: 基因 → gen (không "
+        han_viet_hint="Thuật ngữ kỹ thuật KHÔNG Sino-Vietnamese hoá: 基因 → gen (không "
                       "\"cơ nhân\"), 病毒 → virus, 芯片 → chip.",
         extra_rules=(
             "Tên riêng giữ dạng chữ Latin gốc; chức danh Tây phương dùng bá tước, "
@@ -170,10 +170,10 @@ def format_pronoun_rules(genre: str, user_policy: str = "") -> str:
 # "creative"...) được nhét thẳng vào prompt, model đọc được đúng một từ trần.
 _STYLE_VALUES: dict[str, dict[str, str]] = {
     "han_viet_level": {
-        "low": "Hán Việt thấp: ưu tiên thuần Việt, chỉ giữ Hán Việt cho tên riêng.",
-        "balanced": "Hán Việt cân bằng: giữ cho tên riêng, công pháp, cảnh giới, "
+        "low": "Sino-Vietnamese thấp: ưu tiên thuần Việt, chỉ giữ Sino-Vietnamese (Hán Việt) cho tên riêng.",
+        "balanced": "Sino-Vietnamese (Hán Việt) cân bằng: giữ cho tên riêng, công pháp, cảnh giới, "
                     "chức danh; các từ mô tả thường dùng thuần Việt.",
-        "high": "Hán Việt cao: giữ đậm chất cổ trang, dùng Hán Việt cho cả từ mô tả "
+        "high": "Sino-Vietnamese (Hán Việt) cao: giữ đậm chất cổ trang, dùng Sino-Vietnamese cho cả từ mô tả "
                 "khi vẫn dễ hiểu.",
     },
     "title_mode": {

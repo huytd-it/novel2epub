@@ -10,7 +10,6 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
 from novel2epub.config_writer import update_ebook
-from novel2epub.progress import chapter_progress
 from novel2epub.queue_labels import job_label
 from novel2epub.storage import Storage
 from novel2epub.toc import apply_chapter_query, chapter_rows

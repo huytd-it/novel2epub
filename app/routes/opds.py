@@ -88,7 +88,7 @@ def _collect_books() -> list[opds.OpdsBook]:
         if not epub.exists():
             continue
         storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-        cover = storage.read_cover_bytes()
+        cover_ext = storage.cover_ext()
         novel = cfg.novel
         books.append(
             opds.OpdsBook(
@@ -104,8 +104,8 @@ def _collect_books() -> list[opds.OpdsBook]:
                 # mtime của FILE, không phải của bản dịch — readest tải lại
                 # dựa vào trường này và thứ nó tải là file.
                 updated=opds.iso_utc(epub.stat().st_mtime),
-                has_cover=cover is not None,
-                cover_type=_cover_media_type(cover[1]) if cover else "image/jpeg",
+                has_cover=cover_ext is not None,
+                cover_type=_cover_media_type(cover_ext) if cover_ext else "image/jpeg",
             )
         )
     return books

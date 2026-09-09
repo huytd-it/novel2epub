@@ -86,7 +86,14 @@ def test_source_checkbox_false_xoa_override_true_cu(client):
 
 
 def test_default_prompts_tra_prompt_moi_theo_ngon_ngu(client):
-    from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT, EN_TITLE_PROMPT, TITLE_PROMPT
+    from novel2epub.config import (
+        DEFAULT_PROMPT,
+        EN_DEFAULT_PROMPT,
+        EN_TITLE_PROMPT,
+        TITLE_PROMPT,
+        ZH_DEFAULT_PROMPT,
+        ZH_TITLE_PROMPT,
+    )
 
     settings_page = (Path(__file__).parents[1] / "frontend/src/routes/SettingsPage.tsx").read_text(encoding="utf-8")
     assert "Nạp lại prompt" in settings_page
@@ -106,6 +113,32 @@ def test_default_prompts_tra_prompt_moi_theo_ngon_ngu(client):
         "prompt_template": EN_DEFAULT_PROMPT,
         "title_prompt_template": EN_TITLE_PROMPT,
     }
+
+    simplified_chinese = client.get(
+        "/settings/translate/default-prompts?source_language=zh-cn"
+    )
+    assert simplified_chinese.status_code == 200
+    assert simplified_chinese.json() == {
+        "prompt_template": ZH_DEFAULT_PROMPT,
+        "title_prompt_template": ZH_TITLE_PROMPT,
+    }
+
+
+def test_default_prompts_support_three_by_three_language_matrix(client):
+    prompts = {}
+    for source_language in ("vi", "en", "zh"):
+        for prompt_language in ("vi", "en", "zh"):
+            response = client.get(
+                "/settings/translate/default-prompts",
+                params={"source_language": source_language, "prompt_language": prompt_language},
+            )
+            assert response.status_code == 200
+            body = response.json()
+            assert body["prompt_template"]
+            assert body["title_prompt_template"]
+            prompts[(source_language, prompt_language)] = body["prompt_template"]
+
+    assert len(set(prompts.values())) == 9
 
 
 def test_danh_sach_tra_ve_dang_van_ban_moi_dong_mot_muc(client):

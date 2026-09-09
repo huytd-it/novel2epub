@@ -34,15 +34,15 @@ EXTRACT_PROMPT = """Bạn là trợ lý phân tích truyện Trung Quốc để 
 
 Nhiệm vụ: đọc các chương dưới đây (mỗi chương có nhãn `## Chương N`) và trả về danh sách nhân vật cùng quan hệ xưng hô giữa họ.
 
-PHÂN BIỆT BẮT BUỘC — chữ Hán gốc KHÁC bản dịch tiếng Việt:
+PHÂN BIỆT BẮT BUỘC — Chinese source text KHÁC bản dịch tiếng Việt:
 - Trong bản gốc có sẵn các dạng xưng hô như 师父, 师尊, 弟子, 徒儿, 为师, 姑娘, 公子, 师兄, 师妹, 在下, 晚辈, 前辈, 本座, 朕, 臣, 妾身, 奴家, 本王, 老朽, 小生...
 - "sư phụ", "đồ nhi", "cô nương", "tại hạ" KHÔNG có trong bản gốc — đó là bản Việt hoá do bạn chọn.
-- Vì vậy mỗi xưng hô phải trả về CẢ HAI: `*_raw` (chuỗi Hán có thật trong văn bản) và `*_vi` (bản Việt bạn đề xuất).
-- Không tìm thấy chuỗi Hán tương ứng thì `*_raw` để null, KHÔNG được bịa.
+- Vì vậy mỗi xưng hô phải trả về CẢ HAI: `*_raw` (chuỗi Chinese có thật trong văn bản) và `*_vi` (bản Việt bạn đề xuất).
+- Không tìm thấy chuỗi Chinese tương ứng thì `*_raw` để null, KHÔNG được bịa.
 
 LUẬT:
 1. KHÔNG bịa khi thiếu căn cứ. Đoạn chỉ có 他说："你好。" thì không đủ cơ sở kết luận xưng hô nào — trả `a_calls_b_vi: null`, `a_self_vi: null`, `confidence: "low"`. Đừng đoán bừa theo thể loại.
-2. Phân biệt CHỨNG CỨ TRỰC TIẾP với SUY LUẬN. Trích được câu thoại có xưng hô → `inferred: false`, `confidence: "high"`. Suy ra từ thái độ, bối cảnh, cách người khác gọi → `inferred: true`, `confidence: "medium"` hoặc thấp hơn. Luôn điền `evidence` là câu Hán ngắn làm căn cứ.
+2. Phân biệt CHỨNG CỨ TRỰC TIẾP với SUY LUẬN. Trích được câu thoại có xưng hô → `inferred: false`, `confidence: "high"`. Suy ra từ thái độ, bối cảnh, cách người khác gọi → `inferred: true`, `confidence: "medium"` hoặc thấp hơn. Luôn điền `evidence` là câu Chinese ngắn làm căn cứ.
 3. Ưu tiên xưng hô ĐẶC THÙ hơn đại từ chung: 朕 → "trẫm" (không phải "ta"), 为师 → "vi sư", 本座 → "bổn tọa", 妾身 → "thiếp". Chỉ lùi về đại từ chung khi bản gốc thật sự chỉ có 我/你/他/她.
 4. Một cặp nhân vật có thể có NHIỀU mốc xưng hô. Nếu thấy quan hệ đổi giữa các chương (xa lạ → thân mật), trả về NHIỀU mục cho cùng cặp đó với `from_chapter` khác nhau. KHÔNG gộp cứng thành một dòng.
 5. KHÔNG đề xuất lại nhân vật đã có trong danh sách bên dưới. Ngoại lệ duy nhất: phát hiện ALIAS MỚI của họ thì trả mục dạng `{{"source": "...", "update_only": true, "new_aliases_raw": [...], "new_aliases_vi": [...]}}`.
@@ -60,16 +60,16 @@ Thể loại truyện: {genre}
 
 Chỉ trả về JSON, không kèm giải thích, không dùng code fence:
 {{"characters": [
-   {{"source": "<Hán>", "target": "<tên Việt>", "aliases_raw": [], "aliases_vi": [],
+   {{"source": "<Chinese>", "target": "<Vietnamese name>", "aliases_raw": [], "aliases_vi": [],
     "gender": "nam|nu|", "self_pronoun": "<tự xưng, tiếng Việt>",
     "narrator_ref": "<lời kể gọi, tiếng Việt>", "role_note": "<vai trò, 1 dòng>",
     "importance": "main|side", "reason": "<lý do ngắn>", "confidence": "high|medium|low"}}
  ],
  "relations": [
-   {{"a_source": "<Hán>", "b_source": "<Hán>", "from_chapter": <số>, "to_chapter": null,
-    "a_calls_b_raw": "<Hán hoặc null>", "a_calls_b_vi": "<Việt hoặc null>",
-    "a_self_raw": "<Hán hoặc null>", "a_self_vi": "<Việt hoặc null>",
-    "evidence": "<câu Hán ngắn>", "inferred": true|false,
+   {{"a_source": "<Chinese>", "b_source": "<Chinese>", "from_chapter": <số>, "to_chapter": null,
+    "a_calls_b_raw": "<Chinese or null>", "a_calls_b_vi": "<Vietnamese or null>",
+    "a_self_raw": "<Chinese or null>", "a_self_vi": "<Vietnamese or null>",
+    "evidence": "<short Chinese quote>", "inferred": true|false,
     "confidence": "high|medium|low", "reason": "<lý do ngắn>"}}
  ]}}
 Không có gì để đề xuất thì trả {{"characters": [], "relations": []}}.

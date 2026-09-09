@@ -1,7 +1,18 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from app.routes import webui
 from novel2epub.db import get_connection, init_schema
+
+
+def _stub_cfg(db_path, slug: str):
+    """cfg tối thiểu cho library_list: nó nạp trạng thái chương của cả trang
+    bằng một query nên cần `output.data_dir` + `novel.slug` thật."""
+    return SimpleNamespace(
+        output=SimpleNamespace(data_dir=str(db_path.parent)),
+        novel=SimpleNamespace(slug=slug),
+    )
 
 
 def _seed(db_path, count: int = 5) -> None:
@@ -24,12 +35,12 @@ def _seed(db_path, count: int = 5) -> None:
 
 
 def test_library_list_pages_and_filters_before_hydrating_summaries(monkeypatch, tmp_path):
-    db_path = tmp_path / "library.db"
+    db_path = tmp_path / "novel2epub.db"
     _seed(db_path)
     hydrated: list[str] = []
 
     monkeypatch.setattr(webui.deps, "DB_PATH", db_path)
-    monkeypatch.setattr(webui.deps, "resolved_cfg", lambda slug: slug)
+    monkeypatch.setattr(webui.deps, "resolved_cfg", lambda slug: _stub_cfg(db_path, slug))
     monkeypatch.setattr(
         webui,
         "_ebook_summary",
@@ -53,11 +64,11 @@ def test_library_list_pages_and_filters_before_hydrating_summaries(monkeypatch, 
 
 
 def test_library_list_sorts_by_created_and_updated_dates(monkeypatch, tmp_path):
-    db_path = tmp_path / "library-sort.db"
+    db_path = tmp_path / "novel2epub.db"
     _seed(db_path)
 
     monkeypatch.setattr(webui.deps, "DB_PATH", db_path)
-    monkeypatch.setattr(webui.deps, "resolved_cfg", lambda slug: slug)
+    monkeypatch.setattr(webui.deps, "resolved_cfg", lambda slug: _stub_cfg(db_path, slug))
     monkeypatch.setattr(
         webui,
         "_ebook_summary",

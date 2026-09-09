@@ -611,7 +611,7 @@ def test_split_response_bullet_lines_and_prose_dropped():
         "- 林凡 = Lâm Phàm\n"
         "* 斗气 = Đấu khí\n"
         "Đây là các mục mới tôi tìm được.\n"  # prose không có '=' → bỏ
-        "<Hán> = <Việt>\n"  # placeholder bị echo → bỏ
+        "<Chinese> = <Vietnamese>\n"  # placeholder bị echo → bỏ
     )
     _translation, entries = t._split_response(text)
     assert entries == [
@@ -657,7 +657,7 @@ def test_build_prompt_glossary_suffix_is_line_format_not_json():
     t = _openai_t()
     prompt = t._build_prompt("原文")
     assert "GLOSSARY" in prompt
-    assert "<Hán> = <Việt>" in prompt
+    assert "<Chinese> = <Vietnamese>" in prompt
     suffix = prompt[prompt.index("Ở CUỐI bản dịch"):]
     assert "target_file" not in suffix
     assert "names.txt" not in suffix

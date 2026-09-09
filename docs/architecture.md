@@ -49,8 +49,38 @@ Các nhóm dữ liệu chính:
 
 - `settings`, `sources`, `ebooks`: cấu hình ba tầng.
 - `chapters`: URL, tiêu đề, raw, snapshot MT, bản biên tập và metadata.
+- `chapter_ui_state`: projection hẹp của `chapters`, trigger giữ đồng bộ trong
+  cùng transaction với writer.
 - `glossary_entries`, `idioms`, `characters`, `character_relations`: ngữ cảnh dịch.
 - Bảng queue, automation và trạng thái thư viện: vận hành Web UI.
+
+### Projection Trạng Thái (`chapter_ui_state`)
+
+Mọi màn hình tổng quan phải đọc projection này, KHÔNG đọc `chapters`. Bảng
+`chapters` giữ blob raw/dịch nên có thể lớn hàng GB; tệ hơn, các cột nằm SAU
+blob (`translated_updated_at`, hash) buộc SQLite nạp trọn bản ghi chỉ để lấy
+một con số. Projection giữ sẵn cờ trạng thái, độ dài, `edit_state`,
+`han_fixed_count`, kích thước theo BYTE của từng loại nội dung (`raw_bytes`,
+`translated_bytes`, `translated_mt_bytes`, `local_mt_bytes`, `meta_bytes`) và
+`translated_updated_at` (schema v26).
+
+Điểm truy cập:
+
+- `storage.bulk_chapter_states(data_dir, slugs)` — trạng thái mọi chương của
+  NHIỀU ebook trong một query (Thư viện, Dashboard đi qua
+  `app/overview.py:chapter_states_by_slug`).
+- `Storage.bulk_chapter_stats()` — trạng thái mọi chương của một ebook.
+- `Storage.content_bytes/content_counts/translated_stats` — báo cáo dung lượng
+  và mốc dịch mới nhất (trang Lưu trữ, tự build của OPDS).
+- `Storage.bulk_publication_versions()` — bản xuất bản của mọi chương bằng một
+  query, cho `build_stale`/readiness.
+
+Chỉ dựng `Manifest` khi thật sự cần dữ liệu manifest (URL, tiêu đề, missing
+fields); đếm chương hay vẽ dải tiến độ thì dùng projection.
+
+Cấu hình hiệu lực cũng đi qua một ảnh chụp raw có nhớ đệm theo thread
+(`config._raw_config_snapshot`), bỏ hiệu lực bằng `PRAGMA data_version` +
+`Connection.total_changes` nên vẫn thấy ngay thay đổi từ mọi kết nối.
 
 Source, ebook và chapter có mã vận hành bền vững để đối chiếu log/job. Mã được
 sinh một lần theo acronym ASCII viết hoa, ví dụ source `SDR`, ebook

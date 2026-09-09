@@ -2434,17 +2434,17 @@ _RETRANSLATE_TITLE_PROMPT = """Bạn là biên tập tiêu đề cho truyện d�
 Tôi cần bạn dịch lại tiêu đề chương sau, dựa vào nội dung của chương đó để có ngữ cảnh, giúp bản dịch tiêu đề HAY, CÓ HỒN, phù hợp với nội dung bên trong.
 
 Nguyên tắc bắt buộc:
-1. Không bê nguyên âm Hán Việt nếu người đọc Việt không hiểu nghĩa.
+1. Không bê nguyên âm Sino-Vietnamese (Hán Việt) nếu người đọc Việt không hiểu nghĩa.
 2. Có thể đảo cấu trúc, dùng hình ảnh/ẩn dụ tương đương trong tiếng Việt, miễn giữ đúng tinh thần và nội dung cốt lõi.
 3. Dùng nội dung tóm tắt bên dưới để hiểu bối cảnh và chọn từ ngữ phù hợp nhất.
-4. Nếu thực sự không tìm được cách chuyển ngữ hay mà vẫn giữ đúng nghĩa, hãy dịch nghĩa rõ ràng dù kém mượt hơn là giữ Hán Việt khó hiểu, và điền dòng GIẢI THÍCH để người đọc hiểu nghĩa gốc/lý do chọn từ.
+4. Nếu thực sự không tìm được cách chuyển ngữ hay mà vẫn giữ đúng nghĩa, hãy dịch nghĩa rõ ràng dù kém mượt hơn là giữ Sino-Vietnamese khó hiểu, và điền dòng GIẢI THÍCH để người đọc hiểu nghĩa gốc/lý do chọn từ.
 
 {glossary}
 Trả lời ĐÚNG 2 dòng theo định dạng sau, không thêm gì khác:
 TIÊU ĐỀ: <bản dịch tiếng Việt>
 GIẢI THÍCH: <để trống nếu tên đã rõ nghĩa, tự nhiên; chỉ điền nếu cần giải thích thêm cho người đọc>
 
---- Tiêu đề gốc (chữ Hán) ---
+--- Tiêu đề gốc (Chinese source) ---
 {title}
 
 --- Tóm tắt nội dung chương (để tham khảo ngữ cảnh) ---
@@ -2456,17 +2456,17 @@ _RETRANSLATE_TITLE_SIMPLE_PROMPT = """Dịch tiêu đề sau sang tiếng Việt
 
 _TITLE_DESCRIPTION_PROMPT = """Bạn là biên tập viên truyện dịch Trung → Việt.
 
-Hãy giải thích vì sao chương sau được đặt tên như vậy, dựa vào tiêu đề gốc (chữ Hán) và nội dung đã dịch.
+Hãy giải thích vì sao chương sau được đặt tên như vậy, dựa vào tiêu đề gốc (Chinese source) và nội dung đã dịch.
 
 Nguyên tắc:
 1. Giải thích nguồn gốc ý nghĩa của tên chương (địa danh, nhân vật, sự kiện, ẩn dụ...)
 2. Giải thích tại sao tên này phù hợp với nội dung chương
-3. Nếu có Hán Việt khó hiểu, giải thích nghĩa gốc
+3. Nếu có Sino-Vietnamese (Hán Việt) khó hiểu, giải thích nghĩa gốc
 4. Trả lời bằng tiếng Việt, ngắn gọn (2-4 câu)
 
 {glossary}
 
---- Tiêu đề gốc (chữ Hán) ---
+--- Tiêu đề gốc (Chinese source) ---
 {title}
 
 --- Tiêu đề đã dịch ---

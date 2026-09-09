@@ -638,14 +638,57 @@ def test_translate_connection(
 
 
 @router.get("/settings/translate/default-prompts")
-def get_default_prompts(source_language: str = ""):
-    """Trả prompt_template + title_prompt_template mặc định theo ngôn ngữ nguồn.
-    Dùng cho nút 'Nạp prompt mẫu theo ngôn ngữ nguồn' trong UI."""
-    from novel2epub.config import DEFAULT_PROMPT, EN_DEFAULT_PROMPT, EN_TITLE_PROMPT, TITLE_PROMPT
+def get_default_prompts(source_language: str = "", prompt_language: str = ""):
+    """Trả prompt theo hai chiều độc lập: ngôn ngữ nguồn và ngôn ngữ viết prompt.
 
-    if source_language == "en":
-        return JSONResponse({"prompt_template": EN_DEFAULT_PROMPT, "title_prompt_template": EN_TITLE_PROMPT})
-    return JSONResponse({"prompt_template": DEFAULT_PROMPT, "title_prompt_template": TITLE_PROMPT})
+    ``prompt_language`` rỗng giữ tương thích API cũ (tự chọn prompt theo nguồn).
+    Target hiện cố định là tiếng Việt.
+    """
+    from novel2epub.config import (
+        DEFAULT_PROMPT,
+        EN_DEFAULT_PROMPT,
+        EN_TITLE_PROMPT,
+        TITLE_PROMPT,
+        ZH_DEFAULT_PROMPT,
+        ZH_TITLE_PROMPT,
+    )
+
+    source = source_language.strip().lower()
+    source = "en" if source == "en" else "vi" if source == "vi" else "zh"
+    written = prompt_language.strip().lower()
+
+    # Không truyền prompt_language: hành vi cũ — EN source dùng prompt EN,
+    # ZH source dùng prompt ZH; giá trị rỗng lịch sử dùng prompt Việt.
+    if not written:
+        if source == "en":
+            return JSONResponse({"prompt_template": EN_DEFAULT_PROMPT, "title_prompt_template": EN_TITLE_PROMPT})
+        if source_language.strip() and source == "zh":
+            return JSONResponse({"prompt_template": ZH_DEFAULT_PROMPT, "title_prompt_template": ZH_TITLE_PROMPT})
+        return JSONResponse({"prompt_template": DEFAULT_PROMPT, "title_prompt_template": TITLE_PROMPT})
+
+    written = written if written in ("vi", "en", "zh") else "vi"
+    bases = {
+        "vi": (DEFAULT_PROMPT, TITLE_PROMPT, "zh"),
+        "en": (EN_DEFAULT_PROMPT, EN_TITLE_PROMPT, "en"),
+        "zh": (ZH_DEFAULT_PROMPT, ZH_TITLE_PROMPT, "zh"),
+    }
+    prompt, title_prompt, base_source = bases[written]
+    if source != base_source:
+        source_names = {
+            "vi": {"vi": "tiếng Việt", "en": "tiếng Anh", "zh": "tiếng Trung"},
+            "en": {"vi": "Vietnamese", "en": "English", "zh": "Chinese"},
+            "zh": {"vi": "越南语", "en": "英语", "zh": "中文"},
+        }
+        names = source_names[written]
+        prefixes = {
+            "vi": f"NGỮ CẢNH BẮT BUỘC: Nguyên văn là {names[source]}, ngôn ngữ đích là tiếng Việt. Các ví dụ dành riêng cho ngôn ngữ khác bên dưới chỉ là hướng dẫn thuật ngữ; không được coi đó là ngôn ngữ nguồn.\n\n",
+            "en": f"MANDATORY CONTEXT: The source text is {names[source]} and the target language is Vietnamese. Language-specific examples below are terminology guidance only; do not treat them as the source language.\n\n",
+            "zh": f"强制上下文：原文语言是{names[source]}，目标语言是越南语。下文针对其他语言的示例仅作术语参考，不得将其视为原文语言。\n\n",
+        }
+        prefix = prefixes[written]
+        prompt = prefix + prompt
+        title_prompt = prefix + title_prompt
+    return JSONResponse({"prompt_template": prompt, "title_prompt_template": title_prompt})
 
 
 @router.post("/ebooks/{slug}/settings/translate")

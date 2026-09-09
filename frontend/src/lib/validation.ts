@@ -23,7 +23,8 @@ export interface ChapterValidation {
 const RE_HASH_HEADING = /(?:^|\n)\s*#{1,6}\s+/gm;
 const RE_CODE_FENCE = /```/g;
 const RE_WEIRD_DOTS = /(?:\.{2,}|…+|·{2,}|。{2,})/g;
-const RE_REPEATED_PUNCT = /([!?;,:\-–—])\1+/g;
+// Lặp ! và ? là cách nhấn mạnh thường dùng trong hội thoại (!!!, ???).
+const RE_REPEATED_PUNCT = /([;,:\-–—])\1+/g;
 const RE_CONTROL = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
 const RE_REPLACEMENT = /\uFFFD/g;
 const RE_MOJIBAKE = /[ÃÂ][\x80-\xBF]{1,2}/g;

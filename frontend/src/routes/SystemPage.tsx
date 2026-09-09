@@ -14,6 +14,7 @@ import {
   IconSearch,
   IconShield,
   IconSource,
+  IconSparkle,
   IconTailscale,
   IconPlug,
 } from "@/components/icons";
@@ -38,6 +39,15 @@ const CARDS: Card[] = [
     icon: IconLanguages,
     group: "Dịch thuật",
     tone: "indigo",
+  },
+  {
+    to: "/ai-providers",
+    label: "Provider AI",
+    desc: "Endpoint OpenAI-compatible dùng lại — thêm, sửa, xóa và thử kết nối từng provider.",
+    keywords: "provider ai base_url endpoint openrouter deepseek ollama preset",
+    icon: IconSparkle,
+    group: "Dịch thuật",
+    tone: "neutral",
   },
   {
     to: "/local-mt",
@@ -133,7 +143,7 @@ export function SystemPage() {
   return (
     <Page
       title="Hệ thống"
-      hint="Trung tâm cấu hình & vận hành — 9 trang quản lý gom một chỗ, gõ để lọc nhanh"
+      hint="Trung tâm cấu hình & vận hành — 10 trang quản lý gom một chỗ, gõ để lọc nhanh"
       actions={
         <span className="hidden sm:inline-flex items-center gap-2 text-xs opacity-60">
           <span data-numeric>{filtered.length}</span>/<span data-numeric>{CARDS.length}</span> mục

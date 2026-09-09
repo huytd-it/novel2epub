@@ -32,6 +32,7 @@ import {
   IconSettings,
   IconShield,
   IconSource,
+  IconSparkle,
   IconSun,
   IconTailscale,
 } from "@/components/icons";
@@ -48,6 +49,7 @@ const WORKSHOP: Item[] = [
 /** Danh mục đầy đủ cho trang hub /system — giữ để search & highlight. */
 const SYSTEM_ITEMS: Item[] = [
   { to: "/translate-settings", label: "Dịch chung", icon: IconLanguages },
+  { to: "/ai-providers", label: "Provider AI", icon: IconSparkle },
   { to: "/local-mt", label: "Local MT chung", icon: IconChip },
   { to: "/sources", label: "Nguồn", icon: IconSource },
   { to: "/idioms", label: "Từ điển chung", icon: IconBook },
@@ -61,7 +63,7 @@ const SYSTEM_ITEMS: Item[] = [
 /** Nav chính chỉ giữ 1 mục Hệ thống — bấm vào mở hub card có search. */
 const SYSTEM: Item[] = [{ to: "/system", label: "Hệ thống", icon: IconSettings }];
 
-/** Mọi path thuộc nhóm Hệ thống (hub + 9 trang con) để highlight nav. */
+/** Mọi path thuộc nhóm Hệ thống (hub + 10 trang con) để highlight nav. */
 const SYSTEM_PATHS = ["/system", ...SYSTEM_ITEMS.map((i) => i.to)];
 
 /** Trang của một truyện đã port sang SPA.

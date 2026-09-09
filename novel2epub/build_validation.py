@@ -24,8 +24,9 @@ RE_CODE_FENCE = re.compile(r"```")
 # Dấu chấm lạ: 2+ dấu chấm liên tiếp nhưng không phải "..." chuẩn Việt (1 space trước/sau)
 # Ta flag các dạng: ".." , "...." , " . . .", "…", mixed
 RE_WEIRD_DOTS = re.compile(r"(?:\.{2,}|…{1,}|·{2,}|。{2,})")
-# Dấu câu lặp: !! ?? ,, ;; :: --
-RE_REPEATED_PUNCT = re.compile(r"([!?;,:\-–—])\1{1,}")
+# Dấu câu lặp cần dọn: ,, ;; :: --
+# Lặp ! và ? là cách nhấn mạnh thường dùng trong hội thoại (!!!, ???).
+RE_REPEATED_PUNCT = re.compile(r"([;,:\-–—])\1{1,}")
 # Control chars không in được (ngoại trừ \n, \t)
 RE_CONTROL = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
 # Replacement char �
@@ -102,7 +103,7 @@ def _check_strange_markers(text: str) -> list[dict[str, str]]:
         issues.append({"code": "weird_dots", "level": "info", "message": f"Có {len(dots)} lần '...' / '…' (nhiều)", "hint": "Nhiều dấu lửng, kiểm tra lạm dụng"})
     if RE_REPEATED_PUNCT.search(text):
         cnt = len(RE_REPEATED_PUNCT.findall(text))
-        issues.append({"code": "repeated_punct", "level": "warning", "message": f"Có {cnt} cụm dấu câu lặp (!! ?? ,, ;; )", "hint": "Gộp về 1 dấu"})
+        issues.append({"code": "repeated_punct", "level": "warning", "message": f"Có {cnt} cụm dấu câu lặp (,, ;; :: --)", "hint": "Gộp về 1 dấu"})
     if RE_MANY_BLANKS.search(text):
         issues.append({"code": "many_blanks", "level": "info", "message": "Có đoạn trống 3+ dòng liên tiếp", "hint": "EPUB sẽ gộp thành 1 đoạn; không ảnh hưởng nhưng nên dọn"})
     return issues

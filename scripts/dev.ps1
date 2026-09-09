@@ -138,9 +138,10 @@ Write-Host "  SPA dev : http://localhost:5183/ (proxy /api -> 127.0.0.1:$resolve
 Write-Host "  Bam Ctrl+C de dung" -ForegroundColor Yellow
 
 $backendLog = Join-Path $Root "logs\dev-backend.log"
+$backendErrLog = $backendLog -replace '\.log$', '.err.log'
 New-Item -ItemType Directory -Path (Split-Path $backendLog) -Force | Out-Null
-$backendJob = Start-Process -FilePath $venvPython -ArgumentList @("-m", "uvicorn", "app.main:app", "--reload", "--port", "$resolvedPort", "--host", "127.0.0.1") -WorkingDirectory $Root -RedirectStandardOutput $backendLog -RedirectStandardError $backendLog -PassThru
-Write-Ok "Backend PID $($backendJob.Id) - log: $backendLog"
+$backendJob = Start-Process -FilePath $venvPython -ArgumentList @("-m", "uvicorn", "app.main:app", "--reload", "--port", "$resolvedPort", "--host", "127.0.0.1") -WorkingDirectory $Root -RedirectStandardOutput $backendLog -RedirectStandardError $backendErrLog -PassThru
+Write-Ok "Backend PID $($backendJob.Id) - log: $backendLog (err: $backendErrLog)"
 # Doi backend sẵn sàng (uvicorn --reload cần >2s) thay vì sleep cứng.
 $ready = $false
 for ($i = 1; $i -le 30; $i++) {
@@ -157,6 +158,8 @@ if (-not $ready) {
     Write-Host "  [ERR] Backend chưa nghe :$resolvedPort sau ~15s (exit? $($backendJob.HasExited))" -ForegroundColor Red
     Write-Host "  --- $backendLog ---" -ForegroundColor Yellow
     Get-Content $backendLog -Tail 40 -ErrorAction SilentlyContinue | Write-Host
+    Write-Host "  --- $backendErrLog ---" -ForegroundColor Yellow
+    Get-Content $backendErrLog -Tail 40 -ErrorAction SilentlyContinue | Write-Host
     if (-not $backendJob.HasExited) { Stop-Process -Id $backendJob.Id -Force -ErrorAction SilentlyContinue }
     exit 1
 }

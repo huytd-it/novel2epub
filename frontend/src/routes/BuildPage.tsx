@@ -136,6 +136,9 @@ export function BuildPage() {
   const metaWarnings = data.metadata.filter((m) => m.level === "warning");
   const groups = showAllGroups ? data.validation.groups : data.validation.groups.slice(0, 8);
   const canBuild = data.can_build || force;
+  // Số chương dính từng mã lỗi — cùng mã với trang Chương (build_validation.CONTENT_CHECKS)
+  const chaptersWithCode = (code: string) => data.validation.groups.find((g) => g.code === code)?.count ?? 0;
+  const urlChapters = chaptersWithCode("url");
 
   return (
     <Page
@@ -164,14 +167,15 @@ export function BuildPage() {
           >
             Build EPUB
           </Button>
-          <Button
-            icon={<IconDownload size={14} />}
-            disabled={!data.preview.epub.exists}
+          <a
+            href={data.preview.epub.exists ? apiUrl(`/opds/download/${slug}.epub`) : undefined}
+            download
+            className={clsx("btn btn-sm", !data.preview.epub.exists && "btn-disabled")}
+            aria-disabled={!data.preview.epub.exists}
             title={data.preview.epub.exists ? "Tải EPUB đã build" : "Chưa có EPUB"}
-            onClick={() => (window.location.href = apiUrl(`/ebooks/${slug}/download`))}
           >
-            Tải EPUB
-          </Button>
+            <IconDownload size={14} /> Tải EPUB
+          </a>
         </>
       }
     >
@@ -209,6 +213,7 @@ export function BuildPage() {
         <StatCard label="Tổng số từ" value={num(data.stats.word_count)} hint={`TB ${num(data.stats.avg_words)} từ/chương`} />
         <StatCard label="Tổng ký tự" value={num(data.stats.char_count)} hint={`${num(data.stats.han_total)} Hán còn sót`} tone={data.stats.han_total > 50 ? "warning" : undefined} />
         <StatCard label="Chương lỗi" value={num(data.validation.summary.error)} hint={`${num(data.validation.summary.warning)} cảnh báo`} tone={data.validation.summary.error ? "error" : data.validation.summary.warning ? "warning" : undefined} />
+        <StatCard label="Link còn sót" value={num(urlChapters)} hint={urlChapters ? "Chương còn URL/watermark nguồn" : "Không có URL trong bản dịch"} tone={urlChapters ? "warning" : undefined} />
       </div>
 
       {/* Branches */}
@@ -257,7 +262,7 @@ export function BuildPage() {
       <Panel className="mt-6">
         <PanelHeader
           title="Validate nội dung"
-          hint={`${data.validation.summary.error} lỗi · ${data.validation.summary.warning} cảnh báo · ${data.validation.summary.info} gợi ý`}
+          hint={`${data.validation.summary.error} lỗi · ${data.validation.summary.warning} cảnh báo · ${data.validation.summary.info} gợi ý · cùng bộ luật với trang Chương`}
           actions={
             <>
               <Badge tone={data.validation.summary.error ? "vermilion" : data.validation.summary.warning ? "gold" : "neutral"}>
@@ -399,7 +404,8 @@ export function BuildPage() {
             <div className="mt-3 rounded-box border border-base-300 bg-amber-50/40 px-3 py-2.5 dark:bg-amber-950/20">
               <p className="text-xs font-semibold">Lưu ý trước khi build</p>
               <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs opacity-70">
-                <li>Validate kiểm tra: mã hóa (�, control chars, mojibake), dấu lạ (##, ```, .., !!, …), chính tả (double-space, thừa/thiếu space sau dấu câu, từ lặp), chữ Hán còn sót.</li>
+                <li>Validate kiểm tra: mã hóa (�, control chars, zero-width, mojibake), dấu lạ (##, ```, .., ,,), <strong>link/URL còn sót</strong> (watermark, quảng cáo nguồn), chữ Hán còn sót, chính tả (double-space, thừa/thiếu space quanh dấu câu, từ lặp).</li>
+                <li>Đúng bộ luật đang chạy ở trang Chương — mở chương để xem lỗi được highlight tại từng vị trí và sửa trực tiếp.</li>
                 <li>Nếu muốn bỏ qua cảnh báo và build ngay, tick “Bỏ qua validate & ép build”.</li>
                 <li>Chương “bỏ qua” (skipped) và chương chưa có bản dịch hoàn chỉnh sẽ không vào EPUB.</li>
               </ul>

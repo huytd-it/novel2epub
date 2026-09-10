@@ -208,7 +208,7 @@ function PipelineBar({ slug, epubExists }: { slug: string; epubExists: boolean }
         icon={<IconDownload size={14} />}
         disabled={!epubExists}
         title={epubExists ? "Tải tệp EPUB đã build" : "Chưa có EPUB — hãy chạy Build EPUB trước"}
-        onClick={() => { window.location.href = apiUrl(`/ebooks/${slug}/download`); }}
+        onClick={() => { window.location.href = apiUrl(`/opds/download/${slug}.epub`); }}
       >
         Tải EPUB
       </Button>

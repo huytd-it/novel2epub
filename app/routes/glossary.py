@@ -157,8 +157,11 @@ def ebook_glossary_upsert_entry(
     note: str = Form(""),
     original_source: str = Form(""),
 ):
-    """Autosave MỘT mục (thêm hoặc sửa). Nếu `original_source` khác `source`
-    (đổi tên Hán) thì xoá mục cũ trước rồi upsert mục mới."""
+    """Autosave MỘT mục (thêm hoặc sửa).
+
+    Nếu đổi source thì xoá mục cũ; nếu đổi target thì lan truyền giá trị cũ
+    sang nội dung đã dịch bằng cùng quy tắc với luồng duyệt glossary.
+    """
     source, target = source.strip(), target.strip()
     if not source or not target:
         raise HTTPException(status_code=400, detail="Cần cả Hán và Việt.")
@@ -166,9 +169,20 @@ def ebook_glossary_upsert_entry(
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     orig = original_source.strip()
+    lookup_source = orig or source
+    old_target = next(
+        (
+            existing_target
+            for existing_source, existing_target, _note in storage.read_glossary_entries_merged()
+            if existing_source == lookup_source
+        ),
+        None,
+    )
     if orig and orig != source:
         storage.delete_glossary_entry(orig)
     storage.upsert_glossary_entry(source, target, note)
+    if old_target and old_target != target:
+        storage.apply_replacements([(old_target, target)])
     return JSONResponse({"ok": True})
 
 

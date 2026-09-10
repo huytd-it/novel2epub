@@ -3,12 +3,18 @@
 Kiểm tra:
 - metadata completeness (title/author/description/cover/language)
 - chapter-level: encoding, spelling heuristics, strange markers (##, ..., vv)
-- han remaining, empty/short, title format, duplicate
-Output dùng cho trang Build mới: preview + stats + validation groups.
+- link/URL còn sót, han remaining, empty/short, title format, duplicate
+
+Nội dung chương đi qua đúng MỘT bộ luật `CONTENT_CHECKS`, dùng lại ở ba chỗ:
+`check_content` (gộp theo chương — trang Build), `validate_chapter_detailed`
+(từng vị trí để highlight — trang Chương) và bản mirror client-side
+`frontend/src/lib/validation.ts` (check live lúc đang sửa). Thêm/sửa luật thì
+sửa `CONTENT_CHECKS` và mirror sang file TS, đừng viết check rời.
 """
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -30,118 +36,202 @@ RE_REPEATED_PUNCT = re.compile(r"([;,:\-–—])\1{1,}")
 # Control chars không in được (ngoại trừ \n, \t)
 RE_CONTROL = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
 # Replacement char �
-RE_REPLACEMENT = re.compile(r"\uFFFD")
+RE_REPLACEMENT = re.compile(r"�")
 # Surrogate / isolated? already �
 # Mojibake heuristic: sequence like Ã, Â followed by latin extended
 RE_MOJIBAKE = re.compile(r"[ÃÂ][\x80-\xBF]{1,2}")
 # Mixed zero-width
-RE_ZERO_WIDTH = re.compile(r"[\u200B\u200C\u200D\uFEFF]")
-# Chữ Hán còn sót (CJK)
-RE_HAN = re.compile(r"[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\U00020000-\U0002EBEF]")
+RE_ZERO_WIDTH = re.compile(r"[​‌‍﻿]")
+# Link/URL còn sót: watermark, quảng cáo, "đọc tiếp tại …" của trang nguồn.
+# Nhánh 1 bắt link có scheme/`www.`; nhánh 2 bắt tên miền trần (truyenfull.vn)
+# với TLD phổ biến, chặn hai đầu bằng lớp ký tự Latin mở rộng để không cắn vào
+# chữ tiếng Việt có dấu ("chào.vnghe" không phải link).
+RE_URL = re.compile(
+    r"(?:https?://|www\.)[^\s<>\"'()\[\]]+"
+    r"|(?<![A-Za-zÀ-ỹ0-9@._-])[A-Za-zÀ-ỹ0-9-]+(?:\.[A-Za-zÀ-ỹ0-9-]+)*"
+    r"\.(?:com|net|org|vn|info|xyz|top|club|site|online|io|biz|tv)"
+    r"(?![A-Za-zÀ-ỹ0-9-])(?:/[^\s<>\"'()\[\]]*)?",
+    re.IGNORECASE,
+)
+# Chữ Hán còn sót (CJK) — bản đếm từng ký tự cho stats
+RE_HAN = re.compile(r"[㐀-䶿一-鿿豈-﫿\U00020000-\U0002EBEF]")
+# … và bản gom cụm liên tiếp để highlight (1 issue cho cả cụm, không phải mỗi ký tự)
+RE_HAN_CLUSTER = re.compile(r"[㐀-䶿一-鿿豈-﫿\U00020000-\U0002EBEF]+")
 # Double spaces (không count dòng trống)
 RE_DOUBLE_SPACE = re.compile(r"  +")
 # Space trước dấu câu .,!?;:)
 RE_SPACE_BEFORE_PUNCT = re.compile(r"\s+[,.!?;:)]")
 # Thiếu space sau dấu câu ,.!?;: khi tiếp chữ (ví dụ "xin chào,bạn")
 RE_MISSING_SPACE_AFTER = re.compile(r"[,.!?;:][^\s\d\W]")
-# Repeated words (word lặp liên tiếp)
-RE_REPEATED_WORD = re.compile(r"\b(\w+)\s+\1\b", re.IGNORECASE | re.UNICODE)
-# Trailing spaces per line
-RE_TRAILING_SPACE = re.compile(r" +\n")
-# Too many blank lines (3+ liên tiếp)
-RE_MANY_BLANKS = re.compile(r"\n{3,}")
-
-
-# Spelling: heuristic set - từ lặp, double space đã cover. Thêm:
-# - chữ thường sau dấu chấm không cách? already flagged.
-# - viết hoa bất thường giữa câu? not critical, flag.
-RE_MID_SENTENCE_CAPS = re.compile(r"(?<=[a-zà-ỹ]\s)[A-ZÀ-Ỹ]{2,}")
+# Từ lặp liên tiếp — chỉ chữ cái (không \w) để khớp `\p{L}` phía client và
+# tránh dính số/underscore
+RE_REPEATED_WORD = re.compile(
+    r"(?<![^\W\d_])([^\W\d_]+)\s+\1(?![^\W\d_])", re.IGNORECASE | re.UNICODE
+)
+# Trailing spaces cuối dòng
+RE_TRAILING_SPACE = re.compile(r" +$")
 
 # Metadata thresholds
 MIN_DESCRIPTION_LEN = 20
 MIN_CHAPTER_WORDS = 30  # dưới ngưỡng coi là quá ngắn
 SHORT_CHAPTER_WORDS = 100
 
-HAN_THRESHOLD = 5  # >5 chữ Hán trong bản dịch → warning
-
 # Number of preview chapters to include in detail
 PREVIEW_CHAPTER_LIMIT = 20
 ISSUE_SAMPLE_LIMIT = 30
+DETAILED_ISSUE_LIMIT = 120
 
 
-def _check_encoding(text: str) -> list[dict[str, str]]:
-    issues: list[dict[str, str]] = []
-    if not text:
-        return issues
-    if RE_REPLACEMENT.search(text):
-        issues.append({"code": "replacement_char", "level": "error", "message": "Chứa ký tự � (lỗi mã hóa/giải mã)", "hint": "Bản gốc có thể bị crawl sai encoding; thử crawl lại hoặc kiểm tra source preset encoding"})
-    if RE_CONTROL.search(text):
-        issues.append({"code": "control_char", "level": "error", "message": "Chứa ký tự điều khiển vô hình", "hint": "Có thể do copy từ web; xóa ký tự \\x00-\\x1F"})
-    if RE_ZERO_WIDTH.search(text):
-        issues.append({"code": "zero_width", "level": "warning", "message": "Chứa ký tự zero-width (\\u200B/\\uFEFF)", "hint": "Vô hình nhưng làm sai tìm kiếm; nên xóa"})
-    if RE_MOJIBAKE.search(text):
-        issues.append({"code": "mojibake", "level": "warning", "message": "Nghi ngờ mojibake (ÃÂ…)", "hint": "Có thể double-decode UTF-8; kiểm tra source encoding"})
-    return issues
+# ── Bộ kiểm tra nội dung dùng chung ────────────────────────────────────────
+# MỘT nguồn sự thật cho hai chỗ hiển thị lỗi: trang Chương (highlight từng vị
+# trí qua `validate_chapter_detailed`) và trang Build (gộp theo chương qua
+# `check_content`). Cùng regex, cùng level, cùng ngưỡng nên số liệu hai trang
+# không lệch nhau. `frontend/src/lib/validation.ts` mirror y hệt danh sách này
+# để bản check chạy live lúc đang sửa cũng ra cùng kết quả — sửa ở đây thì sửa
+# luôn ở đó.
 
 
-def _check_strange_markers(text: str) -> list[dict[str, str]]:
-    issues: list[dict[str, str]] = []
-    if not text:
-        return issues
-    if RE_HASH_HEADING.search(text):
-        # count occurrences
-        cnt = len(RE_HASH_HEADING.findall(text))
-        issues.append({"code": "hash_heading", "level": "warning", "message": f"Còn {cnt} dòng bắt đầu bằng ##/# (markdown heading sót)", "hint": "Tiêu đề chương không nên có ##; đã được chuẩn hóa trong pipeline nhưng bản dịch có thể còn"})
-    if RE_CODE_FENCE.search(text):
-        issues.append({"code": "code_fence", "level": "warning", "message": "Chứa ``` (code fence markdown)", "hint": "Không nên có trong truyện; xóa khối code"})
-    # weird dots: chỉ flag ".." (2 chấm) và "...." (4+) — cho phép "..." và "…" đơn là chuẩn
-    dots = RE_WEIRD_DOTS.findall(text)
-    weird = [d for d in dots if d not in ("...", "…")]
-    if weird:
-        issues.append({"code": "weird_dots", "level": "warning", "message": f"Có {len(weird)} cụm dấu chấm lạ (.., ...., ……)", "hint": "Chuẩn hóa về … hoặc ..."})
-    elif len(dots) > 30:
-        issues.append({"code": "weird_dots", "level": "info", "message": f"Có {len(dots)} lần '...' / '…' (nhiều)", "hint": "Nhiều dấu lửng, kiểm tra lạm dụng"})
-    if RE_REPEATED_PUNCT.search(text):
-        cnt = len(RE_REPEATED_PUNCT.findall(text))
-        issues.append({"code": "repeated_punct", "level": "warning", "message": f"Có {cnt} cụm dấu câu lặp (,, ;; :: --)", "hint": "Gộp về 1 dấu"})
-    if RE_MANY_BLANKS.search(text):
-        issues.append({"code": "many_blanks", "level": "info", "message": "Có đoạn trống 3+ dòng liên tiếp", "hint": "EPUB sẽ gộp thành 1 đoạn; không ảnh hưởng nhưng nên dọn"})
-    return issues
+@dataclass(frozen=True)
+class ContentCheck:
+    code: str
+    level: str  # error | warning | info
+    pattern: re.Pattern[str]
+    label: str  # message ngắn khi highlight từng vị trí
+    hint: str
+    summary: str  # message gộp cho trang Build, `{n}` là số chỗ khớp
+    # Số match tối thiểu TRONG MỘT ĐOẠN mới coi là lỗi (từ láy tiếng Việt hay
+    # lặp hợp lệ nên chỉ báo khi bất thường).
+    min_hits: int = 1
+    # Các match đúng chuẩn, bỏ qua ("..." và "…" là dấu lửng hợp lệ).
+    ignore: tuple[str, ...] = ()
 
 
-def _check_spelling(text: str) -> list[dict[str, str]]:
-    issues: list[dict[str, str]] = []
-    if not text:
-        return issues
-    # double spaces (không tính đầu dòng indent)
-    if RE_DOUBLE_SPACE.search(text):
-        cnt = len(RE_DOUBLE_SPACE.findall(text))
-        issues.append({"code": "double_space", "level": "info", "message": f"Có {cnt} chỗ double-space", "hint": "Thừa khoảng trắng"})
-    if RE_SPACE_BEFORE_PUNCT.search(text):
-        cnt = len(RE_SPACE_BEFORE_PUNCT.findall(text))
-        issues.append({"code": "space_before_punct", "level": "info", "message": f"Có {cnt} chỗ thừa space trước dấu câu", "hint": "Ví dụ 'xin chào ,' → 'xin chào,'"})
-    if RE_MISSING_SPACE_AFTER.search(text):
-        cnt = len(RE_MISSING_SPACE_AFTER.findall(text))
-        issues.append({"code": "missing_space_after", "level": "info", "message": f"Có {cnt} chỗ thiếu space sau dấu câu", "hint": "Ví dụ 'xin chào,bạn' → 'xin chào, bạn'"})
-    if RE_REPEATED_WORD.search(text):
-        cnt = len(RE_REPEATED_WORD.findall(text))
-        # Tiếng Việt có nhiều từ láy lặp (từ từ, xa xa, nhè nhẹ) nên chỉ cảnh báo khi lặp nhiều bất thường
-        if cnt > 3:
-            issues.append({"code": "repeated_word", "level": "info", "message": f"Có {cnt} cụm từ lặp liên tiếp", "hint": "Tiếng Việt có từ láy (từ từ, xa xa) — kiểm tra nếu >3 chỗ"})
-    if RE_TRAILING_SPACE.search(text + "\n"):
-        issues.append({"code": "trailing_space", "level": "info", "message": "Có dòng thừa space cuối dòng", "hint": "Không ảnh hưởng EPUB nhưng nên dọn"})
-    return issues
+CONTENT_CHECKS: tuple[ContentCheck, ...] = (
+    ContentCheck(
+        "hash_heading", "warning", RE_HASH_HEADING,
+        "Dòng bắt đầu bằng ##", "Tiêu đề không nên có ##",
+        "Còn {n} dòng bắt đầu bằng ##/# (markdown heading sót)",
+    ),
+    ContentCheck(
+        "code_fence", "warning", RE_CODE_FENCE,
+        "Chứa ```", "Xóa khối code",
+        "Có {n} lần ``` (code fence markdown)",
+    ),
+    ContentCheck(
+        "weird_dots", "warning", RE_WEIRD_DOTS,
+        "Dấu chấm lạ", "Chuẩn hóa về … hoặc ...",
+        "Có {n} cụm dấu chấm lạ (.., ...., ……)",
+        ignore=("...", "…"),
+    ),
+    ContentCheck(
+        "repeated_punct", "warning", RE_REPEATED_PUNCT,
+        "Dấu câu lặp", "Gộp về 1 dấu",
+        "Có {n} cụm dấu câu lặp (,, ;; :: --)",
+    ),
+    ContentCheck(
+        "control_char", "error", RE_CONTROL,
+        "Ký tự điều khiển", "Có thể do copy từ web; xóa ký tự \\x00-\\x1F",
+        "Chứa {n} ký tự điều khiển vô hình",
+    ),
+    ContentCheck(
+        "replacement_char", "error", RE_REPLACEMENT,
+        "Ký tự �", "Crawl sai encoding; kiểm tra source preset rồi crawl lại",
+        "Chứa {n} ký tự � (lỗi mã hóa/giải mã)",
+    ),
+    ContentCheck(
+        "mojibake", "warning", RE_MOJIBAKE,
+        "Mojibake", "Có thể double-decode UTF-8; kiểm tra source encoding",
+        "Nghi ngờ mojibake ở {n} chỗ (ÃÂ…)",
+    ),
+    ContentCheck(
+        "zero_width", "warning", RE_ZERO_WIDTH,
+        "Zero-width", "Vô hình nhưng làm sai tìm kiếm; nên xóa",
+        "Chứa {n} ký tự zero-width (\\u200B/\\uFEFF)",
+    ),
+    ContentCheck(
+        "url", "warning", RE_URL,
+        "Link/URL còn sót", "Watermark hoặc quảng cáo của trang nguồn — xóa hoặc thêm vào strip_patterns",
+        "Còn {n} link/URL trong bản dịch (watermark, quảng cáo nguồn)",
+    ),
+    ContentCheck(
+        "han_remaining", "warning", RE_HAN_CLUSTER,
+        "Chữ Hán còn sót", "Dùng 'Dọn chữ Hán' hoặc dịch lại",
+        "Còn {n} cụm chữ Hán trong bản dịch",
+    ),
+    ContentCheck(
+        "double_space", "info", RE_DOUBLE_SPACE,
+        "Double-space", "Thừa khoảng trắng",
+        "Có {n} chỗ double-space",
+    ),
+    ContentCheck(
+        "space_before_punct", "info", RE_SPACE_BEFORE_PUNCT,
+        "Thừa space trước dấu câu", "Ví dụ 'xin chào ,' → 'xin chào,'",
+        "Có {n} chỗ thừa space trước dấu câu",
+    ),
+    ContentCheck(
+        "trailing_space", "info", RE_TRAILING_SPACE,
+        "Thừa space cuối dòng", "Không ảnh hưởng EPUB nhưng nên dọn",
+        "Có {n} dòng thừa space cuối dòng",
+    ),
+    ContentCheck(
+        "missing_space_after", "info", RE_MISSING_SPACE_AFTER,
+        "Thiếu space sau dấu câu", "Ví dụ 'xin chào,bạn' → 'xin chào, bạn'",
+        "Có {n} chỗ thiếu space sau dấu câu",
+    ),
+    ContentCheck(
+        "repeated_word", "info", RE_REPEATED_WORD,
+        "Từ lặp liên tiếp", "Tiếng Việt có từ láy (từ từ, xa xa) — chỉ báo khi >3 chỗ trong cùng đoạn",
+        "Có {n} cụm từ lặp liên tiếp",
+        min_hits=4,
+    ),
+)
 
 
-def _check_han(text: str) -> list[dict[str, str]]:
-    if not text:
-        return []
-    cnt = len(RE_HAN.findall(text))
-    if cnt >= HAN_THRESHOLD:
-        return [{"code": "han_remaining", "level": "warning" if cnt < 50 else "error", "message": f"Còn {cnt} ký tự Hán trong bản dịch", "hint": "Dùng 'Dọn chữ Hán' hoặc dịch lại"}]
-    if cnt > 0:
-        return [{"code": "han_remaining", "level": "info", "message": f"Còn {cnt} ký tự Hán", "hint": "Ít, có thể là thuật ngữ giữ lại"}]
-    return []
+def scan_content(text: str) -> tuple[list[str], list[tuple[ContentCheck, int, re.Match[str]]]]:
+    """Quét nội dung theo đoạn, trả `(paras, hits)` với hit = (check, para_index, match).
+
+    Tách đoạn đúng bằng `notes.split_paras` (mỗi dòng non-empty = 1 đoạn) nên
+    `para_index` khớp với danh sách đoạn reader đang hiển thị.
+    """
+    from .notes import split_paras
+
+    if not text or not text.strip():
+        return [], []
+    paras = split_paras(text)
+    hits: list[tuple[ContentCheck, int, re.Match[str]]] = []
+    for para_index, para in enumerate(paras):
+        url_spans = [m.span() for m in RE_URL.finditer(para)]
+        for check in CONTENT_CHECKS:
+            matches = [m for m in check.pattern.finditer(para) if m.group(0) not in check.ignore]
+            if check.code != "url":
+                # Dấu chấm/space bên trong link không phải lỗi chính tả —
+                # bản thân cái link đã được báo bằng mã `url`.
+                matches = [
+                    m for m in matches
+                    if not any(s <= m.start() and m.end() <= e for s, e in url_spans)
+                ]
+            if len(matches) < check.min_hits:
+                continue
+            hits.extend((check, para_index, m) for m in matches)
+    return paras, hits
+
+
+def check_content(text: str) -> list[dict[str, str]]:
+    """Bản gộp theo chương cho trang Build — cùng luật với bản highlight per-para."""
+    _paras, hits = scan_content(text)
+    counts: dict[str, int] = {}
+    for check, _para_index, _match in hits:
+        counts[check.code] = counts.get(check.code, 0) + 1
+    return [
+        {
+            "code": check.code,
+            "level": check.level,
+            "message": check.summary.format(n=counts[check.code]),
+            "hint": check.hint,
+        }
+        for check in CONTENT_CHECKS
+        if counts.get(check.code)
+    ]
 
 
 def validate_metadata(cfg, manifest) -> list[dict[str, Any]]:
@@ -214,11 +304,8 @@ def validate_chapter(ch, storage: Storage, publication_text: str | None = None) 
             elif wc < SHORT_CHAPTER_WORDS:
                 issues.append({"code": "short", "level": "info", "message": f"Ngắn ({wc} từ)", "hint": ""})
 
-            # run sub-checks
-            for grp in (_check_encoding(text), _check_strange_markers(text), _check_spelling(text), _check_han(text)):
-                for it in grp:
-                    # attach location hint: chapter index
-                    issues.append(it)
+            # Cùng bộ luật với trang Chương, chỉ khác là gộp theo mã lỗi
+            issues.extend(check_content(text))
 
     # stats
     wc = count_words(text) if text else 0
@@ -238,9 +325,9 @@ def validate_chapter_detailed(text: str, title: str = "") -> dict[str, Any]:
 
     Trả {issues: [{code, level, message, hint, paraIndex, start, end, snippet}], summary, perPara}
     ParaIndex theo notes.split_paras (mỗi dòng non-empty = 1 para). Issues có paraIndex=-1 là lỗi tiêu đề/toàn chương.
+    Cùng `CONTENT_CHECKS` với `check_content` nên trang Chương và trang Build
+    báo đúng một tập lỗi, chỉ khác cách trình bày (từng vị trí vs. gộp số lượng).
     """
-    from .notes import split_paras
-
     issues: list[dict[str, Any]] = []
 
     # title
@@ -256,60 +343,23 @@ def validate_chapter_detailed(text: str, title: str = "") -> dict[str, Any]:
         summary = {"error": sum(1 for i in issues if i["level"] == "error"), "warning": sum(1 for i in issues if i["level"] == "warning"), "info": sum(1 for i in issues if i["level"] == "info"), "total": len(issues)}
         return {"issues": issues, "summary": summary, "perPara": {}, "title": title}
 
-    paras = split_paras(text)
-
-    # helpers to push per-para matches
-    def _push_matches(pattern: re.Pattern, code: str, level: str, message: str, hint: str = ""):
-        for para_idx, para in enumerate(paras):
-            # cần clone pattern vì flag g
-            for m in re.finditer(pattern, para):
-                s, e = m.start(), m.end()
-                # filter weird_dots: bỏ "..." và "…" chuẩn
-                if code == "weird_dots" and m.group(0) in ("...", "…"):
-                    continue
-                snippet = para[max(0, s - 12): min(len(para), e + 12)].strip()
-                issues.append({"code": code, "level": level, "message": message, "hint": hint, "paraIndex": para_idx, "start": s, "end": e, "snippet": snippet})
-
-    _push_matches(RE_HASH_HEADING, "hash_heading", "warning", "Dòng bắt đầu bằng ##", "Tiêu đề không nên có ##")
-    _push_matches(RE_CODE_FENCE, "code_fence", "warning", "Chứa ```", "Xóa khối code")
-    # weird_dots: dùng pattern gốc, sẽ filter trong _push
-    for para_idx, para in enumerate(paras):
-        dots = RE_WEIRD_DOTS.findall(para)
-        weird = [d for d in dots if d not in ("...", "…")]
-        if weird:
-            for m in re.finditer(RE_WEIRD_DOTS, para):
-                if m.group(0) in ("...", "…"):
-                    continue
-                s, e = m.start(), m.end()
-                snippet = para[max(0, s - 12): min(len(para), e + 12)].strip()
-                issues.append({"code": "weird_dots", "level": "warning", "message": "Dấu chấm lạ", "hint": "Chuẩn hóa về …", "paraIndex": para_idx, "start": s, "end": e, "snippet": snippet})
-
-    _push_matches(RE_REPEATED_PUNCT, "repeated_punct", "warning", "Dấu câu lặp", "Gộp về 1 dấu")
-    _push_matches(RE_CONTROL, "control_char", "error", "Ký tự điều khiển", "")
-    _push_matches(RE_REPLACEMENT, "replacement_char", "error", "Ký tự �", "Lỗi mã hóa")
-    _push_matches(RE_MOJIBAKE, "mojibake", "warning", "Mojibake", "")
-    _push_matches(RE_ZERO_WIDTH, "zero_width", "warning", "Zero-width", "")
-    # han: highlight từng cụm han liên tiếp — dùng cluster để tránh duplicate
-    _HAN_CLUSTER = re.compile(r"[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\U00020000-\U0002EBEF]+")
-    for para_idx, para in enumerate(paras):
-        for m in _HAN_CLUSTER.finditer(para):
-            s, e = m.start(), m.end()
-            snippet = para[max(0, s - 6): min(len(para), e + 6)]
-            issues.append({"code": "han_remaining", "level": "warning", "message": "Chữ Hán còn sót", "hint": "Dọn chữ Hán", "paraIndex": para_idx, "start": s, "end": e, "snippet": snippet})
-    _push_matches(RE_DOUBLE_SPACE, "double_space", "info", "Double-space", "")
-    _push_matches(RE_SPACE_BEFORE_PUNCT, "space_before_punct", "info", "Thừa space trước dấu câu", "")
-    _push_matches(RE_TRAILING_SPACE, "trailing_space", "info", "Thừa space cuối dòng", "")
-    # missing_space_after: [,.!?;:][^\s\d\W]
-    _push_matches(re.compile(r"[,.!?;:][^\s\d\W]"), "missing_space_after", "info", "Thiếu space sau dấu câu", "")
-    # repeated_word: only if >3 not handled per para, but we push per occurrence
-    for para_idx, para in enumerate(paras):
-        for m in re.finditer(RE_REPEATED_WORD, para):
-            s, e = m.start(), m.end()
-            snippet = para[max(0, s - 10): min(len(para), e + 10)]
-            issues.append({"code": "repeated_word", "level": "info", "message": "Từ lặp liên tiếp", "hint": "", "paraIndex": para_idx, "start": s, "end": e, "snippet": snippet})
+    paras, hits = scan_content(text)
+    for check, para_index, match in hits:
+        para = paras[para_index]
+        start, end = match.span()
+        issues.append({
+            "code": check.code,
+            "level": check.level,
+            "message": check.label,
+            "hint": check.hint,
+            "paraIndex": para_index,
+            "start": start,
+            "end": end,
+            "snippet": para[max(0, start - 12): min(len(para), end + 12)].strip(),
+        })
     # limit total
-    if len(issues) > 120:
-        issues = issues[:120]
+    if len(issues) > DETAILED_ISSUE_LIMIT:
+        issues = issues[:DETAILED_ISSUE_LIMIT]
 
     per_para: dict[int, list[dict[str, Any]]] = {}
     for iss in issues:

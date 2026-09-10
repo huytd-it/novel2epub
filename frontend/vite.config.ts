@@ -58,7 +58,11 @@ export default defineConfig(({ mode }) => {
               // trong danh sách precache. Không cache API — dữ liệu luôn mới.
               globPatterns: ["**/*.{js,css,html,svg,png,woff2,woff,eot,ttf,ico}"],
               navigateFallback: "/index.html",
-              navigateFallbackDenylist: [/^\/api\//, /^\/opds\//],
+              navigateFallbackDenylist: [
+                /^\/api\//,
+                /^\/opds\//,
+                /^\/ebooks\/[^/]+\/download$/,
+              ],
             },
             devOptions: { enabled: false },
           }),

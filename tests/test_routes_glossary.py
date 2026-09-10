@@ -239,6 +239,30 @@ def test_upsert_entry_inserts_then_renames(tmp_path, monkeypatch):
     assert storage.read_glossary_entries("names.txt") == [("李四", "Lý Tứ", "")]
 
 
+def test_upsert_entry_target_change_propagates_into_translated_chapters(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_glossary_entries("names.txt", [("张三", "Trương Tam", "nhân vật")])
+    storage.write_translated(chapter, "Trương Tam đi chợ. Trương Tam về nhà.")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/entry",
+        data={
+            "source": "张三",
+            "target": "Trần Tam",
+            "note": "nhân vật",
+            "original_source": "张三",
+        },
+    )
+
+    assert res.status_code == 200
+    assert storage.read_glossary_entries("names.txt") == [("张三", "Trần Tam", "nhân vật")]
+    assert storage.read_translated(chapter) == "Trần Tam đi chợ. Trần Tam về nhà."
+
+
 def test_upsert_entry_rejects_blank(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     client = _client(cfg, monkeypatch)

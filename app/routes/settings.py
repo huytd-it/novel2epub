@@ -674,6 +674,46 @@ def get_default_prompts(source_language: str = "", prompt_language: str = ""):
     }
     prompt, title_prompt, base_source = bases[written]
     if source != base_source:
+        source_terms = {
+            "vi": {
+                "vi": ("tiếng Việt", "tiếng Việt", "Việt-Việt"),
+                "en": ("tiếng Anh", "tiếng Anh", "Anh-Việt"),
+                "zh": ("Trung Quốc", "tiếng Trung", "Trung-Việt"),
+            },
+            "en": {
+                "vi": ("Vietnamese", "Vietnamese", "Vietnamese-to-Vietnamese"),
+                "en": ("English", "English", "English-to-Vietnamese"),
+                "zh": ("Chinese", "Chinese", "Chinese-to-Vietnamese"),
+            },
+            "zh": {
+                "vi": ("越南语", "越南语", "越南语到越南语"),
+                "en": ("英语", "英语", "英越"),
+                "zh": ("中国", "中文", "中越"),
+            },
+        }
+        novel_language, syntax_language, title_pair = source_terms[written][source]
+        source_specific = {
+            "vi": (
+                ("tiểu thuyết mạng Trung Quốc", f"tiểu thuyết mạng {novel_language}"),
+                ("cấu trúc câu tiếng Trung", f"cấu trúc câu {syntax_language}"),
+                ("truyện dịch Trung-Việt", f"truyện dịch {title_pair}"),
+            ),
+            "en": (
+                ("an English web novel", f"a {novel_language} web novel"),
+                ("English syntax", f"{syntax_language} syntax"),
+                ("English-to-Vietnamese translated novels", f"{title_pair} translated novels"),
+            ),
+            "zh": (
+                ("中国网络小说", f"{novel_language}网络小说"),
+                ("中文句法", f"{syntax_language}句法"),
+                ("中译越小说", f"{title_pair}小说"),
+                ("待翻译的中文原文", f"待翻译的{syntax_language}原文"),
+            ),
+        }
+        for old, new in source_specific[written]:
+            prompt = prompt.replace(old, new)
+            title_prompt = title_prompt.replace(old, new)
+
         source_names = {
             "vi": {"vi": "tiếng Việt", "en": "tiếng Anh", "zh": "tiếng Trung"},
             "en": {"vi": "Vietnamese", "en": "English", "zh": "Chinese"},

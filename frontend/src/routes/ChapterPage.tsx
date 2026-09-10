@@ -45,6 +45,7 @@ import {
   type FindMode,
 } from "@/components/chapter/ChapterListDrawer";
 import { validateChapterText, type ValidationIssue } from "@/lib/validation";
+import { useEbookSettings } from "@/lib/settings";
 import { NotesPanel } from "@/components/chapter/NotesPanel";
 import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
 import {
@@ -376,12 +377,14 @@ function EditableCompareView({
   index,
   data,
   fontFamily,
+  highlightedParaIndex,
   onError,
 }: {
   slug: string;
   index: number;
   data: ChapterCompare;
   fontFamily: "serif" | "sans" | "mono";
+  highlightedParaIndex: number | null;
   onError: (err: unknown) => void;
 }) {
   const rows = data.paragraphs;
@@ -455,13 +458,26 @@ function EditableCompareView({
         <tbody>
           {rows.map((row, i) => {
             return (
-              <tr key={i} className="border-b border-base-300 align-top last:border-b-0">
+              <tr
+                key={i}
+                data-para-index={i}
+                className={clsx(
+                  "scroll-mt-20 border-b border-base-300 align-top last:border-b-0",
+                  highlightedParaIndex === i && "bg-primary/10",
+                )}
+              >
                 <td data-numeric className="w-10 px-2 py-2 text-[11px] opacity-30">
                   {i + 1}
                 </td>
                 {columns.map(({ key }) => {
                   const value = key === "raw" ? row.raw : row[key];
-                  return <td key={key} className="w-1/3 px-2 py-2 text-[13px] leading-relaxed">
+                  return <td
+                    key={key}
+                    className={clsx(
+                      "w-1/3 px-2 py-2 text-[13px] leading-relaxed",
+                      highlightedParaIndex === i && key === data.active_branch && "ring-2 ring-inset ring-primary/40",
+                    )}
+                  >
                     {editing[i] === key ? (
                       <CompareCellEditor
                         autoFocus
@@ -607,6 +623,7 @@ export function ChapterPage() {
   const queryClient = useQueryClient();
 
   const { data, isPending, error } = useChapter(slug, chapterIndex);
+  const { data: ebookSettings } = useEbookSettings(slug);
   const { data: notes } = useChapterNotes(slug, chapterIndex);
   const saveChapterText = useSaveChapterText(slug, chapterIndex);
   const updateTitle = useUpdateChapterTitle(slug, chapterIndex);
@@ -765,47 +782,6 @@ export function ChapterPage() {
     }
   }, [data?.translated, data?.title, documentDraft, editMode]);
 
-  const handleScrollToPara = (paraIndex: number, start: number, end: number) => {
-    setHighlighted({ paraIndex, start, end });
-    if (paraIndex === -1) {
-      // title
-      const titleEl = document.querySelector("h1");
-      titleEl?.scrollIntoView({ behavior: "smooth", block: "center" });
-      titleEl?.classList.add("ring-2", "ring-primary");
-      setTimeout(() => titleEl?.classList.remove("ring-2", "ring-primary"), 2000);
-      return;
-    }
-    if (editMode && editorRef.current) {
-      const editor = editorRef.current;
-      // tìm offset của para trong documentDraft
-      const lines = documentDraft.split("\n");
-      const paraLineIndexes: number[] = [];
-      lines.forEach((line, idx) => { if (line.trim()) paraLineIndexes.push(idx); });
-      const lineIdx = paraLineIndexes[paraIndex];
-      if (lineIdx !== undefined) {
-        // offset đến đầu dòng
-        let offset = 0;
-        for (let i = 0; i < lineIdx; i++) offset += lines[i].length + 1; // +1 cho \n
-        const selStart = offset + start;
-        const selEnd = offset + end;
-        editor.focus();
-        // scroll: ước lượng dòng * lineHeight
-        const lineHeightPx = Math.round(fontSize * readerPrefs.lineHeight);
-        editor.scrollTop = Math.max(0, lineIdx * lineHeightPx - 80);
-        try {
-          editor.setSelectionRange(selStart, selEnd);
-        } catch {}
-      }
-    } else {
-      const el = document.querySelector(`[data-para-index="${paraIndex}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }
-    // clear highlight after 3s
-    window.setTimeout(() => setHighlighted(null), 3000);
-  };
-
   useLayoutEffect(() => {
     if (!editMode || !editorRef.current) return;
     const editor = editorRef.current;
@@ -836,11 +812,66 @@ export function ChapterPage() {
 
   const [findMode, setFindMode] = useState<FindMode>("list");
   const [highlighted, setHighlighted] = useState<{ paraIndex: number; start: number; end: number } | null>(null);
+  const [scrollRequest, setScrollRequest] = useState<{ paraIndex: number; start: number; end: number } | null>(null);
   const highlightActive = findMode === "errors";
   const [findState, setFindState] = useState<ChapterFindState>(() => loadFindState(slug));
   const [findSubmitted, setFindSubmitted] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   const previewRequestRef = useRef(0);
+  const highlightTimeoutRef = useRef<number | null>(null);
+
+  const regexSuggestions = useMemo(
+    () => [...new Set(
+      (ebookSettings?.source.strip_patterns ?? "")
+        .split(/\r?\n/)
+        .map((pattern) => pattern.trim())
+        .filter(Boolean),
+    )],
+    [ebookSettings?.source.strip_patterns],
+  );
+
+  const handleScrollToPara = (paraIndex: number, start: number, end: number) => {
+    const target = { paraIndex, start, end };
+    setHighlighted(target);
+    setScrollRequest(target);
+    if (paraIndex === -1 || view === "raw") setView("read");
+    if (window.matchMedia("(max-width: 1023px)").matches) setChaptersOpen(false);
+  };
+
+  useEffect(() => {
+    if (!scrollRequest) return;
+    const { paraIndex, start, end } = scrollRequest;
+
+    if (paraIndex === -1) {
+      const titleEl = document.querySelector("[data-chapter-title]");
+      titleEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else if (view === "read" && editMode && editorRef.current) {
+      const editor = editorRef.current;
+      const lines = documentDraft.split("\n");
+      const paraLineIndexes: number[] = [];
+      lines.forEach((line, lineIndex) => { if (line.trim()) paraLineIndexes.push(lineIndex); });
+      const lineIndex = paraLineIndexes[paraIndex];
+      if (lineIndex !== undefined) {
+        const offset = lines.slice(0, lineIndex).reduce((total, line) => total + line.length + 1, 0);
+        editor.focus();
+        editor.scrollTop = Math.max(0, lineIndex * Math.round(fontSize * readerPrefs.lineHeight) - 80);
+        const selectionStart = Math.max(0, Math.min(editor.value.length, offset + start));
+        const selectionEnd = Math.max(selectionStart, Math.min(editor.value.length, offset + end));
+        editor.setSelectionRange(selectionStart, selectionEnd);
+      }
+    } else {
+      const element = document.querySelector(`[data-para-index="${paraIndex}"]`);
+      element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    setScrollRequest(null);
+    if (highlightTimeoutRef.current !== null) window.clearTimeout(highlightTimeoutRef.current);
+    highlightTimeoutRef.current = window.setTimeout(() => setHighlighted(null), 3000);
+  }, [scrollRequest, view, editMode, documentDraft, fontSize, readerPrefs.lineHeight]);
+
+  useEffect(() => () => {
+    if (highlightTimeoutRef.current !== null) window.clearTimeout(highlightTimeoutRef.current);
+  }, []);
 
   const updateFind = (patch: Partial<ChapterFindState>) => {
     setFindState((prev) => {
@@ -1370,6 +1401,7 @@ export function ChapterPage() {
                 index={chapterIndex}
                 data={data}
                 fontFamily={readerPrefs.fontFamily}
+                highlightedParaIndex={highlighted?.paraIndex ?? null}
                 onError={(err) => toast(err instanceof Error ? err.message : String(err), "error")}
               />
             ) : (
@@ -1677,6 +1709,7 @@ export function ChapterPage() {
         mode={findMode}
         onModeChange={setFindMode}
         find={findState}
+        regexSuggestions={regexSuggestions}
         activeFindQuery={findQuery}
         onFindChange={updateFind}
         onChangeSource={changeFindSource}
@@ -1753,6 +1786,7 @@ function ChapterTitle({
   if (editMode && editing) {
     return (
       <textarea
+        data-chapter-title
         ref={editorRef}
         autoFocus
         value={draft}
@@ -1782,6 +1816,7 @@ function ChapterTitle({
 
   return (
     <h1
+      data-chapter-title
       className={clsx(
         "mb-5 whitespace-pre-wrap text-center font-display text-2xl leading-tight",
         editMode && "cursor-text rounded-field outline-dashed outline-1 outline-base-300",

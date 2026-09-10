@@ -8,6 +8,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
+from html import unescape as html_unescape
 
 from urllib.parse import urljoin
 
@@ -126,18 +127,28 @@ def _dedupe_keep_last(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
         if (title.strip() or url not in urls_with_titles) and last_idx[(url, title)] == i
     ]
 
-_CHAPTER_BASE_ID_RE = re.compile(r"(\d+)(?:[_-]\d+)?\.\w+(?:[?#].*)?$")
+_CHAPTER_BASE_ID_RE = re.compile(
+    # .../<id>.html, .../<id>_<page>.html, .../<id>-<page>.html
+    r"(?:(\d+)(?:[_-]\d+)?\.\w+"
+    # .../<id>/, .../<id>_<page>/ — site mobile (vd m.kudushu.org) không có
+    # đuôi file; bắt buộc dấu "/" cuối để không nuốt nhầm URL kiểu /page/2.
+    r"|/(\d+)(?:[_-]\d+)?/)"
+    r"(?:[?#].*)?$"
+)
 
 
 def _chapter_base_id(url: str) -> str | None:
-    """Rút "ID chương" từ URL dạng ``.../<id>.html``, ``.../<id>_<page>.html``
-    hoặc ``.../<id>-<page>.html``.
+    """Rút "ID chương" từ URL dạng ``.../<id>.html``, ``.../<id>_<page>.html``,
+    ``.../<id>-<page>.html`` hoặc dạng không đuôi file ``.../<id>/``,
+    ``.../<id>_<page>/``.
 
     Trả ``None`` nếu URL không khớp dạng này (không đủ tin cậy để so sánh,
     caller nên bỏ qua kiểm tra ranh giới chương trong trường hợp đó).
     """
     m = _CHAPTER_BASE_ID_RE.search(url)
-    return m.group(1) if m else None
+    if not m:
+        return None
+    return m.group(1) or m.group(2)
 
 
 def _crosses_chapter_boundary(base_id: str | None, candidate_url: str | None) -> bool:
@@ -322,6 +333,83 @@ def _extract_href(page_obj, selector: str) -> str:
         if href:
             return str(href).strip()
     return ""
+
+
+_SQUASH_RE = re.compile(r"\s+")
+_SCRIPT_RE = re.compile(r"(?is)<(script|style)\b[^>]*>.*?</\1\s*>")
+# <br> và thẻ đóng khối = ranh giới ĐOẠN khi nội dung là text trần.
+_BLOCK_BREAK_RE = re.compile(r"(?is)<br\s*/?>|</(?:p|div|li|h[1-6]|blockquote|tr)\s*>")
+_TAG_RE = re.compile(r"(?s)<[^>]+>")
+
+# Tỉ lệ tối thiểu (trên tổng ký tự không tính khoảng trắng) mà các <p> phải
+# bao được thì mới tin <p> là chính văn — xem `ScraplingCrawler._extract_text`.
+_PARAGRAPH_COVERAGE = 0.5
+
+
+def _squash(text: str) -> str:
+    """Bỏ mọi khoảng trắng — so khớp text bất kể ``\\xa0`` / xuống dòng."""
+    return _SQUASH_RE.sub("", text or "")
+
+
+def _node_text(el) -> str:
+    """Text của một node DOM, "" nếu không đọc được."""
+    if el is None:
+        return ""
+    getter = getattr(el, "get_all_text", None)
+    if getter is not None:
+        try:
+            value = getter(strip=True)
+        except TypeError:
+            value = getter()
+        if isinstance(value, str):
+            return value.strip()
+    text = getattr(el, "text", "")
+    return text.strip() if isinstance(text, str) else ""
+
+
+def _is_nav_paragraph(el) -> bool:
+    """True nếu ``<p>`` chỉ là thanh điều hướng (toàn bộ text nằm trong ``<a>``).
+
+    Nhiều site truyện đặt "trang trước / mục lục / trang sau" bằng ``<p>`` NGAY
+    TRONG khối nội dung. Lấy chúng làm chính văn vừa lẫn rác vào mọi chương,
+    vừa che mất nội dung thật khi chính văn là text trần (xem `_extract_text`),
+    và làm hỏng luôn phép so trùng nội dung giữa các trang con.
+    """
+    text = _squash(_node_text(el))
+    if not text:
+        return True  # <p> rỗng — không phải chính văn
+    css = getattr(el, "css", None)
+    if css is None:
+        return False
+    try:
+        links = css("a")
+    except Exception:
+        return False
+    if not links:
+        return False
+    return _squash("".join(_node_text(a) for a in links)) == text
+
+
+def _html_paragraphs(node, drop: set[str]) -> list[str]:
+    """Tách đoạn từ HTML của ``node`` — dùng khi chính văn là text trần.
+
+    ``<br>`` và thẻ đóng khối là ranh giới đoạn (``get_all_text`` không phân
+    biệt được ``<br>`` với thẻ inline nên không dùng được ở đây). Bỏ các đoạn
+    có text nằm trong ``drop`` (thanh điều hướng, nhận diện ở tầng DOM).
+    """
+    html = getattr(node, "html_content", "")
+    if not isinstance(html, str) or not html:
+        text = _node_text(node)
+        return [text] if text else []
+    html = _SCRIPT_RE.sub("", html)
+    html = _BLOCK_BREAK_RE.sub("\n\n", html)
+    text = html_unescape(_TAG_RE.sub("", html))
+    out: list[str] = []
+    for chunk in text.split("\n\n"):
+        chunk = chunk.strip()
+        if chunk and _squash(chunk) not in drop:
+            out.append(chunk)
+    return out
 
 
 
@@ -779,26 +867,29 @@ class ScraplingCrawler:
         if node is None:
             return ""
 
-        text = ""
-        paras = node.css("p")
-        if paras:
-            parts = []
-            for p in paras:
-                if hasattr(p, "get_all_text"):
-                    p_text = p.get_all_text(strip=True)
-                else:
-                    p_text = p.text if hasattr(p, 'text') else ""
-                    p_text = p_text.strip() if p_text else ""
-                if p_text:
-                    parts.append(p_text)
-            if parts:
-                text = "\n\n".join(parts)
-        if not text:
-            if hasattr(node, "get_all_text"):
-                text = node.get_all_text(strip=True)
-            else:
-                text = node.text if hasattr(node, 'text') else ""
-                text = text.strip() if text else ""
+        # Bỏ <p> điều hướng ("trang trước / mục lục / trang sau") — không phải
+        # chính văn, và nhớ text của chúng để lọc nốt ở nhánh text trần.
+        nav: set[str] = set()
+        parts: list[str] = []
+        for p in node.css("p"):
+            if _is_nav_paragraph(p):
+                nav.add(_squash(_node_text(p)))
+                continue
+            p_text = _node_text(p)
+            if p_text:
+                parts.append(p_text)
+        nav.discard("")
+
+        para_text = "\n\n".join(parts)
+        full_text = "\n\n".join(_html_paragraphs(node, nav))
+
+        # Có site chỉ bọc <p> từ trang 2 trở đi, còn trang đầu để chính văn là
+        # text trần cạnh <br> (vd m.kudushu.org). Khi đó <p> chỉ ôm được một
+        # phần nhỏ nội dung — tin vào <p> là mất trắng trang đầu.
+        if para_text and len(_squash(para_text)) >= _PARAGRAPH_COVERAGE * len(_squash(full_text)):
+            text = para_text
+        else:
+            text = full_text
 
         return self._clean(text)
 

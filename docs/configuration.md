@@ -47,6 +47,8 @@ Scrapling nằm trong `crawl.scrapling`: `mode`, `solve_cloudflare`, `network_id
 
 Phân trang chương dùng `next_page_selector` hoặc `next_page_url_pattern` có đúng một capture group. Phân trang TOC dùng `toc_next_page_selector` và `toc_max_pages`.
 
+Trong vùng `content_selector`, bộ trích nội dung tự bỏ các `<p>` chỉ chứa link điều hướng ("trang trước / mục lục / trang sau"), và tự chuyển sang đọc text trần khi chính văn không được bọc `<p>` — khi đó `<br>` và thẻ đóng khối là ranh giới đoạn. Vòng phân trang dừng khi URL trang kế trỏ sang chương khác, nhận biết qua ID chương trong URL dạng `.../<id>.html`, `.../<id>_<trang>.html` hoặc `.../<id>/`, `.../<id>_<trang>/`.
+
 Retry dùng `attempts`, `delay_seconds`, `backoff`, `max_delay_seconds` và `respect_retry_after`.
 
 ## Dịch

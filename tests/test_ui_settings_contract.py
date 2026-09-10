@@ -141,6 +141,33 @@ def test_default_prompts_support_three_by_three_language_matrix(client):
     assert len(set(prompts.values())) == 9
 
 
+def test_default_prompt_language_does_not_override_chinese_source(client):
+    response = client.get(
+        "/settings/translate/default-prompts",
+        params={"source_language": "zh", "prompt_language": "en"},
+    )
+
+    body = response.json()
+    assert "a Chinese web novel" in body["prompt_template"]
+    assert "Chinese syntax" in body["prompt_template"]
+    assert "an English web novel" not in body["prompt_template"]
+    assert "English syntax" not in body["prompt_template"]
+    assert "Chinese-to-Vietnamese translated novels" in body["title_prompt_template"]
+
+
+def test_vietnamese_prompt_uses_selected_english_source(client):
+    response = client.get(
+        "/settings/translate/default-prompts",
+        params={"source_language": "en", "prompt_language": "vi"},
+    )
+
+    body = response.json()
+    assert "tiểu thuyết mạng tiếng Anh" in body["prompt_template"]
+    assert "cấu trúc câu tiếng Anh" in body["prompt_template"]
+    assert "tiểu thuyết mạng Trung Quốc" not in body["prompt_template"]
+    assert "truyện dịch Anh-Việt" in body["title_prompt_template"]
+
+
 def test_danh_sach_tra_ve_dang_van_ban_moi_dong_mot_muc(client):
     """`subjects` và `strip_patterns` là list trong config nhưng form nhận text.
 

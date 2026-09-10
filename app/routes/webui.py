@@ -908,6 +908,33 @@ def ebook_chapter_save(slug: str, index: int, payload: dict = Body(...)):
     }
 
 
+@router.post("/ebooks/{slug}/chapters/{index}/raw")
+def ebook_chapter_raw_save(slug: str, index: int, payload: dict = Body(...)):
+    """Ghi toàn văn bản gốc với khóa chống ghi đè theo nội dung hiện tại."""
+    raw = payload.get("raw")
+    expected_raw = payload.get("expected_raw")
+    if not isinstance(raw, str) or not isinstance(expected_raw, str):
+        raise HTTPException(status_code=400, detail="Thiếu trường 'raw' hoặc 'expected_raw'.")
+
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chưa có mục lục.")
+
+    chapter = next((c for c in manifest.chapters if c.index == index), None)
+    if chapter is None:
+        raise HTTPException(status_code=404, detail=f"Không có chương {index}.")
+    if storage.read_raw(chapter) != expected_raw:
+        raise HTTPException(
+            status_code=409,
+            detail="Bản gốc đã thay đổi sau khi mở trang — tải lại trước khi ghi.",
+        )
+
+    storage.write_raw(chapter, raw)
+    return {"saved": True, "raw_char_count": len(raw)}
+
+
 @router.post("/ebooks/{slug}/chapters/{index}/compare/block")
 def ebook_chapter_compare_block(slug: str, index: int, payload: dict = Body(...)):
     """Sửa/xóa ĐOẠN trong khung đối chiếu 3 cột (bản gốc | dịch máy | bản hiện tại).

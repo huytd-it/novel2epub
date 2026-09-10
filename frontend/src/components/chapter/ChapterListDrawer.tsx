@@ -63,6 +63,7 @@ export function ChapterListDrawer({
   mode,
   onModeChange,
   find,
+  regexSuggestions,
   activeFindQuery,
   onFindChange,
   onChangeSource,
@@ -100,6 +101,7 @@ export function ChapterListDrawer({
   mode: FindMode;
   onModeChange: (mode: FindMode) => void;
   find: ChapterFindState;
+  regexSuggestions?: string[];
   activeFindQuery: string;
   onFindChange: (patch: Partial<ChapterFindState>) => void;
   onChangeSource: (source: FindSource) => void;
@@ -237,7 +239,7 @@ export function ChapterListDrawer({
         >
           <div className="flex items-center justify-between border-b border-base-300 px-3 py-2.5">
             <h2 className="text-[13px] font-semibold">
-              {mode === "search" ? "Tìm/thay trong truyện" : "Danh sách chương"}
+              {mode === "search" ? "Tìm/thay trong truyện" : mode === "errors" ? "Lỗi chương" : "Danh sách chương"}
             </h2>
             <div className="flex items-center gap-1">
               {mode === "search" ? (
@@ -350,6 +352,7 @@ export function ChapterListDrawer({
             ) : mode === "search" ? (
               <FindReplacePanel
                 find={find}
+                regexSuggestions={regexSuggestions}
                 activeFindQuery={activeFindQuery}
                 onFindChange={onFindChange}
                 onChangeSource={onChangeSource}
@@ -473,6 +476,7 @@ export function ChapterListDrawer({
 
 const FindReplacePanel = memo(function FindReplacePanel({
   find,
+  regexSuggestions = [],
   activeFindQuery,
   onFindChange,
   onChangeSource,
@@ -492,6 +496,7 @@ const FindReplacePanel = memo(function FindReplacePanel({
   onClearSearch,
 }: {
   find: ChapterFindState;
+  regexSuggestions?: string[];
   activeFindQuery: string;
   onFindChange: (patch: Partial<ChapterFindState>) => void;
   onChangeSource: (source: FindSource) => void;
@@ -547,6 +552,21 @@ const FindReplacePanel = memo(function FindReplacePanel({
           placeholder="Chuỗi cần tìm"
           aria-label="Chuỗi cần tìm trong toàn truyện"
         />
+        {regexSuggestions.length > 0 ? (
+          <select
+            className="select select-sm w-full font-mono text-xs"
+            value=""
+            onChange={(event) => {
+              if (event.target.value) onFindChange({ query: event.target.value, regex: true });
+            }}
+            aria-label="Gợi ý regex loại bỏ nội dung thừa"
+          >
+            <option value="">Gợi ý từ Regex loại bỏ nội dung thừa…</option>
+            {regexSuggestions.map((pattern) => (
+              <option key={pattern} value={pattern}>{pattern}</option>
+            ))}
+          </select>
+        ) : null}
         <input
           className="input input-sm w-full"
           value={find.replacement}
@@ -1004,7 +1024,7 @@ function ErrorsPanel({
         </ul>
       </div>
       <p className="border-t border-base-300 bg-base-200/30 px-3 py-2 text-[11px] opacity-60">
-        Bấm “Đi tới” sẽ cuộn đến vị trí lỗi và highlight. Highlight hiển thị ở cả chế độ Đọc và Sửa khi tab Lỗi đang mở.
+        Bấm “Đi tới” sẽ mở đúng chế độ, cuộn đến vị trí lỗi và highlight trong Đọc, Sửa hoặc Đối chiếu.
       </p>
     </div>
   );

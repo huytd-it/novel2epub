@@ -94,6 +94,33 @@ def test_save_toan_van_stale_expected_rev_tra_409(client):
     assert storage.read_translated(ch) == "người khác sửa"
 
 
+def test_save_raw_toan_van_voi_expected_raw_hop_le(client):
+    _client, storage = client
+    storage.write_raw(ch, "bản gốc cũ")
+
+    res = _client.post(
+        "/api/ui/ebooks/t/chapters/1/raw",
+        json={"raw": "bản gốc mới", "expected_raw": "bản gốc cũ"},
+    )
+
+    assert res.status_code == 200
+    assert res.json() == {"saved": True, "raw_char_count": len("bản gốc mới")}
+    assert storage.read_raw(ch) == "bản gốc mới"
+
+
+def test_save_raw_stale_expected_raw_tra_409(client):
+    _client, storage = client
+    storage.write_raw(ch, "người khác sửa")
+
+    res = _client.post(
+        "/api/ui/ebooks/t/chapters/1/raw",
+        json={"raw": "bản mới của tôi", "expected_raw": "bản gốc cũ"},
+    )
+
+    assert res.status_code == 409
+    assert storage.read_raw(ch) == "người khác sửa"
+
+
 def test_confirm_candidate_ap_dung_optimistic(client):
     _client, storage = client
     rid = _pending_revision(storage)

@@ -459,3 +459,187 @@ def format_evaluation_text(report: dict) -> str:
         if reason:
             lines.append(f"     Lý do: {reason}")
     return "\n".join(lines)
+
+
+# ── Trợ lý AI: dịch lại HÀNG LOẠT các mục glossary đã chọn ─────────────
+
+RETRANSLATE_PROMPT = """Bạn là biên tập viên xây dựng glossary cho truyện dịch Trung -> Việt.
+
+Nhiệm vụ: RÀ SOÁT danh sách mục glossary dưới đây và trả về cách dịch ĐÚNG, nhất quán cho từng mục. Đây là bảng đồng bộ cách dịch xuyên suốt truyện, không phải từ điển — ưu tiên ngắn gọn, tự nhiên, đọc lên nhận ra ngay là tên riêng/thuật ngữ.
+
+Nguyên tắc:
+1. Tên riêng (người, địa danh, môn phái, chức danh) dùng phiên âm Hán Việt chuẩn, viết hoa từng chữ (vd: 李逸 = Lý Dịch).
+2. Thuật ngữ tu luyện/công pháp/pháp bảo giữ Hán Việt nếu đã quen thuộc với độc giả truyện Trung, dịch nghĩa khi bản Hán Việt tối nghĩa.
+3. SỬA các lỗi: bản dịch còn sót chữ Trung, chép y hệt bản Hán, phiên âm Hán Việt sai, viết hoa lộn xộn, thừa/thiếu khoảng trắng.
+4. GIỮ NGUYÊN bản dịch hiện tại nếu nó đã đúng — trả lại đúng giá trị cũ, đừng đổi vì sở thích văn phong.
+5. KHÔNG bịa mục mới, KHÔNG bỏ mục, KHÔNG đổi cột Hán. Mỗi mục đầu vào có đúng một mục đầu ra.
+{story}{context}{genre}
+--- Danh sách cần rà soát ---
+{entries}
+
+Chỉ trả về JSON array, không kèm giải thích, không dùng code fence. Mỗi phần tử:
+{{"source": "<Hán y hệt đầu vào>", "target": "<bản dịch Việt đúng>", "reason": "<lý do ngắn, bỏ trống nếu giữ nguyên>"}}
+"""
+
+
+def _format_context_block(context: str) -> str:
+    """Khối mô tả bối cảnh truyện (`translate.context_note`) chèn vào prompt.
+
+    Rỗng khi người dùng chưa nhập — không nhét một tiêu đề trống vào prompt.
+    """
+    context = (context or "").strip()
+    if not context:
+        return ""
+    return f"\nBối cảnh truyện (do người dịch cung cấp, ưu tiên tuân theo):\n{context}\n"
+
+
+# Giới thiệu truyện dài cả nghìn chữ mà chỉ dùng để AI đoán bối cảnh — cắt cho
+# khỏi ăn mất ngân sách prompt của chính danh sách từ cần dịch.
+_STORY_DESCRIPTION_MAX = 800
+
+
+def _format_story_block(story: dict | None) -> str:
+    """Khối metadata truyện (tên, tác giả, giới thiệu) chèn vào prompt.
+
+    Tên truyện và phần giới thiệu cho AI biết đây là tiên hiệp hay đô thị, nhân
+    vật họ gì, hệ thống sức mạnh gọi là gì — rẻ hơn nhiều so với gửi kèm một
+    chương raw, mà đủ để phiên âm tên riêng cho đúng.
+    """
+    if not story:
+        return ""
+    title = str(story.get("title", "") or "").strip()
+    author = str(story.get("author", "") or "").strip()
+    description = " ".join(str(story.get("description", "") or "").split())
+    if len(description) > _STORY_DESCRIPTION_MAX:
+        description = description[:_STORY_DESCRIPTION_MAX].rstrip() + "…"
+
+    lines = []
+    if title:
+        lines.append(f"- Tên truyện: {title}")
+    if author:
+        lines.append(f"- Tác giả: {author}")
+    if description:
+        lines.append(f"- Giới thiệu: {description}")
+    if not lines:
+        return ""
+    return "\nThông tin truyện:\n" + "\n".join(lines) + "\n"
+
+
+def _format_terms(entries: list[dict]) -> str:
+    lines = []
+    for e in entries:
+        line = f"- {e['source']} = {e.get('target', '') or '(chưa có)'}"
+        note = str(e.get("note", "") or "").strip()
+        if note:
+            line += f" | {note}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _chunk_terms(entries: list[dict], max_chars: int, *, overhead: int = 0) -> list[list[dict]]:
+    """Chia danh sách mục thành các lô vừa ngân sách ký tự của MỘT prompt.
+
+    Ngân sách trừ sẵn phần khung prompt cộng `overhead` (các khối thông tin
+    truyện/bối cảnh/thể loại lặp lại ở MỌI lô); lô luôn có ít nhất 1 mục để một
+    mục dài bất thường không tạo lô rỗng lặp vô hạn.
+    """
+    budget = (
+        max(500, int(max_chars or 0) - len(RETRANSLATE_PROMPT) - overhead - 500) if max_chars else 0
+    )
+    if not budget:
+        return [entries] if entries else []
+    chunks: list[list[dict]] = []
+    current: list[dict] = []
+    size = 0
+    for entry in entries:
+        cost = len(_format_terms([entry])) + 1
+        if current and size + cost > budget:
+            chunks.append(current)
+            current, size = [], 0
+        current.append(entry)
+        size += cost
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _parse_retranslations(text: str, valid_sources: set[str]) -> list[dict]:
+    """Parse JSON array trả về, chỉ giữ mục có `source` nằm trong đầu vào.
+
+    AI đổi/bịa cột Hán là lỗi thầm lặng tệ nhất ở đây (tạo mục rác, hoặc ghi
+    đè nhầm mục khác) nên lọc thẳng theo danh sách đã gửi đi.
+    """
+    text = _clean_output(text, normalize_punctuation=False)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        match = _JSON_ARRAY.search(text)
+        if not match:
+            return []
+        try:
+            data = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(data, list):
+        return []
+
+    out: list[dict] = []
+    seen: set[str] = set()
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get("source", "")).strip()
+        target = str(item.get("target", "")).strip()
+        if not source or not target or source in seen or source not in valid_sources:
+            continue
+        seen.add(source)
+        out.append({"source": source, "target": target, "reason": str(item.get("reason", "")).strip()})
+    return out
+
+
+def retranslate_terms(
+    ai_cfg: OpenAIConfig,
+    entries: list[dict],
+    *,
+    story: dict | None = None,
+    context: str = "",
+    genre: str = "auto",
+    max_chars: int = 20000,
+    log=None,
+) -> list[dict]:
+    """Nhờ AI dịch lại các mục glossary đã chọn, trả `[{source, target, reason}]`.
+
+    `story` là metadata truyện (`title`, `author`, `description`) và `context`
+    là mô tả người dịch tự viết — cả hai đi vào phần đầu prompt để AI biết đang
+    dịch truyện gì trước khi phiên âm tên riêng.
+
+    Chia lô theo ngân sách prompt và gọi nhiều lần; lô lỗi (mạng/parse) chỉ bị
+    bỏ qua kèm log — mất một lô không được làm hỏng cả đợt. Kết quả CHƯA ghi
+    vào glossary: caller đẩy vào hàng chờ duyệt.
+    """
+    entries = [e for e in entries if str(e.get("source", "")).strip()]
+    if not entries:
+        return []
+
+    story_block = _format_story_block(story)
+    context_block = _format_context_block(context)
+    genre_block = _format_genre_block(genre)
+    results: list[dict] = []
+    chunks = _chunk_terms(entries, max_chars, overhead=len(story_block) + len(context_block) + len(genre_block))
+    for i, chunk in enumerate(chunks, 1):
+        prompt = RETRANSLATE_PROMPT.format(
+            story=story_block, context=context_block, genre=genre_block, entries=_format_terms(chunk)
+        )
+        if log:
+            log(f"[glossary-ai] Lô {i}/{len(chunks)}: {len(chunk)} mục…")
+        try:
+            output = openai_client.run_chat(ai_cfg, prompt)
+        except Exception as exc:  # noqa: BLE001 — mất một lô, không sập cả đợt
+            if log:
+                log(f"[glossary-ai] Lô {i} lỗi gọi AI: {exc}")
+            continue
+        parsed = _parse_retranslations(output, {e["source"] for e in chunk})
+        if log and not parsed:
+            log(f"[glossary-ai] Lô {i}: AI không trả mục hợp lệ nào.")
+        results.extend(parsed)
+    return results

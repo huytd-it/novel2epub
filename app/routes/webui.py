@@ -1209,6 +1209,7 @@ def ebook_settings(slug: str):
             "auto_glossary": tr.auto_glossary,
             "use_idioms": tr.use_idioms,
             "ai_glossary_analysis": tr.ai_glossary_analysis,
+            "context_note": tr.context_note,
             "auto_cleanup_han": tr.auto_cleanup_han,
             "cleanup_han_engine": tr.cleanup_han.engine,
             "cleanup_han_max_chars": tr.cleanup_han.max_chars,

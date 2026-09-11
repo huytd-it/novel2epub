@@ -700,6 +700,48 @@ export function ChapterPage() {
       return next;
     });
   };
+  const clampDrawerWidth = (v: number) => Math.min(560, Math.max(280, Math.round(v)));
+  const [drawerWidth, setDrawerWidth] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(`n2e-drawer-width:${slug}`) ?? localStorage.getItem("n2e-drawer-width") ?? "";
+      const n = Number(raw);
+      return n ? clampDrawerWidth(n) : 320;
+    } catch {
+      return 320;
+    }
+  });
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`n2e-drawer-width:${slug}`) ?? localStorage.getItem("n2e-drawer-width") ?? "";
+      const n = Number(raw);
+      setDrawerWidth(n ? clampDrawerWidth(n) : 320);
+    } catch {
+      setDrawerWidth(320);
+    }
+  }, [slug]);
+  const persistDrawerWidth = (w: number) => {
+    const v = clampDrawerWidth(w);
+    setDrawerWidth(v);
+    try {
+      localStorage.setItem("n2e-drawer-width", String(v));
+      localStorage.setItem(`n2e-drawer-width:${slug}`, String(v));
+    } catch {
+      /* ignore */
+    }
+  };
+  const [isDesktop, setIsDesktop] = useState(() => {
+    try {
+      return window.matchMedia("(min-width: 1024px)").matches;
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => setIsDesktop(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
   const [notesOpen, setNotesOpen] = useState(false);
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const [documentDraft, setDocumentDraft] = useState("");
@@ -1185,9 +1227,12 @@ export function ChapterPage() {
 
   const isBookmarked = bookmark === chapterIndex;
 
+  const drawerEffectiveCollapsed = chaptersCollapsed && findMode === "list";
+  const outerPadRight = !isDesktop ? undefined : drawerEffectiveCollapsed ? 40 : drawerWidth;
   return (
     <div
-      className={clsx("min-h-screen", chaptersCollapsed ? "lg:pr-10" : "lg:pr-80")}
+      className="min-h-screen"
+      style={outerPadRight !== undefined ? { paddingRight: outerPadRight } : undefined}
     >
       {/* ── Thanh công cụ ─────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 border-b border-base-300 bg-base-100/95 backdrop-blur">
@@ -1740,6 +1785,8 @@ export function ChapterPage() {
         onBulkLocalMt={() => setBulkLocalMtOpen(true)}
         validation={chapterValidation}
         onScrollToPara={handleScrollToPara}
+        width={drawerWidth}
+        onWidthChange={persistDrawerWidth}
       />
       <NotesPanel
         open={notesOpen}

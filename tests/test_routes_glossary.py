@@ -263,6 +263,310 @@ def test_upsert_entry_target_change_propagates_into_translated_chapters(tmp_path
     assert storage.read_translated(chapter) == "Trần Tam đi chợ. Trần Tam về nhà."
 
 
+def test_list_filter_keeps_only_flagged_entries_and_paginates(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries(
+        "names.txt",
+        [
+            ("李逸", "Lý Dịch", ""),
+            ("王五", "Vương 五", ""),       # Việt còn chữ Hán
+            ("Tiêu Viêm", "Tiêu Viêm", ""),  # Hán lẫn Latin + trùng Việt
+            ("张三", "张三", ""),            # Việt trùng Hán
+        ],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.get("/api/ebooks/t/glossary/list?page=1&per_page=50&filter=vi_han")
+    body = res.json()
+    assert res.status_code == 200
+    assert [e["source"] for e in body["entries"]] == ["王五", "张三"]
+    assert body["total"] == 2
+
+    # Nhiều cờ = OR.
+    body = client.get("/api/ebooks/t/glossary/list?page=1&per_page=50&filter=han_latin,same").json()
+    assert [e["source"] for e in body["entries"]] == ["Tiêu Viêm", "张三"]
+
+    # Phân trang chạy trên tập ĐÃ lọc.
+    body = client.get("/api/ebooks/t/glossary/list?page=2&per_page=1&filter=vi_han").json()
+    assert [e["source"] for e in body["entries"]] == ["张三"]
+    assert (body["pages"], body["total"]) == (2, 2)
+
+    # Cờ lạ bị bỏ qua → về đúng nhánh không lọc.
+    assert client.get("/api/ebooks/t/glossary/list?filter=bogus").json()["total"] == 4
+
+
+def test_list_filter_combines_with_search_and_sort(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries(
+        "names.txt",
+        [("王五", "Vương 五", "phụ"), ("李逸", "Lý 逸", "chính"), ("张三", "Trương Tam", "")],
+    )
+    client = _client(cfg, monkeypatch)
+
+    body = client.get("/api/ebooks/t/glossary/list?filter=vi_han&q=chính").json()
+    assert [e["source"] for e in body["entries"]] == ["李逸"]
+
+    body = client.get("/api/ebooks/t/glossary/list?filter=vi_han&sort=target&dir=desc").json()
+    assert [e["target"] for e in body["entries"]] == ["Vương 五", "Lý 逸"]
+
+
+def test_flags_endpoint_counts_match_the_filter(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries(
+        "names.txt", [("李逸", "Lý Dịch", ""), ("王五", "Vương 五", ""), ("张三", "张三", "")]
+    )
+    client = _client(cfg, monkeypatch)
+
+    body = client.get("/api/ebooks/t/glossary/flags").json()
+    counts = {f["key"]: f["count"] for f in body["flags"]}
+
+    assert body["total"] == 3
+    assert counts["vi_han"] == 2
+    assert counts["same"] == 1
+    assert all(f["label"] for f in body["flags"])
+    for key, count in counts.items():
+        listed = client.get(f"/api/ebooks/t/glossary/list?per_page=500&filter={key}").json()["total"]
+        assert listed == count
+
+
+def test_ai_retranslate_queues_changed_entries_for_review(tmp_path, monkeypatch):
+    from novel2epub import glossary_ai
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries(
+        "names.txt", [("李逸", "Ly Dat", "nhân vật"), ("王五", "Vương Ngũ", "")]
+    )
+    monkeypatch.setattr(
+        glossary_ai.openai_client,
+        "run_chat",
+        lambda ai_cfg, prompt: '[{"source": "李逸", "target": "Lý Dịch", "reason": "phiên âm"},'
+        ' {"source": "王五", "target": "Vương Ngũ"}]',
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/ai/retranslate",
+        json={"sources": ["李逸", "王五", "李逸"], "instruction": "giữ Hán Việt"},
+    )
+
+    assert res.status_code == 200
+    assert res.json() == {"started": True, "requested": 2}
+    # Glossary CHƯA đổi — chỉ hàng chờ duyệt có mục mới.
+    assert storage.read_glossary_entries("names.txt") == [
+        ("李逸", "Ly Dat", "nhân vật"),
+        ("王五", "Vương Ngũ", ""),
+    ]
+    pending = storage.read_extra_json("glossary_pending")
+    assert [(p["source"], p["existing_target"], p["target"]) for p in pending] == [
+        ("李逸", "Ly Dat", "Lý Dịch")
+    ]
+
+
+def test_ai_retranslate_prompt_carries_story_metadata_and_context(tmp_path, monkeypatch):
+    from novel2epub import glossary_ai
+
+    cfg = _cfg(tmp_path)
+    cfg.novel.title = "Bắt Đầu Trường Sinh"
+    cfg.novel.author = "Yuki"
+    cfg.novel.description = "Thẩm Nghị xuyên không đến thế giới yêu ma."
+    cfg.translate.context_note = "Nhân vật chính họ Thẩm, xưng ta/ngươi."
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [("李逸", "Ly Dat", "")])
+    prompts: list[str] = []
+
+    def _mock(ai_cfg, prompt):
+        prompts.append(prompt)
+        return "[]"
+
+    monkeypatch.setattr(glossary_ai.openai_client, "run_chat", _mock)
+    client = _client(cfg, monkeypatch)
+
+    client.post(
+        "/api/ebooks/t/glossary/ai/retranslate",
+        json={"sources": ["李逸"], "instruction": "ưu tiên Hán Việt"},
+    )
+
+    assert len(prompts) == 1
+    assert "Tên truyện: Bắt Đầu Trường Sinh" in prompts[0]
+    assert "Tác giả: Yuki" in prompts[0]
+    assert "Thẩm Nghị xuyên không" in prompts[0]
+    # Mô tả trong Cài đặt và yêu cầu riêng của lần chạy đều vào prompt.
+    assert "Nhân vật chính họ Thẩm" in prompts[0]
+    assert "ưu tiên Hán Việt" in prompts[0]
+
+
+def test_ai_retranslate_replaces_older_pending_row_for_same_source(tmp_path, monkeypatch):
+    from novel2epub import glossary_ai
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [("李逸", "Ly Dat", "")])
+    storage.write_extra_json(
+        "glossary_pending",
+        [{"source": "李逸", "existing_target": "Ly Dat", "target": "Lý Dật", "chapter_index": 3, "note": ""}],
+    )
+    monkeypatch.setattr(
+        glossary_ai.openai_client,
+        "run_chat",
+        lambda ai_cfg, prompt: '[{"source": "李逸", "target": "Lý Dịch"}]',
+    )
+    client = _client(cfg, monkeypatch)
+
+    client.post("/api/ebooks/t/glossary/ai/retranslate", json={"sources": ["李逸"]})
+
+    pending = storage.read_extra_json("glossary_pending")
+    assert [p["target"] for p in pending] == ["Lý Dịch"]
+
+
+def test_ai_retranslate_skips_rows_whose_source_is_not_chinese(tmp_path, monkeypatch):
+    """Mục Hán/Việt bị đảo không gửi cho AI: AI không đổi được cột Hán nên đề
+    xuất sinh ra sẽ bị bước Duyệt từ chối (400) — vô dụng và khó hiểu."""
+    from novel2epub import glossary_ai
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries(
+        "names.txt", [("Chi Lực Giao Long", "蛟龙之力", ""), ("李逸", "Ly Dat", "")]
+    )
+    prompts: list[str] = []
+
+    def _mock(ai_cfg, prompt):
+        prompts.append(prompt)
+        return '[{"source": "李逸", "target": "Lý Dịch"}]'
+
+    monkeypatch.setattr(glossary_ai.openai_client, "run_chat", _mock)
+    client = _client(cfg, monkeypatch)
+
+    client.post(
+        "/api/ebooks/t/glossary/ai/retranslate",
+        json={"sources": ["Chi Lực Giao Long", "李逸"]},
+    )
+
+    assert "Chi Lực Giao Long" not in prompts[0]
+    assert [p["source"] for p in storage.read_extra_json("glossary_pending")] == ["李逸"]
+
+
+def test_ai_retranslate_rejects_empty_selection(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    Storage(tmp_path, "t").ensure_dirs()
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/ai/retranslate", json={"sources": ["  "]})
+
+    assert res.status_code == 400
+
+
+def test_edits_preview_reports_kind_and_propagation_count(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_glossary_entries("names.txt", [("张三", "Trương Tam", "nhân vật")])
+    storage.write_translated(chapter, "Trương Tam đi chợ. Trương Tam về nhà.")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/entries/preview",
+        json={
+            "edits": [
+                {"source": "张三", "target": "Trần Tam", "note": "nhân vật", "original_source": "张三"},
+                {"source": "李四", "target": "Lý Tứ"},
+                {"source": "Tiêu Viêm", "target": "Tiêu Viêm"},
+            ]
+        },
+    )
+
+    assert res.status_code == 200
+    body = res.json()
+    rows = body["entries"]
+    assert [r["kind"] for r in rows] == ["update", "new", "unchanged"]
+    assert rows[0]["existing_target"] == "Trương Tam"
+    assert (rows[0]["count"], rows[0]["chapters"]) == (2, 1)
+    assert rows[1]["count"] == 0
+    assert rows[2]["error"] == "Source phải chứa chữ Hán, không nhập tiếng Việt."
+    assert (body["writes"], body["errors"], body["total_matches"]) == (2, 1, 2)
+    # Preview chỉ đọc: glossary và bản dịch chưa đổi.
+    assert storage.read_glossary_entries("names.txt") == [("张三", "Trương Tam", "nhân vật")]
+    assert storage.read_translated(chapter) == "Trương Tam đi chợ. Trương Tam về nhà."
+
+
+def test_upsert_entries_applies_batch_and_propagates_once(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_glossary_entries(
+        "names.txt", [("张三", "Trương Tam", "nhân vật"), ("李四", "Lý Tứ", "")]
+    )
+    storage.write_translated(chapter, "Trương Tam gặp Lý Tứ.")
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/entries",
+        json={
+            "edits": [
+                {"source": "张三", "target": "Trần Tam", "note": "nhân vật", "original_source": "张三"},
+                {"source": "李十四", "target": "Lý Thập Tứ", "original_source": "李四"},
+                {"source": "王五", "target": "Vương Ngũ"},
+            ]
+        },
+    )
+
+    assert res.status_code == 200
+    body = res.json()
+    assert (body["applied"], body["added"], body["renamed"]) == (3, 1, 1)
+    assert body["replacements"]["total"] == 2
+    entries = dict((s, t) for s, t, _n in storage.read_glossary_entries_merged())
+    assert entries == {"张三": "Trần Tam", "李十四": "Lý Thập Tứ", "王五": "Vương Ngũ"}
+    assert storage.read_translated(chapter) == "Trần Tam gặp Lý Thập Tứ."
+
+
+def test_upsert_entries_rejects_whole_batch_when_a_row_is_invalid(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [("张三", "Trương Tam", "")])
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/entries",
+        json={
+            "edits": [
+                {"source": "张三", "target": "Trần Tam", "original_source": "张三"},
+                {"source": "李四", "target": "   "},
+            ]
+        },
+    )
+
+    assert res.status_code == 400
+    assert "Cần cả Hán và Việt." in res.json()["detail"]
+    # Không ghi một phần: dòng hợp lệ cũng bị giữ lại.
+    assert storage.read_glossary_entries("names.txt") == [("张三", "Trương Tam", "")]
+
+
+def test_upsert_entries_skips_unchanged_rows(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [("张三", "Trương Tam", "nv")])
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/entries",
+        json={
+            "edits": [
+                {"source": "张三", "target": "Trương Tam", "note": "nv", "original_source": "张三"}
+            ]
+        },
+    )
+
+    assert res.status_code == 200
+    assert res.json()["applied"] == 0
+    assert res.json()["skipped"] == 1
+
+
 def test_upsert_entry_rejects_blank(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     client = _client(cfg, monkeypatch)

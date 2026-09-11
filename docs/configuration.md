@@ -60,6 +60,7 @@ Thiết lập chung gồm:
 - `source_language`, `target_language`, `genre` và `style`.
 - `chunk.max_chars`, `prompt_max_chars`, `batch_size`, `max_workers`.
 - `auto_glossary`, `ai_glossary_analysis`, `use_idioms`.
+- `context_note`: mô tả bối cảnh truyện do người dùng viết. CHỈ dùng cho prompt của Trợ lý AI ở trang Glossary (kèm tên truyện, tác giả, giới thiệu lấy từ `novel`), không chèn vào prompt dịch chương.
 - `auto_cleanup_han` và `cleanup_han` (`cleanup_han.engine`: `local_mt` mặc định | `openai`).
 
 Prompt dịch mặc định có bản tiếng Việt, tiếng Anh và tiếng Trung. `source_language=en` tự chọn bản tiếng Anh; `zh`, `cn`, `zh-cn` hoặc `zh-tw` tự chọn bản tiếng Trung khi ebook chưa ghi đè prompt riêng. Trong các prompt gửi LLM, nguồn glossary dùng format rõ nghĩa `<Chinese> = <Vietnamese>`.

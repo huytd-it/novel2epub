@@ -550,6 +550,10 @@ class TranslateConfig:
     # When False: use glossary as-is (fast path). Typically enabled only for
     # new domains not yet in source presets.
     ai_glossary_analysis: bool = False
+    # Mô tả bối cảnh truyện do người dùng viết (nhân vật chính, thế giới, cách
+    # gọi tên/thuật ngữ muốn giữ). CHỈ chèn vào prompt của Trợ lý AI glossary —
+    # không vào prompt dịch chương, để không đội token mỗi chương.
+    context_note: str = ""
     # Cấu hình cleanup Hán.
     cleanup_han: CleanupHanConfig = field(default_factory=CleanupHanConfig)
 
@@ -1229,6 +1233,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         prompt_max_chars=int(translate_raw.get("prompt_max_chars", 20000)),
         auto_cleanup_han=bool(translate_raw.get("auto_cleanup_han", False)),
         ai_glossary_analysis=bool(translate_raw.get("ai_glossary_analysis", False)),
+        context_note=str(translate_raw.get("context_note", "") or ""),
         cleanup_han=CleanupHanConfig(
             engine=_normalize_cleanup_engine(cleanup_han_raw.get("engine", CleanupHanConfig.engine)),
             max_chars=int(cleanup_han_raw.get("max_chars", CleanupHanConfig.max_chars)),

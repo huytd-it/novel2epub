@@ -90,6 +90,8 @@ export function ChapterListDrawer({
   sharedFilters,
   validation,
   onScrollToPara,
+  width,
+  onWidthChange,
 }: {
   open: boolean;
   onClose: () => void;
@@ -130,6 +132,8 @@ export function ChapterListDrawer({
   sharedFilters?: ChapterFilters | null;
   validation?: { summary: { error: number; warning: number; info: number; total: number }; issues: { code: string; level: string; message: string; hint?: string; paraIndex: number; start: number; end: number; snippet: string }[] };
   onScrollToPara?: (paraIndex: number, start: number, end: number) => void;
+  width?: number;
+  onWidthChange?: (w: number) => void;
 }) {
   const [search, setSearch] = useState("");
   const base = sharedFilters ?? DEFAULT_FILTERS;
@@ -202,6 +206,40 @@ export function ChapterListDrawer({
     if (next === "list" && window.matchMedia("(max-width: 1023px)").matches) onClose();
   };
 
+  const drawerWidth = typeof width === "number" ? width : 320;
+  const clampW = (v: number) => Math.min(560, Math.max(280, Math.round(v)));
+  const dragRef = useRef<{ startX: number; startW: number; pointerId: number } | null>(null);
+  const onResizePointerDown = (e: React.PointerEvent) => {
+    if (window.matchMedia("(max-width: 1023px)").matches) return;
+    (e.target as Element).setPointerCapture(e.pointerId);
+    dragRef.current = { startX: e.clientX, startW: drawerWidth, pointerId: e.pointerId };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (ev: PointerEvent) => {
+      if (!dragRef.current) return;
+      const dx = dragRef.current.startX - ev.clientX;
+      const next = clampW(dragRef.current.startW + dx);
+      onWidthChange?.(next);
+    };
+    const capturedPid = dragRef.current?.pointerId;
+    const onUp = (ev: PointerEvent) => {
+      dragRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      try { if (capturedPid !== undefined) (ev.target as Element)?.releasePointerCapture?.(capturedPid); } catch { /* ignore */ }
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp, { once: true });
+  };
+  const onResizeKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowLeft") { e.preventDefault(); onWidthChange?.(clampW(drawerWidth + 16)); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); onWidthChange?.(clampW(drawerWidth - 16)); }
+    else if (e.key === "Home") { e.preventDefault(); onWidthChange?.(280); }
+    else if (e.key === "End") { e.preventDefault(); onWidthChange?.(560); }
+  };
+
   return (
     <>
       {open ? (
@@ -232,11 +270,22 @@ export function ChapterListDrawer({
       ) : (
         <aside
           className={clsx(
-            "fixed inset-y-0 right-0 z-50 flex w-80 max-w-[92vw] flex-col border-l border-base-300 bg-base-100 shadow-xl transition-transform lg:z-40 lg:w-80 lg:translate-x-0",
+            "fixed inset-y-0 right-0 z-50 flex max-w-[92vw] flex-col border-l border-base-300 bg-base-100 shadow-xl transition-transform lg:z-40 lg:translate-x-0",
             open ? "translate-x-0" : "translate-x-full",
             collapsed && mode === "list" && "lg:hidden",
           )}
+          style={{ width: drawerWidth }}
         >
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Kéo để đổi rộng danh sách chương"
+            tabIndex={0}
+            onPointerDown={onResizePointerDown}
+            onKeyDown={onResizeKeyDown}
+            className="absolute top-0 bottom-0 left-0 hidden w-1.5 cursor-col-resize touch-none bg-transparent hover:bg-primary/20 focus-visible:bg-primary/30 focus-visible:outline-none lg:block"
+            title="Kéo để đổi rộng (280–560px), phím ←/→, Home/End"
+          />
           <div className="flex items-center justify-between border-b border-base-300 px-3 py-2.5">
             <h2 className="text-[13px] font-semibold">
               {mode === "search" ? "Tìm/thay trong truyện" : mode === "errors" ? "Lỗi chương" : "Danh sách chương"}

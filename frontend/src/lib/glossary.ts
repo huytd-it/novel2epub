@@ -21,6 +21,16 @@ export interface GlossaryQuery {
   q: string;
   sort: string;
   dir: string;
+  /** Các cờ "giá trị đáng ngờ" đang bật, ngăn cách bởi dấu phẩy (OR). */
+  filter: string;
+}
+
+/** Một chip lọc: cờ + số mục dính cờ đó trên toàn glossary. */
+export interface GlossaryFlag {
+  key: string;
+  label: string;
+  hint: string;
+  count: number;
 }
 
 export interface PendingEntry {
@@ -30,6 +40,47 @@ export interface PendingEntry {
   existing_target: string;
   count?: number;
   chapters?: number;
+}
+
+/** Một dòng bảng đã sửa nhưng chưa ghi (bản nháp chờ bấm "Áp dụng"). */
+export interface GlossaryEdit {
+  source: string;
+  target: string;
+  note: string;
+  originalSource: string;
+}
+
+export type GlossaryEditKind = "new" | "update" | "rename" | "unchanged";
+
+/** Một dòng trong modal xem trước: giá trị cũ + loại thay đổi + ảnh hưởng. */
+export interface GlossaryEditPlan {
+  source: string;
+  target: string;
+  note: string;
+  original_source: string;
+  existing_source: string;
+  existing_target: string;
+  existing_note: string;
+  kind: GlossaryEditKind;
+  error: string;
+  /** Số chỗ trong bản dịch cũ sẽ đổi theo target mới. */
+  count: number;
+  chapters: number;
+}
+
+export interface GlossaryEditPreview {
+  entries: GlossaryEditPlan[];
+  writes: number;
+  errors: number;
+  total_matches: number;
+}
+
+export interface GlossaryEditResult {
+  applied: number;
+  added: number;
+  renamed: number;
+  skipped: number;
+  replacements: { total: number; chapters: number; ebook: boolean };
 }
 
 export interface Suspects {
@@ -49,6 +100,7 @@ export function useGlossary(slug: string, query: GlossaryQuery) {
     q: query.q,
     sort: query.sort,
     dir: query.dir,
+    filter: query.filter,
   });
   return useQuery({
     queryKey: listKey(slug, query),
@@ -69,6 +121,15 @@ export function usePendingGlossary(slug: string) {
   });
 }
 
+/** Bộ đếm cho các chip Lọc — cùng vị từ với bộ lọc nên số luôn khớp. */
+export function useGlossaryFlags(slug: string) {
+  return useQuery({
+    queryKey: ["glossary-flags", slug],
+    queryFn: () => api.get<{ flags: GlossaryFlag[]; total: number }>(`/api/ebooks/${slug}/glossary/flags`),
+    enabled: Boolean(slug),
+  });
+}
+
 export function useGlossarySuspects(slug: string, enabled: boolean) {
   return useQuery({
     queryKey: ["glossary-suspects", slug],
@@ -82,6 +143,7 @@ function useInvalidateGlossary(slug: string) {
   return () => {
     client.invalidateQueries({ queryKey: ["glossary", slug] });
     client.invalidateQueries({ queryKey: ["glossary-suspects", slug] });
+    client.invalidateQueries({ queryKey: ["glossary-flags", slug] });
   };
 }
 
@@ -97,6 +159,35 @@ export function useUpsertGlossaryEntry(slug: string) {
           original_source: vars.originalSource,
         },
       }),
+    onSuccess: invalidate,
+  });
+}
+
+const editBody = (edits: GlossaryEdit[]) => ({
+  edits: edits.map((e) => ({
+    source: e.source,
+    target: e.target,
+    note: e.note,
+    original_source: e.originalSource,
+  })),
+});
+
+/** Xem trước CẢ ĐỢT sửa (chỉ đọc) — nguồn dữ liệu cho modal "Áp dụng". */
+export function usePreviewGlossaryEdits(slug: string) {
+  return useMutation({
+    mutationFn: (edits: GlossaryEdit[]) =>
+      api.post<GlossaryEditPreview>(`/api/ebooks/${slug}/glossary/entries/preview`, {
+        body: editBody(edits),
+      }),
+  });
+}
+
+/** Ghi cả đợt sau khi xác nhận: server từ chối toàn bộ nếu còn dòng lỗi. */
+export function useApplyGlossaryEdits(slug: string) {
+  const invalidate = useInvalidateGlossary(slug);
+  return useMutation({
+    mutationFn: (edits: GlossaryEdit[]) =>
+      api.post<GlossaryEditResult>(`/api/ebooks/${slug}/glossary/entries`, { body: editBody(edits) }),
     onSuccess: invalidate,
   });
 }
@@ -160,6 +251,20 @@ export function useApprovePending(slug: string) {
       client.invalidateQueries({ queryKey: pendingKey(slug) });
       client.invalidateQueries({ queryKey: ["queue"] });
     },
+  });
+}
+
+/** Trợ lý AI: nhờ AI dịch lại các mục đã chọn. Enqueue MỘT job nền — kết quả
+ * vào hàng chờ duyệt, KHÔNG ghi thẳng vào glossary. */
+export function useGlossaryAiRetranslate(slug: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { sources: string[]; instruction: string }) =>
+      api.post<{ started: boolean; requested: number }>(
+        `/api/ebooks/${slug}/glossary/ai/retranslate`,
+        { body: vars },
+      ),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["queue"] }),
   });
 }
 

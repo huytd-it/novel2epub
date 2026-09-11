@@ -397,6 +397,13 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
     { key: "auto_glossary", label: "Tự cập nhật glossary sau khi dịch API", kind: "checkbox" },
     { key: "use_idioms", label: "Dùng từ điển thành ngữ chung", kind: "checkbox" },
     { key: "ai_glossary_analysis", label: "Cho AI phân tích glossary từng chương", kind: "checkbox", hint: "Chậm hơn; chỉ bật khi cần học domain mới" },
+    {
+      key: "context_note",
+      label: "Mô tả bối cảnh cho AI glossary",
+      kind: "textarea",
+      wide: true,
+      hint: "Nhân vật chính, bối cảnh, cách gọi tên/thuật ngữ muốn giữ — chèn vào prompt của Trợ lý AI ở trang Glossary. Không dùng cho prompt dịch chương.",
+    },
     { key: "profile", label: "Profile dịch", kind: "text", hint: "Mặc định: traditional_cn_novel" },
     { key: "prompt_template", label: "Prompt dịch chương", kind: "textarea", wide: true },
     { key: "title_prompt_template", label: "Prompt dịch tiêu đề", kind: "textarea", wide: true },

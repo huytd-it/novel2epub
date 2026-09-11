@@ -23,6 +23,7 @@ export {
   PiCpu as IconChip,
   PiClock as IconClock,
   PiCopy as IconCopy,
+  PiFunnel as IconFilter,
   PiGearSix as IconSettings,
   PiListNumbers as IconChapters,
   PiMinus as IconMinus,

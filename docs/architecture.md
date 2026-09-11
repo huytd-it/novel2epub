@@ -369,28 +369,66 @@ lại toàn bộ các đường sửa/xóa này (kể cả stale/conflict không
 
 ### Glossary, Nhân Vật, Từ Điển Chung — Không Cần API Mới
 
-Ba trang này port THUẦN FRONTEND: `app/routes/glossary.py`, `characters.py`,
-`idioms.py` đã là JSON API đầy đủ từ trước khi port (chỉ route `GET` render
-HTML là còn Jinja2), nằm dưới `/api/...` nên đã CORS + auth-eligible sẵn,
-không cần chỉnh gì ở backend.
+`characters.py` và `idioms.py` port THUẦN FRONTEND: đã là JSON API đầy đủ từ
+trước khi port (chỉ route `GET` render HTML là còn Jinja2), nằm dưới `/api/...`
+nên đã CORS + auth-eligible sẵn. Riêng bảng glossary có thêm 2 route cho luồng
+"sửa cả đợt rồi xem trước" (bên dưới).
 
-- **Glossary** (`/app/ebooks/{slug}/glossary`) — bảng autosave-per-ô, đề xuất
-  đang chờ duyệt (từ auto-glossary lúc dịch) hiện thành hàng tô vàng ở TRANG
-  ĐẦU của bảng chính (không phải tab riêng — khớp hành vi legacy), tab "Nghi
-  vấn" hiển thị 3 nhóm đáng ngờ (`glossary_review.find_suspects`). Duyệt đề
-  xuất enqueue MỘT job nền (category=translate) lan truyền thay đổi vào bản
-  dịch cũ — kết quả xem ở trang Hàng đợi, không polling tại chỗ.
+- **Glossary** (`/app/ebooks/{slug}/glossary`) — sửa tại chỗ nhưng KHÔNG tự
+  lưu: mỗi ô đổi giá trị vào *bản nháp* của trang (khoá theo source gốc, sống
+  qua đổi trang/tìm kiếm), thanh dính trên đầu đếm số thay đổi và mở modal
+  **xem trước cả đợt** trước khi ghi. Lý do bỏ autosave-per-ô: đổi target là
+  thao tác PHÁ HUỶ — server lan truyền giá trị mới vào nội dung đã dịch — nên
+  người dùng phải thấy trước diff và số chỗ bị ảnh hưởng. Đề xuất đang chờ
+  duyệt (từ auto-glossary lúc dịch) hiện thành hàng tô vàng ở TRANG ĐẦU của
+  bảng chính (không phải tab riêng — khớp hành vi legacy), tab "Nghi vấn" hiển
+  thị 3 nhóm đáng ngờ (`glossary_review.find_suspects`). Duyệt đề xuất enqueue
+  MỘT job nền (category=translate) lan truyền thay đổi vào bản dịch cũ — kết
+  quả xem ở trang Hàng đợi, không polling tại chỗ.
+  - `POST /api/ebooks/{slug}/glossary/entries/preview` (chỉ đọc) và
+    `POST .../glossary/entries` (ghi) dùng CHUNG
+    `glossary_review.plan_glossary_edits` — hàm thuần dữ liệu phân loại từng
+    dòng (new/update/rename/unchanged) và bắt lỗi (thiếu Hán/Việt, source
+    không phải chữ Hán, trùng trong đợt, đổi Hán đè lên mục sẵn có). Nhờ đó
+    modal và kết quả ghi không thể lệch nhau. Route ghi từ chối CẢ ĐỢT nếu còn
+    một dòng lỗi, và gộp MỘT lượt `apply_replacements` cho mọi cặp
+    `Việt cũ → Việt mới` thay vì quét lại từng dòng.
+  - `POST .../glossary/entry` (một dòng) vẫn còn cho modal "Thêm mục".
+  - **Lọc mục nghi sai**: các chip lọc ở đầu bảng chạy trên vị từ chuỗi thuần
+    (`glossary_review.entry_flags`) — cột Việt còn chữ Hán, cột Hán lẫn chữ
+    Latin/Việt, Việt chép y hệt Hán, Hán không có ký tự Trung nào. SQLite không
+    lọc được kiểu này nên khi có `filter=` route `/glossary/list` đọc cả list
+    rồi lọc/sắp/phân trang trong Python (vài nghìn mục vẫn tức thì); nhánh
+    không lọc giữ nguyên đường SQL cũ. `GET /glossary/flags` trả bộ đếm cho
+    chip — dùng CHUNG vị từ với bộ lọc nên số trên chip luôn bằng số dòng lọc
+    ra. Đang lọc thì hàng chờ duyệt bị ẩn: chúng chưa nằm trong glossary nên
+    không qua bộ lọc được, để lại sẽ che mất kết quả.
+  - **Trợ lý AI** (`POST .../glossary/ai/retranslate`): chọn các mục trên bảng
+    rồi nhờ AI dịch lại cả lô. Enqueue MỘT job nền (category=translate, khoá
+    ebook) như các batch AI khác; `glossary_ai.retranslate_terms` chia lô theo
+    ngân sách `prompt_max_chars`, lô lỗi chỉ bị bỏ qua kèm log. Prompt mang
+    theo metadata truyện (tên, tác giả, giới thiệu — cắt ở 800 ký tự), thể loại
+    và `translate.context_note` (ô "Mô tả bối cảnh cho AI glossary" trong Cài
+    đặt → Dịch API) cộng yêu cầu riêng của lần chạy. Kết quả KHÔNG ghi thẳng
+    vào glossary mà vào `glossary_pending` — tái dùng đúng luồng duyệt của
+    auto-glossary: hàng vàng "cũ → mới" kèm số chỗ ảnh hưởng, duyệt lẻ hoặc
+    hàng loạt. Mục AI trả về trùng giá trị cũ bị bỏ qua, và đề xuất mới cho
+    cùng một source thay đề xuất cũ đang chờ.
 - **Nhân vật** (`/app/ebooks/{slug}/characters`) — bảng nhân vật + quan hệ CÓ
   HƯỚNG mở rộng dưới mỗi hàng (bấm mũi tên). Danh sách không phân trang phía
   server (ebook hiếm khi có quá vài trăm nhân vật) nên tìm kiếm lọc phía
   client. Tab "Đề xuất" duyệt nhân vật TRƯỚC quan hệ SAU — thứ tự bắt buộc,
   xem docstring `characters_pending_approve`.
 - **Từ điển chung** (`/app/idioms`) — kho thành ngữ dùng chung MỌI truyện
-  (không gắn slug), cùng pattern autosave với Glossary.
+  (không gắn slug), vẫn autosave từng ô (sửa ở đây không đụng nội dung đã dịch
+  nên không cần bước xem trước).
 
-Cả ba dùng chung một pattern autosave: input cục bộ đồng bộ từ server qua
-`useEffect`, lưu khi `onBlur` đọc thẳng `e.target.value` (không tin state
-đóng gói closure — xem lý do ở mục Trang Đọc phía trên, cùng loại bug).
+Trang Nhân vật và Từ điển chung dùng chung pattern autosave: input cục bộ đồng
+bộ từ server qua `useEffect`, lưu khi `onBlur` đọc thẳng `e.target.value`
+(không tin state đóng gói closure — xem lý do ở mục Trang Đọc phía trên, cùng
+loại bug). Bảng glossary không còn autosave nên không cần mẹo này: `onChange`
+và `onBlur` (trim) cùng đẩy vào bản nháp ở component trang, hàng bảng là
+`memo` + callback ổn định để gõ một dòng không render lại cả trang.
 
 ### Bản Desktop (Tauri)
 

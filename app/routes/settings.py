@@ -771,6 +771,7 @@ def save_translate(
     auto_glossary: bool = Form(True),
     use_idioms: bool = Form(True),
     ai_glossary_analysis: bool = Form(False),
+    context_note: str = Form(""),
     auto_cleanup_han: bool = Form(False),
     cleanup_han_engine: str = Form("local_mt"),
     cleanup_han_max_chars: int = Form(18000),
@@ -826,6 +827,7 @@ def save_translate(
         "auto_glossary": auto_glossary,
         "use_idioms": use_idioms,
         "ai_glossary_analysis": ai_glossary_analysis,
+        "context_note": (context_note or "").strip(),
         "auto_cleanup_han": auto_cleanup_han,
         "cleanup_han": {
             "engine": "openai" if cleanup_han_engine == "openai" else "local_mt",

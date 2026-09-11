@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Form, HTTPException, Request
 from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from novel2epub import bulk_transfer, glossary_review
+from novel2epub import bulk_transfer, glossary_ai, glossary_review
 from novel2epub.han_cleanup import count_han
 from novel2epub.notes import split_paras
 from novel2epub.pipeline import _chapter_range, step_find_replace
@@ -22,7 +22,8 @@ from .. import deps
 
 router = APIRouter()
 
-INVALID_SOURCE_DETAIL = "Source phải chứa chữ Hán, không nhập tiếng Việt."
+# Một nguồn duy nhất cho thông báo: planner thuần dữ liệu cũng dùng chuỗi này.
+INVALID_SOURCE_DETAIL = glossary_review.INVALID_SOURCE_DETAIL
 
 
 class ProperNameExtractRequest(BaseModel):
@@ -117,6 +118,15 @@ def _append_glossary_entry(
     return True
 
 
+def _sorted_entries(rows: list[tuple[str, str, str]], sort: str, dir: str) -> list[tuple[str, str, str]]:
+    """Sắp xếp trong Python cho nhánh có lọc cờ — cùng quy tắc với SQL
+    (`COLLATE NOCASE`, cột lạ thì giữ nguyên thứ tự position)."""
+    col = {"source": 0, "target": 1, "note": 2}.get(sort or "")
+    if col is None:
+        return rows
+    return sorted(rows, key=lambda r: r[col].lower(), reverse=str(dir).lower() == "desc")
+
+
 @router.get("/api/ebooks/{slug}/glossary/list")
 def ebook_glossary_list(
     slug: str,
@@ -125,19 +135,42 @@ def ebook_glossary_list(
     q: str = "",
     sort: str = "",
     dir: str = "asc",
+    filter: str = "",
 ):
     """Một trang glossary (server-side pagination + search + sort). Consolidate
-    vietphrase legacy vào names.txt trước để chỉ cần quét 1 list."""
+    vietphrase legacy vào names.txt trước để chỉ cần quét 1 list.
+
+    `filter` là danh sách cờ "giá trị đáng ngờ" ngăn cách bởi dấu phẩy (xem
+    `glossary_review.GLOSSARY_FLAGS`). Cờ là vị từ chuỗi (có chữ Hán trong cột
+    Việt, chữ Latin trong cột Hán...) nên SQLite không lọc được — nhánh này đọc
+    cả list rồi lọc/sắp/phân trang trong Python. Vài nghìn mục nên vẫn tức thì,
+    và nhánh không lọc giữ nguyên đường SQL cũ.
+    """
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     storage.consolidate_glossary()
 
     per_page = max(1, min(int(per_page), 500))
-    total = storage.count_glossary_entries("names.txt", q)
-    pages = max(1, (total + per_page - 1) // per_page)
-    page = max(1, min(int(page), pages))
-    offset = (page - 1) * per_page
-    rows = storage.read_glossary_page("names.txt", offset, per_page, q, sort, dir)
+    flags = glossary_review.parse_flags(filter)
+
+    if flags:
+        rows_all = storage.read_glossary_entries("names.txt")
+        needle = (q or "").strip().lower()
+        if needle:
+            rows_all = [r for r in rows_all if needle in (r[0] + r[1] + r[2]).lower()]
+        rows_all = glossary_review.filter_by_flags(rows_all, flags)
+        total = len(rows_all)
+        pages = max(1, (total + per_page - 1) // per_page)
+        page = max(1, min(int(page), pages))
+        offset = (page - 1) * per_page
+        rows = _sorted_entries(rows_all, sort, dir)[offset : offset + per_page]
+    else:
+        total = storage.count_glossary_entries("names.txt", q)
+        pages = max(1, (total + per_page - 1) // per_page)
+        page = max(1, min(int(page), pages))
+        offset = (page - 1) * per_page
+        rows = storage.read_glossary_page("names.txt", offset, per_page, q, sort, dir)
+
     return JSONResponse(
         {
             "entries": [{"source": s, "target": t, "note": n} for s, t, n in rows],
@@ -145,6 +178,27 @@ def ebook_glossary_list(
             "page": page,
             "per_page": per_page,
             "pages": pages,
+        }
+    )
+
+
+@router.get("/api/ebooks/{slug}/glossary/flags")
+def ebook_glossary_flags(slug: str):
+    """Số mục dính từng cờ "giá trị đáng ngờ" — dữ liệu cho các chip Lọc.
+
+    Dùng chung `entry_flags` với route list nên con số trên chip luôn khớp số
+    dòng bấm vào lọc ra."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    entries = storage.read_glossary_entries("names.txt")
+    counts = glossary_review.count_entry_flags(entries)
+    return JSONResponse(
+        {
+            "flags": [
+                {"key": key, "label": label, "hint": hint, "count": counts[key]}
+                for key, (label, hint) in glossary_review.GLOSSARY_FLAGS.items()
+            ],
+            "total": len(entries),
         }
     )
 
@@ -184,6 +238,92 @@ def ebook_glossary_upsert_entry(
     if old_target and old_target != target:
         storage.apply_replacements([(old_target, target)])
     return JSONResponse({"ok": True})
+
+
+class GlossaryEditIn(BaseModel):
+    """Một dòng bảng glossary người dùng đã sửa nhưng CHƯA ghi."""
+
+    source: str = ""
+    target: str = ""
+    note: str = ""
+    original_source: str = Field(default="", description="Khoá cũ; bỏ trống nghĩa là thêm mới.")
+
+
+class GlossaryEditsIn(BaseModel):
+    edits: list[GlossaryEditIn] = Field(default_factory=list)
+
+
+def _plan_edits(storage, payload: GlossaryEditsIn) -> list[dict]:
+    return glossary_review.plan_glossary_edits(
+        storage.read_glossary_entries_merged(),
+        [edit.model_dump() for edit in payload.edits],
+    )
+
+
+@router.post("/api/ebooks/{slug}/glossary/entries/preview")
+def ebook_glossary_edits_preview(slug: str, payload: GlossaryEditsIn):
+    """Xem trước CẢ ĐỢT sửa trước khi ghi: mỗi dòng kèm giá trị cũ, loại thay
+    đổi, lỗi (nếu có) và số chỗ trong bản dịch cũ sẽ bị lan truyền theo.
+
+    Chỉ đọc — không đụng glossary lẫn nội dung chương."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    planned = _plan_edits(storage, payload)
+    counts = storage.replacement_counts(glossary_review.replacement_pairs(planned))
+    by_old = {c["old"]: c for c in counts["pairs"]}
+    for row in planned:
+        info = by_old.get(row["existing_target"]) if row["existing_target"] else None
+        applies = info is not None and not row["error"] and row["kind"] != "unchanged"
+        row["count"] = info["count"] if applies else 0
+        row["chapters"] = info["chapters"] if applies else 0
+    return JSONResponse(
+        {
+            "entries": planned,
+            "writes": sum(1 for r in planned if not r["error"] and r["kind"] != "unchanged"),
+            "errors": sum(1 for r in planned if r["error"]),
+            "total_matches": counts["total"],
+        }
+    )
+
+
+@router.post("/api/ebooks/{slug}/glossary/entries")
+def ebook_glossary_upsert_entries(slug: str, payload: GlossaryEditsIn):
+    """Ghi CẢ ĐỢT sửa sau khi người dùng xác nhận ở modal xem trước.
+
+    Từ chối toàn bộ nếu còn dòng lỗi (all-or-nothing ở mức xác thực) để kết quả
+    khớp với thứ đã xem trước. Đổi Hán thì xoá khoá cũ; đổi Việt thì lan truyền
+    sang bản dịch đã có — gộp MỘT lượt quét cho cả đợt thay vì mỗi dòng một lần.
+    """
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    planned = _plan_edits(storage, payload)
+
+    failed = [r for r in planned if r["error"]]
+    if failed:
+        first = failed[0]
+        raise HTTPException(
+            status_code=400,
+            detail=f"{first['source'] or first['original_source'] or '(trống)'}: {first['error']}"
+            + (f" (+{len(failed) - 1} dòng lỗi khác)" if len(failed) > 1 else ""),
+        )
+
+    writes = [r for r in planned if r["kind"] != "unchanged"]
+    pairs = glossary_review.replacement_pairs(planned)
+    for row in writes:
+        if row["kind"] == "rename":
+            storage.delete_glossary_entry(row["original_source"])
+        storage.upsert_glossary_entry(row["source"], row["target"], row["note"])
+
+    stats = storage.apply_replacements(pairs) if pairs else {"total": 0, "chapters": 0, "ebook": False}
+    return JSONResponse(
+        {
+            "applied": len(writes),
+            "added": sum(1 for r in writes if r["kind"] == "new"),
+            "renamed": sum(1 for r in writes if r["kind"] == "rename"),
+            "skipped": len(planned) - len(writes),
+            "replacements": stats,
+        }
+    )
 
 
 @router.post("/api/ebooks/{slug}/glossary/entry/delete")
@@ -410,6 +550,145 @@ def ebook_glossary_replace_approve(request: Request, slug: str, payload: dict = 
     if not started:
         raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
     return JSONResponse({"started": True, "requested": len(entries)})
+
+
+class GlossaryAiRequest(BaseModel):
+    """Yêu cầu Trợ lý AI dịch lại các mục đã tick trên bảng."""
+
+    sources: list[str] = Field(default_factory=list)
+    instruction: str = Field(default="", description="Yêu cầu thêm cho riêng lần chạy này.")
+
+
+def glossary_ai_job_factory(params: dict):
+    """Tái tạo job Trợ lý AI glossary từ spec đã lưu (xem JobQueue.register_kind).
+
+    Job KHÔNG ghi thẳng vào glossary: kết quả vào hàng chờ duyệt
+    (`glossary_pending`) để người dùng xem "cũ → mới" kèm số chỗ ảnh hưởng rồi
+    mới duyệt — cùng đường đi với đề xuất auto-glossary lúc dịch.
+    """
+    slug = params["slug"]
+    sources = params["sources"]
+    instruction = str(params.get("instruction", "") or "")
+
+    def _target(log: Callable[[str], None]) -> None:
+        cfg = deps.resolved_cfg(slug)
+        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+        current = {s: (t, n) for s, t, n in storage.read_glossary_entries_merged()}
+        # Trợ lý AI chỉ sửa cột Việt — cột Hán là khoá của hàng chờ duyệt, không
+        # đổi được. Mục có cột Hán không phải chữ Trung (thường là Hán/Việt bị
+        # đảo) sẽ tạo ra đề xuất mà bước Duyệt từ chối, nên loại từ đây và chỉ
+        # cho người dùng đường đi đúng.
+        selected = [s for s in sources if s in current]
+        invalid = [s for s in selected if count_han(s) == 0]
+        entries = [
+            {"source": s, "target": current[s][0], "note": current[s][1]}
+            for s in selected
+            if s not in invalid
+        ]
+        if invalid:
+            log(
+                f"[glossary-ai] Bỏ qua {len(invalid)} mục có cột Hán không phải chữ Trung "
+                f"(vd {invalid[0]!r}) — AI không sửa được cột Hán, hãy sửa tay trong bảng rồi bấm Áp dụng."
+            )
+        if not entries:
+            log("[glossary-ai] Không còn mục nào xử lý được. Dừng.")
+            return {"requested": len(sources), "queued": 0, "unchanged": 0, "skipped": len(invalid)}
+
+        parts = [x.strip() for x in (cfg.translate.context_note, instruction) if x.strip()]
+        context = "\n\n".join(parts)
+        # Metadata truyện đi kèm prompt: tên + giới thiệu đủ để AI biết thể
+        # loại và hệ thống xưng hô trước khi phiên âm tên riêng.
+        story = {
+            "title": cfg.novel.title,
+            "author": cfg.novel.author,
+            "description": cfg.novel.description,
+        }
+        log(f"[glossary-ai] Nhờ AI rà soát {len(entries)} mục" + (" (có mô tả bối cảnh)." if context else "."))
+        results = glossary_ai.retranslate_terms(
+            cfg.ai.openai,
+            entries,
+            story=story,
+            context=context,
+            genre=cfg.translate.genre,
+            max_chars=cfg.translate.prompt_max_chars or 20000,
+            log=log,
+        )
+
+        changed = [r for r in results if r["target"] != current.get(r["source"], ("", ""))[0]]
+        unchanged = len(results) - len(changed)
+        for r in changed:
+            log(f"[glossary-ai]   ~ {r['source']}: '{current[r['source']][0]}' → '{r['target']}'"
+                + (f" ({r['reason']})" if r["reason"] else ""))
+
+        additions = [
+            {
+                "source": r["source"],
+                "target": r["target"],
+                "existing_target": current[r["source"]][0],
+                "chapter_index": 0,
+                "note": r["reason"] or current[r["source"]][1],
+            }
+            for r in changed
+        ]
+
+        def _merge(raw):
+            # Đề xuất mới cho cùng một source THAY đề xuất cũ đang chờ: hàng chờ
+            # là "giá trị muốn đổi thành", giữ hai dòng cùng source là mâu thuẫn.
+            fresh = {row["source"] for row in additions}
+            kept = [row for row in _normalize_pending(raw) if row["source"] not in fresh]
+            return kept + additions
+
+        merged = storage.update_extra_json("glossary_pending", _merge)
+        log(
+            f"[glossary-ai] Xong: {len(changed)} mục vào hàng chờ duyệt, "
+            f"{unchanged} mục AI giữ nguyên, {len(entries) - len(results)} mục AI không trả lời. "
+            f"Hàng chờ hiện có {len(merged)} mục."
+        )
+        return {
+            "requested": len(sources),
+            "queued": len(changed),
+            "unchanged": unchanged,
+            "missing": len(entries) - len(results),
+            "skipped": len(invalid),
+        }
+
+    return _target
+
+
+@router.post("/api/ebooks/{slug}/glossary/ai/retranslate")
+def ebook_glossary_ai_retranslate(request: Request, slug: str, payload: GlossaryAiRequest):
+    """Trợ lý AI: dịch lại HÀNG LOẠT các mục đã chọn → hàng chờ duyệt.
+
+    Enqueue MỘT job (category=translate, khoá ebook) như các batch AI khác —
+    gọi AI cho vài trăm mục mất hàng phút, quá lâu cho một request HTTP. Tiến
+    độ xem ở trang Hàng đợi; kết quả hiện thành hàng vàng ở đầu bảng glossary.
+    """
+    sources: list[str] = []
+    for raw in payload.sources:
+        source = str(raw).strip()
+        if source and source not in sources:
+            sources.append(source)
+    if not sources:
+        raise HTTPException(status_code=400, detail="Chưa chọn mục nào để nhờ AI xử lý.")
+
+    cfg = deps.resolved_cfg(slug)
+    if not cfg.ai.openai.base_url:
+        raise HTTPException(status_code=400, detail="Chưa cấu hình AI biên tập (mục AI trong Cài đặt).")
+
+    spec = {
+        "kind": "glossary-ai",
+        "params": {"slug": slug, "sources": sources, "instruction": payload.instruction.strip()},
+    }
+    started = request.app.state.job.start_custom(
+        "glossary-ai",
+        glossary_ai_job_factory(spec["params"]),
+        category="translate",
+        ebook=slug,
+        spec=spec,
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "requested": len(sources)})
 
 
 @router.get("/api/ebooks/{slug}/glossary/approve/status")

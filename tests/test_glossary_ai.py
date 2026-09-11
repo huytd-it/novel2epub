@@ -236,3 +236,117 @@ def test_rewrite_chapter_handles_prompt_with_tone_or_translate_template(monkeypa
     )
     assert out == "Bản dịch đã biên tập"
     assert "BIÊN TẬP LẠI" in captured["prompt"]
+
+
+def test_retranslate_terms_sends_context_and_keeps_only_known_sources(monkeypatch):
+    from novel2epub.glossary_ai import retranslate_terms
+
+    captured = _capture_run_chat(
+        monkeypatch,
+        '[{"source": "李逸", "target": "Lý Dịch", "reason": "phiên âm đúng"},'
+        ' {"source": "不存在", "target": "Bịa"}]',
+    )
+
+    out = retranslate_terms(
+        _ai_cfg(),
+        [{"source": "李逸", "target": "Ly Dat", "note": "nhân vật chính"}],
+        context="Truyện tu tiên, nhân vật chính họ Lý.",
+        genre="tien-hiep",
+    )
+
+    assert "Truyện tu tiên, nhân vật chính họ Lý." in captured["prompt"]
+    assert "李逸 = Ly Dat | nhân vật chính" in captured["prompt"]
+    # Mục AI bịa thêm (không nằm trong lô gửi đi) bị loại.
+    assert out == [{"source": "李逸", "target": "Lý Dịch", "reason": "phiên âm đúng"}]
+
+
+def test_retranslate_terms_chunks_by_prompt_budget(monkeypatch):
+    from novel2epub import glossary_ai
+
+    calls: list[str] = []
+
+    def _mock(cfg, prompt):
+        calls.append(prompt)
+        return "[]"
+
+    monkeypatch.setattr(glossary_ai.openai_client, "run_chat", _mock)
+    entries = [{"source": f"词{i}", "target": "x" * 200, "note": ""} for i in range(10)]
+
+    glossary_ai.retranslate_terms(_ai_cfg(), entries, max_chars=len(glossary_ai.RETRANSLATE_PROMPT) + 1500)
+
+    assert len(calls) > 1
+
+
+def test_retranslate_terms_skips_failed_batch_without_losing_the_rest(monkeypatch):
+    from novel2epub import glossary_ai
+
+    state = {"n": 0}
+
+    def _mock(cfg, prompt):
+        state["n"] += 1
+        if state["n"] == 1:
+            raise RuntimeError("mạng lỗi")
+        return '[{"source": "王五", "target": "Vương Ngũ"}]'
+
+    monkeypatch.setattr(glossary_ai.openai_client, "run_chat", _mock)
+    entries = [{"source": "李逸", "target": "a" * 400}, {"source": "王五", "target": "b" * 400}]
+    logs: list[str] = []
+
+    out = glossary_ai.retranslate_terms(
+        _ai_cfg(),
+        entries,
+        max_chars=len(glossary_ai.RETRANSLATE_PROMPT) + 1000,
+        log=logs.append,
+    )
+
+    assert out == [{"source": "王五", "target": "Vương Ngũ", "reason": ""}]
+    assert any("lỗi gọi AI" in line for line in logs)
+
+
+def test_retranslate_terms_without_entries_does_not_call_ai(monkeypatch):
+    from novel2epub import glossary_ai
+
+    def _boom(cfg, prompt):
+        raise AssertionError("không được gọi AI khi không có mục nào")
+
+    monkeypatch.setattr(glossary_ai.openai_client, "run_chat", _boom)
+    assert glossary_ai.retranslate_terms(_ai_cfg(), [{"source": "  "}]) == []
+
+
+def test_retranslate_terms_puts_story_metadata_in_prompt(monkeypatch):
+    from novel2epub.glossary_ai import retranslate_terms
+
+    captured = _capture_run_chat(monkeypatch, "[]")
+
+    retranslate_terms(
+        _ai_cfg(),
+        [{"source": "李逸", "target": "Ly Dat"}],
+        story={
+            "title": "Bắt Đầu Trường Sinh",
+            "author": "Yuki",
+            "description": "Thẩm Nghị xuyên không đến thế giới yêu ma.",
+        },
+    )
+
+    assert "Tên truyện: Bắt Đầu Trường Sinh" in captured["prompt"]
+    assert "Tác giả: Yuki" in captured["prompt"]
+    assert "Giới thiệu: Thẩm Nghị xuyên không đến thế giới yêu ma." in captured["prompt"]
+
+
+def test_retranslate_terms_truncates_long_description_and_skips_empty_story(monkeypatch):
+    from novel2epub import glossary_ai
+
+    captured = _capture_run_chat(monkeypatch, "[]")
+    glossary_ai.retranslate_terms(
+        _ai_cfg(),
+        [{"source": "李逸", "target": "Ly Dat"}],
+        story={"title": "T", "description": "dài " * 1000},
+    )
+    assert "…" in captured["prompt"]
+    assert len(captured["prompt"]) < 2000 + len(glossary_ai.RETRANSLATE_PROMPT)
+
+    captured = _capture_run_chat(monkeypatch, "[]")
+    glossary_ai.retranslate_terms(
+        _ai_cfg(), [{"source": "李逸", "target": "Ly Dat"}], story={"title": "  ", "author": ""}
+    )
+    assert "Thông tin truyện" not in captured["prompt"]

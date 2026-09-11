@@ -85,6 +85,7 @@ export interface TranslateSettings {
   auto_glossary: boolean;
   use_idioms: boolean;
   ai_glossary_analysis: boolean;
+  context_note: string;
   auto_cleanup_han: boolean;
   cleanup_han_engine: string;
   cleanup_han_max_chars: number;

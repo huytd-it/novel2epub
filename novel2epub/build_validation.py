@@ -29,7 +29,7 @@ RE_HASH_HEADING = re.compile(r"(?:^|\n)\s*#{1,6}\s+", re.MULTILINE)
 RE_CODE_FENCE = re.compile(r"```")
 # Dấu chấm lạ: 2+ dấu chấm liên tiếp nhưng không phải "..." chuẩn Việt (1 space trước/sau)
 # Ta flag các dạng: ".." , "...." , " . . .", "…", mixed
-RE_WEIRD_DOTS = re.compile(r"(?:\.{2,}|…{1,}|·{2,}|。{2,})")
+RE_WEIRD_DOTS = re.compile(r"(?:\.{2,}|…{2,}|·{2,}|。{2,})")
 # Dấu câu lặp cần dọn: ,, ;; :: --
 # Lặp ! và ? là cách nhấn mạnh thường dùng trong hội thoại (!!!, ???).
 RE_REPEATED_PUNCT = re.compile(r"([;,:\-–—])\1{1,}")

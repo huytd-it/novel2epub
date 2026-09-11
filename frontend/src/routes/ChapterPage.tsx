@@ -1189,7 +1189,7 @@ export function ChapterPage() {
         event.preventDefault();
         if (view === "raw" && rawEditMode) saveRaw();
         else saveDocument();
-      } else if (modifier && ["f", "h"].includes(event.key.toLowerCase())) {
+      } else if (modifier && event.key.toLowerCase() === "h") {
         event.preventDefault();
         openFindMode();
       } else if (event.altKey && event.key === "1") setView("read");

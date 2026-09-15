@@ -17,6 +17,22 @@ from .config import OpenAIConfig
 
 _HAN_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]")
 
+
+def format_glossary_block(glossary: dict[str, str] | None) -> str:
+    """Render khối glossary chèn vào prompt cleanup (rỗng nếu không có).
+
+    Giữ local trong module này để tránh import vòng với `translator`
+    (translator không import han_cleanup, nhưng pipeline mới là nơi lọc
+    glossary theo chương rồi truyền dict đã lọc vào đây).
+    """
+    if not glossary:
+        return ""
+    lines = "\n".join(f"{zh} = {vi}" for zh, vi in glossary.items() if zh and vi)
+    if not lines:
+        return ""
+    return "Bảng thuật ngữ bắt buộc dùng nhất quán:\n" + lines
+
+
 CLEANUP_PROMPT = """Bạn là biên tập viên truyện dịch Trung -> Việt, chuyên sửa các lỗi sót ký tự Trung Quốc (Chinese characters).
 
 Đoạn văn dưới đây là bản dịch tiếng Việt, NHƯNG còn chứa một số ký tự/ký hiệu Trung Quốc được đánh dấu bằng <HAN>...</HAN>.
@@ -25,9 +41,11 @@ NHIỆM VỤ: Chỉ sửa các phần được đánh dấu <HAN>...</HAN> thàn
 NGUYÊN TẮC:
 - Không thay đổi bất kỳ chữ nào ngoài vùng <HAN>...</HAN>.
 - Nếu cả câu cần viết lại cho mượt vì vùng <HAN> nằm giữa câu, chỉ sửa vùng đó và tối thiểu từ xung quanh để câu tự nhiên.
+- Khi sửa vùng <HAN>, nếu vùng Hán hoặc ngữ cảnh khớp một mục trong Bảng thuật ngữ dưới đây thì DÙNG ĐÚNG cách dịch đó, không tự đặt tên mới khác glossary.
 - KHÔNG thêm lời mở đầu, giải thích, code fence.
 - KHÔNG dùng định dạng song ngữ.
 
+{glossary_block}
 --- Bản đối chiếu gốc (Chinese source), dùng làm ngữ cảnh ---
 {raw_paragraph}
 
@@ -116,9 +134,11 @@ def build_cleanup_prompt(
     raw_paragraph: str,
     translated_paragraph: str,
     regions: list[dict],
+    glossary: dict[str, str] | None = None,
 ) -> str:
     """Xây prompt cleanup cho 1 đoạn văn (đường gọi từng-đoạn cũ)."""
     return CLEANUP_PROMPT.format(
+        glossary_block=format_glossary_block(glossary),
         raw_paragraph=raw_paragraph,
         marked_text=_mark_paragraph(translated_paragraph, regions),
     )
@@ -133,9 +153,11 @@ NHIỆM VỤ: Với TỪNG đoạn, chỉ sửa các phần được đánh dấ
 NGUYÊN TẮC:
 - Không thay đổi bất kỳ chữ nào ngoài vùng <HAN>...</HAN>.
 - Nếu cả câu cần viết lại cho mượt vì vùng <HAN> nằm giữa câu, chỉ sửa vùng đó và tối thiểu từ xung quanh để câu tự nhiên.
+- Khi sửa vùng <HAN>, nếu vùng Hán hoặc ngữ cảnh khớp một mục trong Bảng thuật ngữ dưới đây thì DÙNG ĐÚNG cách dịch đó, không tự đặt tên mới khác glossary.
 - KHÔNG thêm lời mở đầu, giải thích, code fence.
 - KHÔNG dùng định dạng song ngữ.
 
+{glossary_block}
 ĐỊNH DẠNG TRẢ LỜI (bắt buộc): với MỖI đoạn trả về đúng một khối, đủ {count} khối, giữ nguyên id:
 <DOAN id="N">
 toàn bộ đoạn N đã sửa (không còn tag HAN)
@@ -154,11 +176,16 @@ _BATCH_ITEM_TEMPLATE = """=== ĐOẠN id={id} ===
 _DOAN_BLOCK_RE = re.compile(r'<DOAN\s+id="?(\d+)"?\s*>\s*(.*?)\s*</DOAN>', re.S | re.I)
 
 
-def build_batch_cleanup_prompt(items: list[dict]) -> str:
+def build_batch_cleanup_prompt(
+    items: list[dict],
+    glossary: dict[str, str] | None = None,
+) -> str:
     """Xây 1 prompt duy nhất chứa TẤT CẢ đoạn còn Hán của chương.
 
     `items`: list dict với keys `para_idx` (0-based), `raw`, `marked`.
     Id hiển thị cho AI là para_idx + 1 (khớp số đoạn trong log).
+    `glossary`: dict đã lọc theo chương (pipeline lo lọc) — chèn nguyên khối
+    để AI dịch vùng <HAN> thống nhất với tên riêng đã chốt.
     """
     rendered = "\n".join(
         _BATCH_ITEM_TEMPLATE.format(
@@ -168,7 +195,11 @@ def build_batch_cleanup_prompt(items: list[dict]) -> str:
         )
         for it in items
     )
-    return BATCH_CLEANUP_PROMPT.format(count=len(items), items=rendered)
+    return BATCH_CLEANUP_PROMPT.format(
+        count=len(items),
+        glossary_block=format_glossary_block(glossary),
+        items=rendered,
+    )
 
 
 def parse_batch_response(response: str, items: list[dict]) -> dict[int, str]:
@@ -250,6 +281,7 @@ def cleanup_paragraph(
     translated_paragraph: str,
     regions: list[dict],
     ai_cfg: OpenAIConfig,
+    glossary: dict[str, str] | None = None,
 ) -> tuple[str, int]:
     """Gửi 1 đoạn văn có Hán cho AI sửa, trả (đoạn đã_sửa, số_chỗ_thực_sự_sửa).
 
@@ -261,7 +293,7 @@ def cleanup_paragraph(
     if han_before == 0:
         return translated_paragraph, 0
 
-    prompt = build_cleanup_prompt(raw_paragraph, translated_paragraph, regions)
+    prompt = build_cleanup_prompt(raw_paragraph, translated_paragraph, regions, glossary)
     try:
         response = openai_client.run_chat(ai_cfg, prompt)
     except RuntimeError:
@@ -283,6 +315,7 @@ def cleanup_chapter(
     log: Callable[[str], None] | None = None,
     max_chars: int = 0,
     retries: int = 1,
+    glossary: dict[str, str] | None = None,
 ) -> tuple[str, int, list[str]]:
     """Sửa toàn bộ chương: gom TẤT CẢ đoạn còn Hán, gửi AI sửa trong 1 request.
 
@@ -296,6 +329,9 @@ def cleanup_chapter(
             nhiều request. 0 = không giới hạn (luôn đúng 1 request cho cả chương).
         retries: Số lần thử lại khi vẫn còn Hán sau lần cleanup đầu (1 = thử 1 lần,
             không retry thêm; 0 = không thử). Mỗi lần retry lại quét từ đầu chapter.
+        glossary: Dict glossary đã lọc theo chương (pipeline lo lọc bằng
+            `_filter_glossary` trên raw + bản dịch) — chèn vào prompt để AI dịch
+            vùng <HAN> thống nhất với tên riêng đã chốt. None/rỗng = không chèn.
 
     Trả (translated_đã_sửa, tổng_số_chỗ_sửa_thực_tế, warnings).
     Không sửa gì nếu không có Hán.
@@ -360,7 +396,7 @@ def cleanup_chapter(
 
         attempt_fixed = 0
         for batch in batches:
-            prompt = build_batch_cleanup_prompt(batch)
+            prompt = build_batch_cleanup_prompt(batch, glossary)
             try:
                 response = openai_client.run_chat(ai_cfg, prompt)
             except RuntimeError:

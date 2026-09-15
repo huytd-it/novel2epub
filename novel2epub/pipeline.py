@@ -808,13 +808,31 @@ def _get_han_local_mt(cfg: Config, storage: Storage):
         return translator
 
 
+def _cleanup_prompt_glossary(cfg: Config, storage: Storage, raw: str, translated: str) -> dict:
+    """Glossary rút gọn cho prompt dọn Hán LLM của 1 chương.
+
+    Cùng quy tắc với các prompt AI khác (rewrite/glossary): lọc theo nội dung
+    chương khi `translate.glossary_filter` bật để tiết kiệm token; tắt lọc thì
+    trả toàn bộ. Pipeline lọc, han_cleanup chỉ render.
+    """
+    from .translator import _filter_glossary, load_glossary_dict
+
+    glossary = load_glossary_dict(cfg.translate, storage)
+    if not glossary:
+        return {}
+    if cfg.translate.glossary_filter:
+        return _filter_glossary(glossary, zh_text=raw or "", vi_text=translated or "")
+    return glossary
+
+
 def _run_han_cleanup(
     cfg: Config, storage: Storage, ch: Chapter, raw: str, translated: str, log: LogFn
 ) -> tuple[str, int, list[str]]:
     """Clear Hán theo engine cấu hình (`cfg.translate.cleanup_han.engine`).
 
     - local_mt (mặc định): dịch riêng từng vùng Hán bằng Local MT cục bộ.
-    - openai: nhờ AI biên tập (ai.openai) sửa vùng Hán trong ngữ cảnh câu.
+    - openai: nhờ AI biên tập (ai.openai) sửa vùng Hán trong ngữ cảnh câu,
+      kèm glossary đã lọc theo chương để dịch thống nhất tên riêng.
     Trả (bản đã sửa, số chỗ sửa, warnings)."""
     cleanup_cfg = cfg.translate.cleanup_han
     if cleanup_cfg.engine == "openai":
@@ -822,6 +840,7 @@ def _run_han_cleanup(
             raw, translated, cfg.ai.openai, log,
             max_chars=cleanup_cfg.max_chars,
             retries=cleanup_cfg.retries,
+            glossary=_cleanup_prompt_glossary(cfg, storage, raw, translated),
         )
     cleaner = _get_han_local_mt(cfg, storage)
     return han_cleanup.cleanup_han_with_local_mt(translated, cleaner.translate, log)
@@ -1364,6 +1383,7 @@ def step_cleanup_han_selected(
                 raw, translated, ai_cfg, log,
                 max_chars=cleanup_cfg.max_chars,
                 retries=cleanup_cfg.retries,
+                glossary=_cleanup_prompt_glossary(cfg, storage, raw, translated),
             )
         except Exception as e:
             log(f"[cleanup-han] ({i}/{total}) ! Lỗi: {e}")

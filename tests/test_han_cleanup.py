@@ -2,6 +2,8 @@
 from novel2epub.han_cleanup import (
     find_han_regions,
     build_cleanup_prompt,
+    build_batch_cleanup_prompt,
+    format_glossary_block,
     _extract_replacement,
     cleanup_han_with_local_mt,
     count_han,
@@ -377,11 +379,7 @@ def test_cleanup_chapter_max_chars_skips_long_paragraph():
 
 
 def test_cleanup_chapter_long_chapter_short_han_paragraph_still_processed():
-    """Chương tổng thể dài vượt max_chars nhưng đoạn chứa Hán ngắn -> vẫn gọi AI.
-
-    Kịch bản thực tế: chương truyện mạng ~20k ký tự, chỉ vài đoạn ngắn còn sót
-    Hán. max_chars áp theo ĐOẠN (payload mỗi lần gọi AI), không theo cả chương.
-    """
+    """Chuong dai vuot max_chars nhung doan chua Han ngan -> van goi AI."""
     from novel2epub.han_cleanup import cleanup_chapter
     from novel2epub.config import OpenAIConfig
 
@@ -409,3 +407,82 @@ def test_cleanup_chapter_long_chapter_short_han_paragraph_still_processed():
     assert cleaned.startswith("x" * 500)
     assert cleaned.endswith("y" * 500)
     assert not any("max_chars" in w for w in warnings)
+
+
+def test_format_glossary_block_empty():
+    assert format_glossary_block(None) == ""
+    assert format_glossary_block({}) == ""
+
+
+def test_build_cleanup_prompt_includes_glossary():
+    text = "Diệp Phàm nhìn 不好意思 rồi đi"
+    regions = find_han_regions(text)
+    prompt = build_cleanup_prompt("raw", text, regions, {"叶凡": "Diệp Phàm"})
+    assert "叶凡 = Diệp Phàm" in prompt
+    assert "glossary" in prompt.lower()
+
+
+def test_build_cleanup_prompt_without_glossary_has_no_block():
+    text = "Lý do không đi là vì 不好意思 (ngại)"
+    regions = find_han_regions(text)
+    prompt = build_cleanup_prompt("raw", text, regions)
+    assert "Bảng thuật ngữ bắt buộc" not in prompt
+
+
+def test_build_batch_cleanup_prompt_includes_glossary():
+    items = [
+        {"para_idx": 0, "raw": "raw", "marked": "vì <HAN>不好</HAN> nên", "original": "vì 不好 nên"},
+    ]
+    prompt = build_batch_cleanup_prompt(items, {"叶凡": "Diệp Phàm"})
+    assert "叶凡 = Diệp Phàm" in prompt
+    prompt_plain = build_batch_cleanup_prompt(items)
+    assert "Bảng thuật ngữ bắt buộc" not in prompt_plain
+
+
+def test_cleanup_chapter_forwards_glossary_to_prompt():
+    """cleanup_chapter phai chen glossary da loc vao prompt gui AI."""
+    from novel2epub.han_cleanup import cleanup_chapter
+    from novel2epub.config import OpenAIConfig
+
+    text = "Diệp Phàm nhìn 不好 rồi đi"
+    prompts = []
+
+    def _fake(ai_cfg, prompt):
+        prompts.append(prompt)
+        return '<DOAN id="1">\nDiệp Phàm nhìn không tốt rồi đi\n</DOAN>'
+
+    import novel2epub.han_cleanup as hc
+    orig_run = hc.openai_client.run_chat
+    hc.openai_client.run_chat = _fake
+    try:
+        cleaned, count, _warnings = cleanup_chapter(
+            "raw", text, OpenAIConfig(), glossary={"叶凡": "Diệp Phàm"},
+        )
+    finally:
+        hc.openai_client.run_chat = orig_run
+
+    assert len(prompts) == 1
+    assert "叶凡 = Diệp Phàm" in prompts[0]
+    assert "Diệp Phàm nhìn không tốt rồi đi" in cleaned
+    assert count == 2
+
+
+def test_cleanup_prompt_glossary_filtered_by_chapter(tmp_path):
+    """Pipeline chi gui muc glossary xuat hien trong chuong (tiet kiem token)."""
+    from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig, TranslateConfig
+    from novel2epub.pipeline import _cleanup_prompt_glossary
+    from novel2epub.storage import Storage
+
+    cfg = Config(
+        novel=NovelConfig(slug="t"),
+        crawl=CrawlConfig(toc_url="http://x/book/", delay_seconds=0),
+        translate=TranslateConfig(type="openai", delay_seconds=0),
+        output=OutputConfig(data_dir=str(tmp_path)),
+    )
+    storage = Storage(str(tmp_path), "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "叶凡 = Diệp Phàm\n林动 = Lâm Động\n")
+    raw = "叶凡出场了"
+    translated = "Diệp Phàm nhìn 不好 rồi đi"
+    out = _cleanup_prompt_glossary(cfg, storage, raw, translated)
+    assert out == {"叶凡": "Diệp Phàm"}

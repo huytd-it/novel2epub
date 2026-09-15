@@ -725,30 +725,34 @@ def ebook_glossary_approve_status(request: Request, slug: str):
 @router.post("/api/ebooks/{slug}/glossary/pending/clear")
 def ebook_glossary_pending_clear(slug: str, payload: dict = Body(...)):
     """Bỏ đề xuất khỏi hàng chờ KHÔNG đưa vào glossary. Body JSON
-    `{"sources": [...]}` hoặc `{"all": true}` (bỏ toàn bộ)."""
+    `{"sources": [...]}` hoặc `{"all": true}` (bỏ toàn bộ).
+
+    Từ chối đề xuất ghi đè (`existing_target → target`) còn hoàn tác ngay ở
+    chương đã sinh ra gợi ý: thay `target → existing_target` trong mọi cột
+    bản dịch của chương đó (xem `Storage.revert_rejected_glossary`), vì bản
+    dịch LLM vừa lưu đã dùng từ mới."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     storage.migrate_glossary_queue()
+    pending_before = _read_pending(storage)
     if payload.get("all"):
-        previous_count = 0
-        def _clear_all(raw):
-            nonlocal previous_count
-            previous_count = len(_normalize_pending(raw))
-            return []
-        storage.update_extra_json("glossary_pending", _clear_all)
-        return JSONResponse({"cleared": previous_count})
+        cleared_entries = list(pending_before)
+        storage.update_extra_json("glossary_pending", lambda _raw: [])
+        reverted = storage.revert_rejected_glossary(cleared_entries)
+        return JSONResponse(
+            {"cleared": len(cleared_entries), **reverted}
+        )
     sources = {str(s).strip() for s in payload.get("sources", []) if str(s).strip()}
     if not sources:
         raise HTTPException(status_code=400, detail="Chưa chọn đề xuất nào để bỏ.")
-    cleared = 0
+    cleared_entries = [p for p in pending_before if p["source"] in sources]
+    cleared = len(cleared_entries)
     def _clear_selected(raw):
-        nonlocal cleared
         pending = _normalize_pending(raw)
-        remaining = [p for p in pending if p["source"] not in sources]
-        cleared = len(pending) - len(remaining)
-        return remaining
+        return [p for p in pending if p["source"] not in sources]
     storage.update_extra_json("glossary_pending", _clear_selected)
-    return JSONResponse({"cleared": cleared})
+    reverted = storage.revert_rejected_glossary(cleared_entries)
+    return JSONResponse({"cleared": cleared, **reverted})
 
 
 @router.get("/api/ebooks/{slug}/glossary/suspects")

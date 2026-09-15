@@ -2918,6 +2918,125 @@ class Storage:
             conn.rollback()
             raise
 
+    def revert_rejected_glossary(self, entries: list[dict]) -> dict:
+        """Hoàn tác giá trị mới khi người dùng TỪ CHỐI đề xuất ghi đè glossary.
+
+        Bối cảnh: LLM dịch 1 chương vừa trả bản dịch (đã dùng `target` mới)
+        vừa trả gợi ý `existing_target → target` vào `glossary_pending`. Nếu
+        người dùng từ chối, glossary giữ giá trị cũ nhưng bản dịch của chương
+        đó vẫn còn từ mới → phải thay `target → existing_target` ngay ở chương
+        đã sinh ra gợi ý (`chapter_index`).
+
+        Chỉ chạm các chương có `chapter_index > 0` và có cặp
+        `target → existing_target` hợp lệ; mỗi chương thay đồng thời
+        (longest-first, một lượt) trên mọi cột bản dịch của chương đó
+        (`translated_text`/`translated_mt_text`/`local_mt_text`/
+        `local_mt_mt_snapshot` + `title`/`local_mt_title`/`title_note` + meta
+        allowlist). Một transaction. Trả {"total", "chapters"}.
+        """
+        by_chapter: dict[int, list[tuple[str, str]]] = {}
+        for e in entries or []:
+            if not isinstance(e, dict):
+                continue
+            try:
+                idx = int(e.get("chapter_index", 0))
+            except (TypeError, ValueError):
+                continue
+            if idx <= 0:
+                continue
+            new = str(e.get("target", "") or "").strip()
+            old = str(e.get("existing_target", "") or "").strip()
+            if not new or not old or new == old:
+                continue
+            by_chapter.setdefault(idx, []).append((new, old))
+        if not by_chapter:
+            return {"total": 0, "chapters": 0}
+        self.ensure_dirs()
+        conn = self.conn
+        total = 0
+        chapters_changed = 0
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            for idx, pairs in by_chapter.items():
+                matcher = _replacement_matcher(pairs)
+                if matcher is None:
+                    continue
+                _active, pattern = matcher
+                mapping = dict(_active)
+
+                def _replace_text(text: str) -> tuple[str, int]:
+                    if not text:
+                        return text, 0
+                    hits = {"n": 0}
+
+                    def _m(m):
+                        hits["n"] += 1
+                        return mapping[m.group(0)]
+
+                    return pattern.sub(_m, text), hits["n"]
+
+                row = conn.execute(
+                    "SELECT translated_text, translated_mt_text, local_mt_text, "
+                    "local_mt_mt_snapshot, title, local_mt_title, title_note, "
+                    "meta_json FROM chapters WHERE ebook_slug=? AND idx=?",
+                    (self.slug, idx),
+                ).fetchone()
+                if row is None:
+                    continue
+                new_vals: dict[str, str | None] = {}
+                changed_here = False
+                for col in (
+                    "translated_text",
+                    "translated_mt_text",
+                    "local_mt_text",
+                    "local_mt_mt_snapshot",
+                    "title",
+                    "local_mt_title",
+                    "title_note",
+                ):
+                    val = row[col]
+                    if val:
+                        nv, n = _replace_text(val)
+                        if n:
+                            total += n
+                            changed_here = True
+                            new_vals[col] = nv
+                meta_json = row["meta_json"]
+                if meta_json:
+                    try:
+                        meta_obj = json.loads(meta_json)
+                    except json.JSONDecodeError:
+                        meta_obj = None
+                    if isinstance(meta_obj, dict):
+                        meta_new, meta_n = _replace_in_meta(meta_obj, _replace_text)
+                        if meta_n:
+                            total += meta_n
+                            changed_here = True
+                            meta_json = json.dumps(meta_new, ensure_ascii=False)
+                if not changed_here:
+                    continue
+                sets: list[str] = []
+                params: list = []
+                for col, val in new_vals.items():
+                    sets.append(f"{col} = ?")
+                    params.append(val)
+                # meta luôn ghi lại khi có thay đổi ở bất kỳ cột nào để giữ
+                # translated_updated_at đồng bộ; khi chỉ đổi meta cũng cần set.
+                sets.append("meta_json = ?")
+                params.append(meta_json)
+                sets.append("translated_updated_at = unixepoch('now')")
+                params.extend([self.slug, idx])
+                conn.execute(
+                    f"UPDATE chapters SET {', '.join(sets)} WHERE ebook_slug=? AND idx=?",
+                    params,
+                )
+                chapters_changed += 1
+            conn.commit()
+            return {"total": total, "chapters": chapters_changed}
+        except Exception:
+            conn.rollback()
+            raise
+
     # ----- báo cáo dung lượng + dọn dẹp (thay app/storage_report.py cũ) -----
     def content_bytes(self) -> dict[str, int]:
         """Dung lượng (byte UTF-8) theo từng loại nội dung của ebook — dùng cho

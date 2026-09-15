@@ -806,6 +806,46 @@ def test_pending_clear_selected_and_all(tmp_path, monkeypatch):
     assert storage.read_extra_json("glossary_pending") == []
 
 
+def test_pending_clear_reverts_new_term_in_origin_chapter(tmp_path, monkeypatch):
+    """Từ chối đề xuất ghi đè: chương đã dùng từ mới phải về giá trị cũ."""
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "叶凡 = Diệp Phàm cũ\n")
+    chapters = [Chapter(index=5, url="http://x/5"), Chapter(index=6, url="http://x/6")]
+    storage.save_manifest(Manifest(slug="t", chapters=chapters))
+    storage.write_translated(chapters[0], "Diệp Phàm mới xuất hiện")
+    storage.write_translated_mt(chapters[0], "Diệp Phàm mới xuất hiện")
+    storage.write_translated(chapters[1], "Diệp Phàm mới ở chương khác")
+    storage.write_extra_json(
+        "glossary_pending",
+        [
+            {
+                "source": "叶凡",
+                "existing_target": "Diệp Phàm cũ",
+                "target": "Diệp Phàm mới",
+                "chapter_index": 5,
+                "note": "",
+            }
+        ],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/pending/clear", json={"sources": ["叶凡"]})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["cleared"] == 1
+    assert body["total"] == 2  # translated + snapshot của chương gốc
+    assert body["chapters"] == 1
+    assert storage.read_translated(chapters[0]) == "Diệp Phàm cũ xuất hiện"
+    assert storage.read_translated_mt(chapters[0]) == "Diệp Phàm cũ xuất hiện"
+    # Chương khác không phải nơi sinh gợi ý → giữ nguyên.
+    assert storage.read_translated(chapters[1]) == "Diệp Phàm mới ở chương khác"
+    assert storage.read_extra_json("glossary_pending") == []
+    # Glossary giữ giá trị cũ.
+    assert ("叶凡", "Diệp Phàm cũ", "") in storage.read_glossary_entries("names.txt")
+
+
 def test_replace_approve_upserts_edited_values_and_keeps_unselected(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")

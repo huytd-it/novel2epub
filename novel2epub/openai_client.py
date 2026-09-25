@@ -9,6 +9,7 @@ Tương thích bất kỳ provider lộ endpoint kiểu OpenAI: OpenAI, OpenRout
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import requests
 
@@ -242,4 +243,66 @@ def run_chat(cfg: OpenAIConfig, prompt: str) -> str:
     """
     content, _meta = run_chat_with_meta(cfg, prompt)
     return content
+
+
+def chat_with_tools(
+    cfg: OpenAIConfig,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Gọi chat completion kèm `tools` (OpenAI function-calling), không stream.
+
+    Trả message đầu tiên nguyên dạng dict: `{"role", "content", "tool_calls"}` —
+    `tool_calls` là list `{"id", "name", "arguments"}` (arguments đã parse JSON,
+    lỗi parse → dict rỗng). Không có tool call thì `tool_calls` rỗng.
+    Raise RuntimeError nếu HTTP lỗi / response sai định dạng.
+    """
+    url = cfg.base_url.rstrip("/") + "/chat/completions"
+    payload = {
+        "model": cfg.model,
+        "messages": messages,
+        "temperature": cfg.temperature,
+        "tools": tools,
+        "tool_choice": "auto",
+    }
+    try:
+        resp = requests.post(
+            url, headers=_headers(cfg), json=payload, timeout=cfg.timeout_seconds,
+        )
+    except requests.exceptions.Timeout as e:
+        raise RuntimeError(f"AI request quá thời gian ({cfg.timeout_seconds}s).") from e
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Không gọi được AI tại {url!r}: {e}") from e
+
+    if resp.status_code != 200:
+        detail = resp.text.strip()[:2000] or "(không có nội dung lỗi)"
+        raise RuntimeError(f"AI trả về mã lỗi HTTP {resp.status_code}:\n{detail}")
+    try:
+        data = resp.json()
+        message = data["choices"][0]["message"]
+    except (ValueError, KeyError, IndexError, TypeError) as e:
+        raise RuntimeError(
+            f"AI trả về response không đúng định dạng OpenAI: {resp.text[:2000]}"
+        ) from e
+
+    raw_calls = message.get("tool_calls") or []
+    tool_calls: list[dict[str, Any]] = []
+    for call in raw_calls:
+        if not isinstance(call, dict):
+            continue
+        fn = call.get("function") or {}
+        name = fn.get("name") or ""
+        raw_args = fn.get("arguments") or "{}"
+        try:
+            args = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
+        except (ValueError, TypeError):
+            args = {}
+        if not isinstance(args, dict):
+            args = {}
+        tool_calls.append({"id": call.get("id") or "", "name": str(name), "arguments": args})
+    return {
+        "role": message.get("role") or "assistant",
+        "content": message.get("content") or "",
+        "tool_calls": tool_calls,
+    }
 

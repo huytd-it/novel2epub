@@ -18,6 +18,7 @@ from .deps import BASE_DIR, WORKSPACE_PATH
 from .job import JobRunner
 from .logging_config import setup_logging
 from .routes import (
+    assistant,
     automation,
     chapters,
     characters,
@@ -233,6 +234,7 @@ app.state.job.queue.register_kind("batch-translate", chapters.batch_translate_jo
 app.state.job.queue.register_kind("publish-reader", ebooks.publish_reader_job_factory)
 app.state.job.queue.register_kind("glossary-approve", glossary.glossary_approve_job_factory)
 app.state.job.queue.register_kind("glossary-ai", glossary.glossary_ai_job_factory)
+app.state.job.queue.register_kind("assistant-fill-context", assistant.assistant_fill_context_job_factory)
 app.state.job.queue.register_kind("opds-autobuild", opds.autobuild_job_factory)
 app.state.job.queue.load_pending()
 app.state.scheduler = AutomationScheduler(deps.DB_PATH, WORKSPACE_PATH, app.state.job.queue)
@@ -261,6 +263,7 @@ if _SPA_BUILT:
         return RedirectResponse(url=target, status_code=308)
 
 app.include_router(ebooks.router)
+app.include_router(assistant.router)
 app.include_router(chapters.router)
 app.include_router(characters.router)
 app.include_router(glossary.router)

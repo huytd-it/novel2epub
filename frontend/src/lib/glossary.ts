@@ -40,6 +40,8 @@ export interface PendingEntry {
   existing_target: string;
   count?: number;
   chapters?: number;
+  /** Cờ "giá trị đáng ngờ" của giá trị đề xuất (server tính bằng entry_flags). */
+  flags: string[];
 }
 
 /** Một dòng bảng đã sửa nhưng chưa ghi (bản nháp chờ bấm "Áp dụng"). */
@@ -254,6 +256,23 @@ export function useApprovePending(slug: string) {
   });
 }
 
+/** AI xử lý lại TOÀN BỘ hàng chờ duyệt trong MỘT job nền — kết quả thay hàng
+ * chờ cũ cùng source, KHÔNG ghi thẳng vào glossary. */
+export function useGlossaryAiReprocessPending(slug: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { instruction: string }) =>
+      api.post<{ started: boolean; requested: number }>(
+        `/api/ebooks/${slug}/glossary/ai/reprocess-pending`,
+        { body: vars },
+      ),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["queue"] });
+      client.invalidateQueries({ queryKey: pendingKey(slug) });
+    },
+  });
+}
+
 /** Trợ lý AI: nhờ AI dịch lại các mục đã chọn. Enqueue MỘT job nền — kết quả
  * vào hàng chờ duyệt, KHÔNG ghi thẳng vào glossary. */
 export function useGlossaryAiRetranslate(slug: string) {
@@ -264,7 +283,10 @@ export function useGlossaryAiRetranslate(slug: string) {
         `/api/ebooks/${slug}/glossary/ai/retranslate`,
         { body: vars },
       ),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["queue"] }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["queue"] });
+      client.invalidateQueries({ queryKey: pendingKey(slug) });
+    },
   });
 }
 

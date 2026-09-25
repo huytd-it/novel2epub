@@ -672,6 +672,9 @@ class TailscaleConfig:
     Lưu trong `settings.tailscale_json`. Không chứa secret.
     `binary` là đường dẫn tailscale executable (mặc định "tailscale" trong PATH).
     `port` là cổng Web UI đang chạy (mặc định 8010).
+    `tcp_port` là cổng public cho TCP forward (0 = chưa cấu hình).
+    `tcp_target` là đích local cho TCP (rỗng = 127.0.0.1:<tcp_port hoặc port>).
+    `tcp_tls_terminated` bật --tls-terminated-tcp thay vì --tcp.
     """
     binary: str = "tailscale"
     port: int = 8010
@@ -679,6 +682,9 @@ class TailscaleConfig:
     target: str = ""  # rỗng = http://127.0.0.1:<port>
     use_https: bool = True
     timeout_seconds: float = 15.0
+    tcp_port: int = 0
+    tcp_target: str = ""
+    tcp_tls_terminated: bool = False
 
 
 @dataclass
@@ -1402,6 +1408,9 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         target=str(ts_raw.get("target", "")).strip(),
         use_https=bool(ts_raw.get("use_https", TailscaleConfig.use_https)),
         timeout_seconds=float(ts_raw.get("timeout_seconds", TailscaleConfig.timeout_seconds)),
+        tcp_port=max(0, min(65535, int(ts_raw.get("tcp_port", TailscaleConfig.tcp_port)))),
+        tcp_target=str(ts_raw.get("tcp_target", "")).strip(),
+        tcp_tls_terminated=bool(ts_raw.get("tcp_tls_terminated", TailscaleConfig.tcp_tls_terminated)),
     )
 
     return Config(novel=novel, crawl=crawl, translate=translate, ai=ai, global_ai=global_ai, output=output, queue=queue, reader=reader, api=api, wireguard=wireguard, tailscale=tailscale, source=source_name, warnings=warnings)

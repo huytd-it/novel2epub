@@ -88,38 +88,121 @@ class TailscaleServeInfo:
     serve_config: dict[str, Any] | None = None
     funnel_on: bool = False
     serve_on: bool = False
+    # TCP forward (raw TCP / TLS-terminated TCP)
+    tcp_on: bool = False
+    tcp_funnel_on: bool = False
+    tcp_config: dict[str, Any] | None = None
     # raw JSON để frontend tự render nếu cần
     raw: dict[str, Any] | None = None
+
+
+def _extract_tcp_info(data: dict[str, Any]) -> tuple[bool, bool, dict[str, Any] | None]:
+    """Trích TCP forward info từ JSON `serve status --json`.
+
+    Trả (tcp_on, tcp_funnel_on, tcp_config)."""
+    if not isinstance(data, dict):
+        return False, False, None
+    sc = data.get("ServeConfig") if isinstance(data.get("ServeConfig"), dict) else {}
+    # ServeConfig.TCP là map port -> {TCPForward|...}
+    tcp_cfg: Any = None
+    if isinstance(sc.get("TCP"), dict) and sc["TCP"]:
+        tcp_cfg = sc["TCP"]
+    elif isinstance(data.get("TCP"), dict) and data["TCP"]:
+        tcp_cfg = data["TCP"]
+    # Fallback: quét toàn bộ data tìm TCPForward
+    if tcp_cfg is None:
+        for v in data.values():
+            if isinstance(v, dict):
+                for k2, v2 in v.items():
+                    if isinstance(v2, dict) and "TCPForward" in v2:
+                        tcp_cfg = {k2: v2}
+                        break
+                if tcp_cfg:
+                    break
+    tcp_on = bool(isinstance(tcp_cfg, dict) and tcp_cfg)
+    tcp_funnel_on = False
+    if tcp_on and isinstance(tcp_cfg, dict):
+        # AllowFunnel có thể ở top-level hoặc ServeConfig
+        allow = data.get("FunnelOn")
+        if allow is None and isinstance(sc, dict):
+            allow = sc.get("AllowFunnel")
+        if isinstance(allow, dict):
+            for pk in tcp_cfg.keys():
+                pk_s = str(pk)
+                for ak in allow.keys():
+                    ak_s = str(ak)
+                    if pk_s == ak_s or pk_s in ak_s or ak_s.endswith(f":{pk_s}") or ak_s == f"tcp:{pk_s}":
+                        tcp_funnel_on = True
+                        break
+                if tcp_funnel_on:
+                    break
+        elif isinstance(allow, bool):
+            tcp_funnel_on = bool(allow and tcp_on)
+        else:
+            # Heuristic: nếu AllowFunnel là dict truthy và chứa bất kỳ
+            if isinstance(sc.get("AllowFunnel"), dict) and tcp_cfg:
+                for pk in tcp_cfg.keys():
+                    if any(str(pk) in str(k) for k in sc["AllowFunnel"].keys()):
+                        tcp_funnel_on = True
+                        break
+    return tcp_on, tcp_funnel_on, tcp_cfg if isinstance(tcp_cfg, dict) else None
 
 
 def get_serve_status(binary: str = "tailscale", *, timeout: float = 10.0) -> TailscaleServeInfo:
     """Lấy trạng thái serve/funnel. Không lỗi nếu chưa bật."""
     result = _run(binary, ["serve", "status", "--json"], timeout=timeout)
-    # tailscale serve status trả 0 khi có config, 1/2 khi chưa có — cả hai đều có JSON
     raw_text = (result.stdout or "") or (result.stderr or "") or "{}"
     data = _safe_json(raw_text)
     if data is None:
-        # Không có JSON hợp lệ — coi như chưa có serve (tránh crash UI)
         err_snip = (raw_text or "").strip()[:300]
         return TailscaleServeInfo(raw={"error": err_snip} if err_snip else None)
-    # Các key dự kiến: "ServeConfig" hoặc "TCP" / "Web" / "Funnel"
-    # Tài liệu: `tailscale serve status --json` trả { "ServeConfig": {...}, ... }
-    serve_cfg = data.get("ServeConfig") or data.get("Config") or data.get("TCP") or data.get("Web")
-    funnel_on = bool(data.get("FunnelOn") or data.get("AllowFunnel") or any(
-        "funnel" in str(k).lower() for k in data.keys()
-    ))
-    # Xác định serve_on: có ServeConfig khác rỗng
-    serve_on = bool(serve_cfg)
-    if not serve_on and isinstance(data, dict):
-        # Một số phiên bản dùng "Services" hoặc trực tiếp map
-        for v in data.values():
-            if isinstance(v, dict) and v:
+    sc = data.get("ServeConfig") if isinstance(data.get("ServeConfig"), dict) else {}
+    # Web config
+    web_cfg: Any = None
+    if isinstance(sc.get("Web"), dict) and sc["Web"]:
+        web_cfg = sc["Web"]
+    elif isinstance(data.get("Web"), dict) and data["Web"]:
+        web_cfg = data["Web"]
+    else:
+        # Fallback cho bản cũ: ServeConfig trực tiếp là Web map
+        maybe = data.get("ServeConfig")
+        if isinstance(maybe, dict) and maybe and not isinstance(maybe.get("TCP"), dict):
+            # Nếu ServeConfig không có TCP/Web mà chứa trực tiếp handlers
+            if any(isinstance(v, dict) and ("Handlers" in v or "Proxy" in str(v)) for v in maybe.values()):
+                web_cfg = maybe
+    tcp_on, tcp_funnel_on, tcp_cfg = _extract_tcp_info(data)
+    # funnel cho Web
+    allow_web = sc.get("AllowFunnel") if isinstance(sc, dict) else None
+    funnel_on = False
+    if isinstance(data.get("FunnelOn"), bool):
+        funnel_on = bool(data["FunnelOn"] and web_cfg)
+    elif isinstance(allow_web, dict) and web_cfg:
+        # AllowFunnel chứa host:port của Web
+        funnel_on = any(bool(v) for v in allow_web.values()) and bool(web_cfg)
+    elif isinstance(data.get("FunnelOn"), dict):
+        funnel_on = bool(data["FunnelOn"])
+    # fallback heuristic cũ
+    if not funnel_on and web_cfg and any("funnel" in str(k).lower() for k in data.keys()):
+        funnel_on = bool(data.get("FunnelOn"))
+
+    serve_on = bool(isinstance(web_cfg, dict) and web_cfg)
+    # Nếu không xác định được web_cfg mà có data rỗng và có tcp thì web vẫn off
+    if not serve_on and not tcp_on:
+        # Check fallback: có ServeConfig khác rỗng nhưng không phải TCP
+        if isinstance(data.get("ServeConfig"), dict) and data["ServeConfig"]:
+            # Nếu ServeConfig có key khác TCP/Web nhưng có dữ liệu
+            other = {k: v for k, v in data["ServeConfig"].items() if k not in ("TCP", "Web", "AllowFunnel")}
+            if other and any(isinstance(v, dict) and v for v in other.values()):
                 serve_on = True
-                break
+                web_cfg = data["ServeConfig"]
+
     return TailscaleServeInfo(
-        serve_config=serve_cfg if isinstance(serve_cfg, dict) else (data if data else None),
+        serve_config=web_cfg if isinstance(web_cfg, dict) else (web_cfg if web_cfg else None),
         funnel_on=funnel_on,
         serve_on=serve_on,
+        tcp_on=tcp_on,
+        tcp_funnel_on=tcp_funnel_on,
+        tcp_config=tcp_cfg,
         raw=data,
     )
 
@@ -162,7 +245,11 @@ def _check_target_reachable(target: str, timeout: float = 2.0) -> tuple[bool, st
     from urllib.parse import urlparse
 
     try:
-        parsed = urlparse(target)
+        # Hỗ trợ cả dạng host:port thuần cho TCP forward (vd 127.0.0.1:5432)
+        probe = target
+        if "://" not in probe:
+            probe = f"http://{probe}"
+        parsed = urlparse(probe)
         host = parsed.hostname or "127.0.0.1"
         tport = parsed.port or 80
         # Chỉ kiểm tra host loopback để tránh SSRF
@@ -256,6 +343,103 @@ def funnel_enable(
     raise TailscaleError("không bật được tailscale funnel")
 
 
+def tcp_serve_enable(
+    public_port: int,
+    target: str = "127.0.0.1",
+    *,
+    binary: str = "tailscale",
+    tls_terminated: bool = False,
+    timeout: float = 15.0,
+) -> dict[str, Any]:
+    public_port = int(public_port)
+    if not (1 <= public_port <= 65535):
+        raise TailscaleError(f"cổng public không hợp lệ: {public_port}")
+    ok, msg = _check_target_reachable(target)
+    if not ok:
+        raise TailscaleError(f"TCP target không phản hồi tại {target} — {msg}.")
+    flag = "--tls-terminated-tcp" if tls_terminated else "--tcp"
+    args = ["serve", "--bg", flag, str(public_port), target]
+    result = _run(binary, args, timeout=timeout)
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip()[:600]
+        raise TailscaleError(err or f"tailscale serve tcp exit {result.returncode}")
+    return {"ok": True, "args": args, "target": target, "port": public_port}
+
+
+def tcp_funnel_enable(
+    public_port: int,
+    target: str = "127.0.0.1",
+    *,
+    binary: str = "tailscale",
+    tls_terminated: bool = False,
+    timeout: float = 15.0,
+) -> dict[str, Any]:
+    public_port = int(public_port)
+    if not (1 <= public_port <= 65535):
+        raise TailscaleError(f"cổng public không hợp lệ: {public_port}")
+    ok, msg = _check_target_reachable(target)
+    if not ok:
+        raise TailscaleError(f"TCP target không phản hồi tại {target} — {msg}.")
+    flag = "--tls-terminated-tcp" if tls_terminated else "--tcp"
+    args = ["funnel", "--bg", flag, str(public_port), target]
+    result = _run(binary, args, timeout=timeout)
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip()[:600]
+        raise TailscaleError(err or f"tailscale funnel tcp exit {result.returncode}")
+    return {"ok": True, "args": args, "target": target, "port": public_port}
+
+
+def tcp_reset(
+    public_port: int | None = None,
+    *,
+    binary: str = "tailscale",
+    tls_terminated: bool = False,
+    timeout: float = 10.0,
+) -> dict[str, Any]:
+    if public_port is not None:
+        public_port = int(public_port)
+        if not (1 <= public_port <= 65535):
+            raise TailscaleError(f"cổng không hợp lệ: {public_port}")
+        flag = "--tls-terminated-tcp" if tls_terminated else "--tcp"
+        for args in (
+            ["serve", f"{flag}={public_port}", "off"],
+            ["serve", flag, str(public_port), "off"],
+            ["funnel", f"{flag}={public_port}", "off"],
+        ):
+            result = _run(binary, args, timeout=timeout)
+            if result.returncode == 0:
+                return {"ok": True, "args": args}
+            err = (result.stderr or result.stdout or "").strip()[:500].lower()
+            if "unknown" in err or "invalid" in err:
+                continue
+        result = _run(binary, ["serve", "reset"], timeout=timeout)
+        if result.returncode != 0:
+            err = (result.stderr or result.stdout or "").strip()[:500]
+            raise TailscaleError(err or "không tắt được TCP forward")
+        return {"ok": True}
+    info = get_serve_status(binary, timeout=timeout)
+    ports = []
+    if info.tcp_config:
+        for k in info.tcp_config.keys():
+            try:
+                ports.append(int(str(k).split(":")[-1]))
+            except ValueError:
+                continue
+    if not ports:
+        return {"ok": True, "note": "không có TCP forward đang mở"}
+    last_err = ""
+    for pp in ports:
+        try:
+            tcp_reset(pp, binary=binary, timeout=timeout)
+        except TailscaleError as e:
+            last_err = str(e)
+    if last_err:
+        result = _run(binary, ["serve", "reset"], timeout=timeout)
+        if result.returncode != 0:
+            raise TailscaleError(last_err)
+    return {"ok": True, "ports": ports}
+
+
 def serve_reset(*, binary: str = "tailscale", timeout: float = 10.0) -> dict[str, Any]:
     """Tắt toàn bộ serve: `tailscale serve reset`."""
     result = _run(binary, ["serve", "reset"], timeout=timeout)
@@ -332,6 +516,11 @@ def collect_overview(
             "config": serve.serve_config,
             "raw": serve.raw,
         },
+        "tcp": {
+            "on": serve.tcp_on,
+            "funnel_on": serve.tcp_funnel_on,
+            "config": serve.tcp_config,
+        },
     }
 
 
@@ -355,4 +544,7 @@ def describe_config(cfg) -> dict[str, Any]:
         "target": cfg.target,
         "use_https": cfg.use_https,
         "timeout_seconds": cfg.timeout_seconds,
+        "tcp_port": int(getattr(cfg, "tcp_port", 0) or 0),
+        "tcp_target": str(getattr(cfg, "tcp_target", "") or ""),
+        "tcp_tls_terminated": bool(getattr(cfg, "tcp_tls_terminated", False)),
     }

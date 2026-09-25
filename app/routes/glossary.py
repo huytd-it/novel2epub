@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import json
 import re
-from collections import Counter
 
 from fastapi import APIRouter, Body, Form, HTTPException, Request
 from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from novel2epub import bulk_transfer, glossary_ai, glossary_review
+from novel2epub import bulk_transfer, glossary_ai, glossary_review, proper_names
 from novel2epub.han_cleanup import count_han
 from novel2epub.notes import split_paras
 from novel2epub.pipeline import _chapter_range, step_find_replace
-from novel2epub.storage import Storage, normalize_glossary_pending
+from novel2epub.storage import Storage
 
 from app.chapter_compare import split_blocks
 
@@ -35,51 +34,9 @@ class ProperNameExtractRequest(BaseModel):
     translate: bool = Field(default=True, description="Dịch ứng viên bằng Local MT trước khi xếp hàng.")
 
 
-_SURNAME = set("赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴宋茅庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田樊胡凌霍虞万支柯管卢莫经房裘缪干解应宗丁宣邓郁单杭洪包诸左石崔吉龚程邢裴陆荣翁荀羊於惠甄曲封芮储靳汲邴糜松井段富巫乌焦巴弓牧隗山谷车侯宓蓬全郗班仰秋仲伊宫宁仇栾暴甘钭厉戎祖武符刘景詹束龙叶幸司韶郜黎蓟薄印宿白怀蒲台从鄂索咸籍赖卓蔺屠蒙池乔阴胥能苍双闻莘党翟谭贡劳逄姬申扶堵冉宰郦雍却璩桑桂濮牛寿通边扈燕冀郏浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终暨居衡步都耿满弘匡国文寇广禄阙东欧殳沃利蔚越夔隆师巩厍聂晁勾敖融冷訾辛阚那简饶空曾毋沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公")
-_NAME_CONTEXT = re.compile(r"(?:说道|问道|笑道|喝道|叫道|看着|望向|对|向|与|跟|被|将|让)([\u3400-\u9fff]{2,4})")
-_HAN_TOKEN = re.compile(r"[\u3400-\u9fff]{2,4}")
-_NAME_STOP = {"什么", "怎么", "这个", "那个", "自己", "他们", "我们", "你们", "现在", "时候", "因为", "所以", "但是", "如果", "没有", "一个", "已经", "可以", "知道", "说道", "问道", "看着", "起来", "出来", "进去", "这里", "那里"}
-
-
-def extract_proper_name_candidates(texts: list[tuple[int, str]], *, min_frequency: int = 2, max_candidates: int = 100) -> list[dict]:
-    """Dò ứng viên tên người từ raw bằng surname + ngữ cảnh hội thoại.
-
-    Đây là recognizer bảo thủ, không khẳng định entity: kết quả luôn phải qua
-    hàng chờ duyệt trước khi thành glossary.
-    """
-    counts: Counter[str] = Counter()
-    contexts: dict[str, str] = {}
-    chapters: dict[str, int] = {}
-    contextual: Counter[str] = Counter()
-    for chapter_index, text in texts:
-        for match in _HAN_TOKEN.finditer(text):
-            token = match.group(0)
-            if token in _NAME_STOP or token[0] not in _SURNAME:
-                continue
-            counts[token] += 1
-            chapters.setdefault(token, chapter_index)
-            contexts.setdefault(token, text[max(0, match.start() - 18): match.end() + 18].replace("\n", " "))
-        for token in _NAME_CONTEXT.findall(text):
-            if token not in _NAME_STOP:
-                contextual[token] += 1
-                counts[token] += 1
-                chapters.setdefault(token, chapter_index)
-    rows = []
-    for source, frequency in counts.most_common():
-        if frequency < min_frequency:
-            continue
-        context_hits = contextual[source]
-        confidence = min(0.98, 0.45 + min(frequency, 10) * 0.035 + min(context_hits, 3) * 0.1)
-        rows.append({
-            "source": source,
-            "frequency": frequency,
-            "confidence": round(confidence, 2),
-            "chapter_index": chapters[source],
-            "context": contexts.get(source, ""),
-        })
-        if len(rows) >= max_candidates:
-            break
-    return rows
+# Recognizer tên riêng + hàng chờ glossary sống trong `novel2epub/proper_names`
+# (domain thuần để Assistant Panel tái dùng). Giữ tên cũ để các caller không đổi.
+extract_proper_name_candidates = proper_names.extract_proper_name_candidates
 
 
 def _validate_glossary_source(source: str) -> None:
@@ -90,13 +47,12 @@ def _validate_glossary_source(source: str) -> None:
 def _read_pending(storage) -> list[dict]:
     """Hàng chờ duyệt thay đổi auto-glossary (extra json `glossary_pending`),
     đã migrate schema replacement + normalize."""
-    storage.migrate_glossary_queue()
-    return normalize_glossary_pending(storage.read_extra_json("glossary_pending"))
+    return proper_names.read_pending_queue(storage)
 
 
 def _normalize_pending(raw) -> list[dict]:
     """Normalize a queue snapshot without performing another database read."""
-    return normalize_glossary_pending(raw)
+    return proper_names.normalize_pending_queue(raw)
 
 
 def _append_glossary_entry(
@@ -464,6 +420,9 @@ def ebook_glossary_replace_preview(slug: str):
         info = by_old.get(p["existing_target"]) if p["existing_target"] else None
         p["count"] = info["count"] if info else 0
         p["chapters"] = info["chapters"] if info else 0
+        # Cờ "giá trị đáng ngờ" của GIÁ TRỊ ĐỀ XUẤT — cùng vị từ với chip lọc
+        # glossary (`entry_flags`) để client lọc hàng chờ mà không lệch.
+        p["flags"] = sorted(glossary_review.entry_flags(p["source"], p["target"]))
     return JSONResponse({"entries": entries, "count": len(entries), "total_matches": counts["total"]})
 
 
@@ -574,14 +533,21 @@ def glossary_ai_job_factory(params: dict):
         cfg = deps.resolved_cfg(slug)
         storage = Storage(cfg.output.data_dir, cfg.novel.slug)
         current = {s: (t, n) for s, t, n in storage.read_glossary_entries_merged()}
+        # Chồng đề xuất đang chờ duyệt lên glossary: mục chờ duyệt cũng gửi AI
+        # xử lý lại được — kể cả mục MỚI chưa có trong glossary (lấy target
+        # đang chờ làm mốc để AI rà soát, kết quả thay hàng chờ cũ cùng source).
+        pending_rows = {p["source"]: p for p in _read_pending(storage)}
+        base = dict(current)
+        for src, prow in pending_rows.items():
+            base[src] = (prow["target"], prow.get("note", ""))
         # Trợ lý AI chỉ sửa cột Việt — cột Hán là khoá của hàng chờ duyệt, không
         # đổi được. Mục có cột Hán không phải chữ Trung (thường là Hán/Việt bị
         # đảo) sẽ tạo ra đề xuất mà bước Duyệt từ chối, nên loại từ đây và chỉ
         # cho người dùng đường đi đúng.
-        selected = [s for s in sources if s in current]
+        selected = [s for s in sources if s in base]
         invalid = [s for s in selected if count_han(s) == 0]
         entries = [
-            {"source": s, "target": current[s][0], "note": current[s][1]}
+            {"source": s, "target": base[s][0], "note": base[s][1]}
             for s in selected
             if s not in invalid
         ]
@@ -614,19 +580,19 @@ def glossary_ai_job_factory(params: dict):
             log=log,
         )
 
-        changed = [r for r in results if r["target"] != current.get(r["source"], ("", ""))[0]]
+        changed = [r for r in results if r["target"] != base.get(r["source"], ("", ""))[0]]
         unchanged = len(results) - len(changed)
         for r in changed:
-            log(f"[glossary-ai]   ~ {r['source']}: '{current[r['source']][0]}' → '{r['target']}'"
+            log(f"[glossary-ai]   ~ {r['source']}: '{base[r['source']][0]}' → '{r['target']}'"
                 + (f" ({r['reason']})" if r["reason"] else ""))
 
         additions = [
             {
                 "source": r["source"],
                 "target": r["target"],
-                "existing_target": current[r["source"]][0],
+                "existing_target": current.get(r["source"], ("", ""))[0],
                 "chapter_index": 0,
-                "note": r["reason"] or current[r["source"]][1],
+                "note": r["reason"] or base[r["source"]][1],
             }
             for r in changed
         ]
@@ -659,6 +625,10 @@ def glossary_ai_job_factory(params: dict):
 def ebook_glossary_ai_retranslate(request: Request, slug: str, payload: GlossaryAiRequest):
     """Trợ lý AI: dịch lại HÀNG LOẠT các mục đã chọn → hàng chờ duyệt.
 
+    Nhận cả source trong glossary lẫn source đang chờ duyệt (kể cả mục MỚI
+    chưa vào glossary — lấy target đang chờ làm mốc). Kết quả thay hàng chờ
+    cũ cùng source.
+
     Enqueue MỘT job (category=translate, khoá ebook) như các batch AI khác —
     gọi AI cho vài trăm mục mất hàng phút, quá lâu cho một request HTTP. Tiến
     độ xem ở trang Hàng đợi; kết quả hiện thành hàng vàng ở đầu bảng glossary.
@@ -675,6 +645,48 @@ def ebook_glossary_ai_retranslate(request: Request, slug: str, payload: Glossary
     if not cfg.ai.openai.base_url:
         raise HTTPException(status_code=400, detail="Chưa cấu hình AI biên tập (mục AI trong Cài đặt).")
 
+    spec = {
+        "kind": "glossary-ai",
+        "params": {"slug": slug, "sources": sources, "instruction": payload.instruction.strip()},
+    }
+    started = request.app.state.job.start_custom(
+        "glossary-ai",
+        glossary_ai_job_factory(spec["params"]),
+        category="translate",
+        ebook=slug,
+        spec=spec,
+    )
+    if not started:
+        raise HTTPException(status_code=409, detail="Đang có job khác chạy, vui lòng đợi.")
+    return JSONResponse({"started": True, "requested": len(sources)})
+
+
+class GlossaryAiReprocessRequest(BaseModel):
+    """Yêu cầu AI xử lý lại TOÀN BỘ hàng chờ duyệt trong một lần chạy."""
+
+    instruction: str = Field(default="", description="Yêu cầu thêm cho riêng lần chạy này.")
+
+
+@router.post("/api/ebooks/{slug}/glossary/ai/reprocess-pending")
+def ebook_glossary_ai_reprocess_pending(request: Request, slug: str, payload: GlossaryAiReprocessRequest):
+    """AI xử lý lại TOÀN BỘ đề xuất đang chờ duyệt trong MỘT job nền.
+
+    Chụp sources của hàng chờ lúc bấm nút rồi tái dùng đúng job `glossary-ai`
+    (cùng factory, cùng category=translate, cùng khả năng sống sót restart):
+    AI rà soát từng đề xuất (lấy target đang chờ làm mốc, kể cả mục MỚI),
+    kết quả mới thay hàng chờ cũ cùng source. Không đụng glossary.
+    """
+    cfg = deps.resolved_cfg(slug)
+    if not cfg.ai.openai.base_url:
+        raise HTTPException(status_code=400, detail="Chưa cấu hình AI biên tập (mục AI trong Cài đặt).")
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    sources: list[str] = []
+    for p in _read_pending(storage):
+        source = p["source"]
+        if source and source not in sources:
+            sources.append(source)
+    if not sources:
+        raise HTTPException(status_code=400, detail="Không có đề xuất chờ duyệt.")
     spec = {
         "kind": "glossary-ai",
         "params": {"slug": slug, "sources": sources, "instruction": payload.instruction.strip()},

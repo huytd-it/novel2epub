@@ -344,14 +344,9 @@ export function GlobalTranslatePage() {
               onChange={(e) => set("chunk_overlap_paragraphs", Number(e.target.value))}
             />
           </Field>
-          <Field label="Số chương / lần gọi API">
-            <Input
-              type="number"
-              min={1}
-              value={draft.batch_size}
-              onChange={(e) => set("batch_size", Number(e.target.value))}
-            />
-          </Field>
+          {/* `batch_size` (Số chương / lần gọi API) CỐ Ý không hiển thị: luồng
+              Dịch chính luôn 1 chương / lần gọi, field chỉ còn tác dụng ở
+              endpoint batch cũ. Hiện ra sẽ gây hiểu lầm "chỉnh mà không ăn". */}
           <Field label="Delay giữa các chương (giây)">
             <Input
               type="number"

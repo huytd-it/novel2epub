@@ -388,7 +388,10 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
     { key: "keep_paragraphs", label: "Giữ nguyên cách chia đoạn", kind: "checkbox" },
     { key: "delay_seconds", label: "Delay giữa các chương (giây)", kind: "number", step: 0.1 },
     { key: "max_workers", label: "Số luồng dịch song song", kind: "number" },
-    { key: "batch_size", label: "Số chương / lần gọi API", kind: "number" },
+    // `batch_size` (Số chương / lần gọi API) CỐ Ý không hiển thị: luồng Dịch
+    // chính (`step_translate_selected`) luôn dịch 1 chương / lần gọi, field này
+    // chỉ còn tác dụng ở endpoint batch cũ (`/api/ebooks/{slug}/batch/translate`).
+    // Hiện ra sẽ gây hiểu lầm "chỉnh mà không ăn".
     { key: "prompt_max_chars", label: "Giới hạn ký tự prompt", kind: "number", hint: "Mặc định hiệu lực: 20000" },
     { key: "retry_attempts", label: "Số lần thử lại", kind: "number" },
     { key: "retry_delay_seconds", label: "Delay thử lại (giây)", kind: "number", step: 0.1 },
@@ -578,19 +581,19 @@ function TranslateAiProviderPanel({ slug, ai }: { slug: string; ai: AiSettings }
   const modelQuery = useEbookModelOverrides(slug);
   const saveModels = useSaveEbookModelOverrides(slug);
 
-  const [baseUrl, setBaseUrl] = useState(ai.base_url);
+  const [baseUrl, setBaseUrl] = useState(ai.base_url ?? "");
   const [apiKey, setApiKey] = useState("");
-  const [timeoutSeconds, setTimeoutSeconds] = useState(ai.timeout_seconds);
-  const [temperature, setTemperature] = useState(ai.temperature);
+  const [timeoutSeconds, setTimeoutSeconds] = useState(ai.timeout_seconds ?? 120000);
+  const [temperature, setTemperature] = useState(ai.temperature ?? 0.7);
   const [translationModel, setTranslationModel] = useState("");
   const [assistantModel, setAssistantModel] = useState("");
   const [test, setTest] = useState<{ ok: boolean; latency_ms?: number; model_count?: number; error?: string } | null>(null);
   const [modelsStatus, setModelsStatus] = useState("");
 
   useEffect(() => {
-    setBaseUrl(ai.base_url);
-    setTimeoutSeconds(ai.timeout_seconds);
-    setTemperature(ai.temperature);
+    setBaseUrl(ai.base_url ?? "");
+    setTimeoutSeconds(ai.timeout_seconds ?? 120000);
+    setTemperature(ai.temperature ?? 0.7);
   }, [ai.base_url, ai.timeout_seconds, ai.temperature]);
 
   useEffect(() => {

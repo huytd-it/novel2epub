@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import clsx from "clsx";
 
@@ -14,6 +14,7 @@ import {
   useExportGlossary,
   useGlossary,
   useGlossaryAiRetranslate,
+  useGlossaryAiReprocessPending,
   useGlossaryFlags,
   useGlossarySuspects,
   useImportGlossary,
@@ -61,15 +62,35 @@ const sameValues = (draft: GlossaryEdit, entry: GlossaryEntry) =>
 
 /* ── Hàng đề xuất đang chờ duyệt ─────────────────────────────────────── */
 
+const ROW_CHECK_TITLE = "Click: chọn/bỏ mục · Ctrl+Click: chọn thêm · Shift+Click: chọn cả đoạn";
+
+/** Thêm cả đoạn [a..b] trong `items` vào selection (giữ các mục đã chọn). */
+function addRange(prev: Set<string>, items: { source: string }[], a: number, b: number) {
+  const next = new Set(prev);
+  const lo = Math.max(0, Math.min(a, b));
+  const hi = Math.min(items.length - 1, Math.max(a, b));
+  for (let i = lo; i <= hi; i++) next.add(items[i].source);
+  return next;
+}
+
+function toggleIn(prev: Set<string>, source: string) {
+  const next = new Set(prev);
+  if (next.has(source)) next.delete(source);
+  else next.add(source);
+  return next;
+}
+
 function PendingRow({
   entry,
+  index,
   checked,
-  onToggle,
+  onSelect,
   slug,
 }: {
   entry: PendingEntry;
+  index: number;
   checked: boolean;
-  onToggle: () => void;
+  onSelect: (e: React.MouseEvent, index: number, source: string) => void;
   slug: string;
 }) {
   const approve = useApprovePending(slug);
@@ -79,7 +100,12 @@ function PendingRow({
   return (
     <tr className="border-b border-base-300 bg-warning/10">
       <td className="w-8 px-2 py-1">
-        <Checkbox checked={checked} onChange={onToggle} />
+        <Checkbox
+          checked={checked}
+          title={ROW_CHECK_TITLE}
+          onClick={(e) => onSelect(e, index, entry.source)}
+          onChange={() => {}}
+        />
       </td>
       <td className="px-2 py-1 text-[13px]">{entry.source}</td>
       <td className="px-2 py-1 text-[13px]">
@@ -134,19 +160,21 @@ function PendingRow({
  */
 const GlossaryRow = memo(function GlossaryRow({
   entry,
+  index,
   draft,
   checked,
   slug,
-  onToggle,
+  onSelect,
   onEdit,
   onRevert,
   onDeleted,
 }: {
   entry: GlossaryEntry;
+  index: number;
   draft?: GlossaryEdit;
   checked: boolean;
   slug: string;
-  onToggle: (source: string) => void;
+  onSelect: (e: React.MouseEvent, index: number, source: string) => void;
   onEdit: (entry: GlossaryEntry, patch: Partial<GlossaryEntry>) => void;
   onRevert: (source: string) => void;
   onDeleted: (source: string) => void;
@@ -170,7 +198,12 @@ const GlossaryRow = memo(function GlossaryRow({
       )}
     >
       <td className="w-8 px-2 py-1">
-        <Checkbox checked={checked} onChange={() => onToggle(entry.source)} />
+        <Checkbox
+          checked={checked}
+          title={ROW_CHECK_TITLE}
+          onClick={(e) => onSelect(e, index, entry.source)}
+          onChange={() => {}}
+        />
       </td>
       <td className="px-1 py-1">
         <Input {...field("source")} />
@@ -404,18 +437,24 @@ function AiAssistantModal({
   onClose,
   slug,
   sources,
+  fromPending,
+  allPending,
   onStarted,
 }: {
   open: boolean;
   onClose: () => void;
   slug: string;
   sources: string[];
+  fromPending?: boolean;
+  allPending?: boolean;
   onStarted: () => void;
 }) {
   const [instruction, setInstruction] = useState("");
   const { data: settings } = useEbookSettings(slug);
-  const run = useGlossaryAiRetranslate(slug);
+  const runSelected = useGlossaryAiRetranslate(slug);
+  const runAll = useGlossaryAiReprocessPending(slug);
   const toast = useToast();
+  const run = allPending ? runAll : runSelected;
 
   useEffect(() => {
     if (open) setInstruction("");
@@ -445,29 +484,38 @@ function AiAssistantModal({
             icon={<IconSparkle size={14} />}
             loading={run.isPending}
             disabled={sources.length === 0}
-            onClick={() =>
-              run.mutate(
-                { sources, instruction: instruction.trim() },
-                {
-                  onSuccess: () => {
-                    toast("Đã xếp vào hàng đợi — kết quả sẽ hiện ở đầu bảng để duyệt.");
-                    onStarted();
-                    onClose();
-                  },
-                  onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+            onClick={() => {
+              const done = {
+                onSuccess: () => {
+                  toast("Đã xếp vào hàng đợi — kết quả sẽ hiện ở đầu bảng để duyệt.");
+                  onStarted();
+                  onClose();
                 },
-              )
-            }
+                onError: (err: unknown) =>
+                  toast(err instanceof Error ? err.message : String(err), "error"),
+              };
+              if (allPending) runAll.mutate({ instruction: instruction.trim() }, done);
+              else runSelected.mutate({ sources, instruction: instruction.trim() }, done);
+            }}
           >
-            Nhờ AI xử lý {num(sources.length)} mục
+            {allPending
+              ? `Nhờ AI xử lý tất cả ${num(sources.length)} mục`
+              : `Nhờ AI xử lý ${num(sources.length)} mục`}
           </Button>
         </>
       }
     >
       <p className="mb-3 text-[13px] opacity-70">
-        AI rà soát <span data-numeric className="font-medium">{num(sources.length)}</span> mục đã chọn và đề
-        xuất bản dịch đúng. Kết quả KHÔNG ghi đè: mục nào AI đổi sẽ vào hàng chờ duyệt (hàng vàng ở đầu
+        {allPending
+          ? <>AI rà soát <span data-numeric className="font-medium">toàn bộ {num(sources.length)}</span> đề xuất
+            đang chờ duyệt trong MỘT lần chạy và đề xuất bản dịch đúng.</>
+          : <>AI rà soát <span data-numeric className="font-medium">{num(sources.length)}</span> mục đã chọn và đề
+            xuất bản dịch đúng.</>}{" "}
+        Kết quả KHÔNG ghi đè: mục nào AI đổi sẽ vào hàng chờ duyệt (hàng vàng ở đầu
         bảng) kèm số chỗ ảnh hưởng, bạn duyệt từng mục hoặc hàng loạt.
+        {fromPending
+          ? " Vì các mục này đang chờ duyệt, kết quả mới sẽ THAY đề xuất cũ cùng mục trong MỘT lần chạy."
+          : null}
       </p>
       <p className="mb-3 text-[13px] opacity-60">
         AI chỉ sửa cột Việt. Mục sai ở cột Hán (chip lọc “Hán lẫn Latin”, “Hán không có chữ Hán”) phải sửa
@@ -759,6 +807,7 @@ export function GlossaryPage() {
   const { slug = "" } = useParams();
   const [view, setView] = useState<"all" | "suspects">("all");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending">("all");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(50);
   const [sort, setSort] = useState("");
@@ -771,13 +820,18 @@ export function GlossaryPage() {
   const [ioOpen, setIoOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiPending, setAiPending] = useState(false);
+  const [aiAllPending, setAiAllPending] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const toast = useToast();
 
   const filter = activeFlags.join(",");
 
   useEffect(() => setPage(1), [search, filter]);
-  useEffect(() => setSelected(new Set()), [page, perPage, search, filter]);
+  useEffect(() => {
+    setSelected(new Set());
+    anchorGlossary.current = null;
+  }, [page, perPage, search, filter]);
 
   const { data, isPending, isFetching } = useGlossary(slug, {
     page,
@@ -796,14 +850,34 @@ export function GlossaryPage() {
 
   const edits = useMemo(() => Object.values(drafts), [drafts]);
 
-  /* Callback ổn định để GlossaryRow (memo) không render lại khi dòng khác đổi. */
-  const toggleRow = useCallback((source: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(source)) next.delete(source);
-      else next.add(source);
-      return next;
-    });
+  /* Mốc cho Shift+Click (chọn cả đoạn), riêng từng danh sách. */
+  const anchorGlossary = useRef<number | null>(null);
+  const anchorPending = useRef<number | null>(null);
+  /* Gương danh sách hiện tại cho callback ổn định (tránh dep rows đổi liên tục). */
+  const rowsRef = useRef<GlossaryEntry[]>([]);
+  const pendingRowsRef = useRef<PendingEntry[]>([]);
+
+  /* Click thường / Ctrl+Click: bật-tắt 1 mục. Shift+Click: chọn cả đoạn từ
+   * mốc đến dòng bấm (giữ các mục đã chọn). Callback ổn định để GlossaryRow
+   * (memo) không render lại khi dòng khác đổi. */
+  const selectGlossaryRow = useCallback((e: React.MouseEvent, index: number, source: string) => {
+    const anchor = anchorGlossary.current;
+    if (e.shiftKey && anchor != null) {
+      setSelected((prev) => addRange(prev, rowsRef.current, anchor, index));
+    } else {
+      anchorGlossary.current = index;
+      setSelected((prev) => toggleIn(prev, source));
+    }
+  }, []);
+
+  const selectPendingRow = useCallback((e: React.MouseEvent, index: number, source: string) => {
+    const anchor = anchorPending.current;
+    if (e.shiftKey && anchor != null) {
+      setPendingSelected((prev) => addRange(prev, pendingRowsRef.current, anchor, index));
+    } else {
+      anchorPending.current = index;
+      setPendingSelected((prev) => toggleIn(prev, source));
+    }
   }, []);
 
   const editRow = useCallback((entry: GlossaryEntry, patch: Partial<GlossaryEntry>) => {
@@ -845,9 +919,41 @@ export function GlossaryPage() {
 
   const rows = data?.entries ?? [];
   const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.source));
-  // Đề xuất chờ duyệt CHƯA nằm trong glossary nên không qua bộ lọc được — ẩn
-  // hẳn khi đang lọc, nếu không vài trăm hàng vàng che mất kết quả lọc.
-  const pendingRows = page === 1 && !filter ? pending?.entries ?? [] : [];
+  const pendingCount = pending?.count ?? 0;
+  // Lọc trạng thái "Chờ duyệt": chỉ hiện hàng vàng chờ duyệt (kèm tìm kiếm),
+  // ẩn dòng glossary thường để xử lý hàng chờ cho gọn.
+  const pendingRows = useMemo(() => {
+    const all = pending?.entries ?? [];
+    // Cờ "nghi sai" áp cho cả hàng chờ (theo giá trị đề xuất), thay vì ẩn hẳn
+    // như trước — cùng ngữ nghĩa OR với bộ lọc glossary.
+    const flagged =
+      activeFlags.length > 0
+        ? all.filter((p) => (p.flags ?? []).some((f) => activeFlags.includes(f)))
+        : all;
+    if (statusFilter === "pending") {
+      const q = search.trim().toLowerCase();
+      if (!q) return flagged;
+      return flagged.filter((p) =>
+        `${p.source} ${p.target} ${p.note} ${p.existing_target}`.toLowerCase().includes(q),
+      );
+    }
+    // Chế độ thường: hàng chờ chỉ hiện ở trang 1 để khỏi lặp qua các trang.
+    if (page !== 1) return [];
+    return flagged;
+  }, [pending, statusFilter, search, page, activeFlags]);
+  const pendingOnly = statusFilter === "pending";
+  rowsRef.current = rows;
+  pendingRowsRef.current = pendingRows;
+
+  /* Số đề xuất chờ duyệt dính từng cờ — cộng vào số trên chip để chip bật
+   * được ngay cả khi glossary sạch mà hàng chờ còn mục nghi sai. */
+  const pendingFlagCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of pending?.entries ?? []) {
+      for (const f of p.flags ?? []) counts[f] = (counts[f] ?? 0) + 1;
+    }
+    return counts;
+  }, [pending]);
 
   return (
     <Page
@@ -862,6 +968,18 @@ export function GlossaryPage() {
             placeholder="Tìm Hán / Việt / ghi chú"
             className="w-60"
           />
+          <Select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as "all" | "pending");
+              setPendingSelected(new Set());
+              anchorPending.current = null;
+            }}
+            title="Lọc theo trạng thái"
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="pending">Chờ duyệt ({num(pendingCount)})</option>
+          </Select>
           <div role="tablist" className="tabs tabs-box tabs-sm">
             <button
               role="tab"
@@ -906,6 +1024,18 @@ export function GlossaryPage() {
                 Thêm mục
               </Button>
               <Button
+                icon={<IconSparkle size={14} />}
+                disabled={pendingCount === 0}
+                title="AI rà soát toàn bộ đề xuất chờ duyệt trong MỘT lần chạy — kết quả thay hàng chờ cũ"
+                onClick={() => {
+                  setAiPending(true);
+                  setAiAllPending(true);
+                  setAiOpen(true);
+                }}
+              >
+                AI xử lý chờ duyệt ({num(pendingCount)})
+              </Button>
+              <Button
                 loading={clean.isPending}
                 title="Trim khoảng trắng, bỏ dòng thiếu Hán/Việt, gộp trùng"
                 onClick={() =>
@@ -920,8 +1050,9 @@ export function GlossaryPage() {
             </div>
           </div>
 
-          {/* Lọc theo vị từ "giá trị nghi sai" — số trên chip là toàn glossary,
-              không phải trang hiện tại. */}
+          {/* Lọc theo vị từ "giá trị nghi sai" — số trên chip gộp cả glossary
+              lẫn hàng chờ duyệt (không phải trang hiện tại). Bật chip thì cả
+              hai danh sách cùng lọc theo cờ đó. */}
           <div className="mb-3 flex flex-wrap items-center gap-1.5">
             <span className="mr-0.5 inline-flex items-center gap-1.5 text-[13px] opacity-50">
               <IconFilter size={14} />
@@ -929,18 +1060,19 @@ export function GlossaryPage() {
             </span>
             {(flagData?.flags ?? []).map((flag) => {
               const active = activeFlags.includes(flag.key);
+              const total = flag.count + (pendingFlagCounts[flag.key] ?? 0);
               return (
                 <Button
                   key={flag.key}
                   size="sm"
                   variant={active ? "primary" : "neutral"}
-                  disabled={flag.count === 0 && !active}
-                  title={flag.hint}
+                  disabled={total === 0 && !active}
+                  title={`${flag.hint} (glossary ${num(flag.count)} · chờ duyệt ${num(pendingFlagCounts[flag.key] ?? 0)})`}
                   onClick={() => toggleFlag(flag.key)}
                 >
                   {flag.label}
                   <span data-numeric className={clsx("ml-1", !active && "opacity-50")}>
-                    {num(flag.count)}
+                    {num(total)}
                   </span>
                 </Button>
               );
@@ -955,10 +1087,14 @@ export function GlossaryPage() {
           <Panel className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-base-300 px-3 py-2 text-[13px]">
               <span data-numeric className="opacity-60">
-                {data ? `${num(data.total)} mục` : "—"}
-                {pending && pending.count > 0 ? ` · ${num(pending.count)} chờ duyệt` : ""}
+                {pendingOnly
+                  ? `${num(pendingRows.length)} chờ duyệt`
+                  : data
+                    ? `${num(data.total)} mục`
+                    : "—"}
+                {!pendingOnly && pendingCount > 0 ? ` · ${num(pendingCount)} chờ duyệt` : ""}
               </span>
-              {data && data.pages > 1 ? (
+              {!pendingOnly && data && data.pages > 1 ? (
                 <div className="flex items-center gap-2">
                   <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                     ← Trước
@@ -982,7 +1118,12 @@ export function GlossaryPage() {
 
             {isPending ? (
               <SkeletonTable rows={6} cols={4} />
-            ) : rows.length === 0 && pendingRows.length === 0 ? (
+            ) : pendingOnly && pendingRows.length === 0 ? (
+              <EmptyState
+                title={search ? "Không có đề xuất nào khớp" : "Không có đề xuất chờ duyệt"}
+                hint={search ? "Thử từ khóa khác." : "Đề xuất từ lúc dịch hoặc từ Trợ lý AI sẽ hiện ở đây."}
+              />
+            ) : !pendingOnly && rows.length === 0 && pendingRows.length === 0 ? (
               <EmptyState
                 title={search ? "Không có mục nào khớp" : "Glossary đang trống"}
                 hint={search ? "Thử từ khóa khác." : 'Bấm "Thêm mục", hoặc glossary sẽ tự sinh trong lúc dịch.'}
@@ -993,16 +1134,34 @@ export function GlossaryPage() {
                   <thead>
                     <tr className="border-b border-base-300 bg-base-200/60">
                       <th className="w-8 px-2 py-1.5">
+                        {pendingOnly ? (
+                        <Checkbox
+                          checked={pendingRows.length > 0 && pendingRows.every((p) => pendingSelected.has(p.source))}
+                          title="Chọn tất cả đề xuất đang hiện"
+                          onClick={() => {
+                            anchorPending.current = null;
+                            setPendingSelected((prev) => {
+                              const all = pendingRows.length > 0 && pendingRows.every((p) => prev.has(p.source));
+                              return all ? new Set() : new Set(pendingRows.map((p) => p.source));
+                            });
+                          }}
+                          onChange={() => {}}
+                        />
+                        ) : (
                         <Checkbox
                           checked={allChecked}
-                          onChange={() =>
+                          title="Chọn tất cả mục đang hiện"
+                          onClick={() => {
+                            anchorGlossary.current = null;
                             setSelected((prev) => {
                               const next = new Set(prev);
                               rows.forEach((r) => (allChecked ? next.delete(r.source) : next.add(r.source)));
                               return next;
-                            })
-                          }
+                            });
+                          }}
+                          onChange={() => {}}
                         />
+                        )}
                       </th>
                       {[
                         { key: "source", label: "Hán" },
@@ -1028,30 +1187,27 @@ export function GlossaryPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pendingRows.map((p) => (
+                    {pendingRows.map((p, i) => (
                       <PendingRow
                         key={`pending-${p.source}`}
                         entry={p}
+                        index={i}
                         slug={slug}
                         checked={pendingSelected.has(p.source)}
-                        onToggle={() =>
-                          setPendingSelected((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(p.source)) next.delete(p.source);
-                            else next.add(p.source);
-                            return next;
-                          })
-                        }
+                        onSelect={selectPendingRow}
                       />
                     ))}
-                    {rows.map((entry) => (
+                    {pendingOnly
+                      ? null
+                      : rows.map((entry, i) => (
                       <GlossaryRow
                         key={entry.source}
                         entry={entry}
+                        index={i}
                         draft={drafts[entry.source]}
                         slug={slug}
                         checked={selected.has(entry.source)}
-                        onToggle={toggleRow}
+                        onSelect={selectGlossaryRow}
                         onEdit={editRow}
                         onRevert={dropDraft}
                         onDeleted={dropDraft}
@@ -1070,6 +1226,8 @@ export function GlossaryPage() {
               onClear={() => {
                 setSelected(new Set());
                 setPendingSelected(new Set());
+                anchorGlossary.current = null;
+                anchorPending.current = null;
               }}
             >
               {pendingSelected.size > 0 ? (
@@ -1085,6 +1243,7 @@ export function GlossaryPage() {
                         {
                           onSuccess: () => {
                             setPendingSelected(new Set());
+                            anchorPending.current = null;
                             toast("Đã xếp vào hàng đợi — xem tiến độ ở trang Hàng đợi.");
                           },
                         },
@@ -1098,11 +1257,26 @@ export function GlossaryPage() {
                     onClick={() =>
                       clearPending.mutate(
                         { sources: [...pendingSelected] },
-                        { onSuccess: () => setPendingSelected(new Set()) },
+                        { onSuccess: () => {
+                          setPendingSelected(new Set());
+                          anchorPending.current = null;
+                        } },
                       )
                     }
                   >
                     Bỏ đề xuất
+                  </Button>
+                  <Button
+                    variant="primary"
+                    icon={<IconSparkle size={14} />}
+                    onClick={() => {
+                      setAiPending(true);
+                      setAiAllPending(false);
+                      setAiOpen(true);
+                    }}
+                    title="Nhờ AI rà soát và dịch lại các đề xuất đang chọn trong MỘT lần chạy"
+                  >
+                    AI xử lý lại ({pendingSelected.size})
                   </Button>
                 </>
               ) : null}
@@ -1111,7 +1285,11 @@ export function GlossaryPage() {
                   <Button
                     variant="primary"
                     icon={<IconSparkle size={14} />}
-                    onClick={() => setAiOpen(true)}
+                    onClick={() => {
+                      setAiPending(false);
+                      setAiAllPending(false);
+                      setAiOpen(true);
+                    }}
                     title="Nhờ AI rà soát và dịch lại các mục đã chọn"
                   >
                     Trợ lý AI ({selected.size})
@@ -1134,8 +1312,24 @@ export function GlossaryPage() {
         open={aiOpen}
         onClose={() => setAiOpen(false)}
         slug={slug}
-        sources={[...selected]}
-        onStarted={() => setSelected(new Set())}
+        sources={
+          aiAllPending
+            ? (pending?.entries ?? []).map((p) => p.source)
+            : aiPending
+              ? [...pendingSelected]
+              : [...selected]
+        }
+        fromPending={aiPending || aiAllPending}
+        allPending={aiAllPending}
+        onStarted={() => {
+          if (aiPending || aiAllPending) {
+            setPendingSelected(new Set());
+            anchorPending.current = null;
+          } else {
+            setSelected(new Set());
+            anchorGlossary.current = null;
+          }
+        }}
       />
       <AddEntryModal open={addOpen} onClose={() => setAddOpen(false)} slug={slug} />
       <ExportImportModal open={ioOpen} onClose={() => setIoOpen(false)} slug={slug} />
@@ -1155,6 +1349,7 @@ export function GlossaryPage() {
               setConfirmBulkDelete(false);
               selected.forEach(dropDraft);
               setSelected(new Set());
+              anchorGlossary.current = null;
             },
           })
         }

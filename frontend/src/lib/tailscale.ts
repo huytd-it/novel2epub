@@ -8,6 +8,9 @@ export interface TailscaleConfig {
   target: string;
   use_https: boolean;
   timeout_seconds: number;
+  tcp_port: number;
+  tcp_target: string;
+  tcp_tls_terminated: boolean;
 }
 
 export interface TailscaleOverview {
@@ -25,6 +28,11 @@ export interface TailscaleOverview {
     funnel_on: boolean;
     config: Record<string, unknown> | null;
     raw: Record<string, unknown> | null;
+  };
+  tcp: {
+    on: boolean;
+    funnel_on: boolean;
+    config: Record<string, unknown> | null;
   };
 }
 
@@ -105,6 +113,39 @@ export function useTailscaleDisable() {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: () => api.post<{ result: unknown; overview: TailscaleOverview }>("/api/tailscale/disable"),
+    onSuccess: invalidate,
+  });
+}
+
+export function useTcpServeEnable() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload?: Record<string, unknown>) =>
+      api.post<{ result: unknown; overview: TailscaleOverview }>("/api/tailscale/tcp/serve/enable", {
+        body: payload ?? {},
+      }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useTcpFunnelEnable() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload?: Record<string, unknown>) =>
+      api.post<{ result: unknown; overview: TailscaleOverview }>("/api/tailscale/tcp/funnel/enable", {
+        body: payload ?? {},
+      }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useTcpReset() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload?: Record<string, unknown>) =>
+      api.post<{ result: unknown; overview: TailscaleOverview }>("/api/tailscale/tcp/reset", {
+        body: payload ?? {},
+      }),
     onSuccess: invalidate,
   });
 }

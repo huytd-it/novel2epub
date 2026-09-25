@@ -21,6 +21,21 @@ FastAPI tạo tài liệu API trực tiếp từ route/schema:
 
 Khi gọi từ localhost, middleware cho phép thao tác không cần token. Khi backend được truy cập từ máy khác, gửi `Authorization: Bearer <token>`; không dán token vào URL hoặc log. Endpoint trích tên riêng có schema đầy đủ trong nhóm **Glossary** tại `POST /api/ebooks/{slug}/glossary/proper-names/extract`.
 
+## Assistant Panel
+
+Sidebar Trợ lý (SPA) mở/tắt bằng nút **AI** góc phải dưới, trạng thái lưu ở `localStorage` (`n2e-assistant-open`).
+Mọi endpoint nằm dưới `/api/ui/ebooks/{slug}/assistant/...` nên tự hưởng token gate + CORS hiện tại; API key của
+provider AI không bao giờ xuất hiện trong response hay log (chỉ có flag `api_key_configured`).
+
+- Lịch sử chat theo ebook: `assistant_threads` + `assistant_messages` (schema v27, migration additive giữ dữ liệu cũ).
+- Đổi provider/model trong header panel chỉ lưu vào thread đang mở — không chạm config ebook hay global.
+- Task nhanh (tìm đoạn, preview diff) chạy sync trong lượt chat; task lâu (fill ngữ cảnh: AI dịch lại + trích nhân
+  vật) enqueue job `assistant-fill-context` (category=translate) — theo dõi ở `/queue`, kết quả vào hàng chờ duyệt.
+- Ghi bản dịch/glossary/fin-replace luôn qua preview + tick xác nhận; đoạn đổi sau preview bị từ chối (stale) kèm
+  backup meta `before_find_replace[_branch]` / `before_find_replace_raw`.
+- Sự cố thường gặp: chat 502 = provider/model sai hoặc hết quota (kiểm tra Provider AI trong Cài đặt); apply báo
+  409 = bản dịch đã đổi sau preview, xem lại diff rồi áp dụng lại; job fill-context lỗi = xem log job ở `/queue`.
+
 ## CLI
 
 Mọi lệnh theo ebook dùng `-e <slug>`; DB khác mặc định dùng `-c <path>`.

@@ -401,12 +401,16 @@ nên đã CORS + auth-eligible sẵn. Riêng bảng glossary có thêm 2 route c
     rồi lọc/sắp/phân trang trong Python (vài nghìn mục vẫn tức thì); nhánh
     không lọc giữ nguyên đường SQL cũ. `GET /glossary/flags` trả bộ đếm cho
     chip — dùng CHUNG vị từ với bộ lọc nên số trên chip luôn bằng số dòng lọc
-    ra. Đang lọc thì hàng chờ duyệt bị ẩn: chúng chưa nằm trong glossary nên
-    không qua bộ lọc được, để lại sẽ che mất kết quả.
+    ra. Chip gộp cả số mục glossary lẫn số đề xuất chờ duyệt dính cờ (preview
+    hàng chờ tính sẵn `flags` bằng đúng `entry_flags` trên giá trị đề xuất);
+    bật chip thì cả hai danh sách cùng lọc theo cờ đó.
   - **Trợ lý AI** (`POST .../glossary/ai/retranslate`): chọn các mục trên bảng
     rồi nhờ AI dịch lại cả lô. Enqueue MỘT job nền (category=translate, khoá
     ebook) như các batch AI khác; `glossary_ai.retranslate_terms` chia lô theo
-    ngân sách `prompt_max_chars`, lô lỗi chỉ bị bỏ qua kèm log. Prompt mang
+    ngân sách `prompt_max_chars`, lô lỗi chỉ bị bỏ qua kèm log. Nhận cả source
+    trong glossary lẫn source đang chờ duyệt (kể cả mục MỚI chưa vào glossary
+    — lấy target đang chờ làm mốc so sánh); kết quả mới thay hàng chờ cũ cùng
+    source. Prompt mang
     theo metadata truyện (tên, tác giả, giới thiệu — cắt ở 800 ký tự), thể loại
     và `translate.context_note` (ô "Mô tả bối cảnh cho AI glossary" trong Cài
     đặt → Dịch API) cộng yêu cầu riêng của lần chạy. Kết quả KHÔNG ghi thẳng
@@ -414,6 +418,14 @@ nên đã CORS + auth-eligible sẵn. Riêng bảng glossary có thêm 2 route c
     auto-glossary: hàng vàng "cũ → mới" kèm số chỗ ảnh hưởng, duyệt lẻ hoặc
     hàng loạt. Mục AI trả về trùng giá trị cũ bị bỏ qua, và đề xuất mới cho
     cùng một source thay đề xuất cũ đang chờ.
+  - **AI xử lý chờ duyệt** (`POST .../glossary/ai/reprocess-pending`, nút "AI
+    xử lý chờ duyệt (N)" trên thanh công cụ trang Glossary): chụp toàn bộ
+    hàng chờ rồi enqueue MỘT job `glossary-ai` rà soát tất cả trong một lần
+    chạy — tái dùng đúng factory của Trợ lý AI nên không cần đăng ký kind mới.
+  - **Lọc trạng thái**: dropdown "Trạng thái" (Tất cả / Chờ duyệt) lọc client
+    trên hàng chờ đã tải (kèm tìm kiếm), ẩn dòng glossary thường ở chế độ Chờ
+    duyệt để xử lý hàng chờ cho gọn. Mục chờ duyệt tick chọn được gửi Trợ lý
+    AI xử lý lại trong MỘT lần chạy (nút "AI xử lý lại" trên thanh chọn).
 - **Nhân vật** (`/app/ebooks/{slug}/characters`) — bảng nhân vật + quan hệ CÓ
   HƯỚNG mở rộng dưới mỗi hàng (bấm mũi tên). Danh sách không phân trang phía
   server (ebook hiếm khi có quá vài trăm nhân vật) nên tìm kiếm lọc phía
@@ -494,3 +506,42 @@ Rồi mới tick `push_anchors` ở Cài đặt > Reader. Bật khi chưa có c�
 Neo đi trong **cùng payload** với `content` (`reader_client.upsert_contents`). Không tách thành hai lần ghi: neo thuộc về một bản văn khác với nội dung là sai lệch âm thầm — không lỗi nào nổ ra, chỉ có bản sửa ghi nhầm đoạn.
 
 Thiết kế đầy đủ của pipeline hai chiều: [spec 2026-08-07](superpowers/specs/2026-08-07-two-way-edit-pipeline-design.md).
+
+## Assistant Panel (Trợ Lý Trong SPA)
+
+Sidebar phải luôn hiển thị trong SPA (`frontend/src/app/Shell.tsx` + `frontend/src/components/AssistantPanel.tsx`),
+chỉ SPA `/app` — không port Jinja2 cũ. Gói `@copilotkit/react-core` + `@copilotkit/react-ui` đã khai báo trong
+`frontend/package.json` để tiến hóa lên AG-UI; V1 dùng sidebar custom (REST + SSE) với cùng hợp đồng UX: sidebar
+phải, tool-calling phía server, thẻ preview generative UI, human-in-the-loop (tick chọn rồi mới ghi).
+Header panel KHÔNG có ô Provider — chỉ hiện provider đang dùng (read-only) + ô Model đổi được theo thread.
+Provider và model trợ lý mặc định chọn ở trang Provider AI (panel "Provider & model mặc định" lưu vào
+Global AI: `base_url` + `assistant_model`); thread mới nạp mặc định từ đó.
+
+### Lưu Trữ (Schema v27)
+
+- `assistant_threads(id, ebook_slug, provider_base_url, model, created_at)` — lựa chọn LLM theo thread, mở lại vẫn
+  giữ. KHÔNG ghi đè config ebook hay global.
+- `assistant_messages(thread_id, role, content, created_at)` — lịch sử chat theo ebook.
+
+### Backend
+
+- Domain trong `novel2epub/assistant.py` (thread CRUD, resolve `OpenAIConfig` hiệu lực, tools đọc/ghi, agent loop);
+  route mỏng trong `app/routes/assistant.py` dưới `/api/ui/...` nên tự hưởng `api_token_gate` + CORS hiện tại.
+- Mặc định LLM nạp từ `ai.openai` của ebook đang mở (fallback global đã merge trong `load_config`); thread chỉ
+  override `provider_base_url` + `model`. API key/timeout lấy từ config hiệu lực (preset không lưu key) và KHÔNG
+  bao giờ xuất hiện trong response/log.
+- `openai_client.chat_with_tools` gọi function-calling OpenAI-compatible (không stream), parse `tool_calls` kèm
+  chịu lỗi arguments JSON.
+- Tools đọc: `search_ebook` (đúng semantics find-preview — translated chia `split_paras` theo nhánh active, raw chia
+  `split_blocks`, giới hạn 300 đoạn), `get_chapter`, `get_glossary`, `get_characters`, `get_idioms`.
+- Tools ghi LUÔN qua preview: `preview_paragraph_edit`/`apply_paragraph_edit` (stale protection kiểu para/save +
+  tăng revision nhánh), `preview_glossary_edits`/`apply_glossary_edits` (tái dùng `plan_glossary_edits`,
+  all-or-nothing, lan truyền một lượt), `apply_selected_replacements`/`apply_find_replace_batch` (backup meta
+  `before_find_replace[_branch]` / `before_find_replace_raw`). Agent chỉ được gọi preview — ghi phải qua nút Áp
+  dụng của người dùng.
+- Tìm-thay thông minh: agent sinh regex + giải thích, đề xuất biến thể nghĩa (LLM rerank, chưa vector store), gộp
+  MỘT preview `preview_find_replace_batch` (tối đa 300 đoạn). Tìm kiếm luôn không phân biệt hoa/thường.
+- Fill ngữ cảnh: task nhanh sync trong chat (`extract_proper_names` từ raw vào `glossary_pending`, thuần CPU);
+  task lâu enqueue job `assistant-fill-context` (category=translate, link `/queue`): dò tên riêng toàn sách +
+  `retranslate_terms` chia lô `prompt_max_chars` + `characters_ai.extract_characters` vào hàng chờ duyệt.
+- Logic NER thuần sống trong `novel2epub/proper_names.py`; route glossary chỉ re-export để giữ tương thích.

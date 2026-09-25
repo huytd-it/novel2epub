@@ -620,7 +620,7 @@ def api_queue_update_workers(request: Request, category: str = Body(...), count:
     }.get(category)
     if config_key is None:
         raise HTTPException(status_code=400, detail=f"category không hợp lệ: {category!r}")
-    from novel2epub.config import update_defaults
+    from novel2epub.config_writer import update_defaults
     update_defaults(deps.WORKSPACE_PATH, {"queue": {config_key: new_count}})
     return {"ok": True, "category": category, "count": new_count}
 

@@ -16,11 +16,6 @@ def _client(monkeypatch, tmp_path):
     monkeypatch.setattr(deps, "DB_PATH", str(db))
     monkeypatch.setattr(deps, "SOURCES_PATH", str(db))
     monkeypatch.setattr(deps, "library", lambda: LibraryConfig())
-    # Route `/api/ui/settings/opds` import `update_defaults` từ nhầm module
-    # (`novel2epub.config` thay vì `config_writer`) — patch để route chạy thật.
-    from novel2epub import config as cfg_mod
-    from novel2epub import config_writer
-    monkeypatch.setattr(cfg_mod, "update_defaults", config_writer.update_defaults)
     return TestClient(app), db
 
 

@@ -142,7 +142,11 @@ export function ProviderPickerField({
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
 
-  const matched = presets.find((p) => p.base_url === value.trim());
+  // Chịu `value` undefined (dữ liệu server thiếu field): input controlled luôn
+  // cần chuỗi, không crash ở `.trim()`.
+  const safeValue = value ?? "";
+
+  const matched = presets.find((p) => p.base_url === safeValue.trim());
 
   const onPick = (name: string) => {
     const preset = presets.find((p) => p.name === name);
@@ -153,7 +157,7 @@ export function ProviderPickerField({
     const name = newName.trim();
     if (!name) return;
     save.mutate(
-      { name, base_url: value },
+      { name, base_url: safeValue },
       {
         onSuccess: () => {
           toast(`Đã lưu provider "${name}".`);
@@ -193,7 +197,7 @@ export function ProviderPickerField({
           <Input
             type="text"
             className="join-item min-w-0 flex-1"
-            value={value}
+            value={safeValue}
             disabled={disabled}
             onChange={(e) => onChange(e.target.value)}
             spellCheck={false}
@@ -215,7 +219,7 @@ export function ProviderPickerField({
               size="sm"
               variant="ghost"
               className="join-item shrink-0"
-              disabled={disabled || !value.trim()}
+              disabled={disabled || !safeValue.trim()}
               onClick={() => setAdding((v) => !v)}
               title="Lưu base_url hiện tại làm provider mới"
             >

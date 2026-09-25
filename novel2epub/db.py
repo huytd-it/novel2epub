@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 26
+SCHEMA_VERSION = 27
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -821,6 +821,30 @@ _SCHEMA_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_app_logs_ts ON app_logs(ts DESC, id DESC)",
     "CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level, ts DESC)",
     "CREATE INDEX IF NOT EXISTS idx_app_logs_job ON app_logs(job_id) WHERE job_id <> ''",
+    # ── assistant panel (v27) — lịch sử chat theo ebook ───────────────────
+    # `provider_base_url` + `model` lưu lựa chọn LLM theo thread, mở lại vẫn
+    # giữ. KHÔNG ghi đè config ebook hay global; api_key/timeout lấy từ config
+    # hiệu lực lúc chat (preset không lưu key).
+    """
+    CREATE TABLE IF NOT EXISTS assistant_threads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        provider_base_url TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_assistant_threads_ebook ON assistant_threads(ebook_slug, id DESC)",
+    """
+    CREATE TABLE IF NOT EXISTS assistant_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        thread_id INTEGER NOT NULL REFERENCES assistant_threads(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_assistant_messages_thread ON assistant_messages(thread_id, id)",
 ]
 
 # Cột thêm vào bảng ĐÃ TỒN TẠI ở các phiên bản schema sau. `_SCHEMA_STATEMENTS`
@@ -1366,6 +1390,16 @@ def _migration_v25(conn: sqlite3.Connection) -> None:
 
 
 
+def _migration_v27(conn: sqlite3.Connection) -> None:
+    """Thêm lịch sử chat Assistant Panel theo ebook (threads + messages).
+
+    Thuần additive — DB cũ không mất dữ liệu, bảng mới rỗng.
+    """
+    _ensure_columns(conn)
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+
 def _migration_v26(conn: sqlite3.Connection) -> None:
     """Đưa dung lượng (byte) từng loại nội dung + `translated_updated_at` vào
     projection `chapter_ui_state`.
@@ -1448,6 +1482,7 @@ _MIGRATIONS = {
     24: _migration_v24,
     25: _migration_v25,
     26: _migration_v26,
+    27: _migration_v27,
 }
 
 

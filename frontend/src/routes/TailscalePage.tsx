@@ -11,6 +11,9 @@ import {
   useServeReset,
   useFunnelReset,
   useTailscaleDisable,
+  useTcpServeEnable,
+  useTcpFunnelEnable,
+  useTcpReset,
 } from "@/lib/tailscale";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
@@ -32,6 +35,9 @@ export function TailscalePage() {
   const serveOff = useServeReset();
   const funnelOff = useFunnelReset();
   const disableAll = useTailscaleDisable();
+  const tcpServeOn = useTcpServeEnable();
+  const tcpFunnelOn = useTcpFunnelEnable();
+  const tcpOff = useTcpReset();
 
   const [binary, setBinary] = useState("tailscale");
   const [port, setPort] = useState("8010");
@@ -39,6 +45,9 @@ export function TailscalePage() {
   const [target, setTarget] = useState("");
   const [useHttps, setUseHttps] = useState(true);
   const [timeout, setTimeout] = useState("15");
+  const [tcpPort, setTcpPort] = useState("");
+  const [tcpTarget, setTcpTarget] = useState("");
+  const [tcpTlsTerm, setTcpTlsTerm] = useState(false);
 
   useEffect(() => {
     if (!configQ.data) return;
@@ -48,6 +57,9 @@ export function TailscalePage() {
     setTarget(configQ.data.target);
     setUseHttps(configQ.data.use_https);
     setTimeout(String(configQ.data.timeout_seconds));
+    setTcpPort(configQ.data.tcp_port ? String(configQ.data.tcp_port) : "");
+    setTcpTarget(configQ.data.tcp_target || "");
+    setTcpTlsTerm(Boolean(configQ.data.tcp_tls_terminated));
   }, [configQ.data]);
 
   const overview = statusQ.data;
@@ -79,6 +91,41 @@ export function TailscalePage() {
     const isLocal = host === "127.0.0.1" || host === "localhost" || host === "::1";
     return isLocal && cfg.port !== windowPort;
   }, [cfg?.port, windowPort]);
+
+  // TCP forward helpers
+  const tcpInfo = (overview as unknown as { tcp?: { on: boolean; funnel_on: boolean; config: Record<string, unknown> | null } })?.tcp;
+  const tcpOn = Boolean(tcpInfo?.on);
+  const isTcpFunnel = Boolean(tcpInfo?.funnel_on);
+  const tcpTargets = useMemo(() => {
+    const m = tcpInfo?.config as unknown as Record<string, unknown> | null;
+    if (!m) return [];
+    const out: string[] = [];
+    const search = (obj: unknown) => {
+      if (obj && typeof obj === "object") {
+        for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+          if (v && typeof v === "object" && "TCPForward" in (v as Record<string, unknown>)) {
+            out.push(`${k} -> ${(v as Record<string, unknown>).TCPForward as string}`);
+          }
+        }
+      }
+    };
+    search(m);
+    // fallback: if config is already flat
+    if (out.length === 0) {
+      for (const [k, v] of Object.entries(m)) {
+        if (typeof v === "string") out.push(`${k} -> ${v}`);
+        else if (v && typeof v === "object") out.push(`${k}: ${JSON.stringify(v)}`);
+      }
+    }
+    return out;
+  }, [tcpInfo]);
+
+  const tcpConnectHost = useMemo(() => {
+    if (!overview?.self_dns) return null;
+    const pp = Number(tcpPort) || cfg?.tcp_port || 0;
+    if (!pp) return null;
+    return `${overview.self_dns}:${pp}`;
+  }, [overview?.self_dns, tcpPort, cfg?.tcp_port]);
 
   const [checkState, setCheckState] = useState<"idle" | "checking" | "ok" | "err">("idle");
   const [checkMsg, setCheckMsg] = useState("");
@@ -123,6 +170,7 @@ export function TailscalePage() {
   }, [overview]);
 
   const onSave = () => {
+    const tcpPortNum = tcpPort.trim() ? Number(tcpPort) : 0;
     save.mutate(
       {
         binary: binary.trim() || "tailscale",
@@ -131,6 +179,9 @@ export function TailscalePage() {
         target: target.trim(),
         use_https: useHttps,
         timeout_seconds: Number(timeout) || 15,
+        tcp_port: tcpPortNum && tcpPortNum >= 0 && tcpPortNum <= 65535 ? tcpPortNum : 0,
+        tcp_target: tcpTarget.trim(),
+        tcp_tls_terminated: tcpTlsTerm,
       },
       {
         onSuccess: () => toast("Đã lưu cấu hình Tailscale."),
@@ -233,6 +284,23 @@ export function TailscalePage() {
                 <span className="opacity-60">Funnel:</span>
                 <StatusBadge ok={overview.serve.funnel_on} label={overview.serve.funnel_on ? "đang mở" : "tắt"} />
               </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="opacity-60">TCP:</span>
+                <StatusBadge ok={tcpOn} label={tcpOn ? "đang mở" : "tắt"} />
+                <span className="opacity-60">TCP Funnel:</span>
+                <StatusBadge ok={isTcpFunnel} label={isTcpFunnel ? "đang mở" : "tắt"} />
+              </div>
+              {tcpOn && tcpTargets.length > 0 ? (
+                <p className="text-xs opacity-70">
+                  TCP forward: {tcpTargets.map((s) => <code key={s} className="mr-1 rounded bg-base-200 px-1">{s}</code>)}
+                </p>
+              ) : null}
+              {tcpOn && tcpInfo?.config ? (
+                <details className="rounded-box border border-base-300 bg-base-200/40 p-2">
+                  <summary className="cursor-pointer text-xs font-medium">Xem JSON TCP config</summary>
+                  <pre className="mt-2 max-h-40 overflow-auto text-[11px] leading-4">{JSON.stringify(tcpInfo.config, null, 2)}</pre>
+                </details>
+              ) : null}
 
               {serveTargets.length > 0 ? (
                 <p className="text-xs opacity-70">
@@ -333,12 +401,93 @@ export function TailscalePage() {
               <Checkbox checked={useHttps} onChange={(e) => setUseHttps(e.target.checked)} />
               use_https (https /)
             </label>
+            <div className="divider my-1" />
+            <p className="text-xs font-semibold opacity-70">Public port qua TCP (raw TCP forward)</p>
+            <Field label="TCP public port" hint="Cổng public trên tailnet/Internet (vd 23456). 0 = tắt. Dùng --tcp">
+              <Input type="number" value={tcpPort} onChange={(e) => setTcpPort(e.target.value)} placeholder="23456" />
+            </Field>
+            <Field label="TCP target" hint="Đích local host:port (vd 127.0.0.1:5432 hoặc 127.0.0.1:8010). Rỗng = 127.0.0.1:<tcp_port>">
+              <Input value={tcpTarget} onChange={(e) => setTcpTarget(e.target.value)} placeholder="127.0.0.1:5432" spellCheck={false} />
+            </Field>
+            <label className="flex items-center gap-2 text-[13px]">
+              <Checkbox checked={tcpTlsTerm} onChange={(e) => setTcpTlsTerm(e.target.checked)} />
+              TLS-terminated TCP (--tls-terminated-tcp)
+            </label>
+            <p className="text-xs opacity-50">Raw TCP: tailscale chuyển tiếp TCP thuần. TLS-terminated: tailscale kết thúc TLS rồi forward TCP.</p>
             <Button variant="primary" loading={save.isPending} onClick={onSave}>
               Lưu cấu hình
             </Button>
           </div>
         </Panel>
       </div>
+
+      {/* TCP public port — raw TCP forward */}
+      <Panel className="overflow-hidden">
+        <PanelHeader title="Public port qua TCP" hint={tcpOn ? (isTcpFunnel ? "TCP đang mở ra Internet (Funnel)" : "TCP đang mở trong tailnet (Serve)") : "Mở cổng TCP thuần qua tailnet hoặc Internet — dùng --tcp / --tls-terminated-tcp"} />
+        <div className="p-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-2 text-[13px]">
+            <span className="opacity-60">Trạng thái TCP:</span>
+            <StatusBadge ok={tcpOn} label={tcpOn ? "đang mở" : "tắt"} />
+            {isTcpFunnel ? <Badge tone="gold">Funnel (public)</Badge> : tcpOn ? <Badge tone="celadon">Serve (tailnet)</Badge> : null}
+            {tcpTargets.length > 0 ? <span className="text-xs opacity-60">({tcpTargets.join(", ")})</span> : null}
+          </div>
+          {tcpConnectHost ? (
+            <div className="space-y-1">
+              <p className="text-xs opacity-60">Địa chỉ kết nối (cần TCP đang bật):</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="break-all rounded bg-base-200 px-2 py-1 text-sm">tcp://{tcpConnectHost}</code>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(`tcp://${tcpConnectHost}`);
+                      else {
+                        const ta = document.createElement("textarea");
+                        ta.value = `tcp://${tcpConnectHost}`;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand("copy");
+                        ta.remove();
+                      }
+                      toast("Đã sao chép tcp:// host:port.");
+                    } catch {
+                      toast("Không sao chép được.", "error");
+                    }
+                  }}
+                >
+                  Sao chép
+                </Button>
+                {overview?.self_ip && (Number(tcpPort) || cfg?.tcp_port) ? (
+                  <code className="text-xs opacity-50">hoặc tcp://{overview.self_ip}:{Number(tcpPort) || cfg?.tcp_port}</code>
+                ) : null}
+              </div>
+              <p className="text-xs opacity-50">
+                Kết nối từ máy trong tailnet: <code>nc {tcpConnectHost}</code> hoặc cấu hình client trỏ tới <code>{tcpConnectHost}</code>. Nếu dùng Funnel, bất kỳ ai có DNS đều tới được.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs opacity-60">Chưa cấu hình <code>TCP public port</code> hoặc chưa có Self DNS. Điền port/target trong “Cấu hình” rồi bấm Bật TCP.</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="primary" loading={tcpServeOn.isPending} onClick={() => handle(tcpServeOn, "Đã bật TCP Serve (tailnet).")}>
+              Bật TCP Serve (tailnet)
+            </Button>
+            <Button size="sm" variant="primary" loading={tcpFunnelOn.isPending} onClick={() => handle(tcpFunnelOn, "Đã bật TCP Funnel (public).")}>
+              Bật TCP Funnel (public)
+            </Button>
+            <Button size="sm" loading={tcpOff.isPending} onClick={() => handle(tcpOff, "Đã tắt TCP forward.")}>
+              Tắt TCP
+            </Button>
+          </div>
+          <p className="text-xs opacity-50">
+            Lệnh tương đương: <code>tailscale serve --bg --tcp {Number(tcpPort) || cfg?.tcp_port || 23456} {tcpTarget || `127.0.0.1:${Number(tcpPort) || cfg?.tcp_port || 23456}`}</code>
+            {tcpTlsTerm ? " (--tls-terminated-tcp)" : ""} và <code>tailscale funnel --bg --tcp ...</code> cho public.
+          </p>
+          <div className="rounded-box border border-warning/30 bg-warning/5 px-3 py-2 text-xs opacity-70">
+            Lưu ý: TCP forward là raw TCP, không qua HTTP proxy. Đảm bảo dịch vụ đích đang lắng nghe (kiểm tra <code>{tcpTarget || "127.0.0.1:<port>"}</code>). Funnel TCP mở ra Internet — chỉ dùng khi đã cân nhắc bảo mật.
+          </div>
+        </div>
+      </Panel>
 
       {/* Link & QR — chỉ hiện khi đã có self_dns và tailscaled chạy */}
       <Panel className="overflow-hidden">

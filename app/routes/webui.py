@@ -1346,7 +1346,7 @@ def _opds_settings_payload() -> dict:
 
 @router.post("/settings/opds")
 def opds_settings_save(payload: dict = Body(...)):
-    from novel2epub.config import update_defaults
+    from novel2epub.config_writer import update_defaults
 
     current = deps.cfg().api
     token = str(payload.get("token") or "").strip() or current.token

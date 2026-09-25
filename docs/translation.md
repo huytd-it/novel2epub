@@ -120,6 +120,22 @@ Tiêu đề chương đôi khi dính từ rác kêu gọi độc giả ("(Cầu 
 
 Endpoint có thể dịch từng ứng viên bằng Local MT rồi đưa vào `glossary_pending`. Nó không ghi trực tiếp vào `names.txt`: source đã tồn tại trong glossary hoặc hàng chờ được bỏ qua, và thao tác merge hàng chờ dùng transaction `BEGIN IMMEDIATE` để không ghi đè snapshot mới hơn. Hãy mở trang Glossary, kiểm tra context/confidence, sửa bản dịch rồi mới duyệt.
 
+### Assistant Panel — dịch tại chỗ, fill ngữ cảnh, tìm-thay thông minh
+
+Sidebar Trợ lý trong SPA làm việc trong phạm vi ebook đang mở (raw, bản dịch nhánh active, tiêu đề, glossary,
+nhân vật, idiom; tối đa 300 đoạn một lượt). Header panel cho đổi provider/model theo thread (lưu vào
+`assistant_threads`, không chạm config ebook/global).
+
+- **Dịch tại chỗ**: chip "Dịch đoạn đang chọn" gửi đoạn bôi đen + ngữ cảnh chương cho agent; muốn sửa bản dịch thì
+  agent trả thẻ preview diff theo đoạn — tick xác nhận rồi bấm **Áp dụng** mới ghi (stale protection kiểu
+  para/save, tăng revision nhánh).
+- **Fill ngữ cảnh**: nút **Fill ngữ cảnh** (hoặc nhờ trực tiếp trong chat) dò tên riêng từ raw vào hàng chờ duyệt
+  (task nhanh, chạy ngay), còn AI dịch lại hàng loạt + trích nhân vật/quan hệ chạy job nền category=translate —
+  theo dõi ở `/queue`, kết quả vào hàng chờ duyệt, không tự ghi glossary/nhân vật.
+- **Tìm-thay thông minh**: nhờ "thay X bằng Y", agent tìm chính xác trước, sinh regex + giải thích, gợi ý thêm
+  biến thể nghĩa, gộp MỘT preview để tick chọn từng đoạn rồi áp dụng (backup meta `before_find_replace[_branch]` /
+  `before_find_replace_raw`). Tìm kiếm luôn không phân biệt hoa/thường.
+
 ## Checklist Chất Lượng
 
 - Không thêm, bỏ hoặc giải thích nội dung ngoài nguyên tác.

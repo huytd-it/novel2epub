@@ -296,7 +296,6 @@ function ConfigCard({
                 </p>
                 <p>
                   <span className="opacity-60">prompt_max:</span> {translateDefaults.data.prompt_max_chars} ·{" "}
-                  <span className="opacity-60">batch:</span> {translateDefaults.data.batch_size} ·{" "}
                   <span className="opacity-60">chunk:</span> {translateDefaults.data.chunk_max_chars}
                 </p>
                 {globalAi.data ? (

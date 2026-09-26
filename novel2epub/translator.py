@@ -881,7 +881,17 @@ class LocalMTTranslator:
     def _ensure_loaded(self):
         if self._inner is not None:
             return
-        from .hachimimt.translator import HachimiTranslator, Backend
+        try:
+            from .hachimimt.translator import HachimiTranslator, Backend
+        except ImportError as exc:
+            # Dep Local MT là TÙY CHỌN (không nằm trong requirements.txt) nên
+            # thiếu package phải nói đúng lệnh cài, không trả về
+            # `No module named 'x'` giữa lúc job đang chạy.
+            raise RuntimeError(
+                f"Thiếu thư viện cho Local MT: {exc.name or exc}. "
+                "Cài bằng: pip install ctranslate2 sentencepiece huggingface_hub "
+                "(hoặc đổi sang backend khác trong Cài đặt → Dịch chung)."
+            ) from exc
 
         self._inner = HachimiTranslator(profile=None)
         self._inner.load(self.hmt.model_key, backend=Backend.CT2)

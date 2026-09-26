@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { fileURLToPath } from "node:url";
+import { isSpaPage } from "./spaRoutes";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "N2E_");
@@ -113,16 +114,17 @@ export default defineConfig(({ mode }) => {
             {
               target: devApiTarget,
               changeOrigin: true,
-              // SPA route trùng prefix legacy (vd GET /sources) — trình duyệt
-              // gửi Accept: text/html khi Ctrl+F5 / gõ trực tiếp. Bỏ qua proxy
-              // để Vite trả index.html cho React Router thay vì proxy tới
-              // FastAPI và nhận 405 Method Not Allowed (chỉ có POST /sources).
-              // /api và /opds là JSON thuần nên luôn proxy.
+              // Trang SPA trùng prefix endpoint (vd GET /sources: FastAPI chỉ có
+              // POST /sources nên sẽ trả 405) — trả index.html cho React Router
+              // thay vì proxy. Chỉ route trang mới bypass; file tải về cùng
+              // prefix (vd /sources/export) phải đi qua proxy — xem spaRoutes.ts.
               bypass: isApi
                 ? undefined
                 : ((req: any) => {
                     const accept = (req.headers.accept as string) || "";
-                    if (req.method === "GET" && accept.includes("text/html")) return req.url;
+                    if (req.method === "GET" && accept.includes("text/html") && isSpaPage(req.url ?? "")) {
+                      return req.url;
+                    }
                   }) as any,
             },
           ];

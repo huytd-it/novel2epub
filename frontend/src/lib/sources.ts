@@ -68,11 +68,18 @@ function useInvalidate() {
 }
 
 export function useSavePreset() {
-  const invalidate = useInvalidate();
+  const client = useQueryClient();
   return useMutation({
-    mutationFn: (preset: Partial<SourcePreset> & { name: string }) =>
+    mutationFn: (preset: Partial<SourcePreset> & { name: string; rename_from?: string }) =>
       api.post<SourcePreset>("/api/ui/sources", { body: preset }),
-    onSuccess: invalidate,
+    onSuccess: (_res, vars) => {
+      client.invalidateQueries({ queryKey: key });
+      // Đổi tên preset sửa cả `ebooks.source_preset` → thư viện phải vẽ lại,
+      // không thì card truyện vẫn hiện tên nguồn cũ.
+      if (vars.rename_from && vars.rename_from !== vars.name) {
+        client.invalidateQueries({ queryKey: ["library"] });
+      }
+    },
   });
 }
 

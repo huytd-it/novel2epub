@@ -33,7 +33,7 @@ from novel2epub.ai_providers import delete_preset as delete_ai_provider_preset
 from novel2epub.ai_providers import save_preset as save_ai_provider_preset
 from novel2epub.progress import progress_from_states
 from novel2epub.queue_labels import batch_job_label, chapter_job_label
-from novel2epub.sources import SourcePreset, delete_preset, save_preset
+from novel2epub.sources import SourcePreset, delete_preset, rename_preset, save_preset
 from novel2epub.storage import Storage, bulk_chapter_states
 from novel2epub.toc import apply_chapter_query, chapter_rows, count_words
 from novel2epub.wireguard import WireGuardProfileError
@@ -54,7 +54,7 @@ from ..scheduler import next_run_at
 from ..storage_report import ebook_storage_report, purge_raw, purge_translated_mt, remove_epub
 from . import settings as settings_routes
 from . import library as library_routes
-from .sources import _load_validation, _preset_usage
+from .sources import _load_validation, _move_validation, _preset_usage
 
 router = APIRouter(prefix="/api/ui")
 
@@ -2422,12 +2422,21 @@ def sources_save_api(payload: dict = Body(...)):
     name = str(payload.get("name", "")).strip()
     if not name:
         raise HTTPException(status_code=400, detail="Thiếu tên nguồn.")
+    # `rename_from` chỉ có mặt khi modal đang SỬA preset cũ và người dùng đổi
+    # tên — ebook tham chiếu preset bằng tên nên phải trỏ lại cùng lúc.
+    rename_from = str(payload.get("rename_from", "")).strip()
     kwargs = {k: v for k, v in payload.items() if k in _SOURCE_EDITABLE_FIELDS}
     if isinstance(kwargs.get("strip_patterns"), str):
         kwargs["strip_patterns"] = [
             line.strip() for line in kwargs["strip_patterns"].splitlines() if line.strip()
         ]
     kwargs["name"] = name
+    if rename_from and rename_from != name:
+        try:
+            rename_preset(deps.DB_PATH, rename_from, name)
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        _move_validation(rename_from, name)
     preset = SourcePreset(**kwargs)
     save_preset(deps.DB_PATH, preset)
     return asdict(preset)

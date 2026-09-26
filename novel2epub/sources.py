@@ -370,6 +370,55 @@ def save_preset(path: str | Path, preset: SourcePreset) -> None:
         backfill_codes(conn)
 
 
+def rename_preset(path: str | Path, old_name: str, new_name: str) -> None:
+    """Đổi tên preset trong 1 transaction.
+
+    Ebook tham chiếu preset BẰNG TÊN (`ebooks.source_preset`) nên đổi tên mà
+    không trỏ lại sẽ khiến mọi truyện đó rơi về "preset không tồn tại" — vì vậy
+    3 thao tác (tạo row mới, trỏ ebook, xoá row cũ) nằm chung 1 transaction để
+    không có trạng thái nửa vời.
+
+    `sources.code` được mang theo (code là định danh ổn định để sinh code
+    ebook/chương — đổi tên không được làm nó đổi). `data_json` giữ nguyên nội
+    dung preset; caller chịu trách nhiệm ghi đè field đã sửa sau khi đổi tên.
+
+    Raise `ValueError` khi tên mới rỗng / trùng / preset cũ không tồn tại.
+    """
+    old_name = old_name.strip()
+    new_name = new_name.strip()
+    if not old_name:
+        raise ValueError("Tên nguồn cũ rỗng.")
+    if not new_name:
+        raise ValueError("Tên nguồn mới rỗng.")
+    if old_name == new_name:
+        return
+    db_path = Path(path).resolve()
+    conn = get_thread_connection(db_path)
+    with conn:
+        row = conn.execute("SELECT data_json, code FROM sources WHERE name = ?", (old_name,)).fetchone()
+        if row is None:
+            raise ValueError(f"Không tìm thấy nguồn '{old_name}'.")
+        if conn.execute("SELECT 1 FROM sources WHERE name = ?", (new_name,)).fetchone():
+            raise ValueError(f"Nguồn '{new_name}' đã tồn tại — chọn tên khác.")
+        # Xoá row cũ TRƯỚC khi chèn row mới: `sources.code` có UNIQUE index,
+        # nên giữ code cũ cho tên mới bằng cách UPSERT sẽ đụng code đang mang.
+        # Cùng transaction nên không lúc nào preset vắng mặt thật.
+        conn.execute("DELETE FROM sources WHERE name = ?", (old_name,))
+        conn.execute(
+            "INSERT INTO sources (name, code, data_json) VALUES (?, ?, ?)",
+            (new_name, row["code"] or "", row["data_json"] or "{}"),
+        )
+        conn.execute(
+            "UPDATE ebooks SET source_preset = ?, updated_at = datetime('now') "
+            "WHERE source_preset = ?",
+            (new_name, old_name),
+        )
+    from .codes import backfill_codes
+
+    with conn:
+        backfill_codes(conn)
+
+
 def delete_preset(path: str | Path, name: str) -> None:
     """Xóa đúng 1 preset theo name; nếu không tồn tại thì bỏ qua."""
     db_path = Path(path).resolve()

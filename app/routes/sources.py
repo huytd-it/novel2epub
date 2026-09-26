@@ -41,6 +41,18 @@ def _record_validation(name: str, ok: bool, message: str) -> None:
     _save_validation(data)
 
 
+def _move_validation(old_name: str, new_name: str) -> None:
+    """Đổi tên preset → kéo kết quả test dry-run theo tên mới.
+
+    `source_validation.json` khoá theo tên preset; để tên cũ thì thẻ nguồn mới
+    mất badge "test OK" cho tới lần test kế tiếp.
+    """
+    data = _load_validation()
+    if old_name in data:
+        data[new_name] = data.pop(old_name)
+        _save_validation(data)
+
+
 def _preset_usage(presets, library):
     """Map preset name -> list of ebook slugs có ``source == preset_name``.
 

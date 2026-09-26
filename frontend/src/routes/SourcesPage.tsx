@@ -226,10 +226,14 @@ function PresetModal({
   open,
   onClose,
   preset,
+  names,
+  usageCount,
 }: {
   open: boolean;
   onClose: () => void;
   preset: SourcePreset | null; // null = tạo mới
+  names: string[]; // tên preset đang tồn tại — chặn trùng ngay ở client
+  usageCount: number; // số truyện đang gắn preset này (đổi tên sẽ trỏ lại chúng)
 }) {
   const [name, setName] = useState("");
   const [draft, setDraft] = useState<SourcePreset>(EMPTY_PRESET);
@@ -259,6 +263,10 @@ function PresetModal({
   }, [open, preset]);
 
   const set = (k: string, v: unknown) => setDraft((prev) => ({ ...prev, [k]: v }));
+
+  // Tên đang sửa khác tên preset trong DB → lần lưu này là ĐỔI TÊN, không chỉ
+  // lưu nội dung (cần trỏ lại `ebooks.source_preset`).
+  const renamed = Boolean(preset) && name.trim() !== "" && name.trim() !== preset!.name;
 
   const handleInspectDom = (info: { html: string; sampleLinks: string[]; url: string; which: "toc" | "chapter" }) => {
     const snap: DomSnapshot = { html: info.html, sampleLinks: info.sampleLinks, url: info.url };
@@ -391,23 +399,38 @@ function PresetModal({
   };
 
   const submit = () => {
-    if (!name.trim()) {
+    const nextName = name.trim();
+    if (!nextName) {
       toast("Cần tên nguồn.", "error");
+      return;
+    }
+    if (names.includes(nextName) && nextName !== preset?.name) {
+      toast(`Đã có nguồn tên "${nextName}". Chọn tên khác.`, "error");
       return;
     }
     if (draft.chapter_link_pattern.trim() === ".*" || draft.chapter_link_pattern.trim() === ".+" ) {
       toast("Regex link chương đang là '.*' - sẽ khớp toàn bộ link trên trang. Hãy thu hẹp trước khi lưu.", "info");
     }
     const strip = draft.strip_patterns;
+    const renaming = Boolean(preset) && nextName !== preset!.name;
     save.mutate(
       {
         ...draft,
-        name: name.trim(),
+        name: nextName,
+        // Chỉ gửi khi thật sự đổi tên — backend trỏ `ebooks.source_preset` sang
+        // tên mới rồi mới ghi đè nội dung preset.
+        ...(renaming ? { rename_from: preset!.name } : {}),
         strip_patterns: typeof strip === "string" ? (strip as unknown as string).split("\n").map((s) => s.trim()).filter(Boolean) : strip,
       },
       {
         onSuccess: () => {
-          toast(preset ? "Đã cập nhật nguồn." : "Đã tạo nguồn.");
+          toast(
+            renaming
+              ? `Đã đổi tên nguồn thành "${nextName}"${usageCount ? ` (${usageCount} truyện đã được trỏ lại)` : ""}.`
+              : preset
+                ? "Đã cập nhật nguồn."
+                : "Đã tạo nguồn.",
+          );
           onClose();
         },
         onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
@@ -453,7 +476,7 @@ function PresetModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={preset ? `Sửa nguồn - ${preset.name}` : "Thêm nguồn"}
+      title={preset ? `Sửa nguồn - ${name.trim() || preset.name}` : "Thêm nguồn"}
       xl
       footer={
         <>
@@ -495,8 +518,23 @@ function PresetModal({
           ) : null}
         </div>
 
-        <Field label="Tên nguồn" hint="Định danh duy nhất, ebook tham chiếu bằng tên này">
-          <Input value={name} onChange={(e) => setName(e.target.value)} disabled={Boolean(preset)} className="w-full" />
+        <Field
+          label="Tên nguồn"
+          hint={
+            renamed
+              ? `Lưu sẽ đổi tên "${preset!.name}" → "${name.trim()}". ${
+                  usageCount ? `${usageCount} truyện đang dùng sẽ được trỏ sang tên mới.` : ""
+                }`
+              : "Định danh duy nhất, ebook tham chiếu bằng tên này. Đổi tên được — các truyện đang dùng sẽ tự trỏ sang tên mới."
+          }
+        >
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            spellCheck={false}
+            className="w-full"
+            placeholder="vd: 69shuba"
+          />
         </Field>
 
         {/* ── Tab bar (tabs-box - dùng mẫu GlossaryPage/AddBookPage) ── */}
@@ -871,7 +909,13 @@ export function SourcesPage() {
         </div>
       )}
 
-      <PresetModal open={editing !== undefined} onClose={() => setEditing(undefined)} preset={editing ?? null} />
+      <PresetModal
+        open={editing !== undefined}
+        onClose={() => setEditing(undefined)}
+        preset={editing ?? null}
+        names={(data?.presets ?? []).map((p) => p.name)}
+        usageCount={(editing ? data?.usage[editing.name]?.length : 0) ?? 0}
+      />
       {testing ? <TestModal open onClose={() => setTesting(null)} name={testing} /> : null}
     </Page>
   );

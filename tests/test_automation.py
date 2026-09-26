@@ -158,6 +158,8 @@ def test_cleanup_han_is_a_valid_step_mapped_in_step_fn():
     from app import scheduler as scheduler_mod
 
     assert "cleanup-han" in scheduler_mod._STEP_FN
+    assert "cleanup-han-llm" in scheduler_mod._STEP_FN
+    assert "glossary-ai" in scheduler_mod._STEP_FN
 
 
 def test_translation_and_edit_steps_are_mapped():

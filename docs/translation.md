@@ -68,6 +68,8 @@ Không dùng model nhỏ để tự suy luận glossary phức tạp; hãy dịc
 
 Glossary theo ebook dùng để cố định tên riêng và thuật ngữ đặc thù. Không đưa từ đời thường vào glossary. Matching ưu tiên source dài để tên dài không bị mục ngắn thay trước.
 
+Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột đang có, nhờ LLM chọn bản dịch thống nhất, tự duyệt mục hợp lệ và lan truyền thay đổi vào bản dịch cũ. Mục LLM không trả lời được vẫn giữ trong hàng chờ.
+
 Idioms là từ điển dùng chung cho mọi ebook. Với LLM, idiom được đưa vào prompt như tham chiếu; với MT cục bộ, hệ thống có thể chuẩn hóa bản literal hoặc bảo vệ source qua placeholder.
 
 Bảng nhân vật lưu tên, alias, giới tính, cách tự xưng và cách người kể gọi. Quan hệ có hướng lưu cách xưng hô theo mốc chương, giúp thay đổi quan hệ không áp ngược cho toàn truyện.
@@ -94,6 +96,8 @@ Sau khi dịch, bản Việt đôi khi còn sót ký tự Hán. Bước clear H�
 - **`openai`**: nhờ AI biên tập (`ai.openai`) sửa vùng Hán trong ngữ cảnh câu; chất lượng cao hơn nhưng tốn token và cần cấu hình AI biên tập.
 
 Bật tự động sau mỗi chương bằng `translate.auto_cleanup_han`, hoặc chạy tay:
+
+- Trong **Cài đặt truyện → Dịch API**, bật **Tự động dọn chữ Hán còn sót** và chọn `LLM / AI biên tập` để chạy cleanup ngay sau mỗi chương. `cleanup_han_max_chars` giới hạn kích thước mỗi lượt gọi và `cleanup_han_retries` là số lần thử lại.
 
 - **CLI**: `cleanup-han [--engine local_mt|openai]`.
 - **Trang chương / trình đọc**: nút Clear Hán.

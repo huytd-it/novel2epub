@@ -795,8 +795,7 @@ export function ChapterPage() {
   useLayoutEffect(() => {
     if (!rawEditMode || !rawEditorRef.current) return;
     const editor = rawEditorRef.current;
-    editor.style.height = "0px";
-    editor.style.height = `${editor.scrollHeight}px`;
+    editor.style.height = `${Math.max(editor.offsetHeight, editor.scrollHeight)}px`;
   }, [rawDraft, rawEditMode]);
 
   const saveRaw = () => {
@@ -827,8 +826,7 @@ export function ChapterPage() {
   useLayoutEffect(() => {
     if (!editMode || !editorRef.current) return;
     const editor = editorRef.current;
-    editor.style.height = "0px";
-    editor.style.height = `${editor.scrollHeight}px`;
+    editor.style.height = `${Math.max(editor.offsetHeight, editor.scrollHeight)}px`;
   }, [documentDraft, editMode, fontSize, readerPrefs.fontFamily, readerPrefs.lineHeight]);
 
   useEffect(() => {

@@ -24,6 +24,8 @@ from .storage import Chapter, Manifest, Storage
 from .toc import chapter_title_key, mark_duplicate_chapters, normalize_toc_title, strip_toc_junk
 from .translator import RateLimited, make_translator
 from . import han_cleanup
+from . import glossary_ai
+from . import glossary_review
 from . import revisions
 
 # Kiểu hàm ghi log; mặc định in ra stdout, UI truyền callback riêng để stream.
@@ -47,6 +49,212 @@ def _emit_config_warnings(cfg: Config, log: LogFn) -> None:
     """
     for w in cfg.warnings:
         log(f"[config] CẢNH BÁO: {w}")
+
+
+def _analyze_chapter_glossary_with_ai(
+    cfg: Config,
+    storage: Storage,
+    chapter: Chapter,
+    raw: str,
+    translated: str,
+    log: LogFn,
+) -> None:
+    """Đề xuất glossary bằng LLM, luôn đi qua hàng chờ duyệt.
+
+    Đây là bước bổ sung cho marker ``GLOSSARY:`` của dịch LLM. Nó cũng chạy
+    được khi engine dịch chính là Local MT, miễn là ebook có provider AI.
+    Không ghi trực tiếp vào names.txt để automation không thể âm thầm đổi
+    thuật ngữ đang dùng trong sách.
+    """
+    ai_cfg = cfg.ai.openai
+    if not (ai_cfg.base_url or ai_cfg.api_key) or not raw.strip() or not translated.strip():
+        return
+    existing = {source: target for source, target, _ in storage.read_glossary_entries_merged()}
+    suggestions = glossary_ai.suggest_glossary(ai_cfg, [(raw, translated)], existing)
+    if not suggestions:
+        return
+    additions = [
+        {
+            "source": item["source"],
+            "existing_target": existing.get(item["source"], ""),
+            "target": item["suggested"],
+            "chapter_index": chapter.index,
+            "note": item.get("reason", ""),
+        }
+        for item in suggestions
+        if item["source"] != item["suggested"]
+    ]
+    if not additions:
+        return
+
+    # Import locally to avoid making Storage's compatibility surface larger.
+    from .storage import normalize_glossary_pending
+
+    def _merge_pending(current):
+        by_source = {row["source"]: row for row in normalize_glossary_pending(current)}
+        by_source.update({row["source"]: row for row in additions})
+        return list(by_source.values())
+
+    pending = storage.update_extra_json("glossary_pending", _merge_pending)
+    log(f"[glossary-ai] Chương {chapter.index}: thêm {len(additions)} đề xuất vào hàng chờ duyệt (tổng {len(pending)}).")
+
+
+def step_glossary_ai_selected(
+    cfg: Config,
+    log: LogFn = _print,
+    *,
+    force: bool = False,
+    selected_indexes: list[int] | None = None,
+    should_cancel: CancelFn | None = None,
+) -> Manifest | None:
+    """Rà soát và tự duyệt các xung đột Glossary bằng LLM.
+
+    Khác với ``ai_glossary_analysis`` trong bước dịch (vốn phát hiện thuật ngữ
+    mới), step automation này xử lý các mục đã có trong hàng chờ xung đột:
+    LLM chọn bản dịch thống nhất, sau đó dùng cùng transaction duyệt Glossary
+    và lan truyền thay đổi vào các bản dịch cũ. Mục LLM không trả lời vẫn nằm
+    trong hàng chờ để chạy lại an toàn.
+    """
+    _emit_config_warnings(cfg, log)
+    ai_cfg = cfg.ai.openai
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chưa có manifest. Hãy chạy bước 'crawl' trước.")
+    if not (ai_cfg.base_url or ai_cfg.api_key):
+        log("[glossary-ai] Chưa cấu hình AI biên tập, bỏ qua.")
+        return manifest
+
+    if should_cancel and should_cancel():
+        log("[glossary-ai] Đã dừng theo yêu cầu.")
+        return manifest
+
+    # ``glossary_pending`` là nguồn các xung đột có target thay thế rõ ràng.
+    # Hỗ trợ cả dữ liệu legacy ``glossary_conflicts`` để nâng cấp không làm mất
+    # các xung đột được phát hiện ở phiên bản cũ.
+    from .storage import normalize_glossary_pending
+
+    current_entries = storage.read_glossary_entries_merged()
+    current = {source: (target, note) for source, target, note in current_entries}
+    pending = normalize_glossary_pending(storage.read_extra_json("glossary_pending"))
+    legacy_conflicts = glossary_review.map_conflicts(storage.read_extra_json("glossary_conflicts"))
+    by_source = {row["source"]: row for row in pending}
+    for conflict in legacy_conflicts:
+        source = conflict["source"]
+        if not conflict["new"] or source in by_source:
+            continue
+        by_source[source] = {
+            "source": source,
+            "existing_target": conflict["kept"] or current.get(source, ("", ""))[0],
+            "target": conflict["new"],
+            "chapter_index": 0,
+            "note": "Xung đột legacy được đưa vào rà soát tự động",
+        }
+    pending = list(by_source.values())
+
+    suspects = glossary_review.find_suspects(current_entries, storage.read_extra_json("glossary_conflicts"))
+    suspect_sources = {
+        row["source"]
+        for source, target, _note in current_entries
+        if glossary_review.entry_flags(source, target)
+    }
+    suspect_sources.update(
+        row["source"]
+        for group in suspects["same_target"]
+        for row in group["entries"]
+    )
+    suspect_sources.update(
+        row["source"]
+        for pair in suspects["nested_source"]
+        for row in (pair["outer"], pair["inner"])
+    )
+    # Các nhóm này không có target thay thế sẵn; tạo một bản nháp lấy target
+    # hiện tại làm mốc để LLM tự quyết định có cần sửa không. Nhờ vậy những
+    # mục không có thay đổi vẫn đi qua cùng transaction tự duyệt.
+    for source in suspect_sources:
+        if source in by_source or source not in current:
+            continue
+        by_source[source] = {
+            "source": source,
+            "existing_target": current[source][0],
+            "target": current[source][0],
+            "chapter_index": 0,
+            "note": "Nghi vấn Glossary được hậu kiểm tự động",
+        }
+    pending = list(by_source.values())
+    log(
+        f"[glossary-ai] Kiểm tra {len(current_entries)} mục hiện tại: "
+        f"{len(suspects['conflicts'])} xung đột có target thay thế, "
+        f"{len(suspects['same_target'])} nhóm trùng Việt, "
+        f"{len(suspects['nested_source'])} cặp Hán lồng nhau."
+    )
+    if not pending:
+        log("[glossary-ai] Không có xung đột đang chờ xử lý.")
+        return manifest
+
+    # Chồng pending lên glossary hiện tại để LLM thấy đúng target đang được
+    # dùng làm mốc, kể cả mục mới chưa được ghi vào names.txt.
+    base = dict(current)
+    for row in pending:
+        base[row["source"]] = (row["target"], row.get("note", ""))
+    entries = [
+        {"source": row["source"], "target": base[row["source"]][0], "note": base[row["source"]][1]}
+        for row in pending
+        if han_cleanup.count_han(row["source"]) > 0
+    ]
+    skipped = len(pending) - len(entries)
+    if skipped:
+        log(f"[glossary-ai] Bỏ qua {skipped} mục không có chữ Hán ở cột source.")
+    if not entries:
+        return manifest
+
+    context = cfg.translate.context_note or ""
+    story = {
+        "title": cfg.novel.title,
+        "author": cfg.novel.author,
+        "description": cfg.novel.description,
+    }
+    log(f"[glossary-ai] Nhờ LLM xử lý và chuẩn hoá {len(entries)} mục xung đột…")
+    results = glossary_ai.retranslate_terms(
+        ai_cfg,
+        entries,
+        story=story,
+        context=context,
+        genre=cfg.translate.genre,
+        max_chars=cfg.translate.prompt_max_chars or 20000,
+        log=log,
+    )
+    if should_cancel and should_cancel():
+        log("[glossary-ai] Đã dừng sau khi LLM trả kết quả; chưa tự duyệt.")
+        return manifest
+
+    requested = [
+        {
+            "source": result["source"],
+            "target": result["target"],
+            "note": result.get("reason", "") or base[result["source"]][1],
+        }
+        for result in results
+        if result.get("source") in base and result.get("target", "").strip()
+    ]
+    if not requested:
+        log(f"[glossary-ai] LLM không trả lời hợp lệ; giữ nguyên {len(pending)} mục chờ.")
+        return manifest
+
+    result = storage.approve_glossary_rows(requested)
+    approved = result["approved"]
+    pairs = [
+        (row["existing_target"], row["target"])
+        for row in approved
+        if row.get("existing_target") and row["existing_target"] != row["target"]
+    ]
+    stats = storage.apply_replacements(pairs) if pairs else {"total": 0, "chapters": 0, "ebook": False}
+    log(
+        f"[glossary-ai] Đã tự duyệt {len(approved)}/{len(requested)} mục; "
+        f"còn {len(result['remaining'])} mục chờ. "
+        f"Lan truyền {stats['total']} lần thay trên {stats['chapters']} chương."
+    )
+    return manifest
 
 
 def _fmt(value: object, empty: str = "(trống)") -> str:
@@ -981,6 +1189,16 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
         and not (should_cancel and should_cancel())
     ):
         _maybe_extract_chapter_glossary(cfg, translator, storage, ch, chapter_glossary, log, i, total)
+
+    if (
+        cfg.translate.ai_glossary_analysis
+        and not is_noop
+        and not (should_cancel and should_cancel())
+    ):
+        try:
+            _analyze_chapter_glossary_with_ai(cfg, storage, ch, raw, translated, log)
+        except Exception as e:  # noqa: BLE001 — glossary phụ không được làm hỏng bản dịch
+            log(f"[dịch]   ({i}/{total}) ! Lỗi AI phân tích glossary: {e}")
 
     # Auto-cleanup Hán: rà soát bản dịch, sửa chữ Hán còn sót.
     # Engine mặc định là Local MT (miễn phí, offline); có thể đổi sang openai.

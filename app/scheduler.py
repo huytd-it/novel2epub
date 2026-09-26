@@ -17,6 +17,7 @@ from novel2epub import revisions
 from novel2epub.pipeline import (
     step_build,
     step_cleanup_han_selected,
+    step_glossary_ai_selected,
     step_crawl_selected,
     step_fetch_toc,
     step_publish_reader,
@@ -46,6 +47,13 @@ def _step_translate_pending(cfg, log):
     return step_translate_selected(cfg, log)
 
 
+def _step_cleanup_han_llm(cfg, log):
+    """Automation step tường minh: dọn chữ Hán bằng AI, không phụ thuộc
+    engine mặc định của ebook."""
+    cfg.translate.cleanup_han.engine = "openai"
+    return step_cleanup_han_selected(cfg, log, engine="openai")
+
+
 _STEP_FN = {
     "fetch-toc": lambda cfg, log: step_fetch_toc(cfg, log),
     "crawl-new": lambda cfg, log: step_crawl_selected(cfg, log),
@@ -53,6 +61,8 @@ _STEP_FN = {
     "translate-pending": _step_translate_pending,
     "llm-edit": lambda cfg, log: step_rewrite_chapters(cfg, log),
     "cleanup-han": lambda cfg, log: step_cleanup_han_selected(cfg, log),
+    "cleanup-han-llm": _step_cleanup_han_llm,
+    "glossary-ai": lambda cfg, log: step_glossary_ai_selected(cfg, log),
     "build": lambda cfg, log: step_build(cfg, log),
     "publish-reader": lambda cfg, log: step_publish_reader(cfg, log),
 }

@@ -27,13 +27,16 @@ import {
   IconClock,
   IconClose,
   IconCopy,
+  IconChevronRight,
   IconLog,
   IconMoveDown,
   IconMoveUp,
+  IconMenu,
   IconNoteAdd,
   IconPlay,
   IconPlus,
   IconSearch,
+  IconTable,
   IconTrash,
 } from "@/components/icons";
 
@@ -84,6 +87,7 @@ function FormModal({
   const [ebook, setEbook] = useState("");
   const [search, setSearch] = useState("");
   const [selectedSteps, setSelectedSteps] = useState<string[]>([]);
+  const [draggedStep, setDraggedStep] = useState<string | null>(null);
   const [crawlWorkers, setCrawlWorkers] = useState("4");
   const [translateWorkers, setTranslateWorkers] = useState("4");
   const [translateThreshold, setTranslateThreshold] = useState("0");
@@ -103,6 +107,7 @@ function FormModal({
     setEbook(source?.ebook ?? ebooks[0]?.slug ?? "");
     setSearch("");
     setSelectedSteps(source?.steps ?? steps);
+    setDraggedStep(null);
     setCrawlWorkers(String(source?.crawl_workers ?? 4));
     setTranslateWorkers(String(source?.translate_workers ?? 4));
     setTranslateThreshold(String(source?.translate_threshold ?? 0));
@@ -138,6 +143,20 @@ function FormModal({
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+  };
+
+  const dropStep = (targetStep: string) => {
+    if (!draggedStep || draggedStep === targetStep) return;
+    setSelectedSteps((current) => {
+      const from = current.indexOf(draggedStep);
+      const to = current.indexOf(targetStep);
+      if (from < 0 || to < 0 || from === to) return current;
+      const next = [...current];
+      next.splice(from, 1);
+      next.splice(to, 0, draggedStep);
+      return next;
+    });
+    setDraggedStep(null);
   };
 
   const submit = () => {
@@ -257,9 +276,18 @@ function FormModal({
                 return (
                   <div
                     key={step}
+                    draggable={selected}
+                    onDragStart={() => selected && setDraggedStep(step)}
+                    onDragOver={(event) => {
+                      if (selected && draggedStep && draggedStep !== step) event.preventDefault();
+                    }}
+                    onDrop={() => selected && dropStep(step)}
+                    onDragEnd={() => setDraggedStep(null)}
                     className={clsx(
                       "flex min-h-14 items-center gap-3 border-b border-base-300 px-3 py-2 last:border-b-0",
                       selected ? "bg-primary/5" : "bg-base-100",
+                      selected && "cursor-grab active:cursor-grabbing",
+                      draggedStep === step && "opacity-45",
                     )}
                   >
                     <span data-numeric className={clsx("w-5 text-center text-[11px]", selected ? "font-medium text-primary" : "opacity-35")}>
@@ -280,6 +308,7 @@ function FormModal({
                 );
               })}
             </div>
+            <p className="mt-2 text-[11px] opacity-50">Kéo các bước đang chọn để đổi thứ tự; nút mũi tên vẫn dùng được bằng bàn phím.</p>
           </section>
         </div>
 
@@ -413,6 +442,9 @@ function LogModal({ automation, job, open, onClose }: { automation: Automation; 
   );
 }
 
+type AutomationSortKey = "ebook" | "status" | "schedule" | "steps" | "last_run_at" | "next_run";
+type AutomationView = "list" | "table";
+
 function AutomationCard({ a, title, job, onEdit, onCopy, onDelete }: { a: Automation; title: string; job?: Job; onEdit: () => void; onCopy: () => void; onDelete: () => void }) {
   const update = useUpdateAutomation();
   const runNow = useRunAutomationNow();
@@ -435,25 +467,15 @@ function AutomationCard({ a, title, job, onEdit, onCopy, onDelete }: { a: Automa
             <span><span className="opacity-70">Lần cuối</span> <span data-numeric>{a.last_run_at || "—"}</span></span>
             {a.next_run ? <span><span className="opacity-70">Kế tiếp</span> <span data-numeric>{a.next_run}</span></span> : null}
             <span data-numeric>{a.steps.length} bước · {a.crawl_workers} luồng cào · {a.translate_workers} luồng dịch</span>
-            {(a.translate_threshold || a.cleanup_threshold || a.publish_threshold || a.build_threshold) ? (
-              <span data-numeric className="rounded bg-base-200 px-1.5 py-0.5 text-[11px]">Ngưỡng D{a.translate_threshold ?? 0}·H{a.cleanup_threshold ?? 0}·R{a.publish_threshold ?? 0}·B{a.build_threshold ?? 0}</span>
-            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
           <label className="mr-1 flex min-h-8 items-center gap-2 rounded-field px-2 text-xs hover:bg-base-200">
             <span className="opacity-60">Kích hoạt</span>
-            <input
-              type="checkbox"
-              checked={a.enabled}
-              disabled={update.isPending}
-              onChange={(e) => update.mutate(
-                { id: a.id, ebook: a.ebook, steps: a.steps, schedule: a.schedule, enabled: e.target.checked, crawl_workers: a.crawl_workers, translate_workers: a.translate_workers, translate_threshold: a.translate_threshold ?? 0, cleanup_threshold: a.cleanup_threshold ?? 0, publish_threshold: a.publish_threshold ?? 0, build_threshold: a.build_threshold ?? 0 },
-                { onError: (err) => toast(err instanceof Error ? err.message : String(err), "error") },
-              )}
-              className="toggle toggle-sm"
-              aria-label={`${a.enabled ? "Tắt" : "Bật"} tự động hóa ${title}`}
-            />
+            <input type="checkbox" checked={a.enabled} disabled={update.isPending} onChange={(e) => update.mutate(
+              { id: a.id, ebook: a.ebook, steps: a.steps, schedule: a.schedule, enabled: e.target.checked, crawl_workers: a.crawl_workers, translate_workers: a.translate_workers, translate_threshold: a.translate_threshold ?? 0, cleanup_threshold: a.cleanup_threshold ?? 0, publish_threshold: a.publish_threshold ?? 0, build_threshold: a.build_threshold ?? 0 },
+              { onError: (err) => toast(err instanceof Error ? err.message : String(err), "error") },
+            )} className="toggle toggle-sm" aria-label={`${a.enabled ? "Tắt" : "Bật"} tự động hóa ${title}`} />
           </label>
           <Button size="sm" icon={<IconLog size={13} />} onClick={() => setLogOpen(true)}>Nhật ký</Button>
           <Button size="sm" icon={<IconNoteAdd size={13} />} onClick={onEdit}>Chỉnh sửa</Button>
@@ -462,11 +484,7 @@ function AutomationCard({ a, title, job, onEdit, onCopy, onDelete }: { a: Automa
           <Button size="sm" variant="danger" icon={<IconTrash size={13} />} onClick={onDelete} aria-label={`Xóa tự động hóa ${title}`} />
         </div>
       </div>
-
-      <div className="border-t border-base-300 bg-base-200/35 px-4 py-4 md:px-5">
-        <div className="scroll-slim overflow-x-auto pb-1"><Pipeline automation={a} job={job} logs={logData?.log ?? []} /></div>
-      </div>
-
+      <div className="border-t border-base-300 bg-base-200/35 px-4 py-4 md:px-5"><div className="scroll-slim overflow-x-auto pb-1"><Pipeline automation={a} job={job} logs={logData?.log ?? []} /></div></div>
       {(a.last_run_error || Object.keys(a.last_run_stats || {}).length > 0) ? (
         <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-base-300 px-4 py-3 text-xs md:px-5">
           <span className="opacity-60"><span data-numeric className="font-medium text-base-content">+{a.last_run_stats?.crawled || 0}</span> chương cào</span>
@@ -480,6 +498,76 @@ function AutomationCard({ a, title, job, onEdit, onCopy, onDelete }: { a: Automa
   );
 }
 
+function AutomationTableRow({ a, title, job, onEdit, onCopy, onDelete }: { a: Automation; title: string; job?: Job; onEdit: () => void; onCopy: () => void; onDelete: () => void }) {
+  const update = useUpdateAutomation();
+  const runNow = useRunAutomationNow();
+  const [logOpen, setLogOpen] = useState(false);
+  const toast = useToast();
+  const isActive = job?.state === "running" || job?.state === "pending";
+
+  return (
+    <>
+      <tr className="border-b border-base-300 align-middle hover:bg-base-200/35">
+        <td className="max-w-[17rem] px-3 py-2.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-medium" title={title}>{title}</span>
+            {!a.enabled ? <Badge tone="neutral">Tắt</Badge> : null}
+          </div>
+          <span className="mt-0.5 block truncate font-mono text-[10px] opacity-50">{a.ebook}</span>
+        </td>
+        <td className="px-3 py-2.5">
+          {isActive ? <Badge tone="gold">{job?.state === "running" ? "Đang chạy" : "Đang chờ"}</Badge> : <Badge tone={OUTCOME_TONE[a.last_run_outcome] ?? "neutral"}>{OUTCOME_LABEL[a.last_run_outcome] ?? "Chưa chạy"}</Badge>}
+        </td>
+        <td className="px-3 py-2.5">
+          <span className="flex items-center gap-1.5 whitespace-nowrap text-xs"><IconClock size={12} className="opacity-55" /> <span className={a.schedule === "manual" ? "" : "font-mono text-[11px]"}>{a.schedule === "manual" ? "Thủ công" : a.schedule}</span></span>
+        </td>
+        <td className="max-w-[20rem] px-3 py-2.5">
+          <div className="truncate text-xs" title={a.steps.map(automationStepName).join(" · ")}>{a.steps.map(automationStepName).join(" · ")}</div>
+          <span data-numeric className="mt-0.5 block text-[10px] opacity-50">{a.steps.length} bước · {a.crawl_workers} cào · {a.translate_workers} dịch</span>
+        </td>
+        <td className="whitespace-nowrap px-3 py-2.5 text-xs opacity-70" data-numeric>{a.last_run_at || "—"}</td>
+        <td className="whitespace-nowrap px-3 py-2.5 text-xs opacity-70" data-numeric>{a.next_run || "—"}</td>
+        <td className="px-3 py-2.5">
+          <div className="flex items-center justify-end gap-1">
+          <label className="mr-1 flex min-h-8 items-center gap-2 rounded-field px-2 text-xs hover:bg-base-200">
+            <span className="sr-only">Kích hoạt</span>
+            <input
+              type="checkbox"
+              checked={a.enabled}
+              disabled={update.isPending}
+              onChange={(e) => update.mutate(
+                { id: a.id, ebook: a.ebook, steps: a.steps, schedule: a.schedule, enabled: e.target.checked, crawl_workers: a.crawl_workers, translate_workers: a.translate_workers, translate_threshold: a.translate_threshold ?? 0, cleanup_threshold: a.cleanup_threshold ?? 0, publish_threshold: a.publish_threshold ?? 0, build_threshold: a.build_threshold ?? 0 },
+                { onError: (err) => toast(err instanceof Error ? err.message : String(err), "error") },
+              )}
+              className="toggle toggle-sm"
+              aria-label={`${a.enabled ? "Tắt" : "Bật"} tự động hóa ${title}`}
+            />
+          </label>
+          <Button size="sm" icon={<IconLog size={13} />} onClick={() => setLogOpen(true)} aria-label="Mở nhật ký" title="Nhật ký" />
+          <Button size="sm" icon={<IconNoteAdd size={13} />} onClick={onEdit} aria-label="Chỉnh sửa" title="Chỉnh sửa" />
+          <Button size="sm" icon={<IconCopy size={13} />} onClick={onCopy} aria-label="Sao chép" title="Sao chép" />
+          <Button size="sm" variant="primary" icon={<IconPlay size={13} />} loading={runNow.isPending} disabled={isActive} onClick={() => runNow.mutate(a.id, { onSuccess: () => toast("Đã đưa tự động hóa vào hàng đợi."), onError: (err) => toast(err instanceof Error ? err.message : String(err), "error") })} aria-label="Chạy ngay" title="Chạy ngay" />
+          <Button size="sm" variant="danger" icon={<IconTrash size={13} />} onClick={onDelete} aria-label={`Xóa tự động hóa ${title}`} title="Xóa" />
+          </div>
+        </td>
+      </tr>
+      <LogModal automation={a} job={job} open={logOpen} onClose={() => setLogOpen(false)} />
+    </>
+  );
+}
+
+function SortableHeader({ label, sortKey, activeKey, direction, onSort }: { label: string; sortKey: AutomationSortKey; activeKey: AutomationSortKey; direction: "asc" | "desc"; onSort: (key: AutomationSortKey) => void }) {
+  const active = sortKey === activeKey;
+  return (
+    <th scope="col" className="whitespace-nowrap px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] opacity-65">
+      <button type="button" className={clsx("inline-flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-base-300 hover:opacity-100", active && "text-primary opacity-100")} onClick={() => onSort(sortKey)} aria-label={`Sắp xếp theo ${label}`}>
+        {label}
+        {active ? <IconChevronRight size={12} className={direction === "asc" ? "-rotate-90" : "rotate-90"} aria-hidden="true" /> : null}
+      </button>
+    </th>
+  );
+}
+
 export function AutomationPage() {
   const { data, isPending } = useAutomationOverview();
   const { data: queue } = useQueue();
@@ -490,6 +578,15 @@ export function AutomationPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
+  const [view, setView] = useState<AutomationView>(() => {
+    try {
+      return localStorage.getItem("n2e-automation-view") === "table" ? "table" : "list";
+    } catch {
+      return "list";
+    }
+  });
+  const [sortKey, setSortKey] = useState<AutomationSortKey>("ebook");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
   const del = useDeleteAutomation();
   const jobs = useMemo(() => queue ? [...queue.running, ...Object.values(queue.pending).flat(), ...queue.history] : [], [queue]);
@@ -520,8 +617,33 @@ export function AutomationPage() {
       return matchesSearch && matchesStatus && matchesSchedule;
     });
   }, [data, jobs, scheduleFilter, search, statusFilter, titles]);
-  const pageCount = Math.max(1, Math.ceil(filteredAutomations.length / PAGE_SIZE));
-  const visibleAutomations = filteredAutomations.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const sortedAutomations = useMemo(() => {
+    const statusRank = (a: Automation) => {
+      const job = automationJob(a, jobs);
+      if (job?.state === "running") return 0;
+      if (job?.state === "pending") return 1;
+      if (a.last_run_outcome === "failure") return 2;
+      if (a.enabled) return 3;
+      return 4;
+    };
+    const value = (a: Automation): string | number => {
+      if (sortKey === "ebook") return (titles.get(a.ebook) ?? a.ebook).toLocaleLowerCase("vi");
+      if (sortKey === "status") return statusRank(a);
+      if (sortKey === "schedule") return a.schedule === "manual" ? "zzzz" : a.schedule;
+      if (sortKey === "steps") return a.steps.length;
+      if (sortKey === "last_run_at") return a.last_run_at || "";
+      return a.next_run || "";
+    };
+    return [...filteredAutomations].sort((left, right) => {
+      const a = value(left);
+      const b = value(right);
+      const comparison = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b), "vi");
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [filteredAutomations, jobs, sortDirection, sortKey, titles]);
+  const pageSize = view === "table" ? 12 : PAGE_SIZE;
+  const pageCount = Math.max(1, Math.ceil(sortedAutomations.length / pageSize));
+  const visibleAutomations = sortedAutomations.slice((page - 1) * pageSize, page * pageSize);
   const filtersActive = search.trim() !== "" || statusFilter !== "all" || scheduleFilter !== "all";
 
   useEffect(() => setPage(1), [search, statusFilter, scheduleFilter]);
@@ -529,6 +651,20 @@ export function AutomationPage() {
 
   const closeForm = () => { setFormOpen(false); setEditing(null); setCopyFrom(null); };
   const clearFilters = () => { setSearch(""); setStatusFilter("all"); setScheduleFilter("all"); };
+  const changeSort = (key: AutomationSortKey) => {
+    if (key === sortKey) setSortDirection((current) => current === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDirection("asc"); }
+    setPage(1);
+  };
+
+  const changeView = (next: AutomationView) => {
+    setView(next);
+    try {
+      localStorage.setItem("n2e-automation-view", next);
+    } catch {
+      /* bỏ qua khi localStorage bị chặn */
+    }
+  };
 
   return (
     <Page
@@ -538,7 +674,7 @@ export function AutomationPage() {
     >
       {data?.automations.length ? (
         <Panel className="mb-3 p-3">
-          <div className="grid gap-2 md:grid-cols-[minmax(14rem,1fr)_11rem_11rem_auto]">
+          <div className="grid gap-2 md:grid-cols-[minmax(14rem,1fr)_11rem_11rem_auto_auto]">
             <InputWithIcon
               icon={<IconSearch size={14} />}
               value={search}
@@ -560,17 +696,21 @@ export function AutomationPage() {
               <option value="manual">Chỉ thủ công</option>
             </Select>
             <Button onClick={clearFilters} disabled={!filtersActive}>Xóa bộ lọc</Button>
+            <div className="join justify-self-start" aria-label="Kiểu hiển thị">
+              <Button size="sm" variant={view === "list" ? "primary" : "neutral"} icon={<IconMenu size={14} />} onClick={() => changeView("list")} aria-label="Xem dạng danh sách" title="Dạng xem cũ" />
+              <Button size="sm" variant={view === "table" ? "primary" : "neutral"} icon={<IconTable size={14} />} onClick={() => changeView("table")} aria-label="Xem dạng bảng" title="Dạng table" />
+            </div>
           </div>
         </Panel>
       ) : null}
 
       <Panel className="overflow-hidden">
-        {!isPending && data?.automations.length ? <PanelHeader title="Pipeline tự động" hint={`Hiển thị ${visibleAutomations.length} trong ${filteredAutomations.length} kết quả.`} /> : null}
+        {!isPending && data?.automations.length ? <PanelHeader title="Pipeline tự động" hint={`Hiển thị ${visibleAutomations.length} trong ${sortedAutomations.length} kết quả${view === "table" ? " · bấm tiêu đề cột để sắp xếp" : ""}.`} /> : null}
         {isPending ? <SkeletonTable rows={3} cols={4} /> : !data?.automations.length ? (
           <EmptyState title="Chưa có tự động hóa" hint="Tạo pipeline đầu tiên để cào, dịch và xuất sách theo lịch." action={<Button variant="primary" icon={<IconPlus size={14} />} onClick={() => setFormOpen(true)}>Thêm tự động hóa</Button>} />
         ) : visibleAutomations.length === 0 ? (
           <EmptyState title="Không tìm thấy tự động hóa" hint="Thử từ khóa khác hoặc xóa bớt bộ lọc." action={<Button onClick={clearFilters}>Xóa bộ lọc</Button>} />
-        ) : visibleAutomations.map((a) => (
+        ) : view === "list" ? visibleAutomations.map((a) => (
           <AutomationCard
             key={a.id}
             a={a}
@@ -580,8 +720,35 @@ export function AutomationPage() {
             onCopy={() => { setEditing(null); setCopyFrom(a); setFormOpen(true); }}
             onDelete={() => setConfirmDelete(a)}
           />
-        ))}
-        {!isPending && filteredAutomations.length > PAGE_SIZE ? (
+        )) : <div className="scroll-slim overflow-x-auto">
+          <table className="w-full min-w-[1040px] border-collapse text-left">
+            <thead className="border-b border-base-300 bg-base-200/45">
+              <tr>
+                <SortableHeader label="Truyện" sortKey="ebook" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                <SortableHeader label="Trạng thái" sortKey="status" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                <SortableHeader label="Lịch" sortKey="schedule" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                <SortableHeader label="Pipeline" sortKey="steps" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                <SortableHeader label="Lần cuối" sortKey="last_run_at" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                <SortableHeader label="Kế tiếp" sortKey="next_run" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                <th scope="col" className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.08em] opacity-65">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleAutomations.map((a) => (
+                <AutomationTableRow
+                  key={a.id}
+                  a={a}
+                  title={titles.get(a.ebook) ?? a.ebook}
+                  job={automationJob(a, jobs)}
+                  onEdit={() => { setCopyFrom(null); setEditing(a); setFormOpen(true); }}
+                  onCopy={() => { setEditing(null); setCopyFrom(a); setFormOpen(true); }}
+                  onDelete={() => setConfirmDelete(a)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>}
+        {!isPending && sortedAutomations.length > pageSize ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-base-300 px-4 py-3 text-xs md:px-5">
             <span className="opacity-60">Trang <span data-numeric>{page}</span> / <span data-numeric>{pageCount}</span></span>
             <div className="flex gap-1.5">

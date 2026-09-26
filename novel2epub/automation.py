@@ -25,6 +25,8 @@ STEPS = (
     "translate-pending",
     "llm-edit",
     "cleanup-han",
+    "cleanup-han-llm",
+    "glossary-ai",
     "build",
     "publish-reader",
 )

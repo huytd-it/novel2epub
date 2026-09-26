@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import clsx from "clsx";
 
 import { useTheme } from "@/lib/theme";
 import { pendingCount, useQueue } from "@/lib/queue";
 import { useCurrentBook, useLibrary } from "@/lib/books";
-import { num } from "@/lib/format";
-import { ChapterStrip } from "@/components/ChapterStrip";
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { GlobalLoadingBar, Loading } from "@/components/ui/Loading";
-import { decodeStrip } from "@/lib/strip";
 import {
   IconBook,
   IconBuild,
@@ -45,6 +42,7 @@ const WORKSHOP: Item[] = [
   { to: "/dashboard", label: "Bảng điều khiển", icon: IconGauge },
   { to: "/queue", label: "Hàng đợi", icon: IconQueue },
   { to: "/logs", label: "Nhật ký", icon: IconLog },
+  { to: "/automation", label: "Tự động hóa", icon: IconClock },
 ];
 
 /** Danh mục đầy đủ cho trang hub /system — giữ để search & highlight. */
@@ -54,7 +52,6 @@ const SYSTEM_ITEMS: Item[] = [
   { to: "/local-mt", label: "Local MT chung", icon: IconChip },
   { to: "/sources", label: "Nguồn", icon: IconSource },
   { to: "/idioms", label: "Từ điển chung", icon: IconBook },
-  { to: "/automation", label: "Tự động hóa", icon: IconClock },
   { to: "/storage", label: "Lưu trữ", icon: IconDisk },
   { to: "/wireguard", label: "WireGuard", icon: IconShield },
   { to: "/tailscale", label: "Tailscale", icon: IconTailscale },
@@ -174,46 +171,22 @@ function BookSection({ collapsed }: { collapsed: boolean }) {
   const [slug] = useCurrentBook();
   const { data } = useLibrary({ currentSlug: slug });
   const book = data?.current;
-  const states = useMemo(() => decodeStrip(book?.strip ?? ""), [book?.strip]);
+  if (!book) return null;
 
   return (
     <li>
-      <GroupTitle collapsed={collapsed}>Đang làm</GroupTitle>
-
-      {book ? (
-        <>
-          {!collapsed ? (
-            book.total > 0 ? (
-              <div className="px-3 pt-1 pb-2">
-                <ChapterStrip states={states} height={8} />
-                <p className="mt-1.5 text-[11px] opacity-60">
-                  <span data-numeric className="font-medium opacity-100">
-                    {num(book.translated_count)}
-                  </span>
-                  <span data-numeric className="opacity-70">
-                    /{num(book.total)}
-                  </span>{" "}
-                  chương đã dịch
-                </p>
-              </div>
-            ) : (
-              <p className="px-3 pt-1 pb-2 text-[11px] opacity-50">Chưa có mục lục.</p>
-            )
-          ) : null}
-          <ul className="!ms-0 !ps-0">
-            {bookRoutes(book.slug).map(({ to, label, icon: Icon, end }) => (
-              <SidebarLink
-                key={to}
-                to={to}
-                end={end}
-                label={label}
-                icon={Icon}
-                collapsed={collapsed}
-              />
-            ))}
-          </ul>
-        </>
-      ) : null}
+      <ul className="!ms-0 !ps-0">
+        {bookRoutes(book.slug).map(({ to, label, icon: Icon, end }) => (
+          <SidebarLink
+            key={to}
+            to={to}
+            end={end}
+            label={label}
+            icon={Icon}
+            collapsed={collapsed}
+          />
+        ))}
+      </ul>
     </li>
   );
 }

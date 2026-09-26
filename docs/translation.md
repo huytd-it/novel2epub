@@ -124,11 +124,17 @@ Tiêu đề chương đôi khi dính từ rác kêu gọi độc giả ("(Cầu 
 
 Endpoint có thể dịch từng ứng viên bằng Local MT rồi đưa vào `glossary_pending`. Nó không ghi trực tiếp vào `names.txt`: source đã tồn tại trong glossary hoặc hàng chờ được bỏ qua, và thao tác merge hàng chờ dùng transaction `BEGIN IMMEDIATE` để không ghi đè snapshot mới hơn. Hãy mở trang Glossary, kiểm tra context/confidence, sửa bản dịch rồi mới duyệt.
 
-### Assistant Panel — dịch tại chỗ, fill ngữ cảnh, tìm-thay thông minh
+### AI Harness — rà soát toàn truyện, dịch tại chỗ và tìm-thay thông minh
 
-Sidebar Trợ lý trong SPA làm việc trong phạm vi ebook đang mở (raw, bản dịch nhánh active, tiêu đề, glossary,
-nhân vật, idiom; tối đa 300 đoạn một lượt). Header panel cho đổi provider/model theo thread (lưu vào
+Tab **Trợ lý và tool** của trang AI Harness làm việc trong phạm vi ebook đang mở (raw, bản dịch nhánh active, tiêu đề, glossary,
+nhân vật, idiom; tối đa 300 đoạn một lượt). Header cho đổi provider/model theo thread (lưu vào
 `assistant_threads`, không chạm config ebook/global).
+
+Tab **Rà soát** chạy workflow v1 qua hàng đợi trên toàn bộ chương đã dịch. Kết quả, lỗi quét và tiến độ
+được lưu trong SQLite; lỗi gọi model/JSON hiện là chương thất bại, không được coi là sạch. Agent chỉ tạo
+đề xuất neo vào đúng một đoạn hoặc một mục Glossary. Người dùng lọc, chọn nhiều lỗi, xem diff rồi mới
+áp dụng; preview cũ hoặc bản dịch đổi bị từ chối. Glossary dùng lại luồng sửa mục và lan truyền cũ.
+Báo cáo `.md` là bản xuất tùy chọn, không phải nguồn dữ liệu để agent ghi ngược.
 
 - **Dịch tại chỗ**: chip "Dịch đoạn đang chọn" gửi đoạn bôi đen + ngữ cảnh chương cho agent; muốn sửa bản dịch thì
   agent trả thẻ preview diff theo đoạn — tick xác nhận rồi bấm **Áp dụng** mới ghi (stale protection kiểu

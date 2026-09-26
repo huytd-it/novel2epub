@@ -5,7 +5,6 @@ import clsx from "clsx";
 import { useTheme } from "@/lib/theme";
 import { pendingCount, useQueue } from "@/lib/queue";
 import { useCurrentBook, useLibrary } from "@/lib/books";
-import { AssistantPanel } from "@/components/AssistantPanel";
 import { GlobalLoadingBar, Loading } from "@/components/ui/Loading";
 import {
   IconBook,
@@ -76,6 +75,7 @@ function bookRoutes(slug: string) {
     { to: `/ebooks/${slug}/chapters`, label: "Chương", icon: IconRead, end: false },
     { to: `/ebooks/${slug}/build`, label: "Build sách", icon: IconBuild, end: true },
     { to: `/ebooks/${slug}/glossary`, label: "Glossary", icon: IconGlossary, end: true },
+    { to: `/ebooks/${slug}/ai-harness`, label: "AI Harness", icon: IconSparkle, end: true },
     { to: `/ebooks/${slug}/characters`, label: "Nhân vật", icon: IconCharacters, end: true },
     { to: `/ebooks/${slug}/settings`, label: "Cài đặt", icon: IconSettings, end: true },
   ];
@@ -270,13 +270,6 @@ function SystemSection({ open, collapsed }: { open: boolean; collapsed: boolean 
 export function Shell() {
   const [theme, toggleTheme] = useTheme();
   const [drawer, setDrawer] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("n2e-assistant-open") !== "0";
-    } catch {
-      return true;
-    }
-  });
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem("n2e-sidebar-collapsed") === "1";
@@ -294,18 +287,6 @@ export function Shell() {
       const next = !prev;
       try {
         localStorage.setItem("n2e-sidebar-collapsed", next ? "1" : "0");
-      } catch {
-        /* bỏ qua khi không truy cập được localStorage */
-      }
-      return next;
-    });
-  };
-
-  const toggleAssistant = () => {
-    setAssistantOpen((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("n2e-assistant-open", next ? "1" : "0");
       } catch {
         /* bỏ qua khi không truy cập được localStorage */
       }
@@ -337,49 +318,7 @@ export function Shell() {
           </label>
           <span className="font-display text-sm font-semibold">novel2epub</span>
         </div>
-        <div className="flex min-h-0 flex-1">
-          <main className="min-w-0 flex-1">
-            <Outlet />
-          </main>
-          {/* Assistant Panel — sidebar phải luôn hiển thị trong SPA. Desktop:
-              cột cố định; mobile/tablet: overlay phủ phải để không bóp nội dung. */}
-          {assistantOpen ? (
-            <>
-              <aside
-                className="hidden w-[380px] shrink-0 border-l border-base-300 lg:block"
-                aria-label="Trợ lý"
-              >
-                <div className="sticky top-0 h-[calc(100vh-0px)] max-h-screen overflow-hidden">
-                  <AssistantPanel onClose={toggleAssistant} />
-                </div>
-              </aside>
-              <div className="fixed inset-0 z-80 lg:hidden">
-                <div
-                  className="absolute inset-0 bg-black/40"
-                  onClick={toggleAssistant}
-                  aria-hidden="true"
-                />
-                <aside
-                  className="absolute top-0 right-0 bottom-0 w-[min(380px,92vw)] border-l border-base-300 bg-base-100 shadow-xl"
-                  aria-label="Trợ lý"
-                >
-                  <AssistantPanel onClose={toggleAssistant} />
-                </aside>
-              </div>
-            </>
-          ) : null}
-        </div>
-        {!assistantOpen ? (
-          <button
-            type="button"
-            onClick={toggleAssistant}
-            title="Mở trợ lý"
-            aria-label="Mở trợ lý"
-            className="btn btn-primary btn-circle fixed right-4 bottom-4 z-70 shadow-lg"
-          >
-            AI
-          </button>
-        ) : null}
+        <main className="min-w-0 flex-1"><Outlet /></main>
       </div>
 
       <div className="drawer-side z-90">

@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 27
+SCHEMA_VERSION = 28
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -845,6 +845,52 @@ _SCHEMA_STATEMENTS = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_assistant_messages_thread ON assistant_messages(thread_id, id)",
+    """
+    CREATE TABLE IF NOT EXISTS ai_harness_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ebook_slug TEXT NOT NULL REFERENCES ebooks(slug) ON DELETE CASCADE,
+        workflow_version INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        total INTEGER NOT NULL DEFAULT 0,
+        processed INTEGER NOT NULL DEFAULT 0,
+        failed INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        finished_at TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_ai_harness_runs_ebook ON ai_harness_runs(ebook_slug, id DESC)",
+    """
+    CREATE TABLE IF NOT EXISTS ai_harness_chapters (
+        run_id INTEGER NOT NULL REFERENCES ai_harness_runs(id) ON DELETE CASCADE,
+        chapter_index INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        issue_count INTEGER NOT NULL DEFAULT 0,
+        error TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY(run_id, chapter_index)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS ai_harness_issues (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id INTEGER NOT NULL REFERENCES ai_harness_runs(id) ON DELETE CASCADE,
+        chapter_index INTEGER NOT NULL,
+        category TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        source TEXT NOT NULL DEFAULT '',
+        current TEXT NOT NULL DEFAULT '',
+        suggestion TEXT NOT NULL DEFAULT '',
+        reason TEXT NOT NULL DEFAULT '',
+        para_index INTEGER,
+        before_text TEXT NOT NULL DEFAULT '',
+        after_text TEXT NOT NULL DEFAULT '',
+        branch TEXT NOT NULL DEFAULT '',
+        content_hash TEXT NOT NULL DEFAULT '',
+        error TEXT NOT NULL DEFAULT ''
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_ai_harness_issues_run ON ai_harness_issues(run_id, chapter_index, id)",
 ]
 
 # Cột thêm vào bảng ĐÃ TỒN TẠI ở các phiên bản schema sau. `_SCHEMA_STATEMENTS`
@@ -1400,6 +1446,12 @@ def _migration_v27(conn: sqlite3.Connection) -> None:
         conn.execute(stmt)
 
 
+def _migration_v28(conn: sqlite3.Connection) -> None:
+    """Persist AI Harness runs, per-chapter results and reviewable issues."""
+    for stmt in _SCHEMA_STATEMENTS:
+        conn.execute(stmt)
+
+
 def _migration_v26(conn: sqlite3.Connection) -> None:
     """Đưa dung lượng (byte) từng loại nội dung + `translated_updated_at` vào
     projection `chapter_ui_state`.
@@ -1483,6 +1535,7 @@ _MIGRATIONS = {
     25: _migration_v25,
     26: _migration_v26,
     27: _migration_v27,
+    28: _migration_v28,
 }
 
 

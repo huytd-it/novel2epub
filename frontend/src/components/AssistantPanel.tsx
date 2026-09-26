@@ -116,8 +116,9 @@ function FindReplacePicker({
   );
 }
 
-export function AssistantPanel({ onClose }: { onClose: () => void }) {
-  const [slug] = useCurrentBook();
+export function AssistantPanel({ ebookSlug }: { ebookSlug?: string }) {
+  const [currentSlug] = useCurrentBook();
+  const slug = ebookSlug || currentSlug;
   const location = useLocation();
   const toast = useToast();
 
@@ -353,9 +354,6 @@ export function AssistantPanel({ onClose }: { onClose: () => void }) {
         <span className="ml-auto" />
         <Button size="sm" variant="ghost" onClick={newChat} loading={createThread.isPending} title="Đoạn chat mới">
           +
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onClose} title="Đóng panel trợ lý" aria-label="Đóng panel trợ lý">
-          ✕
         </Button>
       </header>
 

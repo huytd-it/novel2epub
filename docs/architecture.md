@@ -507,12 +507,11 @@ Neo đi trong **cùng payload** với `content` (`reader_client.upsert_contents`
 
 Thiết kế đầy đủ của pipeline hai chiều: [spec 2026-08-07](superpowers/specs/2026-08-07-two-way-edit-pipeline-design.md).
 
-## Assistant Panel (Trợ Lý Trong SPA)
+## AI Harness (Trợ Lý Và Rà Soát Trong SPA)
 
-Sidebar phải luôn hiển thị trong SPA (`frontend/src/app/Shell.tsx` + `frontend/src/components/AssistantPanel.tsx`),
-chỉ SPA `/app` — không port Jinja2 cũ. Gói `@copilotkit/react-core` + `@copilotkit/react-ui` đã khai báo trong
-`frontend/package.json` để tiến hóa lên AG-UI; V1 dùng sidebar custom (REST + SSE) với cùng hợp đồng UX: sidebar
-phải, tool-calling phía server, thẻ preview generative UI, human-in-the-loop (tick chọn rồi mới ghi).
+Trợ lý nằm ở tab riêng của `/ebooks/:slug/ai-harness`; nút AI nổi và sidebar phải đã được bỏ.
+Gói `@copilotkit/react-core` + `@copilotkit/react-ui` vẫn có trong `frontend/package.json` để tiến hóa lên AG-UI;
+chat hiện dùng REST + SSE, tool-calling phía server và thẻ preview phải được người dùng duyệt mới ghi.
 Header panel KHÔNG có ô Provider — chỉ hiện provider đang dùng (read-only) + ô Model đổi được theo thread.
 Provider và model trợ lý mặc định chọn ở trang Provider AI (panel "Provider & model mặc định" lưu vào
 Global AI: `base_url` + `assistant_model`); thread mới nạp mặc định từ đó.
@@ -522,6 +521,9 @@ Global AI: `base_url` + `assistant_model`); thread mới nạp mặc định t�
 - `assistant_threads(id, ebook_slug, provider_base_url, model, created_at)` — lựa chọn LLM theo thread, mở lại vẫn
   giữ. KHÔNG ghi đè config ebook hay global.
 - `assistant_messages(thread_id, role, content, created_at)` — lịch sử chat theo ebook.
+
+Schema v28 thêm `ai_harness_runs`, `ai_harness_chapters`, `ai_harness_issues` cho workflow rà soát v1.
+Run/chapter phân biệt sạch, có lỗi, thất bại; issue giữ snapshot và trạng thái duyệt. Markdown chỉ là báo cáo xuất.
 
 ### Backend
 

@@ -36,6 +36,7 @@ import { TailscalePage } from "@/routes/TailscalePage";
 import { LocalMtPage } from "@/routes/LocalMtPage";
 import { GlobalTranslatePage } from "@/routes/GlobalTranslatePage";
 import { AiProvidersPage } from "@/routes/AiProvidersPage";
+import { AiHarnessPage } from "@/routes/AiHarnessPage";
 import { SystemPage } from "@/routes/SystemPage";
 import { BuildPage } from "@/routes/BuildPage";
 import { PlaceholderPage } from "@/routes/PlaceholderPage";
@@ -75,6 +76,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="ebooks/:slug/build" element={<BuildPage />} />
               <Route path="ebooks/:slug/settings" element={<SettingsPage />} />
               <Route path="ebooks/:slug/glossary" element={<GlossaryPage />} />
+              <Route path="ebooks/:slug/ai-harness" element={<AiHarnessPage />} />
               <Route path="ebooks/:slug/characters" element={<CharactersPage />} />
               <Route path="queue" element={<QueuePage />} />
               <Route path="logs" element={<LogsPage />} />

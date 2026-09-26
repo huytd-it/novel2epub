@@ -2474,6 +2474,54 @@ def sources_clone_api(name: str, payload: dict = Body(default={})):
     return asdict(clone)
 
 
+@router.post("/sources/sync/preview")
+def sources_sync_preview_api(payload: dict = Body(default={})):
+    """Xem trước sync giữa DB và file `sources.yaml` — KHÔNG ghi gì.
+
+    Đường dẫn rỗng = `sources.yaml` cạnh file DB. Chỉ đọc file + đọc DB.
+    """
+    from novel2epub import sources_sync
+
+    try:
+        path = sources_sync.resolve_path(deps.DB_PATH, str(payload.get("path", "")))
+        layout, file_presets, warnings = sources_sync.read_sources_file(path)
+    except sources_sync.SyncError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    plan = sources_sync.plan_sync(
+        deps.DB_PATH, path, file_presets, layout=layout,
+        file_order=list(file_presets), warnings=warnings,
+    )
+    return plan.to_dict()
+
+
+@router.post("/sources/sync/apply")
+def sources_sync_apply_api(payload: dict = Body(...)):
+    """Thi hành lựa chọn của người dùng: ghi DB rồi ghi ngược file (có backup).
+
+    `choices` map tên preset -> `import` | `export` | `skip`; thiếu = skip.
+    """
+    from novel2epub import sources_sync
+
+    try:
+        path = sources_sync.resolve_path(deps.DB_PATH, str(payload.get("path", "")))
+        layout, file_presets, warnings = sources_sync.read_sources_file(path)
+    except sources_sync.SyncError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    raw_choices = payload.get("choices") or {}
+    if not isinstance(raw_choices, dict):
+        raise HTTPException(status_code=400, detail="`choices` phải là object {tên_preset: hành_động}.")
+    try:
+        report = sources_sync.apply_sync(
+            deps.DB_PATH, path, file_presets,
+            choices={str(k): str(v) for k, v in raw_choices.items()},
+            layout=layout,
+            warnings=warnings,
+        )
+    except sources_sync.SyncError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return report.to_dict()
+
+
 @router.post("/sources/{name}/test")
 def sources_test_api(request: Request, name: str, payload: dict = Body(...)):
     """Dry-run: fetch_toc + 1 fetch_chapter, chạy nền, không ghi gì xuống đĩa.

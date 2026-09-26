@@ -6,21 +6,30 @@ import { apiUrl } from "@/lib/api";
 import { ago } from "@/lib/format";
 import {
   EMPTY_PRESET,
+  savedSyncPath,
+  saveSyncPath,
+  SYNC_ACTION_LABELS,
+  SYNC_STATUS_META,
   useClonePreset,
   useDeletePreset,
   useSavePreset,
   useSources,
+  useSyncApply,
+  useSyncPreview,
   useTestPreset,
   type SourcePreset,
+  type SyncAction,
+  type SyncPreview,
+  type SyncReport,
 } from "@/lib/sources";
-import { Panel, EmptyState } from "@/components/ui/Panel";
+import { Panel, EmptyState, PanelHeader } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { Loading } from "@/components/ui/Loading";
 import { Checkbox, Field, Input, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
-import { IconExternal, IconPlus, IconSearch, IconTrash } from "@/components/icons";
+import { IconChevronRight, IconExternal, IconMenu, IconPlus, IconSearch, IconTable, IconTrash } from "@/components/icons";
 import {
   DomInspector,
   RegexField,
@@ -739,6 +748,253 @@ function TestModal({ open, onClose, name }: { open: boolean; onClose: () => void
   );
 }
 
+/* ── Đồng bộ hai chiều với file sources.yaml ──────────────────────────── */
+
+const SYNC_ACTION_HINT: Record<SyncAction, string> = {
+  import: "Bản trong file thắng — ghi vào DB (giá trị DB cũ bị thay)",
+  export: "Bản trong DB thắng — ghi ra file (DB giữ nguyên)",
+  skip: "Không đụng — DB giữ nguyên và entry trong file giữ nguyên từng ký tự",
+};
+
+/** Rút gọn giá trị dài (prompt/js_code) cho danh sách diff. */
+function shortValue(value: unknown, max = 60): string {
+  let text: string;
+  if (value === null || value === undefined) text = "∅";
+  else if (Array.isArray(value)) text = value.length ? value.join(", ") : "[]";
+  else if (typeof value === "object") text = JSON.stringify(value);
+  else text = String(value);
+  text = text.replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max)}…` : text || "∅";
+}
+
+function SyncRow({
+  diff,
+  onChange,
+}: {
+  diff: SyncPreview["presets"][number];
+  onChange: (action: SyncAction) => void;
+}) {
+  const meta = SYNC_STATUS_META[diff.status];
+  const tone = diff.status === "changed" ? "gold" : diff.status === "same" ? "celadon" : "indigo";
+  return (
+    <div className="rounded-box border border-base-300 p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[13px] font-semibold">{diff.name}</span>
+        <Badge tone={tone}>{meta.label}</Badge>
+        <span className="text-[11px] opacity-60">{meta.hint}</span>
+        <div className="ml-auto">
+          <Select
+            value={diff.action}
+            onChange={(e) => onChange(e.target.value as SyncAction)}
+            className="w-40"
+            title={SYNC_ACTION_HINT[diff.action]}
+          >
+            {diff.actions.map((a) => (
+              <option key={a} value={a}>
+                {SYNC_ACTION_LABELS[a]}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+      {diff.fields.length > 0 ? (
+        <ul className="mt-1.5 space-y-1 pl-1 text-[11px]">
+          {diff.fields.map((f) => (
+            <li key={f.key} className="flex flex-wrap items-baseline gap-1.5">
+              <code className="rounded bg-base-200 px-1 py-0.5 font-mono">{f.key}</code>
+              <span className="text-error/90 line-through" title={String(f.db_value ?? "")}>
+                {shortValue(f.db_value)}
+              </span>
+              <span aria-hidden>→</span>
+              <span className="text-success" title={String(f.file_value ?? "")}>
+                {shortValue(f.file_value)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function SyncModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [path, setPath] = useState("");
+  const [preview, setPreview] = useState<SyncPreview | null>(null);
+  const [report, setReport] = useState<SyncReport | null>(null);
+  const [choices, setChoices] = useState<Record<string, SyncAction>>({});
+  const previewMutation = useSyncPreview();
+  const applyMutation = useSyncApply();
+  const toast = useToast();
+
+  useEffect(() => {
+    if (open) {
+      setPath(savedSyncPath());
+      setPreview(null);
+      setReport(null);
+      setChoices({});
+    }
+  }, [open]);
+
+  const runPreview = () => {
+    previewMutation.mutate(path, {
+      onSuccess: (data) => {
+        setPreview(data);
+        setReport(null);
+        // Mặc định lấy luôn gợi ý của backend (file thắng, DB-only thì đẩy ra
+        // file, giống hệt thì bỏ qua) — người dùng sửa từng dòng sau.
+        setChoices(Object.fromEntries(data.presets.map((p) => [p.name, p.action])));
+      },
+      onError: (e) => toast(e instanceof Error ? e.message : String(e), "error"),
+    });
+  };
+
+  const runApply = () => {
+    applyMutation.mutate(
+      { path, choices },
+      {
+        onSuccess: (data) => {
+          setReport(data);
+          saveSyncPath(path);
+          const parts: string[] = [];
+          if (data.imported.length) parts.push(`${data.imported.length} preset vào DB`);
+          if (data.exported.length) parts.push(`${data.exported.length} preset ra file`);
+          toast(parts.length ? `Đã đồng bộ: ${parts.join(", ")}.` : "Không có thay đổi nào.", "ok");
+        },
+        onError: (e) => toast(e instanceof Error ? e.message : String(e), "error"),
+      },
+    );
+  };
+
+  const canApply = Boolean(preview) && !applyMutation.isPending;
+  const diffCount = preview ? preview.counts.added + preview.counts.changed + preview.counts.db_only : 0;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Đồng bộ nguồn với file YAML"
+      xl
+      footer={
+        <>
+          <Button onClick={onClose}>Đóng</Button>
+          {preview && !report ? (
+            <>
+              <Button loading={previewMutation.isPending} onClick={runPreview}>
+                Xem lại
+              </Button>
+              <Button variant="primary" loading={applyMutation.isPending} disabled={!canApply} onClick={runApply}>
+                Đồng bộ {diffCount ? `(${diffCount} preset)` : ""}
+              </Button>
+            </>
+          ) : !report ? (
+            <Button variant="primary" loading={previewMutation.isPending} onClick={runPreview}>
+              Xem trước
+            </Button>
+          ) : null}
+        </>
+      }
+    >
+      <div className="grid gap-3">
+        <p className="text-[11px] leading-relaxed opacity-60">
+          DB là nguồn sự thật; file <code className="rounded bg-base-200 px-1">sources.yaml</code> là bản
+          cấu hình/backup. Sync làm hai việc: đẩy preset trong file vào DB, rồi ghi ngược file để
+          nó khớp DB. Xem trước trước khi ghi — có preset nào chỉ tồn tại ở một bên thì được gom về.
+        </p>
+
+        <Field
+          label="File YAML"
+          hint="Để trống = sources.yaml cạnh file DB. Đường dẫn tương đối cũng tính từ đó."
+        >
+          <Input
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+            placeholder="sources.yaml"
+            spellCheck={false}
+            className="w-full font-mono text-xs"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !previewMutation.isPending) runPreview();
+            }}
+          />
+        </Field>
+
+        {preview ? (
+          <>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <Badge tone={preview.exists ? "celadon" : "gold"}>
+                {preview.exists ? preview.path : `${preview.path} (chưa có)`}
+              </Badge>
+              <Badge tone="indigo">{preview.layout === "wrapped" ? "có khối sources:" : "dạng phẳng"}</Badge>
+              {(["added", "changed", "db_only", "same"] as const).map((s) => (
+                <span key={s} className="opacity-70">
+                  {SYNC_STATUS_META[s].label}: <b className="font-mono">{preview.counts[s]}</b>
+                </span>
+              ))}
+            </div>
+
+            {preview.warnings.length > 0 ? (
+              <ul className="list-disc space-y-1 rounded-box border border-base-300 bg-base-200/50 p-2 pl-5 text-xs">
+                {preview.warnings.map((w, i) => (
+                  <li key={i} className="opacity-80">
+                    {w}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {preview.exists && diffCount > 0 ? (
+              <p className="rounded-box border border-warning/40 bg-warning/10 p-2 text-[11px]">
+                Ghi file sẽ <b>chép lưu bản cũ</b> thành <code>sources.bak-&lt;giờ&gt;.yaml</code> cạnh file.
+                Comment và thứ tự khoá trong file sẽ mất (file được sinh lại từ DB) — preset bị chọn “Bỏ
+                qua” thì giữ nguyên từng ký tự.
+              </p>
+            ) : null}
+
+            {report ? (
+              <div className="space-y-1 rounded-box border border-success/40 bg-success/10 p-2 text-xs">
+                <div>
+                  <b>Đã đồng bộ.</b> {report.imported.length ? `Vào DB: ${report.imported.join(", ")}. ` : ""}
+                  {report.exported.length ? `Ra file: ${report.exported.join(", ")}.` : ""}
+                </div>
+                {report.file_written ? (
+                  <div className="opacity-70">
+                    Đã ghi lại <code className="font-mono">{report.path}</code>
+                    {report.backup ? (
+                      <>
+                        {" "}
+                        · bản cũ: <code className="font-mono">{report.backup}</code>
+                      </>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="opacity-70">Không ghi file (mọi preset đều bỏ qua).</div>
+                )}
+                {report.skipped.length ? (
+                  <div className="opacity-70">Bỏ qua: {report.skipped.join(", ")}.</div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {!report && preview.presets.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-[11px] opacity-60">
+                  Chọn bên thắng cho từng preset. “Giống hệt” không cần chọn — nó không đổi gì.
+                </p>
+                {preview.presets.map((p) => (
+                  <SyncRow
+                    key={p.name}
+                    diff={{ ...p, action: choices[p.name] ?? p.action }}
+                    onChange={(a) => setChoices((prev) => ({ ...prev, [p.name]: a }))}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
 /* ── Thẻ preset ──────────────────────────────────────────────────────── */
 
 function PresetCard({
@@ -850,6 +1106,184 @@ function PresetCard({
   );
 }
 
+/* ── Dạng bảng: sort + phân trang ─────────────────────────────────────── */
+
+type SourceView = "cards" | "table";
+type SourceSortKey = "name" | "domains" | "mode" | "usage" | "status" | "checked_at";
+
+const SOURCES_VIEW_KEY = "n2e-sources-view";
+const SOURCES_TABLE_PAGE_SIZE = 12;
+
+function SortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  direction,
+  onSort,
+}: {
+  label: string;
+  sortKey: SourceSortKey;
+  activeKey: SourceSortKey;
+  direction: "asc" | "desc";
+  onSort: (key: SourceSortKey) => void;
+}) {
+  const active = sortKey === activeKey;
+  return (
+    <th scope="col" className="whitespace-nowrap px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] opacity-65">
+      <button
+        type="button"
+        className={clsx("inline-flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-base-300 hover:opacity-100", active && "text-primary opacity-100")}
+        onClick={() => onSort(sortKey)}
+        aria-label={`Sắp xếp theo ${label}`}
+      >
+        {label}
+        {active ? <IconChevronRight size={12} className={direction === "asc" ? "-rotate-90" : "rotate-90"} aria-hidden="true" /> : null}
+      </button>
+    </th>
+  );
+}
+
+function TablePager({
+  page,
+  pageCount,
+  shown,
+  total,
+  onPage,
+}: {
+  page: number;
+  pageCount: number;
+  shown: number;
+  total: number;
+  onPage: (next: number) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+      <span data-numeric className="opacity-60">
+        Trang {page} / {pageCount} · {shown} / {total} nguồn
+      </span>
+      <div className="flex gap-1.5">
+        <Button size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+          Trước
+        </Button>
+        <Button size="sm" disabled={page >= pageCount} onClick={() => onPage(page + 1)}>
+          Sau
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SourceTableRow({
+  preset,
+  usage,
+  validation,
+  onEdit,
+  onTest,
+}: {
+  preset: SourcePreset;
+  usage: string[];
+  validation: { ok: boolean; message: string; checked_at: number } | undefined;
+  onEdit: () => void;
+  onTest: () => void;
+}) {
+  const del = useDeletePreset();
+  const clone = useClonePreset();
+  const toast = useToast();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const isWildcard = preset.chapter_link_pattern.trim() === ".*" || preset.chapter_link_pattern.trim() === ".+";
+  const hasTightWrapper = Boolean(preset.toc_selector && preset.toc_selector.trim());
+
+  return (
+    <tr className="border-b border-base-300 align-middle last:border-b-0 hover:bg-base-200/35">
+      <td className="max-w-[14rem] px-3 py-2">
+        <div className="truncate font-medium" title={preset.name}>{preset.name}</div>
+        <div className="truncate font-mono text-[10px] opacity-50" title={preset.domains || preset.url || ""}>{preset.domains || preset.url || "—"}</div>
+      </td>
+      <td className="max-w-[12rem] truncate px-3 py-2 font-mono text-xs opacity-70" title={preset.domains || "—"}>
+        {preset.domains || "—"}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2">
+        <Badge tone="indigo">{preset.scrapling_mode || "—"}</Badge>
+      </td>
+      <td data-numeric className="whitespace-nowrap px-3 py-2 text-xs opacity-70">
+        {usage.length > 0 ? `${usage.length} truyện` : "—"}
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex flex-wrap items-center gap-1">
+          {isWildcard ? (
+            <Badge tone="vermilion" className="cursor-help">
+              <span title="Regex '.*' khớp toàn bộ link - hãy thu hẹp">regex rộng</span>
+            </Badge>
+          ) : null}
+          {!hasTightWrapper && preset.chapter_link_pattern ? (
+            <Badge tone="gold" className="cursor-help">
+              <span title="Thiếu wrapper mục lục - regex sẽ quét toàn trang">thiếu wrapper</span>
+            </Badge>
+          ) : null}
+          {validation ? (
+            <Badge tone={validation.ok ? "celadon" : "vermilion"} className="cursor-help">
+              <span title={validation.message}>{validation.ok ? "test OK" : "test lỗi"}</span>
+            </Badge>
+          ) : (
+            <span className="text-[11px] opacity-40">chưa test</span>
+          )}
+        </div>
+      </td>
+      <td data-numeric className="max-w-[12rem] truncate px-3 py-2 text-xs opacity-60" title={validation?.message ?? ""}>
+        {validation ? ago(validation.checked_at) : "—"}
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex items-center justify-end gap-1">
+          <Button size="sm" variant="primary" onClick={onEdit}>Sửa</Button>
+          <Button size="sm" onClick={onTest}>Test</Button>
+          <Button
+            size="sm"
+            loading={clone.isPending}
+            onClick={() =>
+              clone.mutate(
+                { name: preset.name, newName: "" },
+                {
+                  onSuccess: (res) => toast(`Đã nhân bản thành "${res.name}".`),
+                  onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+                },
+              )
+            }
+          >
+            Nhân bản
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            icon={<IconTrash size={12} />}
+            disabled={usage.length > 0}
+            title={usage.length > 0 ? `Đang dùng bởi: ${usage.join(", ")}` : `Xóa nguồn "${preset.name}"`}
+            aria-label={`Xóa nguồn ${preset.name}`}
+            onClick={() => setConfirmDelete(true)}
+          />
+        </div>
+        <ConfirmDialog
+          open={confirmDelete}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() =>
+            del.mutate(preset.name, {
+              onSuccess: () => setConfirmDelete(false),
+              onError: (err) => {
+                setConfirmDelete(false);
+                toast(err instanceof Error ? err.message : String(err), "error");
+              },
+            })
+          }
+          title="Xóa nguồn"
+          body={`Xóa nguồn "${preset.name}"? Không thể hoàn tác.`}
+          confirmLabel="Xóa"
+          destructive
+          pending={del.isPending}
+        />
+      </td>
+    </tr>
+  );
+}
+
 /* ── Trang ───────────────────────────────────────────────────────────── */
 
 export function SourcesPage() {
@@ -857,11 +1291,77 @@ export function SourcesPage() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<SourcePreset | null | undefined>(undefined); // undefined = đóng
   const [testing, setTesting] = useState<string | null>(null);
-
-  const presets = (data?.presets ?? []).filter((p) => {
-    const q = search.trim().toLowerCase();
-    return !q || p.name.toLowerCase().includes(q) || p.domains.toLowerCase().includes(q);
+  const [syncing, setSyncing] = useState(false);
+  const [view, setView] = useState<SourceView>(() => {
+    try {
+      return localStorage.getItem(SOURCES_VIEW_KEY) === "table" ? "table" : "cards";
+    } catch {
+      return "cards";
+    }
   });
+  const [sortKey, setSortKey] = useState<SourceSortKey>("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+
+  const presets = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = (data?.presets ?? []).filter(
+      (p) => !q || p.name.toLowerCase().includes(q) || p.domains.toLowerCase().includes(q),
+    );
+    // Thứ hạng trạng thái để sort: lỗi test trước, rồi cảnh báo cấu hình,
+    // test OK, cuối cùng là chưa test.
+    const statusRank = (p: SourcePreset): number => {
+      const v = data?.validation[p.name];
+      if (v && !v.ok) return 0;
+      const wide = p.chapter_link_pattern.trim() === ".*" || p.chapter_link_pattern.trim() === ".+";
+      if (wide) return 1;
+      if (p.chapter_link_pattern && !(p.toc_selector && p.toc_selector.trim())) return 2;
+      if (v?.ok) return 3;
+      return 4;
+    };
+    const value = (p: SourcePreset): string | number => {
+      if (sortKey === "domains") return (p.domains || p.url || "").toLowerCase();
+      if (sortKey === "mode") return (p.scrapling_mode || "").toLowerCase();
+      if (sortKey === "usage") return data?.usage[p.name]?.length ?? 0;
+      if (sortKey === "status") return statusRank(p);
+      if (sortKey === "checked_at") return data?.validation[p.name]?.checked_at ?? 0;
+      return p.name.toLowerCase();
+    };
+    return [...filtered].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      const cmp =
+        typeof va === "number" && typeof vb === "number"
+          ? va - vb
+          : String(va).localeCompare(String(vb), "vi");
+      return sortDirection === "asc" ? cmp : -cmp;
+    });
+  }, [data, search, sortDirection, sortKey]);
+
+  const pageCount = Math.max(1, Math.ceil(presets.length / SOURCES_TABLE_PAGE_SIZE));
+  const visiblePresets =
+    view === "table" ? presets.slice((page - 1) * SOURCES_TABLE_PAGE_SIZE, page * SOURCES_TABLE_PAGE_SIZE) : presets;
+
+  useEffect(() => setPage(1), [search, view]);
+  useEffect(() => setPage((current) => Math.min(current, pageCount)), [pageCount]);
+
+  const changeSort = (key: SourceSortKey) => {
+    if (key === sortKey) setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDirection("asc");
+    }
+    setPage(1);
+  };
+
+  const changeView = (next: SourceView) => {
+    setView(next);
+    try {
+      localStorage.setItem(SOURCES_VIEW_KEY, next);
+    } catch {
+      /* bỏ qua khi localStorage bị chặn */
+    }
+  };
 
   return (
     <Page
@@ -879,12 +1379,40 @@ export function SourcesPage() {
           <a href={apiUrl("/sources/export")} className="btn btn-sm inline-flex items-center gap-1.5">
             Xuất YAML <IconExternal size={12} />
           </a>
+          <Button onClick={() => setSyncing(true)}>Đồng bộ YAML</Button>
           <Button variant="primary" icon={<IconPlus size={14} />} onClick={() => setEditing(null)}>
             Thêm nguồn
           </Button>
         </>
       }
     >
+      {/* Thanh view mode: phân trang nằm TRÁI, toggle cards/table nằm PHẢI */}
+      {!isPending && presets.length > 0 ? (
+        <Panel className="mb-3 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div aria-label="Phân trang danh sách nguồn">
+              {view === "table" ? (
+                <TablePager
+                  page={page}
+                  pageCount={pageCount}
+                  shown={visiblePresets.length}
+                  total={presets.length}
+                  onPage={setPage}
+                />
+              ) : (
+                <span data-numeric className="text-xs opacity-60">
+                  {presets.length} nguồn
+                </span>
+              )}
+            </div>
+            <div className="join justify-self-start" aria-label="Kiểu hiển thị">
+              <Button size="sm" variant={view === "cards" ? "primary" : "neutral"} icon={<IconMenu size={14} />} onClick={() => changeView("cards")} aria-label="Xem dạng thẻ" title="Dạng thẻ" />
+              <Button size="sm" variant={view === "table" ? "primary" : "neutral"} icon={<IconTable size={14} />} onClick={() => changeView("table")} aria-label="Xem dạng bảng" title="Dạng bảng (sắp xếp, phân trang)" />
+            </div>
+          </div>
+        </Panel>
+      ) : null}
+
       {isPending ? (
         <Loading label="Đang tải nguồn" />
       ) : presets.length === 0 ? (
@@ -894,9 +1422,9 @@ export function SourcesPage() {
             hint={search ? "Thử từ khóa khác." : 'Bấm "Thêm nguồn" để tạo preset crawl đầu tiên.'}
           />
         </Panel>
-      ) : (
+      ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {presets.map((p) => (
+          {visiblePresets.map((p) => (
             <PresetCard
               key={p.name}
               preset={p}
@@ -907,6 +1435,51 @@ export function SourcesPage() {
             />
           ))}
         </div>
+      ) : (
+        <Panel className="overflow-hidden">
+          <PanelHeader
+            title="Danh sách nguồn"
+            hint={`Hiển thị ${visiblePresets.length} trong ${presets.length} kết quả · bấm tiêu đề cột để sắp xếp.`}
+          />
+          <div className="scroll-slim overflow-x-auto">
+            <table className="w-full min-w-[1020px] border-collapse text-left">
+              <thead className="border-b border-base-300 bg-base-200/45">
+                <tr>
+                  <SortableHeader label="Tên" sortKey="name" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                  <SortableHeader label="Domain" sortKey="domains" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                  <SortableHeader label="Chế độ" sortKey="mode" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                  <SortableHeader label="Dùng" sortKey="usage" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                  <SortableHeader label="Trạng thái" sortKey="status" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                  <SortableHeader label="Kiểm tra" sortKey="checked_at" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
+                  <th scope="col" className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.08em] opacity-65">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visiblePresets.map((p) => (
+                  <SourceTableRow
+                    key={p.name}
+                    preset={p}
+                    usage={data?.usage[p.name] ?? []}
+                    validation={data?.validation[p.name]}
+                    onEdit={() => setEditing(p)}
+                    onTest={() => setTesting(p.name)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {presets.length > SOURCES_TABLE_PAGE_SIZE ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-base-300 px-4 py-3">
+              <TablePager
+                page={page}
+                pageCount={pageCount}
+                shown={visiblePresets.length}
+                total={presets.length}
+                onPage={setPage}
+              />
+            </div>
+          ) : null}
+        </Panel>
       )}
 
       <PresetModal
@@ -917,6 +1490,7 @@ export function SourcesPage() {
         usageCount={(editing ? data?.usage[editing.name]?.length : 0) ?? 0}
       />
       {testing ? <TestModal open onClose={() => setTesting(null)} name={testing} /> : null}
+      <SyncModal open={syncing} onClose={() => setSyncing(false)} />
     </Page>
   );
 }

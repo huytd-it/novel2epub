@@ -3,14 +3,20 @@ test các cấu hình crawl dùng lại (xem spec source-management)."""
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, fields
+from dataclasses import asdict
 
 import yaml
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
 from novel2epub.config import next_page_url_pattern_error
-from novel2epub.sources import SourcePreset, delete_preset, save_preset, save_presets
+from novel2epub.sources import (
+    SourcePreset,
+    delete_preset,
+    preset_from_mapping,
+    save_preset,
+    save_presets,
+)
 
 from .. import deps
 
@@ -376,16 +382,14 @@ async def import_source_presets(file: UploadFile = File(...), on_collision: str 
 
     presets = deps.presets()
     for name, item in incoming.items():
-        item = dict(item or {})
-        item.pop("name", None)
         final_name = name
         if final_name in presets and on_collision == "rename":
             suffix = 2
             while f"{name}-{suffix}" in presets:
                 suffix += 1
             final_name = f"{name}-{suffix}"
-        item["name"] = final_name
-        field_names = {f.name for f in fields(SourcePreset)}
-        presets[final_name] = SourcePreset(**{k: v for k, v in item.items() if k in field_names})
+        # `preset_from_mapping` bỏ field lạ và ép kiểu — cùng đường với
+        # `sources_sync` nên YAML import và YAML sync cho ra cùng một kết quả.
+        presets[final_name] = preset_from_mapping(final_name, item)
     save_presets(deps.SOURCES_PATH, presets)
     return RedirectResponse(url="/sources", status_code=303)

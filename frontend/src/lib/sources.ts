@@ -113,6 +113,102 @@ export function useTestPreset() {
   });
 }
 
+/* ── Đồng bộ hai chiều với file sources.yaml ──────────────────────────── */
+
+export type SyncAction = "import" | "export" | "skip";
+export type SyncStatus = "added" | "changed" | "db_only" | "same";
+
+/** `import` = bản trong file thắng (ghi vào DB) · `export` = bản trong DB thắng
+ *  (ghi ra file) · `skip` = không đụng bên nào. */
+export const SYNC_ACTION_LABELS: Record<SyncAction, string> = {
+  import: "File → DB",
+  export: "DB → file",
+  skip: "Bỏ qua",
+};
+
+export const SYNC_STATUS_META: Record<SyncStatus, { label: string; hint: string }> = {
+  added: { label: "Chỉ có trong file", hint: "Thêm vào DB" },
+  changed: { label: "Hai bên khác nhau", hint: "Chọn bên thắng" },
+  db_only: { label: "Chỉ có trong DB", hint: "Ghi thêm vào file" },
+  same: { label: "Giống hệt", hint: "Không cần làm gì" },
+};
+
+export interface SyncFieldDiff {
+  key: string;
+  file_value: unknown;
+  db_value: unknown;
+}
+
+export interface SyncPresetDiff {
+  name: string;
+  status: SyncStatus;
+  action: SyncAction;
+  actions: SyncAction[];
+  fields: SyncFieldDiff[];
+}
+
+export interface SyncPreview {
+  path: string;
+  layout: "flat" | "wrapped";
+  exists: boolean;
+  file_order: string[];
+  presets: SyncPresetDiff[];
+  warnings: string[];
+  counts: Record<SyncStatus, number>;
+}
+
+export interface SyncReport {
+  path: string;
+  layout: "flat" | "wrapped";
+  imported: string[];
+  exported: string[];
+  skipped: string[];
+  file_written: boolean;
+  backup: string;
+  warnings: string[];
+}
+
+const SYNC_PATH_KEY = "n2e:sources-sync-path";
+
+/** Đường dẫn file sync đã dùng lần trước — rỗng = mặc định `sources.yaml` cạnh DB. */
+export function savedSyncPath(): string {
+  try {
+    return localStorage.getItem(SYNC_PATH_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function saveSyncPath(value: string) {
+  try {
+    const trimmed = value.trim();
+    if (trimmed) localStorage.setItem(SYNC_PATH_KEY, trimmed);
+    else localStorage.removeItem(SYNC_PATH_KEY);
+  } catch {
+    /* private mode — coi như không nhớ */
+  }
+}
+
+export function useSyncPreview() {
+  return useMutation({
+    mutationFn: (filePath: string) =>
+      api.post<SyncPreview>("/api/ui/sources/sync/preview", { body: { path: filePath } }),
+  });
+}
+
+export function useSyncApply() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { path: string; choices: Record<string, SyncAction> }) =>
+      api.post<SyncReport>("/api/ui/sources/sync/apply", { body: vars }),
+    onSuccess: () => {
+      // Sync có thể thêm/xoá/đổi preset nên thư viện cũng phải vẽ lại.
+      client.invalidateQueries({ queryKey: key });
+      client.invalidateQueries({ queryKey: ["library"] });
+    },
+  });
+}
+
 export const EMPTY_PRESET: SourcePreset = {
   name: "",
   engine: "scrapling",

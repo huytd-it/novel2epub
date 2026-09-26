@@ -156,6 +156,8 @@ class SourcePreset:
 
 
 _FIELD_NAMES = {f.name for f in fields(SourcePreset)}
+#: Tên field hợp lệ của `SourcePreset` — dùng để báo "field lạ" khi đọc YAML.
+PRESET_FIELD_NAMES = frozenset(_FIELD_NAMES)
 
 
 def _coerce(name: str, value: Any) -> Any:
@@ -178,7 +180,25 @@ def _coerce(name: str, value: Any) -> Any:
             return int(value)
         except (TypeError, ValueError):
             return 5 if name == "max_search_results" else 0
+    if name == "strip_patterns":
+        # Luôn là list[str]. YAML/DB cũ có thể lưu một chuỗi nhiều dòng — nếu để
+        # nguyên, code crawl sẽ duyệt từng KÝ TỰ như regex.
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [line.strip() for line in value.splitlines() if line.strip()]
+        return [str(v) for v in value]
     return "" if value is None else value
+
+
+def preset_from_mapping(name: str, data: dict[str, Any] | None) -> SourcePreset:
+    """Dựng `SourcePreset` từ mapping thô (YAML/JSON/DB row): bỏ field lạ, ép kiểu.
+
+    `name` là khoá danh tính nên thắng mọi giá trị `name` nằm trong `data`.
+    """
+    payload = {k: _coerce(k, v) for k, v in (data or {}).items() if k in _FIELD_NAMES}
+    payload["name"] = name
+    return SourcePreset(**payload)
 
 
 def load_presets(path: str | Path) -> dict[str, SourcePreset]:

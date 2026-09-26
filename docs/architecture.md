@@ -206,11 +206,16 @@ trong `webui.py`, khớp `BASIC_FIELDS`/`SELECTOR_FIELDS`/`CRAWL_FIELDS` trong
 tên preset đi qua `rename_from` của `POST /api/ui/sources` → `rename_preset()`
 ghi tới `ebooks.source_preset` trong cùng transaction (ebook tham chiếu preset
 bằng tên; quên bước này là mọi truyện đó rơi về "preset không tồn tại" và âm
-thầm crawl sai). Các chính sách
+thầm crawl sai). **Đồng bộ `sources.yaml`** (nút "Đồng bộ YAML") đọc file cạnh DB,
+diff với DB rồi cho chọn từng preset — `File → DB` / `DB → file` / `Bỏ qua` — trước
+khi ghi; sau đó ghi ngược file (chép lưu `sources.bak-<giờ>.yaml`, ghi atomic). Toàn
+bộ logic ở `novel2epub/sources_sync.py` thuần, không phụ thuộc FastAPI, nên test
+được không cần dựng app; xem `docs/configuration.md` cho bảng hành động. Các
+chính sách
 crawl dùng chung (phân trang chương/mục lục, Scrapling và retry/backoff) có ở
 cả preset Nguồn lẫn override Nguồn theo ebook; `toc_url`, giới hạn chương và
-worker vẫn là riêng từng ebook. Wizard "Phân tích bằng AI" (đề xuất selector)
-và nhập YAML hàng loạt vẫn ở giao diện cũ, link rõ trên trang.
+worker vẫn là riêng từng ebook. Wizard "Phân tích bằng AI" (đề xuất selector) và
+nhập YAML hàng loạt vẫn ở giao diện cũ, link rõ trên trang.
 
 ### Trang Chương — Một Trang Cho Mọi Việc Của Một Chương
 

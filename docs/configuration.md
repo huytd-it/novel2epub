@@ -45,6 +45,42 @@ Các field quan trọng:
 
 Scrapling nằm trong `crawl.scrapling`: `mode`, `solve_cloudflare`, `network_idle`, `impersonate`, `proxy`, `dns_over_https`.
 
+## Đồng Bộ Nguồn Với File YAML
+
+Preset nằm trong bảng `sources` của DB; `sources.yaml` (cạnh file DB) là bản
+cấu hình/backup. Nút **Đồng bộ YAML** trên trang Nguồn đọc file đó, so với DB và
+cho chọn từng preset trước khi ghi:
+
+| Hành động | Ý nghĩa |
+| --- | --- |
+| `File → DB` | Bản trong file thắng — ghi vào DB, giá trị DB cũ bị thay |
+| `DB → file` | Bản trong DB thắng — ghi ra file, DB không đổi |
+| `Bỏ qua` | Không đụng gì; entry trong file giữ nguyên từng ký tự |
+
+Mặc định: preset chỉ có trong file thì `File → DB`; chỉ có trong DB thì `DB →
+file` (để file thành bản sao đầy đủ); hai bên khác nhau thì để mặc định `File →
+DB`; giống hệt thì bỏ qua. Sau khi sync, file là ảnh chụp của DB nên chạy lần
+hai sẽ ra toàn bộ "giống hệt" — đó là idempotent, không phải lỗi.
+
+Lưu ý:
+
+- Import (`File → DB`) thay THẤT toàn bộ preset bằng nội dung file, kể cả field
+  không có trong file — field đó về mặc định dataclass chứ không giữ giá trị DB.
+  Màn xem trước liệt kê từng field khác nhau để kiểm trước.
+- Ghi file chép lưu bản cũ thành `sources.bak-<giờ>.yaml` cạnh file, và ghi
+  atomic (`os.replace`) nên không có trạng thái file nửa viết.
+- File được sinh lại từ DB nên **mất comment**; thứ tự khoá cũ được giữ, khoá mới
+  thêm vào cuối theo alphabet.
+- File nhận cả hai định dạng: dạng phẳng của `sources.yaml` cũ và dạng bọc
+  `sources:` của file export; khi ghi lại, giữ nguyên dạng đang dùng.
+- File có khoá lạ (`defaults:`, `queue:`…) bị từ chối thay vì ghi đè mất — mỗi
+  khoá cấp cao nhất phải là preset, hoặc file phải có khoá `sources:`.
+- Đường dẫn rỗng = `sources.yaml` cạnh DB; đường dẫn tương đối tính từ đó, phải
+  có đuồi `.yaml`/`.yml`. Đường dẫn nhớ theo trình duyệt.
+
+Logic nằm ở `novel2epub/sources_sync.py` (thuần, không phụ thuộc FastAPI) với hai
+route `POST /api/ui/sources/sync/preview` và `POST /api/ui/sources/sync/apply`.
+
 Phân trang chương dùng `next_page_selector` hoặc `next_page_url_pattern` có đúng một capture group. Phân trang TOC dùng `toc_next_page_selector` và `toc_max_pages`.
 
 Trong vùng `content_selector`, bộ trích nội dung tự bỏ các `<p>` chỉ chứa link điều hướng ("trang trước / mục lục / trang sau"), và tự chuyển sang đọc text trần khi chính văn không được bọc `<p>` — khi đó `<br>` và thẻ đóng khối là ranh giới đoạn. Vòng phân trang dừng khi URL trang kế trỏ sang chương khác, nhận biết qua ID chương trong URL dạng `.../<id>.html`, `.../<id>_<trang>.html` hoặc `.../<id>/`, `.../<id>_<trang>/`.

@@ -175,6 +175,17 @@ song song: route Jinja2 cũ giữ nguyên đường dẫn, SPA phục vụ tại
   UTF-8 → GB18030 → Big5). Cả ba route đều là multipart (`UploadFile`) nên
   frontend gọi thẳng `fetch` với `FormData` qua `frontend/src/lib/upload.ts`,
   cùng pattern với `useImportWireGuardProfile`.
+- Tab "Chuyển app": xuất/nhập full ebook giữa hai app novel2epub bằng file
+  `.n2e.zip`. Trang truyện có nút "Chuyển app" (`GET
+  /api/ui/ebooks/{slug}/transfer/export`, query `include_epub=1` để kèm EPUB);
+  tab nhập dùng `POST /api/ui/library/ebooks/transfer/preview` (đọc summary,
+  không ghi DB) rồi `POST .../transfer/import` (multipart, field `slug` +
+  `overwrite`). Logic thuần nằm ở `novel2epub/ebook_transfer.py`, chỉ gọi
+  Storage API công khai + `config_writer` nên test được không cần dựng app;
+  frontend qua `frontend/src/lib/transfer.ts` (cùng pattern `postFile`).
+  Package mang theo chương (raw, hai nhánh dịch, meta), glossary, nhân vật,
+  notes, entity overrides, bìa và overrides cấu hình — không mang job queue,
+  log, secret Reader hay bảng dataset canonical.
 - Bảng chương (`GET /api/ui/ebooks/{slug}/chapters`) lọc và phân trang phía
   server, uỷ quyền cho `apply_chapter_query` — cùng hàm mà thao tác hàng loạt
   dùng, nên "chọn tất cả kết quả đang lọc" trỏ đúng tập chương backend sẽ xử

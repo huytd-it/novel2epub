@@ -26,6 +26,12 @@ import {
   useCreateFromUpload,
   type UploadPreview,
 } from "@/lib/upload";
+import {
+  previewTransfer,
+  useImportTransfer,
+  type TransferImportResult,
+  type TransferPreview,
+} from "@/lib/transfer";
 import { useSources, type SourcePreset } from "@/lib/sources";
 import { useGlobalAi, useLocalMt, useTranslateDefaults } from "@/lib/settings";
 
@@ -447,9 +453,9 @@ function TranslateMetaControl({
 }
 
 export function AddBookPage() {
-  const [tab, setTab] = useState<"single" | "bulk" | "upload">("single");
+  const [tab, setTab] = useState<"single" | "bulk" | "upload" | "transfer">("single");
   return (
-    <Page title="Thêm truyện" hint="Tạo từ URL mục lục, nhập hàng loạt, hoặc upload file .txt/.epub có sẵn">
+    <Page title="Thêm truyện" hint="Tạo từ URL mục lục, nhập hàng loạt, upload file .txt/.epub, hoặc nhập package từ app khác">
       <div role="tablist" className="tabs tabs-box mb-4 w-fit" aria-label="Kiểu nhập truyện">
         <button role="tab" className={`tab ${tab === "single" ? "tab-active" : ""}`} onClick={() => setTab("single")}>
           Nhập 1 link
@@ -460,8 +466,19 @@ export function AddBookPage() {
         <button role="tab" className={`tab ${tab === "upload" ? "tab-active" : ""}`} onClick={() => setTab("upload")}>
           Upload file
         </button>
+        <button role="tab" className={`tab ${tab === "transfer" ? "tab-active" : ""}`} onClick={() => setTab("transfer")}>
+          Chuyển app
+        </button>
       </div>
-      {tab === "single" ? <SingleForm /> : tab === "bulk" ? <BulkForm /> : <UploadForm />}
+      {tab === "single" ? (
+        <SingleForm />
+      ) : tab === "bulk" ? (
+        <BulkForm />
+      ) : tab === "upload" ? (
+        <UploadForm />
+      ) : (
+        <TransferForm />
+      )}
     </Page>
   );
 }
@@ -839,6 +856,196 @@ function UploadForm() {
       ) : (
         <Panel className="hidden place-items-center p-8 text-center text-sm opacity-55 xl:grid">
           Chọn file .txt/.epub để xem trước metadata và danh sách chương trước khi tạo.
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+/* ── Nhập package chuyển app (.n2e.zip) từ app novel2epub khác ──────────── */
+
+function TransferForm() {
+  const toast = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [preview, setPreview] = useState<TransferPreview | null>(null);
+  const [slug, setSlug] = useState("");
+  const [overwrite, setOverwrite] = useState(false);
+  const [result, setResult] = useState<TransferImportResult | null>(null);
+  const importMutation = useImportTransfer();
+  const showError = (error: unknown) => toast(error instanceof Error ? error.message : String(error), "error");
+
+  const pick = async (next: File | null) => {
+    setFile(next);
+    setPreview(null);
+    setResult(null);
+    if (!next) return;
+    if (!/\.zip$/i.test(next.name)) {
+      toast("Hãy chọn file package .zip (đuôi .n2e.zip) xuất từ app novel2epub khác.", "error");
+      return;
+    }
+    setPreviewing(true);
+    try {
+      const p = await previewTransfer(next);
+      setPreview(p);
+      setSlug(p.slug);
+      setOverwrite(false);
+      if (p.exists) {
+        toast(`Truyện '${p.slug}' đã tồn tại trên app này — đổi slug hoặc tick ghi đè.`, "info");
+      }
+    } catch (error) {
+      showError(error);
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const submit = async () => {
+    if (!file) return;
+    const target = slug.trim() || preview?.slug || "";
+    if (!target) {
+      toast("Slug trống — hãy nhập slug.", "error");
+      return;
+    }
+    try {
+      const created = await importMutation.mutateAsync({ file, slug: target, overwrite });
+      setResult(created);
+      toast(`Đã nhập truyện '${created.slug}' với ${created.counts.chapters} chương.`);
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const reset = () => {
+    setFile(null);
+    setPreview(null);
+    setSlug("");
+    setOverwrite(false);
+    setResult(null);
+  };
+
+  if (result) {
+    return (
+      <Panel className="border-success/40 bg-success/5 p-4" aria-live="polite">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <Badge tone="celadon">Đã nhập</Badge>
+            <h2 className="mt-2 font-display text-lg font-semibold">{result.slug}</h2>
+            <p className="text-xs opacity-60">
+              {result.counts.chapters} chương · {result.counts.glossary} mục glossary ·{" "}
+              {result.counts.characters} nhân vật
+            </p>
+            {result.warnings.map((warning) => (
+              <p key={warning} className="mt-1 text-xs text-warning">
+                {warning}
+              </p>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link className="btn btn-primary btn-sm" to={`/ebooks/${result.slug}`}>
+              Mở truyện
+            </Link>
+            <Button onClick={reset}>Nhập tiếp</Button>
+            <Link className="btn btn-sm" to="/">
+              Về thư viện
+            </Link>
+          </div>
+        </div>
+      </Panel>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,.8fr)]">
+      <div className="grid gap-4">
+        <Panel>
+          <PanelHeader
+            title="File package"
+            hint="File .n2e.zip xuất từ truyện khác: trang truyện → Chuyển app → Tải .n2e.zip"
+          />
+          <div className="grid gap-4 p-4">
+            <Field label="Chọn file" hint="Package chứa toàn bộ chương, bản dịch, glossary, nhân vật, ghi chú, bìa và cấu hình.">
+              <input
+                type="file"
+                accept=".zip,.n2e.zip"
+                className="file-input file-input-sm w-full"
+                onChange={(e) => pick(e.target.files?.[0] ?? null)}
+              />
+            </Field>
+            {previewing ? <p className="text-sm opacity-60">Đang đọc package…</p> : null}
+            {preview ? (
+              <div className="grid gap-3">
+                <Field label="Slug trên app này" hint={preview.exists ? "Slug đã tồn tại — đổi tên hoặc tick ghi đè bên dưới." : undefined}>
+                  <Input
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
+                    placeholder="slug-latin"
+                    className={!slug.trim() || (preview.exists && !overwrite && slug.trim() === preview.slug) ? "input-error" : undefined}
+                  />
+                </Field>
+                {preview.exists ? (
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <Checkbox checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} className="mt-0.5" />
+                    <span>
+                      <span className="font-medium text-error">Ghi đè truyện đang có</span>
+                      <span className="mt-0.5 block text-xs opacity-60">
+                        Xóa sạch dữ liệu cũ của '{preview.slug}' rồi nhập đè — không khôi phục được.
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="primary"
+                loading={importMutation.isPending}
+                disabled={!file || !preview || !slug.trim() || (preview.exists && slug.trim() === preview.slug && !overwrite)}
+                onClick={submit}
+              >
+                Nhập truyện
+              </Button>
+              <Link className="btn btn-ghost btn-sm" to="/">
+                Hủy
+              </Link>
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      {preview ? (
+        <div className="grid gap-4">
+          <Panel>
+            <PanelHeader title="Nội dung package" hint={`Xuất lúc ${preview.exported_at || "không rõ thời gian"}`} />
+            <div className="grid gap-1 p-4 text-sm">
+              <p className="font-display text-[15px] font-semibold">{preview.title || preview.slug}</p>
+              {preview.author ? <p className="text-xs opacity-60">{preview.author}</p> : null}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <Badge tone="gold">{preview.chapters} chương</Badge>
+                {preview.has_cover ? <Badge tone="celadon">Có bìa</Badge> : null}
+                {preview.has_epub ? <Badge tone="celadon">Kèm EPUB</Badge> : null}
+              </div>
+              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                <dt className="opacity-55">Bản gốc</dt>
+                <dd className="text-right font-medium">{preview.has_raw} chương</dd>
+                <dt className="opacity-55">Đã dịch</dt>
+                <dd className="text-right font-medium">{preview.has_translated} chương</dd>
+                <dt className="opacity-55">Glossary</dt>
+                <dd className="text-right font-medium">{preview.glossary} mục</dd>
+                <dt className="opacity-55">Nhân vật</dt>
+                <dd className="text-right font-medium">{preview.characters}</dd>
+                <dt className="opacity-55">Ghi chú</dt>
+                <dd className="text-right font-medium">{preview.notes}</dd>
+              </dl>
+              {preview.source_preset ? (
+                <p className="mt-1 text-xs opacity-60">Nguồn gốc: {preview.source_preset}</p>
+              ) : null}
+            </div>
+          </Panel>
+        </div>
+      ) : (
+        <Panel className="hidden place-items-center p-8 text-center text-sm opacity-55 xl:grid">
+          Chọn file .n2e.zip để xem trước nội dung package trước khi nhập.
         </Panel>
       )}
     </div>

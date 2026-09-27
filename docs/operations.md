@@ -170,6 +170,28 @@ Restore tự tạo pre-restore backup và yêu cầu xác nhận. Dùng `--yes` 
 
 Nên backup định kỳ và giữ ít nhất một bản ở ổ đĩa khác. DB có thể chứa API key và Reader service-role key, vì vậy backup phải được bảo vệ như secret.
 
+## Chuyển Ebook Sang App Khác
+
+Backup/restore chép NGUYÊN cả thư viện. Để mang MỘT truyện sang app
+novel2epub khác (máy khác, bản desktop, instance dùng thử) mà vẫn giữ bản gốc,
+bản dịch hai nhánh, glossary, nhân vật, ghi chú, bìa và cấu hình:
+
+1. Ở app nguồn, mở trang truyện → nút **Chuyển app** → **Tải `.n2e.zip`**
+   (tick kèm EPUB nếu muốn mang theo file đã build).
+2. Ở app đích, mở **Thêm truyện → Chuyển app**, chọn file `.n2e.zip`, duyệt
+   tóm tắt rồi **Nhập truyện**. Slug trùng thì đổi slug hoặc tick ghi đè
+   (ghi đè xóa sạch dữ liệu cũ, không khôi phục được).
+
+API tương ứng: `GET /api/ui/ebooks/{slug}/transfer/export`,
+`POST /api/ui/library/ebooks/transfer/preview` và
+`POST /api/ui/library/ebooks/transfer/import` (multipart, field `slug` +
+`overwrite`). Logic thuần nằm ở `novel2epub/ebook_transfer.py`.
+
+Không mang theo: hàng đợi job, log, secret Reader (cấu hình global của từng
+app) và bảng dataset canonical — chạy `dataset-backfill` trên app đích để
+dựng lại. Nếu app đích chưa có source preset cùng tên, truyện vẫn được nhập
+(kèm cảnh báo) và crawl dùng cấu hình mặc định cho tới khi tạo preset.
+
 ## Nâng Cấp Schema
 
 `init_schema` chạy migration còn thiếu ngay khi mở DB (CLI hoặc Web UI khởi

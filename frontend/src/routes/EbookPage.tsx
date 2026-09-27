@@ -37,6 +37,7 @@ import { Dot } from "@/components/ui/Badge";
 import { Checkbox, Input, InputWithIcon, Select, Textarea } from "@/components/ui/Field";
 import { ConfirmDialog, Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { downloadTransfer } from "@/lib/transfer";
 import {
   IconCaretDown,
   IconChat,
@@ -332,6 +333,90 @@ function PipelineBar({ slug, epubExists }: { slug: string; epubExists: boolean }
   );
 }
 
+/* ── Xuất package chuyển app (.n2e.zip) ─────────────────────────────────
+    Tải full ebook (chương, bản dịch hai nhánh, glossary, nhân vật, notes,
+    bìa...) thành 1 file để nhập sang app novel2epub khác tại
+    Thêm truyện → Chuyển app. EPUB là output build lại được nên mặc định
+    không kèm theo. */
+
+function TransferExportButton({ slug, epubExists }: { slug: string; epubExists: boolean }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [includeEpub, setIncludeEpub] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  const download = async () => {
+    setPending(true);
+    try {
+      await downloadTransfer(slug, includeEpub && epubExists);
+      setOpen(false);
+      toast("Đã xuất package — sang app khác: Thêm truyện → Chuyển app → nhập file.");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <>
+      <Button
+        icon={<IconDownload size={14} />}
+        onClick={() => {
+          setIncludeEpub(false);
+          setOpen(true);
+        }}
+        title="Xuất full ebook thành file để nhập sang app novel2epub khác"
+      >
+        Chuyển app
+      </Button>
+      <Modal
+        open={open}
+        onClose={() => !pending && setOpen(false)}
+        title="Xuất package chuyển app"
+        footer={
+          <>
+            <Button onClick={() => setOpen(false)} disabled={pending}>
+              Hủy
+            </Button>
+            <Button variant="primary" icon={<IconDownload size={14} />} loading={pending} onClick={download}>
+              Tải {slug}.n2e.zip
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-[13px]">
+          <p>
+            File <strong className="font-mono">.n2e.zip</strong> chứa toàn bộ truyện: danh mục
+            chương, bản gốc, bản dịch hai nhánh (AI + Local MT), glossary, nhân vật
+            và quan hệ, ghi chú, entity overrides, bìa và cấu hình ebook.
+          </p>
+          <label className="flex cursor-pointer items-start gap-2">
+            <Checkbox
+              checked={includeEpub && epubExists}
+              disabled={!epubExists}
+              onChange={(event) => setIncludeEpub(event.target.checked)}
+            />
+            <span>
+              Kèm file EPUB đã build
+              <span className="block text-[11px] opacity-60">
+                {epubExists
+                  ? "EPUB build lại được nên mặc định không kèm — tick nếu muốn mang theo."
+                  : "Chưa có EPUB — hãy chạy Build EPUB trước nếu muốn kèm theo."}
+              </span>
+            </span>
+          </label>
+          <p className="text-[11px] opacity-60">
+            Không mang theo: hàng đợi job, lịch sử log, secret Reader (cấu hình
+            global của từng app) và bảng dataset canonical — chạy dataset-backfill
+            trên app đích để dựng lại.
+          </p>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
 /* ── Số liệu tổng quan ───────────────────────────────────────────────── */
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -536,42 +621,6 @@ function TocTitleDiff({ label, before, after }: { label: string; before: string;
   );
 }
 
-/** Nhóm "Khác" — ít dùng, gom vào menu để thanh hành động không dài ra. */
-const OTHER_ACTIONS: BatchAction[] = [
-  {
-    key: "titles-smart",
-    label: "Dịch tiêu đề thông minh",
-    path: "batch/translate-titles",
-    form: { mode: "smart" },
-  },
-  {
-    key: "titles-fast",
-    label: "Dịch tiêu đề nhanh",
-    path: "batch/translate-titles",
-    form: { mode: "fast" },
-  },
-  { key: "glossary", label: "Gợi ý glossary", path: "batch/suggest-glossary" },
-  { key: "characters", label: "Trích nhân vật", path: "batch/extract-characters" },
-  { key: "skip", label: "Bỏ qua chương", path: "batch/update-skip", form: { skip: "true" } },
-  { key: "unskip", label: "Hiện lại chương", path: "batch/update-skip", form: { skip: "false" } },
-  { key: "reorder", label: "Sắp xếp lại", path: "batch/reorder" },
-  {
-    key: "delete-translation",
-    label: "Xóa bản dịch",
-    path: "batch/delete-translation",
-    destructive: true,
-    confirm: (n) =>
-      `Xóa bản dịch của ${n} chương? Bản gốc được giữ lại nên có thể dịch lại, nhưng mọi chỉnh sửa tay sẽ mất.`,
-  },
-  {
-    key: "clean-raw",
-    label: "Xóa bản gốc",
-    path: "batch/clean-raw",
-    destructive: true,
-    confirm: (n) => `Xóa bản gốc của ${n} chương? Phải crawl lại mới có nội dung.`,
-  },
-];
-
 const NORMALIZE_TOC_ACTION: BatchAction = {
   key: "clean-toc",
   label: "Chuẩn hóa TOC",
@@ -600,6 +649,14 @@ const NORMALIZE_PUNCT_ACTION: BatchAction = {
     `Đổi dấu câu kiểu Hán (，。「」…) sang dấu tiếng Việt trong bản dịch ${n} chương đã chọn? Chỉ ghi chương thực sự đổi; tiêu đề gốc và bản gốc giữ nguyên.`,
 };
 
+/** Chuyển nhánh dịch sang AI — không có `path` vì đi qua `batch/set-branch` bằng
+    mutation riêng; `trigger` nhận diện bằng `key` rồi mở hộp thoại. */
+const BRANCH_AI_ACTION: BatchAction = {
+  key: "branch-ai",
+  label: "Dùng bản dịch AI",
+  path: "",
+};
+
 /** Crawl chỉ tải chương CHƯA có raw; force tải LẠI tất cả (raw cũ bị ghi đè,
     bản dịch giữ nguyên). Cả hai chạy qua `batch/crawl` — job nền, có thể dừng. */
 const CRAWL_ACTION: BatchAction = {
@@ -620,6 +677,49 @@ const CRAWL_FORCE_ACTION: BatchAction = {
   confirm: (n) =>
     `Tải LẠI bản gốc của ${n} chương đã chọn? Raw cũ bị ghi đè — dùng khi chương bị crawl lỗi hoặc nguồn vừa sửa nội dung. Bản dịch giữ nguyên.`,
 };
+
+/** Nhóm "Khác" — gom vào menu dropdown: hoặc ít dùng, hoặc là tác vụ dọn
+    dữ liệu chạy theo lô mà thao tác chính (dịch/crawl) đã chiếm chỗ trên
+    thanh cố định. `Sửa Markdown` / `Sửa dấu câu` / `Dùng bản dịch AI` nằm ở
+    đây vì đều là việc dọn dữ liệu chạy một lần, không phải thao tác dịch
+    hằng ngày. */
+const OTHER_ACTIONS: BatchAction[] = [
+  {
+    key: "titles-smart",
+    label: "Dịch tiêu đề thông minh",
+    path: "batch/translate-titles",
+    form: { mode: "smart" },
+  },
+  {
+    key: "titles-fast",
+    label: "Dịch tiêu đề nhanh",
+    path: "batch/translate-titles",
+    form: { mode: "fast" },
+  },
+  { key: "glossary", label: "Gợi ý glossary", path: "batch/suggest-glossary" },
+  { key: "characters", label: "Trích nhân vật", path: "batch/extract-characters" },
+  { key: "skip", label: "Bỏ qua chương", path: "batch/update-skip", form: { skip: "true" } },
+  { key: "unskip", label: "Hiện lại chương", path: "batch/update-skip", form: { skip: "false" } },
+  { key: "reorder", label: "Sắp xếp lại", path: "batch/reorder" },
+  NORMALIZE_MARKDOWN_ACTION,
+  NORMALIZE_PUNCT_ACTION,
+  BRANCH_AI_ACTION,
+  {
+    key: "delete-translation",
+    label: "Xóa bản dịch",
+    path: "batch/delete-translation",
+    destructive: true,
+    confirm: (n) =>
+      `Xóa bản dịch của ${n} chương? Bản gốc được giữ lại nên có thể dịch lại, nhưng mọi chỉnh sửa tay sẽ mất.`,
+  },
+  {
+    key: "clean-raw",
+    label: "Xóa bản gốc",
+    path: "batch/clean-raw",
+    destructive: true,
+    confirm: (n) => `Xóa bản gốc của ${n} chương? Phải crawl lại mới có nội dung.`,
+  },
+];
 
 type WebChatProfile = "raw-config" | "raw-static" | "translated" | "glossary";
 
@@ -989,13 +1089,18 @@ function CleanupHanDialog({
  * sách 100 dòng thì phải cuộn ngược lên đầu mới bấm được. Đưa hẳn ra
  * `fixed bottom` để chọn ở đâu cũng thao tác được ngay tại chỗ.
  *
- * Ba nhóm tách hẳn nhau vì chúng KHÔNG cùng một loại việc:
- * - "Dịch": đọc bản gốc, ghi thẳng vào nhánh đã chọn → phải preview + confirm.
- * - "Biên tập AI": đọc bản dịch đang có, sinh bản nháp chờ duyệt → không ghi
- *   đè gì nên bấm một cái là xếp job luôn, không qua hộp thoại.
- * - "Dọn nhanh": dọn chữ Hán bằng Local MT (job nền, một chạm), sửa Markdown /
- *   dấu câu kiểu Hán (đồng bộ, ghi ngay, qua hộp thoại xác nhận).
- * - "Khác": các thao tác phụ trợ, gom vào menu cho gọn.
+ * Thanh MỘT hàng, cuộn ngang khi màn hình hẹp. Trên thanh chỉ giữ những
+ * thao tác dùng hằng ngày, mỗi thao tác là MỘT nút:
+ * - "Crawl": tải mới hay tải lại (ghi đè raw) đều chọn trong hộp thoại — hai
+ *   nút riêng trước đây dễ bấm nhầm, và nhầm thì mất bản gốc cũ.
+ * - "Dịch": đọc bản gốc, ghi vào nhánh đã chọn → preview + confirm.
+ * - "Biên tập": đọc bản dịch đang có, sinh bản nháp chờ duyệt.
+ * - "Chuẩn hóa TOC", "Web chat", "Khác": phần còn lại.
+ *
+ * "Khác" gom những việc dọn dữ liệu chạy một lần (Sửa Markdown, Sửa dấu
+ * câu, Dùng bản dịch AI) cùng các thao tác phụ trợ — chúng đều đi qua
+ * `trigger`, kể cả mục không có `path` (`BRANCH_AI_ACTION` mở hộp thoại
+ * riêng thay vì gọi `batch/*`).
  */
 function BatchBar({
   slug,
@@ -1021,20 +1126,9 @@ function BatchBar({
   const [webChatOpen, setWebChatOpen] = useState(false);
   const [cleanupHanOpen, setCleanupHanOpen] = useState(false);
   const [branchAiOpen, setBranchAiOpen] = useState(false);
-
-  /** Nút nhanh "Dọn Hán (MT)": xếp job cleanup-han thẳng với engine
-      local_mt, bỏ qua hộp thoại chọn engine (job nền, giữ snapshot, hủy được). */
-  const cleanupHanQuick = useMutation({
-    mutationFn: () =>
-      api.post<{ started: boolean; total: number }>(`/api/ebooks/${slug}/batch/cleanup-han`, {
-        form: { indexes: selected.join(","), engine: "local_mt" },
-      }),
-    onSuccess: (res) => {
-      onDone();
-      toast(`Dọn Hán (Local MT): đã xếp ${num(res.total)} chương vào hàng đợi.`);
-    },
-    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
-  });
+  /** Nút "Crawl" duy nhất: hộp thoại chọn tải mới hay tải lại (ghi đè raw). */
+  const [crawlForce, setCrawlForce] = useState(false);
+  const [crawlOpen, setCrawlOpen] = useState(false);
 
   const setBranchAi = useMutation({
     mutationFn: () =>
@@ -1128,6 +1222,11 @@ function BatchBar({
       setReorderMode("detect");
       return;
     }
+    // Mục không đi qua `batch/*` chung: mở hộp thoại riêng.
+    if (action.key === BRANCH_AI_ACTION.key) {
+      setBranchAiOpen(true);
+      return;
+    }
     if (action.confirm) setPending(action);
     else run.mutate(action);
   };
@@ -1156,16 +1255,24 @@ function BatchBar({
     },
   };
 
-  const branchLabel = translateAction === "local-mt" ? "Local MT" : "AI";
+  const branchLabel = translateAction === "local-mt" ? "Local MT" : "Dịch LLM";
 
   return (
     <>
       {/* Chừa chỗ để thanh cố định không che mất dòng cuối bảng. */}
-      <div className="h-20" aria-hidden="true" />
+      <div className="h-14" aria-hidden="true" />
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-base-300 bg-base-100/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:left-64">
-        <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
-          <div className="flex items-center gap-2">
+      {/* `z-50` (thay vì `z-40` như `SelectionBar`): thanh cố định có
+          `backdrop-blur` — `filter` tạo stacking context, mọi con bên trong
+          kẹp dưới lớp phủ z-40 ở trên (thanh header trang con `sticky z-40`).
+          Nhấn vào `z-50` cho cả thanh để menu "Khác" nổi lên trên được. */}
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-base-300 bg-base-100/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:left-64">
+        {/* Ba vùng, KHÔNG cho cả thanh `overflow-x-auto`: `overflow` (kể cả
+            `overflow-x`) cắt luôn phần tử con tràn ra, mà menu "Khác" nằm
+            ngoài khung thanh (nổi lên trên) — bị cắt mất trên màn hình hẹp.
+            Chỉ nhóm giữa cuộn ngang; "N chương" và "Khác" luôn nhìn thấy. */}
+        <div className="mx-auto flex max-w-[1500px] items-center gap-2 px-4 py-2">
+          <div className="flex shrink-0 items-center gap-2">
             <span className="text-[13px] font-medium">
               <span data-numeric>{num(selected.length)}</span> chương
             </span>
@@ -1174,146 +1281,102 @@ function BatchBar({
             </Button>
           </div>
 
-          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
+          <div className="h-8 w-px shrink-0 bg-base-300" aria-hidden="true" />
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Crawl</span>
-            <Button
-              size="sm"
-              title="Tải nội dung gốc cho các chương đã chọn (bỏ qua chương đã có raw)"
-              onClick={() => trigger(CRAWL_ACTION)}
-            >
-              Crawl
-            </Button>
-            <Button
-              size="sm"
-              title="Tải LẠI bản gốc kể cả chương đã có raw — raw cũ bị ghi đè"
-              onClick={() => trigger(CRAWL_FORCE_ACTION)}
-            >
-              ↻ Force
-            </Button>
+          <div className="scroll-slim flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-0.5">
+            {/* Crawl: một nút duy nhất, chọn phạm vi trong hộp thoại xác nhận.
+                Trước đây tách "Crawl" + "↻ Force" thành hai nút — người dùng
+                phải nhớ chọn đúng nút mới không ghi đè bản gốc cũ. */}
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Crawl</span>
+              <Button
+                size="sm"
+                title="Tải nội dung gốc cho các chương đã chọn — chọn thêm 'tải lại' nếu muốn ghi đè raw cũ"
+                onClick={() => setCrawlOpen(true)}
+              >
+                Crawl
+              </Button>
+            </div>
+
+            <div className="h-8 w-px shrink-0 bg-base-300" aria-hidden="true" />
+
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Dịch</span>
+              <Button size="sm" onClick={() => setTranslateAction("local-mt")}>
+                Local MT
+              </Button>
+              <Button size="sm" onClick={() => setTranslateAction("translate")}>
+                Dịch LLM
+              </Button>
+            </div>
+
+            <div className="h-8 w-px shrink-0 bg-base-300" aria-hidden="true" />
+
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Biên tập</span>
+              <Button
+                size="sm"
+                variant="primary"
+                icon={<IconSparkle size={13} />}
+                title="AI biên tập GHI TRỰC TIẾP vào nhánh Local MT (bản gốc MT giữ trong snapshot) — xem xác nhận trước khi xếp job"
+                onClick={() => setAiEditOpen(true)}
+              >
+                Biên tập AI
+              </Button>
+              <Button
+                size="sm"
+                title="Dịch nốt những đoạn còn nguyên chữ Hán trong bản dịch đã có"
+                onClick={() => setCleanupHanOpen(true)}
+              >
+                Dọn chữ Hán
+              </Button>
+            </div>
+
+            <div className="h-8 w-px shrink-0 bg-base-300" aria-hidden="true" />
+
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                size="sm"
+                loading={previewToc.isPending}
+                disabled={run.isPending || previewToc.isPending}
+                onClick={() => previewToc.mutate()}
+              >
+                Chuẩn hóa TOC
+              </Button>
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] opacity-70">
+                <Checkbox
+                  checked={includeTranslatedTitle}
+                  onChange={(event) => setIncludeTranslatedTitle(event.target.checked)}
+                />
+                Bản dịch
+              </label>
+              <label
+                className="flex cursor-pointer items-center gap-1.5 text-[11px] opacity-70"
+                title="Tiêu đề gốc tham gia nhận diện chương mới; chỉ bật khi chấp nhận lần cập nhật TOC sau có thể thấy tiêu đề nguồn khác."
+              >
+                <Checkbox
+                  checked={includeZhTitle}
+                  onChange={(event) => setIncludeZhTitle(event.target.checked)}
+                />
+                Gốc (zh)
+              </label>
+            </div>
+
+            <div className="h-8 w-px shrink-0 bg-base-300" aria-hidden="true" />
+
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Web chat</span>
+              <Button size="sm" icon={<IconChat size={13} />} onClick={() => setWebChatOpen(true)}>
+                Xuất / Nhập
+              </Button>
+            </div>
           </div>
 
-          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Dịch</span>
-            <Button size="sm" onClick={() => setTranslateAction("local-mt")}>
-              Local MT
-            </Button>
-            <Button size="sm" onClick={() => setTranslateAction("translate")}>
-              AI
-            </Button>
-          </div>
-
-          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Biên tập</span>
-            <Button
-              size="sm"
-              variant="primary"
-              icon={<IconSparkle size={13} />}
-              title="AI biên tập GHI TRỰC TIẾP vào nhánh Local MT (bản gốc MT giữ trong snapshot) — xem xác nhận trước khi xếp job"
-              onClick={() => setAiEditOpen(true)}
-            >
-              Biên tập AI
-            </Button>
-            <Button
-              size="sm"
-              title="Dịch nốt những đoạn còn nguyên chữ Hán trong bản dịch đã có"
-              onClick={() => setCleanupHanOpen(true)}
-            >
-              Dọn chữ Hán
-            </Button>
-          </div>
-
-          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Dọn nhanh</span>
-            <Button
-              size="sm"
-              loading={cleanupHanQuick.isPending}
-              title="Xếp job dọn chữ Hán bằng Local MT (offline, miễn phí) — bỏ qua hộp thoại chọn engine"
-              onClick={() => cleanupHanQuick.mutate()}
-            >
-              Dọn Hán (MT)
-            </Button>
-            <Button
-              size="sm"
-              title="Bóc format Markdown rò rỉ (**in đậm**, ## …) khỏi bản dịch các chương đã chọn"
-              onClick={() => trigger(NORMALIZE_MARKDOWN_ACTION)}
-            >
-              Sửa Markdown
-            </Button>
-            <Button
-              size="sm"
-              title="Đổi dấu câu kiểu Hán (，。「」…) sang dấu tiếng Việt trong bản dịch các chương đã chọn"
-              onClick={() => trigger(NORMALIZE_PUNCT_ACTION)}
-            >
-              Sửa dấu câu
-            </Button>
-          </div>
-
-          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Nhánh</span>
-            <Button
-              size="sm"
-              variant="primary"
-              title="Chuyển các chương đã chọn sang bản dịch AI — tiêu đề sẽ hiển thị theo Tiêu đề bản Dịch AI (tránh bấm Chuyển thủ công từng chương)"
-              onClick={() => setBranchAiOpen(true)}
-            >
-              Dùng bản dịch AI
-            </Button>
-          </div>
-
-          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
-
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              loading={previewToc.isPending}
-              disabled={run.isPending || previewToc.isPending}
-              onClick={() => previewToc.mutate()}
-            >
-              Chuẩn hóa TOC
-            </Button>
-            <label className="flex cursor-pointer items-center gap-1.5 text-[11px] opacity-70">
-              <Checkbox
-                checked={includeTranslatedTitle}
-                onChange={(event) => setIncludeTranslatedTitle(event.target.checked)}
-              />
-              Bản dịch
-            </label>
-            <label
-              className="flex cursor-pointer items-center gap-1.5 text-[11px] opacity-70"
-              title="Tiêu đề gốc tham gia nhận diện chương mới; chỉ bật khi chấp nhận lần cập nhật TOC sau có thể thấy tiêu đề nguồn khác."
-            >
-              <Checkbox
-                checked={includeZhTitle}
-                onChange={(event) => setIncludeZhTitle(event.target.checked)}
-              />
-              Gốc (zh)
-            </label>
-          </div>
-
-          <div className="h-8 w-px bg-base-300" aria-hidden="true" />
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] tracking-[0.1em] uppercase opacity-40">Web chat</span>
-            <Button size="sm" icon={<IconChat size={13} />} onClick={() => setWebChatOpen(true)}>
-              Xuất / Nhập
-            </Button>
-          </div>
-
-          <div className="ml-auto dropdown dropdown-top dropdown-end">
+          <div className="ml-auto shrink-0 dropdown dropdown-top dropdown-end">
             <div tabIndex={0} role="button" className="btn btn-sm gap-1.5">
               Khác <IconCaretDown size={12} />
             </div>
-            <ul className="dropdown-content menu menu-sm z-50 w-56 rounded-box border border-base-300 bg-base-100 shadow-lg">
+            <ul className="dropdown-content menu menu-sm scroll-slim z-50 max-h-[60vh] w-64 overflow-y-auto rounded-box border border-base-300 bg-base-100 shadow-lg">
               {OTHER_ACTIONS.map((action) => (
                 <li key={action.key}>
                   <button
@@ -1409,6 +1472,46 @@ function BatchBar({
             <strong>Tiêu đề bản Dịch AI</strong>. Chương chưa có bản dịch AI sẽ bị bỏ qua. Thao tác
             này không ghi đè nội dung bản dịch.
           </p>
+        }
+      />
+
+      <ConfirmDialog
+        open={crawlOpen}
+        onCancel={() => setCrawlOpen(false)}
+        onConfirm={() => {
+          const action = crawlForce ? CRAWL_FORCE_ACTION : CRAWL_ACTION;
+          setCrawlOpen(false);
+          run.mutate(action);
+        }}
+        title="Crawl nội dung gốc"
+        confirmLabel={crawlForce ? "Crawl lại (ghi đè)" : "Crawl"}
+        destructive={crawlForce}
+        pending={run.isPending}
+        body={
+          <div className="space-y-3">
+            <p>
+              Tải nội dung gốc cho{" "}
+              <strong data-numeric>{num(selected.length)}</strong> chương đã chọn.
+            </p>
+            <label className="flex cursor-pointer items-start gap-2 text-[13px]">
+              <Checkbox
+                checked={crawlForce}
+                onChange={(event) => setCrawlForce(event.target.checked)}
+              />
+              <span>
+                Tải lại cả chương đã có bản gốc
+                <span className="block text-[11px] opacity-60">
+                  Raw cũ bị ghi đè — dùng khi chương bị crawl lỗi hoặc nguồn vừa sửa nội
+                  dung. Bản dịch giữ nguyên.
+                </span>
+              </span>
+            </label>
+            {!crawlForce ? (
+              <p className="text-[11px] opacity-60">
+                Chương nào đã có bản gốc sẽ được bỏ qua.
+              </p>
+            ) : null}
+          </div>
         }
       />
 
@@ -2000,6 +2103,7 @@ export function EbookPage() {
           >
             Đẩy Reader
           </Button>
+          <TransferExportButton slug={slug} epubExists={book.epub_exists} />
           <Button
             variant="primary"
             icon={<IconRead size={15} />}
@@ -2259,11 +2363,10 @@ export function EbookPage() {
           slug={slug}
           selected={[...selected]}
           onDone={refresh}
-           onClear={() => {
-             setSelected(new Set());
-             setLastToggled(null);
-           }}
-
+          onClear={() => {
+            setSelected(new Set());
+            setLastToggled(null);
+          }}
         />
       ) : null}
     </Page>

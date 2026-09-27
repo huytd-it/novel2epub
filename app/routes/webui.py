@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import StreamingResponse
 
 from novel2epub import revisions
 from novel2epub import wireguard as wg
@@ -791,6 +792,112 @@ async def ebook_chapters_upload_append(slug: str, file: UploadFile = File(...)):
         "added_indexes": added_indexes,
         "skipped_titles": skipped_titles,
     }
+
+
+# --- Chuyển app: xuất/nhập full ebook giữa hai app novel2epub --------------
+# Frontend gọi 3 endpoint này: EbookPage (nút "Chuyển app" → tải .n2e.zip),
+# AddBookPage (tab "Chuyển app" → preview .zip rồi nhập). Logic thuần nằm ở
+# `novel2epub/ebook_transfer.py` để test được không cần dựng app.
+
+_TRANSFER_MAX_BYTES = 512 * 1024 * 1024
+
+
+async def _read_transfer_bytes(file: UploadFile) -> tuple[str, bytes]:
+    filename = (file.filename or "").strip()
+    if not filename.lower().endswith((".zip", ".n2e.zip")):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Định dạng không hỗ trợ: {filename or '(không tên)'}. "
+            "Hãy chọn file package .zip xuất từ app novel2epub khác.",
+        )
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="File rỗng.")
+    if len(data) > _TRANSFER_MAX_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File quá lớn (giới hạn {_TRANSFER_MAX_BYTES // (1024 * 1024)} MB).",
+        )
+    return filename, data
+
+
+@router.get("/ebooks/{slug}/transfer/export")
+def ebook_transfer_export(slug: str, include_epub: int = 0):
+    """Tải package chuyển app (.n2e.zip) của một ebook."""
+    import io
+
+    from novel2epub import ebook_transfer
+
+    try:
+        cfg = deps.resolved_cfg(slug)
+    except (KeyError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail="Không tìm thấy truyện") from exc
+    try:
+        payload = ebook_transfer.build_transfer_zip(
+            cfg.output.data_dir,
+            cfg.novel.slug,
+            include_epub=bool(include_epub),
+            epub_path=cfg.epub_path,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    filename = f"{cfg.novel.slug}.n2e.zip"
+    return StreamingResponse(
+        io.BytesIO(payload),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/library/ebooks/transfer/preview")
+async def library_transfer_preview(file: UploadFile = File(...)):
+    """Đọc summary từ file package mà không ghi gì — cho UI duyệt trước."""
+    from novel2epub import ebook_transfer
+
+    _, data = await _read_transfer_bytes(file)
+    try:
+        preview = ebook_transfer.preview_transfer_zip(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    preview["exists"] = preview["slug"] in deps.library().ebooks
+    return preview
+
+
+@router.post("/library/ebooks/transfer/import")
+async def library_transfer_import(
+    request: Request,
+    file: UploadFile = File(...),
+    slug: str = Form(""),
+    overwrite: str = Form(""),
+):
+    """Nhập package chuyển app: dựng lại ebook + toàn bộ dữ liệu trên app này."""
+    from novel2epub import ebook_transfer
+
+    _, data = await _read_transfer_bytes(file)
+    target = slug.strip()
+    do_overwrite = overwrite.strip().lower() in ("1", "true", "on", "yes")
+    if target and target in deps.library().ebooks and not do_overwrite:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Ebook '{target}' đã tồn tại. Tick ghi đè hoặc đổi slug.",
+        )
+    try:
+        result = ebook_transfer.import_transfer_zip(
+            deps.DB_PATH,
+            deps.resolved_cfg(target).output.data_dir if target and target in deps.library().ebooks else deps.cfg().output.data_dir,
+            data,
+            slug=target,
+            overwrite=do_overwrite,
+        )
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        request.app.state.job.queue.restore_ebook(result["slug"])
+    except Exception:
+        pass
+    return result
 
 
 @router.get("/ebooks/{slug}")

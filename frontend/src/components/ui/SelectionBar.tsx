@@ -28,7 +28,10 @@ export function SelectionBar({
       {/* Chừa chỗ để thanh cố định không che mất dòng cuối bảng. */}
       <div className="h-16" aria-hidden="true" />
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-base-300 bg-base-100/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:left-64">
+      {/* `z-50` (không phải `z-40`): `backdrop-blur` ở đây tạo stacking
+          context, nên con (menu dropdown) không thể vượt lên lớp phủ z-40
+          của thanh header `sticky` ở trang con. */}
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-base-300 bg-base-100/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur md:left-64">
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-medium">

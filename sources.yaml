@@ -10,6 +10,7 @@ biquge:
   author_selector: ''
   desc_selector: '#intro'
   cover_selector: '#fmimg img'
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -19,18 +20,27 @@ biquge:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns:
-    - '^记住.*网址'
-    - '^请收藏'
-    - '^上一章'
-    - '^下一章'
-    - '.*百度搜索.*'
-    - '.*使用百度.*'
-    - '.*记住流蓝.*'
+  - ^记住.*网址
+  - ^请收藏
+  - ^上一章
+  - ^下一章
+  - .*百度搜索.*
+  - .*使用百度.*
+  - .*记住流蓝.*
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -39,6 +49,13 @@ biquge:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 shuhaige:
   engine: scrapling
   url: https://www.shuhaige.net/
@@ -51,6 +68,7 @@ shuhaige:
   author_selector: ''
   desc_selector: '#intro'
   cover_selector: '#fmimg img'
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -60,11 +78,20 @@ shuhaige:
   next_page_selector: a#pager_next
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -73,6 +100,13 @@ shuhaige:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 bqg128:
   engine: scrapling
   url: https://www.bqg128.com/
@@ -85,6 +119,7 @@ bqg128:
   author_selector: ''
   desc_selector: '#intro'
   cover_selector: '#fmimg img'
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -94,11 +129,20 @@ bqg128:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -107,6 +151,13 @@ bqg128:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 xbiquge:
   engine: scrapling
   url: http://www.xbiqugu.la/
@@ -119,6 +170,7 @@ xbiquge:
   author_selector: ''
   desc_selector: '#intro'
   cover_selector: '#fmimg img'
+  cover_url_pattern: ''
   encoding: gbk
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -128,18 +180,27 @@ xbiquge:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns:
-    - '^记住.*网址'
-    - '^请收藏'
-    - '^上一章'
-    - '^下一章'
-    - '.*百度搜索.*'
-    - '.*使用百度.*'
-    - '.*记住流蓝.*'
+  - ^记住.*网址
+  - ^请收藏
+  - ^上一章
+  - ^下一章
+  - .*百度搜索.*
+  - .*使用百度.*
+  - .*记住流蓝.*
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -148,6 +209,13 @@ xbiquge:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 aixdzs:
   engine: scrapling
   url: https://www.aixdzs.com/
@@ -160,6 +228,7 @@ aixdzs:
   author_selector: ''
   desc_selector: ''
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: utf-8
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -169,31 +238,48 @@ aixdzs:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
-  search_url_pattern: "https://www.aixdzs.com/search/?q={query}"
-  search_result_selector: ".search-item, .book-item"
-  search_title_selector: ".book-title, h3"
+  search_url_pattern: https://www.aixdzs.com/search/?q={query}
+  search_result_selector: .search-item, .book-item
+  search_title_selector: .book-title, h3
   search_author_selector: ''
-  search_link_selector: "a[href*='/novel/']"
-  search_cover_selector: "img"
+  search_link_selector: a[href*='/novel/']
+  search_cover_selector: img
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 69shuba:
   engine: scrapling
   url: https://www.69shuba.com/
   domains: 69shuba.com,69shu.com,69yuedu.net
   chapter_link_pattern: /txt/\d+/\d+
   content_selector: .txtnav
-  toc_selector: ''
+  toc_selector: div#catalog > ul
   chapter_title_selector: ''
-  title_selector: meta[property="og:novel:book_name"]
+  title_selector: div#catalog > h1.muluh1
   author_selector: meta[property="og:novel:author"]
   desc_selector: meta[property="og:description"]
   cover_selector: meta[property="og:image"]
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -203,19 +289,36 @@ aixdzs:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
-  strip_patterns: []
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
+  strip_patterns:
+  - ^\d{4}-\d{2}-\d{2}\r?\n.*\r?\n第\s*\d+\s*章.*\r?\n
   scrapling_mode: stealthy
   solve_cloudflare: true
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
-  search_url_pattern: "https://www.69shuba.com/search.htm?keyword={query}"
-  search_result_selector: ".search-item"
-  search_title_selector: "h3 a"
+  search_url_pattern: ''
+  search_result_selector: ''
+  search_title_selector: ''
   search_author_selector: ''
-  search_link_selector: "a[href*='/book/']"
-  search_cover_selector: "img"
+  search_link_selector: ''
+  search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 biqudu:
   engine: scrapling
   url: https://www.biqudu.net/
@@ -228,6 +331,7 @@ biqudu:
   author_selector: ''
   desc_selector: ''
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -237,11 +341,20 @@ biqudu:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -250,6 +363,13 @@ biqudu:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 qidian:
   engine: scrapling
   url: https://www.qidian.com/
@@ -262,6 +382,7 @@ qidian:
   author_selector: ''
   desc_selector: ''
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -271,11 +392,20 @@ qidian:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -284,6 +414,13 @@ qidian:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 jjwxc:
   engine: scrapling
   url: https://www.jjwxc.net/
@@ -296,6 +433,7 @@ jjwxc:
   author_selector: ''
   desc_selector: ''
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: gb2312
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -305,11 +443,20 @@ jjwxc:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -318,6 +465,13 @@ jjwxc:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 ciweimao:
   engine: scrapling
   url: https://www.ciweimao.com/
@@ -330,6 +484,7 @@ ciweimao:
   author_selector: ''
   desc_selector: ''
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -339,11 +494,20 @@ ciweimao:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -352,6 +516,13 @@ ciweimao:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 hetushu:
   engine: scrapling
   url: https://www.hetushu.com/
@@ -364,6 +535,7 @@ hetushu:
   author_selector: ''
   desc_selector: ''
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -373,11 +545,20 @@ hetushu:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -386,6 +567,13 @@ hetushu:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 sto9:
   engine: scrapling
   url: https://www.sto9.com/
@@ -398,6 +586,7 @@ sto9:
   author_selector: ''
   desc_selector: ''
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -407,19 +596,35 @@ sto9:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
-  search_url_pattern: "https://sto9.com/search/?q={query}"
-  search_result_selector: ".book-item, .search-result"
-  search_title_selector: ".book-title, h3 a"
+  search_url_pattern: https://sto9.com/search/?q={query}
+  search_result_selector: .book-item, .search-result
+  search_title_selector: .book-title, h3 a
   search_author_selector: ''
-  search_link_selector: "a[href*='/book/']"
-  search_cover_selector: "img"
+  search_link_selector: a[href*='/book/']
+  search_cover_selector: img
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 shuqi:
   engine: scrapling
   url: https://www.shuqi.com/
@@ -432,6 +637,7 @@ shuqi:
   author_selector: ''
   desc_selector: ''
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -441,11 +647,20 @@ shuqi:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -454,6 +669,13 @@ shuqi:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 qqread:
   engine: scrapling
   url: https://book.qq.com/
@@ -466,6 +688,7 @@ qqread:
   author_selector: ''
   desc_selector: ''
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -475,11 +698,20 @@ qqread:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -488,6 +720,13 @@ qqread:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 baike:
   engine: scrapling
   url: https://baike.baidu.com/
@@ -500,6 +739,7 @@ baike:
   author_selector: ''
   desc_selector: .para
   cover_selector: .summary-pic img
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
   headless: true
@@ -509,11 +749,20 @@ baike:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: false
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -522,6 +771,13 @@ baike:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 sudugu:
   engine: scrapling
   url: https://www.sudugu.org
@@ -534,6 +790,7 @@ sudugu:
   author_selector: ''
   desc_selector: .des
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
   headless: true
@@ -543,11 +800,20 @@ sudugu:
   next_page_selector: .prenext span:last-child a
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: true
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -556,6 +822,13 @@ sudugu:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
 shanyuread:
   engine: scrapling
   url: https://www.shanyuread.com/wenxue/12811506/
@@ -568,6 +841,7 @@ shanyuread:
   author_selector: ''
   desc_selector: ''
   cover_selector: ''
+  cover_url_pattern: ''
   encoding: ''
   user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
   headless: true
@@ -577,11 +851,20 @@ shanyuread:
   next_page_selector: ''
   next_page_url_pattern: ''
   max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
   strip_patterns: []
   scrapling_mode: stealthy
   solve_cloudflare: true
   network_idle: true
   impersonate: ''
+  proxy: ''
+  dns_over_https: false
   concurrency_cap: 0
   search_url_pattern: ''
   search_result_selector: ''
@@ -590,3 +873,319 @@ shanyuread:
   search_link_selector: ''
   search_cover_selector: ''
   max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
+deqixs:
+  engine: scrapling
+  url: https://www.shudugu.org/1754/
+  domains: sudugu.org
+  chapter_link_pattern: /\d+\.html$
+  content_selector: .con
+  toc_selector: '#list'
+  chapter_title_selector: body > div.container > div.submenu > h1
+  title_selector: div.container:nth-child(5) > div.item > div.itemtxt > h1
+  author_selector: div.itemtxt p a
+  desc_selector: ''
+  cover_selector: div.container:nth-child(5) > div.item:nth-child(1) > a > img
+  cover_url_pattern: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: .prenext span:last-child a
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  toc_next_page_selector: .gr
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
+  strip_patterns:
+  - ^\s*第\d+章.*\r?\n?
+  scrapling_mode: stealthy
+  solve_cloudflare: true
+  network_idle: true
+  impersonate: ''
+  proxy: ''
+  dns_over_https: false
+  concurrency_cap: 0
+  search_url_pattern: ''
+  search_result_selector: ''
+  search_title_selector: ''
+  search_author_selector: ''
+  search_link_selector: ''
+  search_cover_selector: ''
+  max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
+feius:
+  engine: scrapling
+  url: ''
+  domains: ''
+  chapter_link_pattern: ''
+  content_selector: div#mainContent > div.channelWrap.channelChapterlist > div.bookMain
+  toc_selector: ul#bookIndexList
+  chapter_title_selector: h3#indexTitle
+  title_selector: h1#bookName
+  author_selector: a#bookAuthor
+  desc_selector: ''
+  cover_selector: img#bookCoverImg
+  cover_url_pattern: ''
+  encoding: ''
+  user_agent: ''
+  headless: false
+  magic: false
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  toc_next_page_selector: div#indexPager > div.indexPagerMain > a.pgBtn:last-child
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
+  strip_patterns: []
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: false
+  impersonate: ''
+  proxy: ''
+  dns_over_https: false
+  concurrency_cap: 0
+  search_url_pattern: ''
+  search_result_selector: ''
+  search_title_selector: ''
+  search_author_selector: ''
+  search_link_selector: ''
+  search_cover_selector: ''
+  max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
+kudushu:
+  engine: scrapling
+  url: ''
+  domains: ''
+  chapter_link_pattern: \/html\/\d+\/\d+\/$
+  content_selector: '#novelcontent'
+  toc_selector: div.main > div.info_menu1 > div.list_xm:last-child
+  chapter_title_selector: '#chaptertitle'
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  cover_url_pattern: ''
+  encoding: ''
+  user_agent: ''
+  headless: true
+  magic: true
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: p.p1.p3 > a
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  toc_next_page_selector: span.right > a
+  toc_max_pages: 25
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
+  strip_patterns:
+  - 最新网址：m\.kudushu\.org
+  - 第\d+章[^\r\n]*?[（(]第\d+\s*\/\s*\d+页[）)]
+  scrapling_mode: stealthy
+  solve_cloudflare: true
+  network_idle: true
+  impersonate: ''
+  proxy: ''
+  dns_over_https: true
+  concurrency_cap: 0
+  search_url_pattern: ''
+  search_result_selector: ''
+  search_title_selector: ''
+  search_author_selector: ''
+  search_link_selector: ''
+  search_cover_selector: ''
+  max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
+m.51read.org:
+  engine: scrapling
+  url: https://m.51read.org/zhangjiemulu
+  domains: m.51read.org
+  chapter_link_pattern: xiaoshuo/\d+/zhangjie/\d+$
+  content_selector: '#booktxtSource'
+  toc_selector: '.wr-chapter-list, .chapter-list, #list, .catalog-list'
+  chapter_title_selector: .wr-breadcrumb h1
+  title_selector: ''
+  author_selector: ''
+  desc_selector: ''
+  cover_selector: ''
+  cover_url_pattern: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+  headless: true
+  magic: false
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  toc_next_page_selector: .wr-catalog-pager-bottom  .index-container-btn
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
+  strip_patterns: []
+  scrapling_mode: dynamic
+  solve_cloudflare: true
+  network_idle: true
+  impersonate: ''
+  proxy: ''
+  dns_over_https: true
+  concurrency_cap: 0
+  search_url_pattern: ''
+  search_result_selector: ''
+  search_title_selector: ''
+  search_author_selector: ''
+  search_link_selector: ''
+  search_cover_selector: ''
+  max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
+piaotianapp:
+  engine: scrapling
+  url: https://www.piaotianapp.com/ptinfo/799960590.html
+  domains: piaotianapp.com
+  chapter_link_pattern: https://www\.piaotianapp\.com/ptchapter/\d+/\d+\.html$
+  content_selector: div#content
+  toc_selector: div#play_0
+  chapter_title_selector: div.m-title h1
+  title_selector: div.m-infos h1
+  author_selector: div.m-infos a[href^="/author/"]
+  desc_selector: div.intro div.content
+  cover_selector: div.m-book_info img
+  cover_url_pattern: ''
+  encoding: ''
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+  headless: false
+  magic: false
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: a[rel="next"]
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  toc_next_page_selector: ''
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
+  strip_patterns: []
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  proxy: ''
+  dns_over_https: false
+  concurrency_cap: 0
+  search_url_pattern: ''
+  search_result_selector: ''
+  search_title_selector: ''
+  search_author_selector: ''
+  search_link_selector: ''
+  search_cover_selector: ''
+  max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''
+quanben:
+  engine: scrapling
+  url: ''
+  domains: ''
+  chapter_link_pattern: /\d+\.html$
+  content_selector: div#content
+  toc_selector: body > div.box > ul.list3
+  chapter_title_selector: body > div.main > h1.headline
+  title_selector: div.box > div.list2 > h3 > span
+  author_selector: div.list2 > p > span[itemprop="author"]
+  desc_selector: body > div.box > div.description
+  cover_selector: body > div.box > div.list2 > img
+  cover_url_pattern: ''
+  encoding: ''
+  user_agent: ''
+  headless: true
+  magic: false
+  js_code: ''
+  delay_seconds: 1.0
+  next_page_selector: ''
+  next_page_url_pattern: ''
+  max_pages_per_chapter: 10
+  toc_next_page_selector: div#detail > div.more > a
+  toc_max_pages: 5
+  retry_attempts: 3
+  retry_delay_seconds: 5.0
+  retry_backoff: 2.0
+  retry_max_delay_seconds: 120.0
+  retry_respect_retry_after: true
+  strip_patterns: []
+  scrapling_mode: stealthy
+  solve_cloudflare: false
+  network_idle: true
+  impersonate: ''
+  proxy: ''
+  dns_over_https: false
+  concurrency_cap: 0
+  search_url_pattern: ''
+  search_result_selector: ''
+  search_title_selector: ''
+  search_author_selector: ''
+  search_link_selector: ''
+  search_cover_selector: ''
+  max_search_results: 5
+  ai_glossary_enabled: false
+  ai_glossary_extract_prompt: ''
+  ai_glossary_merge_prompt: ''
+  ai_cleanup_enabled: false
+  ai_cleanup_prompt: ''
+  ai_eval_enabled: false
+  ai_eval_prompt: ''

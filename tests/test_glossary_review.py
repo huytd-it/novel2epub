@@ -10,6 +10,7 @@ from novel2epub.glossary_review import (
     parse_flags,
     plan_glossary_edits,
     replacement_pairs,
+    split_auto_approvable,
 )
 
 
@@ -156,3 +157,48 @@ def test_filter_by_flags_is_or_and_empty_means_no_filter():
 def test_parse_flags_drops_unknown_names_and_duplicates():
     assert parse_flags("vi_han, same, vi_han, bogus") == ["vi_han", "same"]
     assert parse_flags("") == []
+
+
+def test_split_auto_approvable_passes_clean_results():
+    current = {"叶凡": ("Diệp Phàm cũ", "ghi chú cũ")}
+    out = split_auto_approvable(
+        current,
+        [
+            {"source": "叶凡", "target": "Diệp Phàm mới"},
+            {"source": "叶凡", "target": "Diệp Phàm cũ"},  # AI giữ nguyên vẫn duyệt
+        ],
+    )
+    assert [a["source"] for a in out["approved"]] == ["叶凡", "叶凡"]
+    assert out["held"] == []
+
+
+def test_split_auto_approvable_holds_flagged_and_colliding_results():
+    current = {"叶凡": ("Diệp Phàm cũ", ""), "林动": ("Lâm Động", "")}
+    out = split_auto_approvable(
+        current,
+        [
+            {"source": "叶凡", "target": "Diệp 凡"},  # sót chữ Hán
+            {"source": "萧炎", "target": "萧炎"},  # chép y Hán
+            {"source": "萧炎", "target": "lâm động"},  # trùng Việt mục khác
+            {"source": "林动", "target": ""},  # rỗng
+        ],
+    )
+    assert out["approved"] == []
+    by_target = {(h["source"], h["target"]): h["reason"] for h in out["held"]}
+    assert "kiểm định" in by_target[("叶凡", "Diệp 凡")]
+    assert "kiểm định" in by_target[("萧炎", "萧炎")]
+    assert "Trùng Việt" in by_target[("萧炎", "lâm động")]
+    assert by_target[("林动", "")] == "AI trả về rỗng"
+
+
+def test_split_auto_approvable_holds_duplicate_vietnamese_within_batch():
+    current = {}
+    out = split_auto_approvable(
+        current,
+        [
+            {"source": "叶凡", "target": "Diệp Phàm"},
+            {"source": "叶番", "target": "Diệp Phàm"},
+        ],
+    )
+    assert [a["source"] for a in out["approved"]] == ["叶凡"]
+    assert [h["source"] for h in out["held"]] == ["叶番"]

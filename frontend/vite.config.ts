@@ -57,7 +57,12 @@ export default defineConfig(({ mode }) => {
             workbox: {
               // Asset đã hash nên cache vĩnh viễn là an toàn; font + ảnh nằm
               // trong danh sách precache. Không cache API — dữ liệu luôn mới.
-              globPatterns: ["**/*.{js,css,html,svg,png,woff2,woff,eot,ttf,ico}"],
+              // index.html CỐ Ý không precache: nó là con trỏ tới bundle mới
+              // (tên file hash đổi mỗi build) — precache HTML là kẹt UI cũ sau
+              // deploy; navigation luôn đi mạng lấy HTML mới, còn asset cũ/mới
+              // không bao giờ lẫn nhau nhờ tên hash.
+              globPatterns: ["**/*.{js,css,svg,png,woff2,woff,eot,ttf,ico}"],
+              cleanupOutdatedCaches: true,
               navigateFallback: "/index.html",
               navigateFallbackDenylist: [
                 /^\/api\//,

@@ -265,6 +265,26 @@ GHI ĐÈ nhầm, mà biên tập AI thì không ghi đè gì nên nó chỉ tổ
 Nút "Biên tập AI" gọi thẳng `POST .../chapters/ai-edit-draft` → job `ai-edit`
 (xem `docs/operations.md`).
 
+**Khoá build (`build_artifacts.status='building'`) là mutex bền vững, nên phải
+hỏi hàng đợi chứ không tin riêng DB.** Job build sống trong RAM và không có
+`spec`, nên nó không được `JobQueue._save_pending` ghi vào `job_queue_pending`;
+nếu tiến trình/thread chết giữa chừng thì cũng không kịp ghi
+`job_queue_history`. Kết quả là hàng kẹt `building` trong khi hàng đợi trống,
+và mọi lần build sau bị chặn với thông báo "đang có build khác chạy" dù không
+tồn tại job nào. Vì vậy:
+
+- Lúc khởi động, `lifespan` gọi `release_orphan_build_locks` TRƯỚC
+  `scheduler.start()` — tiến trình mới không thể là chủ khoá của tiến trình đã
+  chết, nên mọi hàng `building` còn lại đều mồ côi.
+- Lúc request, `POST .../build/confirm` chỉ chặn khi
+  `queue.has_active_ebook(slug)` còn job. Hỏi `has_active_ebook` chứ không
+  lọc `step == 'build'`: automation gọi `step_build_selected` trong job
+  `step='automation'`, lọc theo step sẽ hạ nhầm khoá của một build đang chạy
+  và cho phép hai build ghi cùng file EPUB. Trường hợp khoá mồ côi thì hàng
+  đợi trống nên vẫn được gỡ đúng.
+- Nhánh lỗi của `step_build_selected` nuốt lỗi của chính `release_build`, vì
+  `release_build` raise (SQLite bận) sẽ vừa che lỗi gốc vừa rớt khoá.
+
 **Đánh số đoạn của khung đọc là `notes.split_paras`** (từng DÒNG không rỗng) —
 KHÁC với `app/chapter_compare.py` (theo KHỐI, xem mục bên dưới). Payload trả
 CẢ HAI (`translated_paras` và `paragraphs`); đây là chỗ dễ lẫn nhất trong
@@ -438,10 +458,26 @@ nên đã CORS + auth-eligible sẵn. Riêng bảng glossary có thêm 2 route c
     auto-glossary: hàng vàng "cũ → mới" kèm số chỗ ảnh hưởng, duyệt lẻ hoặc
     hàng loạt. Mục AI trả về trùng giá trị cũ bị bỏ qua, và đề xuất mới cho
     cùng một source thay đề xuất cũ đang chờ.
-  - **AI xử lý chờ duyệt** (`POST .../glossary/ai/reprocess-pending`, nút "AI
-    xử lý chờ duyệt (N)" trên thanh công cụ trang Glossary): chụp toàn bộ
-    hàng chờ rồi enqueue MỘT job `glossary-ai` rà soát tất cả trong một lần
-    chạy — tái dùng đúng factory của Trợ lý AI nên không cần đăng ký kind mới.
+  - **AI tự động duyệt** (`POST .../glossary/ai/reprocess-pending`, nút "AI
+    tự động duyệt (N)" trên thanh công cụ trang Glossary): chụp toàn bộ
+    hàng chờ rồi enqueue MỘT job `glossary-ai` ở chế độ `auto_approve` — tái
+    dùng đúng factory của Trợ lý AI nên không cần đăng ký kind mới. AI rà soát
+    từng đề xuất theo prompt dịch nghiêm ngặt (quy tắc tên riêng/thuật ngữ,
+    Hán Việt vs thuần Việt, tên ngoại → Latin, thành ngữ thoát ý + mã lỗi
+    a–g, kèm tên truyện + tác giả + bối cảnh), kết quả vượt guard kiểm định
+    (`split_auto_approvable`: chặn sót chữ Hán, chép y Hán, trùng Việt) được
+    ghi THẲNG vào glossary + gỡ khỏi hàng chờ + lan truyền vào bản dịch cũ
+    (cùng transaction `approve_glossary_rows` với nút Duyệt tay). Mục AI giữ
+    nguyên vẫn được duyệt nếu sạch cờ (quyết định "đã đúng" chính là phê
+    duyệt); mục rớt guard hoặc AI không trả lời giữ lại hàng chờ để duyệt
+    tay/chạy lại. Cột Ghi chú giữ nguyên — `reason` của AI chỉ ghi vào log job.
+  - **PoC Laya guard (log-only, mặc định tắt)**: khi đặt env `LAYA_BASE_URL`
+    (trỏ tới `laya-serve` local), job tự duyệt hỏi thêm ý kiến Laya cho từng
+    mục (`novel2epub/laya_guard.py`: state nhiều dòng + 1 câu hỏi `choice`
+    A/B mỗi mục, chunk 20 mục/request) rồi log độ khớp với guard xác định
+    (`[laya-guard]`, outcome `laya_guard`). Laya KHÔNG chặn duyệt dưới mọi
+    trường hợp; server chết thì bỏ qua kèm log. Dùng để thu thập dữ liệu đo
+    trước khi quyết định có fine-tune Laya làm guard xác suất thật hay không.
   - **Lọc trạng thái**: dropdown "Trạng thái" (Tất cả / Chờ duyệt) lọc client
     trên hàng chờ đã tải (kèm tìm kiếm), ẩn dòng glossary thường ở chế độ Chờ
     duyệt để xử lý hàng chờ cho gọn. Mục chờ duyệt tick chọn được gửi Trợ lý

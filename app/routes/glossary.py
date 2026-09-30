@@ -521,13 +521,22 @@ class GlossaryAiRequest(BaseModel):
 def glossary_ai_job_factory(params: dict):
     """Tái tạo job Trợ lý AI glossary từ spec đã lưu (xem JobQueue.register_kind).
 
-    Job KHÔNG ghi thẳng vào glossary: kết quả vào hàng chờ duyệt
-    (`glossary_pending`) để người dùng xem "cũ → mới" kèm số chỗ ảnh hưởng rồi
-    mới duyệt — cùng đường đi với đề xuất auto-glossary lúc dịch.
+    Hai chế độ (xem `params["auto_approve"]`):
+    - `False` (mặc định, nút "Trợ lý AI" cho mục đã chọn): kết quả vào hàng chờ
+      duyệt (`glossary_pending`) để người dùng xem "cũ → mới" rồi mới duyệt —
+      cùng đường đi với đề xuất auto-glossary lúc dịch.
+    - `True` (nút "AI tự động duyệt" cho toàn bộ hàng chờ): kết quả AI được
+      ghi THẲNG vào glossary + gỡ khỏi hàng chờ + lan truyền vào bản dịch cũ
+      (cùng transaction `approve_glossary_rows` với nút Duyệt tay). Mục AI
+      không trả lời được giữ nguyên trong hàng chờ để chạy lại an toàn.
+
+    Cả hai chế độ đều GIỮ NGUYÊN cột Ghi chú hiện tại — `reason` của AI chỉ
+    ghi vào log job, không đưa vào `note`.
     """
     slug = params["slug"]
     sources = params["sources"]
     instruction = str(params.get("instruction", "") or "")
+    auto_approve = bool(params.get("auto_approve", False))
 
     def _target(log: Callable[[str], None]) -> None:
         cfg = deps.resolved_cfg(slug)
@@ -582,9 +591,95 @@ def glossary_ai_job_factory(params: dict):
 
         changed = [r for r in results if r["target"] != base.get(r["source"], ("", ""))[0]]
         unchanged = len(results) - len(changed)
-        for r in changed:
-            log(f"[glossary-ai]   ~ {r['source']}: '{base[r['source']][0]}' → '{r['target']}'"
+        for r in results:
+            old = base[r["source"]][0]
+            mark = "~" if r["target"] != old else "="
+            log(f"[glossary-ai]   {mark} {r['source']}: '{old}' → '{r['target']}'"
                 + (f" ({r['reason']})" if r["reason"] else ""))
+
+        if auto_approve:
+            # Duyệt tự động CÓ GUARD: chỉ mục vượt kiểm định xác định mới được
+            # ghi vào glossary + gỡ khỏi hàng chờ (kể cả mục AI giữ nguyên —
+            # quyết định "đã đúng" chính là phê duyệt). Mục rỗng / dính cờ
+            # vi_han+same / trùng Việt với mục khác bị GIỮ LẠI hàng chờ để
+            # duyệt tay, lý do ghi log (không đưa vào cột Ghi chú).
+            gate = glossary_review.split_auto_approvable(current, results)
+            for h in gate["held"]:
+                log(f"[glossary-ai]   ! giữ {h['source'] or '(rỗng)'}: {h['reason']}")
+            # PoC Laya guard (log-only, mặc định tắt): hỏi ý kiến thứ hai về
+            # các mục AI trả lời được để đo độ khớp với guard xác định.
+            # Không chặn tự duyệt dưới mọi trường hợp.
+            laya_summary: dict = {"enabled": False}
+            try:
+                from novel2epub import laya_guard
+
+                laya_cfg = laya_guard.LayaGuardConfig.from_env()
+                if laya_cfg.enabled:
+                    laya_summary = {"enabled": True}
+                    opinions = laya_guard.score_terms(
+                        laya_cfg,
+                        [{"source": r["source"], "target": r["target"]} for r in results],
+                        story=story,
+                        log=log,
+                    )
+                    merged = laya_guard.merge_opinions(gate, opinions, laya_cfg.threshold)
+                    gate = {"approved": merged["approved"], "held": merged["held"]}
+                    agree = merged["agreement"]
+                    laya_summary["opinions"] = len(opinions)
+                    laya_summary["agreement"] = agree
+                    disagreements = [
+                        (r.get("source", ""), (r.get("laya") or {}).get("verdict", ""))
+                        for r in merged["approved"] + merged["held"]
+                        if r.get("laya") and not r["laya"].get("agrees")
+                    ]
+                    for source, verdict in disagreements[:20]:
+                        log(f"[laya-guard]   ? {source}: Laya={verdict} ≠ guard")
+                    log(
+                        "[laya-guard] Độ khớp với guard: "
+                        + (f"{agree:.0%} trên {len(opinions)} ý kiến." if agree is not None else "không có ý kiến nào.")
+                        + " (log-only, không chặn duyệt)"
+                    )
+            except Exception as exc:  # noqa: BLE001 — PoC không được sập job
+                log(f"[laya-guard] Bỏ qua PoC: {exc}")
+            requested = [
+                {
+                    "source": r["source"],
+                    "target": r["target"],
+                    "note": current.get(r["source"], ("", ""))[1],
+                }
+                for r in gate["approved"]
+            ]
+            result = storage.approve_glossary_rows(requested)
+            approved = result["approved"]
+            pairs = [
+                (a["existing_target"], a["target"])
+                for a in approved
+                if a.get("existing_target") and a["existing_target"] != a["target"]
+            ]
+            stats: dict = {"total": 0, "chapters": 0, "ebook": False}
+            if pairs:
+                log(f"[glossary-ai] Lan truyền {len(pairs)} thay đổi vào bản dịch cũ…")
+                stats = storage.apply_replacements(pairs)
+                log(f"[glossary-ai] Hoàn tất: {stats['total']} lần thay trên {stats['chapters']} chương.")
+            else:
+                log("[glossary-ai] Không có thay đổi nào để lan truyền (AI giữ nguyên).")
+            missing = len(entries) - len(results)
+            log(
+                f"[glossary-ai] Xong: tự duyệt {len(approved)}/{len(requested)} mục, "
+                f"{len(gate['held'])} mục giữ lại duyệt tay, "
+                f"{missing} mục AI không trả lời (giữ trong hàng chờ), "
+                f"còn {len(result['remaining'])} mục chờ."
+            )
+            return {
+                "requested": len(sources),
+                "approved": len(approved),
+                "held": gate["held"],
+                "missing": missing,
+                "remaining": len(result["remaining"]),
+                "skipped": len(invalid),
+                "replacements": stats,
+                "laya_guard": laya_summary,
+            }
 
         additions = [
             {
@@ -592,7 +687,9 @@ def glossary_ai_job_factory(params: dict):
                 "target": r["target"],
                 "existing_target": current.get(r["source"], ("", ""))[0],
                 "chapter_index": 0,
-                "note": r["reason"] or base[r["source"]][1],
+                # Giữ nguyên ghi chú hiện tại — `reason` của AI chỉ ghi log,
+                # không đưa vào cột Ghi chú.
+                "note": base[r["source"]][1],
             }
             for r in changed
         ]
@@ -669,12 +766,15 @@ class GlossaryAiReprocessRequest(BaseModel):
 
 @router.post("/api/ebooks/{slug}/glossary/ai/reprocess-pending")
 def ebook_glossary_ai_reprocess_pending(request: Request, slug: str, payload: GlossaryAiReprocessRequest):
-    """AI xử lý lại TOÀN BỘ đề xuất đang chờ duyệt trong MỘT job nền.
+    """AI TỰ ĐỘNG DUYỆT toàn bộ đề xuất đang chờ trong MỘT job nền.
 
-    Chụp sources của hàng chờ lúc bấm nút rồi tái dùng đúng job `glossary-ai`
-    (cùng factory, cùng category=translate, cùng khả năng sống sót restart):
-    AI rà soát từng đề xuất (lấy target đang chờ làm mốc, kể cả mục MỚI),
-    kết quả mới thay hàng chờ cũ cùng source. Không đụng glossary.
+    Chụp sources của hàng chờ lúc bấm nút rồi chạy job `glossary-ai` ở chế độ
+    `auto_approve` (cùng factory, cùng category=translate, cùng khả năng sống
+    sót restart): AI rà soát từng đề xuất theo quy tắc dịch nghiêm ngặt (lấy
+    target đang chờ làm mốc, kể cả mục MỚI, kèm tên truyện + tác giả + bối
+    cảnh), kết quả được ghi THẲNG vào glossary + lan truyền vào bản dịch cũ.
+    Mục AI không trả lời được giữ nguyên trong hàng chờ. Cột Ghi chú được giữ
+    nguyên — `reason` của AI chỉ ghi vào log job.
     """
     cfg = deps.resolved_cfg(slug)
     if not cfg.ai.openai.base_url:
@@ -689,7 +789,7 @@ def ebook_glossary_ai_reprocess_pending(request: Request, slug: str, payload: Gl
         raise HTTPException(status_code=400, detail="Không có đề xuất chờ duyệt.")
     spec = {
         "kind": "glossary-ai",
-        "params": {"slug": slug, "sources": sources, "instruction": payload.instruction.strip()},
+        "params": {"slug": slug, "sources": sources, "instruction": payload.instruction.strip(), "auto_approve": True},
     }
     started = request.app.state.job.start_custom(
         "glossary-ai",

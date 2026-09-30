@@ -16,7 +16,7 @@ from . import deps
 from .auth import check_api_auth
 from .deps import BASE_DIR, WORKSPACE_PATH
 from .job import JobRunner
-from .logging_config import setup_logging
+from .logging_config import logger, setup_logging
 from .routes import (
     assistant,
     ai_harness,
@@ -217,12 +217,71 @@ async def opds_api_cors(request: Request, call_next):
     return response
 
 
+# Chính sách cache cho SPA (bundle Vite hash tên file nên HTML là "con trỏ"
+# duy nhất tới assets mới — cache HTML cũ là kẹt UI cũ):
+# - text/html (index.html, fallback navigation): `no-store`, luôn tải mới.
+# - sw.js / workbox-* / manifest: `no-cache` — trình duyệt revalidate mỗi lần
+#   mở trang; SW cũ chỉ tự cập nhật khi tải được sw.js mới.
+# - /assets/* đã hash theo content: `immutable` 1 năm — tên đổi mỗi build nên
+#   cache lâu không bao giờ lẫn bản cũ/mới.
+_SW_UPDATE_FILES = ("sw.js", "registerSW.js", "manifest.webmanifest", "manifest.json")
+
+
+def _is_sw_update_file(filename: str) -> bool:
+    return (
+        filename == "sw.js"
+        or filename.startswith("workbox-")
+        or filename in _SW_UPDATE_FILES
+    )
+
+
 @app.middleware("http")
 async def cache_policy(request: Request, call_next):
     response = await call_next(request)
-    if response.headers.get("content-type", "").startswith("text/html"):
+    path = request.url.path
+    filename = path.rsplit("/", 1)[-1]
+    if path.startswith("/assets/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif _is_sw_update_file(filename):
+        response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+    elif response.headers.get("content-type", "").startswith("text/html"):
         response.headers["Cache-Control"] = "no-store"
     return response
+
+
+def _release_orphan_build_locks() -> list[str]:
+    """Giải phóng khoá build sót lại từ tiến trình trước. Gọi khi app khởi động.
+
+    `build_artifacts.status='building'` là mutex bền vững trong DB, còn job build
+    chỉ sống trong RAM và không có `spec` nên không được ghi vào
+    `job_queue_pending`; nếu tiến trình chết giữa chừng thì job đó cũng không kịp
+    ghi `job_queue_history`. Nên sau restart, hàng vẫn kẹt `building` trong khi
+    hàng đợi trống — mọi lần build sau bị chặn với thông báo "đang có build khác
+    chạy" dù không có job nào.
+
+    Gọi TRONG `lifespan` chứ không phải lúc import: import `app.main` phải
+    không được ghi DB (test/tooling import là chuyện thường), và phải chạy
+    TRƯỚC `scheduler.start()` — automation có bước build, mà scheduler chỉ nạp
+    job cũ ở đó, nên lúc này chưa job build nào kịp giành khoá.
+
+    Đây là bản toàn cục của cùng cơ chế `Storage.release_orphan_build` (bản
+    theo slug chạy lúc request, xem `ebook_build_confirm`).
+    """
+    from novel2epub.storage import release_orphan_build_locks
+
+    try:
+        slugs = release_orphan_build_locks(deps.DB_PATH)
+    except Exception:  # noqa: BLE001 - DB lỗi không được chặn app khởi động
+        logger.exception("Không dọn được khoá build mồ côi lúc khởi động")
+        return []
+    for slug in slugs:
+        logger.warning(
+            "[build] Giải phóng khoá build mồ côi cho %r lúc khởi động — "
+            "tiến trình trước đã chết giữa chừng nên hàng bị kẹt 'building'.",
+            slug,
+        )
+    return slugs
+
 
 app.state.job = JobRunner(
     db_path=deps.DB_PATH,
@@ -244,6 +303,10 @@ app.state.scheduler = AutomationScheduler(deps.DB_PATH, WORKSPACE_PATH, app.stat
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Dọn khoá build mồ côi TRƯỚC scheduler.start(): automation có bước build
+    # và chỉ được nạp lúc scheduler chạy, nên tới đây chưa job build nào có
+    # thể đang giữ khoá → mọi hàng `building` còn lại chắc chắn là mồ côi.
+    app.state.orphan_build_locks = _release_orphan_build_locks()
     app.state.scheduler.start()
     yield
     app.state.scheduler.stop()
@@ -312,6 +375,12 @@ if _SPA_BUILT:
         candidate = (_SPA_DIR / path).resolve()
         if path and candidate.is_file() and candidate.is_relative_to(_SPA_DIR):
             return FileResponse(candidate)
+        if _is_sw_update_file(path.rsplit("/", 1)[-1]):
+            # sw.js/manifest/workbox mất file mà trả index.html thì trình duyệt
+            # coi update-check của SW là thất bại và SW cũ kẹt vĩnh viễn phục
+            # vụ bundle cũ — trả 404 JSON để client biết chắc, không nuốt vào
+            # fallback SPA.
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
         return FileResponse(_SPA_DIR / "index.html")
 
     @app.exception_handler(404)

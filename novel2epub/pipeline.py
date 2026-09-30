@@ -228,14 +228,19 @@ def step_glossary_ai_selected(
         log("[glossary-ai] Đã dừng sau khi LLM trả kết quả; chưa tự duyệt.")
         return manifest
 
+    gate = glossary_review.split_auto_approvable(current, results)
+    for held in gate["held"]:
+        log(f"[glossary-ai] Giữ {held['source'] or '(rỗng)'} để duyệt tay: {held['reason']}")
     requested = [
         {
-            "source": result["source"],
-            "target": result["target"],
-            "note": result.get("reason", "") or base[result["source"]][1],
+            "source": item["source"],
+            "target": item["target"],
+            # Giữ nguyên ghi chú hiện tại — `reason` của AI chỉ ghi log,
+            # không đưa vào cột Ghi chú.
+            "note": base[item["source"]][1],
         }
-        for result in results
-        if result.get("source") in base and result.get("target", "").strip()
+        for item in gate["approved"]
+        if item["source"] in base
     ]
     if not requested:
         log(f"[glossary-ai] LLM không trả lời hợp lệ; giữ nguyên {len(pending)} mục chờ.")
@@ -250,7 +255,8 @@ def step_glossary_ai_selected(
     ]
     stats = storage.apply_replacements(pairs) if pairs else {"total": 0, "chapters": 0, "ebook": False}
     log(
-        f"[glossary-ai] Đã tự duyệt {len(approved)}/{len(requested)} mục; "
+        f"[glossary-ai] Đã tự duyệt {len(approved)}/{len(requested)} mục, "
+        f"giữ {len(gate['held'])} mục duyệt tay; "
         f"còn {len(result['remaining'])} mục chờ. "
         f"Lan truyền {stats['total']} lần thay trên {stats['chapters']} chương."
     )
@@ -3061,7 +3067,18 @@ def step_build_selected(
         log(f"[build] Đã tạo EPUB: {out}  ({len(chapters_html)} chương)")
         return str(out)
     except Exception as e:  # noqa: BLE001
-        storage.release_build(status="failed", error=str(e)[:500], manifest_snapshot=storage.branch_chapter_snapshots())
+        # `release_build` phải nuốt lỗi riêng của nó: nếu nó raise (SQLite
+        # bận, DB khoá) thì vừa che mất lỗi gốc vừa RỚI khoá `building` —
+        # ebook bị kẹt "đang có build khác chạy" dù không còn job nào. Khoá
+        # sót được `storage.release_orphan_build`/`release_orphan_build_locks`
+        # dọn khi hàng đợi không còn job build nào giữ nó.
+        try:
+            storage.release_build(
+                status="failed", error=str(e)[:500],
+                manifest_snapshot=storage.branch_chapter_snapshots(),
+            )
+        except Exception as release_err:  # noqa: BLE001 - lỗi release không được nuốt lỗi gốc
+            log(f"[build] ! Không trả được khoá build: {release_err}")
         raise
 
 

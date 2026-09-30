@@ -50,6 +50,7 @@ from ..ebook_deletion import (
     delete_ebook as delete_ebook_data,
 )
 from ..library_state import archived_slugs
+from ..logging_config import logger
 from ..overview import chapter_states_by_slug
 from ..scheduler import next_run_at
 from ..storage_report import ebook_storage_report, purge_raw, purge_translated_mt, remove_epub
@@ -1763,6 +1764,19 @@ def ebook_readiness(slug: str):
     }
 
 
+def log_orphan_lock_release(slug: str, where: str) -> None:
+    """Ghi log lần giải phóng khoá build mồ côi — sự kiện hiếm, cần truy vết.
+
+    Không log ở `storage.release_orphan_build` vì đó là tầng domain, không
+    phụ thuộc logging của web UI.
+    """
+    logger.warning(
+        "[build] Giải phóng khoá build mồ côi cho %r tại %s — DB còn 'building' "
+        "nhưng hàng đợi không có job build nào (tiến trình/thread trước đã chết).",
+        slug, where,
+    )
+
+
 @router.get("/ebooks/{slug}/build")
 def ebook_build_status(slug: str):
     """Trạng thái build artifact hiện tại (lock owner, status, stale?)."""
@@ -1814,15 +1828,32 @@ def ebook_build_confirm(request: Request, slug: str, payload: dict = Body(defaul
                 detail=f"Không build được — còn {len(blockers)} chương chưa có bản dịch hoàn chỉnh: {detail}",
             )
 
-    # chặn duplicate build đang chạy — kiểm tra artifact status
-    build = storage.read_build()
-    if build.get("status") == "building":
-        raise HTTPException(status_code=409, detail="Đang có build khác chạy cho ebook này — chờ xong rồi thử lại.")
+    # Chặn duplicate build — nhưng tin vào HÀNG ĐỢI, không tin mù quáng DB.
+    # `build_artifacts` là mutex bền vững: nếu tiến trình/thread chết giữa
+    # chừng thì `release_build` không chạy và hàng kẹt `building` vĩnh viễn,
+    # trong khi hàng đợi không có job nào — mọi lần build sau bị chặn với
+    # thông báo "đang có build khác chạy" dù không tồn tại job nào.
+    queue = request.app.state.job.queue
+    if storage.read_build().get("status") == "building":
+        # Cố ý hỏi "ebook này còn job nào không" (`has_active_ebook`) chứ
+        # KHÔNG lọc `step == 'build'`: khoá này do `step_build_selected` giành,
+        # mà automation gọi hàm đó TRONG job `step='automation'`
+        # (`scheduler._STEP_FN['build']`) — lọc theo step sẽ tưởng khoá mồ côi
+        # rồi hạ khoá của một build đang chạy thật, cho phép 2 build ghi cùng
+        # file EPUB. Thận trọng ở hướng này là rẻ: khoá mồ côi thì hàng đợi
+        # trống nên vẫn được gỡ đúng như cũ.
+        if queue.has_active_ebook(slug):
+            raise HTTPException(
+                status_code=409,
+                detail="Đang có build khác chạy cho ebook này — chờ xong rồi thử lại.",
+            )
+        if storage.release_orphan_build():
+            log_orphan_lock_release(slug, "build/confirm")
 
     def _target(log):
         step_build_selected(cfg, log)
 
-    job = request.app.state.job.queue.enqueue(
+    job = queue.enqueue(
         "build",
         "build",
         _target,

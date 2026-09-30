@@ -519,14 +519,15 @@ def test_ai_retranslate_reprocesses_pending_override(tmp_path, monkeypatch):
     ]
 
 
-def test_ai_reprocess_pending_reviews_whole_queue_in_one_job(tmp_path, monkeypatch):
-    """1 click xử lý cả hàng chờ: AI rà soát từng đề xuất, kết quả thay hàng
-    chờ cũ cùng source, glossary không đổi."""
+def test_ai_reprocess_pending_auto_approves_whole_queue_in_one_job(tmp_path, monkeypatch):
+    """1 click tự duyệt cả hàng chờ: AI rà soát từng đề xuất theo quy tắc dịch
+    nghiêm ngặt, kết quả ghi THẲNG vào glossary + gỡ khỏi hàng chờ (kể cả mục
+    AI giữ nguyên), cột Ghi chú giữ nguyên — mục AI không trả lời giữ lại."""
     from novel2epub import glossary_ai
 
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")
-    storage.write_glossary_entries("names.txt", [("叶凡", "Diệp Phàm cũ", "")])
+    storage.write_glossary_entries("names.txt", [("叶凡", "Diệp Phàm cũ", "ghi chú cũ")])
     storage.write_extra_json(
         "glossary_pending",
         [
@@ -537,8 +538,8 @@ def test_ai_reprocess_pending_reviews_whole_queue_in_one_job(tmp_path, monkeypat
     monkeypatch.setattr(
         glossary_ai.openai_client,
         "run_chat",
-        lambda ai_cfg, prompt: '[{"source": "叶凡", "target": "Diệp Phàm mới"},'
-        ' {"source": "林动", "target": "Lâm Động"}]',
+        lambda ai_cfg, prompt: '[{"source": "叶凡", "target": "Diệp Phàm mới", "reason": "a: sửa phiên âm"},'
+        ' {"source": "林动", "target": "Lâm Động tạm", "reason": ""}]',
     )
     client = _client(cfg, monkeypatch)
 
@@ -546,12 +547,82 @@ def test_ai_reprocess_pending_reviews_whole_queue_in_one_job(tmp_path, monkeypat
 
     assert res.status_code == 200
     assert res.json() == {"started": True, "requested": 2}
+    # Ghi thẳng vào glossary, giữ nguyên ghi chú cũ — reason của AI không vào note.
+    assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {
+        "叶凡": "Diệp Phàm mới",
+        "林动": "Lâm Động tạm",
+    }
+    assert [n for _s, _t, n in storage.read_glossary_entries("names.txt")] == ["ghi chú cũ", ""]
+    # Hàng chờ đã duyệt xong.
+    assert storage.read_extra_json("glossary_pending") == []
+
+
+def test_ai_reprocess_pending_keeps_unanswered_in_queue(tmp_path, monkeypatch):
+    """Mục AI không trả lời được giữ nguyên trong hàng chờ để chạy lại."""
+    from novel2epub import glossary_ai
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_extra_json(
+        "glossary_pending",
+        [
+            {"source": "叶凡", "existing_target": "", "target": "Diệp Phàm tạm", "chapter_index": 2, "note": ""},
+            {"source": "林动", "existing_target": "", "target": "Lâm Động tạm", "chapter_index": 3, "note": ""},
+        ],
+    )
+    monkeypatch.setattr(
+        glossary_ai.openai_client,
+        "run_chat",
+        lambda ai_cfg, prompt: '[{"source": "叶凡", "target": "Diệp Phàm"}]',
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": ""})
+
+    assert res.status_code == 200
     pending = storage.read_extra_json("glossary_pending")
-    assert [(p["source"], p["existing_target"], p["target"]) for p in pending] == [
-        ("叶凡", "Diệp Phàm cũ", "Diệp Phàm mới"),
-        ("林动", "", "Lâm Động"),
+    assert [p["source"] for p in pending] == ["林动"]
+    assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {"叶凡": "Diệp Phàm"}
+
+
+def test_ai_reprocess_pending_guard_holds_unsafe_results(tmp_path, monkeypatch):
+    """Guard: AI trả sót chữ Hán hoặc trùng Việt mục khác → giữ hàng chờ,
+    không ghi vào glossary."""
+    from novel2epub import glossary_ai
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [("林动", "Lâm Động", "")])
+    storage.write_extra_json(
+        "glossary_pending",
+        [
+            {"source": "叶凡", "existing_target": "", "target": "Diệp Phàm tạm", "chapter_index": 2, "note": ""},
+            {"source": "萧炎", "existing_target": "", "target": "Tiêu Viêm tạm", "chapter_index": 3, "note": ""},
+            {"source": "叶番", "existing_target": "", "target": "Diệp Phiên tạm", "chapter_index": 4, "note": ""},
+        ],
+    )
+    monkeypatch.setattr(
+        glossary_ai.openai_client,
+        "run_chat",
+        lambda ai_cfg, prompt: "["
+        '{"source": "叶凡", "target": "Diệp 凡"},'
+        ' {"source": "萧炎", "target": "lâm động"},'
+        ' {"source": "叶番", "target": "Diệp Phiên"}]',
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": ""})
+
+    assert res.status_code == 200
+    assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {
+        "林动": "Lâm Động",
+        "叶番": "Diệp Phiên",
+    }
+    pending = storage.read_extra_json("glossary_pending")
+    assert [(p["source"], p["target"]) for p in pending] == [
+        ("叶凡", "Diệp Phàm tạm"),
+        ("萧炎", "Tiêu Viêm tạm"),
     ]
-    assert storage.read_glossary_entries("names.txt") == [("叶凡", "Diệp Phàm cũ", "")]
 
 
 def test_ai_reprocess_pending_empty_queue_returns_400(tmp_path, monkeypatch):
@@ -1540,3 +1611,34 @@ def test_old_reapply_routes_removed(tmp_path, monkeypatch):
     assert client.post(
         "/ebooks/t/glossary/reapply", data={"find": "x", "replace": "y"}
     ).status_code == 404
+
+
+def test_ai_reprocess_pending_laya_poc_failure_never_breaks_job(tmp_path, monkeypatch):
+    """PoC Laya bật nhưng server chết → job tự duyệt vẫn xong, outcome ghi nhận."""
+    import requests
+
+    from novel2epub import glossary_ai
+
+    def _boom(*a, **k):
+        raise RuntimeError("laya-serve chưa chạy")
+
+    monkeypatch.setattr(requests, "post", _boom)
+    monkeypatch.setenv("LAYA_BASE_URL", "http://localhost:8000")
+    monkeypatch.setattr(
+        glossary_ai.openai_client,
+        "run_chat",
+        lambda ai_cfg, prompt: '[{"source": "叶凡", "target": "Diệp Phàm"}]',
+    )
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_extra_json(
+        "glossary_pending",
+        [{"source": "叶凡", "existing_target": "", "target": "Diệp Phàm tạm", "chapter_index": 2, "note": ""}],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": ""})
+
+    assert res.status_code == 200
+    assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {"叶凡": "Diệp Phàm"}
+    assert storage.read_extra_json("glossary_pending") == []

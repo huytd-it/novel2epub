@@ -379,6 +379,24 @@ Build command `npm --prefix frontend run build`, thư mục xuất `app/webui`.
 Token nhập một lần ở trang **Kết nối** trong app và lưu ở `localStorage` —
 không nung vào bundle, vì bundle là file công khai.
 
+### Cache giao diện (kẹt UI cũ)
+
+Bundle Vite hash tên file nên `index.html` là con trỏ duy nhất tới assets mới.
+Chính sách cache giữ cho HTML luôn mới mà assets vẫn tải nhanh:
+
+- `index.html` và mọi navigation SPA: `no-store` (backend `cache_policy` trong
+  `app/main.py`, header `no-store` trong `vercel.json`).
+- `sw.js` / `workbox-*` / `registerSW.js` / `manifest.webmanifest`: `no-cache`
+  revalidate mỗi lần mở trang — SW cũ chỉ tự cập nhật khi tải được `sw.js` mới.
+  `index.html` không nằm trong precache của SW, và tab đang mở tự reload một
+  lần khi SW mới chiếm quyền (`controllerchange` trong `frontend/src/main.tsx`).
+- `/assets/*` đã hash: `immutable` 1 năm.
+
+Thấy UI cũ sau khi sửa frontend: build lại bundle web (`npm run build` trong
+`frontend/`, KHÔNG phải `build:tauri` — hai lệnh cùng ghi vào `app/webui/`,
+lệnh chạy sau cùng quyết định nội dung ở đó), restart backend rồi Ctrl+F5 một
+lần. Kiểm tra nhanh bằng test `tests/test_web_cache_policy.py`.
+
 ### Điều còn hạn chế
 
 Web UI Jinja2 vẫn là công cụ chạy tại chỗ. Mở qua `http://localhost:8010` thì
@@ -476,3 +494,14 @@ EPUB thiếu chương:
 - Lọc chương `translated:no` hoặc `missing:yes`.
 - Kiểm tra chương bị skip và trạng thái bản dịch.
 - Build lại sau khi hoàn tất dữ liệu thiếu.
+
+"Đang có build khác chạy cho ebook này" nhưng hàng đợi trống:
+
+- Khoá `build_artifacts` bị sót từ tiến trình đã chết (restart/crash giữa
+  chừng). Job build không được ghi vào `job_queue_pending`/`job_queue_history`
+  nên không có dấu vết trong hàng đợi — đây là lý do thấy xung đột mà
+  không thấy job.
+- Tự khỏi: lần khởi động server kế tiếp dọn khoá mồ côi, hoặc ngay lần bấm
+  "Build EPUB" kế tiếp nếu hàng đợi không còn job nào cho ebook đó. Cả hai
+  đều ghi một dòng WARNING `[build] Giải phóng khoá build mồ côi` vào Nhật ký.
+- Build lại sau đó: khoá cũ có thể rơi giữa chừng nên EPUB có thể chưa xong.

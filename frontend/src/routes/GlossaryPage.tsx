@@ -487,7 +487,11 @@ function AiAssistantModal({
             onClick={() => {
               const done = {
                 onSuccess: () => {
-                  toast("Đã xếp vào hàng đợi — kết quả sẽ hiện ở đầu bảng để duyệt.");
+                  toast(
+                    allPending
+                      ? "Đã xếp vào hàng đợi — AI sẽ tự ghi vào glossary và lan truyền vào bản dịch cũ."
+                      : "Đã xếp vào hàng đợi — kết quả sẽ hiện ở đầu bảng để duyệt.",
+                  );
                   onStarted();
                   onClose();
                 },
@@ -499,7 +503,7 @@ function AiAssistantModal({
             }}
           >
             {allPending
-              ? `Nhờ AI xử lý tất cả ${num(sources.length)} mục`
+              ? `AI tự động duyệt ${num(sources.length)} mục`
               : `Nhờ AI xử lý ${num(sources.length)} mục`}
           </Button>
         </>
@@ -508,12 +512,13 @@ function AiAssistantModal({
       <p className="mb-3 text-[13px] opacity-70">
         {allPending
           ? <>AI rà soát <span data-numeric className="font-medium">toàn bộ {num(sources.length)}</span> đề xuất
-            đang chờ duyệt trong MỘT lần chạy và đề xuất bản dịch đúng.</>
+            đang chờ duyệt trong MỘT lần chạy và TỰ ĐỘNG ghi vào glossary + lan truyền vào bản dịch cũ.</>
           : <>AI rà soát <span data-numeric className="font-medium">{num(sources.length)}</span> mục đã chọn và đề
             xuất bản dịch đúng.</>}{" "}
-        Kết quả KHÔNG ghi đè: mục nào AI đổi sẽ vào hàng chờ duyệt (hàng vàng ở đầu
-        bảng) kèm số chỗ ảnh hưởng, bạn duyệt từng mục hoặc hàng loạt.
-        {fromPending
+        {allPending
+          ? "Không cần duyệt tay: mục nào AI xử lý được VÀ vượt kiểm định an toàn (không sót chữ Hán, không chép y Hán, không trùng Việt với mục khác) sẽ duyệt luôn; mục rớt kiểm định hoặc AI không trả lời được giữ lại trong hàng chờ. Cột Ghi chú được giữ nguyên."
+          : "Kết quả KHÔNG ghi đè: mục nào AI đổi sẽ vào hàng chờ duyệt (hàng vàng ở đầu bảng) kèm số chỗ ảnh hưởng, bạn duyệt từng mục hoặc hàng loạt."}
+        {fromPending && !allPending
           ? " Vì các mục này đang chờ duyệt, kết quả mới sẽ THAY đề xuất cũ cùng mục trong MỘT lần chạy."
           : null}
       </p>
@@ -1026,14 +1031,14 @@ export function GlossaryPage() {
               <Button
                 icon={<IconSparkle size={14} />}
                 disabled={pendingCount === 0}
-                title="AI rà soát toàn bộ đề xuất chờ duyệt trong MỘT lần chạy — kết quả thay hàng chờ cũ"
+                title="AI rà soát toàn bộ đề xuất chờ duyệt và TỰ ĐỘNG ghi vào glossary + lan truyền vào bản dịch cũ trong MỘT lần chạy"
                 onClick={() => {
                   setAiPending(true);
                   setAiAllPending(true);
                   setAiOpen(true);
                 }}
               >
-                AI xử lý chờ duyệt ({num(pendingCount)})
+                AI tự động duyệt ({num(pendingCount)})
               </Button>
               <Button
                 loading={clean.isPending}

@@ -53,6 +53,18 @@ const queryClient = new QueryClient({
   },
 });
 
+// Service worker chạy `autoUpdate`: khi SW mới chiếm quyền điều khiển thì tab
+// đang mở vẫn chạy bundle cũ — reload một lần để lên UI mới thay vì kẹt giao
+// diện cũ. Chỉ reload khi trang đã bị SW cũ điều khiển từ lúc mở (lượt
+// controllerchange đầu tiên sau cài mới chỉ đánh dấu, không reload).
+if ("serviceWorker" in navigator) {
+  let controlledAtStart = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (controlledAtStart) window.location.reload();
+    else controlledAtStart = true;
+  });
+}
+
 // Bản web chạy ở /; bản Tauri build với base "./" (đường dẫn tương đối
 // cho asset) nhưng router vẫn phải neo ở gốc.
 const basename = import.meta.env.BASE_URL.startsWith("/") ? import.meta.env.BASE_URL : "/";

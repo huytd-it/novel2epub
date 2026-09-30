@@ -225,3 +225,74 @@ def filter_by_flags(entries: list[Entry], flags: list[str]) -> list[Entry]:
         return list(entries)
     wanted = set(flags)
     return [e for e in entries if entry_flags(e[0], e[1]) & wanted]
+
+
+# ── Guard duyệt tự động (nút "AI tự động duyệt" + step automation) ───
+
+# Cờ do AI gây ra ở cột Việt → chặn tự duyệt, giữ hàng chờ duyệt tay. `han_latin`
+# và `no_han` xét cột Hán (AI không được đổi) nên không chặn ở đây.
+AUTO_APPROVE_BLOCKED_FLAGS = {"vi_han", "same"}
+
+
+def split_auto_approvable(
+    current: dict[str, tuple[str, str]], results: list[dict]
+) -> dict:
+    """Chia kết quả AI thành `approved` (đủ an toàn để tự duyệt) và `held`
+    (giữ hàng chờ duyệt tay kèm lý do).
+
+    `current` là glossary hiện tại `{source: (target, note)}`; `results` là
+    `[{source, target, ...}]` AI trả về. Guard hoàn toàn xác định, không tốn
+    thêm lượt gọi AI:
+
+    1. Target rỗng → giữ (AI không trả lời được mục này).
+    2. Cặp mới dính cờ `vi_han`/`same` (sót chữ Hán, chép y Hán) → giữ, kể cả
+       khi AI chỉ "giữ nguyên" một giá trị đang sai.
+    3. Target mới trùng (không phân biệt hoa thường) với target của source
+       KHÁC trong glossary hoặc trong cùng đợt → giữ để tránh nhập nhằng hai
+       Hán về một Việt và lan truyền sai.
+
+    Thuần dữ liệu, không DB: route `glossary-ai` (chế độ auto_approve) và step
+    automation dùng chung nên hai đường tự duyệt không thể lệch nhau.
+    """
+    approved: list[dict] = []
+    held: list[dict] = []
+    taken_in_batch: set[str] = set()
+    for r in results if isinstance(results, list) else []:
+        if not isinstance(r, dict):
+            continue
+        source = str(r.get("source", "")).strip()
+        target = str(r.get("target", "")).strip()
+        if not source or not target:
+            held.append({"source": source, "target": target, "reason": "AI trả về rỗng"})
+            continue
+        blocked = entry_flags(source, target) & AUTO_APPROVE_BLOCKED_FLAGS
+        if blocked:
+            labels = ", ".join(GLOSSARY_FLAGS[name][0] for name in sorted(blocked))
+            held.append({"source": source, "target": target, "reason": f"Dính cờ kiểm định: {labels}"})
+            continue
+        key = target.lower()
+        owner = next(
+            (s for s, (t, _n) in current.items() if t.strip().lower() == key and s != source),
+            "",
+        )
+        if owner:
+            held.append(
+                {
+                    "source": source,
+                    "target": target,
+                    "reason": f"Trùng Việt với '{owner}' — giữ để duyệt tay",
+                }
+            )
+            continue
+        if key in taken_in_batch:
+            held.append(
+                {
+                    "source": source,
+                    "target": target,
+                    "reason": "Trùng Việt với một mục khác trong cùng đợt — giữ để duyệt tay",
+                }
+            )
+            continue
+        taken_in_batch.add(key)
+        approved.append({"source": source, "target": target})
+    return {"approved": approved, "held": held}

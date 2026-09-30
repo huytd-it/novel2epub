@@ -350,3 +350,33 @@ def test_retranslate_terms_truncates_long_description_and_skips_empty_story(monk
         _ai_cfg(), [{"source": "李逸", "target": "Ly Dat"}], story={"title": "  ", "author": ""}
     )
     assert "Thông tin truyện" not in captured["prompt"]
+
+
+def test_retranslate_prompt_enforces_translation_rules_and_error_cases(monkeypatch):
+    """Prompt rà soát phải tuân thủ quy tắc dịch (Hán Việt/thuần Việt, tên
+    ngoại → Latin, thành ngữ thoát ý) + liệt kê các mã lỗi phải sửa, kèm
+    ngữ cảnh tên truyện + tác giả."""
+    from novel2epub import glossary_ai
+    from novel2epub.glossary_ai import retranslate_terms
+
+    captured = _capture_run_chat(monkeypatch, "[]")
+
+    retranslate_terms(
+        _ai_cfg(),
+        [{"source": "李逸", "target": "Ly Dat"}],
+        story={"title": "Trường Sinh Giới", "author": "Thần Đông"},
+        genre="tien-hiep",
+    )
+
+    prompt = captured["prompt"]
+    assert "Tên truyện: Trường Sinh Giới" in prompt
+    assert "Tác giả: Thần Đông" in prompt
+    # Quy tắc dịch bắt buộc.
+    assert "Sino-Vietnamese" in prompt
+    assert "Sherlock" in prompt
+    assert "thoát ý" in prompt
+    # Các trường hợp lỗi phải sửa.
+    assert "sót ký tự Trung" in prompt
+    assert "Phiên âm Hán Việt sai" in prompt
+    # Giữ nguyên khi đã đúng.
+    assert "GIỮ NGUYÊN" in prompt

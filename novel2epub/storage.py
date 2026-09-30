@@ -25,6 +25,43 @@ from . import entities, preview, revisions
 # mặc định là 999 trên các bản cũ; chia lô cho chắc thay vì đoán giới hạn.
 _IN_CHUNK = 400
 
+# Lý do ghi vào `build_artifacts.error` khi giải phóng khoá build mồ côi.
+ORPHAN_BUILD_ERROR = (
+    "Khoá build còn sót từ tiến trình đã chết (restart/crash) — đã giải phóng. "
+    "EPUB có thể chưa được đóng gói xong, hãy build lại."
+)
+
+
+def release_orphan_build_locks(db_path: str | Path) -> list[str]:
+    """Giải phóng MỌI khoá build mồ côi (`status='building'`) cho toàn DB.
+
+    `build_artifacts` là mutex bền vững trong SQLite, còn job build chỉ sống
+    trong RAM của tiến trình: job build không có `spec` nên
+    `JobQueue._save_pending` không ghi lại nó, và nếu tiến trình chết giữa
+    chừng thì nó cũng không kịp ghi `job_queue_history`. Hệ quả là sau một
+    restart/crash, hàng vẫn kẹt `building` trong khi hàng đợi trống rỗng —
+    mọi lần build sau đều bị chặn với thông báo "đang có build khác chạy"
+    dù không tồn tại job nào.
+
+    Gọi lúc khởi động app: tiến trình mới không thể là chủ của khoá do tiến
+    trình đã chết tạo, nên mọi hàng `building` còn lại đều mồ côi. (App chạy
+    một tiến trình — queue là thread in-process — nên không có chủ khoá ở
+    tiến trình khác.) Trả về danh sách slug đã giải phóng để log.
+    """
+    conn = get_thread_connection(db_path)
+    with conn:
+        rows = conn.execute(
+            "SELECT ebook_slug FROM build_artifacts WHERE status='building'"
+        ).fetchall()
+        slugs = [row["ebook_slug"] for row in rows]
+        if slugs:
+            conn.execute(
+                "UPDATE build_artifacts SET status='failed', lock_owner='', "
+                "finished_at=datetime('now'), error=? WHERE status='building'",
+                (ORPHAN_BUILD_ERROR,),
+            )
+    return slugs
+
 
 def _chunks(items: list[str], size: int = _IN_CHUNK):
     for start in range(0, len(items), size):
@@ -1815,6 +1852,28 @@ class Storage:
                     "lock_owner='' WHERE ebook_slug=?",
                     (status, error, self.slug),
                 )
+
+    def release_orphan_build(self) -> bool:
+        """Giải phóng khoá build mồ côi của riêng ebook này.
+
+        Chỉ ghi khi hàng đang ở `status='building'` — điều kiện CAS để không
+        hạ khoá của một build thật sự đang chạy (race giữa hai request).
+        Trả True nếu vừa giải phóng.
+
+        Dùng khi hàng đợi KHÔNG có job build nào cho ebook (xem
+        `release_orphan_build_locks`): DB nói "đang build" nhưng không ai
+        giữ khoá ⇒ khoá sót lại từ tiến trình/thread đã chết. Không có
+        `started_at` nào để suy ra tuổi khoá nên phải so với hàng đợi
+        thay vì đếm giờ.
+        """
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE build_artifacts SET status='failed', lock_owner='', "
+                "finished_at=datetime('now'), error=? "
+                "WHERE ebook_slug=? AND status='building'",
+                (ORPHAN_BUILD_ERROR, self.slug),
+            )
+        return cur.rowcount == 1
 
     def build_stale(self) -> bool:
         """True nếu bản dịch của nhánh đang hoạt động đã đổi khỏi fingerprint

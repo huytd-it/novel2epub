@@ -137,6 +137,7 @@ ENGINES.register("rewrite", kind=KIND_CANDIDATE, allows_raw=False)
 ENGINES.register("han-cleanup", kind=KIND_CANDIDATE, allows_raw=False)
 ENGINES.register("translate", kind=KIND_CANDIDATE, allows_raw=True)
 ENGINES.register("fix", kind=KIND_CANDIDATE, allows_raw=False)
+ENGINES.register("proofreading", kind=KIND_CANDIDATE, allows_raw=True)
 ENGINES.register("review", kind=KIND_REPORT, allows_raw=True)
 ENGINES.register("suggest", kind=KIND_SUGGESTION, allows_raw=True)
 

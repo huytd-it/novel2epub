@@ -27,7 +27,7 @@ from novel2epub.db import get_thread_connection
 from .logging_config import job_log_capture, logger
 
 # Category vật lý. Mỗi category có pool worker độc lập.
-CATEGORIES = ("crawl", "local-mt", "ai-translate", "ai-edit", "build", "automation")
+CATEGORIES = ("crawl", "local-mt", "ai-translate", "ai-edit", "validation", "build", "automation")
 # Alias cũ → category mới. Giữ job persisted và route cũ hoạt động.
 _CATEGORY_ALIASES = {"translate": "ai-translate", "both": "automation"}
 DEFAULT_HISTORY_LIMIT = 5000
@@ -41,6 +41,7 @@ CATEGORY_WRITES: dict[str, frozenset[str]] = {
     "local-mt": frozenset({"local_mt"}),
     "ai-translate": frozenset({"ai"}),
     "ai-edit": frozenset({"edit"}),
+    "validation": frozenset({"content_validation"}),
     # Build đọc active workspace của cả hai nhánh; xem như giữ read-lock trên
     # chúng để writer không đổi input giữa snapshot và đóng gói EPUB.
     "build": frozenset({"build", "ai", "local_mt"}),
@@ -700,13 +701,16 @@ class JobQueue:
             except Exception:
                 logger.exception("Không tái tạo được job pending kind=%r", kind)
                 continue
+            params = spec.get("params", {})
+            validation_job = kind == "proofreading" and (params.get("scan") or params.get("book_check"))
             self.enqueue(
-                row["category"],
+                "validation" if validation_job else row["category"],
                 row["step"] or kind,
                 target,
                 label=row["label"] or kind,
                 ebook=row["ebook"],
                 spec=spec,
+                lock_ebook=False if validation_job else True,
             )
             restored += 1
         return restored

@@ -1792,15 +1792,44 @@ def step_translate_toc_selected(
 
     if mode == "smart":
         items = [(ch.index, ch.title_zh or ch.title) for ch in to_translate]
-        inner = translator.inner if hasattr(translator, "inner") else translator
-        if hasattr(inner, "translate_titles_once"):
-            log(f"[toc] Đang dịch tiêu đề thông minh {len(items)} tiêu đề trong một prompt…")
-            translated = inner.translate_titles_once([source for _index, source in items])
-            if len(translated) != len(items) or any(not title.strip() for title in translated):
-                raise RuntimeError("AI không trả đủ tiêu đề trong prompt dịch thông minh.")
-            title_lookup = dict(zip((index for index, _source in items), translated))
-        else:
+        log(f"[toc] Đang dịch tiêu đề thông minh {len(items)} tiêu đề…")
+        try:
+            # translate_titles_once đã tự chia batch + fallback từng cái còn
+            # thiếu nên không bao giờ trả rỗng vì LLM lệch format.
+            translated = translator.translate_titles_once(
+                [source for _index, source in items]
+            )
+        except AttributeError:
             title_lookup = _batch_translate_titles(translator, to_translate, log)
+        else:
+            if len(translated) != len(items):
+                log(
+                    f"  ⚠ AI trả {len(translated)}/{len(items)} tiêu đề — "
+                    "dịch riêng các tiêu đề còn thiếu."
+                )
+                missing_sources = [
+                    source
+                    for (_, source), got in zip(items, translated + [""] * len(items))
+                    if not got.strip()
+                ]
+                # Không đoán vị trí khi độ dài lệch: dịch riêng toàn bộ thiếu.
+                fallback_done: dict[str, str] = {}
+                for source in missing_sources:
+                    if source not in fallback_done:
+                        title, _note = translator.translate_title(source)
+                        fallback_done[source] = title
+                filled: list[str] = []
+                for (_, source), got in zip(items, list(translated) + [""] * len(items)):
+                    filled.append(got if got.strip() else fallback_done.get(source, ""))
+                translated = filled
+            empty = [index for (index, _), got in zip(items, translated) if not got.strip()]
+            if empty:
+                log(f"  ⚠ Bỏ qua {len(empty)} tiêu đề AI trả rỗng (giữ nguyên tiêu đề cũ).")
+            title_lookup = {
+                index: got
+                for (index, _source), got in zip(items, translated)
+                if got.strip()
+            }
     else:
         title_lookup = {}
         log(f"[toc] Đang dịch tiêu đề nhanh lần lượt {len(to_translate)} tiêu đề…")
@@ -2378,6 +2407,9 @@ def step_apply_ai_revision(cfg: Config, log: LogFn = _print, *, revision_id: int
     cand = storage.read_ai_revision(ch, revision_id)
     if cand is None or not cand.payload.strip():
         raise revisions.RevisionError("Không tìm thấy bản nháp AI để áp dụng.")
+
+    if cand.engine == "proofreading":
+        raise revisions.RevisionError("Candidate soát lỗi phải duyệt qua luồng soát lỗi riêng.")
 
     if not revisions.ENGINES.applies_to_translation(cand.engine):
         raise revisions.RevisionError(

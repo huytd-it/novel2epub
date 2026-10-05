@@ -41,7 +41,7 @@ RE_REPLACEMENT = re.compile(r"�")
 # Mojibake heuristic: sequence like Ã, Â followed by latin extended
 RE_MOJIBAKE = re.compile(r"[ÃÂ][\x80-\xBF]{1,2}")
 # Mixed zero-width
-RE_ZERO_WIDTH = re.compile(r"[​‌‍﻿]")
+RE_ZERO_WIDTH = re.compile(r"[\u200b\ufeff]")
 # Link/URL còn sót: watermark, quảng cáo, "đọc tiếp tại …" của trang nguồn.
 # Nhánh 1 bắt link có scheme/`www.`; nhánh 2 bắt tên miền trần (truyenfull.vn)
 # với TLD phổ biến, chặn hai đầu bằng lớp ký tự Latin mở rộng để không cắn vào
@@ -58,18 +58,49 @@ RE_HAN = re.compile(r"[㐀-䶿一-鿿豈-﫿\U00020000-\U0002EBEF]")
 # … và bản gom cụm liên tiếp để highlight (1 issue cho cả cụm, không phải mỗi ký tự)
 RE_HAN_CLUSTER = re.compile(r"[㐀-䶿一-鿿豈-﫿\U00020000-\U0002EBEF]+")
 # Double spaces (không count dòng trống)
-RE_DOUBLE_SPACE = re.compile(r"  +")
+RE_DOUBLE_SPACE = re.compile(r"[ \t]{2,}")
 # Space trước dấu câu .,!?;:)
-RE_SPACE_BEFORE_PUNCT = re.compile(r"\s+[,.!?;:)]")
+RE_SPACE_BEFORE_PUNCT = re.compile(r"(?<=[^\W_])[ \t]+[,.!?;:)]")
 # Thiếu space sau dấu câu ,.!?;: khi tiếp chữ (ví dụ "xin chào,bạn")
-RE_MISSING_SPACE_AFTER = re.compile(r"[,.!?;:][^\s\d\W]")
+RE_MISSING_SPACE_AFTER = re.compile(r"[,.!?;:][a-zA-ZÀ-ỹ]")
 # Từ lặp liên tiếp — chỉ chữ cái (không \w) để khớp `\p{L}` phía client và
 # tránh dính số/underscore
 RE_REPEATED_WORD = re.compile(
     r"(?<![^\W\d_])([^\W\d_]+)\s+\1(?![^\W\d_])", re.IGNORECASE | re.UNICODE
 )
 # Trailing spaces cuối dòng
-RE_TRAILING_SPACE = re.compile(r" +$")
+RE_TRAILING_SPACE = re.compile(r"[ \t]+(?=\r?$)")
+RE_HTML = re.compile(r"</?[A-Za-z][^<>\n]*>|&(?:#[0-9]+|#x[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]+);")
+RE_TOKEN = re.compile(r"[a-zA-ZÀ-ỹ]+(?:\.[a-zA-ZÀ-ỹ]+)*")
+RE_ABBREVIATION = re.compile(r"\b(?:v\.v\.?|v\.d\.?|ThS|PGS|TS|TP|UBND|CPU|AI)\b|(?<![a-zA-ZÀ-ỹ])(?:[A-Z]{2,6}|[A-Za-z](?:\.[A-Za-z])+(?:\.)?)(?![a-zA-ZÀ-ỹ])")
+RE_EFFECT = re.compile(r"\b(?:ầm|rầm|bùm|bốp|rẹt|leng keng|ting|đùng|soạt|mỉm cười|thở dài)\b", re.IGNORECASE)
+RE_ROMAN = re.compile(r"M{0,3}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})")
+
+
+def spelling_suspect(token: str) -> bool:
+    """Cảnh báo nhẹ, không phải chẩn đoán chính tả hay từ điển."""
+    return len(token) >= 3 and bool(re.search(
+        r"([aeiou])\1{2,}|[qx][bcdfghjklmnpqrstvwxz]{2,}|[bcdfghjklmnpqrstvwxz]{4,}",
+        token, re.IGNORECASE,
+    ))
+
+
+ALGORITHM_CODES = frozenset({"hash_heading", "code_fence", "weird_dots", "repeated_punct", "control_char", "zero_width", "double_space", "space_before_punct", "trailing_space", "missing_space_after", "html_entity"})
+AI_CODES = frozenset({"han_remaining", "replacement_char", "mojibake", "repeated_word", "url", "spelling"})
+INFORMATION_CODES = frozenset({"abbreviation", "effect_sound", "short", "skipped"})
+
+
+def supported_method(code: str) -> str:
+    return "algorithm" if code in ALGORITHM_CODES else "ai" if code in AI_CODES else "informational" if code in INFORMATION_CODES else "manual"
+
+
+def validation_contract() -> list[dict]:
+    rows = [{"code": c.code, "label": c.label, "level": c.level, "location": "text", "method": supported_method(c.code), "reason": c.hint} for c in CONTENT_CHECKS]
+    for code, label in (("missing_title", "Thiếu tiêu đề"), ("title_format", "Tiêu đề sai mẫu"), ("empty_content", "Nội dung rỗng"), ("symbol_only", "Nội dung không đọc được"), ("identical_content", "Trùng nội dung"), ("number_missing", "Thiếu số chương"), ("number_duplicate", "Trùng số chương"), ("number_descending", "Số chương giảm")):
+        rows.append({"code": code, "label": label, "level": "error" if code in {"missing_title", "empty_content"} else "warning", "location": "title" if code in {"missing_title", "title_format"} else "chapter", "method": "manual", "reason": "Kiểm tra tay; AI chỉ đề xuất khi có hướng dẫn chi tiết, không suy đoán nội dung thiếu."})
+    for code, label, level in (("not_ready", "Chưa sẵn sàng build", "error"), ("too_short", "Nội dung quá ngắn", "warning"), ("short", "Nội dung ngắn", "info"), ("skipped", "Chương bị bỏ qua", "info"), ("duplicate", "Trùng URL/tiêu đề", "warning")):
+        rows.append({"code": code, "label": label, "level": level, "location": "chapter", "method": supported_method(code), "reason": "Cùng kiểm tra trước Build EPUB; kiểm tra nguồn, không tự khôi phục nội dung."})
+    return rows
 
 # Metadata thresholds
 MIN_DESCRIPTION_LEN = 20
@@ -107,6 +138,10 @@ class ContentCheck:
 
 
 CONTENT_CHECKS: tuple[ContentCheck, ...] = (
+    ContentCheck("html_entity", "warning", RE_HTML, "HTML/entity còn sót", "Bóc thẻ, giữ nội dung hiển thị", "Có {n} HTML/entity"),
+    ContentCheck("abbreviation", "info", RE_ABBREVIATION, "Từ viết tắt", "Chỉ đánh dấu; có thể hợp lệ", "Có {n} từ viết tắt"),
+    ContentCheck("spelling", "warning", RE_TOKEN, "Từ nghi vấn chính tả", "Heuristic; kiểm tra toàn từ theo ngữ cảnh", "Có {n} từ nghi vấn"),
+    ContentCheck("effect_sound", "info", RE_EFFECT, "Nhãn hiệu ứng/âm thanh", "Chỉ đánh dấu, không mặc định là rác", "Có {n} nhãn hiệu ứng/âm thanh"),
     ContentCheck(
         "hash_heading", "warning", RE_HASH_HEADING,
         "Dòng bắt đầu bằng ##", "Tiêu đề không nên có ##",
@@ -114,7 +149,7 @@ CONTENT_CHECKS: tuple[ContentCheck, ...] = (
     ),
     ContentCheck(
         "code_fence", "warning", RE_CODE_FENCE,
-        "Chứa ```", "Xóa khối code",
+        "Chứa ```", "Bỏ dấu ```; giữ nguyên văn bản bên trong",
         "Có {n} lần ``` (code fence markdown)",
     ),
     ContentCheck(
@@ -201,8 +236,15 @@ def scan_content(text: str) -> tuple[list[str], list[tuple[ContentCheck, int, re
     hits: list[tuple[ContentCheck, int, re.Match[str]]] = []
     for para_index, para in enumerate(paras):
         url_spans = [m.span() for m in RE_URL.finditer(para)]
+        abbreviation_spans = [m.span() for m in RE_ABBREVIATION.finditer(para)]
         for check in CONTENT_CHECKS:
             matches = [m for m in check.pattern.finditer(para) if m.group(0) not in check.ignore]
+            if check.code == "spelling":
+                matches = [m for m in matches if spelling_suspect(m.group())]
+            if check.code == "abbreviation":
+                matches = [m for m in matches if not RE_ROMAN.fullmatch(m.group())]
+            if check.code == "missing_space_after":
+                matches = [m for m in matches if not any(s <= m.start() and m.end() <= e for s, e in abbreviation_spans)]
             if check.code != "url":
                 # Dấu chấm/space bên trong link không phải lỗi chính tả —
                 # bản thân cái link đã được báo bằng mã `url`.
@@ -216,13 +258,13 @@ def scan_content(text: str) -> tuple[list[str], list[tuple[ContentCheck, int, re
     return paras, hits
 
 
-def check_content(text: str) -> list[dict[str, str]]:
+def check_content(text: str, *, _scanned=None) -> list[dict[str, str]]:
     """Bản gộp theo chương cho trang Build — cùng luật với bản highlight per-para."""
-    _paras, hits = scan_content(text)
+    _paras, hits = _scanned if _scanned is not None else scan_content(text)
     counts: dict[str, int] = {}
     for check, _para_index, _match in hits:
         counts[check.code] = counts.get(check.code, 0) + 1
-    return [
+    out = [
         {
             "code": check.code,
             "level": check.level,
@@ -232,6 +274,46 @@ def check_content(text: str) -> list[dict[str, str]]:
         for check in CONTENT_CHECKS
         if counts.get(check.code)
     ]
+    if text.strip() and not any(c.isalnum() for c in text):
+        out.append({"code": "symbol_only", "level": "warning", "message": "Nội dung không đọc được/chỉ ký hiệu", "hint": "Kiểm tra tay, không suy đoán khôi phục"})
+    return out
+
+
+def validate_book(chapters: list[dict]) -> dict:
+    """On demand: EXACT trimmed duplicates; exclude skipped, numbering min–max."""
+    chapters = [ch for ch in chapters if not ch.get("skipped")]
+    import hashlib
+    buckets: dict[str, list[tuple[int, str]]] = {}
+    numbers: dict[int, list[int]] = {}
+    issues: list[dict] = []
+    previous: tuple[int, int] | None = None
+    for ch in chapters:
+        idx, text = ch["index"], (ch.get("text") or "").strip()
+        if text:
+            digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+            same = [i for i, value in buckets.get(digest, []) if value == text]
+            if same:
+                issues.append({"code": "identical_content", "level": "warning", "index": idx, "related_indexes": same, "message": f"Nội dung trùng chính xác chương {same}"})
+            buckets.setdefault(digest, []).append((idx, text))
+        if ch.get("skipped"):
+            continue
+        match = re.search(r"(?:Chương|Chapter)\s+(\d+)\b", ch.get("title") or "", re.IGNORECASE)
+        if not match:
+            continue
+        number = int(match[1])
+        numbers.setdefault(number, []).append(idx)
+        if previous and number < previous[1]:
+            issues.append({"code": "number_descending", "level": "warning", "index": idx, "related_indexes": [previous[0]], "message": f"Số chương giảm {previous[1]} → {number}"})
+        previous = (idx, number)
+    for number, indexes in numbers.items():
+        if len(indexes) > 1:
+            issues.append({"code": "number_duplicate", "level": "warning", "index": indexes[0], "related_indexes": indexes[1:], "message": f"Trùng số chương {number}"})
+    # Khoảng thiếu thay vì dựng hàng triệu object nếu tiêu đề bị sai số.
+    ordered = sorted(numbers)
+    for left, right in zip(ordered, ordered[1:]):
+        if right > left + 1:
+            issues.append({"code": "number_missing", "level": "warning", "index": numbers[right][0], "from": left + 1, "to": right - 1, "message": f"Thiếu số chương {left + 1}–{right - 1}; không suy đoán khôi phục"})
+    return {"issues": issues, "checked": len(chapters)}
 
 
 def validate_metadata(cfg, manifest) -> list[dict[str, Any]]:
@@ -258,7 +340,7 @@ def validate_metadata(cfg, manifest) -> list[dict[str, Any]]:
     return out
 
 
-def validate_chapter(ch, storage: Storage, publication_text: str | None = None) -> dict[str, Any]:
+def validate_chapter(ch, storage: Storage, publication_text: str | None = None, *, title_override: str | None = None, _scanned=None) -> dict[str, Any]:
     """Validate 1 chương, trả {index, title, issues: [...], stats}."""
     title = storage.publication_title(ch) if hasattr(storage, "publication_title") else ch.title
     # Resolve text to validate: prefer publication_text (what goes into EPUB)
@@ -271,6 +353,8 @@ def validate_chapter(ch, storage: Storage, publication_text: str | None = None) 
             title = pv.title if pv and pv.title else ch.title
         except Exception:
             text = ""
+    if title_override is not None:
+        title = title_override
 
     issues: list[dict[str, Any]] = []
 
@@ -305,7 +389,7 @@ def validate_chapter(ch, storage: Storage, publication_text: str | None = None) 
                 issues.append({"code": "short", "level": "info", "message": f"Ngắn ({wc} từ)", "hint": ""})
 
             # Cùng bộ luật với trang Chương, chỉ khác là gộp theo mã lỗi
-            issues.extend(check_content(text))
+            issues.extend(check_content(text, _scanned=_scanned))
 
     # stats
     wc = count_words(text) if text else 0
@@ -320,7 +404,7 @@ def validate_chapter(ch, storage: Storage, publication_text: str | None = None) 
     }
 
 
-def validate_chapter_detailed(text: str, title: str = "") -> dict[str, Any]:
+def validate_chapter_detailed(text: str, title: str = "", *, _scanned=None) -> dict[str, Any]:
     """Chi tiết per-para với vị trí highlight — dùng cho tab Lỗi trong ChapterPage.
 
     Trả {issues: [{code, level, message, hint, paraIndex, start, end, snippet}], summary, perPara}
@@ -335,15 +419,18 @@ def validate_chapter_detailed(text: str, title: str = "") -> dict[str, Any]:
         if not (title or "").strip():
             issues.append({"code": "missing_title", "level": "error", "message": "Thiếu tiêu đề", "hint": "Dùng 'Chuẩn hóa TOC'", "paraIndex": -1, "start": 0, "end": 0, "snippet": ""})
         elif not title_format_ok(title):
-            issues.append({"code": "title_format", "level": "warning", "message": f"Tiêu đề sai mẫu: {title[:60]!r}", "hint": "Mẫu đúng: 'Chương N: Tên chương'", "paraIndex": -1, "start": 0, "end": len(title), "snippet": title[:60]})
+            issues.append({"code": "title_format", "level": "warning", "message": f"Tiêu đề sai mẫu: {title[:60]!r}", "hint": "Mẫu đúng: 'Chương N: Tên chương'", "paraIndex": -1, "start": 0, "end": len(title.encode("utf-16-le")) // 2, "snippet": title[:60]})
 
     if not text or not text.strip():
         if text is not None and not text.strip():
             issues.append({"code": "empty_content", "level": "error", "message": "Nội dung rỗng", "hint": "Crawl/dịch lại", "paraIndex": -1, "start": 0, "end": 0, "snippet": ""})
         summary = {"error": sum(1 for i in issues if i["level"] == "error"), "warning": sum(1 for i in issues if i["level"] == "warning"), "info": sum(1 for i in issues if i["level"] == "info"), "total": len(issues)}
+        decorate_issues(issues)
         return {"issues": issues, "summary": summary, "perPara": {}, "title": title}
 
-    paras, hits = scan_content(text)
+    paras, hits = _scanned if _scanned is not None else scan_content(text)
+    if not any(c.isalnum() for c in text):
+        issues.append({"code": "symbol_only", "level": "warning", "message": "Nội dung không đọc được/chỉ ký hiệu", "hint": "Kiểm tra tay, không suy đoán khôi phục", "paraIndex": -1, "start": 0, "end": 0, "snippet": ""})
     for check, para_index, match in hits:
         para = paras[para_index]
         start, end = match.span()
@@ -353,13 +440,12 @@ def validate_chapter_detailed(text: str, title: str = "") -> dict[str, Any]:
             "message": check.label,
             "hint": check.hint,
             "paraIndex": para_index,
-            "start": start,
-            "end": end,
+            "start": len(para[:start].encode("utf-16-le")) // 2,
+            "end": len(para[:end].encode("utf-16-le")) // 2,
             "snippet": para[max(0, start - 12): min(len(para), end + 12)].strip(),
         })
-    # limit total
-    if len(issues) > DETAILED_ISSUE_LIMIT:
-        issues = issues[:DETAILED_ISSUE_LIMIT]
+    # Không cắt danh sách: phạm vi sửa và số lượng phải là tập đầy đủ.
+    decorate_issues(issues)
 
     per_para: dict[int, list[dict[str, Any]]] = {}
     for iss in issues:
@@ -369,10 +455,32 @@ def validate_chapter_detailed(text: str, title: str = "") -> dict[str, Any]:
     return {"issues": issues, "summary": summary, "perPara": per_para, "title": title, "paraCount": len(paras)}
 
 
+def decorate_issues(issues: list[dict]) -> None:
+    for issue in issues:
+        code = issue["code"]
+        issue.update(method=supported_method(code), reason=issue.get("hint", ""), location="title" if code in {"missing_title", "title_format"} else "text" if issue.get("paraIndex", -1) >= 0 else "chapter")
+
+
+def chapter_validation_report(ch, storage: Storage, publication=None, *, text_override=None, title_override=None) -> dict:
+    """Chung cho Build và soát lỗi: summary Build + vị trí từ cùng CONTENT_CHECKS."""
+    text = text_override if text_override is not None else publication.text if publication else ""
+    if ch.skipped:
+        text = ""
+    scanned = scan_content(text)
+    summary = validate_chapter(ch, storage, publication_text=text if publication or ch.skipped or text_override is not None else None, title_override=title_override, _scanned=scanned)
+    detailed = validate_chapter_detailed(text, summary["title"], _scanned=scanned)["issues"] if publication or text_override is not None else []
+    allowed = {issue["code"] for issue in summary["issues"]}
+    issues = [issue for issue in detailed if issue["code"] in allowed]
+    present = {issue["code"] for issue in issues}
+    issues.extend({**issue, "paraIndex": -1, "start": 0, "end": 0, "snippet": ""} for issue in summary["issues"] if issue["code"] not in present)
+    decorate_issues(issues)
+    return {"index": ch.index, "title": summary["title"], "issues": issues, "build": summary}
+
+
 def build_preview_payload(cfg, storage: Storage, *, sample_limit: int = 12) -> dict[str, Any]:
     """Build toàn bộ payload cho trang Build: stats + metadata + validation + preview.
 
-    Không gọi model, chỉ đọc DB/manifest.
+    Không gọi model hoặc sửa nội dung; lưu projection lỗi hiện tại trong DB.
     """
     from pathlib import Path
 
@@ -423,6 +531,10 @@ def build_preview_payload(cfg, storage: Storage, *, sample_limit: int = 12) -> d
     # Metadata validation
     meta_issues = validate_metadata(cfg, manifest)
 
+    # Same persisted, untruncated diagnostics as the proofreading screen.
+    from .content_validation import refresh_book
+    saved = refresh_book(storage)
+    saved_by_index = {row["index"]: row for row in saved["chapters"]}
     # Per-chapter validation
     chapter_reports: list[dict[str, Any]] = []
     word_total = 0
@@ -439,10 +551,15 @@ def build_preview_payload(cfg, storage: Storage, *, sample_limit: int = 12) -> d
     will_exclude = 0
 
     for ch in chapters:
+        if ch.skipped:
+            will_exclude += 1
+            continue
         # Use publication_version to get text that will be in EPUB
         pv = storage.publication_version(ch)
         text = pv.text if pv else ""
-        report = validate_chapter(ch, storage, publication_text=text if not ch.skipped and pv else ("" if ch.skipped else None))
+        current = saved_by_index[ch.index]
+        report = {**current["build"], "issues": list(current["build"]["issues"])}
+        report["issues"].extend(i for i in current["issues"] if i["code"] in {"identical_content", "number_missing", "number_duplicate", "number_descending"})
         # If skipped, we already have issues but don't count towards word totals?
         # For skipped, publication_text is empty on purpose
         if pv is not None:

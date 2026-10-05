@@ -85,13 +85,14 @@ export function ChapterListDrawer({
   onSelectAll,
   onClearSelected,
   onBulkLocalMt,
-  applyEbookFilters,
-  onToggleApplyEbookFilters,
   sharedFilters,
   validation,
   onScrollToPara,
   width,
   onWidthChange,
+  proofreadingControls,
+  onProofreadSelected,
+  validationError,
 }: {
   open: boolean;
   onClose: () => void;
@@ -125,20 +126,25 @@ export function ChapterListDrawer({
   onSelectAll: (indexes: number[]) => void;
   onClearSelected: () => void;
   onBulkLocalMt: () => void;
-  applyEbookFilters: boolean;
-  onToggleApplyEbookFilters: () => void;
-  /** Bộ lọc tái dùng từ trang Sách — khi có, thay base của drawer để danh
-       sách này lọc cùng tập chương như bảng trên EbookPage. */
+  /** Bộ lọc từ trang Sách (khóa `ebooks.<slug>.chapterFilters` trong
+       localStorage, giống Tổng quan) — luôn áp dụng làm base cho danh sách. */
   sharedFilters?: ChapterFilters | null;
   validation?: { summary: { error: number; warning: number; info: number; total: number }; issues: { code: string; level: string; message: string; hint?: string; paraIndex: number; start: number; end: number; snippet: string }[] };
   onScrollToPara?: (paraIndex: number, start: number, end: number) => void;
   width?: number;
   onWidthChange?: (w: number) => void;
+  proofreadingControls?: ReactNode;
+  onProofreadSelected?: () => void;
+  validationError?: string | null;
 }) {
   const [search, setSearch] = useState("");
+  // Base là bộ lọc trang Sách trong localStorage (giống Tổng quan). Ô tìm của
+  // drawer thu hẹp thêm trên nền đó — để trống thì giữ `search` của trang Sách.
   const base = sharedFilters ?? DEFAULT_FILTERS;
-  // Ô tìm tiêu đề của drawer luôn hoạt động, chồng lên bộ lọc đang dùng.
-  const filters = useMemo(() => ({ ...base, search }), [base, search]);
+  const filters = useMemo(
+    () => ({ ...base, ...(search ? { search } : {}) }),
+    [base, search],
+  );
   const { data, isFetching, isPending, isError, error, fetchNextPage, hasNextPage, refetch } =
     useInfiniteChapters(slug, filters, 100);
 
@@ -366,15 +372,6 @@ export function ChapterListDrawer({
                 placeholder="Tìm tiêu đề chương"
                 className="w-full"
               />
-              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] opacity-70">
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-xs"
-                  checked={applyEbookFilters}
-                  onChange={onToggleApplyEbookFilters}
-                />
-                Áp dụng bộ lọc của trang Sách
-              </label>
               <div className="flex items-center justify-between gap-2 text-[11px]">
                 <button
                   type="button"
@@ -397,7 +394,10 @@ export function ChapterListDrawer({
 
           <div ref={listRootRef} className="scroll-slim flex-1 overflow-y-auto">
             {mode === "errors" ? (
-              <ErrorsPanel validation={validation} onScrollToPara={onScrollToPara} />
+              <div className="flex h-full min-h-0 flex-col">
+                {proofreadingControls}
+                {validationError ? <p role="alert" className="p-3 text-sm text-error">{validationError}</p> : <ErrorsPanel validation={validation} onScrollToPara={onScrollToPara} />}
+              </div>
             ) : mode === "search" ? (
               <FindReplacePanel
                 find={find}
@@ -424,7 +424,7 @@ export function ChapterListDrawer({
               <SkeletonTable rows={8} cols={2} />
             ) : list.length === 0 ? (
               <p className="px-3 py-6 text-center text-xs opacity-50">
-                Không có chương nào khớp.
+                Không có chương nào khớp bộ lọc từ trang Sách.
               </p>
             ) : (
               <>
@@ -513,6 +513,7 @@ export function ChapterListDrawer({
               <Button size="sm" variant="primary" className="flex-1" onClick={onBulkLocalMt}>
                 Xem trước Local MT ({num(selectedIndexes.size)})
               </Button>
+              {onProofreadSelected && <Button size="sm" onClick={onProofreadSelected}>Soát lỗi ({num(selectedIndexes.size)})</Button>}
             </div>
           ) : null}
         </aside>
@@ -1024,8 +1025,8 @@ function ErrorsPanel({
   if (validation.summary.total === 0) {
     return (
       <div className="px-3 py-6 text-center">
-        <p className="text-sm font-medium text-success">Không có lỗi</p>
-        <p className="mt-1 text-xs opacity-50">Chương này không phát hiện vấn đề về chính tả, mã hóa hay dấu lạ.</p>
+        <p className="text-sm font-medium">Không có vấn đề khớp mã đang lọc</p>
+        <p className="mt-1 text-xs opacity-50">Bỏ chọn mã để xem tất cả. Heuristic không bảo đảm chương hoàn toàn sạch lỗi.</p>
       </div>
     );
   }

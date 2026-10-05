@@ -519,6 +519,26 @@ def test_ai_retranslate_reprocesses_pending_override(tmp_path, monkeypatch):
     ]
 
 
+def test_ai_curate_all_without_pending(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.upsert_glossary_entry("张三", "Trương Sai", "chú thích độc giả")
+    from novel2epub import openai_client
+
+    prompts = []
+    def chat(ai_cfg, prompt):
+        prompts.append(prompt)
+        return json.dumps([{"op": "update", "original_source": "张三", "source": "张三",
+                            "target": "Trương Tam", "reason": "Sửa phiên âm"}])
+    monkeypatch.setattr(openai_client, "run_chat", chat)
+    client = _client(cfg, monkeypatch)
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={})
+    assert res.status_code == 200
+    assert res.json()["requested"] == 1
+    assert len(prompts) == 1
+    assert storage.read_glossary_entries("names.txt") == [("张三", "Trương Tam", "chú thích độc giả")]
+
+
 def test_ai_reprocess_pending_auto_approves_whole_queue_in_one_job(tmp_path, monkeypatch):
     """1 click tự duyệt cả hàng chờ: AI rà soát từng đề xuất theo quy tắc dịch
     nghiêm ngặt, kết quả ghi THẲNG vào glossary + gỡ khỏi hàng chờ (kể cả mục
@@ -543,7 +563,7 @@ def test_ai_reprocess_pending_auto_approves_whole_queue_in_one_job(tmp_path, mon
     )
     client = _client(cfg, monkeypatch)
 
-    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": ""})
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": "", "curate_all": False})
 
     assert res.status_code == 200
     assert res.json() == {"started": True, "requested": 2}
@@ -577,7 +597,7 @@ def test_ai_reprocess_pending_keeps_unanswered_in_queue(tmp_path, monkeypatch):
     )
     client = _client(cfg, monkeypatch)
 
-    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": ""})
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": "", "curate_all": False})
 
     assert res.status_code == 200
     pending = storage.read_extra_json("glossary_pending")
@@ -611,7 +631,7 @@ def test_ai_reprocess_pending_guard_holds_unsafe_results(tmp_path, monkeypatch):
     )
     client = _client(cfg, monkeypatch)
 
-    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": ""})
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": "", "curate_all": False})
 
     assert res.status_code == 200
     assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {
@@ -818,6 +838,60 @@ def test_bulk_delete_rejects_empty_list(tmp_path, monkeypatch):
     client = _client(cfg, monkeypatch)
     res = client.post("/api/ebooks/t/glossary/entries/delete", json={"sources": ["  "]})
     assert res.status_code == 400
+
+
+# ----- route: xóa cột Ghi chú (giữ Hán/Việt) -----
+
+def test_clear_notes_all_keeps_source_target(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_entries(
+        "names.txt", [("萧炎", "Tiêu Viêm", "chính"), ("斗气", "Đấu khí", "")]
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/notes/clear", json={"all": True})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["cleared"] == 1
+    assert data["total"] == 2
+    assert storage.read_glossary_entries("names.txt") == [
+        ("萧炎", "Tiêu Viêm", ""),
+        ("斗气", "Đấu khí", ""),
+    ]
+
+
+def test_clear_notes_selected_only_and_pending(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_entries(
+        "names.txt", [("萧炎", "Tiêu Viêm", "n1"), ("斗气", "Đấu khí", "n2")]
+    )
+    storage.update_extra_json(
+        "glossary_pending",
+        lambda _raw: [
+            {
+                "source": "萧炎",
+                "existing_target": "Tiêu Viêm",
+                "target": "Tiêu Viêm mới",
+                "chapter_index": 0,
+                "note": "pn1",
+            }
+        ],
+    )
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/notes/clear", json={"sources": ["萧炎"]})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["cleared"] == 1
+    assert data["pending_cleared"] == 1
+    assert storage.read_glossary_entries("names.txt") == [
+        ("萧炎", "Tiêu Viêm", ""),
+        ("斗气", "Đấu khí", "n2"),
+    ]
 
 
 # ----- route: nhập glossary từ AI (merge) -----
@@ -1637,7 +1711,7 @@ def test_ai_reprocess_pending_laya_poc_failure_never_breaks_job(tmp_path, monkey
     )
     client = _client(cfg, monkeypatch)
 
-    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": ""})
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": "", "curate_all": False})
 
     assert res.status_code == 200
     assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {"叶凡": "Diệp Phàm"}

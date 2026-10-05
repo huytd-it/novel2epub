@@ -74,6 +74,34 @@ Tên file thực tế có thể chi tiết hơn; dùng `pytest --collect-only -q
 
 ## Kiểm Tra Thủ Công
 
+### Kiểm Thử Soát Lỗi
+
+```sh
+pytest tests/test_proofreading.py tests/test_proofreading_routes.py tests/test_build_validation.py tests/test_chapter_versions.py tests/test_baseline_backfill.py tests/test_db_schema.py -q
+npm --prefix frontend run typecheck
+cd frontend
+npx vitest run src/lib/validation.test.ts src/components/chapter/ProofreadingPanel.test.tsx --environment node --pool forks --maxWorkers 1 --minWorkers 1
+npm run build
+```
+
+`tests/fixtures/proofreading_validation.json` dùng chung Python/JS: mã detector,
+Unicode/newline/UTF-16 và false positive. Đổi luật phải cập nhật cả
+`build_validation.py` và `frontend/src/lib/validation.ts`. Domain thuần
+`proofreading.py` không rebuild từ paragraphs đã lọc; thuật toán phải idempotent,
+giữ dòng trống/CRLF, `.../…/!!!/???` và ZWJ/ZWNJ có ý nghĩa.
+
+`proofreading_service.py` điều phối publication resolver, exact confirmation,
+draft hash, candidate pending TTL 14 ngày và ghi canonical. AI chỉ dùng mock trong
+test; offsets edits là **Unicode codepoints**, offsets highlight API là **UTF-16**.
+Từ chối malformed/rỗng/wrong original/outside scope/overlap; full diff frontend dựng
+từ edits O(n), không dùng LCS word cả chương hoặc cắt 2000 ký tự. Revision/hash/nhánh
+publication/title/draft đổi thì tạo lại, không merge hoặc tự retry.
+
+Tái sử dụng `ai_revisions`, `ebook_extra_json`, queue SQLite và history hiện hành,
+không cần cột/schema mới. Baseline chỉ lazy-initialize đúng index/nhánh khi người dùng
+xác nhận ghi; baseline đã có nhưng diverged thì fail closed. Test nâng schema DB cũ
+phải giữ raw, hai nhánh, title/revision, history và candidate legacy.
+
 1. Tạo DB tạm bằng `scripts/init_db.py --db <path>`.
 2. Khởi động Web UI với `NOVEL2EPUB_DB` trỏ đến DB tạm.
 3. Tạo ebook thử, lấy TOC và crawl 1-2 chương.

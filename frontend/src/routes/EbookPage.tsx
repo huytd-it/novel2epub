@@ -20,6 +20,8 @@ import {
   chapterOrdinal,
   ebookKey,
   loadChapterFilters,
+  loadProofreadingCode,
+  PROOFREADING_CODE_KEY,
   rowLabel,
   rowTone,
   rowWarnings,
@@ -29,6 +31,9 @@ import {
   type ChapterRow,
 } from "@/lib/ebook";
 import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
+import { ProofreadingPanel, type ProofreadingDraft } from "@/components/chapter/ProofreadingPanel";
+import { ProofreadingScan } from "@/components/chapter/ProofreadingScan";
+import type { ProofreadingScanReport, ProofreadingScanRow } from "@/lib/chapter";
 import { ChapterLegend, ChapterStrip } from "@/components/ChapterStrip";
 import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
@@ -55,6 +60,11 @@ const PAGE_SIZES = [25, 50, 100, 200, 500] as const;
 const DEFAULT_PAGE_SIZE = 100;
 const PAGE_KEY = (slug: string) => `ebooks.${slug}.chapterPage`;
 const PAGE_SIZE_KEY = (slug: string) => `ebooks.${slug}.chapterPageSize`;
+/** Nạp mã lỗi đã lọc cho truyện (tối đa một mã). */
+function loadProofreadingCodes(slug: string): string[] {
+  const code = loadProofreadingCode(slug);
+  return code ? [code] : [];
+}
 
 /** Nạp trang đã lưu cho truyện. */
 function loadPage(slug: string): number {
@@ -1107,11 +1117,13 @@ function BatchBar({
   selected,
   onDone,
   onClear,
+  onProofread,
 }: {
   slug: string;
   selected: number[];
   onDone: () => void;
   onClear: () => void;
+  onProofread: () => void;
 }) {
   const toast = useToast();
   const [pending, setPending] = useState<BatchAction | null>(null);
@@ -1329,6 +1341,9 @@ function BatchBar({
                 onClick={() => setCleanupHanOpen(true)}
               >
                 Dọn chữ Hán
+              </Button>
+              <Button size="sm" onClick={onProofread} title="Soát các mã lỗi đã chọn; xác nhận thuật toán rồi duyệt FULL diff AI toàn chương">
+                Soát lỗi
               </Button>
             </div>
 
@@ -1790,11 +1805,13 @@ function ChapterTableRow({
   checked,
   showZhTitle,
   onSelect,
+  proofreading,
 }: {
   slug: string;
   row: ChapterRow;
   checked: boolean;
   showZhTitle: boolean;
+  proofreading?: ProofreadingScanRow;
   onSelect: (index: number, event: ReactMouseEvent, source: "row" | "checkbox") => void;
 }) {
   return (
@@ -1842,7 +1859,14 @@ function ChapterTableRow({
           </div>
           {/* Chương trùng và tiêu đề sai mẫu đã có badge ở cột trạng thái; ở đây
               chỉ đánh dấu tiêu đề lỗi ngay tại chỗ đọc để khỏi phải liếc ngang. */}
-          {!row.title_format_ok ? (
+          {!row.skipped && proofreading?.issues.length ? (
+            <Link to={`/ebooks/${encodeURIComponent(slug)}/chapters/${row.index}?edit=1`}
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-selector text-error hover:bg-error/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-error"
+              aria-label={`Sửa lỗi chương ${row.index}`}
+              title={`${[...new Set(proofreading.issues.map(issue => issue.code))].join(", ")}${proofreading.stale ? " · Cảnh báo có thể cũ, cần rà lại" : ""}`}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6m0 3v1" /></svg>
+            </Link>
+          ) : !row.skipped && !row.title_format_ok ? (
             <span
               title='Tiêu đề sai mẫu "Chương N[: tên chương]" hoặc còn chữ Hán.'
               className="shrink-0 text-[11px] text-error"
@@ -1887,6 +1911,10 @@ function ChapterTableRow({
 
 export function EbookPage() {
   const { slug = "" } = useParams();
+  return <EbookPageContent key={slug} slug={slug} />;
+}
+
+function EbookPageContent({ slug }: { slug: string }) {
   const navigate = useNavigate();
   const client = useQueryClient();
   const toast = useToast();
@@ -1897,6 +1925,25 @@ export function EbookPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [lastToggled, setLastToggled] = useState<number | null>(null);
   const [readerPreview, setReaderPreview] = useState<ReaderPublishPreview | null>(null);
+  const [proofreadingCodes, setProofreadingCodes] = useState<string[]>(() => loadProofreadingCodes(slug));
+  const [proofreadingReport, setProofreadingReport] = useState<ProofreadingScanReport | null>(null);
+  const proofreadingByIndex = useMemo(() => new Map(proofreadingReport?.chapters.map(row => [row.index, row]) ?? []), [proofreadingReport]);
+  useEffect(() => { if (proofreadingReport) client.invalidateQueries({ queryKey: ["chapters", slug] }); }, [proofreadingReport, client, slug]);
+  const [proofreadingRunCodes, setProofreadingRunCodes] = useState<string[]>([]);
+  const [proofreadingOpen, setProofreadingOpen] = useState(false);
+  const [proofreadingRunning, setProofreadingRunning] = useState(false);
+  const [proofreadingIndexes, setProofreadingIndexes] = useState<number[]>([]);
+  // Trang sách không có editor/draft. Context chỉ khóa đúng truyện; không gửi
+  // nội dung giả vào API và không cho kết quả draft áp ngoài trang Chương.
+  const proofreadingContext = useMemo<ProofreadingDraft>(() => ({
+    slug, index: -1, text: "", title: "", branch: "", revision: 0, editing: false, generation: 0,
+  }), [slug]);
+  const openProofreading = () => {
+    if (proofreadingRunning) { setProofreadingOpen(true); return; }
+    setProofreadingIndexes([...selected]);
+    setProofreadingRunCodes(proofreadingCodes.length === 1 ? proofreadingCodes : []);
+    setProofreadingOpen(true);
+  };
 
   const previewReader = useMutation({
     mutationFn: () => api.get<ReaderPublishPreview>(`/api/ebooks/${slug}/publish/preview`),
@@ -1926,8 +1973,8 @@ export function EbookPage() {
   // `filters` khi đã bắt kịp để không tạo request thừa do queryKey đổi.
   const debouncedSearch = useDebouncedValue(filters.search);
   const queryFilters = useMemo(
-    () => (debouncedSearch === filters.search ? filters : { ...filters, search: debouncedSearch }),
-    [filters, debouncedSearch],
+    () => ({ ...filters, search: debouncedSearch, proofreading_code: proofreadingReport ? proofreadingCodes[0] || "*" : "" }),
+    [filters, debouncedSearch, proofreadingReport, proofreadingCodes],
   );
   const { data: page, isFetching, isPending: chaptersPending } = useChapters(
     slug,
@@ -1996,16 +2043,18 @@ export function EbookPage() {
     }
   }, [page, offset, pageSize]);
 
-  // Giữ bộ lọc + sắp xếp + trang + cỡ trang qua các lần vào lại trang truyện này.
+  // Giữ bộ lọc + sắp xếp + trang + cỡ trang + mã lỗi soát qua các lần vào lại trang truyện này.
   useEffect(() => {
     try {
       window.localStorage.setItem(CHAPTER_FILTERS_KEY(slug), JSON.stringify(filters));
       window.localStorage.setItem(PAGE_KEY(slug), String(offset));
       window.localStorage.setItem(PAGE_SIZE_KEY(slug), String(pageSize));
+      if (proofreadingCodes[0]) window.localStorage.setItem(PROOFREADING_CODE_KEY(slug), proofreadingCodes[0]);
+      else window.localStorage.removeItem(PROOFREADING_CODE_KEY(slug));
     } catch {
       // Quota đầy hoặc ẩn danh — bỏ qua, chỉ mất lần lưu này.
     }
-  }, [slug, filters, offset, pageSize]);
+  }, [slug, filters, offset, pageSize, proofreadingCodes]);
 
   const states = useMemo(() => decodeStrip(book?.strip ?? ""), [book?.strip]);
   const counts = useMemo(() => stripCounts(book?.counts ?? {}), [book?.counts]);
@@ -2057,6 +2106,15 @@ export function EbookPage() {
     client.invalidateQueries({ queryKey: queueKey });
     setSelected(new Set());
     setLastToggled(null);
+  };
+  const refreshProofreading = () => {
+    // Giữ checkbox và panel mounted khi job hoàn tất/duyệt candidate để người
+    // dùng còn xem FULL diff và báo cáo một phần; không gọi refresh() ở đây.
+    client.invalidateQueries({ queryKey: ebookKey(slug) });
+    client.invalidateQueries({ queryKey: ["chapters", slug] });
+    client.invalidateQueries({ queryKey: ["chapter", slug] });
+    client.invalidateQueries({ queryKey: queueKey });
+    client.invalidateQueries({ queryKey: ["content-validation", slug] });
   };
 
   if (isPending) {
@@ -2262,6 +2320,14 @@ export function EbookPage() {
 
         <FilterBar filters={filters} onChange={setFilters} />
 
+        <ProofreadingScan
+          slug={slug}
+          codes={proofreadingCodes}
+          onCodesChange={(codes) => { setProofreadingCodes(codes); setOffset(0); setLastToggled(null); }}
+          onReport={setProofreadingReport}
+          refreshWhileFixing={proofreadingRunning}
+        />
+
         {page ? (
           <TablePager
             offset={offset}
@@ -2329,6 +2395,7 @@ export function EbookPage() {
                     checked={selected.has(row.index)}
                     showZhTitle={filters.show_zh_title}
                     onSelect={selectRow}
+                    proofreading={proofreadingByIndex.get(row.index)}
                   />
                 ))}
               </tbody>
@@ -2363,12 +2430,28 @@ export function EbookPage() {
           slug={slug}
           selected={[...selected]}
           onDone={refresh}
+          onProofread={openProofreading}
           onClear={() => {
             setSelected(new Set());
             setLastToggled(null);
           }}
         />
       ) : null}
+      <ProofreadingPanel
+        open={proofreadingOpen}
+        onClose={() => setProofreadingOpen(false)}
+        slug={slug}
+        indexes={proofreadingIndexes}
+        codes={proofreadingRunCodes}
+        singleCode
+        onCodeChange={(code) => setProofreadingRunCodes(code ? [code] : [])}
+        onJobStateChange={setProofreadingRunning}
+        getDraft={() => proofreadingContext}
+        applyDraft={() => false}
+        onCommitted={refreshProofreading}
+        pendingCandidates={[]}
+        onGoto={(index) => navigate(`/ebooks/${slug}/chapters/${index}`)}
+      />
     </Page>
   );
 }

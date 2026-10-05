@@ -27,6 +27,7 @@ const WORKER_LABEL: Record<string, string> = {
   "local-mt": "local-mt",
   "ai-translate": "ai-translate",
   "ai-edit": "ai-edit",
+  validation: "Rà soát lỗi",
   build: "build",
   automation: "automation",
 };

@@ -25,6 +25,50 @@ def test_has_active_ebook_detects_pending_and_ignores_other_ebook():
     assert queue.has_active_ebook("book-b") is False
 
 
+def test_validation_starts_immediately_with_ai_edit_paused():
+    queue = JobQueue(workers={"ai-edit": 0})
+    ai = queue.enqueue("ai-edit", "edit", lambda log: None, ebook="book-a")
+    finished = threading.Event()
+    job = queue.enqueue("validation", "proofreading-scan", lambda log: finished.set(), ebook="book-a", lock_ebook=False)
+    assert finished.wait(5)
+    assert _wait_until(lambda: job.state == "done")
+    assert ai.state == "pending"
+    assert queue.snapshot()["workers"]["validation"] == 1
+
+
+def test_validation_worker_count_persists_from_queue_api(monkeypatch):
+    from types import SimpleNamespace
+    from app.routes.jobs import api_queue_update_workers
+    from novel2epub import config_writer
+    saved = []
+    monkeypatch.setattr(config_writer, "update_defaults", lambda path, data: saved.append(data))
+    queue = JobQueue(workers={"validation": 0})
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(job=SimpleNamespace(queue=queue))))
+    assert api_queue_update_workers(request, category="validation", count=2)["count"] == 2
+    assert saved == [{"queue": {"validation_workers": 2}}]
+
+
+def test_legacy_pending_scan_restores_to_validation_worker(tmp_path):
+    db_path = tmp_path / "queue.db"
+    conn = get_connection(db_path)
+    init_schema(conn)
+    spec = {"kind": "proofreading", "params": {"slug": "book-a", "scan": True}}
+    conn.execute(
+        "INSERT INTO job_queue_pending (id, category, step, label, ebook, spec_json, position) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("old-scan", "ai-edit", "proofreading-scan", "Scan", "", json.dumps(spec), 0),
+    )
+    conn.commit()
+    queue = JobQueue(workers={"ai-edit": 0}, db_path=db_path)
+    finished = threading.Event()
+    queue.register_kind("proofreading", lambda params: lambda log: finished.set())
+    assert queue.load_pending() == 1
+    assert finished.wait(5)
+    assert _wait_until(lambda: bool(queue.snapshot()["history"]))
+    restored = queue.snapshot()["history"][0]
+    assert restored["category"] == "validation" and restored["state"] == "done"
+    assert restored["lock_ebook"] is False
+
+
 def test_start_custom_accepts_display_label_separate_from_step():
     from app.job import JobRunner
 

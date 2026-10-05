@@ -221,6 +221,29 @@ export function useCleanGlossary(slug: string) {
   });
 }
 
+export interface ClearGlossaryNotesResult {
+  cleared: number;
+  total: number;
+  pending_cleared: number;
+  pending_total: number;
+}
+
+/** Xoá cột Ghi chú (giữ Hán/Việt): toàn bộ hoặc theo sources đã chọn. */
+export function useClearGlossaryNotes(slug: string) {
+  const client = useQueryClient();
+  const invalidate = useInvalidateGlossary(slug);
+  return useMutation({
+    mutationFn: (vars: { sources?: string[]; all?: boolean }) =>
+      api.post<ClearGlossaryNotesResult>(`/api/ebooks/${slug}/glossary/notes/clear`, {
+        body: vars.all ? { all: true } : { sources: vars.sources ?? [] },
+      }),
+    onSuccess: () => {
+      invalidate();
+      client.invalidateQueries({ queryKey: pendingKey(slug) });
+    },
+  });
+}
+
 export function useExportGlossary(slug: string) {
   return useMutation({
     mutationFn: () => api.post<{ text: string; count: number }>(`/api/ebooks/${slug}/glossary/export`),
@@ -256,15 +279,14 @@ export function useApprovePending(slug: string) {
   });
 }
 
-/** AI xử lý lại TOÀN BỘ hàng chờ duyệt trong MỘT job nền — kết quả thay hàng
- * chờ cũ cùng source, KHÔNG ghi thẳng vào glossary. */
+/** CRUD toàn glossary + hàng chờ theo từng lô, tự ghi và lan truyền bản dịch. */
 export function useGlossaryAiReprocessPending(slug: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (vars: { instruction: string }) =>
       api.post<{ started: boolean; requested: number }>(
         `/api/ebooks/${slug}/glossary/ai/reprocess-pending`,
-        { body: vars },
+        { body: { ...vars, curate_all: true } },
       ),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["queue"] });

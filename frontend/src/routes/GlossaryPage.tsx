@@ -8,6 +8,7 @@ import {
   useApplyGlossaryEdits,
   useApprovePending,
   useCleanGlossary,
+  useClearGlossaryNotes,
   useClearPending,
   useDeleteGlossaryEntries,
   useDeleteGlossaryEntry,
@@ -474,7 +475,7 @@ function AiAssistantModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Trợ lý AI dịch lại glossary"
+      title={allPending ? "AI dọn và duyệt toàn bộ glossary" : "Trợ lý AI dịch lại glossary"}
       wide
       footer={
         <>
@@ -483,13 +484,13 @@ function AiAssistantModal({
             variant="primary"
             icon={<IconSparkle size={14} />}
             loading={run.isPending}
-            disabled={sources.length === 0}
+            disabled={!allPending && sources.length === 0}
             onClick={() => {
               const done = {
                 onSuccess: () => {
                   toast(
                     allPending
-                      ? "Đã xếp vào hàng đợi — AI sẽ tự ghi vào glossary và lan truyền vào bản dịch cũ."
+                      ? "Đã xếp vào hàng đợi — AI dọn toàn glossary theo từng lô và lan truyền thay đổi vào bản dịch."
                       : "Đã xếp vào hàng đợi — kết quả sẽ hiện ở đầu bảng để duyệt.",
                   );
                   onStarted();
@@ -503,7 +504,7 @@ function AiAssistantModal({
             }}
           >
             {allPending
-              ? `AI tự động duyệt ${num(sources.length)} mục`
+              ? "Dọn và duyệt toàn bộ glossary"
               : `Nhờ AI xử lý ${num(sources.length)} mục`}
           </Button>
         </>
@@ -511,20 +512,21 @@ function AiAssistantModal({
     >
       <p className="mb-3 text-[13px] opacity-70">
         {allPending
-          ? <>AI rà soát <span data-numeric className="font-medium">toàn bộ {num(sources.length)}</span> đề xuất
-            đang chờ duyệt trong MỘT lần chạy và TỰ ĐỘNG ghi vào glossary + lan truyền vào bản dịch cũ.</>
+          ? <>AI rà soát toàn bộ glossary và hàng chờ theo từng lô, tối đa 100 mục/lô,
+            với ngân sách context 200.000 token (dự phòng 16.000 token cho phản hồi).</>
           : <>AI rà soát <span data-numeric className="font-medium">{num(sources.length)}</span> mục đã chọn và đề
             xuất bản dịch đúng.</>}{" "}
         {allPending
-          ? "Không cần duyệt tay: mục nào AI xử lý được VÀ vượt kiểm định an toàn (không sót chữ Hán, không chép y Hán, không trùng Việt với mục khác) sẽ duyệt luôn; mục rớt kiểm định hoặc AI không trả lời được giữ lại trong hàng chờ. Cột Ghi chú được giữ nguyên."
+          ? "AI được thêm mục có bằng chứng, sửa Hán/Việt, xóa mục rác và duyệt đề xuất. Thao tác vượt kiểm định được ghi vào DB; mục không chắc chắn giữ nguyên. Đổi Việt lan truyền vào bản dịch; xóa glossary không xóa nội dung chương. Model/API cần hỗ trợ context ít nhất 200k. Các thay đổi này không có nút hoàn tác."
           : "Kết quả KHÔNG ghi đè: mục nào AI đổi sẽ vào hàng chờ duyệt (hàng vàng ở đầu bảng) kèm số chỗ ảnh hưởng, bạn duyệt từng mục hoặc hàng loạt."}
         {fromPending && !allPending
           ? " Vì các mục này đang chờ duyệt, kết quả mới sẽ THAY đề xuất cũ cùng mục trong MỘT lần chạy."
           : null}
       </p>
       <p className="mb-3 text-[13px] opacity-60">
-        AI chỉ sửa cột Việt. Mục sai ở cột Hán (chip lọc “Hán lẫn Latin”, “Hán không có chữ Hán”) phải sửa
-        tay trong bảng rồi bấm “Áp dụng” — các mục đó sẽ bị bỏ qua.
+        {allPending
+          ? "Ghi chú chỉ dành cho chú thích thêm cho độc giả. AI có thể giữ, sửa hoặc bỏ chú thích sai; lý do sửa được lưu riêng trong log và lịch sử kiểm định, không đưa vào Ghi chú. Nên lưu các chỉnh sửa trong bảng trước khi chạy."
+          : "AI chỉ sửa cột Việt. Mục sai ở cột Hán phải sửa tay trong bảng rồi bấm Áp dụng — các mục đó sẽ bị bỏ qua."}
       </p>
 
       <div className="mb-3 rounded-box border border-base-300 p-2.5">
@@ -828,6 +830,8 @@ export function GlossaryPage() {
   const [aiPending, setAiPending] = useState(false);
   const [aiAllPending, setAiAllPending] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [confirmClearAllNotes, setConfirmClearAllNotes] = useState(false);
+  const [confirmClearSelectedNotes, setConfirmClearSelectedNotes] = useState(false);
   const toast = useToast();
 
   const filter = activeFlags.join(",");
@@ -849,6 +853,7 @@ export function GlossaryPage() {
   const { data: flagData } = useGlossaryFlags(slug);
   const { data: pending } = usePendingGlossary(slug);
   const clean = useCleanGlossary(slug);
+  const clearNotes = useClearGlossaryNotes(slug);
   const bulkDelete = useDeleteGlossaryEntries(slug);
   const approvePending = useApprovePending(slug);
   const clearPending = useClearPending(slug);
@@ -1030,15 +1035,17 @@ export function GlossaryPage() {
               </Button>
               <Button
                 icon={<IconSparkle size={14} />}
-                disabled={pendingCount === 0}
-                title="AI rà soát toàn bộ đề xuất chờ duyệt và TỰ ĐỘNG ghi vào glossary + lan truyền vào bản dịch cũ trong MỘT lần chạy"
+                disabled={edits.length > 0 || ((flagData?.total ?? 0) === 0 && pendingCount === 0)}
+                title={edits.length > 0
+                  ? "Áp dụng hoặc hoàn tác các nháp trước khi chạy AI để tránh ghi đè thay đổi"
+                  : "AI thêm/sửa/xóa và duyệt toàn bộ glossary + hàng chờ theo từng lô, context 200k token"}
                 onClick={() => {
                   setAiPending(true);
                   setAiAllPending(true);
                   setAiOpen(true);
                 }}
               >
-                AI tự động duyệt ({num(pendingCount)})
+                AI tự động duyệt & dọn
               </Button>
               <Button
                 loading={clean.isPending}
@@ -1050,6 +1057,12 @@ export function GlossaryPage() {
                 }
               >
                 Dọn dữ liệu
+              </Button>
+              <Button
+                title="Xóa toàn bộ cột Ghi chú (glossary + hàng chờ duyệt), giữ nguyên Hán/Việt"
+                onClick={() => setConfirmClearAllNotes(true)}
+              >
+                Xóa ghi chú
               </Button>
               <Button onClick={() => setIoOpen(true)}>Xuất / Nhập</Button>
             </div>
@@ -1304,6 +1317,13 @@ export function GlossaryPage() {
                   </Button>
                 </>
               ) : null}
+              <Button
+                icon={<IconTrash size={14} />}
+                title="Xóa cột Ghi chú của các mục đang chọn (glossary + hàng chờ duyệt), giữ nguyên Hán/Việt"
+                onClick={() => setConfirmClearSelectedNotes(true)}
+              >
+                Xóa ghi chú ({selected.size + pendingSelected.size})
+              </Button>
             </SelectionBar>
           ) : null}
         </>
@@ -1363,6 +1383,69 @@ export function GlossaryPage() {
         confirmLabel="Xóa"
         destructive
         pending={bulkDelete.isPending}
+      />
+      <ConfirmDialog
+        open={confirmClearAllNotes}
+        onCancel={() => setConfirmClearAllNotes(false)}
+        onConfirm={() =>
+          clearNotes.mutate(
+            { all: true },
+            {
+              onSuccess: (res) => {
+                setConfirmClearAllNotes(false);
+                // Nháp còn giữ ghi chú cũ sẽ hồi sinh note khi Áp dụng — ép về rỗng.
+                setDrafts((prev) => {
+                  const next: Drafts = {};
+                  for (const [key, draft] of Object.entries(prev)) next[key] = { ...draft, note: "" };
+                  return next;
+                });
+                const parts = [`Đã xóa ${res.cleared} ghi chú glossary`];
+                if (res.pending_cleared > 0) parts.push(`${res.pending_cleared} ghi chú hàng chờ`);
+                toast(parts.join(" · ") + ".");
+              },
+              onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+            },
+          )
+        }
+        title="Xóa toàn bộ Ghi chú"
+        body={`Xóa cột Ghi chú của toàn bộ ${num(data?.total ?? 0)} mục glossary${
+          pendingCount > 0 ? ` và ${num(pendingCount)} đề xuất chờ duyệt` : ""
+        }? Giữ nguyên Hán/Việt. Không thể hoàn tác.`}
+        confirmLabel="Xóa hết ghi chú"
+        destructive
+        pending={clearNotes.isPending}
+      />
+      <ConfirmDialog
+        open={confirmClearSelectedNotes}
+        onCancel={() => setConfirmClearSelectedNotes(false)}
+        onConfirm={() => {
+          const sources = [...selected, ...pendingSelected];
+          clearNotes.mutate(
+            { sources },
+            {
+              onSuccess: (res) => {
+                setConfirmClearSelectedNotes(false);
+                setDrafts((prev) => {
+                  const next = { ...prev };
+                  for (const src of sources) {
+                    const draft = next[src];
+                    if (draft) next[src] = { ...draft, note: "" };
+                  }
+                  return next;
+                });
+                const parts = [`Đã xóa ${res.cleared} ghi chú glossary`];
+                if (res.pending_cleared > 0) parts.push(`${res.pending_cleared} ghi chú hàng chờ`);
+                toast(parts.join(" · ") + ".");
+              },
+              onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+            },
+          );
+        }}
+        title="Xóa Ghi chú mục đã chọn"
+        body={`Xóa cột Ghi chú của ${selected.size + pendingSelected.size} mục đã chọn? Giữ nguyên Hán/Việt. Không thể hoàn tác.`}
+        confirmLabel="Xóa ghi chú"
+        destructive
+        pending={clearNotes.isPending}
       />
     </Page>
   );

@@ -10,6 +10,28 @@ Mỗi chương có ba lớp nội dung:
 
 Biên tập không ghi đè snapshot MT. Có thể so sánh nguồn, bản máy và bản sửa trong trình đọc ba cột.
 
+## Soát Lỗi Có Duyệt
+
+Luồng **Lỗi → Soát lỗi** khác **AI biên tập** ghi trực tiếp Local MT:
+
+| Nhóm | Xử lý |
+| --- | --- |
+| Control/BOM/ZWSP, spaces, markdown heading/fence, HTML/entity, punctuation lặp/dots lạ | Thuật toán sau xác nhận; chỉ bỏ markup, giữ text bên trong và đoạn/dòng |
+| Hán sót, `�`, mojibake, từ lặp, URL theo ngữ cảnh, spelling nghi vấn | AI đề xuất vùng lỗi đã chọn, FULL diff và duyệt toàn chương |
+| Viết tắt, nhãn hiệu ứng/âm thanh, mỉm cười/thở dài | Informational, không tự coi là rác |
+| Rỗng/chỉ ký hiệu, trùng chính xác, số chương thiếu/trùng/giảm, lỗi title | Manual mặc định; có hướng dẫn chi tiết mới cho AI đề xuất title/text toàn chương |
+
+Spelling là heuristic nhẹ toàn token (`[a-zA-ZÀ-ỹ]+(?:\.[a-zA-ZÀ-ỹ]+)*`, bỏ token
+dưới 3 ký tự): ASCII vowel lặp ≥3, q/x trước nhóm phụ âm, ≥4 phụ âm liên tiếp
+không phân biệt hoa thường. Có false positive (tên riêng/từ ngoại ngữ), không phải
+chẩn đoán chắc hay từ điển. Roman phù hợp không bị coi là acronym.
+
+Raw chỉ là bằng chứng đối chiếu, không giả lập alignment giữa dòng raw/dịch.
+Không tạo/xóa/sắp lại chương, đổi index/skipped hoặc suy đoán khôi phục nội dung mất.
+AI không chắc/không có bằng chứng phải để unresolved. HTML lạ giữ inner text để
+không xóa nhầm ý nghĩa; nội dung từ thẻ script/style còn lại cần người đọc đánh giá.
+Hướng dẫn vận hành và các giới hạn an toàn ở [operations.md](operations.md#soát-lỗi-chương--hàng-loạt).
+
 ## Hai Con Đường Dịch
 
 Chỉ còn **hai** backend dịch (`translate.type`):
@@ -69,6 +91,31 @@ Không dùng model nhỏ để tự suy luận glossary phức tạp; hãy dịc
 Glossary theo ebook dùng để cố định tên riêng và thuật ngữ đặc thù. Không đưa từ đời thường vào glossary. Matching ưu tiên source dài để tên dài không bị mục ngắn thay trước.
 
 Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột đang có, nhờ LLM chọn bản dịch thống nhất theo prompt dịch nghiêm ngặt (kèm tên truyện + tác giả), tự duyệt mục hợp lệ và lan truyền thay đổi vào bản dịch cũ. Mục LLM không trả lời được vẫn giữ trong hàng chờ. Cột Ghi chú giữ nguyên — lý do của LLM chỉ ghi log.
+
+### AI tự động duyệt & dọn (SPA Glossary)
+
+- Rà soát **toàn glossary + hàng chờ**, không chỉ các mục đang lọc/chọn.
+  AI được giữ, thêm, sửa Hán/Việt/chú thích độc giả hoặc xóa mục rác.
+  Mục mới phải có bằng chứng: ít nhất hai chữ Hán và là phần của source trong lô.
+- Chạy tuần tự tối đa **100 mục/lô**, cập nhật tham chiếu glossary sau mỗi lô.
+  Ngân sách context **200.000 token**, dành 16.000 cho output. Bộ đếm dùng số
+  byte UTF-8 làm cận trên bảo thủ cho tokenizer kiểu byte, không nhầm ký tự với
+  token. Tham chiếu liên quan được ưu tiên khi toàn glossary không vừa; mục quá
+  dài được chia lô nhỏ hơn. Model/API phải hỗ trợ context 200k; ứng dụng không
+  tự nâng giới hạn provider. HTTP/JSON lỗi thì không ghi lô, báo trong log.
+- Kiểm định khóa thuộc lô, dữ liệu thay đổi sau khi gửi, trùng khóa đích,
+  source Hán/target Việt hợp lệ và thay thế bản dịch cũ không nhập nhằng.
+  Không chắc chắn/không phản hồi: giữ nguyên, không tự xóa.
+- Đổi target lan truyền bằng cơ chế `Storage.apply_replacements`; glossary,
+  hàng chờ và nội dung thay thế commit cùng transaction. Xóa mục glossary
+  **không xóa nội dung chương**. Không tự dịch lại toàn chương.
+- **Ghi chú là chú thích cho độc giả**, không phải lý do sửa. AI bỏ trường
+  `note` để giữ cũ, hoặc sửa/bỏ chú thích sai một cách tường minh.
+  `reason` chỉ vào log và audit SQLite `glossary_curator_audit` (kèm dữ liệu cũ).
+  Hiện chưa có nút hoàn tác; nên backup DB và lưu các nháp trước khi chạy.
+- API `/api/ebooks/{slug}/glossary/ai/reprocess-pending` mặc định
+  `curate_all=true`. Truyền `curate_all=false` để dùng chế độ chỉ duyệt hàng
+  chờ cũ; các job spec đã lưu trước thay đổi vẫn dùng luồng cũ.
 
 Idioms là từ điển dùng chung cho mọi ebook. Với LLM, idiom được đưa vào prompt như tham chiếu; với MT cục bộ, hệ thống có thể chuẩn hóa bản literal hoặc bảo vệ source qua placeholder.
 

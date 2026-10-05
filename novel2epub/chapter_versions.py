@@ -191,6 +191,10 @@ class ChapterVersionService:
         expected_content_hash: str, title: str, translated: str,
         client_operation_id: str, message: str = "", kind: str = "manual",
         actor_issuer: str = "", actor_subject: str = "",
+        expected_publication_branch: str | None = None,
+        expected_publication_title: str | None = None,
+        proofreading_candidate_id: int | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> CommitResult:
         cols = _validate_commit(
             branch=branch, expected_revision=expected_revision,
@@ -202,6 +206,8 @@ class ChapterVersionService:
             raise ChapterVersionError("invalid_request", "chapter_index không hợp lệ")
         if not isinstance(kind, str) or not kind:
             raise ChapterVersionError("invalid_request", "kind là bắt buộc")
+        if metadata is not None and not isinstance(metadata, dict):
+            raise ChapterVersionError("invalid_request", "metadata phải là object")
         new_hash = full_content_hash(title, translated)
         blob = compress_content(translated)
         request_hash = _request_hash({
@@ -210,6 +216,10 @@ class ChapterVersionService:
             "expected_content_hash": expected_content_hash, "title": title,
             "translated": translated, "message": message, "kind": kind,
             "actor_issuer": actor_issuer, "actor_subject": actor_subject,
+            "metadata": metadata,
+            "expected_publication_branch": expected_publication_branch,
+            "expected_publication_title": expected_publication_title,
+            "proofreading_candidate_id": proofreading_candidate_id,
         })
         conn = self.conn
         try:
@@ -273,6 +283,21 @@ class ChapterVersionService:
             document = _verify_pair(
                 current, head, slug=self.storage.slug, index=chapter_index, branch=branch
             )
+            if expected_publication_branch is not None:
+                ch = self.storage.get_chapter(chapter_index)
+                publication = self.storage.publication_version(ch) if ch else None
+                if publication is None or publication.branch != expected_publication_branch:
+                    raise ChapterVersionError("document_conflict", "Nhánh xuất bản đã thay đổi — tạo lại kết quả")
+                if expected_publication_title is not None and publication.title != expected_publication_title:
+                    raise ChapterVersionError("document_conflict", "Tiêu đề xuất bản đã thay đổi — tạo lại kết quả")
+            if proofreading_candidate_id is not None:
+                from . import revisions
+                candidate = self.storage.read_ai_revision(self.storage.get_chapter(chapter_index), proofreading_candidate_id)
+                if candidate is None or candidate.engine != "proofreading" or candidate.branch != branch:
+                    raise ChapterVersionError("document_conflict", "Candidate không hợp lệ")
+                reason = revisions.check_still_valid(candidate, current_rev=document.revision, current_translated_text=document.translated)
+                if reason:
+                    raise ChapterVersionError("document_conflict", reason)
             if document.revision != expected_revision or document.content_hash != expected_content_hash:
                 raise ChapterVersionError(
                     "document_conflict", "Document đã thay đổi",
@@ -284,6 +309,8 @@ class ChapterVersionService:
                     },
                 )
             if new_hash == document.content_hash:
+                from .content_validation import refresh_chapter
+                refresh_chapter(self.storage, chapter_index)
                 conn.commit()
                 return CommitResult("unchanged", document)
 
@@ -297,6 +324,8 @@ class ChapterVersionService:
                 ),
             )
             operation_id = int(op.lastrowid)
+            if metadata is not None:
+                conn.execute("UPDATE chapter_operations SET metadata_json=? WHERE id=?", (json.dumps(metadata, ensure_ascii=False), operation_id))
             revision_number = document.revision + 1
             revision = conn.execute(
                 "INSERT INTO chapter_revisions (operation_id, ebook_slug, chapter_index, "
@@ -331,6 +360,10 @@ class ChapterVersionService:
             )
             if post.head_revision_id != revision_id:
                 raise ChapterVersionError("history_state_diverged", "Postcondition head không khớp revision mới")
+            if proofreading_candidate_id is not None:
+                conn.execute("UPDATE ai_revisions SET status='applied' WHERE id=? AND ebook_slug=? AND status='pending'", (proofreading_candidate_id, self.storage.slug))
+            from .content_validation import refresh_chapter
+            refresh_chapter(self.storage, chapter_index)
             conn.commit()
             return CommitResult("committed", post, operation_id, revision_id)
         except ChapterVersionError:

@@ -2398,6 +2398,86 @@ class Storage:
         self.write_glossary_entries("vietphrase.txt", [])
         return before, self.count_glossary_entries("names.txt")
 
+    def clear_glossary_notes(self, sources: list[str] | None = None) -> dict:
+        """Xoá cột Ghi chú glossary (đặt note=''), giữ nguyên Hán/Việt.
+
+        `sources=None` → xoá TOÀN BỘ; ngược lại chỉ xoá các source liệt kê.
+        Áp dụng cho cả `names.txt` + `vietphrase.txt` legacy và hàng chờ duyệt
+        `glossary_pending` (cùng khoá source). Trả
+        `{"cleared", "total", "pending_cleared", "pending_total"}`."""
+        self.ensure_dirs()
+        wanted: list[str] | None = None
+        if sources is not None:
+            seen: set[str] = set()
+            wanted = []
+            for raw in sources:
+                s = str(raw or "").strip()
+                if s and s not in seen:
+                    seen.add(s)
+                    wanted.append(s)
+        with self.conn:
+            total = int(
+                self.conn.execute(
+                    "SELECT COUNT(*) AS c FROM glossary_entries WHERE ebook_slug=?",
+                    (self.slug,),
+                ).fetchone()["c"]
+            )
+            if wanted is None:
+                cur = self.conn.execute(
+                    "UPDATE glossary_entries SET note='' WHERE ebook_slug=? AND note<>''",
+                    (self.slug,),
+                )
+            elif not wanted:
+                cur = None
+            else:
+                holders = ",".join("?" for _ in wanted)
+                cur = self.conn.execute(
+                    f"UPDATE glossary_entries SET note='' WHERE ebook_slug=? AND note<>'' AND source IN ({holders})",
+                    (self.slug, *wanted),
+                )
+            cleared = cur.rowcount if cur is not None else 0
+
+        def _read_pending() -> list[dict]:
+            row = self.conn.execute(
+                "SELECT data_json FROM ebook_extra_json WHERE ebook_slug=? AND key='glossary_pending'",
+                (self.slug,),
+            ).fetchone()
+            if row is None:
+                return []
+            try:
+                return normalize_glossary_pending(json.loads(row["data_json"]))
+            except (json.JSONDecodeError, TypeError):
+                return []
+
+        pending_before = _read_pending()
+        pending_total = len(pending_before)
+        if wanted is not None and not wanted:
+            pending_cleared = 0
+        else:
+            def _clear_pending(raw):
+                pending = normalize_glossary_pending(raw)
+                for entry in pending:
+                    if wanted is not None and entry["source"] not in wanted:
+                        continue
+                    if entry.get("note"):
+                        entry["note"] = ""
+                return pending
+
+            self.update_extra_json("glossary_pending", _clear_pending)
+            after_by_source = {p["source"]: p.get("note", "") for p in _read_pending()}
+            pending_cleared = 0
+            for p in pending_before:
+                if wanted is not None and p["source"] not in wanted:
+                    continue
+                if p.get("note") and not after_by_source.get(p["source"]):
+                    pending_cleared += 1
+        return {
+            "cleared": cleared,
+            "total": total,
+            "pending_cleared": pending_cleared,
+            "pending_total": pending_total,
+        }
+
     # ----- idioms: từ điển thành ngữ DÙNG CHUNG (global, không gắn slug) -----
     def read_idiom_entries(self) -> list[tuple[str, str, str, int]]:
         """Đọc toàn bộ idiom global → list `(source, target, literals, protect)`
@@ -2849,20 +2929,26 @@ class Storage:
             "total": sum(counts.values()),
         }
 
-    def apply_replacements(self, pairs: list[tuple[str, str]]) -> dict:
+    def apply_replacements(self, pairs: list[tuple[str, str]], *, in_transaction: bool = False) -> dict:
         """Lan truyền (đồng thời, longest-old first, một lượt) các thay đổi
         `old→new` vào phạm vi chính xác: chapters `translated_text`/`title`/
         `title_note` + meta_json allowlist (đệ quy), và cột ebook `title`/
         `description`/`title_note`/`series`/`subjects_json`. Một transaction.
         Trả {"total": int, "chapters": int (số chương đổi), "ebook": bool}.
+        `in_transaction=True` dùng transaction của caller, không commit/rollback.
         """
-        self.ensure_dirs()
+        if not in_transaction:
+            self.ensure_dirs()
         conn = self.conn
+        if in_transaction and not conn.in_transaction:
+            raise ValueError("Cần transaction đang mở để lan truyền cùng glossary.")
         try:
-            conn.execute("BEGIN IMMEDIATE")
+            if not in_transaction:
+                conn.execute("BEGIN IMMEDIATE")
             matcher = _replacement_matcher(pairs)
             if matcher is None:
-                conn.commit()
+                if not in_transaction:
+                    conn.commit()
                 return {"total": 0, "chapters": 0, "ebook": False}
             _active, pattern = matcher
             mapping = dict(_active)
@@ -2971,10 +3057,12 @@ class Storage:
                         f"UPDATE ebooks SET {', '.join(e_sets)}, updated_at = datetime('now') WHERE slug = ?",
                         e_params,
                     )
-            conn.commit()
+            if not in_transaction:
+                conn.commit()
             return {"total": total, "chapters": chapters_changed, "ebook": ebook_changed}
         except Exception:
-            conn.rollback()
+            if not in_transaction:
+                conn.rollback()
             raise
 
     def revert_rejected_glossary(self, entries: list[dict]) -> dict:

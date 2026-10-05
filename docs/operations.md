@@ -36,6 +36,123 @@ provider AI không bao giờ xuất hiện trong response hay log (chỉ có fla
 - Sự cố thường gặp: chat 502 = provider/model sai hoặc hết quota (kiểm tra Provider AI trong Cài đặt); apply báo
   409 = bản dịch đã đổi sau preview, xem lại diff rồi áp dụng lại; job fill-context lỗi = xem log job ở `/queue`.
 
+## Soát Lỗi Chương / Hàng Loạt
+
+Trên trang Chương, mở tab **Lỗi**, chọn nhiều **Mã lỗi** (tìm theo nhãn Việt/mã,
+hiện số lần trong chương và phương pháp sửa). Không chọn mã thì hiện tất cả
+nhưng không cho sửa. Checkbox danh sách chương và **chọn tất cả kết quả đang lọc**
+được tái sử dụng; batch chỉ gửi các index cụ thể, không ngầm sửa toàn sách.
+
+Trên trang **Sách**, bấm **Rà soát tất cả lỗi** một lần: job chỉ đọc quét mọi
+chương và mọi mã (kèm trùng nội dung/số chương), độc lập bộ lọc bảng và mã đang
+chọn; lưu lỗi vào SQLite, không sửa nội dung hay gọi AI. Báo lỗi tích hợp ngay
+trong **bảng mục lục**, không có bảng lỗi riêng: chapter có lỗi hiện một icon
+error cạnh tiêu đề, hover xem mã lỗi và click mở trang Chapter để sửa.
+Bộ lọc, phân trang và checkbox fix dùng chung mục lục. Sau khi có báo cáo,
+bảng chỉ hiển thị chapter có lỗi đã phát hiện; chương sạch hoặc chỉ
+chưa có nguồn không tạo dòng lỗi. Dropdown **Lọc theo mã lỗi** chỉ liệt kê mã
+có trong kết quả rà soát, chọn một mã để lọc ngay hoặc **Tất cả**, không chạy
+lại job và không tự chọn mã sửa hàng loạt. Nút sửa chuyển sang trang
+Chapter (`?edit=1`) và mở sẵn editor hiện có, không mở modal preview. Chỉ bấm
+Lưu trên trang Chapter mới ghi qua canonical history và cập nhật lỗi trong DB;
+xung đột giữ draft, không tự ghi đè. Editor dùng nhánh làm việc của trang Chapter.
+
+Chọn checkbox chương lỗi hoặc **Chọn tất cả chương có lỗi đang hiển thị**, chọn
+**Loại lỗi cần fix hàng loạt** rồi **Fix hàng loạt lỗi đã chọn**. Mỗi lần chạy
+chỉ gửi một mã và những index được chọn thực sự có mã đó; mã lọc hiển thị không
+ngầm trở thành tập mã sửa. Lỗi “chỉ đánh dấu” không cho fix tự động, vẫn có thể
+preview/sửa tay. Chương chưa có bản AI/Local MT hoàn chỉnh báo chưa rà được,
+không cho chọn sửa từ báo cáo. Số lần trong bảng là số lượt báo lỗi tại lần quét,
+nhưng sau mỗi sửa đã lưu sẽ được thay bằng kết quả kiểm tra lại từ DB.
+
+### Lưu Lỗi Để Sửa Dần
+
+Chương đang **Bỏ qua** không được soát lỗi, không tham gia kiểm tra trùng nội
+dung/số chương và không hiện trong danh sách lỗi đã lưu (kể cả lỗi từ lần rà
+trước). Số chương đã rà/chưa rà chỉ tính chương không bị bỏ qua. Job hoặc đề
+xuất sửa cũ bị từ chối nếu chapter đã chuyển sang Bỏ qua. Bỏ trạng thái này thì
+rà lại để cập nhật lỗi trước khi sửa.
+
+Rà soát toàn sách và kiểm tra trùng/số chương chạy nền trong pool `validation`
+riêng, mặc định 1 worker (`queue.validation_workers`). Job bắt đầu ngay khi
+worker này rảnh, không chờ pool `ai-edit` (kể cả khi AI đang tạm dừng).
+Hàng đợi hiển thị worker **Rà soát lỗi**; đặt 0 vẫn tạm dừng chủ động như các
+pool khác. Sau restart, job scan/book-check cũ ở `ai-edit` được chuyển sang
+`validation`; job sửa AI vẫn giữ pool cũ. Restart backend sau cập nhật để nạp
+worker mới; không tự chạy lại nội dung truyện.
+
+Trạng thái lỗi hiện tại nằm trong `ebook_extra_json` dưới key
+`content_validation:chapter:<index>` và `content_validation:book`; không có
+file sidecar hoặc schema mới. Lưu đầy đủ mọi mã, nhánh/revision/hash nguồn,
+thời điểm kiểm tra, chữ ký luật và summary Build, không nhân đôi toàn văn.
+Mở lại trang Sách sẽ đọc các lỗi đã lưu, không tự chạy model/quét lại. **Tải lỗi
+từ DB** chỉ tải trạng thái mới nhất, khác với **Rà soát tất cả lỗi**.
+
+Mỗi commit canonical (sửa tay, thuật toán, AI đã duyệt) kiểm tra lại chapter
+vừa ghi và lưu lỗi còn lại trong **cùng transaction** với nội dung/history.
+Lỗi hết sẽ biến mất khỏi bộ lọc tương ứng; lỗi khác chưa sửa vẫn còn. Không
+phân tích lại nội dung các chapter khác, nhưng kiểm tra lại quan hệ trùng/số
+chương để cảnh báo trên chapter liên quan cũng đúng. Bước này phải đọc bản
+xuất bản toàn sách cho kiểm tra liên chương, có thể tốn thời gian với truyện lớn.
+Draft chưa Lưu, candidate pending/discarded và commit bị từ chối không xóa lỗi.
+Nếu lưu projection lỗi thất bại, toàn bộ commit rollback, không ghi nội dung
+mà để lỗi cũ giả như đã cập nhật.
+
+Soát lỗi và preview trước Build EPUB dùng chung
+`build_validation.chapter_validation_report` / `validate_chapter` /
+`scan_content` (một lượt scan tạo cả summary và vị trí chi tiết), gồm ngưỡng
+ngắn/quá ngắn, readiness, tiêu đề và mọi `CONTENT_CHECKS`; loại chương Bỏ qua.
+Preview Build cũng cập nhật trạng thái SQLite và bổ sung kiểm tra liên chương.
+Không dùng bản dịch đang active để thay bản xuất bản. Giữ nguyên chính sách
+tiêu đề Build/EPUB, kể cả trường hợp ưu tiên tiêu đề AI khi nội dung rơi về MT.
+
+Writer legacy ngoài canonical có thể làm projection cũ: UI đánh dấu theo mốc
+thay đổi/metadata và chữ ký luật (best effort, timestamp có độ phân giải giới
+hạn). **Rà soát tất cả lỗi** để làm mới. Báo cáo chỉ là projection, không phải
+quyền ghi; preview/xác nhận luôn kiểm tra nguồn thật và khóa revision/hash.
+Trước khi sửa phải **Phân tích tập đã chọn** để kiểm tra lại nguồn và sinh token
+mới, không dùng báo cáo quét làm quyền ghi. Có thể **Tải lại báo cáo** nếu tải
+thất bại mà không quét lại. Checkbox bảng chương và **Soát lỗi** ở thanh đáy
+vẫn dùng tập index cụ thể; hoàn tất job/duyệt giữ checkbox và kết quả. Đổi truyện
+xóa phạm vi, mã và panel cũ. Draft sửa tay chỉ nằm trong preview đang mở, không
+tự lưu; đóng khi có thay đổi phải xác nhận bỏ bản sửa.
+
+**Log:** mỗi chương trong job có mã lỗi, nhánh/revision/hash nguồn, số cảnh báo
+trước/sau thuật toán, có đổi hay không, đã ghi revision nào, draft chưa ghi,
+AI bỏ qua/lỗi hoặc candidate chờ duyệt, lỗi/xung đột và tổng kết job. Xem **Log
+xử lý chương** trong panel hoặc job ở `/queue`; audit cũng nằm trong báo cáo
+SQLite. Quyết định áp/bỏ candidate lưu log riêng trong SQLite; commit đã áp và
+save thủ công có provenance trong canonical history. Không log toàn văn,
+prompt, provider exception hay API key.
+
+1. **Soát lỗi chương này** hoặc **Soát lỗi N chương chọn** → **Phân tích tập đã chọn**.
+2. Kiểm tra số chương, mã, nhánh xuất bản, revision và hash; xác nhận trước khi ghi.
+   Token xác nhận có hạn 10 phút, dùng một lần, khóa đúng tập index/mã/snapshot.
+3. Thuật toán dọn trước → phân tích lại → AI đề xuất phần phức tạp được chọn.
+4. Đọc **FULL diff** từng chương, tick duyệt toàn chương rồi áp dụng/bỏ nhiều chương.
+   Không chọn từng thay đổi, không có nút undo mới. Xem history để đối chiếu trước/sau/nguồn.
+
+Nguồn soát lỗi là bản **AI hoàn chỉnh rồi Local MT**, độc lập `active_branch`.
+Nếu đang xem nhánh khác, chuyển đúng nhánh để đi tới/highlight; draft khác nhánh
+xuất bản bị từ chối và được giữ nguyên. Khi đang sửa tay, cả thuật toán và AI chỉ
+trả vào draft (kể cả title), **Lưu chương** mới ghi DB bằng revision/hash CAS và history.
+Sửa draft/chuyển chương/đổi nhánh khi AI chạy làm kết quả cũ bị từ chối, phải tạo lại.
+
+**Kiểm tra trùng/số chương toàn sách** chạy nền khi bấm, không quét blobs mỗi render.
+Trùng là chuỗi sau trim bằng nhau chính xác (SHA-256 + equality), gồm cả skipped;
+không chuẩn hóa NFC/case/whitespace hoặc tìm gần giống. Số chương chỉ xét unskipped
+có số, trong min–max quan sát; không ép bắt đầu 1 hay suy thiếu đầu/cuối.
+
+AI dùng `ai.openai` hiệu lực ebook (kế thừa provider/model/credential + override),
+prompt soát lỗi riêng; engine này được đọc raw để đối chiếu nhưng không ghép ordinal.
+Thiếu config, AI hỏng/sai định dạng/stale: giữ phần thuật toán/draft và báo unresolved.
+Batch tiếp tục chương khác sau lỗi/xung đột. Job/báo cáo/candidate ở SQLite;
+queue chỉ trả reference báo cáo, không lặp lại full chương mỗi lần poll.
+
+Nếu gặp `history_state_diverged`, writer cũ có thể đã đổi workspace ngoài canonical
+history. Không retry ghi đè hay backfill history phá hủy; kiểm tra integrity và
+writer trước khi xử lý tiếp. Không tự rebuild EPUB hoặc publish Reader sau soát lỗi.
+
 ## CLI
 
 Mọi lệnh theo ebook dùng `-e <slug>`; DB khác mặc định dùng `-c <path>`.

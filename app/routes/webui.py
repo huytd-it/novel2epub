@@ -962,6 +962,7 @@ def ebook_chapters(
     filter_local_mt: str = "any",
     filter_ai: str = "any",
     filter_title_error: str = "any",
+    proofreading_code: str = "",
     offset: int = 0,
     limit: int = 100,
 ):
@@ -991,6 +992,12 @@ def ebook_chapters(
         filter_ai=filter_ai,
         filter_title_error=filter_title_error,
     )
+
+    if proofreading_code:
+        from novel2epub.content_validation import saved_report
+        error_indexes = {r["index"] for r in saved_report(storage)["chapters"]
+                         if any(proofreading_code == "*" or i["code"] == proofreading_code for i in r["issues"])}
+        rows = [row for row in rows if not row.skipped and row.index in error_indexes]
 
     limit = max(1, min(limit, 500))
     offset = max(0, offset)
@@ -1122,7 +1129,11 @@ def ebook_chapter_compare(slug: str, index: int):
         },
     }
 
+    from novel2epub.ops_baseline import full_content_hash
+    publication = storage.publication_version(chapter)
     return {
+        "publication": {"branch": publication.branch, "text": publication.text, "title": publication.title, "revision": publication.revision} if publication else None,
+        "content_hash": full_content_hash(storage.read_branch_title(chapter, active), translated),
         "index": chapter.index,
         "title": storage.read_active_branch_title(chapter),
         "title_zh": storage.read_branch_title_zh(chapter, active) or getattr(chapter, "title_zh", "") or "",
@@ -1188,6 +1199,29 @@ def ebook_chapter_save(slug: str, index: int, payload: dict = Body(...)):
     # (luồng cũ, không ai xung đột khi editor đang offline).
     branch = storage.active_branch(chapter)
     expected_rev = payload.get("expected_rev")
+    if payload.get("expected_hash") is not None:
+        from novel2epub.chapter_versions import ChapterVersionService, ChapterVersionError
+        from novel2epub.ops_baseline import initialize_branch_revisions
+        branch = payload.get("branch")
+        if branch not in revisions.BRANCHES or type(expected_rev) is not int:
+            raise HTTPException(400, "Thiếu nhánh/revision xác nhận lưu.")
+        proofreading_codes = payload.get("proofreading_codes")
+        if proofreading_codes is not None:
+            from novel2epub.proofreading import selected_codes, ProofreadingError
+            if not isinstance(proofreading_codes, list):
+                raise HTTPException(400, "Mã cảnh báo soát lỗi không hợp lệ.")
+            try:
+                if proofreading_codes:
+                    selected_codes(proofreading_codes)
+            except ProofreadingError as exc:
+                raise HTTPException(400, str(exc)) from exc
+        try:
+            initialize_branch_revisions(storage, branches=[branch], chapter_indexes=[index])
+            doc = ChapterVersionService(storage).read_document(index, branch)
+            commit = ChapterVersionService(storage).commit_document(chapter_index=index, branch=branch, expected_revision=expected_rev, expected_content_hash=payload["expected_hash"], title=payload.get("title", doc.title), translated=translated, client_operation_id=payload.get("operation_id", ""), kind="manual", message=("Soát lỗi thủ công: " + ", ".join(proofreading_codes) if proofreading_codes is not None else "Lưu bản sửa tay/soát lỗi draft"), expected_publication_branch=payload.get("expected_publication_branch"), expected_publication_title=payload.get("expected_publication_title"), metadata={"source": "proofreading_manual", "observed_codes": proofreading_codes} if proofreading_codes is not None else None)
+        except ChapterVersionError as exc:
+            raise HTTPException(409, exc.message) from exc
+        return {"saved": True, "branch": branch, "word_count": count_words(translated), "revision": commit.document.revision, "content_hash": commit.document.content_hash}
     if isinstance(expected_rev, int):
         if not storage.compare_and_swap_branch(
             chapter, branch, expected_rev=expected_rev, new_text=translated
@@ -1885,12 +1919,129 @@ def ebook_chapter_validation(slug: str, index: int):
         text = pv.text
         title = pv.title
     else:
-        text = storage.read_branch_text(ch, storage.active_branch(ch))
-        title = storage.read_branch_title(ch, storage.active_branch(ch)) or ch.title
+        text = ""
+        title = ch.title
     result = validate_chapter_detailed(text, title)
     result["index"] = ch.index
     result["title"] = title
     return result
+
+
+@router.post("/ebooks/{slug}/proofreading/analyze")
+def proofreading_analyze(slug: str, payload: dict = Body(...)):
+    from novel2epub.proofreading_service import analyze, issue_confirmation
+    from novel2epub.proofreading import ProofreadingError
+    cfg = deps.resolved_cfg(slug)
+    try:
+        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+        report = analyze(storage, payload.get("indexes"), payload.get("codes"), payload.get("drafts"))
+        report["token"] = issue_confirmation(storage, report)
+        return report
+    except ProofreadingError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/ebooks/{slug}/proofreading/state")
+def proofreading_state(slug: str):
+    from novel2epub.content_validation import saved_report
+    cfg = deps.resolved_cfg(slug)
+    return saved_report(Storage(cfg.output.data_dir, cfg.novel.slug))
+
+
+@router.post("/ebooks/{slug}/proofreading/scan")
+def proofreading_scan(request: Request, slug: str):
+    """Rà toàn sách và lưu lỗi hiện tại; không sửa nội dung hoặc gọi model."""
+    deps.resolved_cfg(slug)
+    from uuid import uuid4
+    spec = {"kind": "proofreading", "params": {"slug": slug, "scan": True, "run_id": str(uuid4())}}
+    job = request.app.state.job.queue.enqueue("validation", "proofreading-scan", proofreading_job_factory(spec["params"]), ebook=slug, spec=spec, lock_ebook=False, label="Rà soát tất cả lỗi toàn sách")
+    return {"job_id": job.id}
+
+
+@router.post("/ebooks/{slug}/proofreading/book-check")
+def proofreading_book_check(request: Request, slug: str):
+    """Đọc blobs đúng lúc người dùng yêu cầu, chạy nền, không mỗi render."""
+    cfg = deps.resolved_cfg(slug)
+    from uuid import uuid4
+    spec = {"kind": "proofreading", "params": {"slug": slug, "book_check": True, "run_id": str(uuid4())}}
+    job = request.app.state.job.queue.enqueue("validation", "proofreading-book-check", proofreading_job_factory(spec["params"]), ebook=slug, spec=spec, lock_ebook=False, label="Kiểm tra trùng nội dung/số chương")
+    return {"job_id": job.id}
+
+
+@router.post("/ebooks/{slug}/proofreading/run")
+def proofreading_run(request: Request, slug: str, payload: dict = Body(...)):
+    from novel2epub.proofreading_service import consume_confirmation
+    from novel2epub.proofreading import ProofreadingError, selected_codes
+    cfg = deps.resolved_cfg(slug)
+    chapters = payload.get("chapters")
+    try:
+        selected_codes(payload.get("codes"))
+        if payload.get("confirmed") is not True or not isinstance(chapters, list) or not chapters:
+            raise ProofreadingError("Cần xác nhận tập chương, mã lỗi và nhánh/revision/hash trước khi ghi.")
+        indexes = [c["index"] for c in chapters]
+        if any(type(i) is not int or i < 0 for i in indexes) or len(indexes) != len(set(indexes)):
+            raise ProofreadingError("Tập index không hợp lệ.")
+        if any(not all(k in c for k in ("branch", "revision", "hash")) for c in chapters):
+            raise ProofreadingError("Thiếu snapshot xác nhận.")
+        instructions = payload.get("instructions", "")
+        if not isinstance(instructions, str):
+            raise ProofreadingError("Hướng dẫn phải là văn bản.")
+        consume_confirmation(Storage(cfg.output.data_dir, cfg.novel.slug), payload.get("token", ""), chapters, payload["codes"])
+    except (ProofreadingError, KeyError, TypeError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    spec = {"kind": "proofreading", "params": {"slug": slug, "chapters": [{k: v for k, v in c.items() if k not in {"text", "issues"}} for c in chapters], "codes": payload["codes"], "instructions": instructions, "run_id": payload["token"]}}
+    job = request.app.state.job.queue.enqueue("ai-edit", "proofreading", proofreading_job_factory(spec["params"]), ebook=slug, spec=spec, chapter_indexes=indexes, lock_ebook=False, label=f"Soát lỗi {len(indexes)} chương đã chọn")
+    return {"job_id": job.id}
+
+
+def proofreading_job_factory(params: dict):
+    """Job có spec SQLite, không ghi secret/config vào queue; resume vẫn recheck CAS."""
+    def target(log):
+        from novel2epub.proofreading_service import run, book_check, scan_book
+        cfg = deps.resolved_cfg(params["slug"])
+        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+        if params.get("scan"):
+            result = scan_book(storage, log)
+        elif params.get("book_check"):
+            result = book_check(storage)
+        else:
+            result = run(storage, cfg, params["chapters"], params["codes"], instructions=params.get("instructions", ""), log=log, run_id=params["run_id"])
+        storage.write_extra_json("proofreading_result:" + params["run_id"], result)
+        # Snapshot queue chỉ gửi reference; không stream full blobs mỗi lần poll/render.
+        return {"proofreading_report_id": params["run_id"], "count": len(result.get("chapters", result.get("issues", [])))}
+    return target
+
+
+@router.get("/ebooks/{slug}/proofreading/results/{report_id}")
+def proofreading_results(slug: str, report_id: str):
+    cfg = deps.resolved_cfg(slug)
+    result = Storage(cfg.output.data_dir, cfg.novel.slug).read_extra_json("proofreading_result:" + report_id)
+    if result is None:
+        raise HTTPException(404, "Chưa có báo cáo soát lỗi; kiểm tra trạng thái job.")
+    return result
+
+
+@router.get("/ebooks/{slug}/proofreading/candidates/{index}/{candidate_id}")
+def proofreading_candidate(slug: str, index: int, candidate_id: int):
+    from novel2epub.proofreading_service import candidate_view
+    from novel2epub.proofreading import ProofreadingError
+    cfg = deps.resolved_cfg(slug)
+    try:
+        return candidate_view(Storage(cfg.output.data_dir, cfg.novel.slug), index, candidate_id)
+    except ProofreadingError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.post("/ebooks/{slug}/proofreading/decide")
+def proofreading_decide(slug: str, payload: dict = Body(...)):
+    from novel2epub.proofreading_service import decide
+    cfg = deps.resolved_cfg(slug)
+    items = payload.get("items")
+    if not isinstance(items, list) or not items or payload.get("action") not in {"apply", "discard"}:
+        raise HTTPException(400, "Cần chọn toàn bộ candidate mỗi chương để duyệt/bỏ.")
+    if any(not isinstance(item, dict) or type(item.get("index")) is not int or type(item.get("id")) is not int for item in items):
+        raise HTTPException(400, "Danh sách candidate không hợp lệ.")
+    return decide(Storage(cfg.output.data_dir, cfg.novel.slug), items, discard=payload["action"] == "discard")
 
 
 @router.post("/ebooks/{slug}/build")

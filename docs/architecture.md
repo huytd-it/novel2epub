@@ -54,6 +54,14 @@ Các nhóm dữ liệu chính:
 - `glossary_entries`, `idioms`, `characters`, `character_relations`: ngữ cảnh dịch.
 - Bảng queue, automation và trạng thái thư viện: vận hành Web UI.
 
+`content_validation.py` lưu projection lỗi theo chapter trong `ebook_extra_json`
+(key `content_validation:chapter:<index>`), cùng quan hệ trùng/số chương toàn sách.
+Luật nằm duy nhất ở `build_validation.py`; preview Build và soát lỗi dùng cùng
+chapter report. `ChapterVersionService.commit_document` cập nhật nội dung,
+history/candidate và kiểm tra lại lỗi của chapter trong cùng transaction. Đọc
+báo cáo lưu không đọc blob chương hoặc chạy lại detector; lỗi này không thay thế
+revision/hash CAS khi ghi. Writer legacy cần rà lại để cập nhật projection.
+
 ### Projection Trạng Thái (`chapter_ui_state`)
 
 Mọi màn hình tổng quan phải đọc projection này, KHÔNG đọc `chapters`. Bảng

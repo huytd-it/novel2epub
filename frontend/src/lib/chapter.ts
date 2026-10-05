@@ -3,6 +3,42 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import { chapterKey } from "./ebook";
 import { queueKey } from "./queue";
+import type { ValidationIssue } from "./validation";
+
+export interface ProofreadingSnapshot {
+  index: number; branch: string; revision: number; hash: string; title: string; text: string;
+  draft?: boolean; draft_text?: string; draft_title?: string; display_title?: string; draft_hash?: string; issues?: ValidationIssue[]; error?: string;
+}
+export interface ProofreadingCandidate {
+  before: string;
+  before_title?: string;
+  id?: number; status?: string; base: ProofreadingSnapshot; draft: boolean; draft_hash: string;
+  after: string; title: string; diff: string; edits: { start: number; end: number; original: string; replacement: string }[];
+}
+export interface ProofreadingResult {
+  index: number; error?: string; unresolved?: string; before: string; after: string; title: string;
+  draft: boolean; committed?: boolean; base: ProofreadingSnapshot; candidate_id: number | null; candidate?: ProofreadingCandidate;
+  codes?: string[]; audit?: string[]; counts?: Record<string, { before: number; after_algorithm: number }>;
+}
+export interface ProofreadingScanRow {
+  index: number; title: string; issues: ValidationIssue[]; error?: string;
+  stale?: boolean; checked_at?: number; source?: { branch: string; revision: number; hash: string } | null;
+}
+export interface ProofreadingScanReport {
+  scan: true; checked: number; chapters: ProofreadingScanRow[];
+  persisted?: boolean; total?: number; unchecked?: number; checked_at?: number;
+}
+export const proofreadingApi = {
+  state: (slug: string) => api.get<ProofreadingScanReport>(`/api/ui/ebooks/${encodeURIComponent(slug)}/proofreading/state`),
+  scan: (slug: string) => api.post<{ job_id: string }>(`/api/ui/ebooks/${encodeURIComponent(slug)}/proofreading/scan`),
+  scanResult: (slug: string, id: string) => api.get<ProofreadingScanReport>(`/api/ui/ebooks/${encodeURIComponent(slug)}/proofreading/results/${encodeURIComponent(id)}`),
+  analyze: (slug: string, indexes: number[], codes: string[], drafts: Record<string, unknown>) => api.post<{ chapters: ProofreadingSnapshot[]; codes: string[]; token: string }>(`/api/ui/ebooks/${encodeURIComponent(slug)}/proofreading/analyze`, { body: { indexes, codes, drafts } }),
+  run: (slug: string, chapters: ProofreadingSnapshot[], codes: string[], instructions: string, token: string) => api.post<{ job_id: string }>(`/api/ui/ebooks/${encodeURIComponent(slug)}/proofreading/run`, { body: { chapters, codes, instructions, confirmed: true, token } }),
+  book: (slug: string) => api.post<{ job_id: string }>(`/api/ui/ebooks/${encodeURIComponent(slug)}/proofreading/book-check`),
+  candidate: (slug: string, index: number, id: number) => api.get<ProofreadingCandidate>(`/api/ui/ebooks/${encodeURIComponent(slug)}/proofreading/candidates/${index}/${id}`),
+  result: (slug: string, id: string) => api.get<{ chapters?: ProofreadingResult[]; issues?: { index: number; message: string; code: string }[] }>(`/api/ui/ebooks/${encodeURIComponent(slug)}/proofreading/results/${encodeURIComponent(id)}`),
+  decide: (slug: string, items: { index: number; id: number; draft_text?: string; draft_title?: string }[], action: "apply" | "discard") => api.post<{ chapters: { index: number; id: number; ok: boolean; error?: string; draft?: boolean; after?: string; title?: string; audit?: string[] }[] }>(`/api/ui/ebooks/${encodeURIComponent(slug)}/proofreading/decide`, { body: { items, action } }),
+};
 
 export interface NoteSuggestion {
   fixed_text: string;
@@ -49,15 +85,16 @@ export async function firstReadingIndex(slug: string): Promise<number> {
 function invalidateChapter(client: ReturnType<typeof useQueryClient>, slug: string, index: number) {
   client.invalidateQueries({ queryKey: chapterKey(slug, index) });
   client.invalidateQueries({ queryKey: ["chapters", slug] });
+  client.invalidateQueries({ queryKey: ["content-validation", slug] });
 }
 
 export function useSaveChapterText(slug: string, index: number) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { translated: string; expectedRev: number }) =>
-      api.post<{ saved: boolean; word_count: number; revision: number }>(
+    mutationFn: (vars: { translated: string; title?: string; expectedRev: number; branch?: string; expectedHash?: string; publicationBranch?: string; publicationTitle?: string; proofreadingCodes?: string[] }) =>
+      api.post<{ saved: boolean; word_count: number; revision: number; content_hash: string }>(
         `/api/ui/ebooks/${slug}/chapters/${index}/translated`,
-        { body: { translated: vars.translated, expected_rev: vars.expectedRev } },
+        { body: { translated: vars.translated, title: vars.title, expected_rev: vars.expectedRev, branch: vars.branch, expected_hash: vars.expectedHash, expected_publication_branch: vars.publicationBranch, expected_publication_title: vars.publicationTitle, proofreading_codes: vars.proofreadingCodes, operation_id: crypto.randomUUID() } },
       ),
     onSuccess: () => invalidateChapter(client, slug, index),
   });

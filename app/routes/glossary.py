@@ -317,6 +317,27 @@ def ebook_glossary_clean(slug: str):
     return JSONResponse({"before": before, "after": after, "removed": before - after})
 
 
+class GlossaryNotesClearIn(BaseModel):
+    """Xoá cột Ghi chú: `sources` rỗng hoặc `all=true` → toàn bộ."""
+
+    sources: list[str] = Field(default_factory=list)
+    all: bool = False
+
+
+@router.post("/api/ebooks/{slug}/glossary/notes/clear")
+def ebook_glossary_notes_clear(slug: str, payload: GlossaryNotesClearIn):
+    """Xoá cột Ghi chú glossary (đặt note=''), giữ nguyên Hán/Việt.
+
+    Mặc định xoá TOÀN BỘ glossary + hàng chờ duyệt cùng lúc; truyền
+    `{"sources": [...]}` để chỉ xoá các mục đã chọn. Trả
+    `{cleared, total, pending_cleared, pending_total}`."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    sources = [s for s in (str(s).strip() for s in payload.sources) if s]
+    result = storage.clear_glossary_notes(None if payload.all or not sources else sources)
+    return JSONResponse(result)
+
+
 @router.post(
     "/api/ebooks/{slug}/glossary/proper-names/extract",
     tags=["Glossary"],
@@ -521,7 +542,8 @@ class GlossaryAiRequest(BaseModel):
 def glossary_ai_job_factory(params: dict):
     """Tái tạo job Trợ lý AI glossary từ spec đã lưu (xem JobQueue.register_kind).
 
-    Hai chế độ (xem `params["auto_approve"]`):
+    `curate_all=True`: CRUD toàn glossary + hàng chờ theo từng lô, context 200k.
+    Job spec cũ không có cờ này vẫn giữ hành vi cũ. Hai chế độ legacy:
     - `False` (mặc định, nút "Trợ lý AI" cho mục đã chọn): kết quả vào hàng chờ
       duyệt (`glossary_pending`) để người dùng xem "cũ → mới" rồi mới duyệt —
       cùng đường đi với đề xuất auto-glossary lúc dịch.
@@ -537,10 +559,21 @@ def glossary_ai_job_factory(params: dict):
     sources = params["sources"]
     instruction = str(params.get("instruction", "") or "")
     auto_approve = bool(params.get("auto_approve", False))
+    curate_all = bool(params.get("curate_all", False))
 
     def _target(log: Callable[[str], None]) -> None:
         cfg = deps.resolved_cfg(slug)
         storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+        if curate_all:
+            from novel2epub.glossary_curator import curate
+
+            return curate(
+                storage, cfg.ai.openai,
+                story={"title": cfg.novel.title, "author": cfg.novel.author,
+                       "description": cfg.novel.description, "genre": cfg.translate.genre},
+                context="\n\n".join(x.strip() for x in (cfg.translate.context_note, instruction) if x.strip()),
+                log=log,
+            )
         current = {s: (t, n) for s, t, n in storage.read_glossary_entries_merged()}
         # Chồng đề xuất đang chờ duyệt lên glossary: mục chờ duyệt cũng gửi AI
         # xử lý lại được — kể cả mục MỚI chưa có trong glossary (lấy target
@@ -759,37 +792,37 @@ def ebook_glossary_ai_retranslate(request: Request, slug: str, payload: Glossary
 
 
 class GlossaryAiReprocessRequest(BaseModel):
-    """Yêu cầu AI xử lý lại TOÀN BỘ hàng chờ duyệt trong một lần chạy."""
+    """AI CRUD toàn glossary + hàng chờ; có chế độ legacy cho API cũ."""
 
     instruction: str = Field(default="", description="Yêu cầu thêm cho riêng lần chạy này.")
+    curate_all: bool = Field(default=True, description="CRUD toàn glossary + hàng chờ, context 200k token.")
 
 
 @router.post("/api/ebooks/{slug}/glossary/ai/reprocess-pending")
 def ebook_glossary_ai_reprocess_pending(request: Request, slug: str, payload: GlossaryAiReprocessRequest):
-    """AI TỰ ĐỘNG DUYỆT toàn bộ đề xuất đang chờ trong MỘT job nền.
+    """AI tự động CRUD toàn glossary + hàng chờ trong một job nền.
 
-    Chụp sources của hàng chờ lúc bấm nút rồi chạy job `glossary-ai` ở chế độ
-    `auto_approve` (cùng factory, cùng category=translate, cùng khả năng sống
-    sót restart): AI rà soát từng đề xuất theo quy tắc dịch nghiêm ngặt (lấy
-    target đang chờ làm mốc, kể cả mục MỚI, kèm tên truyện + tác giả + bối
-    cảnh), kết quả được ghi THẲNG vào glossary + lan truyền vào bản dịch cũ.
-    Mục AI không trả lời được giữ nguyên trong hàng chờ. Cột Ghi chú được giữ
-    nguyên — `reason` của AI chỉ ghi vào log job.
+    Mặc định curate_all: lô tối đa 100 mục, context 200k token, kiểm định rồi
+    ghi glossary/hàng chờ/lan truyền trong cùng transaction. Ghi chú độc giả
+    tách khỏi reason. curate_all=False giữ luồng legacy chỉ duyệt hàng chờ.
     """
     cfg = deps.resolved_cfg(slug)
     if not cfg.ai.openai.base_url:
         raise HTTPException(status_code=400, detail="Chưa cấu hình AI biên tập (mục AI trong Cài đặt).")
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    sources: list[str] = []
+    sources: list[str] = (
+        [s for s, _t, _n in storage.read_glossary_entries_merged()] if payload.curate_all else []
+    )
     for p in _read_pending(storage):
         source = p["source"]
         if source and source not in sources:
             sources.append(source)
     if not sources:
-        raise HTTPException(status_code=400, detail="Không có đề xuất chờ duyệt.")
+        raise HTTPException(status_code=400, detail="Không có mục glossary hoặc đề xuất để xử lý.")
     spec = {
         "kind": "glossary-ai",
-        "params": {"slug": slug, "sources": sources, "instruction": payload.instruction.strip(), "auto_approve": True},
+        "params": {"slug": slug, "sources": sources, "instruction": payload.instruction.strip(),
+                   "auto_approve": True, "curate_all": payload.curate_all},
     }
     started = request.app.state.job.start_custom(
         "glossary-ai",

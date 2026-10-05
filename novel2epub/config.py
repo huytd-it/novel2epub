@@ -629,6 +629,7 @@ class QueueConfig:
     local_mt_workers: int = 1
     translate_workers: int = 2  # pool ai-translate; tên cũ giữ cho config hiện có
     ai_edit_workers: int = 1
+    validation_workers: int = 1
     build_workers: int = 1
     automation_workers: int = 1
 
@@ -1336,6 +1337,7 @@ def load_config(path: str | Path, slug: str = "") -> Config:
         local_mt_workers=max(0, int(queue_raw.get("local_mt_workers", defaults_q.local_mt_workers))),
         translate_workers=max(0, int(queue_raw.get("translate_workers", defaults_q.translate_workers))),
         ai_edit_workers=max(0, int(queue_raw.get("ai_edit_workers", defaults_q.ai_edit_workers))),
+        validation_workers=max(0, int(queue_raw.get("validation_workers", defaults_q.validation_workers))),
         build_workers=max(0, int(queue_raw.get("build_workers", defaults_q.build_workers))),
         automation_workers=max(0, int(queue_raw.get("automation_workers", defaults_q.automation_workers))),
     )

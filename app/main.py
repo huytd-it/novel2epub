@@ -54,6 +54,7 @@ def _load_queue_workers() -> dict[str, int]:
             "local-mt": _cfg.queue.local_mt_workers,
             "ai-translate": _cfg.queue.translate_workers,
             "ai-edit": _cfg.queue.ai_edit_workers,
+            "validation": _cfg.queue.validation_workers,
             "build": _cfg.queue.build_workers,
             "automation": _cfg.queue.automation_workers,
         }
@@ -64,6 +65,7 @@ def _load_queue_workers() -> dict[str, int]:
             "local-mt": _dq.local_mt_workers,
             "ai-translate": _dq.translate_workers,
             "ai-edit": _dq.ai_edit_workers,
+            "validation": _dq.validation_workers,
             "build": _dq.build_workers,
             "automation": _dq.automation_workers,
         }
@@ -297,6 +299,7 @@ app.state.job.queue.register_kind("glossary-ai", glossary.glossary_ai_job_factor
 app.state.job.queue.register_kind("assistant-fill-context", assistant.assistant_fill_context_job_factory)
 app.state.job.queue.register_kind("ai-harness-scan", ai_harness.scan_job_factory)
 app.state.job.queue.register_kind("opds-autobuild", opds.autobuild_job_factory)
+app.state.job.queue.register_kind("proofreading", webui.proofreading_job_factory)
 app.state.job.queue.load_pending()
 app.state.scheduler = AutomationScheduler(deps.DB_PATH, WORKSPACE_PATH, app.state.job.queue)
 

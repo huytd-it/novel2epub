@@ -244,25 +244,62 @@ def _parse_title_response(raw: str) -> tuple[str, str]:
     return title, note
 
 
-_TITLES_BATCH_LINE = re.compile(r"^\s*(\d+)\s*[.\):]\s*(.+?)\s*$")
+_TITLES_BATCH_LINE = re.compile(r"^\s*(?:[-*•>]+\s*)?(\d+)\s*[.\):\-–—、|]+\s*(.+?)\s*$")
+# Dòng tiêu đề bọc markdown (**..**, `..`, 《..》 thừa) — bóc trước khi lưu.
+_TITLES_BATCH_WRAP = re.compile(r"^[\s*`\"'“”'《》<\[]+|[\s*`\"'“”'《》>\]]+$")
+
+
+def _strip_title_wrap(title: str) -> str:
+    cleaned = _TITLES_BATCH_WRAP.sub("", title).strip()
+    # Bóc cặp **bold** còn sót sau khi cắt viền (vd "**1. Tên**" đã tách số).
+    if len(cleaned) >= 4 and cleaned.startswith("**") and cleaned.endswith("**"):
+        cleaned = cleaned[2:-2].strip()
+    return cleaned.strip("*`\"' ")
 
 
 def _parse_titles_batch_response(raw: str, count: int) -> dict[int, str]:
     """Tách các dòng '<số>. <bản dịch>' từ phản hồi dịch hàng loạt tiêu đề.
 
-    Trả dict {1-based index: title}. Bỏ qua dòng không khớp định dạng hoặc
-    số thứ tự ngoài phạm vi — caller tự fallback dịch riêng lẻ cho các
-    tiêu đề bị thiếu.
+    Khoan dung với LLM lệch format: chấp nhận nhiều dấu phân cách
+    (`.`, `)`, `:`, `-`, `–`, `—`, `、`, `|`), bullet/gạch đầu dòng, bọc
+    markdown. Dòng không khớp hoặc số ngoài phạm vi bị bỏ qua; dòng không
+    đánh số nhưng số lượng khớp tổng sẽ gán theo vị trí — caller tự fallback
+    dịch riêng lẻ cho các tiêu đề còn thiếu.
+
+    Trả dict {1-based index: title}.
     """
     cleaned = _clean_output(raw)
     result: dict[int, str] = {}
+    numbered_hits = 0
     for line in cleaned.splitlines():
-        m = _TITLES_BATCH_LINE.match(line)
+        stripped = line.strip()
+        if not stripped:
+            continue
+        m = _TITLES_BATCH_LINE.match(stripped)
         if not m:
             continue
+        numbered_hits += 1
         idx = int(m.group(1))
-        if 1 <= idx <= count:
-            result[idx] = m.group(2).strip()
+        if 1 <= idx <= count and idx not in result:
+            title = _strip_title_wrap(m.group(2))
+            if title:
+                result[idx] = title
+    if numbered_hits == 0 and count > 0:
+        # LLM bỏ đánh số, trả mỗi tiêu đề một dòng (kèm prose giải thích?).
+        # Chỉ gán theo vị trí khi số dòng nội dung KHỚP đúng tổng — nếu thừa/
+        # thiếu dòng thì không đoán mò, để caller fallback từng cái.
+        candidates = [
+            _strip_title_wrap(line)
+            for line in cleaned.splitlines()
+            if line.strip() and not _PREAMBLE.match(line.strip())
+        ]
+        # Loại dòng prose thường gặp (tiêu đề prompt echo, lời chào/kết).
+        candidates = [
+            c for c in candidates
+            if c and len(c) <= 200 and not c.endswith(":")
+        ]
+        if len(candidates) == count:
+            return {i + 1: c for i, c in enumerate(candidates)}
     return result
 
 
@@ -831,15 +868,38 @@ class OpenAITranslator:
         )
 
     def translate_titles_once(self, titles: list[str]) -> list[str]:
-        """Dịch toàn bộ danh sách bằng đúng một prompt, không sinh chú thích."""
+        """Dịch toàn bộ danh sách bằng đúng một prompt, không sinh chú thích.
+
+        LLM lệch format (thiếu dòng, sai đánh số) chỉ làm TRỐNG vị trí đó ở
+        bước parse — vòng fallback dưới dịch riêng từng tiêu đề còn thiếu nên
+        batch không bao giờ trả chuỗi rỗng hay sập cả lô vì một dòng hỏng.
+        List quá dài được chia theo TITLES_BATCH_SIZE để model không cắt bớt
+        output (nguyên nhân phổ biến nhất của "thiếu dòng").
+        """
         if not titles:
             return []
-        out = self._run_chat_with_retry(self._build_titles_batch_prompt(titles))
-        parsed = _parse_titles_batch_response(out, len(titles))
-        return [
-            _apply_glossary(parsed.get(i, ""), self.glossary)
-            for i in range(1, len(titles) + 1)
-        ]
+        result: list[str] = []
+        for start in range(0, len(titles), self.TITLES_BATCH_SIZE):
+            batch = titles[start : start + self.TITLES_BATCH_SIZE]
+            try:
+                out = self._run_chat_with_retry(self._build_titles_batch_prompt(batch))
+            except Exception as exc:  # noqa: BLE001 - một batch hỏng không giết cả lô
+                self.log(f"  ⚠ batch {start + 1}-{start + len(batch)} lỗi gọi AI ({exc}), dịch riêng từng tiêu đề.")
+                for source in batch:
+                    title, _note = self.translate_title(source)
+                    result.append(title)
+                continue
+            parsed = _parse_titles_batch_response(out, len(batch))
+            for i, source in enumerate(batch, start=1):
+                if parsed.get(i):
+                    result.append(_apply_glossary(parsed[i], self.glossary))
+                else:
+                    self.log(
+                        f"  ⚠ batch thiếu dòng {start + i}, dịch riêng: {source[:40]}"
+                    )
+                    title, _note = self.translate_title(source)
+                    result.append(title)
+        return result
 
     def translate_titles(self, titles: list[str]) -> list[str]:
         if not titles:
@@ -847,7 +907,14 @@ class OpenAITranslator:
         result: list[str] = []
         for start in range(0, len(titles), self.TITLES_BATCH_SIZE):
             batch = titles[start : start + self.TITLES_BATCH_SIZE]
-            out = self._run_chat_with_retry(self._build_titles_batch_prompt(batch))
+            try:
+                out = self._run_chat_with_retry(self._build_titles_batch_prompt(batch))
+            except Exception as exc:  # noqa: BLE001 - một batch hỏng không giết cả lô
+                self.log(f"  ⚠ batch {start + 1}-{start + len(batch)} lỗi gọi AI ({exc}), dịch riêng từng tiêu đề.")
+                for source in batch:
+                    title, _note = self.translate_title(source)
+                    result.append(title)
+                continue
             parsed = _parse_titles_batch_response(out, len(batch))
             for i, t in enumerate(batch, start=1):
                 if i in parsed and parsed[i]:
@@ -999,6 +1066,16 @@ class RateLimited:
 
     def translate_titles(self, titles: list[str]) -> list[str]:
         out = self.inner.translate_titles(titles)
+        if self.delay > 0 and len(titles) > 0:
+            time.sleep(self.delay)
+        return out
+
+    def translate_titles_once(self, titles: list[str]) -> list[str]:
+        inner = self.inner
+        if hasattr(inner, "translate_titles_once"):
+            out = inner.translate_titles_once(titles)
+        else:
+            out = inner.translate_titles(titles)
         if self.delay > 0 and len(titles) > 0:
             time.sleep(self.delay)
         return out

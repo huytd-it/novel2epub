@@ -71,6 +71,7 @@ export interface ChapterPage {
 }
 
 export interface ChapterFilters {
+  proofreading_code?: string;
   search: string;
   sort: string;
   direction: string;
@@ -133,6 +134,19 @@ export function loadChapterFilters(slug: string): ChapterFilters {
   return DEFAULT_FILTERS;
 }
 
+/** Khóa localStorage lưu mã lỗi soát đang lọc trên trang Sách — để vào lại
+    truyện (kể cả sang trang Chương) vẫn thấy đúng tập cảnh báo. */
+export const PROOFREADING_CODE_KEY = (slug: string) => `ebooks.${slug}.proofreadingCode`;
+
+/** Nạp mã lỗi đã lọc cho truyện (tối đa một mã, null khi đang xem tất cả). */
+export function loadProofreadingCode(slug: string): string | null {
+  try {
+    return window.localStorage.getItem(PROOFREADING_CODE_KEY(slug));
+  } catch {
+    return null;
+  }
+}
+
 export interface Paragraph {
   raw: string;
   mt: string;
@@ -189,6 +203,8 @@ export interface BranchState {
 }
 
 export interface ChapterCompare {
+  publication: { branch: "ai" | "local_mt"; text: string; title: string; revision: number } | null;
+  content_hash: string;
   index: number;
   title: string;
   title_zh: string;

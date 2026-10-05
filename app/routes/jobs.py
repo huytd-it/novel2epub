@@ -615,6 +615,7 @@ def api_queue_update_workers(request: Request, category: str = Body(...), count:
         "ai-translate": "translate_workers",
         "translate": "translate_workers",
         "ai-edit": "ai_edit_workers",
+        "validation": "validation_workers",
         "build": "build_workers",
         "automation": "automation_workers",
     }.get(category)

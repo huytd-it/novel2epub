@@ -141,6 +141,7 @@ def initialize_branch_revisions(
     message: str = "Backfill baseline từ dữ liệu hiện hành (v13)",
     actor_issuer: str = "",
     actor_subject: str = "",
+    chapter_indexes: Iterable[int] | None = None,
 ) -> dict:
     """Tạo baseline cho mọi nhánh ĐÃ KHỞI TẠO của mọi chương trong ebook.
 
@@ -190,7 +191,10 @@ def initialize_branch_revisions(
         )
     }
     prepared = []
-    for idx, title, text, branch, rev_number in _iter_initialized_branches(conn, slug, branches):
+    selected = set(chapter_indexes) if chapter_indexes is not None else None
+    for idx, title, text, branch, rev_number in _iter_initialized_branches(conn, slug, branches, selected):
+        if selected is not None and idx not in selected:
+            continue
         if (idx, branch) in existing:
             continue
         prepared.append(
@@ -365,20 +369,23 @@ def _ensure_backfill_operation(
 
 
 def _iter_initialized_branches(
-    conn: sqlite3.Connection, slug: str, branches: tuple[str, ...]
+    conn: sqlite3.Connection, slug: str, branches: tuple[str, ...], indexes: set[int] | None = None
 ):
     """Duyệt chương có text nhánh KHÔNG NULL (rỗng vẫn tính — chỉ NULL là chưa).
 
     Trả `(idx, title, text, branch, revision_number)` với `revision_number` =
     revision hiện hành của ĐÚNG nhánh đó (`chapters.revision` / `local_mt_revision`)."""
     for branch in branches:
+        if indexes is not None and not indexes:
+            continue
         title_col, text_col = branch_text_columns(branch)
         rev_col = branch_revision_column(branch)
+        index_filter = " AND idx IN (" + ",".join("?" for _ in indexes) + ")" if indexes is not None else ""
         for row in conn.execute(
             f"SELECT idx, {title_col} AS title, {text_col} AS text, "
             f"{rev_col} AS rev FROM chapters WHERE ebook_slug=? "
-            f"AND {text_col} IS NOT NULL ORDER BY idx",
-            (slug,),
+            f"AND {text_col} IS NOT NULL{index_filter} ORDER BY idx",
+            (slug, *(indexes or [])),
         ):
             yield (
                 int(row["idx"]),

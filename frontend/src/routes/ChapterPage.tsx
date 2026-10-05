@@ -1,17 +1,18 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 
 import { useCurrentBook } from "@/lib/books";
 import { num } from "@/lib/format";
-import { loadChapterFilters, useChapter, type AiRevision, type ChapterCompare } from "@/lib/ebook";
+import { CHAPTER_FILTERS_KEY, loadChapterFilters, loadProofreadingCode, PROOFREADING_CODE_KEY, useChapter, type AiRevision, type ChapterCompare, type ChapterFilters } from "@/lib/ebook";
 import {
   applyBookReplace,
   invalidateBookSearch,
   loadFindState,
   previewBookReplace,
+  proofreadingApi,
   saveFindState,
   useBookmark,
   useBookSearch,
@@ -44,7 +45,8 @@ import {
   type ChapterPreviewState,
   type FindMode,
 } from "@/components/chapter/ChapterListDrawer";
-import { validateChapterText, type ValidationIssue } from "@/lib/validation";
+import { validateChapterText, filterValidation, type ValidationIssue } from "@/lib/validation";
+import { ProofreadingCodes, ProofreadingPanel, sameProofreadingDraft, type ProofreadingDraft } from "@/components/chapter/ProofreadingPanel";
 import { useEbookSettings } from "@/lib/settings";
 import { NotesPanel } from "@/components/chapter/NotesPanel";
 import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
@@ -646,33 +648,66 @@ export function ChapterPage() {
   const [selectedChapterIndexes, setSelectedChapterIndexes] = useState<Set<number>>(new Set());
   const [bulkLocalMtOpen, setBulkLocalMtOpen] = useState(false);
   const [aiEditOpen, setAiEditOpen] = useState(false);
-  // Bật để drawer danh sách chương dùng lại bộ lọc đã lưu của trang Sách
-  // (`ebooks.<slug>.chapterFilters`) — thay vì chỉ tìm theo tiêu đề riêng.
-  const [applyEbookFilters, setApplyEbookFilters] = useState<boolean>(() => {
+  // Drawer danh sách chương mặc định dùng bộ lọc đã lưu của trang Sách
+  // (`ebooks.<slug>.chapterFilters`, giống Tổng quan/EbookPage) — nạp lại khi
+  // đổi truyện / mở drawer / nhận storage event từ tab trang Sách.
+  const [sharedFilters, setSharedFilters] = useState<ChapterFilters>(() => loadChapterFilters(slug));
+  const reloadSharedFilters = useCallback(() => {
     try {
-      return localStorage.getItem(`n2e-apply-ebook-filters:${slug}`) === "1";
+      setSharedFilters(loadChapterFilters(slug));
     } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    try {
-      setApplyEbookFilters(localStorage.getItem(`n2e-apply-ebook-filters:${slug}`) === "1");
-    } catch {
-      setApplyEbookFilters(false);
+      /* bỏ qua khi không truy cập được localStorage */
     }
   }, [slug]);
-  const toggleApplyEbookFilters = () => {
-    setApplyEbookFilters((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(`n2e-apply-ebook-filters:${slug}`, next ? "1" : "0");
-      } catch {
-        /* bỏ qua khi không truy cập được localStorage */
-      }
-      return next;
-    });
-  };
+  // Mã rà lỗi đang lọc trên trang Sách (`ebooks.<slug>.proofreadingCode`).
+  // Giống EbookPage: chỉ gửi `proofreading_code` khi server còn báo cáo rà
+  // soát đã lưu; có mã thì lọc đúng mã, không thì `"*"` (chương nào có lỗi).
+  const [storedProofCode, setStoredProofCode] = useState<string | null>(() => loadProofreadingCode(slug));
+  const reloadStoredProofCode = useCallback(() => {
+    try {
+      setStoredProofCode(loadProofreadingCode(slug));
+    } catch {
+      /* bỏ qua khi không truy cập được localStorage */
+    }
+  }, [slug]);
+  const { data: savedProofreading } = useQuery({
+    queryKey: ["content-validation", slug],
+    queryFn: () => proofreadingApi.state(slug),
+    retry: false,
+    enabled: Boolean(slug),
+  });
+  const proofreadingCodeFilter = useMemo(() => {
+    const hasReport = Boolean(savedProofreading && (savedProofreading.checked || savedProofreading.checked_at));
+    return hasReport ? (storedProofCode || "*") : "";
+  }, [savedProofreading, storedProofCode]);
+  const effectiveSharedFilters = useMemo(
+    () => (proofreadingCodeFilter ? { ...sharedFilters, proofreading_code: proofreadingCodeFilter } : sharedFilters),
+    [sharedFilters, proofreadingCodeFilter],
+  );
+  useEffect(() => {
+    reloadSharedFilters();
+    reloadStoredProofCode();
+  }, [slug, reloadSharedFilters, reloadStoredProofCode]);
+  // Tab trang Sách lưu bộ lọc vào cùng khóa mỗi khi đổi FilterBar — lắng nghe
+  // để drawer đang mở cũng cập nhật theo mà không cần tải lại trang.
+  useEffect(() => {
+    const filtersKey = CHAPTER_FILTERS_KEY(slug);
+    const codeKey = PROOFREADING_CODE_KEY(slug);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === filtersKey) reloadSharedFilters();
+      else if (e.key === codeKey) reloadStoredProofCode();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [slug, reloadSharedFilters, reloadStoredProofCode]);
+  // Mở drawer là lúc chắc chắn bộ lọc mới nhất đã nằm trong localStorage
+  // (vừa đổi ở trang Sách rồi điều hướng sang) — nạp lại một lần.
+  useEffect(() => {
+    if (chaptersOpen) {
+      reloadSharedFilters();
+      reloadStoredProofCode();
+    }
+  }, [chaptersOpen, reloadSharedFilters, reloadStoredProofCode]);
   // Trạng thái thu gọn danh sách chương (desktop) — lưu theo slug để giữ nguyên
   // khi chuyển chương và khi tải lại trang.
   const [chaptersCollapsed, setChaptersCollapsed] = useState<boolean>(() => {
@@ -745,7 +780,32 @@ export function ChapterPage() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const [documentDraft, setDocumentDraft] = useState("");
+  const [documentExpected, setDocumentExpected] = useState("");
+  const [documentTitleDraft, setDocumentTitleDraft] = useState("");
+  const [documentTitleExpected, setDocumentTitleExpected] = useState("");
   const [documentRevision, setDocumentRevision] = useState(0);
+  const [documentHash, setDocumentHash] = useState("");
+  const [proofreadingDraftBranch, setProofreadingDraftBranch] = useState<string | undefined>();
+  const [proofreadingDraftPublicationTitle, setProofreadingDraftPublicationTitle] = useState<string | undefined>();
+  const [proofreadingCodes, setProofreadingCodes] = useState<string[]>([]);
+  const [proofreadingOpen, setProofreadingOpen] = useState(false);
+  const [proofreadingIndexes, setProofreadingIndexes] = useState<number[]>([]);
+  const proofreadingDraftRef = useRef<ProofreadingDraft>({ slug, index: chapterIndex, text: "", title: "", branch: "ai", revision: 0, editing: false, generation: 0 });
+  const draftIdentity = { slug, index: chapterIndex, text: documentDraft, title: documentTitleDraft, branch: data?.active_branch ?? "ai", revision: documentRevision, editing: editMode || documentDraft !== documentExpected || documentTitleDraft !== documentTitleExpected };
+  if (Object.entries(draftIdentity).some(([key, value]) => proofreadingDraftRef.current[key as keyof ProofreadingDraft] !== value)) {
+    proofreadingDraftRef.current = { ...draftIdentity, generation: proofreadingDraftRef.current.generation + 1 };
+  }
+  const getProofreadingDraft = () => ({ ...proofreadingDraftRef.current });
+  const applyProofreadingDraft = (expected: ProofreadingDraft, after: string, title = expected.title) => {
+    const current = proofreadingDraftRef.current;
+    if (!sameProofreadingDraft(current, expected)) return false;
+    proofreadingDraftRef.current = { ...current, text: after, title, editing: true, generation: current.generation + 1 };
+    setDocumentDraft(after); setDocumentTitleDraft(title); setEditMode(true);
+    setProofreadingDraftBranch(expected.branch);
+    setProofreadingDraftPublicationTitle(data?.publication?.title);
+    return true;
+  };
+  const openProofreading = (indexes: number[]) => { setProofreadingIndexes(indexes); setProofreadingOpen(true); };
   const contentRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const [loadedKey, setLoadedKey] = useState("");
@@ -759,17 +819,23 @@ export function ChapterPage() {
   const rawDirty = Boolean(data && rawLoadedKey === `${slug}:${chapterIndex}` && rawDraft !== rawExpected);
 
   const chapterDataKey = data ? `${slug}:${chapterIndex}:${data.active_branch}` : "";
-  const dirty = Boolean(data && loadedKey === chapterDataKey && documentDraft !== data.translated);
+  const dirty = Boolean(data && loadedKey === chapterDataKey && (documentDraft !== documentExpected || documentTitleDraft !== documentTitleExpected));
 
   useEffect(() => {
     if (!data) return;
     const key = `${slug}:${chapterIndex}:${data.active_branch}`;
-    if (loadedKey !== key) {
+    if (loadedKey !== key || !editMode && !dirty && (documentExpected !== data.translated || documentRevision !== data.revision || documentTitleExpected !== data.title)) {
       setLoadedKey(key);
       setDocumentDraft(data.translated);
+      setDocumentExpected(data.translated);
+      setDocumentTitleDraft(data.title);
+      setDocumentTitleExpected(data.title);
       setDocumentRevision(data.revision);
+      setDocumentHash(data.content_hash);
+      setProofreadingDraftBranch(undefined);
+      setProofreadingDraftPublicationTitle(undefined);
     }
-  }, [slug, chapterIndex, data, loadedKey]);
+  }, [slug, chapterIndex, data, loadedKey, editMode, dirty, documentExpected, documentRevision, documentTitleExpected]);
 
   // Đồng bộ raw draft khi đổi chương hoặc fetch lại raw — không đè khi đang sửa.
   useEffect(() => {
@@ -813,15 +879,16 @@ export function ChapterPage() {
     );
   };
 
-  const chapterValidation = useMemo(() => {
+  const validationState = useMemo(() => {
     if (!data) return { issues: [] as ValidationIssue[], summary: { error: 0, warning: 0, info: 0, total: 0 }, perPara: new Map<number, ValidationIssue[]>() };
-    const text = editMode ? documentDraft : data.translated;
+    const text = editMode ? documentDraft : data.publication?.text ?? "";
     try {
-      return validateChapterText(text, { title: data.title });
+      return { ...validateChapterText(text, { title: editMode ? documentTitleDraft : data.publication?.title ?? data.title }), error: null };
     } catch {
-      return { issues: [] as ValidationIssue[], summary: { error: 0, warning: 0, info: 0, total: 0 }, perPara: new Map<number, ValidationIssue[]>() };
+      return { issues: [] as ValidationIssue[], summary: { error: 0, warning: 0, info: 0, total: 0 }, perPara: new Map<number, ValidationIssue[]>(), error: "Không phân tích được nội dung — không thể kết luận sạch lỗi. Hãy tải lại hoặc kiểm tra tay." };
     }
-  }, [data?.translated, data?.title, documentDraft, editMode]);
+  }, [data?.publication, data?.title, documentDraft, documentTitleDraft, editMode]);
+  const chapterValidation = useMemo(() => filterValidation(validationState, proofreadingCodes), [validationState, proofreadingCodes]);
 
   useLayoutEffect(() => {
     if (!editMode || !editorRef.current) return;
@@ -853,7 +920,7 @@ export function ChapterPage() {
   const [findMode, setFindMode] = useState<FindMode>("list");
   const [highlighted, setHighlighted] = useState<{ paraIndex: number; start: number; end: number } | null>(null);
   const [scrollRequest, setScrollRequest] = useState<{ paraIndex: number; start: number; end: number } | null>(null);
-  const highlightActive = findMode === "errors";
+  const highlightActive = findMode === "errors" && (editMode || data?.active_branch === data?.publication?.branch);
   const [findState, setFindState] = useState<ChapterFindState>(() => loadFindState(slug));
   const [findSubmitted, setFindSubmitted] = useState(false);
   const [findQuery, setFindQuery] = useState("");
@@ -1135,7 +1202,7 @@ export function ChapterPage() {
   );
 
   const drafts = useMemo(
-    () => (data?.ai_revisions ?? []).filter((r) => r.status === "pending" && r.payload_preview),
+    () => (data?.ai_revisions ?? []).filter((r) => r.engine !== "proofreading" && r.status === "pending" && r.payload_preview),
     [data?.ai_revisions],
   );
 
@@ -1163,10 +1230,15 @@ export function ChapterPage() {
   const saveDocument = () => {
     if (!dirty || saveChapterText.isPending) return;
     saveChapterText.mutate(
-      { translated: documentDraft, expectedRev: documentRevision },
+      { translated: documentDraft, title: documentTitleDraft, expectedRev: documentRevision, branch: data?.active_branch, expectedHash: documentHash, publicationBranch: proofreadingDraftBranch, publicationTitle: proofreadingDraftPublicationTitle },
       {
         onSuccess: (result) => {
           setDocumentRevision(result.revision);
+          setDocumentHash(result.content_hash);
+          setDocumentExpected(documentDraft);
+          setDocumentTitleExpected(documentTitleDraft);
+          setProofreadingDraftBranch(undefined);
+          setProofreadingDraftPublicationTitle(undefined);
           toast("Đã lưu toàn bộ chương.");
         },
         onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
@@ -1544,11 +1616,9 @@ export function ChapterPage() {
           onMouseUp={handleMouseUp}
         >
           <ChapterTitle
-            title={data.title}
+            title={editMode ? documentTitleDraft : data.title}
             editMode={editMode}
-            onSave={(t) =>
-              updateTitle.mutate(t, { onError: () => toast("Không lưu được tiêu đề.", "error") })
-            }
+            onSave={(t) => editMode ? setDocumentTitleDraft(t) : updateTitle.mutate(t, { onError: () => toast("Không lưu được tiêu đề.", "error") })}
             highlightActive={highlightActive}
             hasError={chapterValidation.issues.some((i) => i.paraIndex === -1 && i.level === "error")}
             hasWarning={chapterValidation.issues.some((i) => i.paraIndex === -1 && i.level === "warning")}
@@ -1738,7 +1808,40 @@ export function ChapterPage() {
           toast("Đã xếp biên tập AI vào hàng đợi — theo dõi ở trang Hàng đợi.");
         }}
       />
+      <ProofreadingPanel
+        open={proofreadingOpen}
+        onClose={() => setProofreadingOpen(false)}
+        slug={slug}
+        indexes={proofreadingIndexes}
+        codes={proofreadingCodes}
+        getDraft={getProofreadingDraft}
+        applyDraft={applyProofreadingDraft}
+        onCommitted={(results) => {
+          const current = proofreadingDraftRef.current;
+          const own = results?.find(r => !r.draft && r.committed && r.index === current.index && r.base?.branch === current.branch);
+          if (own && !current.editing) {
+            setDocumentDraft(own.after);
+            setDocumentExpected(own.after);
+            setDocumentRevision(own.base.revision);
+            setDocumentHash(own.base.hash);
+          }
+          queryClient.invalidateQueries({ queryKey: ["chapter", slug] });
+          queryClient.invalidateQueries({ queryKey: ["chapters", slug] });
+        }}
+        pendingCandidates={data.ai_revisions.filter(r => r.engine === "proofreading" && r.status === "pending").map(r => ({ index: chapterIndex, id: r.id }))}
+        onGoto={go}
+      />
       <ChapterListDrawer
+        onProofreadSelected={() => openProofreading([...selectedChapterIndexes])}
+        validationError={"error" in validationState ? validationState.error : null}
+        proofreadingControls={<>
+          <ProofreadingCodes codes={proofreadingCodes} onChange={setProofreadingCodes} issues={validationState.issues} />
+          <div className="flex flex-wrap gap-2 border-b border-base-300 p-3">
+            <Button size="sm" disabled={!proofreadingCodes.length || Boolean("error" in validationState && validationState.error)} onClick={() => openProofreading([chapterIndex])}>Soát lỗi chương này</Button>
+            <Button size="sm" disabled={!selectedChapterIndexes.size} onClick={() => openProofreading([...selectedChapterIndexes])}>Soát lỗi {selectedChapterIndexes.size} chương chọn</Button>
+          </div>
+          {!editMode && data.publication?.branch !== data.active_branch && <p className="p-3 text-xs text-warning">Lỗi thuộc bản xuất bản {data.publication?.branch ?? "chưa có"}, không phải nhánh đang xem. Chuyển nhánh tương ứng để đi tới/highlight.</p>}
+        </>}
         open={chaptersOpen}
         onClose={() => setChaptersOpen(false)}
         slug={slug}
@@ -1746,9 +1849,7 @@ export function ChapterPage() {
         onSelect={go}
         collapsed={chaptersCollapsed}
         onToggleCollapsed={toggleChaptersCollapsed}
-        applyEbookFilters={applyEbookFilters}
-        onToggleApplyEbookFilters={toggleApplyEbookFilters}
-        sharedFilters={applyEbookFilters ? loadChapterFilters(slug) : null}
+        sharedFilters={effectiveSharedFilters}
         mode={findMode}
         onModeChange={setFindMode}
         find={findState}

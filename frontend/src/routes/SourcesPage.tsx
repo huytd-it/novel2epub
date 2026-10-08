@@ -1016,12 +1016,19 @@ function PresetCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isWildcard = preset.chapter_link_pattern.trim() === ".*" || preset.chapter_link_pattern.trim() === ".+";
   const hasTightWrapper = Boolean(preset.toc_selector && preset.toc_selector.trim());
+  const homepageUrl = getHomepageUrl(preset.url);
 
   return (
     <Panel className="p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="truncate font-display text-[15px] font-semibold">{preset.name}</h3>
+          <h3 className="truncate font-display text-[15px] font-semibold">
+            {homepageUrl ? (
+              <a href={homepageUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary" title={`Mở trang chủ ${preset.name}`}>
+                {preset.name}
+              </a>
+            ) : preset.name}
+          </h3>
           <p className="truncate text-xs opacity-60">{preset.domains || preset.url || "-"}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -1109,10 +1116,19 @@ function PresetCard({
 /* ── Dạng bảng: sort + phân trang ─────────────────────────────────────── */
 
 type SourceView = "cards" | "table";
-type SourceSortKey = "name" | "domains" | "mode" | "usage" | "status" | "checked_at";
+type SourceSortKey = "name" | "domains" | "mode" | "status" | "checked_at";
 
 const SOURCES_VIEW_KEY = "n2e-sources-view";
 const SOURCES_TABLE_PAGE_SIZE = 12;
+
+function getHomepageUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : "";
+  } catch {
+    return "";
+  }
+}
 
 function SortableHeader({
   label,
@@ -1192,11 +1208,18 @@ function SourceTableRow({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isWildcard = preset.chapter_link_pattern.trim() === ".*" || preset.chapter_link_pattern.trim() === ".+";
   const hasTightWrapper = Boolean(preset.toc_selector && preset.toc_selector.trim());
+  const homepageUrl = getHomepageUrl(preset.url);
 
   return (
     <tr className="border-b border-base-300 align-middle last:border-b-0 hover:bg-base-200/35">
       <td className="max-w-[14rem] px-3 py-2">
-        <div className="truncate font-medium" title={preset.name}>{preset.name}</div>
+        <div className="truncate font-medium" title={preset.name}>
+          {homepageUrl ? (
+            <a href={homepageUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary" title={`Mở trang chủ ${preset.name}`}>
+              {preset.name}
+            </a>
+          ) : preset.name}
+        </div>
         <div className="truncate font-mono text-[10px] opacity-50" title={preset.domains || preset.url || ""}>{preset.domains || preset.url || "—"}</div>
       </td>
       <td className="max-w-[12rem] truncate px-3 py-2 font-mono text-xs opacity-70" title={preset.domains || "—"}>
@@ -1204,9 +1227,6 @@ function SourceTableRow({
       </td>
       <td className="whitespace-nowrap px-3 py-2">
         <Badge tone="indigo">{preset.scrapling_mode || "—"}</Badge>
-      </td>
-      <td data-numeric className="whitespace-nowrap px-3 py-2 text-xs opacity-70">
-        {usage.length > 0 ? `${usage.length} truyện` : "—"}
       </td>
       <td className="px-3 py-2">
         <div className="flex flex-wrap items-center gap-1">
@@ -1322,7 +1342,6 @@ export function SourcesPage() {
     const value = (p: SourcePreset): string | number => {
       if (sortKey === "domains") return (p.domains || p.url || "").toLowerCase();
       if (sortKey === "mode") return (p.scrapling_mode || "").toLowerCase();
-      if (sortKey === "usage") return data?.usage[p.name]?.length ?? 0;
       if (sortKey === "status") return statusRank(p);
       if (sortKey === "checked_at") return data?.validation[p.name]?.checked_at ?? 0;
       return p.name.toLowerCase();
@@ -1448,7 +1467,6 @@ export function SourcesPage() {
                   <SortableHeader label="Tên" sortKey="name" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
                   <SortableHeader label="Domain" sortKey="domains" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
                   <SortableHeader label="Chế độ" sortKey="mode" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
-                  <SortableHeader label="Dùng" sortKey="usage" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
                   <SortableHeader label="Trạng thái" sortKey="status" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
                   <SortableHeader label="Kiểm tra" sortKey="checked_at" activeKey={sortKey} direction={sortDirection} onSort={changeSort} />
                   <th scope="col" className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.08em] opacity-65">Thao tác</th>

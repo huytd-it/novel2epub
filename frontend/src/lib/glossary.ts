@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { api } from "./api";
+import { useQueue } from "./queue";
 
 export interface GlossaryEntry {
   source: string;
@@ -94,6 +96,22 @@ export interface Suspects {
 
 const listKey = (slug: string, query: GlossaryQuery) => ["glossary", slug, query] as const;
 const pendingKey = (slug: string) => ["glossary-pending", slug] as const;
+
+/** Refresh after background jobs, including partial commits from a failed job. */
+export function useGlossaryJobRefresh(slug: string) {
+  const client = useQueryClient();
+  const { data } = useQueue();
+  const completed = (data?.history ?? [])
+    .filter((job) => job.ebook === slug && ["glossary-ai", "glossary-approve"].includes(job.step))
+    .map((job) => `${job.id}:${job.state}:${job.ended_at}`)
+    .join("|");
+  useEffect(() => {
+    if (!completed) return;
+    for (const key of ["glossary", "glossary-pending", "glossary-flags", "glossary-suspects"]) {
+      client.invalidateQueries({ queryKey: [key, slug] });
+    }
+  }, [client, slug, completed]);
+}
 
 export function useGlossary(slug: string, query: GlossaryQuery) {
   const params = new URLSearchParams({
@@ -279,14 +297,14 @@ export function useApprovePending(slug: string) {
   });
 }
 
-/** CRUD toàn glossary + hàng chờ theo từng lô, tự ghi và lan truyền bản dịch. */
+/** Dọn và duyệt mục đã chọn; lan truyền bản dịch hợp lệ, chỉ xóa mục bị loại. */
 export function useGlossaryAiReprocessPending(slug: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { instruction: string }) =>
+    mutationFn: (vars: { sources: string[]; instruction: string; batch_size: number }) =>
       api.post<{ started: boolean; requested: number }>(
         `/api/ebooks/${slug}/glossary/ai/reprocess-pending`,
-        { body: { ...vars, curate_all: true } },
+        { body: vars },
       ),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["queue"] });

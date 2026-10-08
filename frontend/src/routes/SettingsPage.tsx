@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 
 import { Page } from "@/app/Shell";
 import { api } from "@/lib/api";
 import {
+  settingsKey,
   useEbookSettings,
   useGlobalAi,
   useSaveSettings,
@@ -20,7 +21,7 @@ import { Panel, PanelHeader, EmptyState } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/Field";
-import { Modal } from "@/components/ui/Modal";
+import { ConfirmDialog, Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { fetchAndMergeModels, ModelField, ProviderPickerField } from "@/components/AiProviderFields";
 
@@ -387,7 +388,7 @@ function TranslateTab({ slug, server, meta }: { slug: string; server: EbookSetti
     },
     { key: "keep_paragraphs", label: "Giữ nguyên cách chia đoạn", kind: "checkbox" },
     { key: "delay_seconds", label: "Delay giữa các chương (giây)", kind: "number", step: 0.1 },
-    { key: "max_workers", label: "Số luồng dịch song song", kind: "number" },
+    { key: "max_workers", label: "Số luồng dịch song song", kind: "number", hint: "Áp dụng cho cả dịch chương và dọn chữ Hán bằng LLM" },
     // `batch_size` (Số chương / lần gọi API) CỐ Ý không hiển thị: luồng Dịch
     // chính (`step_translate_selected`) luôn dịch 1 chương / lần gọi, field này
     // chỉ còn tác dụng ở endpoint batch cũ (`/api/ebooks/{slug}/batch/translate`).
@@ -763,6 +764,67 @@ function TranslateAiProviderPanel({ slug, ai }: { slug: string; ai: AiSettings }
   );
 }
 
+/* ── Tab Nguồn + nút Reset ───────────────────────────────────────────
+   Backend đã có `POST /ebooks/{slug}/settings/source/reset` (xóa toàn bộ
+   override crawl, chỉ giữ `toc_url`, gắn lại preset theo URL) — nút này chỉ
+   gọi endpoint đó rồi nạp lại form từ server. `key={nonce}` để sau reset form
+   dựng lại draft từ dữ liệu mới, kể cả khi người dùng đang sửa dở. */
+function SourceTab({
+  slug,
+  server,
+  banner,
+}: {
+  slug: string;
+  server: EbookSettings["source"];
+  banner?: React.ReactNode;
+}) {
+  const toast = useToast();
+  const client = useQueryClient();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [nonce, setNonce] = useState(0);
+
+  const reset = useMutation({
+    mutationFn: () => api.post(`/ebooks/${slug}/settings/source/reset`),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: settingsKey(slug) });
+      setNonce((n) => n + 1);
+      setConfirmOpen(false);
+      toast("Đã reset nguồn về cấu hình mặc định.");
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
+  return (
+    <>
+      <SectionForm
+        key={nonce}
+        slug={slug}
+        section="source"
+        title="Nguồn"
+        hint="Cách crawl mục lục và nội dung chương"
+        fields={SOURCE_FIELDS}
+        server={server}
+        banner={banner}
+        extraActions={
+          <Button size="sm" variant="ghost" onClick={() => setConfirmOpen(true)}>
+            Reset nguồn
+          </Button>
+        }
+      />
+      <ConfirmDialog
+        open={confirmOpen}
+        onCancel={() => !reset.isPending && setConfirmOpen(false)}
+        onConfirm={() => reset.mutate()}
+        title="Reset nguồn?"
+        confirmLabel="Reset nguồn"
+        destructive
+        pending={reset.isPending}
+        body="Xóa toàn bộ ghi đè crawl riêng của truyện (chỉ giữ URL mục lục) và trả về cấu hình mặc định của nguồn. Nội dung đã crawl không bị xóa."
+      />
+    </>
+  );
+}
+
 function OpdsTab({ server }: { server: OpdsSettings }) {
   const toast = useToast();
   const [values, setValues] = useState(server);
@@ -893,15 +955,7 @@ export function SettingsPage() {
         />
       ) : null}
       {tab === "source" ? (
-        <SectionForm
-          slug={slug}
-          section="source"
-          title="Nguồn"
-          hint="Cách crawl mục lục và nội dung chương"
-          fields={SOURCE_FIELDS}
-          server={data.source}
-          banner={sourceBanner}
-        />
+        <SourceTab slug={slug} server={data.source} banner={sourceBanner} />
       ) : null}
       {tab === "translate" ? (
         <>
@@ -932,7 +986,7 @@ export function SettingsPage() {
       ) : null}
 
       <p className="mt-3 text-xs opacity-50">
-        Đồng bộ vào nguồn dùng chung, tải ảnh bìa từ máy và reset override vẫn chưa có mặt
+        Đồng bộ vào nguồn dùng chung và tải ảnh bìa từ máy vẫn chưa có mặt
         trong giao diện mới — tạm thời chỉnh thẳng trong file cấu hình nếu cần.
       </p>
     </Page>

@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from app import deps
@@ -519,10 +521,12 @@ def test_ai_retranslate_reprocesses_pending_override(tmp_path, monkeypatch):
     ]
 
 
-def test_ai_curate_all_without_pending(tmp_path, monkeypatch):
+def test_ai_curate_selected_without_pending(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")
     storage.upsert_glossary_entry("张三", "Trương Sai", "chú thích độc giả")
+    storage.upsert_glossary_entry("李四", "Lý Tứ", "ngoài lựa chọn")
+    storage.write_extra_json("glossary_pending", [{"source": "王五", "target": "Vương Ngũ", "note": ""}])
     from novel2epub import openai_client
 
     prompts = []
@@ -532,11 +536,14 @@ def test_ai_curate_all_without_pending(tmp_path, monkeypatch):
                             "target": "Trương Tam", "reason": "Sửa phiên âm"}])
     monkeypatch.setattr(openai_client, "run_chat", chat)
     client = _client(cfg, monkeypatch)
-    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={})
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"sources": ["张三", "张三"], "batch_size": 1})
     assert res.status_code == 200
     assert res.json()["requested"] == 1
     assert len(prompts) == 1
-    assert storage.read_glossary_entries("names.txt") == [("张三", "Trương Tam", "chú thích độc giả")]
+    assert storage.read_glossary_entries("names.txt") == [
+        ("张三", "Trương Tam", "chú thích độc giả"), ("李四", "Lý Tứ", "ngoài lựa chọn"),
+    ]
+    assert [p["source"] for p in storage.read_extra_json("glossary_pending")] == ["王五"]
 
 
 def test_ai_reprocess_pending_auto_approves_whole_queue_in_one_job(tmp_path, monkeypatch):
@@ -563,10 +570,9 @@ def test_ai_reprocess_pending_auto_approves_whole_queue_in_one_job(tmp_path, mon
     )
     client = _client(cfg, monkeypatch)
 
-    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": "", "curate_all": False})
-
-    assert res.status_code == 200
-    assert res.json() == {"started": True, "requested": 2}
+    # Persisted legacy jobs retain their original approval behavior.
+    from app.routes.glossary import glossary_ai_job_factory
+    glossary_ai_job_factory({"slug": "t", "sources": ["叶凡", "林动"], "auto_approve": True})(lambda _: None)
     # Ghi thẳng vào glossary, giữ nguyên ghi chú cũ — reason của AI không vào note.
     assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {
         "叶凡": "Diệp Phàm mới",
@@ -597,9 +603,8 @@ def test_ai_reprocess_pending_keeps_unanswered_in_queue(tmp_path, monkeypatch):
     )
     client = _client(cfg, monkeypatch)
 
-    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": "", "curate_all": False})
-
-    assert res.status_code == 200
+    from app.routes.glossary import glossary_ai_job_factory
+    glossary_ai_job_factory({"slug": "t", "sources": ["叶凡", "林动"], "auto_approve": True})(lambda _: None)
     pending = storage.read_extra_json("glossary_pending")
     assert [p["source"] for p in pending] == ["林动"]
     assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {"叶凡": "Diệp Phàm"}
@@ -631,9 +636,8 @@ def test_ai_reprocess_pending_guard_holds_unsafe_results(tmp_path, monkeypatch):
     )
     client = _client(cfg, monkeypatch)
 
-    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": "", "curate_all": False})
-
-    assert res.status_code == 200
+    from app.routes.glossary import glossary_ai_job_factory
+    glossary_ai_job_factory({"slug": "t", "sources": ["叶凡", "萧炎", "叶番"], "auto_approve": True})(lambda _: None)
     assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {
         "林动": "Lâm Động",
         "叶番": "Diệp Phiên",
@@ -645,14 +649,15 @@ def test_ai_reprocess_pending_guard_holds_unsafe_results(tmp_path, monkeypatch):
     ]
 
 
-def test_ai_reprocess_pending_empty_queue_returns_400(tmp_path, monkeypatch):
+@pytest.mark.parametrize("payload", [{}, {"sources": []}, {"sources": ["张三"], "batch_size": 0}, {"sources": ["张三"], "batch_size": 101}, {"sources": ["张三"], "batch_size": 1.5}])
+def test_ai_reprocess_requires_selection_and_valid_batch(tmp_path, monkeypatch, payload):
     cfg = _cfg(tmp_path)
     Storage(tmp_path, "t").ensure_dirs()
     client = _client(cfg, monkeypatch)
 
-    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={})
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json=payload)
 
-    assert res.status_code == 400
+    assert res.status_code == 422
 
 
 def test_edits_preview_reports_kind_and_propagation_count(tmp_path, monkeypatch):
@@ -1711,8 +1716,7 @@ def test_ai_reprocess_pending_laya_poc_failure_never_breaks_job(tmp_path, monkey
     )
     client = _client(cfg, monkeypatch)
 
-    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending", json={"instruction": "", "curate_all": False})
-
-    assert res.status_code == 200
+    from app.routes.glossary import glossary_ai_job_factory
+    glossary_ai_job_factory({"slug": "t", "sources": ["叶凡"], "auto_approve": True})(lambda _: None)
     assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {"叶凡": "Diệp Phàm"}
     assert storage.read_extra_json("glossary_pending") == []

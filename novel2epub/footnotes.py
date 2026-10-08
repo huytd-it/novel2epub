@@ -1,8 +1,9 @@
 """Sinh footnote (chú thích) cho 1 chương từ glossary có ghi chú.
 
 Editor ghi chú giải nghĩa vào glossary (định dạng `Hán = Việt | ghi chú`). Khi
-build EPUB, mỗi thuật ngữ có ghi chú sẽ được chèn marker `(N)` ở LẦN XUẤT HIỆN
-ĐẦU TIÊN trong chương, và danh sách định nghĩa được thêm ở cuối chương.
+build EPUB, pipeline chỉ truyền những thuật ngữ chưa được chú thích ở chương
+trước. Mỗi thuật ngữ được chèn marker `(N)` ở LẦN XUẤT HIỆN ĐẦU TIÊN trong
+chương có số thứ tự nhỏ nhất chứa nó, và định nghĩa được thêm ở cuối chương đó.
 
 Module này thuần (không phụ thuộc ebooklib) để dễ test. Việc render marker/danh
 sách thành HTML do epub_builder đảm nhiệm — ở đây chỉ chèn placeholder ký tự

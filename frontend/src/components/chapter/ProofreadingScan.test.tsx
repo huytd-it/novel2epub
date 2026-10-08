@@ -76,15 +76,13 @@ describe("scan everything once then filter locally", () => {
     fireEvent.change(screen.getByLabelText("Lọc theo mã lỗi đã rà soát"), { target: { value: "" } });
     expect(screen.getByText("Lỗi double_space", { exact: false })).toBeTruthy();
   });
-  it("failed report download retries without enqueueing another scan", async () => {
+  it("failed report download shows error without enqueueing another scan", async () => {
     mount();
     mocks.scanResult.mockRejectedValueOnce(new Error("offline"));
     fireEvent.click(screen.getByRole("button", { name: "Rà soát tất cả lỗi" }));
     await screen.findByRole("alert");
-    fireEvent.click(screen.getByRole("button", { name: "Tải lỗi từ DB" }));
-    await screen.findByLabelText("Lọc theo mã lỗi đã rà soát");
+    expect(screen.queryByRole("button", { name: "Tải lỗi từ DB" })).toBeNull();
     expect(mocks.scan).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(mocks.scanResult).toHaveBeenCalledTimes(2));
   });
   it("warning table paginates beyond the first report page", async () => {
     mount();
@@ -151,11 +149,7 @@ describe("scan everything once then filter locally", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(mocks.analyze).not.toHaveBeenCalled();
     expect(mocks.save).not.toHaveBeenCalled();
-    const remaining = { ...report, chapters: report.chapters.map(row => row.index === 101 ? { ...row, issues: [] } : row) };
-    mocks.state.mockResolvedValue(remaining);
-    fireEvent.click(screen.getByRole("button", { name: "Tải lỗi từ DB" }));
-    await waitFor(() => expect(screen.queryByRole("link", { name: "Mở Chapter để sửa chương 101" })).toBeNull());
-    expect(screen.getByRole("link", { name: "Mở Chapter để sửa chương 205" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Tải lỗi từ DB" })).toBeNull();
     expect(mocks.scan).not.toHaveBeenCalled();
   });
 });

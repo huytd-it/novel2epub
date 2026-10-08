@@ -73,20 +73,78 @@ def _book(storage, chapters, versions):
     _write(storage, BOOK_KEY, report)
 
 
+def _issue_brief(issue) -> str:
+    code = issue.get("code", "?")
+    message = issue.get("message", "")
+    para = issue.get("paraIndex", -1)
+    suffix = f" · đoạn {para + 1}" if isinstance(para, int) and para >= 0 else ""
+    return f"{code}: {message}{suffix}"
+
+
 def refresh_book(storage, log=lambda _: None):
-    """Explicit scan / Build preview: persist all rows under a single lock."""
-    with transaction(storage):
-        manifest = storage.load_manifest()
-        chapters = manifest.chapters if manifest else []
-        versions, stamps = storage.bulk_publication_versions(), _stamps(storage)
-        for ch in chapters:
-            if ch.skipped:
+    """Explicit scan / Build preview: persist every chapter row.
+
+    Mỗi chương được rà + ghi trong phạm vi lỗi riêng: một chương hỏng không
+    rollback toàn bộ lần quét (trước đây một exception giữa chừng là DB giữ
+    nguyên như chưa hề rà). Mọi vấn đề phát hiện được log NGAY khi thấy để
+    nhật kí job cho biết chương nào lỗi gì mà không cần mở báo cáo.
+    """
+    manifest = storage.load_manifest()
+    chapters = manifest.chapters if manifest else []
+    versions, stamps = storage.bulk_publication_versions(), _stamps(storage)
+    total = len(chapters)
+    log(f"[validation] Bắt đầu rà {total} chương...")
+    counts: dict[str, int] = {}
+    chapters_with_issues = 0
+    failed: list[int] = []
+    for pos, ch in enumerate(chapters):
+        if ch.skipped:
+            with transaction(storage):
                 storage.conn.execute("DELETE FROM ebook_extra_json WHERE ebook_slug=? AND key=?", (storage.slug, PREFIX + str(ch.index)))
-                continue
-            _write(storage, PREFIX + str(ch.index), _chapter(storage, ch, versions.get(ch.index), stamps.get(ch.index)))
-        _book(storage, chapters, versions)
+            continue
+        try:
+            report = _chapter(storage, ch, versions.get(ch.index), stamps.get(ch.index))
+        except Exception as exc:  # noqa: BLE001 - chương hỏng không được chặn các chương còn lại
+            failed.append(ch.index)
+            log(f"[validation] Chương {ch.index}: không rà được ({exc}); giữ kết quả cũ, tiếp tục chương khác.")
+            continue
+        try:
+            with transaction(storage):
+                _write(storage, PREFIX + str(ch.index), report)
+        except Exception as exc:  # noqa: BLE001 - chỉ mất dòng của chương này
+            failed.append(ch.index)
+            log(f"[validation] Chương {ch.index}: không lưu được lỗi ({exc}).")
+            continue
+        if report.get("error"):
+            log(f"[validation] Chương {ch.index} ({report.get('title') or ch.title}): {report['error']}")
+        for issue in report.get("issues", []):
+            code = issue.get("code", "?")
+            counts[code] = counts.get(code, 0) + 1
+            log(f"[validation] Chương {ch.index}: {_issue_brief(issue)}")
+        if report.get("issues"):
+            chapters_with_issues += 1
+        if (pos + 1) % 100 == 0:
+            log(f"[validation] Đã rà {pos + 1}/{total} chương...")
+    log("[validation] Kiểm tra trùng nội dung/số chương...")
+    try:
+        with transaction(storage):
+            _book(storage, chapters, versions)
+    except Exception as exc:  # noqa: BLE001 - vẫn giữ lỗi từng chương đã lưu
+        log(f"[validation] Không kiểm tra được trùng/số chương ({exc}).")
+    try:
+        book_issues = (storage.read_extra_json(BOOK_KEY) or {}).get("issues", [])
+    except Exception:
+        book_issues = []
+    for issue in book_issues:
+        code = issue.get("code", "?")
+        counts[code] = counts.get(code, 0) + 1
+        log(f"[validation] Toàn sách: {code}: {issue.get('message', '')}")
     result = saved_report(storage)
-    log(f"[validation] Đã lưu lỗi {result['checked']} chương vào SQLite; dùng chung kiểm tra Build EPUB.")
+    summary = "; ".join(f"{code}={n}" for code, n in sorted(counts.items()))
+    log(f"[validation] Đã lưu lỗi {result['checked']} chương vào SQLite"
+        + (f" ({chapters_with_issues} chương có lỗi: {summary})" if summary else " (không phát hiện lỗi)")
+        + (f"; {len(failed)} chương rà lỗi: {failed}" if failed else "")
+        + "; dùng chung kiểm tra Build EPUB.")
     return result
 
 

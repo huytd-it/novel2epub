@@ -73,7 +73,6 @@ RE_TRAILING_SPACE = re.compile(r"[ \t]+(?=\r?$)")
 RE_HTML = re.compile(r"</?[A-Za-z][^<>\n]*>|&(?:#[0-9]+|#x[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]+);")
 RE_TOKEN = re.compile(r"[a-zA-ZÀ-ỹ]+(?:\.[a-zA-ZÀ-ỹ]+)*")
 RE_ABBREVIATION = re.compile(r"\b(?:v\.v\.?|v\.d\.?|ThS|PGS|TS|TP|UBND|CPU|AI)\b|(?<![a-zA-ZÀ-ỹ])(?:[A-Z]{2,6}|[A-Za-z](?:\.[A-Za-z])+(?:\.)?)(?![a-zA-ZÀ-ỹ])")
-RE_EFFECT = re.compile(r"\b(?:ầm|rầm|bùm|bốp|rẹt|leng keng|ting|đùng|soạt|mỉm cười|thở dài)\b", re.IGNORECASE)
 RE_ROMAN = re.compile(r"M{0,3}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})")
 
 
@@ -87,7 +86,7 @@ def spelling_suspect(token: str) -> bool:
 
 ALGORITHM_CODES = frozenset({"hash_heading", "code_fence", "weird_dots", "repeated_punct", "control_char", "zero_width", "double_space", "space_before_punct", "trailing_space", "missing_space_after", "html_entity"})
 AI_CODES = frozenset({"han_remaining", "replacement_char", "mojibake", "repeated_word", "url", "spelling"})
-INFORMATION_CODES = frozenset({"abbreviation", "effect_sound", "short", "skipped"})
+INFORMATION_CODES = frozenset({"abbreviation", "short", "skipped"})
 
 
 def supported_method(code: str) -> str:
@@ -141,7 +140,6 @@ CONTENT_CHECKS: tuple[ContentCheck, ...] = (
     ContentCheck("html_entity", "warning", RE_HTML, "HTML/entity còn sót", "Bóc thẻ, giữ nội dung hiển thị", "Có {n} HTML/entity"),
     ContentCheck("abbreviation", "info", RE_ABBREVIATION, "Từ viết tắt", "Chỉ đánh dấu; có thể hợp lệ", "Có {n} từ viết tắt"),
     ContentCheck("spelling", "warning", RE_TOKEN, "Từ nghi vấn chính tả", "Heuristic; kiểm tra toàn từ theo ngữ cảnh", "Có {n} từ nghi vấn"),
-    ContentCheck("effect_sound", "info", RE_EFFECT, "Nhãn hiệu ứng/âm thanh", "Chỉ đánh dấu, không mặc định là rác", "Có {n} nhãn hiệu ứng/âm thanh"),
     ContentCheck(
         "hash_heading", "warning", RE_HASH_HEADING,
         "Dòng bắt đầu bằng ##", "Tiêu đề không nên có ##",

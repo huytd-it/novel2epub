@@ -9,11 +9,36 @@ Tương thích bất kỳ provider lộ endpoint kiểu OpenAI: OpenAI, OpenRout
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import requests
 
 from .config import OpenAIConfig
+
+
+class RetryableAIError(RuntimeError):
+    """Lỗi tạm thời từ provider/proxy — gọi lại thường rơi sang node/model khác.
+
+    Timeout, rate limit và 5xx đều là lỗi hạ tầng, không phải lỗi logic prompt;
+    lần gọi sau với đúng prompt đó thường thành công.
+    """
+
+
+# Mã lỗi HTTP cho thấy lỗi hạ tầng tạm thời (có thể thử lại).
+_RETRYABLE_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504, 520, 522, 524})
+# Mã lỗi provider/proxy trong body (kể cả SSE `error.code`) tạm thời.
+_RETRYABLE_CODE_HINTS = (
+    "timeout", "timedout", "rate_limit", "ratelimit", "overload", "upstream",
+    "unavailable", "server_error", "internal_error", "capacity", "busy",
+    "temporar", "thời hạn", "try_again",
+)
+
+
+def _is_retryable_code(code: str, detail: str = "") -> bool:
+    """Mã lỗi provider có phải lỗi tạm thời (đáng gọi lại) không."""
+    text = f"{code} {detail}".lower()
+    return any(hint in text for hint in _RETRYABLE_CODE_HINTS)
 
 
 def _headers(cfg: OpenAIConfig) -> dict[str, str]:
@@ -107,6 +132,107 @@ def _parse_omniroute_headers(headers) -> dict[str, Any]:
     return meta
 
 
+def _truncate_log(text: str, limit: int = 500) -> str:
+    """Rút gọn một dòng log: gộp whitespace, cắt ở `limit` ký tự."""
+    single = " ".join(str(text).split())
+    if len(single) > limit:
+        return single[:limit] + f"…(+{len(single) - limit} ký tự)"
+    return single
+
+
+def _parse_sse_lines(lines) -> tuple[str, str, bool]:
+    """Ghép chat chunks; chỉ dùng final message nếu không có delta để tránh lặp.
+
+    Diagnostic tóm tắt cấu trúc (số events, keys, finish_reason, error message
+    rút gọn) để đủ dữ liệu debug mà không đổ nguyên nội dung AI/reasoning vào
+    log — xem `test_run_chat_with_meta_sse_empty_diagnostics_no_response_body`.
+    Trả `(content, diagnostic, retryable)`: `retryable` đúng khi stream rỗng vì
+    lỗi tạm thời (timeout/rate limit/5xx) nên đáng gọi lại.
+    """
+    parts: list[str] = []
+    final_message = ""
+    events = 0
+    choices_seen = 0
+    finish_reason = ""
+    error_code = ""
+    error_detail = ""
+    choice_hint = ""
+    invalid_sample = ""
+    for line in lines:
+        if isinstance(line, bytes):
+            line = line.decode("utf-8", errors="replace")
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[len("data:"):].strip()
+        if not payload or payload == "[DONE]":
+            continue
+        events += 1
+        try:
+            data = json.loads(payload)
+        except (ValueError, TypeError):
+            if not invalid_sample and payload:
+                invalid_sample = _truncate_log(payload, 200)
+            continue
+        if not isinstance(data, dict):
+            continue
+        error = data.get("error")
+        if isinstance(error, dict):
+            code = error.get("code") or error.get("type")
+            if isinstance(code, str) and code.replace("_", "").replace("-", "").isalnum():
+                error_code = code[:80]
+            if not error_detail:
+                for key in ("message", "detail", "msg", "error", "description"):
+                    val = error.get(key)
+                    if isinstance(val, str) and val.strip():
+                        error_detail = _truncate_log(val, 500)
+                        break
+        choices = data.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            continue
+        choices_seen += 1
+        choice = choices[0]
+        if isinstance(choice.get("finish_reason"), str):
+            reason = choice["finish_reason"]
+            if reason.replace("_", "").isalnum():
+                finish_reason = reason[:80]
+        delta = choice.get("delta")
+        if isinstance(delta, dict) and isinstance(delta.get("content"), str):
+            parts.append(delta["content"])
+        message = choice.get("message")
+        if isinstance(message, dict) and isinstance(message.get("content"), str):
+            final_message = message["content"]
+        if not choice_hint:
+            hints: list[str] = []
+            if isinstance(delta, dict):
+                hints.append("delta_keys=" + ",".join(sorted(str(k) for k in delta.keys()))[:120])
+                if delta.get("tool_calls"):
+                    hints.append("has_tool_calls=True")
+                if delta.get("reasoning_content") or delta.get("reasoning"):
+                    hints.append("has_reasoning=True")
+            if isinstance(message, dict):
+                hints.append("message_keys=" + ",".join(sorted(str(k) for k in message.keys()))[:120])
+                if message.get("tool_calls"):
+                    hints.append("has_tool_calls=True")
+            role = (delta or {}).get("role") if isinstance(delta, dict) else None
+            if isinstance(role, str) and role.replace("_", "").isalnum():
+                hints.append(f"role={role[:32]}")
+            if hints:
+                choice_hint = " ".join(hints)[:300]
+    diagnostic = f"events={events}, choices={choices_seen}"
+    if finish_reason:
+        diagnostic += f", finish_reason={finish_reason}"
+    if error_code:
+        diagnostic += f", error={error_code}"
+    if error_detail:
+        diagnostic += f", error_detail={error_detail}"
+    if not "".join(parts) and not final_message and choice_hint:
+        diagnostic += f", choice[{choice_hint}]"
+    if events and not choices_seen and invalid_sample and not error_detail:
+        diagnostic += f", sample={invalid_sample}"
+    return "".join(parts) or final_message, diagnostic, _is_retryable_code(error_code, error_detail)
+
+
 def _parse_sse_response_by_lines(resp: requests.Response) -> str:
     """Đọc streaming `resp.iter_lines()` và ghép `delta.content` từ từng chunk SSE.
 
@@ -114,30 +240,8 @@ def _parse_sse_response_by_lines(resp: requests.Response) -> str:
     response như `_parse_sse_response`. Bỏ qua `event: progress` nếu OmniRoute
     gửi kèm X-OmniRoute-Progress header.
     """
-    parts: list[str] = []
-    for line in resp.iter_lines():
-        if not line:
-            continue
-        decoded = line.decode("utf-8", errors="replace").strip()
-        if not decoded.startswith("data:"):
-            continue
-        payload = decoded[len("data:"):].strip()
-        if not payload or payload == "[DONE]":
-            continue
-        try:
-            data = json.loads(payload)
-        except (ValueError, TypeError):
-            continue
-        if not isinstance(data, dict):
-            continue
-        choices = data.get("choices") or []
-        if not choices:
-            continue
-        delta = choices[0].get("delta") or {}
-        chunk_content = delta.get("content")
-        if chunk_content:
-            parts.append(chunk_content)
-    return "".join(parts)
+    content, _diagnostic, _retryable = _parse_sse_lines(resp.iter_lines())
+    return content
 
 
 def _parse_sse_response(text: str) -> str:
@@ -147,28 +251,8 @@ def _parse_sse_response(text: str) -> str:
     Trả nội dung `delta.content` ghép từ tất cả chunk `data: {...}` (bỏ qua
     `data: [DONE]` và chunk không có content).
     """
-    parts: list[str] = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or not line.startswith("data:"):
-            continue
-        payload = line[len("data:"):].strip()
-        if not payload or payload == "[DONE]":
-            continue
-        try:
-            data = json.loads(payload)
-        except (ValueError, TypeError):
-            continue
-        if not isinstance(data, dict):
-            continue
-        choices = data.get("choices") or []
-        if not choices:
-            continue
-        delta = choices[0].get("delta") or {}
-        chunk_content = delta.get("content")
-        if chunk_content:
-            parts.append(chunk_content)
-    return "".join(parts)
+    content, _diagnostic, _retryable = _parse_sse_lines(text.splitlines())
+    return content
 
 
 def run_chat_with_meta(
@@ -200,29 +284,36 @@ def run_chat_with_meta(
             timeout=cfg.timeout_seconds, stream=True,
         )
     except requests.exceptions.Timeout as e:
-        raise RuntimeError(f"AI request quá thời gian ({cfg.timeout_seconds}s).") from e
+        raise RetryableAIError(f"AI request quá thời gian ({cfg.timeout_seconds}s).") from e
+    except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
+        raise RetryableAIError(f"AI không giữ được kết nối tại {url!r}: {e}") from e
     except requests.exceptions.RequestException as e:
         raise RuntimeError(f"Không gọi được AI tại {url!r}: {e}") from e
 
     if resp.status_code != 200:
         detail = resp.text.strip()[:2000] or "(không có nội dung lỗi)"
-        raise RuntimeError(f"AI trả về mã lỗi HTTP {resp.status_code}:\n{detail}")
+        message = f"AI trả về mã lỗi HTTP {resp.status_code}:\n{detail}"
+        if resp.status_code in _RETRYABLE_STATUS or _is_retryable_code("", detail):
+            raise RetryableAIError(message)
+        raise RuntimeError(message)
 
     meta = _parse_omniroute_headers(resp.headers)
     content_type = (resp.headers.get("Content-Type") or "").lower()
 
     if "text/event-stream" in content_type:
-        content = _parse_sse_response_by_lines(resp)
+        content, diagnostic, retryable = _parse_sse_lines(resp.iter_lines())
         if not content.strip():
-            raise RuntimeError("AI trả về SSE stream nhưng không có content.")
+            message = f"AI trả về SSE stream nhưng không có content ({diagnostic})."
+            raise (RetryableAIError if retryable else RuntimeError)(message)
         return content, meta
 
     # Provider trả về non-streaming dù `stream: true` -> fallback
     raw = resp.text
     if raw.lstrip().startswith("data:"):
-        content = _parse_sse_response(raw)
+        content, diagnostic, retryable = _parse_sse_lines(raw.splitlines())
         if not content.strip():
-            raise RuntimeError("AI trả về SSE stream (từ full body) nhưng không có content.")
+            message = f"AI trả về SSE stream (từ full body) nhưng không có content ({diagnostic})."
+            raise (RetryableAIError if retryable else RuntimeError)(message)
         return content, meta
 
     try:
@@ -234,6 +325,37 @@ def run_chat_with_meta(
     if not content or not content.strip():
         raise RuntimeError("AI trả về nội dung rỗng — kiểm tra base_url/api_key/model trong config.")
     return content, meta
+
+
+def run_chat_with_retry(
+    cfg: OpenAIConfig,
+    prompt: str,
+    *,
+    attempts: int = 2,
+    delay_seconds: float = 0.0,
+    log=None,
+) -> str:
+    """`run_chat` có thử lại khi provider báo lỗi tạm thời.
+
+    Chỉ thử lại `RetryableAIError` (timeout, rate limit, 5xx): API thường
+    round-robin node/model nên gọi lại cùng prompt thường rơi sang node khác
+    và pass. Lỗi logic (401, sai định dạng) không thử lại — raise ngay để
+    caller quyết định.
+    """
+    attempts = max(1, int(attempts))
+    last: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return run_chat(cfg, prompt)
+        except RetryableAIError as exc:
+            last = exc
+            if attempt == attempts:
+                break
+            if log is not None:
+                log(f"AI lỗi tạm thời ({exc}); thử lại lần {attempt + 1}/{attempts} sau {delay_seconds:.0f}s.")
+            if delay_seconds > 0:
+                time.sleep(delay_seconds)
+    raise last
 
 
 def run_chat(cfg: OpenAIConfig, prompt: str) -> str:

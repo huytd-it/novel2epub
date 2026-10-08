@@ -47,26 +47,27 @@ _GLOSSARY_BULLET_RE = re.compile(r"^[-*+]\s+")
 # không chứa placeholder, fallback: append sau format (xem _build_prompt).
 # Dùng `GLOSSARY:` để đồng bộ với format trong bulk_transfer._GLOSSARY_OUTPUT_RULE.
 _AUTO_GLOSSARY_BLOCK = (
-    "\n\nỞ CUỐI bản dịch, thêm ĐÚNG một dòng `GLOSSARY:` — viết y nguyên như "
-    "một nhãn cố định, KHÔNG dùng `##`, `**` hay bất kỳ định dạng Markdown nào "
-    "cho dòng này (giống cách bạn giữ nguyên `idx:N` không tự ý định dạng lại) "
-    "— rồi liệt kê các mục glossary MỚI ngay bên dưới, mỗi mục MỘT DÒNG theo "
-    "đúng dạng:\n"
+    "\n\nAt the END of the translation, append exactly one plain `GLOSSARY:` line. "
+    "Do not format this label as a Markdown heading or bold text. List NEW entries "
+    "below it, one entry per line:\n"
     "- <Chinese> = <Vietnamese>\n"
-    "Glossary là bảng ĐỒNG BỘ cách dịch xuyên suốt truyện, KHÔNG phải "
-    "từ điển — thà bỏ sót còn hơn đưa nhầm từ thông thường.\n"
-    "CHỈ đưa vào: tên riêng (nhân vật, địa danh, môn phái/tổ chức, "
-    "chức danh) và thuật ngữ ĐẶC THÙ lặp lại nhiều lần (công pháp, "
-    "chiêu thức, cảnh giới, pháp bảo, đan dược, chủng tộc, hệ thống "
-    "sức mạnh, biệt danh cố định).\n"
-    "Tên người nước ngoài ghi dạng chữ Latin gốc (夏洛克 → Sherlock), "
-    "không ghi Sino-Vietnamese (Hán Việt).\n"
-    "TUYỆT ĐỐI KHÔNG đưa vào: từ đời thường (đồ ăn, mua sắm, động tác, "
-    "cảm xúc, nghề nghiệp, vật dụng phổ thông); thành ngữ/khẩu ngữ/tiếng "
-    "lóng dịch thoát ý; từ hiện đại phổ thông; từ độc giả Việt hiểu ngay "
-    "hoặc chỉ xuất hiện một lần.\n"
-    "Không giải thích, không đánh số, không JSON. Nếu không có mục nào "
-    "đạt tiêu chí, chỉ ghi dòng `GLOSSARY:` rồi dừng (không kèm mục con)."
+    "The glossary ensures consistent translation across chapters; it is NOT a dictionary. "
+    "Prefer omission to including ordinary words. Include only proper names "
+    "(characters, places, sects/organizations, fixed titles) and recurring story-specific "
+    "terms (techniques, cultivation realms, artifacts, pills, races, power systems, fixed aliases).\n"
+    "For confidently identified foreign names, use the original Latin form, not "
+    "Sino-Vietnamese transliteration; otherwise do not invent a Latin name.\n"
+    "Exclude everyday words, ordinary professions/items, idioms, slang, generic modern "
+    "terms, self-explanatory words, and one-off expressions. Do not invent entries.\n"
+    "Only for an identified CHARACTER, you MAY append ` | <Vietnamese character note>` "
+    "when the supplied chapter/context explicitly establishes useful identifying facts "
+    "(role, affiliation, or relationship). Keep it to one short sentence, at most 30 words. "
+    "Do not infer facts from the name, use outside knowledge, reveal future spoilers, "
+    "or include translation rationale/technical logs. If evidence is insufficient, omit the note. "
+    "Never add notes for places, organizations, titles, skills, items, or other terms. "
+    "Names and notes must remain in Vietnamese (except original foreign names).\n"
+    "No commentary, numbering, or JSON. If no entries qualify, output only `GLOSSARY:` "
+    "and stop."
 )
 
 
@@ -503,11 +504,13 @@ class OpenAITranslator:
         new_entries: dict[str, str],
         storage: "Storage",
         chapter_index: int = 0,
+        *,
+        notes: dict[str, str] | None = None,
     ) -> dict:
         """Merge new_entries vào glossary + ghi HÀNG CHỜ DUYỆT. Thread-safe.
 
-        - Source MỚI (chưa có trong glossary): thêm NGAY vào `names.txt` (note
-          rỗng) + cập nhật in-memory — prompt các chương sau thấy ngay.
+        - Source MỚI (chưa có trong glossary): thêm NGAY vào `names.txt` cùng
+          ghi chú nhân vật nếu có + cập nhật in-memory — prompt sau thấy ngay.
         - Source đã có CÙNG giá trị: bỏ qua.
         - Source đã có KHÁC giá trị (đổi cách dịch): KHÔNG tự sửa — persist vào
           extra json `glossary_pending` (first-wins theo source, atomic qua
@@ -524,7 +527,9 @@ class OpenAITranslator:
                 existing = self.glossary.get(source)
                 if existing is None:
                     self.glossary[source] = new_target
-                    storage.append_glossary_line("names.txt", f"{source} = {new_target}")
+                    note = (notes or {}).get(source, "").strip()
+                    line = f"{source} = {new_target}" + (f" | {note}" if note else "")
+                    storage.append_glossary_line("names.txt", line)
                     added.append((source, new_target))
                 elif existing == new_target:
                     continue
@@ -535,6 +540,7 @@ class OpenAITranslator:
                             "existing_target": existing,
                             "target": new_target,
                             "chapter_index": chapter_index,
+                            "note": (notes or {}).get(source, ""),
                         }
                     )
             if changed:
@@ -658,10 +664,13 @@ class OpenAITranslator:
             parsed = parse_glossary_line(line)
             if not parsed:
                 continue  # dòng prose/heading — bỏ qua
-            source, target, _note = parsed
+            source, target, note = parsed
             if "<" in source or ">" in source or "<" in target or ">" in target:
                 continue  # placeholder `<Chinese> = <Vietnamese>` bị AI echo lại
-            entries.append({"source": source, "suggested": target})
+            entry = {"source": source, "suggested": target}
+            if note:
+                entry["note"] = note
+            entries.append(entry)
         return translation, entries if entries else None
 
     def _build_title_prompt(self, text: str, kind: str) -> str:
@@ -1080,8 +1089,9 @@ class RateLimited:
             time.sleep(self.delay)
         return out
 
-    def extend_glossary(self, new_entries: dict[str, str], storage, chapter_index: int = 0) -> dict:
-        return self.inner.extend_glossary(new_entries, storage, chapter_index)
+    def extend_glossary(self, new_entries: dict[str, str], storage, chapter_index: int = 0, *, notes: dict[str, str] | None = None) -> dict:
+        kwargs = {"notes": notes} if notes else {}
+        return self.inner.extend_glossary(new_entries, storage, chapter_index, **kwargs)
 
     def drain_last_meta(self) -> dict:
         return self.inner.drain_last_meta() if hasattr(self.inner, "drain_last_meta") else {}

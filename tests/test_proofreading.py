@@ -41,7 +41,7 @@ def test_algorithms_preserve_semantics_newlines_idempotent():
     assert "� 中 https://example.com" in after
     assert after.endswith("\n\n")
     assert fix_algorithms(after, codes)["after"] == after
-    assert fix_algorithms(text, ["url", "replacement_char", "han_remaining", "effect_sound"])["after"] == text
+    assert fix_algorithms(text, ["url", "replacement_char", "han_remaining"])["after"] == text
 
 
 def test_no_selected_codes_blocks_fix():
@@ -182,6 +182,31 @@ def test_decision_audit_is_persisted_and_has_no_full_text(book):
     persisted = storage.read_extra_json(f"proofreading_decision:1:{result['candidate_id']}")
     assert persisted["codes"] == ["han_remaining"] and persisted["audit"] == decision["audit"]
     assert "document" not in persisted and "after" not in persisted
+
+
+def test_scan_persists_partial_results_and_logs_each_issue_immediately(book, monkeypatch):
+    from novel2epub import content_validation
+    from novel2epub.content_validation import refresh_book, saved_report
+    storage, cfg, chapters = book
+    real_chapter = content_validation._chapter
+
+    def flaky(storage, ch, publication, stamp):
+        if ch.index == 2:
+            raise RuntimeError("boom chapter 2")
+        return real_chapter(storage, ch, publication, stamp)
+
+    monkeypatch.setattr(content_validation, "_chapter", flaky)
+    logs: list[str] = []
+    report = refresh_book(storage, logs.append)
+    # Chương hỏng không rollback các chương còn lại — DB vẫn cập nhật.
+    assert report["checked"] == 2
+    assert {row["index"] for row in report["chapters"]} == {1, 3}
+    assert saved_report(storage)["checked"] == 2
+    # Mọi vấn đề được log ngay khi thấy trong nhật kí job.
+    assert any("boom chapter 2" in line for line in logs)
+    assert any(line.startswith("[validation] Chương 1:") and "han_remaining" in line for line in logs)
+    assert any(line.startswith("[validation] Toàn sách:") for line in logs)
+    assert "Đã lưu lỗi 2 chương vào SQLite" in logs[-1]
 
 
 def test_persisted_validation_reopens_without_parsing_or_loading_text(book, monkeypatch):

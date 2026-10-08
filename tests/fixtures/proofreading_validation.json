@@ -3,7 +3,6 @@
   {"name":"meaningful-marks","text":"Chờ... … !!! ??? 👩‍👩‍👧‍👦 a‌b\n\nTừ từ, xa xa.","title":"Chương 101: Thử","codes":[]},
   {"name":"html-abbreviation","text":"<x>AI &amp; CPU</x> IV","title":"Chương 102: Thử","codes":["html_entity","abbreviation"]},
   {"name":"spelling-token","text":"aaabcde Qbc xyz BBBB","title":"Chương 103: Thử","codes":["spelling","abbreviation"]},
-  {"name":"effects-are-info","text":"Anh mỉm cười rồi thở dài, bùm!","title":"Chương 104: Thử","codes":["effect_sound"]},
   {"name":"symbol-only","text":"!!!\n\n???","title":"Chương 105: Thử","codes":["symbol_only"]},
   {"name":"newlines","text":"## Đầu\r\n\r\nLời ,nói  tiếp.  \r\n","title":"Chương 106: Thử","codes":["hash_heading","space_before_punct","missing_space_after","double_space","trailing_space"]},
   {"name":"url-does-not-trigger-spelling","text":"https://aaabbbb.com/path truyenfull.vn","title":"Chương 107: Thử","codes":["url"]},

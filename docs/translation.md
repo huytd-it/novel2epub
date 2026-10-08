@@ -18,7 +18,7 @@ Luồng **Lỗi → Soát lỗi** khác **AI biên tập** ghi trực tiếp Loc
 | --- | --- |
 | Control/BOM/ZWSP, spaces, markdown heading/fence, HTML/entity, punctuation lặp/dots lạ | Thuật toán sau xác nhận; chỉ bỏ markup, giữ text bên trong và đoạn/dòng |
 | Hán sót, `�`, mojibake, từ lặp, URL theo ngữ cảnh, spelling nghi vấn | AI đề xuất vùng lỗi đã chọn, FULL diff và duyệt toàn chương |
-| Viết tắt, nhãn hiệu ứng/âm thanh, mỉm cười/thở dài | Informational, không tự coi là rác |
+| Viết tắt | Informational, không tự coi là rác |
 | Rỗng/chỉ ký hiệu, trùng chính xác, số chương thiếu/trùng/giảm, lỗi title | Manual mặc định; có hướng dẫn chi tiết mới cho AI đề xuất title/text toàn chương |
 
 Spelling là heuristic nhẹ toàn token (`[a-zA-ZÀ-ỹ]+(?:\.[a-zA-ZÀ-ỹ]+)*`, bỏ token
@@ -90,32 +90,63 @@ Không dùng model nhỏ để tự suy luận glossary phức tạp; hãy dịc
 
 Glossary theo ebook dùng để cố định tên riêng và thuật ngữ đặc thù. Không đưa từ đời thường vào glossary. Matching ưu tiên source dài để tên dài không bị mục ngắn thay trước.
 
+Prompt Auto Glossary (kèm bản dịch, AI phân tích chương và AI dọn glossary) viết
+bằng tiếng Anh; tên dịch, ghi chú và lý do vẫn bằng tiếng Việt (tên ngoại giữ
+dạng Latin gốc khi xác định chắc chắn). Chỉ tạo ghi chú cho **nhân vật** khi
+ngữ cảnh cung cấp rõ vai trò, thuộc phe/phái hoặc quan hệ: tối đa một câu ngắn,
+30 từ. Thiếu bằng chứng thì không tạo ghi chú; không suy đoán từ tên, dùng kiến
+thức ngoài hay tiết lộ tình tiết tương lai. Địa danh/tổ chức/chức danh/công pháp/
+vật phẩm/thuật ngữ khác không được tạo ghi chú. Lý do quyết định tách khỏi ghi
+chú độc giả. AI dọn giữ ghi chú cũ khi không có thông tin mới, không tự xóa
+ghi chú thủ công chỉ vì mục không phải nhân vật.
+
 Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột đang có, nhờ LLM chọn bản dịch thống nhất theo prompt dịch nghiêm ngặt (kèm tên truyện + tác giả), tự duyệt mục hợp lệ và lan truyền thay đổi vào bản dịch cũ. Mục LLM không trả lời được vẫn giữ trong hàng chờ. Cột Ghi chú giữ nguyên — lý do của LLM chỉ ghi log.
 
 ### AI tự động duyệt & dọn (SPA Glossary)
 
-- Rà soát **toàn glossary + hàng chờ**, không chỉ các mục đang lọc/chọn.
-  AI được giữ, thêm, sửa Hán/Việt/chú thích độc giả hoặc xóa mục rác.
-  Mục mới phải có bằng chứng: ít nhất hai chữ Hán và là phần của source trong lô.
-- Chạy tuần tự tối đa **100 mục/lô**, cập nhật tham chiếu glossary sau mỗi lô.
+- Chỉ xử lý **các mục đã chọn** trong glossary và hàng chờ (khóa trùng được gộp).
+  AI chuẩn hóa Hán/Việt, dịch lại theo bối cảnh, sửa Việt còn Hán, giữ mục đúng
+  hoặc xóa mục lỗi/rác, không tự thêm thuật ngữ ngoài lựa chọn.
+- Chọn **1–100 mục/lô, mặc định 10**; chạy tuần tự và cập nhật tham chiếu sau mỗi lô.
   Ngân sách context **200.000 token**, dành 16.000 cho output. Bộ đếm dùng số
   byte UTF-8 làm cận trên bảo thủ cho tokenizer kiểu byte, không nhầm ký tự với
-  token. Tham chiếu liên quan được ưu tiên khi toàn glossary không vừa; mục quá
-  dài được chia lô nhỏ hơn. Model/API phải hỗ trợ context 200k; ứng dụng không
-  tự nâng giới hạn provider. HTTP/JSON lỗi thì không ghi lô, báo trong log.
+  token. `REFERENCE` chỉ gửi tối đa **5 mục liên quan** (khóa Hán chứa nhau),
+  tổng tối đa **2.000 ký tự JSON**; bỏ mục trùng lô, trùng khóa hoặc quá dài.
+  Không có mục liên quan thì gửi danh sách rỗng. Mục trong lô quá dài được chia
+  lô nhỏ hơn. Model/API phải hỗ trợ context 200k; ứng dụng không
+  tự nâng giới hạn provider. HTTP/JSON lỗi thì không ghi lô và job báo lỗi.
 - Kiểm định khóa thuộc lô, dữ liệu thay đổi sau khi gửi, trùng khóa đích,
-  source Hán/target Việt hợp lệ và thay thế bản dịch cũ không nhập nhằng.
-  Không chắc chắn/không phản hồi: giữ nguyên, không tự xóa.
-- Đổi target lan truyền bằng cơ chế `Storage.apply_replacements`; glossary,
-  hàng chờ và nội dung thay thế commit cùng transaction. Xóa mục glossary
-  **không xóa nội dung chương**. Không tự dịch lại toàn chương.
+  source Hán/target Việt hợp lệ. AI phải trả đúng một quyết định cho mỗi mục.
+  Thay đổi **chỉ hoa/thường** (ví dụ `Quân Đoàn` → `Quân đoàn`) được duyệt
+  vào glossary và gỡ khỏi hàng chờ, nhưng không tìm–thay toàn văn để giữ cách
+  viết theo ngữ cảnh trong chương; không cần đồng thuận của các mục dùng chung.
+  Quy tắc này áp dụng cả `keep` đề xuất đang chờ và `update`.
+  Với thay đổi từ ngữ thực sự, một bản dịch cũ có nhiều chủ sở hữu chỉ được lan truyền khi **tất cả chủ sở
+  hữu trong cùng lô** có quyết định hợp lệ và đồng thuận cùng bản dịch mới.
+  Mục không được chọn, bị loại kiểm định hoặc bị xóa không được coi là đồng
+  thuận; xóa glossary không cho phép đổi văn bản chương của mục đó. `keep` một
+  đề xuất đang chờ vẫn có thể đổi bản dịch chuẩn nên cũng cần kiểm định này.
+  Nếu báo chưa đồng thuận, chọn đủ các mục được nêu trong lỗi vào cùng lô để
+  rà soát; không bỏ qua guard hoặc ép thay thế toàn văn.
+  Thiếu quyết định hoặc kiểm định lỗi: lô chưa ghi, job báo lỗi để chạy lại;
+  các lô trước đã hoàn tất vẫn được giữ.
+- Provider có thể có giới hạn thời gian riêng (ví dụ `recipe_timeout` sau 120s).
+  Lỗi tạm thời được nhận diện (timeout, rate limit, 5xx, lỗi kết nối khi gửi request)
+  được thử lại 1 lần sau 5 giây; nếu vẫn lỗi và lô còn hơn 1 mục thì hệ thống
+  **tự chia đôi lô**. Khi còn 1 mục mà vẫn lỗi, job báo lỗi. Lỗi cấu hình
+  (401, sai định dạng) không thử lại. `timeout_seconds` phía client không ảnh
+  hưởng giới hạn của proxy; muốn nới phải chỉnh ở chính provider.
+- Kết quả ghi trực tiếp và gỡ các mục đã xử lý khỏi hàng chờ trong cùng transaction,
+  **không cần duyệt lại**. Bản dịch glossary hợp lệ sau sửa (trừ thay đổi chỉ hoa/thường) được lan truyền vào chương
+  trong cùng transaction, sau khi kiểm tra thay thế không nhập nhằng.
+  Mục lỗi bị loại chỉ xóa khỏi glossary/hàng chờ, không thay hay hoàn tác nội dung chương.
 - **Ghi chú là chú thích cho độc giả**, không phải lý do sửa. AI bỏ trường
   `note` để giữ cũ, hoặc sửa/bỏ chú thích sai một cách tường minh.
   `reason` chỉ vào log và audit SQLite `glossary_curator_audit` (kèm dữ liệu cũ).
   Hiện chưa có nút hoàn tác; nên backup DB và lưu các nháp trước khi chạy.
-- API `/api/ebooks/{slug}/glossary/ai/reprocess-pending` mặc định
-  `curate_all=true`. Truyền `curate_all=false` để dùng chế độ chỉ duyệt hàng
-  chờ cũ; các job spec đã lưu trước thay đổi vẫn dùng luồng cũ.
+- API `/api/ebooks/{slug}/glossary/ai/reprocess-pending` yêu cầu `sources` không rỗng,
+  nhận `batch_size` (mặc định 10) và `instruction`. Job lưu `selected_only=true`
+  cùng phạm vi/lô để phục hồi đúng; job spec cũ vẫn dùng luồng cũ.
 
 Idioms là từ điển dùng chung cho mọi ebook. Với LLM, idiom được đưa vào prompt như tham chiếu; với MT cục bộ, hệ thống có thể chuẩn hóa bản literal hoặc bảo vệ source qua placeholder.
 

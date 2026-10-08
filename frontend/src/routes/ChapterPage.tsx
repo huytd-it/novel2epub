@@ -435,21 +435,34 @@ function EditableCompareView({
 
   const fontClass =
     fontFamily === "serif" ? "font-read" : fontFamily === "mono" ? "font-mono" : "font-sans";
-  const columns: { key: Column; label: string }[] = [
-    { key: "raw", label: "Bản gốc" },
-    { key: "local_mt", label: "Local MT" },
-    { key: "ai", label: "Dịch AI" },
-  ];
+  // Ẩn cột "Local MT" / "Dịch AI" khi nhánh chưa có nội dung (chưa dịch) hoặc
+  // toàn bộ ô trong cột đều trống — tránh hiện cột "—" vô nghĩa.
+  const columns: { key: Column; label: string }[] = useMemo(() => {
+    const all: { key: Column; label: string }[] = [
+      { key: "raw", label: "Bản gốc" },
+      { key: "local_mt", label: "Local MT" },
+      { key: "ai", label: "Dịch AI" },
+    ];
+    return all.filter((col) => {
+      if (col.key === "raw") return true;
+      if (!data.branches[col.key]?.has_text) return false;
+      return rows.some((row) => row[col.key]?.trim());
+    });
+  }, [data.branches, rows]);
+  const cellWidthClass =
+    columns.length <= 1 ? "w-full" : columns.length === 2 ? "w-1/2" : "w-1/3";
+  const tableMinWidthClass =
+    columns.length <= 1 ? "min-w-0" : columns.length === 2 ? "min-w-[40rem]" : "min-w-[60rem]";
 
   return (
     <div className={clsx("scroll-slim overflow-x-auto", fontClass)}>
-      <table className="w-full min-w-[60rem] border-collapse">
+      <table className={clsx("w-full border-collapse", tableMinWidthClass)}>
         <thead>
           <tr className="border-b border-base-300 bg-base-200/60 text-left">
             <th className="w-10 px-2 py-1.5" />
-            {columns.map(({ label }) => (
+            {columns.map(({ key, label }) => (
               <th
-                key={label}
+                key={key}
                 className="px-2 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase opacity-40"
               >
                 {label}
@@ -476,7 +489,8 @@ function EditableCompareView({
                   return <td
                     key={key}
                     className={clsx(
-                      "w-1/3 px-2 py-2 text-[13px] leading-relaxed",
+                      cellWidthClass,
+                      "px-2 py-2 text-[13px] leading-relaxed",
                       highlightedParaIndex === i && key === data.active_branch && "ring-2 ring-inset ring-primary/40",
                     )}
                   >
@@ -661,7 +675,7 @@ export function ChapterPage() {
   }, [slug]);
   // Mã rà lỗi đang lọc trên trang Sách (`ebooks.<slug>.proofreadingCode`).
   // Giống EbookPage: chỉ gửi `proofreading_code` khi server còn báo cáo rà
-  // soát đã lưu; có mã thì lọc đúng mã, không thì `"*"` (chương nào có lỗi).
+  // soát đã lưu; có mã thì lọc đúng mã, không thì `""` (không lọc).
   const [storedProofCode, setStoredProofCode] = useState<string | null>(() => loadProofreadingCode(slug));
   const reloadStoredProofCode = useCallback(() => {
     try {
@@ -678,7 +692,8 @@ export function ChapterPage() {
   });
   const proofreadingCodeFilter = useMemo(() => {
     const hasReport = Boolean(savedProofreading && (savedProofreading.checked || savedProofreading.checked_at));
-    return hasReport ? (storedProofCode || "*") : "";
+    const code = storedProofCode && storedProofCode !== "*" ? storedProofCode : "";
+    return hasReport ? code : "";
   }, [savedProofreading, storedProofCode]);
   const effectiveSharedFilters = useMemo(
     () => (proofreadingCodeFilter ? { ...sharedFilters, proofreading_code: proofreadingCodeFilter } : sharedFilters),
@@ -1526,7 +1541,7 @@ export function ChapterPage() {
             )}
           </Panel>
           <p className="mt-3 text-xs opacity-50">
-            Bấm vào Bản gốc, Local MT hoặc Dịch AI để sửa trực tiếp; Ctrl+Enter để lưu.
+            Bấm vào {["Bản gốc", ...(data.branches.local_mt?.has_text ? ["Local MT"] : []), ...(data.branches.ai?.has_text ? ["Dịch AI"] : [])].join(", ").replace(/, ([^,]*)$/, " hoặc $1")} để sửa trực tiếp; Ctrl+Enter để lưu.
             Local MT là phiên bản cuối cùng của nhánh, bao gồm nội dung đã được AI biên tập.
           </p>
         </div>

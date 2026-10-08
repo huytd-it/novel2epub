@@ -67,6 +67,47 @@ def test_empty_array_returns_empty():
     assert _parse_suggestions("[]") == []
 
 
+def test_suggestion_notes_only_for_characters():
+    import json
+
+    result = _parse_suggestions(json.dumps([
+        {"source": "林凡", "suggested": "Lâm Phàm", "type": "name",
+         "note": " Đệ tử Thanh Vân Môn. ", "reason": "Tên nhân vật"},
+        {"source": "庄国", "suggested": "Trang Quốc", "type": "place",
+         "note": "Không được lưu ghi chú này.", "reason": "Địa danh"},
+        {"source": "剑法", "suggested": "Kiếm Pháp", "type": "unknown",
+         "note": "Không được lưu ghi chú này."},
+        {"source": "张三", "suggested": "Trương Tam", "type": "name", "note": None},
+    ], ensure_ascii=False))
+    assert result[0]["note"] == "Đệ tử Thanh Vân Môn."
+    assert all("note" not in row for row in result[1:])
+
+
+def test_ai_glossary_analysis_does_not_store_reason_as_reader_note(tmp_path, monkeypatch):
+    import json
+    from novel2epub import pipeline, glossary_ai
+    from novel2epub.config import Config, NovelConfig, CrawlConfig, TranslateConfig, OutputConfig
+    from novel2epub.storage import Chapter, Storage
+
+    cfg = Config(novel=NovelConfig(slug="t"), crawl=CrawlConfig(),
+                 translate=TranslateConfig(), output=OutputConfig())
+    cfg.ai.openai.base_url = "https://api.test/v1"
+    storage = Storage(tmp_path, "t")
+    response = json.dumps([
+        {"source": "林凡", "suggested": "Lâm Phàm", "type": "name",
+         "note": "Đệ tử Thanh Vân Môn.", "reason": "Thêm tên để đồng bộ"},
+        {"source": "庄国", "suggested": "Trang Quốc", "type": "place",
+         "note": "Ghi chú địa danh không được lưu", "reason": "Thêm địa danh để đồng bộ"},
+    ], ensure_ascii=False)
+    monkeypatch.setattr(glossary_ai.openai_client, "run_chat", lambda *args: response)
+    pipeline._analyze_chapter_glossary_with_ai(
+        cfg, storage, Chapter(index=1, url="http://x/1"), "林凡", "Lâm Phàm", lambda m: None
+    )
+    pending = storage.read_extra_json("glossary_pending")
+    assert pending[0]["note"] == "Đệ tử Thanh Vân Môn."
+    assert pending[1]["note"] == ""
+
+
 def test_parse_evaluation_valid_object():
     text = (
         '{"summary": "Tạm ổn", "score": 8, "issues": ['

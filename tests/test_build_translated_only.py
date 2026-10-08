@@ -193,3 +193,62 @@ def test_build_stale_theo_ban_xuat_ban_khong_theo_active_branch(tmp_path):
     storage.write_branch_text(ch, "ai", "AI")
     storage.mark_branch_complete(ch, "ai")
     assert storage.build_stale() is True
+
+
+@pytest.mark.parametrize("selected_indexes", [None, [3, 2]])
+def test_glossary_notes_once_in_smallest_included_chapter(tmp_path, selected_indexes):
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=i, url=f"http://x/{i}", title=f"Chương {i}") for i in (3, 1, 2)]
+    storage.save_manifest(Manifest(slug="t", title="Truyện", chapters=chapters))
+    for ch in chapters:
+        text = "Trang Quốc. Trang Quốc."
+        if ch.index >= 2:
+            text += " Đạo Nguyên. Đạo Nguyên."
+        storage.write_translated(ch, text)
+    storage.write_glossary_entries("names.txt", [
+        ("庄国", "Trang Quốc", "nước hư cấu"),
+        ("道元", "Đạo Nguyên", "tên nhân vật"),
+        ("缺席", "Vắng Mặt", "không xuất hiện"),
+    ])
+    original_notes = storage.read_glossary_notes()
+
+    # Rebuild phải tính lại; không ghi trạng thái đã chú thích vào DB.
+    for _ in range(2):
+        out = pipeline.step_build_selected(
+            _cfg(tmp_path), lambda m: None, selected_indexes=selected_indexes
+        )
+        with zipfile.ZipFile(out) as z:
+            bodies = {
+                ch.index: z.read(f"EPUB/chap_{ch.stem}.xhtml").decode("utf-8")
+                for ch in chapters if selected_indexes is None or ch.index in selected_indexes
+            }
+        first = 1 if selected_indexes is None else 2
+        assert "nước hư cấu" in bodies[first]
+        assert "tên nhân vật" in bodies[2]
+        for index, body in bodies.items():
+            expected = int(index == first) + int(index == 2)
+            assert body.count('class="fn"') == expected
+            assert body.count('href="#fnref') == expected
+            assert ("nước hư cấu" in body) == (index == first)
+            assert ("tên nhân vật" in body) == (index == 2)
+            assert "không xuất hiện" not in body
+        assert storage.read_glossary_notes() == original_notes
+    for ch in chapters:
+        assert "\ue000" not in storage.read_translated(ch)
+
+
+def test_glossary_notes_ignore_unpublished_and_skipped_chapters(tmp_path):
+    storage = Storage(tmp_path, "t")
+    chapters = [Chapter(index=i, url=f"http://x/{i}", title=f"Chương {i}") for i in range(1, 4)]
+    chapters[1].skipped = True
+    storage.save_manifest(Manifest(slug="t", title="Truyện", chapters=chapters))
+    storage.write_raw(chapters[0], "Trang Quốc.")
+    for ch in chapters[1:]:
+        storage.write_translated(ch, "Trang Quốc. Trang Quốc.")
+    storage.write_glossary_entries("names.txt", [("庄国", "Trang Quốc", "nước hư cấu")])
+
+    out = pipeline.step_build_selected(_cfg(tmp_path), lambda m: None, strict_translated=False)
+    assert len(_chapter_files(out)) == 1
+    body = _text(out)
+    assert body.count('class="fn"') == 1
+    assert "nước hư cấu" in body

@@ -658,8 +658,56 @@ def test_build_prompt_glossary_suffix_is_line_format_not_json():
     prompt = t._build_prompt("原文")
     assert "GLOSSARY" in prompt
     assert "<Chinese> = <Vietnamese>" in prompt
-    suffix = prompt[prompt.index("Ở CUỐI bản dịch"):]
+    suffix = prompt[prompt.index("At the END of the translation"):]
     assert "target_file" not in suffix
     assert "names.txt" not in suffix
     assert "vietphrase.txt" not in suffix
     assert '"source"' not in suffix  # không còn schema JSON
+
+
+def test_auto_glossary_prompt_requires_grounded_character_notes():
+    prompt = _openai_t()._build_prompt("原文")
+    suffix = prompt[prompt.index("At the END of the translation"):]
+    assert "identified CHARACTER" in suffix
+    assert "at most 30 words" in suffix
+    assert "If evidence is insufficient, omit the note" in suffix
+    assert "Never add notes for places" in suffix
+    assert "Names and notes must remain in Vietnamese" in suffix
+
+
+def test_auto_glossary_character_note_survives_pipeline_and_sqlite(tmp_path):
+    from novel2epub import pipeline
+    from novel2epub.config import Config, NovelConfig, CrawlConfig, OutputConfig
+    from novel2epub.storage import Chapter, Storage
+    from novel2epub.translator import RateLimited
+
+    storage = Storage(tmp_path, "t")
+    t = _openai_t()
+    text, entries = t._split_response(
+        "Lâm Phàm bước vào Trang Quốc.\nGLOSSARY:\n"
+        "- 林凡 = Lâm Phàm | Đệ tử Thanh Vân Môn.\n"
+        "- 庄国 = Trang Quốc\n"
+    )
+    assert text == "Lâm Phàm bước vào Trang Quốc."
+    pipeline._maybe_extract_chapter_glossary(
+        Config(novel=NovelConfig(slug="t"), crawl=CrawlConfig(), translate=t.cfg, output=OutputConfig()),
+        RateLimited(t, 0), storage, Chapter(index=1, url="http://x/1"),
+        entries, lambda m: None, 1, 1,
+    )
+    assert storage.read_glossary_entries("names.txt") == [
+        ("林凡", "Lâm Phàm", "Đệ tử Thanh Vân Môn."),
+        ("庄国", "Trang Quốc", ""),
+    ]
+    assert t.glossary["林凡"] == "Lâm Phàm"
+
+
+def test_extend_glossary_changed_preserves_character_note_in_pending():
+    t = _openai_t()
+    t.glossary["林凡"] = "Lâm Phàn"
+    storage = _MockStorage()
+    t.extend_glossary(
+        {"林凡": "Lâm Phàm"}, storage, chapter_index=2,
+        notes={"林凡": "Đệ tử Thanh Vân Môn."},
+    )
+    assert storage.extra["glossary_pending"][0]["note"] == "Đệ tử Thanh Vân Môn."
+    assert storage.written == []

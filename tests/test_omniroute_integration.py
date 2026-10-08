@@ -2,6 +2,7 @@
 nhiều chunk, drain_last_meta."""
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -711,6 +712,130 @@ def test_run_chat_with_meta_sse_no_content_raises(monkeypatch):
     monkeypatch.setattr(openai_client.requests, "post", lambda *a, **k: resp)
     with pytest.raises(RuntimeError, match="SSE stream"):
         openai_client.run_chat_with_meta(cfg, "hi")
+
+
+def test_run_chat_with_meta_sse_final_message_fallback(monkeypatch):
+    """Một số gateway gửi message đầy đủ ở chunk cuối thay vì delta.content."""
+    cfg = OpenAIConfig(base_url="https://api.test/v1", model="m", api_key="k")
+    resp = _FakeResp(
+        text=('data: {"choices":[{"delta":{"role":"assistant"}}]}\n\n'
+              'data: {"choices":[{"message":{"content":"[{\\"op\\":\\"keep\\"}]"},'
+              '"finish_reason":"stop"}]}\n\n'),
+        headers={"Content-Type": "text/event-stream"},
+    )
+    monkeypatch.setattr(openai_client.requests, "post", lambda *a, **k: resp)
+    content, _ = openai_client.run_chat_with_meta(cfg, "hi")
+    assert content == '[{"op":"keep"}]'
+
+
+def test_run_chat_with_meta_sse_does_not_duplicate_final_message(monkeypatch):
+    cfg = OpenAIConfig(base_url="https://api.test/v1", model="m", api_key="k")
+    resp = _FakeResp(
+        text=('data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n'
+              'data: {"choices":[{"message":{"content":"Hello"}}]}\n\n'),
+        headers={"Content-Type": "text/event-stream"},
+    )
+    monkeypatch.setattr(openai_client.requests, "post", lambda *a, **k: resp)
+    assert openai_client.run_chat_with_meta(cfg, "hi")[0] == "Hello"
+
+
+def test_run_chat_with_meta_sse_empty_diagnostics_no_response_body(monkeypatch):
+    cfg = OpenAIConfig(base_url="https://api.test/v1", model="m", api_key="k")
+    resp = _FakeResp(
+        text=('data: {"choices":[{"delta":{"reasoning_content":"SECRET"},'
+              '"finish_reason":"length"}]}\n\n'),
+        headers={"Content-Type": "text/event-stream"},
+    )
+    monkeypatch.setattr(openai_client.requests, "post", lambda *a, **k: resp)
+    with pytest.raises(RuntimeError, match="finish_reason=length") as exc:
+        openai_client.run_chat_with_meta(cfg, "hi")
+    assert "SECRET" not in str(exc.value)
+
+
+@pytest.mark.parametrize("code,detail,retryable", [
+    ("recipe_timeout", "Kh\u00f4ng nh\u1eadn \u0111\u01b0\u1ee3c reply trong th\u1eddi h\u1ea1n (120000ms)", True),
+    ("upstream_error", "provider returned 502 Bad Gateway", True),
+    ("rate_limit_exceeded", "", True),
+    ("", "Kh\u00f4ng nh\u1eadn \u0111\u01b0\u1ee3c reply trong th\u1eddi h\u1ea1n (120000ms)", True),
+    ("invalid_request", "model not found", False),
+    ("content_filter", "", False),
+    ("", "", False),
+])
+def test_sse_provider_error_classified_as_retryable_or_not(monkeypatch, code, detail, retryable):
+    """M\u00e3 l\u1ed7i provider quy\u1ebft \u0111\u1ecbnh retryable (timeout/rate limit/5xx) hay kh\u00f4ng."""
+    cfg = OpenAIConfig(base_url="https://api.test/v1", model="m", api_key="k")
+    error = {"code": code} if code else {}
+    if detail:
+        error["message"] = detail
+    body = "data: " + json.dumps({"error": error}) + "\n\ndata: [DONE]\n\n"
+    resp = _FakeResp(text=body, headers={"Content-Type": "text/event-stream"})
+    monkeypatch.setattr(openai_client.requests, "post", lambda *a, **k: resp)
+    with pytest.raises(RuntimeError) as exc:
+        openai_client.run_chat_with_meta(cfg, "hi")
+    assert isinstance(exc.value, openai_client.RetryableAIError) is retryable
+
+
+@pytest.mark.parametrize("status,retryable", [(401, False), (400, False), (429, True), (503, True), (500, True)])
+def test_http_status_classified_as_retryable_or_not(monkeypatch, status, retryable):
+    cfg = OpenAIConfig(base_url="https://api.test/v1", model="m", api_key="k")
+    resp = _FakeResp(status_code=status, text="nope", headers={})
+    monkeypatch.setattr(openai_client.requests, "post", lambda *a, **k: resp)
+    expected = openai_client.RetryableAIError if retryable else RuntimeError
+    with pytest.raises(expected):
+        openai_client.run_chat_with_meta(cfg, "hi")
+
+
+def test_run_chat_with_retry_recovers_on_second_attempt(monkeypatch):
+    """Timeout l\u1ea7n 1, l\u1ea7n 2 th\u00e0nh c\u00f4ng -> kh\u00f4ng raise."""
+    cfg = OpenAIConfig(base_url="https://api.test/v1", model="m", api_key="k")
+    timeout_body = "data: " + json.dumps({"error": {"code": "recipe_timeout", "message": "het han"}}) + "\n\n"
+    responses = [
+        _FakeResp(text=timeout_body, headers={"Content-Type": "text/event-stream"}),
+        _FakeResp(json_data={"choices": [{"message": {"content": "OK"}}]}, headers={}),
+    ]
+    calls = {"n": 0}
+
+    def _post(*a, **k):
+        calls["n"] += 1
+        return responses[min(calls["n"] - 1, len(responses) - 1)]
+
+    monkeypatch.setattr(openai_client.requests, "post", _post)
+    logs = []
+    assert openai_client.run_chat_with_retry(cfg, "hi", log=logs.append) == "OK"
+    assert calls["n"] == 2
+    assert any("th\u1eed l\u1ea1i l\u1ea7n 2/2" in line for line in logs)
+
+
+def test_run_chat_with_retry_gives_up_and_keeps_last_error(monkeypatch):
+    cfg = OpenAIConfig(base_url="https://api.test/v1", model="m", api_key="k")
+    resp = _FakeResp(text="data: " + json.dumps({"error": {"code": "recipe_timeout", "message": "het han"}}) + "\n\n",
+                     headers={"Content-Type": "text/event-stream"})
+    calls = {"n": 0}
+
+    def _post(*a, **k):
+        calls["n"] += 1
+        return resp
+
+    monkeypatch.setattr(openai_client.requests, "post", _post)
+    with pytest.raises(openai_client.RetryableAIError, match="recipe_timeout"):
+        openai_client.run_chat_with_retry(cfg, "hi", attempts=3)
+    assert calls["n"] == 3
+
+
+def test_run_chat_with_retry_does_not_retry_auth_error(monkeypatch):
+    cfg = OpenAIConfig(base_url="https://api.test/v1", model="m", api_key="bad")
+    resp = _FakeResp(status_code=401, text="unauthorized", headers={})
+    calls = {"n": 0}
+
+    def _post(*a, **k):
+        calls["n"] += 1
+        return resp
+
+    monkeypatch.setattr(openai_client.requests, "post", _post)
+    with pytest.raises(RuntimeError, match="401") as exc:
+        openai_client.run_chat_with_retry(cfg, "hi", attempts=3)
+    assert not isinstance(exc.value, openai_client.RetryableAIError)
+    assert calls["n"] == 1
 
 
 def test_run_chat_with_meta_sends_stream_true(monkeypatch):

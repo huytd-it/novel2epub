@@ -74,7 +74,6 @@ export const CONTENT_CHECKS: ContentCheck[] = [
   { code: "html_entity", level: "warning", pattern: /<\/?[A-Za-z][^<>\n]*>|&(?:#[0-9]+|#x[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]+);/g, label: "HTML/entity còn sót", hint: "Bóc thẻ, giữ nội dung hiển thị" },
   { code: "abbreviation", level: "info", pattern: /\b(?:v\.v\.?|v\.d\.?|ThS|PGS|TS|TP|UBND|CPU|AI)\b|(?<![a-zA-ZÀ-ỹ])(?:[A-Z]{2,6}|[A-Za-z](?:\.[A-Za-z])+(?:\.)?)(?![a-zA-ZÀ-ỹ])/g, label: "Từ viết tắt", hint: "Chỉ đánh dấu; có thể hợp lệ" },
   { code: "spelling", level: "warning", pattern: /[a-zA-ZÀ-ỹ]+(?:\.[a-zA-ZÀ-ỹ]+)*/g, label: "Từ nghi vấn chính tả", hint: "Heuristic; kiểm tra toàn từ theo ngữ cảnh" },
-  { code: "effect_sound", level: "info", pattern: /(?<![\p{L}\p{N}_])(?:ầm|rầm|bùm|bốp|rẹt|leng keng|ting|đùng|soạt|mỉm cười|thở dài)(?![\p{L}\p{N}_])/giu, label: "Nhãn hiệu ứng/âm thanh", hint: "Chỉ đánh dấu, không mặc định là rác" },
   { code: "hash_heading", level: "warning", pattern: RE_HASH_HEADING, label: "Dòng bắt đầu bằng ##", hint: "Tiêu đề không nên có ##" },
   { code: "code_fence", level: "warning", pattern: RE_CODE_FENCE, label: "Chứa ```", hint: "Bỏ dấu ```; giữ nguyên văn bản bên trong" },
   { code: "weird_dots", level: "warning", pattern: RE_WEIRD_DOTS, label: "Dấu chấm lạ", hint: "Chuẩn hóa về … hoặc ...", ignore: ["...", "…"] },
@@ -96,7 +95,7 @@ export type ValidationMethod = "algorithm" | "ai" | "manual" | "informational";
 const algorithmCodes = new Set(["hash_heading", "code_fence", "weird_dots", "repeated_punct", "control_char", "zero_width", "double_space", "space_before_punct", "trailing_space", "missing_space_after", "html_entity"]);
 const aiCodes = new Set(["han_remaining", "replacement_char", "mojibake", "repeated_word", "url", "spelling"]);
 export function supportedMethod(code: string): ValidationMethod {
-  return algorithmCodes.has(code) ? "algorithm" : aiCodes.has(code) ? "ai" : ["abbreviation", "effect_sound", "short", "skipped"].includes(code) ? "informational" : "manual";
+  return algorithmCodes.has(code) ? "algorithm" : aiCodes.has(code) ? "ai" : ["abbreviation", "short", "skipped"].includes(code) ? "informational" : "manual";
 }
 export const METHOD_LABELS: Record<ValidationMethod, string> = { algorithm: "Thuật toán", ai: "AI cần duyệt", manual: "Kiểm tra tay", informational: "Chỉ đánh dấu" };
 export const VALIDATION_CONTRACT = [

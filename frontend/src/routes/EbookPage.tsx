@@ -60,10 +60,10 @@ const PAGE_SIZES = [25, 50, 100, 200, 500] as const;
 const DEFAULT_PAGE_SIZE = 100;
 const PAGE_KEY = (slug: string) => `ebooks.${slug}.chapterPage`;
 const PAGE_SIZE_KEY = (slug: string) => `ebooks.${slug}.chapterPageSize`;
-/** Nạp mã lỗi đã lọc cho truyện (tối đa một mã). */
+/** Nạp mã lỗi đã lọc cho truyện (tối đa một mã; "*" cũ nghĩa là không lọc). */
 function loadProofreadingCodes(slug: string): string[] {
   const code = loadProofreadingCode(slug);
-  return code ? [code] : [];
+  return code && code !== "*" ? [code] : [];
 }
 
 /** Nạp trang đã lưu cho truyện. */
@@ -1085,6 +1085,7 @@ function CleanupHanDialog({
           </label>
           <p className="text-[11px] opacity-60">
             Bản dịch cũ được giữ trong snapshot nên có thể so sánh và khôi phục.
+            Engine AI chạy song song theo “Số luồng dịch song song” (Cài đặt → Dịch).
           </p>
         </div>
       }
@@ -1973,7 +1974,7 @@ function EbookPageContent({ slug }: { slug: string }) {
   // `filters` khi đã bắt kịp để không tạo request thừa do queryKey đổi.
   const debouncedSearch = useDebouncedValue(filters.search);
   const queryFilters = useMemo(
-    () => ({ ...filters, search: debouncedSearch, proofreading_code: proofreadingReport ? proofreadingCodes[0] || "*" : "" }),
+    () => ({ ...filters, search: debouncedSearch, proofreading_code: proofreadingReport ? proofreadingCodes[0] || "" : "" }),
     [filters, debouncedSearch, proofreadingReport, proofreadingCodes],
   );
   const { data: page, isFetching, isPending: chaptersPending } = useChapters(

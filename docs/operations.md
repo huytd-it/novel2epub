@@ -11,6 +11,14 @@ Quy trình khuyến nghị trên Web UI:
 5. Chọn backend dịch, dịch thử và kiểm tra glossary/xưng hô.
 6. Bỏ giới hạn chương và chạy pipeline đầy đủ.
 
+## Chú Thích Glossary Trong EPUB
+
+Mỗi thuật ngữ Glossary có ghi chú chỉ được chú thích **một lần trong EPUB**:
+ở lần xuất hiện đầu tiên trong chương có số thứ tự nhỏ nhất chứa thuật ngữ đó.
+Các chương sau không lặp marker hoặc định nghĩa. Khi build một phần sách, chỉ
+xét các chương thực sự được đóng gói; mỗi lần build tính lại từ đầu, không sửa
+Glossary hay bản dịch trong DB.
+
 ## Swagger Và OpenAPI
 
 FastAPI tạo tài liệu API trực tiếp từ route/schema:

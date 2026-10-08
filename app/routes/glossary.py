@@ -542,6 +542,8 @@ class GlossaryAiRequest(BaseModel):
 def glossary_ai_job_factory(params: dict):
     """Tái tạo job Trợ lý AI glossary từ spec đã lưu (xem JobQueue.register_kind).
 
+    `selected_only=True`: chỉ dọn sources đã chọn, batch_size mặc định 10;
+    ghi/duyệt và lan truyền bản dịch hợp lệ; xóa mục lỗi không lan truyền vào chương.
     `curate_all=True`: CRUD toàn glossary + hàng chờ theo từng lô, context 200k.
     Job spec cũ không có cờ này vẫn giữ hành vi cũ. Hai chế độ legacy:
     - `False` (mặc định, nút "Trợ lý AI" cho mục đã chọn): kết quả vào hàng chờ
@@ -564,7 +566,7 @@ def glossary_ai_job_factory(params: dict):
     def _target(log: Callable[[str], None]) -> None:
         cfg = deps.resolved_cfg(slug)
         storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-        if curate_all:
+        if curate_all or params.get("selected_only"):
             from novel2epub.glossary_curator import curate
 
             return curate(
@@ -573,6 +575,8 @@ def glossary_ai_job_factory(params: dict):
                        "description": cfg.novel.description, "genre": cfg.translate.genre},
                 context="\n\n".join(x.strip() for x in (cfg.translate.context_note, instruction) if x.strip()),
                 log=log,
+                sources=sources if params.get("selected_only") else None,
+                batch_size=params.get("batch_size", 10),
             )
         current = {s: (t, n) for s, t, n in storage.read_glossary_entries_merged()}
         # Chồng đề xuất đang chờ duyệt lên glossary: mục chờ duyệt cũng gửi AI
@@ -792,37 +796,31 @@ def ebook_glossary_ai_retranslate(request: Request, slug: str, payload: Glossary
 
 
 class GlossaryAiReprocessRequest(BaseModel):
-    """AI CRUD toàn glossary + hàng chờ; có chế độ legacy cho API cũ."""
+    """Dọn và duyệt trực tiếp các mục đã chọn."""
 
     instruction: str = Field(default="", description="Yêu cầu thêm cho riêng lần chạy này.")
-    curate_all: bool = Field(default=True, description="CRUD toàn glossary + hàng chờ, context 200k token.")
+    sources: list[str] = Field(min_length=1)
+    batch_size: int = Field(default=10, ge=1, le=100, strict=True)
 
 
 @router.post("/api/ebooks/{slug}/glossary/ai/reprocess-pending")
 def ebook_glossary_ai_reprocess_pending(request: Request, slug: str, payload: GlossaryAiReprocessRequest):
-    """AI tự động CRUD toàn glossary + hàng chờ trong một job nền.
-
-    Mặc định curate_all: lô tối đa 100 mục, context 200k token, kiểm định rồi
-    ghi glossary/hàng chờ/lan truyền trong cùng transaction. Ghi chú độc giả
-    tách khỏi reason. curate_all=False giữ luồng legacy chỉ duyệt hàng chờ.
-    """
+    """AI dọn khóa đã chọn; lan truyền bản dịch hợp lệ, chỉ xóa mục bị loại."""
     cfg = deps.resolved_cfg(slug)
     if not cfg.ai.openai.base_url:
         raise HTTPException(status_code=400, detail="Chưa cấu hình AI biên tập (mục AI trong Cài đặt).")
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
-    sources: list[str] = (
-        [s for s, _t, _n in storage.read_glossary_entries_merged()] if payload.curate_all else []
-    )
-    for p in _read_pending(storage):
-        source = p["source"]
-        if source and source not in sources:
-            sources.append(source)
+    available = {s for s, _t, _n in storage.read_glossary_entries_merged()}
+    available.update(p["source"] for p in _normalize_pending(storage.read_extra_json("glossary_pending")))
+    sources = list(dict.fromkeys(s.strip() for s in payload.sources if s.strip()))
     if not sources:
-        raise HTTPException(status_code=400, detail="Không có mục glossary hoặc đề xuất để xử lý.")
+        raise HTTPException(status_code=400, detail="Chưa chọn mục glossary để xử lý.")
+    if any(s not in available for s in sources):
+        raise HTTPException(status_code=409, detail="Mục đã chọn đã thay đổi; tải lại glossary rồi chọn lại.")
     spec = {
         "kind": "glossary-ai",
         "params": {"slug": slug, "sources": sources, "instruction": payload.instruction.strip(),
-                   "auto_approve": True, "curate_all": payload.curate_all},
+                   "auto_approve": True, "selected_only": True, "batch_size": payload.batch_size},
     }
     started = request.app.state.job.start_custom(
         "glossary-ai",

@@ -52,6 +52,6 @@ describe("shared Python/JS validation fixtures", () => {
     expect(filterValidation(report, []).summary.total).toBe(report.summary.total);
     expect(supportedMethod("han_remaining")).toBe("ai");
     expect(supportedMethod("double_space")).toBe("algorithm");
-    expect(supportedMethod("effect_sound")).toBe("informational");
+    expect(supportedMethod("abbreviation")).toBe("informational");
   });
 });

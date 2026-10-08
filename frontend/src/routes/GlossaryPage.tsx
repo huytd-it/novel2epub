@@ -14,9 +14,9 @@ import {
   useDeleteGlossaryEntry,
   useExportGlossary,
   useGlossary,
-  useGlossaryAiRetranslate,
   useGlossaryAiReprocessPending,
   useGlossaryFlags,
+  useGlossaryJobRefresh,
   useGlossarySuspects,
   useImportGlossary,
   usePendingGlossary,
@@ -438,24 +438,21 @@ function AiAssistantModal({
   onClose,
   slug,
   sources,
-  fromPending,
-  allPending,
   onStarted,
 }: {
   open: boolean;
   onClose: () => void;
   slug: string;
   sources: string[];
-  fromPending?: boolean;
-  allPending?: boolean;
   onStarted: () => void;
 }) {
   const [instruction, setInstruction] = useState("");
+  const [batchSize, setBatchSize] = useState("10");
   const { data: settings } = useEbookSettings(slug);
-  const runSelected = useGlossaryAiRetranslate(slug);
-  const runAll = useGlossaryAiReprocessPending(slug);
+  const run = useGlossaryAiReprocessPending(slug);
   const toast = useToast();
-  const run = allPending ? runAll : runSelected;
+  const size = Number(batchSize);
+  const validSize = Number.isInteger(size) && size >= 1 && size <= 100;
 
   useEffect(() => {
     if (open) setInstruction("");
@@ -475,7 +472,7 @@ function AiAssistantModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={allPending ? "AI dọn và duyệt toàn bộ glossary" : "Trợ lý AI dịch lại glossary"}
+      title="AI tự động duyệt & dọn mục đã chọn"
       wide
       footer={
         <>
@@ -484,49 +481,55 @@ function AiAssistantModal({
             variant="primary"
             icon={<IconSparkle size={14} />}
             loading={run.isPending}
-            disabled={!allPending && sources.length === 0}
+            disabled={sources.length === 0 || !validSize}
             onClick={() => {
               const done = {
                 onSuccess: () => {
-                  toast(
-                    allPending
-                      ? "Đã xếp vào hàng đợi — AI dọn toàn glossary theo từng lô và lan truyền thay đổi vào bản dịch."
-                      : "Đã xếp vào hàng đợi — kết quả sẽ hiện ở đầu bảng để duyệt.",
-                  );
+                  toast("Đã xếp vào hàng đợi — AI dọn và duyệt các mục đã chọn. Xem tiến độ ở trang Hàng đợi.");
                   onStarted();
                   onClose();
                 },
                 onError: (err: unknown) =>
                   toast(err instanceof Error ? err.message : String(err), "error"),
               };
-              if (allPending) runAll.mutate({ instruction: instruction.trim() }, done);
-              else runSelected.mutate({ sources, instruction: instruction.trim() }, done);
+              run.mutate({ sources, instruction: instruction.trim(), batch_size: size }, done);
             }}
           >
-            {allPending
-              ? "Dọn và duyệt toàn bộ glossary"
-              : `Nhờ AI xử lý ${num(sources.length)} mục`}
+            Dọn và duyệt {num(sources.length)} mục
           </Button>
         </>
       }
     >
       <p className="mb-3 text-[13px] opacity-70">
-        {allPending
-          ? <>AI rà soát toàn bộ glossary và hàng chờ theo từng lô, tối đa 100 mục/lô,
-            với ngân sách context 200.000 token (dự phòng 16.000 token cho phản hồi).</>
-          : <>AI rà soát <span data-numeric className="font-medium">{num(sources.length)}</span> mục đã chọn và đề
-            xuất bản dịch đúng.</>}{" "}
-        {allPending
-          ? "AI được thêm mục có bằng chứng, sửa Hán/Việt, xóa mục rác và duyệt đề xuất. Thao tác vượt kiểm định được ghi vào DB; mục không chắc chắn giữ nguyên. Đổi Việt lan truyền vào bản dịch; xóa glossary không xóa nội dung chương. Model/API cần hỗ trợ context ít nhất 200k. Các thay đổi này không có nút hoàn tác."
-          : "Kết quả KHÔNG ghi đè: mục nào AI đổi sẽ vào hàng chờ duyệt (hàng vàng ở đầu bảng) kèm số chỗ ảnh hưởng, bạn duyệt từng mục hoặc hàng loạt."}
-        {fromPending && !allPending
-          ? " Vì các mục này đang chờ duyệt, kết quả mới sẽ THAY đề xuất cũ cùng mục trong MỘT lần chạy."
-          : null}
+        AI chỉ rà soát {num(sources.length)} mục đã chọn: chuẩn hóa Hán/Việt, dịch lại theo bối cảnh,
+        sửa tiếng Việt còn chữ Hán và loại mục lỗi/rác. Kết quả hợp lệ được ghi và duyệt trực tiếp,
+        không phải duyệt lại. Mục bị loại chỉ xóa khỏi glossary và hàng chờ.
       </p>
       <p className="mb-3 text-[13px] opacity-60">
-        {allPending
-          ? "Ghi chú chỉ dành cho chú thích thêm cho độc giả. AI có thể giữ, sửa hoặc bỏ chú thích sai; lý do sửa được lưu riêng trong log và lịch sử kiểm định, không đưa vào Ghi chú. Nên lưu các chỉnh sửa trong bảng trước khi chạy."
-          : "AI chỉ sửa cột Việt. Mục sai ở cột Hán phải sửa tay trong bảng rồi bấm Áp dụng — các mục đó sẽ bị bỏ qua."}
+        Bản dịch glossary hợp lệ sau sửa sẽ lan truyền vào chương. Mục lỗi bị loại chỉ xóa
+        khỏi glossary và hàng chờ, không thay hay hoàn tác nội dung chương. Ghi chú chỉ dành cho độc giả;
+        lý do sửa được lưu riêng trong log. Nếu AI hoặc kiểm định lỗi, lô đó chưa được ghi;
+        xem lỗi ở Hàng đợi rồi chạy lại.
+      </p>
+
+      <label className="mb-3 block text-[13px]">
+        Số mục mỗi lô
+        <Input
+          type="number"
+          min={1}
+          max={100}
+          step={1}
+          value={batchSize}
+          onChange={(e) => setBatchSize(e.target.value)}
+          aria-invalid={!validSize}
+          aria-describedby="glossary-batch-hint"
+          className="mt-1 block w-28"
+        />
+      </label>
+      <p id="glossary-batch-hint" className={clsx("mb-3 text-xs", !validSize ? "text-error" : "opacity-70")}>
+        {validSize
+          ? `${num(sources.length)} mục sẽ được xử lý tuần tự trong ${num(Math.ceil(sources.length / size))} lô, tối đa ${size} mục/lô.`
+          : "Nhập số nguyên từ 1 đến 100 (mặc định 10)."}
       </p>
 
       <div className="mb-3 rounded-box border border-base-300 p-2.5">
@@ -812,6 +815,7 @@ function SuspectsView({ slug }: { slug: string }) {
 
 export function GlossaryPage() {
   const { slug = "" } = useParams();
+  useGlossaryJobRefresh(slug);
   const [view, setView] = useState<"all" | "suspects">("all");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending">("all");
@@ -827,8 +831,6 @@ export function GlossaryPage() {
   const [ioOpen, setIoOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
-  const [aiPending, setAiPending] = useState(false);
-  const [aiAllPending, setAiAllPending] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [confirmClearAllNotes, setConfirmClearAllNotes] = useState(false);
   const [confirmClearSelectedNotes, setConfirmClearSelectedNotes] = useState(false);
@@ -1035,13 +1037,11 @@ export function GlossaryPage() {
               </Button>
               <Button
                 icon={<IconSparkle size={14} />}
-                disabled={edits.length > 0 || ((flagData?.total ?? 0) === 0 && pendingCount === 0)}
+                disabled={edits.length > 0 || (selected.size === 0 && pendingSelected.size === 0)}
                 title={edits.length > 0
                   ? "Áp dụng hoặc hoàn tác các nháp trước khi chạy AI để tránh ghi đè thay đổi"
-                  : "AI thêm/sửa/xóa và duyệt toàn bộ glossary + hàng chờ theo từng lô, context 200k token"}
+                  : "Chọn các mục cần AI chuẩn hóa, dọn và duyệt trực tiếp"}
                 onClick={() => {
-                  setAiPending(true);
-                  setAiAllPending(true);
                   setAiOpen(true);
                 }}
               >
@@ -1284,39 +1284,24 @@ export function GlossaryPage() {
                   >
                     Bỏ đề xuất
                   </Button>
-                  <Button
-                    variant="primary"
-                    icon={<IconSparkle size={14} />}
-                    onClick={() => {
-                      setAiPending(true);
-                      setAiAllPending(false);
-                      setAiOpen(true);
-                    }}
-                    title="Nhờ AI rà soát và dịch lại các đề xuất đang chọn trong MỘT lần chạy"
-                  >
-                    AI xử lý lại ({pendingSelected.size})
-                  </Button>
                 </>
               ) : null}
               {selected.size > 0 ? (
                 <>
-                  <Button
-                    variant="primary"
-                    icon={<IconSparkle size={14} />}
-                    onClick={() => {
-                      setAiPending(false);
-                      setAiAllPending(false);
-                      setAiOpen(true);
-                    }}
-                    title="Nhờ AI rà soát và dịch lại các mục đã chọn"
-                  >
-                    Trợ lý AI ({selected.size})
-                  </Button>
                   <Button variant="danger" icon={<IconTrash size={14} />} onClick={() => setConfirmBulkDelete(true)}>
                     Xóa đã chọn ({selected.size})
                   </Button>
                 </>
               ) : null}
+              <Button
+                variant="primary"
+                icon={<IconSparkle size={14} />}
+                disabled={edits.length > 0}
+                onClick={() => setAiOpen(true)}
+                title={edits.length > 0 ? "Áp dụng hoặc hoàn tác nháp trước khi chạy AI" : "Dọn và duyệt trực tiếp các mục đã chọn"}
+              >
+                AI duyệt & dọn ({new Set([...selected, ...pendingSelected]).size})
+              </Button>
               <Button
                 icon={<IconTrash size={14} />}
                 title="Xóa cột Ghi chú của các mục đang chọn (glossary + hàng chờ duyệt), giữ nguyên Hán/Việt"
@@ -1337,23 +1322,12 @@ export function GlossaryPage() {
         open={aiOpen}
         onClose={() => setAiOpen(false)}
         slug={slug}
-        sources={
-          aiAllPending
-            ? (pending?.entries ?? []).map((p) => p.source)
-            : aiPending
-              ? [...pendingSelected]
-              : [...selected]
-        }
-        fromPending={aiPending || aiAllPending}
-        allPending={aiAllPending}
+        sources={[...new Set([...selected, ...pendingSelected])]}
         onStarted={() => {
-          if (aiPending || aiAllPending) {
-            setPendingSelected(new Set());
-            anchorPending.current = null;
-          } else {
-            setSelected(new Set());
-            anchorGlossary.current = null;
-          }
+          setPendingSelected(new Set());
+          anchorPending.current = null;
+          setSelected(new Set());
+          anchorGlossary.current = null;
         }}
       />
       <AddEntryModal open={addOpen} onClose={() => setAddOpen(false)} slug={slug} />

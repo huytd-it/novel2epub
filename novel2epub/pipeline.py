@@ -79,7 +79,7 @@ def _analyze_chapter_glossary_with_ai(
             "existing_target": existing.get(item["source"], ""),
             "target": item["suggested"],
             "chapter_index": chapter.index,
-            "note": item.get("reason", ""),
+            "note": item.get("note", "") if item.get("type") == "name" else "",
         }
         for item in suggestions
         if item["source"] != item["suggested"]
@@ -1271,7 +1271,12 @@ def _maybe_extract_chapter_glossary(
     if not entries:
         return
 
-    result = translator.extend_glossary(entries, storage, chapter_index=ch.index)
+    notes = {
+        s["source"]: s["note"] for s in chapter_glossary
+        if s.get("source") and isinstance(s.get("note"), str) and s["note"].strip()
+    }
+    kwargs = {"notes": notes} if notes else {}
+    result = translator.extend_glossary(entries, storage, chapter_index=ch.index, **kwargs)
     for source, target in result["added"]:
         log(f"[dịch]   ({i}/{total}) + thêm glossary: {source} = {target}")
     for c in result["changed"]:
@@ -1536,6 +1541,9 @@ def step_cleanup_han_selected(
     phí, offline) qua `step_cleanup_han_local_mt_selected`; `openai` → nhờ AI
     biên tập (ai.openai). Bỏ qua chương chưa có bản dịch. force=True quét lại
     cả chương đã cleanup.
+
+    Engine `openai` chạy song song theo `translate.max_workers` — cùng một
+    thiết lập "Số luồng dịch song song" với bước dịch chương.
     """
     resolved_engine = (engine or cfg.translate.cleanup_han.engine or "local_mt").lower()
     if resolved_engine != "openai":
@@ -1565,7 +1573,8 @@ def step_cleanup_han_selected(
 
     selected = _chapter_selection(manifest.chapters, chapter, start, end, selected_indexes)
     total = len(selected)
-    log(f"[cleanup-han] Quét {total} chương trong phạm vi đã chọn.")
+    workers = max(1, int(cfg.translate.max_workers or 1))
+    log(f"[cleanup-han] Quét {total} chương trong phạm vi đã chọn (song song {workers} luồng).")
 
     to_clean = []
     skipped = 0
@@ -1581,14 +1590,17 @@ def step_cleanup_han_selected(
         to_clean.append(ch)
 
     cleanup_cfg = cfg.translate.cleanup_han
-    total_cleaned = 0
-    total_fixed = 0
+    counters = {"cleaned": 0, "fixed": 0}
+    counters_lock = threading.Lock()
+    progress = {"done": 0}
+    progress_lock = threading.Lock()
 
-    for i, ch in enumerate(to_clean, 1):
+    def _cleanup_han_one(ch: Chapter) -> None:
         if should_cancel and should_cancel():
-            log(f"[cleanup-han] Đã dừng theo yêu cầu — còn {len(to_clean) - i + 1} chương chưa xử lý.")
-            break
-
+            return
+        with progress_lock:
+            progress["done"] += 1
+            i = progress["done"]
         raw = storage.read_raw(ch) if storage.has_raw(ch) else ""
         translated = storage.read_translated(ch)
 
@@ -1598,8 +1610,9 @@ def step_cleanup_han_selected(
             meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
             meta["han_cleanup_complete"] = True
             storage.write_meta(ch, meta)
-            total_cleaned += 1
-            continue
+            with counters_lock:
+                counters["cleaned"] += 1
+            return
 
         log(f"[cleanup-han] ({i}/{total}) → {ch.title or ch.stem}: {han_before} Hán.")
         try:
@@ -1609,15 +1622,16 @@ def step_cleanup_han_selected(
                 retries=cleanup_cfg.retries,
                 glossary=_cleanup_prompt_glossary(cfg, storage, raw, translated),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - 1 chương lỗi không giết cả lô song song
             log(f"[cleanup-han] ({i}/{total}) ! Lỗi: {e}")
-            continue
+            return
 
         han_after = han_cleanup.count_han(cleaned)
 
         if fixed_count > 0 or han_after < han_before:
             storage.write_translated(ch, cleaned)
-            total_fixed += max(fixed_count, han_before - han_after)
+            with counters_lock:
+                counters["fixed"] += max(fixed_count, han_before - han_after)
             log(f"[cleanup-han] ({i}/{total}) ✓ {ch.title or ch.stem}: "
                 f"sửa {han_before - han_after}/{han_before} Hán (AI xử lý {fixed_count} chỗ).")
         for w in cleanup_warnings:
@@ -1631,7 +1645,21 @@ def step_cleanup_han_selected(
             "fixed_count": fixed_count,
         }
         storage.write_meta(ch, meta)
-        total_cleaned += 1
+        with counters_lock:
+            counters["cleaned"] += 1
+
+    if workers > 1 and len(to_clean) > 1:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(_cleanup_han_one, to_clean))
+    else:
+        for ch in to_clean:
+            if should_cancel and should_cancel():
+                log(f"[cleanup-han] Đã dừng theo yêu cầu — còn {len(to_clean) - progress['done']} chương chưa xử lý.")
+                break
+            _cleanup_han_one(ch)
+
+    total_cleaned = counters["cleaned"]
+    total_fixed = counters["fixed"]
 
     log(f"[cleanup-han] Hoàn tất. Đã quét {total_cleaned}/{total} chương, "
         f"sửa {total_fixed} chỗ Hán, bỏ qua {skipped}.")
@@ -3059,7 +3087,9 @@ def step_build_selected(
         chapters_html = []
         footnotes_by_stem: dict[str, list[dict]] = {}
         anchored_stems: set[str] = set()
-        for ch in chapters:
+        # Mỗi thuật ngữ chỉ chú thích một lần trong EPUB, ở chương nhỏ nhất
+        # có chứa nó. Trạng thái này chỉ tồn tại trong lần build hiện tại.
+        for ch in sorted(chapters, key=lambda c: c.index):
             selected = storage.publication_version(ch)
             if selected is None:
                 # Không bao giờ đưa raw vào EPUB. Blocker đã kiểm tra trước;
@@ -3071,6 +3101,8 @@ def step_build_selected(
             md, fns = _footnotes.annotate(md, notes)
             if fns:
                 footnotes_by_stem[ch.stem] = fns
+                for fn in fns:
+                    notes.pop(fn["term"], None)
             chapters_html.append((ch, title, md))
 
         if not chapters_html:

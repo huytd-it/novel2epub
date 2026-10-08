@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api } from "@/lib/api";
 import { proofreadingApi, type ProofreadingScanReport } from "@/lib/chapter";
@@ -27,8 +27,8 @@ export function ProofreadingScan({ slug, codes, onCodesChange, onReport, refresh
   const [busy, setBusy] = useState(false);
   const [finished, setFinished] = useState(false);
   const [error, setError] = useState("");
-  const [reload, setReload] = useState(0);
   const [page, setPage] = useState(0);
+  const client = useQueryClient();
   const saved = useQuery({ queryKey: ["content-validation", slug], queryFn: () => proofreadingApi.state(slug), retry: false, refetchInterval: refreshWhileFixing ? 3000 : false });
   useEffect(() => { if (saved.data) setReport(saved.data.checked || saved.data.checked_at ? saved.data : null); }, [saved.data]);
   useEffect(() => { onReport?.(report); }, [report, onReport]);
@@ -46,11 +46,14 @@ export function ProofreadingScan({ slug, codes, onCodesChange, onReport, refresh
     let cancelled = false;
     void saved.refetch().then(response => {
       if (cancelled || current !== generation.current) return;
-      if (response.error || !response.data) { setError("Không tải được lỗi đã lưu. Bấm Tải lỗi từ DB; không cần quét lại."); return; }
+      if (response.error || !response.data) { setError("Không tải được lỗi đã lưu; không cần quét lại."); return; }
       setReport(response.data); setError("");
+      // Lỗi đã lưu trong DB — bảng chương (bộ lọc proofreading_code, badge)
+      // đọc từ DB nên phải tải lại, nếu không vẫn hiện số liệu cũ sau khi rà.
+      client.invalidateQueries({ queryKey: ["chapters", slug] });
     });
     return () => { cancelled = true; };
-  }, [jobId, queue.data, slug, reload]);
+  }, [jobId, queue.data, slug, client]);
 
   const scan = async () => {
     const current = ++generation.current;
@@ -71,22 +74,25 @@ export function ProofreadingScan({ slug, codes, onCodesChange, onReport, refresh
   useEffect(() => { setPage(0); }, [codes.join(",")]);
   const running = busy || Boolean(jobId && !finished);
   return <section aria-label="Soát lỗi hàng loạt" className="border-b border-base-300">
-    <div className="flex flex-wrap items-center justify-end gap-3 px-3 py-2">
+    <div className="flex flex-wrap items-center gap-3 px-3 py-2">
+      {report ? (
+        <label className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs">Lọc theo mã lỗi
+          <Select aria-label="Lọc theo mã lỗi đã rà soát" value={filterCode} onChange={event => onCodesChange(event.target.value ? [event.target.value] : [])} className="max-w-full">
+            <option value="">Tất cả mã lỗi đã rà soát</option>
+            {filterCode && !scannedCodes.includes(filterCode) && <option value={filterCode}>{filterCode} · Không còn lỗi</option>}
+            {scannedCodes.map(code => <option key={code} value={code}>{code} · {VALIDATION_CONTRACT.find(c => c.code === code)?.label ?? code} · {num(report.chapters.filter(row => row.issues.some(issue => issue.code === code)).length)} chương</option>)}
+          </Select>
+        </label>
+      ) : (
+        <span className="flex-1" aria-hidden="true" />
+      )}
       <Button size="sm" disabled={running} onClick={() => void scan()}>{running ? "Đang rà soát…" : "Rà soát tất cả lỗi"}</Button>
     </div>
     {running && <p role="status" className="px-3 py-2 text-xs">Đang quét mọi mã lỗi và kiểm tra trùng/số chương trong một job…</p>}
-    {(error || queue.error || saved.error) && <p role="alert" className="px-3 py-2 text-xs text-error">{error || "Không đọc được trạng thái/lỗi đã lưu; thử tải lỗi từ DB."}</p>}
-    <Button size="sm" variant="ghost" disabled={saved.isFetching} onClick={() => { setError(""); if (jobId && finished) setReload(n => n + 1); else void saved.refetch(); }}>Tải lỗi từ DB</Button>
+    {(error || queue.error || saved.error) && <p role="alert" className="px-3 py-2 text-xs text-error">{error || "Không đọc được trạng thái/lỗi đã lưu."}</p>}
     {!report && saved.isPending && <p role="status" className="px-3 py-2 text-xs">Đang đọc lỗi đã lưu…</p>}
     {saved.data && !saved.data.checked && !running && <p className="px-3 py-2 text-xs">Chưa có lỗi được lưu. Bấm Rà soát tất cả lỗi để khởi tạo.</p>}
     {report && <>
-      <label className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs">Lọc theo mã lỗi
-        <Select aria-label="Lọc theo mã lỗi đã rà soát" value={filterCode} onChange={event => onCodesChange(event.target.value ? [event.target.value] : [])}>
-          <option value="">Tất cả mã lỗi đã rà soát</option>
-          {filterCode && !scannedCodes.includes(filterCode) && <option value={filterCode}>{filterCode} · Không còn lỗi</option>}
-          {scannedCodes.map(code => <option key={code} value={code}>{code} · {VALIDATION_CONTRACT.find(c => c.code === code)?.label ?? code} · {num(report.chapters.filter(row => row.issues.some(issue => issue.code === code)).length)} chương</option>)}
-        </Select>
-      </label>
       {report.chapters.some(row => row.stale) && <p role="status" className="px-3 py-2 text-xs text-warning">Một số chapter thay đổi ngoài luồng sửa canonical hoặc luật kiểm tra đã đổi. Rà lại để cập nhật; preview luôn đọc nguồn mới.</p>}
       {!visible.length ? <p className="px-3 py-2 text-xs">Không có lỗi khớp mã đang chọn.</p> : !onReport && <div className="overflow-x-auto">
         <table aria-label="Chapter có lỗi" className="w-full min-w-[44rem] border-collapse text-left text-xs">

@@ -41,7 +41,7 @@ def _cfg(tmp_path, slug):
 def _client(monkeypatch, tmp_path, slugs=("a", "b")):
     from app import deps
     from app.main import app
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     db = write_db_config(
         tmp_path / "novel2epub.db",

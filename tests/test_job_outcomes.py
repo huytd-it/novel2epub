@@ -1,34 +1,52 @@
-from pathlib import Path
-
 from fastapi.testclient import TestClient
 import pytest
-import time
 
-from app.queue import JobQueue
+from app.queue import CATEGORIES, JobQueue
 from novel2epub import pipeline
 from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig, TranslateConfig
 from novel2epub.storage import Chapter, Manifest, Storage
+from tests.helpers.db import write_db_config
+from tests.helpers.jobs import wait_for_persisted_job, wait_until as _wait_until
 
 
-def test_ebook_page_contains_queue_outcome_aggregation():
-    """SPA đọc queue qua API `/api/queue` — trả snapshot đủ để gộp outcome."""
+@pytest.fixture
+def api_client(tmp_path, monkeypatch):
+    from app import deps
+    from app.job import JobRunner
     from app.main import app
 
+    db_path = write_db_config(tmp_path / "novel2epub.db")
+    monkeypatch.setattr(deps, "DB_PATH", db_path)
+    monkeypatch.setattr(deps, "WORKSPACE_PATH", str(db_path))
+    monkeypatch.setattr(deps, "LIBRARY_STATE_PATH", db_path)
+    runner = JobRunner(workers={category: 0 for category in CATEGORIES}, db_path=db_path)
+    monkeypatch.setattr(app.state, "job", runner)
     client = TestClient(app)
-    res = client.get("/api/queue")
+    try:
+        yield client
+    finally:
+        client.close()
+
+
+def test_queue_api_contains_outcome_aggregation_fields(api_client):
+    """SPA đọc queue qua API `/api/queue` — trả snapshot đủ để gộp outcome."""
+    res = api_client.get("/api/queue")
     assert res.status_code == 200
     data = res.json()
     # Snapshot có đủ các mảng mà trang tổng hợp outcome cần.
     assert set(data) >= {"categories", "running", "pending", "history", "workers"}
 
 
-def test_ebook_page_guards_job_forms_against_duplicate_submit():
+def test_queue_api_pending_jobs_have_explicit_state(api_client):
     """Giao diện SPA hiển thị job đang chạy từ snapshot — không có form HTML
     cũ để double-submit; job phải có state rõ ràng trong snapshot."""
-    from app.main import app
-
-    client = TestClient(app)
-    data = client.get("/api/queue").json()
+    queued = api_client.app.state.job.queue.enqueue("crawl", "crawl", lambda log: None)
+    res = api_client.get("/api/queue")
+    assert res.status_code == 200
+    data = res.json()
+    assert [(job["id"], job["state"]) for job in data["pending"]["crawl"]] == [
+        (queued.id, "pending")
+    ]
     for job in data["running"]:
         assert "state" in job
     for jobs in data["pending"].values():
@@ -36,13 +54,8 @@ def test_ebook_page_guards_job_forms_against_duplicate_submit():
             assert "state" in job
 
 
-def test_ebook_page_has_compact_selected_command_bar():
-    """Command bar chọn hàng loạt là client-side (React); backend cung cấp
-    các action qua endpoint `/ebooks/{slug}/jobs/chapter-action` (JSON job_ids)."""
-    from app.main import app
-
-    client = TestClient(app)
-    res = client.get("/api/ui/library")
+def test_library_api_returns_ebooks(api_client):
+    res = api_client.get("/api/ui/library")
     assert res.status_code == 200
     assert "ebooks" in res.json()
 
@@ -72,15 +85,6 @@ def _cfg(tmp_path, translate_type="none"):
         translate=TranslateConfig(type=translate_type, delay_seconds=0),
         output=OutputConfig(data_dir=str(tmp_path)),
     )
-
-
-def _wait_until(predicate, timeout=5.0):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if predicate():
-            return True
-        time.sleep(0.02)
-    return False
 
 
 class _FakeCrawler:
@@ -250,6 +254,7 @@ def test_translate_chapter_outcome_force_replaces_existing_translation(tmp_path,
 
 def test_crawl_chapter_outcome_reports_failure(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
+    cfg.crawl.retry.delay_seconds = 0  # Retry crawler giả không cần chờ backoff thật.
     _manifest(cfg, Chapter(index=1, url="http://x/1"))
     monkeypatch.setattr(pipeline, "ScraplingCrawler", lambda _: _FailingCrawler())
 
@@ -328,6 +333,7 @@ def test_translation_backend_failure_fails_queue_job_without_outcome(tmp_path, m
     assert history_item["error"] == job.error
     assert "outcome" not in history_item
 
+    wait_for_persisted_job(db_path, job.id)
     restored = JobQueue(workers={"translate": 0}, db_path=db_path)
     restored_item = next(item for item in restored.snapshot()["history"] if item["id"] == job.id)
     assert restored_item["state"] == "failed"

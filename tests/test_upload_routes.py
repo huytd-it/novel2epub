@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from novel2epub.storage import Chapter, Storage
 
-from .conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 TXT_THREE = (
     "Chương 1: Khởi đầu\nNội dung một.\n\n"

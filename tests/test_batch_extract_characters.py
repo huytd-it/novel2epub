@@ -1,70 +1,21 @@
 """Test route AI trích nhân vật (POST /api/ebooks/{slug}/batch/extract-characters).
 
-_FakeJob.start_custom chạy target ĐỒNG BỘ ngay trong request — pattern mượn từ
-`tests/test_batch_delete_translation.py` — để assert được kết quả mà không cần
-chờ thread nền.
+Job giả chạy target đồng bộ ngay trong request để kiểm tra kết quả mà không
+cần chờ thread nền.
 """
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-
-from app import deps
 from novel2epub import characters_ai
-from novel2epub.config import (
-    Config,
-    CrawlConfig,
-    NovelConfig,
-    OutputConfig,
-    TranslateConfig,
-)
 from novel2epub.storage import Chapter, Manifest, Storage
+from tests.helpers.routes import make_client, make_config
 
 
 def _cfg(tmp_path):
-    return Config(
-        novel=NovelConfig(slug="t"),
-        crawl=CrawlConfig(toc_url="http://x/book/", delay_seconds=0),
-        translate=TranslateConfig(type="openai", delay_seconds=0),
-        output=OutputConfig(data_dir=str(tmp_path)),
-    )
-
-
-class _FakeJob:
-    def __init__(self):
-        self.started = []
-
-    def status(self):
-        return {
-            "crawl": {"running": False, "step": "", "error": "", "log": []},
-            "translate": {"running": False, "step": "", "error": "", "log": []},
-        }
-
-    def start_custom(
-        self,
-        name,
-        target,
-        *,
-        category,
-        ebook="",
-        spec=None,
-        cancel_event=None,
-        chapter_indexes=None,
-        lock_ebook=True,
-        label="",
-    ):
-        self.started.append({"name": name, "target": target, "category": category})
-        target(lambda msg: None)
-        return True
+    return make_config(tmp_path, translate_type="openai")
 
 
 def _client(cfg, monkeypatch):
-    monkeypatch.setattr(deps, "library", lambda: type("L", (), {"ebooks": {}})())
-    monkeypatch.setattr(deps, "cfg", lambda: cfg)
-    monkeypatch.setattr(deps, "resolved_cfg", lambda slug: cfg)
-    from app.main import app
-
-    app.state.job = _FakeJob()
-    return TestClient(app)
+    return make_client(cfg, monkeypatch, run_jobs=True)
 
 
 def _seed_chapters(tmp_path):

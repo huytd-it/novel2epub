@@ -157,7 +157,7 @@ def route_client(monkeypatch, tmp_path):
     from app.main import app
 
     db_path = tmp_path / "transfer.db"
-    from .conftest import write_db_config
+    from tests.helpers.db import write_db_config
     write_db_config(db_path)
     monkeypatch.setattr(deps, "WORKSPACE_PATH", str(db_path))
     monkeypatch.setattr(deps, "DB_PATH", db_path)

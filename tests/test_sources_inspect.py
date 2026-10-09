@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 HTML = "<html><body><a href='/c/1.html'>1</a></body></html>"
 

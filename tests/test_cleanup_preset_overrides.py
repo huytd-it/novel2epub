@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from novel2epub.db import get_connection
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 from scripts.cleanup_preset_overrides import cleanup_overrides, main
 

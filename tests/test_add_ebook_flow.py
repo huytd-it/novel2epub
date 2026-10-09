@@ -145,7 +145,7 @@ def test_new_ebook_page_renders(monkeypatch, tmp_path):
     của SPA (React router tự xử lý). Config global Dịch/AI do client đọc qua
     API (`/api/ui/...`) chứ không nhúng vào HTML.
     """
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     db = write_db_config(
         tmp_path / "novel2epub.db",
@@ -174,7 +174,7 @@ def test_new_ebook_page_renders(monkeypatch, tmp_path):
 
 def test_preview_returns_crawl_preview(monkeypatch, tmp_path):
     """Preview trả kèm config crawl hiệu lực (preset khớp URL) — cho trang Thêm ebook."""
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
     from app import deps
     from app.routes import library
 

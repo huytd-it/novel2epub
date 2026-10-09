@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from novel2epub.db import get_connection
 from novel2epub.sources import load_presets
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 
 def _crawl(path: Path, slug: str) -> dict:

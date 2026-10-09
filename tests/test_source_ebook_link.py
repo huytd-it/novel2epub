@@ -8,7 +8,7 @@ from novel2epub.config import load_config, _resolve_source_overrides
 from novel2epub.config_writer import add_ebook, _DEPRECATED_CRAWL_FIELDS, _DEPRECATED_TRANSLATE_FIELDS
 from novel2epub.db import get_connection
 from novel2epub.sources import SourcePreset, save_presets, strip_preset_defaults
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 
 def _read_ebook_crawl(path: Path, slug: str) -> dict:

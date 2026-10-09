@@ -56,21 +56,31 @@ npm run tauri:build  # bản desktop → src-tauri/target/release/bundle/
 
 ## Kiểm Thử
 
-Chạy toàn bộ:
+Chạy toàn bộ backend từ thư mục gốc (`pytest.ini` giới hạn discovery trong `tests/`):
 
 ```sh
-pytest tests -v
+python -m pytest -q
 ```
 
 Chạy nhóm liên quan trong lúc phát triển:
 
 ```sh
-pytest tests/test_crawler.py -v
-pytest tests/test_translator.py -v
-pytest tests/test_automation.py -v
+python -m pytest tests/test_crawler_extract_text.py tests/test_scrapling.py -q
+python -m pytest tests/test_translator.py -q
+python -m pytest tests/test_automation.py -q
 ```
 
 Tên file thực tế có thể chi tiết hơn; dùng `pytest --collect-only -q` để xem danh sách hiện tại. Với thay đổi route, kiểm tra cả response HTML/API và hành vi queue. Với migration, luôn test DB cũ lẫn DB mới.
+
+### Helper và fixture
+
+- `tests/conftest.py`: fixture pytest tự động nạp; không import trực tiếp từ file này.
+- `tests/helpers/db.py`: import `write_db_config` để dựng DB trong `tmp_path` với defaults, sources và ebooks riêng cho test.
+- `tests/helpers/routes.py`: `make_config` và `make_client` dùng chung cho nhóm route batch. Client cài dependency/job bằng `monkeypatch` để khôi phục sau test; không khởi động lifespan/worker/scheduler.
+- `FakeJob` mặc định chỉ ghi nhận job trong `started`. Chỉ bật `run_jobs=True` trên client khi muốn chạy target đồng bộ và đã mock các lời gọi bên ngoài.
+- `tests/helpers/jobs.py`: `wait_until` dùng monotonic clock; `wait_for_persisted_job` chờ commit lịch sử của worker trước khi kiểm tra khôi phục queue.
+- Dữ liệu seed và assertion đặc thù vẫn đặt cạnh từng test. Khi cần giả lập remote client cho auth/CORS, truyền `client=("203.0.113.1", 12345)` tường minh.
+- Test thời gian dùng clock giả riêng cho module để tránh phụ thuộc scheduler hệ điều hành. Test queue persistence chờ bản ghi commit vào SQLite trước khi dựng queue mới; trạng thái `done` trong RAM chưa đảm bảo đã ghi DB.
 
 ## Kiểm Tra Thủ Công
 

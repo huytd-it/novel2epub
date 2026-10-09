@@ -316,7 +316,7 @@ def test_omniroute_preset_title_has_two_line_format():
 def test_cli_models_lists_models(tmp_path, monkeypatch, capsys):
     """`python -m novel2epub models` gọi list_models và in từng model id 1 dòng."""
     from novel2epub import cli, openai_client
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     cfg_path = write_db_config(
         tmp_path / "novel2epub.db",
@@ -341,7 +341,7 @@ def test_cli_models_lists_models(tmp_path, monkeypatch, capsys):
 def test_cli_models_free_filter(tmp_path, monkeypatch, capsys):
     """`--free` filter ra các model có prefix free/, kr/, qoder/, v.v."""
     from novel2epub import cli, openai_client
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     cfg_path = write_db_config(
         tmp_path / "novel2epub.db",
@@ -371,7 +371,7 @@ def test_cli_models_json_format(tmp_path, monkeypatch, capsys):
     """`--format json` trả JSON object với `models` và `count`."""
     import json
     from novel2epub import cli, openai_client
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     cfg_path = write_db_config(
         tmp_path / "novel2epub.db",
@@ -395,7 +395,7 @@ def test_cli_models_json_format(tmp_path, monkeypatch, capsys):
 def test_cli_models_no_base_url(tmp_path, capsys):
     """base_url rỗng → lỗi + return 1, không gọi list_models."""
     from novel2epub import cli
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     cfg_path = write_db_config(
         tmp_path / "novel2epub.db",
@@ -411,7 +411,7 @@ def test_cli_models_no_base_url(tmp_path, capsys):
 def test_cli_models_list_models_raises(tmp_path, monkeypatch, capsys):
     """list_models raise → exit code 1 + in lỗi ra stderr."""
     from novel2epub import cli, openai_client
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     cfg_path = write_db_config(
         tmp_path / "novel2epub.db",

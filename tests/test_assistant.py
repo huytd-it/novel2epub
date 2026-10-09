@@ -85,7 +85,7 @@ def test_resolve_chat_config_thread_override_keeps_secret_from_effective():
 
 
 def _client_with_ebook(tmp_path, monkeypatch) -> TestClient:
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     db_path = write_db_config(
         tmp_path / "novel2epub.db",
@@ -196,7 +196,7 @@ def test_assistant_chat_stream_sse(tmp_path, monkeypatch):
 
 def _seed_chapters(tmp_path, monkeypatch):
     """DB ebook demo với 2 chương: ch1 raw+dịch, ch2 raw-only (chưa dịch)."""
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     db_path = write_db_config(
         tmp_path / "novel2epub.db",
@@ -549,7 +549,7 @@ def test_assistant_write_routes(tmp_path, monkeypatch):
 # ── Phase 6: contract + stale/conflict ───────────────────────────────────
 
 def _seed_two_ebooks(tmp_path, monkeypatch):
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     db_path = write_db_config(
         tmp_path / "novel2epub.db",
@@ -566,7 +566,7 @@ def _seed_two_ebooks(tmp_path, monkeypatch):
 def test_no_api_key_in_any_assistant_response(tmp_path, monkeypatch):
     """Contract: không endpoint assistant nào rò rỉ GIÁ TRỊ api_key (kể cả lỗi).
     Flag boolean `api_key_configured` được phép (cùng convention global_ai)."""
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     import novel2epub.openai_client as oc
     from starlette.testclient import TestClient

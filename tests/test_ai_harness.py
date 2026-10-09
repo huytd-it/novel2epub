@@ -109,7 +109,7 @@ def test_selected_apply_changes_only_selected_paragraph_and_keeps_backup():
 
 def test_routes_list_runs_and_reject_scan_without_manifest(tmp_path, monkeypatch):
     from starlette.testclient import TestClient
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
     import app.deps as deps
 
     db_path = write_db_config(

@@ -10,7 +10,7 @@ from novel2epub import build_validation as v, revisions
 from novel2epub.proofreading import ProofreadingError, evidence_spans, fix_algorithms, validate_ai_edits
 from novel2epub.proofreading_service import analyze, run, decide, snapshot, issue_confirmation, consume_confirmation
 from novel2epub.storage import Storage, Chapter, Manifest
-from .conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures/proofreading_validation.json").read_text(encoding="utf-8"))

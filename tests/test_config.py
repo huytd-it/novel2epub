@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from novel2epub.config import CrawlConfig, load_config
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 
 def _write_config(tmp_path: Path, extra: dict | None = None) -> Path:

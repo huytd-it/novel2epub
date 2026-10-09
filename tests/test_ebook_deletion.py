@@ -13,7 +13,7 @@ from app.ebook_deletion import (
 )
 from novel2epub.db import get_connection
 from novel2epub.config import load_config
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 
 class QueueStub:

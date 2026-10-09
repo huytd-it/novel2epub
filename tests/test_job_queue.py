@@ -6,15 +6,7 @@ import pytest
 
 from app.queue import JobQueue
 from novel2epub.db import get_connection, init_schema
-
-
-def _wait_until(predicate, timeout=5.0):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if predicate():
-            return True
-        time.sleep(0.02)
-    return False
+from tests.helpers.jobs import wait_for_persisted_job, wait_until as _wait_until
 
 
 def test_has_active_ebook_detects_pending_and_ignores_other_ebook():
@@ -362,7 +354,7 @@ def test_target_outcome_survives_history_persistence(tmp_path):
     job = q.enqueue("crawl", "crawl", lambda log: outcome)
 
     assert _wait_until(lambda: job.state == "done")
-    q._save_history()
+    wait_for_persisted_job(db_path, job.id)
 
     restored = JobQueue(workers={"crawl": 0}, db_path=db_path)
     history = restored.snapshot()["history"]
@@ -678,6 +670,8 @@ def test_history_persists_complete_job_log_across_restart(tmp_path):
     job = q.enqueue("crawl", "crawl", target)
     assert _wait_until(lambda: job.state == "done")
     assert _wait_until(lambda: q.job_log(job.id) == lines)
+
+    wait_for_persisted_job(db_path, job.id)
 
     restored = JobQueue(workers={"crawl": 0, "translate": 0, "build": 0}, db_path=db_path)
 

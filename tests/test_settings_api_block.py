@@ -9,7 +9,7 @@ def _client(monkeypatch, tmp_path):
     from app.main import app
     from novel2epub.config import LibraryConfig
 
-    from .conftest import write_db_config
+    from tests.helpers.db import write_db_config
 
     db = write_db_config(tmp_path / "n.db", defaults={})
     monkeypatch.setattr(deps, "WORKSPACE_PATH", str(db))
@@ -56,7 +56,7 @@ def test_trang_cai_dat_hien_url_catalog_opds(monkeypatch, tmp_path):
 
     data = client.get("/api/ui/ebooks").json() if False else None
     # Tab OPDS đọc cấu hình từ `/api/ui/ebooks/{slug}/settings` (khối `opds`).
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
     db = write_db_config(tmp_path / "n2.db", ebooks={"t": {}})
     from app import deps
     monkeypatch.setattr(deps, "WORKSPACE_PATH", str(db))
@@ -74,7 +74,7 @@ def test_token_khong_nhung_vao_url_catalog(monkeypatch, tmp_path):
     update_defaults(db, {"api": {"token": "sieu-bi-mat"}})
     data = client.get("/api/ui/ebooks/t/settings").json() if False else None
     # API settings không bao giờ trả token — chỉ báo cờ đã cấu hình.
-    from tests.conftest import write_db_config
+    from tests.helpers.db import write_db_config
     db2 = write_db_config(tmp_path / "n3.db", defaults={"api": {"token": "sieu-bi-mat"}}, ebooks={"t": {}})
     from app import deps
     monkeypatch.setattr(deps, "WORKSPACE_PATH", str(db2))

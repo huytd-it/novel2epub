@@ -5,7 +5,9 @@ from __future__ import annotations
 import threading
 import time
 
-from novel2epub import pipeline
+import pytest
+
+from novel2epub import crawl_throttle, pipeline
 from novel2epub.config import Config, CrawlConfig, NovelConfig, OutputConfig, ScraplingConfig, TranslateConfig
 from novel2epub.crawl_throttle import AdaptiveConcurrency, DomainRateLimiter
 from novel2epub.crawler import TocResult
@@ -43,21 +45,43 @@ def test_effective_workers_honors_explicit_override():
 # ---------- DomainRateLimiter ----------
 
 
-def test_rate_limiter_spaces_out_calls():
+@pytest.fixture
+def clock(monkeypatch):
+    class Clock:
+        now = 100.0
+
+        def __init__(self):
+            self.sleeps = []
+
+        def monotonic(self):
+            return self.now
+
+        def sleep(self, seconds):
+            self.sleeps.append(seconds)
+            self.now += seconds
+
+    clock = Clock()
+    # Thay clock của module, không thay time toàn cục của worker/pytest.
+    monkeypatch.setattr(crawl_throttle, "time", clock)
+    return clock
+
+
+def test_rate_limiter_spaces_out_calls(clock):
     limiter = DomainRateLimiter(interval=0.05, jitter=0.0)
-    start = time.monotonic()
+    acquired_at = []
     for _ in range(3):
         limiter.acquire()
-    elapsed = time.monotonic() - start
-    assert elapsed >= 0.1  # 2 intervals giữa 3 lần gọi
+        acquired_at.append(clock.monotonic())
+    assert acquired_at == pytest.approx([100.0, 100.05, 100.1])
+    assert clock.sleeps == pytest.approx([0.05, 0.05])
 
 
-def test_rate_limiter_noop_when_interval_zero():
+def test_rate_limiter_noop_when_interval_zero(clock):
     limiter = DomainRateLimiter(interval=0.0)
-    start = time.monotonic()
     for _ in range(5):
         limiter.acquire()
-    assert time.monotonic() - start < 0.05
+    assert clock.sleeps == []
+    assert clock.monotonic() == 100.0
 
 
 # ---------- AdaptiveConcurrency ----------

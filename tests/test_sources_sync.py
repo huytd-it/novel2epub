@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from novel2epub import sources_sync
 from novel2epub.sources import load_presets, preset_from_mapping
 
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 
 def _write(path: Path, text: str) -> Path:

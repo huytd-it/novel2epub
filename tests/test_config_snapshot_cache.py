@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import threading
 
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 from novel2epub.config import load_config
 from novel2epub.db import get_connection, get_thread_connection

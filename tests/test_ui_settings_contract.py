@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 from app.routes import settings as settings_routes
 
-from .conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 # (khoá trong JSON, hàm xử lý form tương ứng)
 SECTIONS = [

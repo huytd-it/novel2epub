@@ -4,7 +4,7 @@ from __future__ import annotations
 from novel2epub.config import ApiConfig, load_config
 from novel2epub.config_writer import reset_defaults, update_defaults
 
-from .conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 
 def test_api_mac_dinh_rong(tmp_path):

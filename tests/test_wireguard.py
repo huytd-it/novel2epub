@@ -41,7 +41,7 @@ from novel2epub.wireguard import (
     activate_profile,
     rotate_profile,
 )
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 FAKE_PRIVATE_KEY = "QJhLxVIfJvM3sXmNjcKkDq9tZrYiYpFwQNTTRUNGTLONGKEYHERE"
 

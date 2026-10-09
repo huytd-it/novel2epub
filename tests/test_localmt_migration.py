@@ -13,7 +13,7 @@ from novel2epub.config import (
 from novel2epub.db import _rewrite_translate_type
 from novel2epub.toc import strip_toc_junk
 from novel2epub.translator import LocalMTTranslator, make_translator
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 
 # ── Đổi tên type + gỡ engine ──────────────────────────────────────────────

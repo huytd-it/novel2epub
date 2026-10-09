@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from novel2epub.storage import Chapter, Manifest, Storage
 
-from .conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 ch = Chapter(index=1, url="http://x/1")
 

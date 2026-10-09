@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from app import deps
 import app.routes.settings as settings_route
 from novel2epub.config import load_config
-from tests.conftest import write_db_config
+from tests.helpers.db import write_db_config
 
 
 def _fake_job():

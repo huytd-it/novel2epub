@@ -1,68 +1,12 @@
 """Test route xóa hàng loạt bản dịch (POST /api/ebooks/{slug}/batch/delete-translation)."""
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-
-from app import deps
-from novel2epub.config import (
-    Config,
-    CrawlConfig,
-    NovelConfig,
-    OutputConfig,
-    TranslateConfig,
-)
 from novel2epub.storage import Chapter, Manifest, Storage
+from tests.helpers.routes import make_client, make_config as _cfg
 
 
-def _cfg(tmp_path):
-    return Config(
-        novel=NovelConfig(slug="t"),
-        crawl=CrawlConfig(toc_url="http://x/book/", delay_seconds=0),
-        translate=TranslateConfig(type="cli", delay_seconds=0),
-        output=OutputConfig(data_dir=str(tmp_path)),
-    )
-
-
-def _client(cfg, monkeypatch):
-    monkeypatch.setattr(deps, "library", lambda: type("L", (), {"ebooks": {}})())
-    monkeypatch.setattr(deps, "cfg", lambda: cfg)
-    monkeypatch.setattr(deps, "resolved_cfg", lambda slug: cfg)
-    from app.main import app
-    # Test khác (vd. test_add_ebook_flow, test_ebook_management) ghi đè
-    # app.state.job thành fake chỉ có status(). Lắp lại stub có start_custom.
-    app.state.job = _FakeJob()
-    return TestClient(app)
-
-
-class _FakeJob:
-    """Stub cho app.state.job — chỉ cần start_custom (sync, chạy target luôn)
-    và status. Các test khác chỉ stub status() nên kế thừa để tránh phá vỡ."""
-
-    def __init__(self):
-        self.started = []
-
-    def status(self):
-        return {
-            "crawl": {"running": False, "step": "", "error": "", "log": []},
-            "translate": {"running": False, "step": "", "error": "", "log": []},
-        }
-
-    def start_custom(
-        self,
-        name,
-        target,
-        *,
-        category,
-        ebook="",
-        spec=None,
-        cancel_event=None,
-        chapter_indexes=None,
-        lock_ebook=True,
-        label="",
-    ):
-        self.started.append({"name": name, "target": target, "category": category})
-        target(lambda msg: None)  # chạy sync để file bị xoá ngay trong test
-        return True
+def _client(cfg, monkeypatch, **kwargs):
+    return make_client(cfg, monkeypatch, run_jobs=True, **kwargs)
 
 
 def _seed_two_chapters_with_translation(tmp_path):
@@ -105,7 +49,7 @@ def test_batch_delete_removes_translated_and_mt_and_meta(tmp_path, monkeypatch):
     res = client.post("/api/ebooks/t/batch/delete-translation", data={"indexes": "1,2"})
     assert res.status_code == 200
 
-    # _FakeJob.start_custom chạy target sync → file bị xoá ngay trong request
+    # Job giả chạy target sync → dữ liệu bị xoá ngay trong request.
     for ch in chapters:
         assert not storage.has_any_translation_data(ch), f"chương {ch.stem} còn dữ liệu dịch"
         assert not storage.has_translated(ch)
@@ -139,19 +83,15 @@ def test_batch_delete_handles_missing_chapters_gracefully(tmp_path, monkeypatch)
     assert res.json()["total"] == 2
 
 
-def test_batch_delete_invalid_index_string_raises_valueerror(tmp_path, monkeypatch):
+def test_batch_delete_invalid_index_string_returns_500(tmp_path, monkeypatch):
     """Index không phải số (vd. 'abc') làm int(...) ném ValueError — endpoint
     chưa validate format. Cùng pattern với `api_batch_translate_titles`.
     UI client-side chỉ gửi số nên case này không xảy ra trong flow thật.
-    Test chỉ document: KHÔNG âm thầm nuốt lỗi — exception phải propagate."""
+    Test ghi nhận hành vi hiện tại: server trả 500 cho input này."""
     cfg = _cfg(tmp_path)
     _storage, _chapters = _seed_two_chapters_with_translation(tmp_path)
-    from app.main import app
-    monkeypatch.setattr(deps, "library", lambda: type("L", (), {"ebooks": {}})())
-    monkeypatch.setattr(deps, "cfg", lambda: cfg)
-    monkeypatch.setattr(deps, "resolved_cfg", lambda slug: cfg)
     # raise_server_exceptions=False để TestClient không re-raise mà trả 500.
-    client = TestClient(app, raise_server_exceptions=False)
+    client = _client(cfg, monkeypatch, raise_server_exceptions=False)
 
     res = client.post("/api/ebooks/t/batch/delete-translation", data={"indexes": "abc"})
     assert res.status_code == 500

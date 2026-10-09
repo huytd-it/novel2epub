@@ -90,15 +90,25 @@ Không dùng model nhỏ để tự suy luận glossary phức tạp; hãy dịc
 
 Glossary theo ebook dùng để cố định tên riêng và thuật ngữ đặc thù. Không đưa từ đời thường vào glossary. Matching ưu tiên source dài để tên dài không bị mục ngắn thay trước.
 
-Prompt Auto Glossary (kèm bản dịch, AI phân tích chương và AI dọn glossary) viết
-bằng tiếng Anh; tên dịch, ghi chú và lý do vẫn bằng tiếng Việt (tên ngoại giữ
-dạng Latin gốc khi xác định chắc chắn). Chỉ tạo ghi chú cho **nhân vật** khi
-ngữ cảnh cung cấp rõ vai trò, thuộc phe/phái hoặc quan hệ: tối đa một câu ngắn,
+Prompt Auto Glossary kèm bản dịch và AI phân tích chương viết bằng tiếng Anh.
+Prompt AI duyệt & dọn glossary viết bằng tiếng Việt, dựa trên nguyên tắc ngôn ngữ
+của `DEFAULT_PROMPT`: đúng nghĩa theo ngữ cảnh, Hán Việt phù hợp cho tên riêng,
+thuần Việt tự nhiên cho từ đời thường, không cố định xưng hô máy móc và không
+đoán tên Latin khi thiếu căn cứ. Đầu ra của tác vụ dọn vẫn là mảng JSON thao tác,
+không phải bản dịch chương. Tên dịch, ghi chú và lý do bằng tiếng Việt (tên ngoại
+giữ dạng Latin gốc khi xác định chắc chắn). Chỉ tạo ghi chú cho **nhân vật** khi
+ngữ cảnh cung cấp rõ vai trò, thuộc phe/phái, quan hệ hoặc bí danh/tên gọi: tối đa một câu ngắn,
 30 từ. Thiếu bằng chứng thì không tạo ghi chú; không suy đoán từ tên, dùng kiến
 thức ngoài hay tiết lộ tình tiết tương lai. Địa danh/tổ chức/chức danh/công pháp/
 vật phẩm/thuật ngữ khác không được tạo ghi chú. Lý do quyết định tách khỏi ghi
 chú độc giả. AI dọn giữ ghi chú cũ khi không có thông tin mới, không tự xóa
 ghi chú thủ công chỉ vì mục không phải nhân vật.
+
+Bí danh, biệt danh và tên nhân vật dùng trong mạng lưới/thế giới ảo cũng được
+ghi chú: tên đó chỉ ai, ai sử dụng cách gọi ấy và dùng trong hoàn cảnh nào.
+Không bắt buộc mục glossary là tên thật của nhân vật. Ví dụ hợp lệ khi ngữ cảnh
+đã xác nhận: `塞尔西 = Tạ Nhĩ Tây | Được Patty gọi, là tên Cao Văn dùng trong mạng lưới`.
+AI dọn giữ các ghi chú nhận diện bí danh này, không coi chúng là lý do sửa bản dịch.
 
 Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột đang có, nhờ LLM chọn bản dịch thống nhất theo prompt dịch nghiêm ngặt (kèm tên truyện + tác giả), tự duyệt mục hợp lệ và lan truyền thay đổi vào bản dịch cũ. Mục LLM không trả lời được vẫn giữ trong hàng chờ. Cột Ghi chú giữ nguyên — lý do của LLM chỉ ghi log.
 
@@ -135,14 +145,21 @@ Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột
   khóa Hán hợp lệ trong lô, nó vẫn phải đồng thuận về bản dịch trước khi lan truyền.
   Khóa chèn khoảng trắng (ví dụ `猎 魔 人`) và tên rút gọn (ví dụ `巨龟岩台`)
   vẫn cần quyết định AI, không tự coi là đồng thuận hay xóa để vượt kiểm định.
+  Nếu AI bỏ khoảng trắng làm khóa trùng một mục đã có, hệ thống giữ nguyên
+  khóa alias và kiểm định target/note riêng, không ghi đè mục đích hay mất ghi chú.
   Các lượt xét thêm tuân thủ giới hạn mục/lô, ngân sách context và retry/chia lô;
   nếu phát hiện thêm chủ sở hữu qua đề xuất chờ, tiếp tục xét đến khi đủ nhóm.
   Chỉ ghi glossary, hàng chờ, audit và lan truyền **cả nhóm trong một transaction**
   sau khi tất cả lượt AI hoàn tất. Mục đã xử lý sớm cùng nhóm được bỏ qua ở lô sau.
-  Nếu AI vẫn đưa quyết định mâu thuẫn, xem các mục trong log để điều chỉnh bản dịch;
-  hệ thống không ép các thuật ngữ khác nghĩa dùng chung bản dịch.
-  Thiếu quyết định hoặc kiểm định lỗi: cả nhóm chưa ghi, job báo lỗi để chạy lại;
-  các lô trước đã hoàn tất vẫn được giữ.
+  Nếu AI vẫn đưa quyết định mâu thuẫn hoặc đổi sang khóa đã tồn tại, **giữ nguyên
+  cả nhóm liên quan** trong glossary/hàng chờ và không lan truyền bản dịch của
+  nhóm đó; ghi lý do vào `held` trong outcome, log và audit. Các mục độc lập trong
+  lô và các lô sau tiếp tục được xử lý, không làm dừng job. Nhóm liên quan tính
+  cả các bản dịch cũ/đề xuất chờ nối tiếp và khóa đích của thao tác đổi khóa.
+  Xem các mục giữ lại trong log để điều chỉnh bản dịch; hệ thống không ép các
+  thuật ngữ khác nghĩa dùng chung bản dịch.
+  Thiếu/trùng quyết định, đầu ra không hợp lệ hoặc dữ liệu đã đổi sau khi gửi AI:
+  cả lô chưa ghi, job báo lỗi để chạy lại; các lô trước đã hoàn tất vẫn được giữ.
 - Provider có thể có giới hạn thời gian riêng (ví dụ `recipe_timeout` sau 120s).
   Lỗi tạm thời được nhận diện (timeout, rate limit, 5xx, lỗi kết nối khi gửi request)
   được thử lại 1 lần sau 5 giây; nếu vẫn lỗi và lô còn hơn 1 mục thì hệ thống

@@ -24,17 +24,17 @@ def rows(storage):
 
 
 @pytest.mark.parametrize("selected_only", [False, True])
-def test_prompt_english_with_grounded_vietnamese_character_notes(selected_only):
+def test_prompt_vietnamese_with_grounded_character_notes(selected_only):
     prompt = curator.build_prompt([], [], {}, "", selected_only=selected_only)
-    assert "Chinese-to-Vietnamese novel glossary editor" in prompt
-    assert "identified CHARACTER" in prompt
-    assert "at most 30 words" in prompt
-    assert "If evidence is insufficient, omit note" in prompt
-    assert "Do not generate notes for places" in prompt
-    assert "Preserve existing notes by omitting note" in prompt
-    assert "Write target, note, and reason in Vietnamese" in prompt
+    assert "biên tập viên glossary" in prompt
+    assert "NHÂN VẬT" in prompt
+    assert "tối đa 30 từ" in prompt
+    assert "Thiếu bằng chứng thì bỏ trường note" in prompt
+    assert "Không tạo ghi chú cho địa danh" in prompt
+    assert "Bỏ trường note để giữ ghi chú cũ" in prompt
+    assert "Viết target, note và reason bằng tiếng Việt" in prompt
     if selected_only:
-        assert "not the note rules" in prompt
+        assert "giữ nguyên quy tắc dịch và ghi chú" in prompt
 
 
 def test_crud_propagates_and_separates_reader_note(tmp_path):
@@ -355,7 +355,10 @@ def test_related_review_follows_transitive_pending_owners_atomically(tmp_path, m
     before = rows(storage)
     seen, sizes = [], []
     if limit == "context":
-        monkeypatch.setattr(curator, "CONTEXT_TOKENS", 7000)
+        # Để đủ một alias có note dài, nhưng buộc tách khi có hai alias;
+        # tính phần dữ liệu riêng để không phụ thuộc độ dài/ngôn ngữ prompt.
+        base_size = curator.token_upper_bound(curator.build_prompt([], [], {}, "", selected_only=True))
+        monkeypatch.setattr(curator, "CONTEXT_TOKENS", base_size + 4500)
         monkeypatch.setattr(curator, "OUTPUT_RESERVE", 500)
     monkeypatch.setattr(curator, "AI_RETRY_DELAY_SECONDS", 0)
 
@@ -391,11 +394,141 @@ def test_related_review_follows_transitive_pending_owners_atomically(tmp_path, m
         assert set(sizes) == {1}
 
 
+@pytest.mark.parametrize("batch_size", [1, 10, 100])
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("select_aliases", [False, True])
+def test_reported_ship_alias_conflict_keeps_group_and_finishes_other_entries(tmp_path, monkeypatch, batch_size, reverse, select_aliases):
+    storage = Storage(tmp_path, "t")
+    originals = [
+        ("尤恩·艾本", "Ewen Eben", ""),
+        ("柯依伯站", "trạm Kuiper", ""),
+        ("莫萨-莫比可", "Mạc Tát-Mạc Bỉ Khả", ""),
+        ("巨龟岩台号", "Cự Quy Nham Đài", "ghi chú tàu"),
+        ("丹莫斯", "Đan Mạc Tư", ""),
+        ("泛银河文明共同体", "Phán Ngân Hà Văn Minh Cộng Đồng Thể", ""),
+        ("人鱼", "Nhân Ngư", ""),
+        ("小人鱼", "Tiểu nhân ngư", ""),
+        ("布鲁谢特", "Blushet", ""),
+        ("尤恩", "Ewen", ""),
+        ("张三", "Trương Sai", "lô sau"),
+        ("巨 龟 岩 台 号", "Cự Quy Nham Đài", "ghi chú alias"),
+        ("巨龟岩台", "Cự Quy Nham Đài", "ghi chú địa danh"),
+    ]
+    storage.write_glossary_entries("names.txt", originals)
+    pending = [{"source": key, "target": target, "existing_target": target, "note": note, "chapter_index": 0}
+               for key, target, note in originals if key in {"巨龟岩台号", "张三"}]
+    storage.write_extra_json("glossary_pending", pending)
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Cự Quy Nham Đài gặp Trương Sai.")
+    changes = {"巨龟岩台号": "Tàu Cự Quy Nham Đài", "巨 龟 岩 台 号": "Tàu Cự Quy Nham Đài",
+               "泛银河文明共同体": "Cộng đồng Văn minh Ngân Hà", "张三": "Trương Tam"}
+    seen, logs = [], []
+
+    def chat(cfg, prompt):
+        batch = json.loads(prompt.split("\nBATCH:\n")[1].split("\nREFERENCE:\n")[0])
+        assert len(batch) <= batch_size
+        seen.extend(row["source"] for row in batch)
+        decisions = [{"op": "update", "original_source": row["source"],
+                      "source": "巨龟岩台号" if row["source"] == "巨 龟 岩 台 号" else row["source"],
+                      "target": changes.get(row["source"], row["target"]), "reason": "Rà soát"}
+                     for row in batch]
+        return json.dumps(decisions[::-1] if reverse else decisions)
+
+    monkeypatch.setattr(curator.openai_client, "run_chat", chat)
+    selected = originals if select_aliases else originals[:11]
+    result = curator.curate(storage, OpenAIConfig(), sources=[s for s, _t, _n in selected],
+                            batch_size=batch_size, log=logs.append)
+    blocked = {"巨龟岩台号", "巨 龟 岩 台 号", "巨龟岩台"}
+    assert set(seen) == {s for s, _t, _n in originals}
+    assert len(seen) == len(set(seen))
+    assert {r["source"] for r in result["held"]} == blocked
+    assert result["failed_batches"] == 0
+    assert len(result["operations"]) == 10
+    assert storage.read_translated(chapter) == "Cự Quy Nham Đài gặp Trương Tam."
+    assert all(row in storage.read_glossary_entries_merged() for row in originals if row[0] in blocked)
+    assert storage.read_glossary_file("names.txt")["泛银河文明共同体"] == changes["泛银河文明共同体"]
+    assert storage.read_extra_json("glossary_pending") == [pending[0]]
+    audits = storage.read_extra_json("glossary_curator_audit")
+    assert {r["source"] for audit in audits for r in audit["held"]} == blocked
+    assert all(old != "Cự Quy Nham Đài" for audit in audits for old, _new in audit["replacement_pairs"])
+    assert any("Giữ 巨龟岩台号" in line for line in logs)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_whitespace_key_collision_preserves_alias_notes_and_propagates_consensus(tmp_path, reverse):
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [
+        ("巨龟岩台号", "Cự Quy Nham Đài", "chính"),
+        ("巨 龟 岩 台 号", "Cự Quy Nham Đài", "alias"),
+    ])
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Cự Quy Nham Đài khởi hành.")
+    operations = [{"op": "update", "original_source": row["source"],
+                   "source": "巨龟岩台号", "target": "Tàu Cự Quy Nham Đài"} for row in rows(storage)]
+    result = curator.apply_operations(storage, rows(storage), operations[::-1] if reverse else operations,
+                                      selected_only=True)
+    assert result["held"] == []
+    assert set(storage.read_glossary_entries_merged()) == {
+        ("巨龟岩台号", "Tàu Cự Quy Nham Đài", "chính"),
+        ("巨 龟 岩 台 号", "Tàu Cự Quy Nham Đài", "alias"),
+    }
+    assert storage.read_translated(chapter) == "Tàu Cự Quy Nham Đài khởi hành."
+
+
+def test_real_key_collision_defers_destination_but_not_independent_changes(tmp_path):
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [
+        ("张三", "Trương Tam", "chính"), ("李四", "Lý Tứ", "khác"), ("王五", "Vương Sai", ""),
+    ])
+    result = curator.apply_operations(storage, rows(storage), [
+        {"op": "update", "original_source": "李四", "source": " 张三 ", "target": "Tên khác"},
+        {"op": "update", "original_source": "张三", "source": "张三", "target": "Tên mới"},
+        {"op": "update", "original_source": "王五", "source": "王五", "target": "Vương Ngũ"},
+    ], selected_only=True, defer_conflicts=True)
+    assert {r["source"] for r in result["held"]} == {"张三", "李四"}
+    assert storage.read_glossary_entries_merged() == [
+        ("张三", "Trương Tam", "chính"), ("李四", "Lý Tứ", "khác"), ("王五", "Vương Ngũ", ""),
+    ]
+    assert storage.read_extra_json("glossary_curator_audit")[0]["replacement_pairs"] == [["Vương Sai", "Vương Ngũ"]]
+
+
+def test_deferred_conflict_preserves_transitive_pending_owners(tmp_path, monkeypatch):
+    storage = Storage(tmp_path, "t")
+    originals = [("张三", "Tên A", ""), ("李四", "Tên A", ""), ("王五", "Tên B", "")]
+    storage.write_glossary_entries("names.txt", originals + [("赵六", "Triệu Sai", "")])
+    pending = [{"source": "李四", "target": "Tên B", "existing_target": "Tên A", "note": "", "chapter_index": 0}]
+    storage.write_extra_json("glossary_pending", pending)
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Tên A gặp Tên B và Triệu Sai.")
+    seen = []
+
+    def chat(cfg, prompt):
+        batch = json.loads(prompt.split("\nBATCH:\n")[1].split("\nREFERENCE:\n")[0])
+        seen.extend(r["source"] for r in batch)
+        return json.dumps([
+            {"op": "update", "original_source": r["source"], "source": r["source"],
+             "target": "Triệu Lục" if r["source"] == "赵六" else "Tên mới"}
+            if r["source"] != "王五" else {"op": "keep", "original_source": "王五"}
+            for r in batch
+        ])
+
+    monkeypatch.setattr(curator.openai_client, "run_chat", chat)
+    result = curator.curate(storage, OpenAIConfig(), sources=["张三", "赵六"], batch_size=1)
+    assert seen == ["张三", "李四", "王五", "赵六"]
+    assert {r["source"] for r in result["held"]} == {"张三", "李四", "王五"}
+    assert storage.read_glossary_entries_merged() == originals + [("赵六", "Triệu Lục", "")]
+    assert storage.read_extra_json("glossary_pending") == pending
+    assert storage.read_translated(chapter) == "Tên A gặp Tên B và Triệu Lục."
+
+
 @pytest.mark.parametrize("failure", ["keep", "delete", "disagree", "missing", "outside", "timeout", "stale", "write"])
 def test_failed_alias_review_preserves_entire_group(tmp_path, monkeypatch, failure):
     storage = Storage(tmp_path, "t")
     storage.write_glossary_entries("names.txt", [("猎魔人", "Tên cũ", ""), ("猎 魔 人", "Tên cũ", "")])
-    pending = [{"source": "猎魔人", "target": "Tên mới", "existing_target": "Tên cũ", "note": ""}]
+    pending = [{"source": "猎魔人", "target": "Tên mới", "existing_target": "Tên cũ", "note": "", "chapter_index": 0}]
     storage.write_extra_json("glossary_pending", pending)
     chapter = Chapter(index=1, url="http://x/1")
     storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
@@ -430,15 +563,24 @@ def test_failed_alias_review_preserves_entire_group(tmp_path, monkeypatch, failu
 
     monkeypatch.setattr(curator.openai_client, "run_chat", chat)
     logs = []
-    with pytest.raises(RuntimeError if failure == "write" else ValueError):
-        curator.curate(storage, OpenAIConfig(), sources=["猎魔人"], log=logs.append)
+    deferred = failure in {"keep", "delete", "disagree"}
+    if deferred:
+        result = curator.curate(storage, OpenAIConfig(), sources=["猎魔人"], log=logs.append)
+        assert result["operations"] == []
+        assert {r["source"] for r in result["held"]} == {"猎魔人", "猎 魔 人"}
+    else:
+        with pytest.raises(RuntimeError if failure == "write" else ValueError):
+            curator.curate(storage, OpenAIConfig(), sources=["猎魔人"], log=logs.append)
     assert storage.read_glossary_file("names.txt") == {
         "猎魔人": "Tên cũ", "猎 魔 人": "Sửa bên ngoài" if failure == "stale" else "Tên cũ",
     }
     assert storage.read_extra_json("glossary_pending") == pending
     assert storage.read_translated(chapter) == "Tên cũ đi chợ."
-    assert storage.read_extra_json("glossary_curator_audit") is None
-    if failure in {"keep", "delete", "disagree", "outside", "stale"}:
+    if deferred:
+        assert storage.read_extra_json("glossary_curator_audit")[0]["operations"] == []
+    else:
+        assert storage.read_extra_json("glossary_curator_audit") is None
+    if failure in {"outside", "stale"}:
         assert "ORIGINAL_RESPONSE" in logs[-1] and "ALIAS_RESPONSE" in logs[-1]
 
 
@@ -673,11 +815,13 @@ def test_selected_propagation_failure_rolls_back_deletion_and_queue(tmp_path, mo
     [{"op": "create", "original_source": "长生剑法", "source": "长生", "target": "Trường Sinh"}],
     [{"op": "update", "original_source": "长生剑法", "source": "长生剑法", "target": "Kiếm 法"}],
 ])
-def test_selected_invalid_response_fails_without_writes(tmp_path, operations):
+@pytest.mark.parametrize("defer_conflicts", [False, True])
+def test_selected_invalid_response_fails_without_writes(tmp_path, operations, defer_conflicts):
     storage = setup_storage(tmp_path)
     before = rows(storage)
     with pytest.raises(ValueError):
-        curator.apply_operations(storage, [r for r in before if r["source"] == "长生剑法"], operations, selected_only=True)
+        curator.apply_operations(storage, [r for r in before if r["source"] == "长生剑法"], operations,
+                                 selected_only=True, defer_conflicts=defer_conflicts)
     assert rows(storage) == before
     assert storage.read_extra_json("glossary_curator_audit") is None
 

@@ -544,6 +544,8 @@ def glossary_ai_job_factory(params: dict):
 
     `selected_only=True`: chỉ dọn sources đã chọn, batch_size mặc định 10;
     ghi/duyệt và lan truyền bản dịch hợp lệ; xóa mục lỗi không lan truyền vào chương.
+    Nhóm alias trùng khóa/chưa đồng thuận được giữ lại trong outcome/log;
+    các mục độc lập tiếp tục được xử lý.
     `curate_all=True`: CRUD toàn glossary + hàng chờ theo từng lô, context 200k.
     Job spec cũ không có cờ này vẫn giữ hành vi cũ. Hai chế độ legacy:
     - `False` (mặc định, nút "Trợ lý AI" cho mục đã chọn): kết quả vào hàng chờ
@@ -805,7 +807,7 @@ class GlossaryAiReprocessRequest(BaseModel):
 
 @router.post("/api/ebooks/{slug}/glossary/ai/reprocess-pending")
 def ebook_glossary_ai_reprocess_pending(request: Request, slug: str, payload: GlossaryAiReprocessRequest):
-    """AI dọn khóa đã chọn; lan truyền bản dịch hợp lệ, chỉ xóa mục bị loại."""
+    """AI dọn khóa đã chọn; giữ nhóm xung đột, tiếp tục các mục độc lập."""
     cfg = deps.resolved_cfg(slug)
     if not cfg.ai.openai.base_url:
         raise HTTPException(status_code=400, detail="Chưa cấu hình AI biên tập (mục AI trong Cài đặt).")

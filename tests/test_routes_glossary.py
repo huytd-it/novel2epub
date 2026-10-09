@@ -51,7 +51,7 @@ def _client(cfg, monkeypatch):
     monkeypatch.setattr(deps, "resolved_cfg", lambda slug: cfg)
     from app.main import app
 
-    app.state.job = _FakeJob()
+    monkeypatch.setattr(app.state, "job", _FakeJob(), raising=False)
     return TestClient(app)
 
 
@@ -544,6 +544,42 @@ def test_ai_curate_selected_without_pending(tmp_path, monkeypatch):
         ("张三", "Trương Tam", "chú thích độc giả"), ("李四", "Lý Tứ", "ngoài lựa chọn"),
     ]
     assert [p["source"] for p in storage.read_extra_json("glossary_pending")] == ["王五"]
+
+
+def test_ai_curate_selected_continues_after_alias_conflict(tmp_path, monkeypatch):
+    from novel2epub import openai_client
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [
+        ("巨龟岩台号", "Cự Quy Nham Đài", ""),
+        ("巨 龟 岩 台 号", "Cự Quy Nham Đài", "alias"),
+        ("巨龟岩台", "Cự Quy Nham Đài", "địa danh"),
+        ("张三", "Trương Sai", ""),
+    ])
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Trương Sai tới Cự Quy Nham Đài.")
+
+    def chat(ai_cfg, prompt):
+        batch = json.loads(prompt.split("\nBATCH:\n")[1].split("\nREFERENCE:\n")[0])
+        return json.dumps([{
+            "op": "update", "original_source": r["source"], "source": r["source"].replace(" ", ""),
+            "target": "Trương Tam" if r["source"] == "张三" else
+                      "Cự Quy Nham Đài" if r["source"] == "巨龟岩台" else "Tàu Cự Quy Nham Đài",
+        } for r in batch])
+
+    monkeypatch.setattr(openai_client, "run_chat", chat)
+    client = _client(cfg, monkeypatch)
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending",
+                      json={"sources": ["巨龟岩台号", "张三"], "batch_size": 1})
+    assert res.status_code == 200
+    assert res.json() == {"started": True, "requested": 2}
+    assert storage.read_translated(chapter) == "Trương Tam tới Cự Quy Nham Đài."
+    assert storage.read_glossary_file("names.txt")["巨龟岩台号"] == "Cự Quy Nham Đài"
+    assert {r["source"] for r in storage.read_extra_json("glossary_curator_audit")[0]["held"]} == {
+        "巨龟岩台号", "巨 龟 岩 台 号", "巨龟岩台",
+    }
 
 
 def test_ai_reprocess_pending_auto_approves_whole_queue_in_one_job(tmp_path, monkeypatch):

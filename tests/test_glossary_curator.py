@@ -158,6 +158,86 @@ def test_ambiguous_old_target_is_held(tmp_path):
     assert storage.read_glossary_file("names.txt")["张三"] == "Trương Sai"
 
 
+@pytest.mark.parametrize("batch_size", [1, 50])
+@pytest.mark.parametrize("legacy_location", ["glossary", "pending"])
+def test_vietnamese_keys_do_not_block_chinese_corrections(tmp_path, monkeypatch, batch_size, legacy_location):
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [
+        ("厉猎月", "Lệ Liệp Nguyệt", ""),
+        ("素真天", "Tố Chân Thiên", ""),
+        ("张硕", "Trương Sơ", ""),
+    ])
+    pending = [
+        {"source": "厉猎月", "target": "Lệ Liệp Yuyet", "existing_target": "Lệ Liệp Nguyệt", "note": ""},
+        {"source": "素真天", "target": "素真天", "existing_target": "Tố Chân Thiên", "note": ""},
+    ]
+    # Legacy queue rows accidentally put Vietnamese in the Chinese key column.
+    legacy = [
+        {"source": "Lịch Liệp Nguyệt", "target": "Lịch Liệp Nguyệt", "existing_target": "Lệ Liệp Nguyệt", "note": ""},
+        {"source": "Lệ Liệp Nguyệt", "target": "厉猎月", "existing_target": "Lệ Liệp Nguyệt", "note": ""},
+        {"source": "Tố Chân Thiên", "target": "素真天", "existing_target": "Tố Chân Thiên", "note": ""},
+    ]
+    if legacy_location == "pending":
+        pending += legacy
+    else:
+        for row in legacy:
+            storage.upsert_glossary_entry(row["source"], row["existing_target"], "Ghi chú cũ")
+    storage.write_extra_json("glossary_pending", pending)
+    before_legacy = [row for row in storage.read_glossary_entries_merged() if row[0] in {r["source"] for r in legacy}]
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Lệ Liệp Nguyệt, Lệ Liệp Yuyet, 素真天, Tố Chân Thiên, Trương Sơ.")
+    targets = {"厉猎月": "Lịch Liệp Nguyệt", "素真天": "Tố Chân Thiên", "张硕": "Trương Thạc"}
+    sent = []
+
+    def chat(cfg, prompt):
+        batch = json.loads(prompt.split("\nBATCH:\n")[1].split("\nREFERENCE:\n")[0])
+        sent.extend(row["source"] for row in batch)
+        return json.dumps([
+            {"op": "update", "original_source": row["source"], "source": row["source"], "target": targets[row["source"]]}
+            for row in batch
+        ])
+
+    monkeypatch.setattr(curator.openai_client, "run_chat", chat)
+    result = curator.curate(storage, OpenAIConfig(), sources=list(targets), batch_size=batch_size)
+    assert sent == list(targets)
+    assert len(result["operations"]) == 3
+    assert result["held"] == []
+    assert result["failed_batches"] == 0
+    assert all(storage.read_glossary_file("names.txt")[source] == target for source, target in targets.items())
+    assert all(row in storage.read_glossary_entries_merged() for row in before_legacy)
+    assert storage.read_extra_json("glossary_pending") == (
+        [{**row, "chapter_index": 0} for row in legacy] if legacy_location == "pending" else []
+    )
+    assert storage.read_translated(chapter) == "Lịch Liệp Nguyệt, Lịch Liệp Nguyệt, Tố Chân Thiên, Tố Chân Thiên, Trương Thạc."
+    assert {tuple(pair) for audit in storage.read_extra_json("glossary_curator_audit") for pair in audit["replacement_pairs"]} == {
+        ("Lệ Liệp Nguyệt", "Lịch Liệp Nguyệt"), ("Lệ Liệp Yuyet", "Lịch Liệp Nguyệt"),
+        ("素真天", "Tố Chân Thiên"), ("Trương Sơ", "Trương Thạc"),
+    }
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("broken_key", ["Lý Tứ", "Lý Tứ四"])
+def test_repaired_vietnamese_key_still_requires_propagation_consensus(tmp_path, reverse, broken_key):
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [("张三", "Tên chung", ""), (broken_key, "Tên chung", "")])
+    before = rows(storage)
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Tên chung đi chợ.")
+    operations = [
+        {"op": "update", "original_source": "张三", "source": "张三", "target": "Trương Tam"},
+        {"op": "update", "original_source": broken_key, "source": "李四", "target": "Lý Tứ"},
+    ]
+    if reverse:
+        operations.reverse()
+    with pytest.raises(ValueError, match="chưa đồng thuận"):
+        curator.apply_operations(storage, before, operations, selected_only=True)
+    assert rows(storage) == before
+    assert storage.read_translated(chapter) == "Tên chung đi chợ."
+    assert storage.read_extra_json("glossary_curator_audit") is None
+
+
 @pytest.mark.parametrize("reverse", [False, True])
 @pytest.mark.parametrize("pending_keep", [False, True])
 def test_shared_old_translation_with_batch_consensus_is_safe(tmp_path, reverse, pending_keep):
@@ -202,6 +282,164 @@ def test_keep_shared_translation_without_changes_needs_no_propagation(tmp_path):
     ], selected_only=True)
     assert not result["held"]
     assert storage.read_extra_json("glossary_curator_audit")[0]["replacement_pairs"] == []
+
+
+@pytest.mark.parametrize("batch_size", [1, 2, 50])
+@pytest.mark.parametrize("select_aliases", [False, True])
+def test_curate_reviews_shared_aliases_before_propagating(tmp_path, monkeypatch, batch_size, select_aliases):
+    storage = Storage(tmp_path, "t")
+    originals = [
+        ("猎魔人", "Thợ Săn Ma Quỷ", ""),
+        ("巨龟岩台号", "Cự Quy Nham Đài", ""),
+        ("猎 魔 人", "Thợ Săn Ma Quỷ", "Ghi chú cũ"),
+        ("巨 龟 岩 台 号", "Cự Quy Nham Đài", ""),
+        ("巨龟岩台", "Cự Quy Nham Đài", ""),
+        ("Cự Quy Nham Đài号", "Cự Quy Nham Đài", ""),
+    ]
+    storage.write_glossary_entries("names.txt", originals)
+    storage.write_extra_json("glossary_pending", [
+        {"source": "猎魔人", "target": "Thợ Săn Ma", "existing_target": "Thợ Săn Ma Quỷ", "note": ""},
+        {"source": "巨龟岩台号", "target": "Tàu Cự Quy Nhan Đài", "existing_target": "Cự Quy Nham Đài", "note": ""},
+    ])
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Thợ Săn Ma Quỷ trên Cự Quy Nham Đài.")
+    sources = [source for source, _target, _note in originals[:5 if select_aliases else 2]]
+    seen = []
+
+    def chat(cfg, prompt):
+        assert not storage.conn.in_transaction
+        batch = json.loads(prompt.split("\nBATCH:\n")[1].split("\nREFERENCE:\n")[0])
+        assert len(batch) <= batch_size
+        seen.extend(row["source"] for row in batch)
+        if "SHARED TRANSLATION REVIEW:" in prompt:
+            guidance = json.loads(prompt.split("PROPOSED REPLACEMENTS:\n")[1].split("\nBATCH:\n")[0])
+            assert {row["source"] for row in guidance} == {row["source"] for row in batch}
+            assert "not established facts" in prompt
+        return json.dumps([
+            {"op": "update", "original_source": row["source"], "source": row["source"],
+             "target": "Thợ Săn Ma" if "猎" in row["source"] else "Tàu Cự Quy Nhan Đài"}
+            for row in batch
+        ])
+
+    monkeypatch.setattr(curator.openai_client, "run_chat", chat)
+    result = curator.curate(storage, OpenAIConfig(), sources=sources, batch_size=batch_size)
+    assert len(seen) == len(set(seen)) == 5
+    assert "Cự Quy Nham Đài号" not in seen
+    assert result["requested"] == len(sources)
+    assert set(result["related_sources"]) == set(seen) - set(sources)
+    assert result["held"] == []
+    assert storage.read_extra_json("glossary_pending") == []
+    assert storage.read_translated(chapter) == "Thợ Săn Ma trên Tàu Cự Quy Nhan Đài."
+    assert ("猎 魔 人", "Thợ Săn Ma", "Ghi chú cũ") in storage.read_glossary_entries_merged()
+    assert originals[-1] in storage.read_glossary_entries_merged()
+    glossary = storage.read_glossary_file("names.txt")
+    assert all(glossary[key] == ("Thợ Săn Ma" if "猎" in key else "Tàu Cự Quy Nhan Đài") for key in seen)
+    audits = storage.read_extra_json("glossary_curator_audit")
+    assert {row["source"] for audit in audits for row in audit["before"]} == set(seen)
+
+
+@pytest.mark.parametrize("limit", ["batch", "timeout", "context"])
+def test_related_review_follows_transitive_pending_owners_atomically(tmp_path, monkeypatch, limit):
+    storage = Storage(tmp_path, "t")
+    # 李四 bridges two old targets, so 王五 only becomes necessary after its review.
+    storage.write_glossary_entries("names.txt", [
+        ("张三", "Tên A", ""), ("李四", "Tên A", "n" * 2000),
+        ("赵六", "Tên A", "n" * 2000), ("王五", "Tên B", ""),
+    ])
+    pending = [
+        {"source": "张三", "target": "Tên mới", "existing_target": "Tên A", "note": ""},
+        {"source": "李四", "target": "Tên B", "existing_target": "Tên A", "note": "n" * 2000},
+    ]
+    storage.write_extra_json("glossary_pending", pending)
+    before = rows(storage)
+    seen, sizes = [], []
+    if limit == "context":
+        monkeypatch.setattr(curator, "CONTEXT_TOKENS", 7000)
+        monkeypatch.setattr(curator, "OUTPUT_RESERVE", 500)
+    monkeypatch.setattr(curator, "AI_RETRY_DELAY_SECONDS", 0)
+
+    def chat(cfg, prompt):
+        assert rows(storage) == before
+        assert storage.read_extra_json("glossary_curator_audit") is None
+        assert not storage.conn.in_transaction
+        assert curator.token_upper_bound(prompt) <= curator.CONTEXT_TOKENS - curator.OUTPUT_RESERVE
+        batch = json.loads(prompt.split("\nBATCH:\n")[1].split("\nREFERENCE:\n")[0])
+        sizes.append(len(batch))
+        if limit == "timeout" and len(batch) == 2:
+            raise openai_client.RetryableAIError("timeout")
+        seen.extend(row["source"] for row in batch)
+        return json.dumps([
+            {"op": "update", "original_source": row["source"], "source": row["source"], "target": "Tên mới"}
+            for row in batch
+        ])
+
+    monkeypatch.setattr(curator.openai_client, "run_chat", chat)
+    result = curator.curate(storage, OpenAIConfig(), sources=["张三"], batch_size=1 if limit == "batch" else 50)
+    assert len(seen) == len(set(seen)) == 4
+    assert set(result["related_sources"]) == {"李四", "赵六", "王五"}
+    assert all(target == "Tên mới" for _source, target, _note in storage.read_glossary_entries_merged())
+    assert storage.read_extra_json("glossary_pending") == []
+    audits = storage.read_extra_json("glossary_curator_audit")
+    assert len(audits) == 1
+    assert {tuple(pair) for pair in audits[0]["replacement_pairs"]} == {("Tên A", "Tên mới"), ("Tên B", "Tên mới")}
+    if limit == "timeout":
+        assert sizes[:4] == [1, 2, 2, 1]
+    elif limit == "context":
+        assert sizes[:2] == [1, 1]
+    else:
+        assert set(sizes) == {1}
+
+
+@pytest.mark.parametrize("failure", ["keep", "delete", "disagree", "missing", "outside", "timeout", "stale", "write"])
+def test_failed_alias_review_preserves_entire_group(tmp_path, monkeypatch, failure):
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [("猎魔人", "Tên cũ", ""), ("猎 魔 人", "Tên cũ", "")])
+    pending = [{"source": "猎魔人", "target": "Tên mới", "existing_target": "Tên cũ", "note": ""}]
+    storage.write_extra_json("glossary_pending", pending)
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Tên cũ đi chợ.")
+    monkeypatch.setattr(curator, "AI_RETRY_DELAY_SECONDS", 0)
+    if failure == "write":
+        propagate = storage.apply_replacements
+
+        def fail_write(*args, **kwargs):
+            propagate(*args, **kwargs)
+            raise RuntimeError("disk failure")
+
+        monkeypatch.setattr(storage, "apply_replacements", fail_write)
+
+    def chat(cfg, prompt):
+        batch = json.loads(prompt.split("\nBATCH:\n")[1].split("\nREFERENCE:\n")[0])
+        key = batch[0]["source"]
+        if key == "猎魔人":
+            return json.dumps([{"op": "keep", "original_source": key, "reason": "ORIGINAL_RESPONSE"}])
+        assert key == "猎 魔 人"
+        if failure == "timeout":
+            raise openai_client.RetryableAIError("alias timeout")
+        if failure == "stale":
+            storage.upsert_glossary_entry(key, "Sửa bên ngoài")
+        if failure == "missing":
+            return "[]"
+        return json.dumps([{
+            "op": failure if failure in {"keep", "delete"} else "update",
+            "original_source": "猎魔人" if failure == "outside" else key,
+            "source": key, "target": "Khác" if failure == "disagree" else "Tên mới", "reason": "ALIAS_RESPONSE",
+        }])
+
+    monkeypatch.setattr(curator.openai_client, "run_chat", chat)
+    logs = []
+    with pytest.raises(RuntimeError if failure == "write" else ValueError):
+        curator.curate(storage, OpenAIConfig(), sources=["猎魔人"], log=logs.append)
+    assert storage.read_glossary_file("names.txt") == {
+        "猎魔人": "Tên cũ", "猎 魔 人": "Sửa bên ngoài" if failure == "stale" else "Tên cũ",
+    }
+    assert storage.read_extra_json("glossary_pending") == pending
+    assert storage.read_translated(chapter) == "Tên cũ đi chợ."
+    assert storage.read_extra_json("glossary_curator_audit") is None
+    if failure in {"keep", "delete", "disagree", "outside", "stale"}:
+        assert "ORIGINAL_RESPONSE" in logs[-1] and "ALIAS_RESPONSE" in logs[-1]
 
 
 @pytest.mark.parametrize("other_op", ["keep", "update", "delete", "unselected"])

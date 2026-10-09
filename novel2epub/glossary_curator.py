@@ -103,13 +103,8 @@ def parse_operations(text: str) -> list[dict]:
     return data
 
 
-def apply_operations(storage, rows: list[dict], operations: list[dict], *, selected_only=False) -> dict:
-    """Validate against fresh DB state; commit glossary + queue atomically.
-
-    Selected cleanup commits complete decisions with validated propagation;
-    invalid/incomplete batches fail before writes. Legacy CRUD holds unsafe edits.
-    A SQLite audit retains reader notes and deleted entries; reasons are separate.
-    """
+def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selected_only=False) -> dict:
+    """Validate without writes; identify shared owners still needing AI review."""
     expected = {r["source"]: r for r in rows}
     if selected_only:
         keys = [r.get("original_source") for r in operations]
@@ -192,14 +187,26 @@ def apply_operations(storage, rows: list[dict], operations: list[dict], *, selec
     # Validate propagation against the WHOLE validated batch, not an individual
     # operation against the old DB. Shared translations are safe only when every
     # owner is reviewed in this batch and agrees on the same final translation.
-    # Deleted/unselected/rejected owners still protect their chapter text.
+    # Deleted/unselected/rejected Chinese-key owners still protect chapter text.
+    # Legacy Vietnamese-only or mixed Latin/Han keys are not valid owners.
+    # Include validated key repairs, though: their old translations must still
+    # reach consensus with other operations, even if a later check rejects them.
+    owner_keys = {
+        key for key in current.keys() | queued.keys()
+        if not glossary_review.entry_flags(key, "") & {"no_han", "han_latin"}
+    }
+    owner_keys.update(r["original_source"] for r in accepted if r["op"] in {"keep", "update"})
     owners: dict[str, set[str]] = {}
     for key, (target, _note) in current.items():
-        owners.setdefault(target, set()).add(key)
+        if key in owner_keys:
+            owners.setdefault(target, set()).add(key)
     for key, row in queued.items():
+        if key not in owner_keys:
+            continue
         for target in (row["target"], row.get("existing_target", "")):
             if target:
                 owners.setdefault(target, set()).add(key)
+    related: dict[str, list[dict]] = {}
     while True:
         decisions = {r["original_source"]: r for r in accepted if r["op"] != "create"}
         unsafe: set[str] = set()
@@ -216,6 +223,11 @@ def apply_operations(storage, rows: list[dict], operations: list[dict], *, selec
                          or decisions[owner]["target"] != r["target"])
                 )
                 if conflicts:
+                    for owner in conflicts:
+                        if owner not in expected:
+                            related.setdefault(owner, []).append({
+                                "source": key, "old_target": old, "target": r["target"],
+                            })
                     unsafe.add(key)
                     detail = ", ".join(conflicts)
                     held.append({"source": key, "reason":
@@ -228,7 +240,6 @@ def apply_operations(storage, rows: list[dict], operations: list[dict], *, selec
         # A rejected owner can invalidate another proposal; recheck to a fixed
         # point before committing any glossary changes or replacement pairs.
 
-    seen = {r["original_source"] for r in accepted if r["op"] != "create"}
     for r in accepted:
         if r["op"] in {"create", "delete"}:
             continue
@@ -236,6 +247,17 @@ def apply_operations(storage, rows: list[dict], operations: list[dict], *, selec
             if old and old != r["target"]:
                 pairs[old] = r["target"]
 
+    return {"current": current, "pending": pending, "operations": accepted,
+            "held": held, "pairs": pairs, "related": related}
+
+
+def apply_operations(storage, rows: list[dict], operations: list[dict], *, selected_only=False) -> dict:
+    """Commit validated glossary, queue, audit and chapter replacements atomically."""
+    plan = _plan_operations(storage, rows, operations, selected_only=selected_only)
+    current, pending = plan["current"], plan["pending"]
+    accepted, held, pairs = plan["operations"], plan["held"], plan["pairs"]
+    expected = {r["source"] for r in rows}
+    seen = {r["original_source"] for r in accepted if r["op"] != "create"}
     if selected_only and held:
         details = "; ".join(f"{r['source']}: {r['reason']}" for r in held)
         raise ValueError(f"Lô chưa hoàn tất kiểm định ({len(held)} mục): " + details)
@@ -318,6 +340,62 @@ def _decide_batch(ai_cfg, rows, reference, story, context, *, selected_only, log
         ) from parse_exc
 
 
+def _review_related(storage, ai_cfg, rows, operations, responses, *, reference, story, context, batch_size, log):
+    """Expand a selected batch to its shared owners, keeping all writes deferred.
+
+    Each request respects batch_size/context/retry limits. Replanning after every
+    response discovers transitive dependencies and never requests a key twice in
+    this group. Conflicting decisions still fail the final atomic validation.
+    """
+    rows, operations = list(rows), list(operations)
+    while True:
+        plan = _plan_operations(storage, rows, operations, selected_only=True)
+        if not plan["related"]:
+            return rows, operations
+        fresh = {s: {"source": s, "target": t, "note": n} for s, (t, n) in plan["current"].items()}
+        fresh.update({p["source"]: {k: p[k] for k in ("source", "target", "note")} for p in plan["pending"]})
+        aliases = [fresh[key] for key in sorted(plan["related"])][:batch_size]
+        while True:
+            guidance = [{"source": row["source"], "proposals": plan["related"][row["source"]]} for row in aliases]
+            alias_context = context + """
+
+SHARED TRANSLATION REVIEW:
+These BATCH entries share old chapter-text translations with earlier decisions.
+The proposals below are uncommitted AI suggestions, not established facts.
+Review whether these entries refer to the same entity/term and can consistently
+use the proposed Vietnamese target. If justified, update target to agree; keep
+correct existing reader notes. Do not force agreement for unrelated meanings or
+an incorrect proposal: return your accurate decision and explain the conflict.
+Preserve each Chinese source key, including its whitespace: do not rename onto
+another key or delete valid aliases merely to bypass the shared-owner check.
+Only operate on BATCH; all related decisions are validated together before writes.
+PROPOSED REPLACEMENTS:
+""" + json.dumps(guidance, ensure_ascii=False, separators=(",", ":"))
+            try:
+                build_prompt(aliases, [], story or {}, alias_context, selected_only=True)
+            except ValueError:
+                if len(aliases) == 1:
+                    raise
+                aliases = aliases[:max(1, len(aliases) // 2)]
+                continue
+            log(f"[glossary-ai] Xét thêm {len(aliases)} alias dùng chung bản dịch: " + ", ".join(r["source"] for r in aliases))
+            try:
+                raw, decisions = _decide_batch(
+                    ai_cfg, aliases, reference, story, alias_context,
+                    selected_only=True, log=log,
+                )
+            except _SplitBatch as split:
+                aliases = split.rows
+                log(f"[glossary-ai] Alias: provider quá tải/hết thời gian — thử lại với {len(aliases)} mục.")
+                continue
+            except Exception as exc:
+                raise ValueError(f"Lỗi gọi/parse AI khi xét alias; chưa ghi nhóm này: {exc}") from exc
+            responses.append(raw)
+            rows.extend(aliases)
+            operations.extend(decisions)
+            break
+
+
 def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, batch_size=None) -> dict:
     log = log or (lambda _message: None)
     selected_only = sources is not None
@@ -334,13 +412,15 @@ def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, b
             entries[p["source"]] = {k: p[k] for k in ("source", "target", "note")}
         return entries
     keys = list(dict.fromkeys(sources)) if selected_only else list(snapshot())
-    result = {"requested": len(keys), "operations": [], "held": [], "failed_batches": 0}
+    requested = set(keys)
+    reviewed: set[str] = set()
+    result = {"requested": len(keys), "operations": [], "held": [], "failed_batches": 0, "related_sources": []}
     log(f"[glossary-ai] Dọn {len(keys)} mục; tối đa {batch_size} mục/lô.")
     offset, batch = 0, 0
     while offset < len(keys):
         batch += 1
         fresh = snapshot()
-        rows = [fresh[k] for k in keys[offset:offset + batch_size] if k in fresh]
+        rows = [fresh[k] for k in keys[offset:offset + batch_size] if k in fresh and k not in reviewed]
         if not rows:
             offset += batch_size
             continue
@@ -385,17 +465,28 @@ def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, b
             continue
         offset += consumed
         # A persistence/propagation failure must fail the job, not report success.
+        responses = [raw]
         try:
+            if selected_only:
+                rows, operations = _review_related(
+                    storage, ai_cfg, rows, operations, responses, reference=reference,
+                    story=story, context=context, batch_size=batch_size, log=log,
+                )
             applied = apply_operations(storage, rows, operations, selected_only=selected_only)
         except ValueError:
             # Keep the model response available even when JSON parsed successfully
             # but domain validation rejected it. Mask an echoed configured key.
-            response_log = raw
+            response_log = "\n\n".join(responses)
+            response_length = len(response_log)
             api_key = getattr(ai_cfg, "api_key", "")
             if isinstance(api_key, str) and api_key:
                 response_log = response_log.replace(api_key, "[REDACTED]")
-            log(f"[glossary-ai] Lô {batch} kiểm định thất bại; nội dung AI trả về ({len(raw)} ký tự):\n{response_log}")
+            log(f"[glossary-ai] Lô {batch} kiểm định thất bại; nội dung AI trả về ({response_length} ký tự):\n{response_log}")
             raise
+        result["related_sources"].extend(
+            r["source"] for r in rows if r["source"] not in requested and r["source"] not in reviewed
+        )
+        reviewed.update(r["source"] for r in rows)
         result["operations"].extend(applied["operations"])
         result["held"].extend(applied["held"])
         for r in applied["operations"]:
@@ -403,5 +494,5 @@ def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, b
         for r in applied["held"]:
             log(f"[glossary-ai] Giữ {r['source']}: {r['reason']}")
         log(f"[glossary-ai] Lan truyền {applied['replacements']['total']} chỗ.")
-    log(f"[glossary-ai] Xong: {len(result['operations'])} thao tác, {len(result['held'])} giữ lại, {result['failed_batches']} lô lỗi.")
+    log(f"[glossary-ai] Xong: {len(result['operations'])} thao tác (xét thêm {len(result['related_sources'])} alias), {len(result['held'])} giữ lại, {result['failed_batches']} lô lỗi.")
     return result

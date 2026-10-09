@@ -104,9 +104,12 @@ Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột
 
 ### AI tự động duyệt & dọn (SPA Glossary)
 
-- Chỉ xử lý **các mục đã chọn** trong glossary và hàng chờ (khóa trùng được gộp).
+- Bắt đầu từ **các mục đã chọn** trong glossary và hàng chờ (khóa trùng được gộp).
   AI chuẩn hóa Hán/Việt, dịch lại theo bối cảnh, sửa Việt còn Hán, giữ mục đúng
-  hoặc xóa mục lỗi/rác, không tự thêm thuật ngữ ngoài lựa chọn.
+  hoặc xóa mục lỗi/rác. Khi một thay đổi cần lan truyền bản dịch dùng chung,
+  hệ thống **tự xét thêm các khóa Hán cùng dùng bản dịch đó**, kể cả ngoài lựa chọn.
+  AI nhận bản dịch cũ và các đề xuất chưa ghi để đánh giá đồng thuận; không tự
+  tạo thuật ngữ mới. Log liệt kê các alias được xét thêm.
 - Chọn **1–100 mục/lô, mặc định 10**; chạy tuần tự và cập nhật tham chiếu sau mỗi lô.
   Ngân sách context **200.000 token**, dành 16.000 cho output. Bộ đếm dùng số
   byte UTF-8 làm cận trên bảo thủ cho tokenizer kiểu byte, không nhầm ký tự với
@@ -122,13 +125,23 @@ Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột
   viết theo ngữ cảnh trong chương; không cần đồng thuận của các mục dùng chung.
   Quy tắc này áp dụng cả `keep` đề xuất đang chờ và `update`.
   Với thay đổi từ ngữ thực sự, một bản dịch cũ có nhiều chủ sở hữu chỉ được lan truyền khi **tất cả chủ sở
-  hữu trong cùng lô** có quyết định hợp lệ và đồng thuận cùng bản dịch mới.
-  Mục không được chọn, bị loại kiểm định hoặc bị xóa không được coi là đồng
+  hữu trong nhóm kiểm định** có quyết định hợp lệ và đồng thuận cùng bản dịch mới.
+  Mục chưa được kiểm định, bị loại kiểm định hoặc bị xóa không được coi là đồng
   thuận; xóa glossary không cho phép đổi văn bản chương của mục đó. `keep` một
   đề xuất đang chờ vẫn có thể đổi bản dịch chuẩn nên cũng cần kiểm định này.
-  Nếu báo chưa đồng thuận, chọn đủ các mục được nêu trong lỗi vào cùng lô để
-  rà soát; không bỏ qua guard hoặc ép thay thế toàn văn.
-  Thiếu quyết định hoặc kiểm định lỗi: lô chưa ghi, job báo lỗi để chạy lại;
+  Chủ sở hữu được tính theo **khóa có chữ Hán, không lẫn Latin/tiếng Việt** trong glossary và hàng chờ.
+  Dòng cũ đặt nhầm tiếng Việt vào khóa Hán (ví dụ `Lệ Liệp Nguyệt`, `Cự Quy Nham Đài号`)
+  không tạo xung đột giả chặn mục Hán hợp lệ. Nếu một khóa như vậy được sửa thành
+  khóa Hán hợp lệ trong lô, nó vẫn phải đồng thuận về bản dịch trước khi lan truyền.
+  Khóa chèn khoảng trắng (ví dụ `猎 魔 人`) và tên rút gọn (ví dụ `巨龟岩台`)
+  vẫn cần quyết định AI, không tự coi là đồng thuận hay xóa để vượt kiểm định.
+  Các lượt xét thêm tuân thủ giới hạn mục/lô, ngân sách context và retry/chia lô;
+  nếu phát hiện thêm chủ sở hữu qua đề xuất chờ, tiếp tục xét đến khi đủ nhóm.
+  Chỉ ghi glossary, hàng chờ, audit và lan truyền **cả nhóm trong một transaction**
+  sau khi tất cả lượt AI hoàn tất. Mục đã xử lý sớm cùng nhóm được bỏ qua ở lô sau.
+  Nếu AI vẫn đưa quyết định mâu thuẫn, xem các mục trong log để điều chỉnh bản dịch;
+  hệ thống không ép các thuật ngữ khác nghĩa dùng chung bản dịch.
+  Thiếu quyết định hoặc kiểm định lỗi: cả nhóm chưa ghi, job báo lỗi để chạy lại;
   các lô trước đã hoàn tất vẫn được giữ.
 - Provider có thể có giới hạn thời gian riêng (ví dụ `recipe_timeout` sau 120s).
   Lỗi tạm thời được nhận diện (timeout, rate limit, 5xx, lỗi kết nối khi gửi request)

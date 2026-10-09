@@ -501,21 +501,23 @@ function AiAssistantModal({
       }
     >
       <p className="mb-3 text-[13px] opacity-70">
-        AI chỉ rà soát {num(sources.length)} mục đã chọn: chuẩn hóa Hán/Việt, dịch lại theo bối cảnh,
+        AI rà soát {num(sources.length)} mục đã chọn: chuẩn hóa Hán/Việt, dịch lại theo bối cảnh,
         sửa tiếng Việt còn chữ Hán và loại mục lỗi/rác. Kết quả hợp lệ được ghi và duyệt trực tiếp,
-        không phải duyệt lại. Mục bị loại chỉ xóa khỏi glossary và hàng chờ.
+        không phải duyệt lại. Với bản dịch dùng chung, AI xét thêm các mục Hán liên quan ngoài lựa chọn
+        và chỉ ghi cả nhóm khi các quyết định đồng thuận.
       </p>
       <p className="mb-3 text-[13px] opacity-60">
         Bản dịch glossary hợp lệ sau sửa sẽ lan truyền vào chương. Mục lỗi bị loại chỉ xóa
         khỏi glossary và hàng chờ, không thay hay hoàn tác nội dung chương. Ghi chú chỉ dành cho độc giả;
-        lý do sửa được lưu riêng trong log. Nếu AI hoặc kiểm định lỗi, lô đó chưa được ghi;
+        lý do sửa được lưu riêng trong log. Nếu AI hoặc kiểm định lỗi, cả nhóm liên quan chưa được ghi;
         xem lỗi ở Hàng đợi rồi chạy lại.
       </p>
 
       <label className="mb-3 block text-[13px]">
         Số mục mỗi lô
         <Input
-          type="number"
+          type="text"
+          inputMode="numeric"
           min={1}
           max={100}
           step={1}
@@ -528,7 +530,7 @@ function AiAssistantModal({
       </label>
       <p id="glossary-batch-hint" className={clsx("mb-3 text-xs", !validSize ? "text-error" : "opacity-70")}>
         {validSize
-          ? `${num(sources.length)} mục sẽ được xử lý tuần tự trong ${num(Math.ceil(sources.length / size))} lô, tối đa ${size} mục/lô.`
+          ? `${num(sources.length)} mục ban đầu: khoảng ${num(Math.ceil(sources.length / size))} lô; có thể thêm lượt xét alias. Tối đa ${size} mục mỗi lượt gọi AI.`
           : "Nhập số nguyên từ 1 đến 100 (mặc định 10)."}
       </p>
 
@@ -816,9 +818,8 @@ function SuspectsView({ slug }: { slug: string }) {
 export function GlossaryPage() {
   const { slug = "" } = useParams();
   useGlossaryJobRefresh(slug);
-  const [view, setView] = useState<"all" | "suspects">("all");
+  const [view, setView] = useState<"pending" | "all" | "suspects">("pending");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending">("all");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(50);
   const [sort, setSort] = useState("");
@@ -851,9 +852,9 @@ export function GlossaryPage() {
     sort,
     dir,
     filter,
-  });
+  }, view === "all");
   const { data: flagData } = useGlossaryFlags(slug);
-  const { data: pending } = usePendingGlossary(slug);
+  const { data: pending, isPending: pendingIsPending } = usePendingGlossary(slug, view === "pending" || view === "all");
   const clean = useCleanGlossary(slug);
   const clearNotes = useClearGlossaryNotes(slug);
   const bulkDelete = useDeleteGlossaryEntries(slug);
@@ -942,7 +943,7 @@ export function GlossaryPage() {
       activeFlags.length > 0
         ? all.filter((p) => (p.flags ?? []).some((f) => activeFlags.includes(f)))
         : all;
-    if (statusFilter === "pending") {
+    if (view === "pending") {
       const q = search.trim().toLowerCase();
       if (!q) return flagged;
       return flagged.filter((p) =>
@@ -952,8 +953,8 @@ export function GlossaryPage() {
     // Chế độ thường: hàng chờ chỉ hiện ở trang 1 để khỏi lặp qua các trang.
     if (page !== 1) return [];
     return flagged;
-  }, [pending, statusFilter, search, page, activeFlags]);
-  const pendingOnly = statusFilter === "pending";
+  }, [pending, view, search, page, activeFlags]);
+  const pendingOnly = view === "pending";
   rowsRef.current = rows;
   pendingRowsRef.current = pendingRows;
 
@@ -980,19 +981,19 @@ export function GlossaryPage() {
             placeholder="Tìm Hán / Việt / ghi chú"
             className="w-60"
           />
-          <Select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value as "all" | "pending");
-              setPendingSelected(new Set());
-              anchorPending.current = null;
-            }}
-            title="Lọc theo trạng thái"
-          >
-            <option value="all">Tất cả trạng thái</option>
-            <option value="pending">Chờ duyệt ({num(pendingCount)})</option>
-          </Select>
           <div role="tablist" className="tabs tabs-box tabs-sm">
+            <button
+              role="tab"
+              type="button"
+              className={clsx("tab", view === "pending" && "tab-active")}
+              onClick={() => {
+                setView("pending");
+                setPendingSelected(new Set());
+                anchorPending.current = null;
+              }}
+            >
+              Chờ duyệt ({num(pendingCount)})
+            </button>
             <button
               role="tab"
               type="button"
@@ -1013,7 +1014,7 @@ export function GlossaryPage() {
         </>
       }
     >
-      {view === "all" ? (
+      {view !== "suspects" ? (
         <>
           {/* Dính theo màn hình: sửa ở cuối bảng dài vẫn thấy nút Áp dụng. */}
           <div className="sticky top-12 z-20 mb-3 flex flex-wrap items-center gap-2 bg-base-100/95 py-1 backdrop-blur md:top-0">
@@ -1134,7 +1135,7 @@ export function GlossaryPage() {
               ) : null}
             </div>
 
-            {isPending ? (
+            {(pendingOnly ? pendingIsPending : isPending) ? (
               <SkeletonTable rows={6} cols={4} />
             ) : pendingOnly && pendingRows.length === 0 ? (
               <EmptyState

@@ -113,7 +113,7 @@ export function useGlossaryJobRefresh(slug: string) {
   }, [client, slug, completed]);
 }
 
-export function useGlossary(slug: string, query: GlossaryQuery) {
+export function useGlossary(slug: string, query: GlossaryQuery, enabled = true) {
   const params = new URLSearchParams({
     page: String(query.page),
     per_page: String(query.per_page),
@@ -125,19 +125,19 @@ export function useGlossary(slug: string, query: GlossaryQuery) {
   return useQuery({
     queryKey: listKey(slug, query),
     queryFn: () => api.get<GlossaryPage>(`/api/ebooks/${slug}/glossary/list?${params}`),
-    enabled: Boolean(slug),
+    enabled: Boolean(slug) && enabled,
     placeholderData: (prev) => prev,
   });
 }
 
 /** Đề xuất chờ duyệt kèm số lần khớp trong bản dịch cũ (preview của propagate). */
-export function usePendingGlossary(slug: string) {
+export function usePendingGlossary(slug: string, enabled = true) {
   return useQuery({
     queryKey: pendingKey(slug),
     queryFn: () => api.get<{ entries: PendingEntry[]; count: number }>(
       `/api/ebooks/${slug}/glossary/replace/preview`,
     ),
-    enabled: Boolean(slug),
+    enabled: Boolean(slug) && enabled,
   });
 }
 

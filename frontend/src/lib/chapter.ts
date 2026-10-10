@@ -88,13 +88,38 @@ function invalidateChapter(client: ReturnType<typeof useQueryClient>, slug: stri
   client.invalidateQueries({ queryKey: ["content-validation", slug] });
 }
 
+/** UUID v4 an toàn mọi context (http LAN, iframe, trình duyệt cũ).
+    `crypto.randomUUID` chỉ có trong secure context nên gọi trực tiếp sẽ nổ
+    "crypto.randomUUID is not a function" khi Lưu chương. */
+export function newOperationId(): string {
+  try {
+    const c = globalThis.crypto as Crypto | undefined;
+    if (c?.randomUUID) return c.randomUUID();
+    if (c?.getRandomValues) {
+      const b = new Uint8Array(16);
+      c.getRandomValues(b);
+      b[6] = (b[6] & 0x0f) | 0x40;
+      b[8] = (b[8] & 0x3f) | 0x80;
+      const hex = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+  } catch {
+    /* rơi xuống fallback bên dưới */
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
+    const r = Math.floor(Math.random() * 16);
+    const v = ch === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export function useSaveChapterText(slug: string, index: number) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (vars: { translated: string; title?: string; expectedRev: number; branch?: string; expectedHash?: string; publicationBranch?: string; publicationTitle?: string; proofreadingCodes?: string[] }) =>
       api.post<{ saved: boolean; word_count: number; revision: number; content_hash: string }>(
         `/api/ui/ebooks/${slug}/chapters/${index}/translated`,
-        { body: { translated: vars.translated, title: vars.title, expected_rev: vars.expectedRev, branch: vars.branch, expected_hash: vars.expectedHash, expected_publication_branch: vars.publicationBranch, expected_publication_title: vars.publicationTitle, proofreading_codes: vars.proofreadingCodes, operation_id: crypto.randomUUID() } },
+        { body: { translated: vars.translated, title: vars.title, expected_rev: vars.expectedRev, branch: vars.branch, expected_hash: vars.expectedHash, expected_publication_branch: vars.publicationBranch, expected_publication_title: vars.publicationTitle, proofreading_codes: vars.proofreadingCodes, operation_id: newOperationId() } },
       ),
     onSuccess: () => invalidateChapter(client, slug, index),
   });

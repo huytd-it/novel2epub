@@ -45,6 +45,28 @@ Các field quan trọng:
 
 Scrapling nằm trong `crawl.scrapling`: `mode`, `solve_cloudflare`, `network_idle`, `impersonate`, `proxy`, `dns_over_https`.
 
+## Domain Nhận Diện Và Reset Nguồn
+
+Một preset nhận diện được nhiều domain khác nhau (mirror, tên miền mới). Trường
+`domains` lưu dạng ngăn bằng phẩy; khi nhập có thể ngăn bằng phẩy, dấu cách,
+xuống dòng hoặc `;`, và dán cả URL — scheme, `www.`, cổng và đường dẫn được bỏ
+khi lưu. Ebook có hostname của `toc_url` chứa một trong các token sẽ tự gắn
+preset (token dài hơn thắng). Để trống thì domain được suy từ `url` của preset.
+
+Nút **Reset nguồn** ở Cài đặt → Nguồn xóa toàn bộ ghi đè crawl riêng của truyện
+(chỉ giữ `toc_url`). Hộp xác nhận cho chọn preset để reset về: chọn nguồn khác
+thì truyện được gắn sang nguồn đó; để **Tự động** thì giữ nguồn đang gắn, hoặc
+dò theo URL nếu truyện chưa gắn nguồn.
+
+Nút **Xóa mục lục** cùng tab xóa hoàn toàn TOC của truyện: mọi chương kèm bản
+gốc và bản dịch (cả nhánh AI lẫn Local MT), cùng đề xuất AI, token preview/bulk
+chưa dùng và kết quả kiểm tra nội dung gắn theo số chương. Metadata, cấu hình,
+glossary và ảnh bìa giữ nguyên; ledger revision không bị đụng. Luôn có một hộp
+xác nhận; nếu mục lục đã có bản gốc hoặc bản dịch thì hiện thêm hộp xác nhận lại
+kèm số chương sẽ mất, và API `POST /api/ui/ebooks/{slug}/toc/clear` từ chối
+(409) khi thiếu `confirm_content=true`. Thao tác cũng bị từ chối khi truyện đang
+có job chạy hoặc chờ trong hàng đợi.
+
 ## Đồng Bộ Nguồn Với File YAML
 
 Preset nằm trong bảng `sources` của DB; `sources.yaml` (cạnh file DB) là bản
@@ -84,6 +106,8 @@ route `POST /api/ui/sources/sync/preview` và `POST /api/ui/sources/sync/apply`.
 Phân trang chương dùng `next_page_selector` hoặc `next_page_url_pattern` có đúng một capture group. Phân trang TOC dùng `toc_next_page_selector` và `toc_max_pages`.
 
 Trong vùng `content_selector`, bộ trích nội dung tự bỏ các `<p>` chỉ chứa link điều hướng ("trang trước / mục lục / trang sau"), và tự chuyển sang đọc text trần khi chính văn không được bọc `<p>` — khi đó `<br>` và thẻ đóng khối là ranh giới đoạn. Vòng phân trang dừng khi URL trang kế trỏ sang chương khác, nhận biết qua ID chương trong URL dạng `.../<id>.html`, `.../<id>_<trang>.html` hoặc `.../<id>/`, `.../<id>_<trang>/`.
+
+Guard bắt buộc cho chương nhiều trang: nếu bất kỳ trang con nào lỗi (tải lỗi, HTTP >= 400, không dò được trang kế, hoặc trang được link tới mà không có nội dung) thì cả chương thất bại — retry tải lại trọn chương, hết lượt thì bỏ qua và **không ghi raw** (raw cũ nếu có được giữ nguyên). Riêng URL do `next_page_url_pattern` tự sinh không phải link thật: trang trả 404/410 hoặc rỗng chỉ là dấu hiệu hết chương.
 
 Retry dùng `attempts`, `delay_seconds`, `backoff`, `max_delay_seconds` và `respect_retry_after`.
 

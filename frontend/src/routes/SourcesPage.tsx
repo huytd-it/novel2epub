@@ -9,6 +9,7 @@ import {
   savedSyncPath,
   saveSyncPath,
   SYNC_ACTION_LABELS,
+  splitDomains,
   SYNC_STATUS_META,
   useClonePreset,
   useDeletePreset,
@@ -82,7 +83,7 @@ function setDomForKey(key: string, data: { toc: DomSnapshot | null; chapter: Dom
 
 /* ── Đặc tả field cho form preset ─────────────────────────────────────── */
 
-type Kind = "text" | "textarea" | "number" | "checkbox" | "select";
+type Kind = "text" | "textarea" | "number" | "checkbox" | "select" | "domains";
 
 interface FieldSpec {
   key: keyof SourcePreset & string;
@@ -96,7 +97,13 @@ interface FieldSpec {
 
 const BASIC_FIELDS: FieldSpec[] = [
   { key: "url", label: "URL trang chủ / mục lục mẫu", kind: "text", wide: true, hint: "Dùng để gợi ý domain và test selector. Không lưu vào preset crawl." },
-  { key: "domains", label: "Domain nhận diện (phẩy)", kind: "text", hint: "vd: 69shuba.com,69shu.com - ebook có URL chứa domain này sẽ tự gắn preset" },
+  {
+    key: "domains",
+    label: "Domain nhận diện",
+    kind: "domains",
+    wide: true,
+    hint: "Một nguồn nhận nhiều domain khác nhau (mirror, tên miền mới). Gõ rồi Enter / phẩy / dấu cách, hoặc dán cả danh sách hay URL - ebook có URL chứa một trong các domain này sẽ tự gắn preset. Để trống = suy từ URL ở trên.",
+  },
   {
     key: "scrapling_mode",
     label: "Chế độ crawl",
@@ -131,6 +138,58 @@ const CRAWL_FIELDS: FieldSpec[] = [
   { key: "strip_patterns", label: "Regex loại bỏ nội dung thừa (1 dòng / pattern)", kind: "textarea", wide: true, hint: "Mỗi dòng 1 regex Python - loại bỏ dòng chứa quảng cáo/rác sau khi trích nội dung." },
 ];
 
+/** Ô nhập nhiều domain dạng chip; giá trị lưu vẫn là chuỗi ngăn bằng phẩy. */
+function DomainsInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [text, setText] = useState("");
+  const domains = useMemo(() => splitDomains(value), [value]);
+
+  const add = (raw: string) => {
+    const next = splitDomains(`${value},${raw}`);
+    if (next.length !== domains.length) onChange(next.join(","));
+    setText("");
+  };
+  const remove = (domain: string) => onChange(domains.filter((d) => d !== domain).join(","));
+
+  return (
+    <label className="input input-sm flex h-auto min-h-8 w-full flex-wrap items-center gap-1 py-1">
+      {domains.map((d) => (
+        <span key={d} className="badge badge-sm gap-1 font-mono">
+          {d}
+          <button
+            type="button"
+            className="cursor-pointer opacity-60 hover:opacity-100"
+            aria-label={`Bỏ domain ${d}`}
+            title={`Bỏ ${d}`}
+            onClick={() => remove(d)}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        className="min-w-[10rem] flex-1 bg-transparent font-mono text-xs outline-none"
+        value={text}
+        spellCheck={false}
+        placeholder={domains.length ? "thêm domain…" : "vd: 69shuba.com, 69shu.com"}
+        // Dán/gõ có dấu ngăn cách (phẩy, khoảng trắng, xuống dòng, ;) → tách chip ngay.
+        onChange={(e) => (/[,;\s]/.test(e.target.value) ? add(e.target.value) : setText(e.target.value))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (text.trim()) add(text);
+          } else if (e.key === "Backspace" && !text && domains.length) {
+            remove(domains[domains.length - 1]);
+          }
+        }}
+        // Gõ dở rồi bấm Lưu luôn vẫn phải ăn domain đang gõ.
+        onBlur={() => {
+          if (text.trim()) add(text);
+        }}
+      />
+    </label>
+  );
+}
+
 function FieldControl({
   spec,
   value,
@@ -140,6 +199,13 @@ function FieldControl({
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
+  if (spec.kind === "domains") {
+    return (
+      <Field label={spec.label} hint={spec.hint}>
+        <DomainsInput value={String(value ?? "")} onChange={onChange} />
+      </Field>
+    );
+  }
   if (spec.kind === "checkbox") {
     return (
       <label className="flex items-center gap-2 py-1 text-[13px]">

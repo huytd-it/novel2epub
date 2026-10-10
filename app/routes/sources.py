@@ -13,6 +13,7 @@ from novel2epub.config import next_page_url_pattern_error
 from novel2epub.sources import (
     SourcePreset,
     delete_preset,
+    normalize_domains,
     preset_from_mapping,
     save_preset,
     save_presets,
@@ -133,7 +134,7 @@ def save_source_preset(
             name=name,
             engine=engine,
             url=url.strip(),
-            domains=domains.strip(),
+            domains=normalize_domains(domains),
             chapter_link_pattern=chapter_link_pattern,
             content_selector=content_selector,
             toc_selector=toc_selector,

@@ -27,6 +27,7 @@ from . import han_cleanup
 from . import glossary_ai
 from . import glossary_review
 from . import revisions
+from . import translation_guard
 
 # Kiểu hàm ghi log; mặc định in ra stdout, UI truyền callback riêng để stream.
 LogFn = Callable[[str], None]
@@ -1083,10 +1084,15 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     `complete: false` buộc dịch lại nên vô hại). Cuối cùng
     `mark_translated_complete` set `complete: true` trong meta — phân biệt
     với partial do job bị crash. Xem spec `translate-chunk-streaming`.
+
+    Guard bắt buộc (`translation_guard`): bản dịch thiếu từ so với bản Trung
+    hoặc dài bất thường / dính prompt không tách được là dịch THẤT BẠI — các
+    chunk đã stream bị bỏ, nhánh trở về đúng nội dung trước khi dịch.
     """
     branch = revisions.normalize_branch(branch)
     complete_meta_key = storage._BRANCH_COMPLETE_META[branch]
     had_translated = storage.has_branch_text(ch, branch)
+    before_stream = storage.branch_stream_snapshot(ch, branch)
     raw = storage.read_raw(ch)
     log(f"[dịch] ({i}/{total}) → {ch.title or ch.stem} ({len(raw)} ký tự) [nhánh {revisions.branch_label(branch)}]")
     started = time.monotonic()
@@ -1121,16 +1127,29 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
                 on_chunk=_on_chunk, on_glossary=_on_glossary,
             ),
         )
+        if not is_noop:
+            translation_guard.check_word_counts(
+                source_text, "\n".join(pieces),
+                zh_to_vi=translation_guard.is_zh_to_vi(
+                    cfg.translate.source_language, cfg.translate.target_language),
+            )
     except Exception as e:  # noqa: BLE001 - caller quyết định dừng sớm hay tiếp tục
         ch.last_action_status = "failed"
         storage.save_chapter(ch)
         log(f"[dịch]   ({i}/{total}) ! Lỗi chương {ch.stem}: {e}")
-        # File `translated/{stem}.md` có thể đã chứa 1 vài chunk trước khi
-        # lỗi — đánh dấu `complete: false` vào meta để `has_translated` trả
-        # False ở lần chạy kế (cache đúng: chapter partial sẽ được dịch lại
-        # từ đầu thay vì bị coi là đã xong — xem spec translate-chunk-streaming).
         partial_meta = storage.read_meta(ch) if storage.has_meta(ch) else {}
-        partial_meta[complete_meta_key] = False
+        if isinstance(e, translation_guard.TranslationGuardError):
+            # Bản dịch không hợp lệ không được nằm lại trong DB: bỏ các chunk đã
+            # stream, trả nhánh về nội dung cũ. Cờ complete giữ nguyên — bản
+            # hoàn chỉnh trước đó (dịch lại với force) vẫn dùng được.
+            storage.restore_branch_stream(ch, branch, before_stream)
+            log(f"[dịch]   ({i}/{total}) ! Guard từ chối bản dịch chương {ch.stem} — không lưu vào DB.")
+        else:
+            # File `translated/{stem}.md` có thể đã chứa 1 vài chunk trước khi
+            # lỗi — đánh dấu `complete: false` vào meta để `has_translated` trả
+            # False ở lần chạy kế (cache đúng: chapter partial sẽ được dịch lại
+            # từ đầu thay vì bị coi là đã xong — xem spec translate-chunk-streaming).
+            partial_meta[complete_meta_key] = False
         partial_meta["last_error"] = str(e)
         storage.write_meta(ch, partial_meta)
         # Gắn title_changed vào exception để caller biết tiêu đề đã dịch
@@ -1297,9 +1316,10 @@ def _translate_chapters_sequential(cfg: Config, storage: Storage, manifest: Mani
         except Exception as e:
             failed += 1
             changed = changed or getattr(e, "title_changed", False)
-            if translated_count == 0:
+            if translated_count == 0 and not isinstance(e, translation_guard.TranslationGuardError):
                 # Lỗi ngay chương đầu tiên dịch được => gần như chắc do cấu hình/CLI;
-                # dừng sớm và báo lỗi rõ thay vì thử lỗi hàng loạt.
+                # dừng sớm và báo lỗi rõ thay vì thử lỗi hàng loạt. Guard từ chối
+                # là lỗi nội dung của riêng chương đó nên không dừng batch.
                 raise RuntimeError(f"Dịch lỗi ngay chương đầu ({ch.stem}): {e}") from e
             continue
         changed = changed or title_changed

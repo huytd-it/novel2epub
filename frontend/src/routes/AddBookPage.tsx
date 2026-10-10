@@ -32,7 +32,7 @@ import {
   type TransferImportResult,
   type TransferPreview,
 } from "@/lib/transfer";
-import { useSources, type SourcePreset } from "@/lib/sources";
+import { splitDomains, useSources, type SourcePreset } from "@/lib/sources";
 import { useGlobalAi, useLocalMt, useTranslateDefaults } from "@/lib/settings";
 
 const MAX_BULK_URLS = 20;
@@ -87,10 +87,8 @@ function detectSourceName(url: string, presets: SourcePreset[]): string {
   if (!hostname) return "";
   const candidates: [number, string][] = [];
   for (const p of presets) {
-    if (!p.domains) continue;
-    for (const raw of p.domains.split(",")) {
-      const d = raw.trim();
-      if (d && hostname.includes(d)) candidates.push([d.length, p.name]);
+    for (const d of splitDomains(p.domains)) {
+      if (hostname.includes(d)) candidates.push([d.length, p.name]);
     }
   }
   if (!candidates.length) return "";

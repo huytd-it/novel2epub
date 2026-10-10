@@ -36,7 +36,7 @@ def _cfg(tmp_path, translate_type="openai"):
     )
 
 
-def _seed(tmp_path, *, title="第12章 起风", title_zh="", raw="正文第一段。\n\n正文第二段。"):
+def _seed(tmp_path, *, title="第12章 起风", title_zh="", raw="好。\n\n嗯。"):
     storage = Storage(tmp_path, "t")
     ch = Chapter(index=1, url="http://x/1", title=title, title_zh=title_zh)
     storage.save_manifest(Manifest(slug="t", chapters=[ch]))
@@ -117,13 +117,13 @@ def test_first_line_too_long_keeps_title_and_full_body(tmp_path, monkeypatch):
 def test_single_line_output_keeps_title(tmp_path, monkeypatch):
     """Model gộp hết thành 1 dòng → không tách (mất thân nếu tách)."""
     storage, ch = _seed(tmp_path)
-    tr = _FakeTranslator("Chỉ có đúng một dòng dịch.")
+    tr = _FakeTranslator("Chỉ có đúng một dòng dịch thôi.")
 
     _run(tmp_path, monkeypatch, tr)
 
     ch = _reload_chapter(storage)
     assert ch.title == "第12章 起风"
-    assert storage.read_translated(ch) == "Chỉ có đúng một dòng dịch."
+    assert storage.read_translated(ch) == "Chỉ có đúng một dòng dịch thôi."
 
 
 def test_no_title_no_prepend(tmp_path, monkeypatch):
@@ -132,7 +132,7 @@ def test_no_title_no_prepend(tmp_path, monkeypatch):
 
     _run(tmp_path, monkeypatch, tr)
 
-    assert tr.seen[0] == "正文第一段。\n\n正文第二段。"  # nguyên raw, không prepend
+    assert tr.seen[0] == "好。\n\n嗯。"  # nguyên raw, không prepend
 
 
 def test_streamed_title_chunk_rewritten_to_body_only(tmp_path, monkeypatch):
@@ -170,7 +170,7 @@ def test_local_mt_translates_title_separately_from_body(tmp_path, monkeypatch):
     )
 
     ch = _reload_chapter(storage)
-    assert tr.seen == ["正文第一段。\n\n正文第二段。"]
+    assert tr.seen == ["好。\n\n嗯。"]
     # `_translate_one` tự chuyển nhánh active sang `local_mt` sau khi dịch xong
     # (xem pipeline.py — nhánh hoàn tất trở thành bản đang đọc/biên tập).
     assert storage.active_branch(ch) == "local_mt"

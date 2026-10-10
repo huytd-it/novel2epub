@@ -34,7 +34,13 @@ from novel2epub.ai_providers import delete_preset as delete_ai_provider_preset
 from novel2epub.ai_providers import save_preset as save_ai_provider_preset
 from novel2epub.progress import progress_from_states
 from novel2epub.queue_labels import batch_job_label, chapter_job_label
-from novel2epub.sources import SourcePreset, delete_preset, rename_preset, save_preset
+from novel2epub.sources import (
+    SourcePreset,
+    delete_preset,
+    normalize_domains,
+    rename_preset,
+    save_preset,
+)
 from novel2epub.storage import Storage, bulk_chapter_states
 from novel2epub.toc import apply_chapter_query, chapter_rows, count_words
 from novel2epub.wireguard import WireGuardProfileError
@@ -603,6 +609,48 @@ def library_ebook_delete(request: Request, slug: str, confirm_slug: str = Form(.
     except EpubDeleteFailed as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"ok": True}
+
+
+@router.get("/ebooks/{slug}/toc/summary")
+def ebook_toc_summary(slug: str):
+    """Số chương / bản gốc / bản dịch hiện có — để hộp xác nhận xóa mục lục
+    biết có phải hỏi lại lần hai hay không."""
+    cfg = deps.resolved_cfg(slug)
+    return Storage(cfg.output.data_dir, cfg.novel.slug).toc_summary()
+
+
+@router.post("/ebooks/{slug}/toc/clear")
+def ebook_toc_clear(request: Request, slug: str, payload: dict = Body(default={})):
+    """Xóa hoàn toàn mục lục của truyện (chương + bản gốc + bản dịch).
+
+    Đã có bản gốc/bản dịch thì bắt buộc `confirm_content=true` — chặn ở server
+    chứ không chỉ tin popup phía client. Từ chối khi truyện đang có job chạy
+    hoặc chờ: job đó sẽ ghi vào các chương vừa bị xóa.
+    """
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    queue = request.app.state.job.queue
+    # `retire_ebook` vừa kiểm tra bận vừa chặn job mới chen vào giữa lúc xóa.
+    if not queue.retire_ebook(slug):
+        raise HTTPException(status_code=409, detail="Truyện đang có job chạy hoặc chờ trong hàng đợi.")
+    try:
+        summary = storage.toc_summary()
+        if (summary["raw"] or summary["translated"]) and not payload.get("confirm_content"):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Mục lục đã có {summary['raw']} bản gốc và {summary['translated']} bản dịch — "
+                    "cần xác nhận lại trước khi xóa."
+                ),
+            )
+        removed = storage.clear_toc()
+    finally:
+        queue.restore_ebook(slug)
+    logger.info(
+        "[toc][CLEAR] slug=%s xóa %s chương (%s bản gốc, %s bản dịch)",
+        slug, removed["chapters"], removed["raw"], removed["translated"],
+    )
+    return {"ok": True, "removed": removed}
 
 
 # --- Upload file .txt/.epub → tạo ebook từ chương raw (SPA tab "Upload file")
@@ -2719,6 +2767,8 @@ def sources_save_api(payload: dict = Body(...)):
         kwargs["strip_patterns"] = [
             line.strip() for line in kwargs["strip_patterns"].splitlines() if line.strip()
         ]
+    if "domains" in kwargs:
+        kwargs["domains"] = normalize_domains(str(kwargs["domains"] or ""))
     kwargs["name"] = name
     if rename_from and rename_from != name:
         try:

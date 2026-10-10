@@ -38,7 +38,8 @@ def _seed(tmp_path):
     # được cover riêng ở tests/test_translate_title_combined.py.
     ch = Chapter(index=1, url="http://x/1", title="")
     storage.save_manifest(Manifest(slug="t", chapters=[ch]))
-    storage.write_raw(ch, "原文\n" * 50)  # đủ dài để chia chunk
+    # Ngắn: guard Trung → Việt bắt buộc số từ bản dịch giả (6) >= số chữ Hán.
+    storage.write_raw(ch, "原文\n" * 3)
     return storage, ch
 
 

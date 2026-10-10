@@ -415,9 +415,12 @@ def sync_to_source(slug: str):
 
 
 @router.post("/ebooks/{slug}/settings/source/reset")
-def reset_source_overrides(slug: str):
+def reset_source_overrides(slug: str, source: str | None = Form(None)):
     """Xoá TOÀN BỘ override crawl của ebook — quay về ĐÚNG "source preset +
     mặc định". Chỉ giữ lại `toc_url` vì nó là định danh của ebook.
+
+    ``source`` (tuỳ chọn) là tên preset người dùng CHỌN để reset về — ebook
+    được gắn sang preset đó. Bỏ trống = giữ nguồn đang gắn / tự dò theo URL.
 
     Để reset chính xác, ngoài xoá override còn phải:
     - Dò lại nguồn theo `toc_url` nếu ebook chưa gắn preset (ebook tạo trước
@@ -434,7 +437,13 @@ def reset_source_overrides(slug: str):
     cfg = deps.resolved_cfg(slug)
     source_name = getattr(cfg, "source", "") or ""
     attached = False
-    if not source_name and toc_url:
+    chosen = (source or "").strip()
+    if chosen:
+        if chosen not in presets:
+            raise HTTPException(status_code=400, detail=f"Không có nguồn '{chosen}'.")
+        attached = chosen != source_name
+        source_name = chosen
+    elif not source_name and toc_url:
         source_name = detect_preset(toc_url, presets) or ""
         attached = bool(source_name)
     preset = presets.get(source_name) if source_name else None

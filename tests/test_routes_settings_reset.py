@@ -152,6 +152,32 @@ def test_reset_source_tu_gan_lai_nguon_khop_url(monkeypatch, tmp_path):
     assert cfg.crawl.scrapling.mode == "stealthy"
 
 
+def test_reset_source_chon_nguon_khac_thi_gan_sang_nguon_do(monkeypatch, tmp_path):
+    """Người dùng CHỌN nguồn khi reset: ebook được gắn sang preset đó (kể cả
+    ebook không khớp domain nào) và ăn theo cấu hình của nó."""
+    db, client = _client(monkeypatch, tmp_path)
+
+    r = client.post("/ebooks/b/settings/source/reset", data={"source": "aixdzs"})
+    assert r.status_code == 303
+
+    conn = get_connection(str(db))
+    row = conn.execute("SELECT source_preset FROM ebooks WHERE slug='b'").fetchone()
+    assert row["source_preset"] == "aixdzs"
+    assert _crawl(db, "b") == {"toc_url": "https://khac.com/d/2"}
+    cfg = load_config(db, "b")
+    assert cfg.crawl.content_selector == ".preset"
+    assert cfg.crawl.delay_seconds == 2.0
+
+
+def test_reset_source_chon_nguon_khong_ton_tai_thi_400(monkeypatch, tmp_path):
+    db, client = _client(monkeypatch, tmp_path)
+    before = _crawl(db, "a")
+
+    r = client.post("/ebooks/a/settings/source/reset", data={"source": "khong-co"})
+    assert r.status_code == 400
+    assert _crawl(db, "a") == before
+
+
 def test_reset_source_khong_dung_ebook_khac(monkeypatch, tmp_path):
     db, client = _client(monkeypatch, tmp_path)
     before_b = _crawl(db, "b")

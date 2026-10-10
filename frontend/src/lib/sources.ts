@@ -53,6 +53,24 @@ export interface SourcesOverview {
   validation: Record<string, ValidationEntry>;
 }
 
+/**
+ * Tách trường `domains` thành danh sách token đã chuẩn hoá — mirror backend
+ * `split_domains`. Chấp nhận phẩy / dấu cách / xuống dòng / `;` và cả URL dán
+ * nguyên (bỏ scheme, `www.`, cổng, đường dẫn). Token không cần là domain đầy đủ.
+ */
+export function splitDomains(value: string): string[] {
+  const out: string[] = [];
+  for (const raw of (value || "").split(/[,;\s]+/)) {
+    let d = raw.trim().toLowerCase();
+    d = d.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+    d = d.split(/[/?#]/, 1)[0];
+    d = d.slice(d.lastIndexOf("@") + 1);
+    d = d.replace(/:\d+$/, "").replace(/^[*.]+/, "").replace(/^www\./, "").replace(/^\.+|\.+$/g, "");
+    if (d && !out.includes(d)) out.push(d);
+  }
+  return out;
+}
+
 const key = ["sources"] as const;
 
 export function useSources() {

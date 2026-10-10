@@ -559,6 +559,50 @@ class Storage:
             from .codes import backfill_codes
             backfill_codes(self.conn)
 
+    def toc_summary(self) -> dict[str, int]:
+        """Số chương trong mục lục và số chương đã có bản gốc / bản dịch.
+
+        Đọc projection hẹp `chapter_ui_state` (trigger giữ 1-1 với `chapters`)
+        nên không chạm blob raw/dịch. `translated` tính MỌI nhánh (AI lẫn Local
+        MT) và cả bản dịch dở chưa `complete` — đây là thước đo "có gì sẽ mất".
+        """
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS chapters, "
+            "COALESCE(SUM(has_raw OR raw_bytes > 0), 0) AS raw, "
+            "COALESCE(SUM(has_translated OR translated_bytes > 0 OR local_mt_bytes > 0), 0) "
+            "AS translated "
+            "FROM chapter_ui_state WHERE ebook_slug = ?",
+            (self.slug,),
+        ).fetchone()
+        return {
+            "chapters": int(row["chapters"]),
+            "raw": int(row["raw"]),
+            "translated": int(row["translated"]),
+        }
+
+    def clear_toc(self) -> dict[str, int]:
+        """Xóa HOÀN TOÀN mục lục: mọi chương cùng bản gốc và bản dịch của nó.
+
+        Metadata truyện, cấu hình, glossary và ảnh bìa giữ nguyên. Dọn kèm dữ
+        liệu gắn theo số chương mà nếu sót lại sẽ dính vào chương MỚI cùng `idx`
+        sau khi lấy lại mục lục: đề xuất AI, token preview/bulk chưa dùng và
+        kết quả kiểm tra nội dung. Ledger revision (append-only) không đụng.
+        Trả về `toc_summary()` trước khi xóa.
+        """
+        summary = self.toc_summary()
+        with self.conn:
+            self.conn.execute("DELETE FROM chapters WHERE ebook_slug = ?", (self.slug,))
+            self.conn.execute("DELETE FROM ai_revisions WHERE ebook_slug = ?", (self.slug,))
+            self.conn.execute("DELETE FROM preview_tokens WHERE ebook_slug = ?", (self.slug,))
+            self.conn.execute(
+                "DELETE FROM bulk_tokens WHERE ebook_slug = ? AND consumed = 0", (self.slug,)
+            )
+            self.conn.execute(
+                "DELETE FROM ebook_extra_json WHERE ebook_slug = ? AND key LIKE ?",
+                (self.slug, "content_validation:chapter:%"),
+            )
+        return summary
+
     def reorder_chapters(self, desired_order: list[int]) -> Manifest:
         """Đổi thứ tự chương nguyên tử, giữ toàn bộ nội dung gắn với chương.
 
@@ -2126,6 +2170,27 @@ class Storage:
                     "translated_updated_at = unixepoch('now') WHERE ebook_slug=? AND idx=?",
                     ("\n", chunk_text, self.slug, ch.index),
                 )
+
+    def branch_stream_snapshot(self, ch: Chapter, branch: str) -> tuple[str | None, float | None]:
+        """Trạng thái nhánh trước khi stream bản dịch mới, để hoàn lại bằng
+        `restore_branch_stream` nếu bản dịch đó bị guard từ chối."""
+        branch = revisions.normalize_branch(branch)
+        row = self._chapter_row(ch)
+        if row is None:
+            return None, None
+        return row[self._BRANCH_COLUMNS[branch]["text"]], row["translated_updated_at"]
+
+    def restore_branch_stream(self, ch: Chapter, branch: str, snapshot: tuple[str | None, float | None]) -> None:
+        """Bỏ các chunk đã stream, trả nhánh về đúng `snapshot` (kể cả mốc
+        `translated_updated_at`; không tăng revision vì nội dung không đổi)."""
+        branch = revisions.normalize_branch(branch)
+        col = self._BRANCH_COLUMNS[branch]["text"]
+        with self.conn:
+            self.conn.execute(
+                f"UPDATE chapters SET {col} = ?, translated_updated_at = ? "
+                "WHERE ebook_slug=? AND idx=?",
+                (*snapshot, self.slug, ch.index),
+            )
 
     # ----- ảnh bìa -----
     def write_cover(self, content: bytes, ext: str) -> str:

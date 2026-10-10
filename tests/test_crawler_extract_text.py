@@ -12,10 +12,13 @@ import pytest
 
 from novel2epub.config import CrawlConfig, ScraplingConfig
 from novel2epub.crawler import (
+    ChapterPageError,
+    RateLimitError,
     ScraplingCrawler,
     _chapter_base_id,
     _crosses_chapter_boundary,
     _make_css_resolver,
+    _next_page_url_from_pattern,
     fetch_chapter_paginated,
 )
 from novel2epub.storage import Chapter
@@ -255,3 +258,96 @@ class TestPaginationStopsAtChapterBoundary:
         assert "Doan mot cua trang dau." in text
         assert "Doan mot cua trang hai." in text
         assert "Doan cuoi chuong." in text
+
+
+class TestPaginationPageErrorGuard:
+    """Guard bắt buộc: lỗi ở một trang con ⇒ cả chương thất bại, không trả
+    phần đã tải (pipeline sẽ không ghi raw cụt vào DB)."""
+
+    URL = "https://m.example.org/html/9/101/"
+
+    def _run(self, pages: dict, *, next_page_url=None, **cfg_kwargs):
+        cfg = CrawlConfig(
+            toc_url="https://m.example.org/book/9/",
+            content_selector=".novelcontent",
+            max_pages_per_chapter=10,
+            scrapling=ScraplingConfig(mode="fetcher"),
+            **cfg_kwargs,
+        )
+        crawler = ScraplingCrawler(cfg)
+
+        def fetch_page(url: str):
+            page = pages[url]
+            if isinstance(page, Exception):
+                raise page
+            return _page(page, url=url)
+
+        return fetch_chapter_paginated(
+            cfg,
+            Chapter(index=3, url=self.URL, title="Chuong 3"),
+            fetch_page=fetch_page,
+            extract_text=crawler._extract_text,
+            next_page_url=next_page_url or _make_css_resolver(cfg),
+        )
+
+    def test_fetch_error_on_later_page_fails_whole_chapter(self):
+        pages = {
+            self.URL: PAGE_BARE,
+            "https://m.example.org/html/9/101_2/": TimeoutError("timed out"),
+        }
+        with pytest.raises(ChapterPageError, match="trang 2"):
+            self._run(pages, next_page_selector="p.p1.p3 > a")
+
+    def test_rate_limit_on_later_page_keeps_retry_after(self):
+        pages = {
+            self.URL: PAGE_BARE,
+            "https://m.example.org/html/9/101_2/": RateLimitError("HTTP 429", retry_after=7),
+        }
+        with pytest.raises(RateLimitError) as err:
+            self._run(pages, next_page_selector="p.p1.p3 > a")
+        assert err.value.retry_after == 7
+
+    def test_fetch_error_on_first_page_propagates(self):
+        with pytest.raises(TimeoutError):
+            self._run({self.URL: TimeoutError("timed out")}, next_page_selector="p.p1.p3 > a")
+
+    def test_linked_page_without_content_fails_whole_chapter(self):
+        pages = {
+            self.URL: PAGE_BARE,
+            "https://m.example.org/html/9/101_2/": "<html><body>Access denied</body></html>",
+        }
+        with pytest.raises(ChapterPageError, match="không có nội dung"):
+            self._run(pages, next_page_selector="p.p1.p3 > a")
+
+    def test_next_url_resolve_error_fails_whole_chapter(self):
+        def broken(url, page_obj):
+            raise ValueError("selector hỏng")
+
+        with pytest.raises(ChapterPageError, match="không dò được trang kế"):
+            self._run({self.URL: PAGE_BARE}, next_page_url=broken)
+
+    def test_guessed_page_without_content_just_ends_chapter(self):
+        """URL do pattern tự sinh không phải link thật: trang rỗng nghĩa là đã
+        hết chương, không phải lỗi."""
+        url = "https://m.example.org/html/9/101_1.html"
+        body = '<html><body><div class="novelcontent"><p>{}</p></div></body></html>'
+        pages = {
+            url: body.format("Trang mot."),
+            "https://m.example.org/html/9/101_2.html": body.format("Trang hai."),
+            "https://m.example.org/html/9/101_3.html": "<html><body>404</body></html>",
+        }
+        cfg = CrawlConfig(
+            toc_url="https://m.example.org/book/9/",
+            content_selector=".novelcontent",
+            next_page_url_pattern=r"_(\d+)\.html",
+            scrapling=ScraplingConfig(mode="fetcher"),
+        )
+        text, count = fetch_chapter_paginated(
+            cfg,
+            Chapter(index=3, url=url, title="Chuong 3"),
+            fetch_page=lambda u: _page(pages[u], url=u),
+            extract_text=ScraplingCrawler(cfg)._extract_text,
+            next_page_url=_next_page_url_from_pattern(cfg),
+        )
+        assert count == 2
+        assert text == "Trang mot.\n\nTrang hai."

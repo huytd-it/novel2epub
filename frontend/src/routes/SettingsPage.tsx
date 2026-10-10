@@ -767,29 +767,90 @@ function TranslateAiProviderPanel({ slug, ai }: { slug: string; ai: AiSettings }
 /* ── Tab Nguồn + nút Reset ───────────────────────────────────────────
    Backend đã có `POST /ebooks/{slug}/settings/source/reset` (xóa toàn bộ
    override crawl, chỉ giữ `toc_url`, gắn lại preset theo URL) — nút này chỉ
-   gọi endpoint đó rồi nạp lại form từ server. `key={nonce}` để sau reset form
-   dựng lại draft từ dữ liệu mới, kể cả khi người dùng đang sửa dở. */
+   gọi endpoint đó rồi nạp lại form từ server. Hộp xác nhận cho CHỌN nguồn để
+   reset về (gửi `source`); để "Tự động" thì backend giữ nguồn đang gắn / dò
+   theo URL. `key={nonce}` để sau reset form dựng lại draft từ dữ liệu mới, kể
+   cả khi người dùng đang sửa dở.
+
+   "Xóa mục lục" xóa hoàn toàn TOC (chương + bản gốc + bản dịch). Luôn hỏi một
+   lần; mục lục đã có bản gốc/bản dịch thì hỏi LẠI lần hai kèm số lượng sẽ mất
+   — server cũng tự chặn nếu thiếu `confirm_content`. */
+interface TocSummary {
+  chapters: number;
+  raw: number;
+  translated: number;
+}
+
 function SourceTab({
   slug,
   server,
+  meta,
   banner,
 }: {
   slug: string;
   server: EbookSettings["source"];
+  meta: EbookSettings["meta"];
   banner?: React.ReactNode;
 }) {
   const toast = useToast();
   const client = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [nonce, setNonce] = useState(0);
+  const [target, setTarget] = useState("");
+  // Bước xác nhận xóa mục lục: null = đóng, "first" = hỏi lần đầu,
+  // "content" = hỏi lại vì đã có bản gốc/bản dịch.
+  const [clearStep, setClearStep] = useState<null | "first" | "content">(null);
+  const [tocSummary, setTocSummary] = useState<TocSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const hasContent = Boolean(tocSummary && (tocSummary.raw > 0 || tocSummary.translated > 0));
+
+  const openClearToc = async () => {
+    setSummaryLoading(true);
+    try {
+      const summary = await api.get<TocSummary>(`/api/ui/ebooks/${slug}/toc/summary`);
+      if (summary.chapters === 0) {
+        toast("Mục lục đang trống, không có gì để xóa.", "info");
+        return;
+      }
+      setTocSummary(summary);
+      setClearStep("first");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  const clearToc = useMutation({
+    mutationFn: () =>
+      api.post<{ ok: boolean; removed: TocSummary }>(`/api/ui/ebooks/${slug}/toc/clear`, {
+        body: { confirm_content: hasContent },
+      }),
+    onSuccess: async (res) => {
+      setClearStep(null);
+      // Mục lục là dữ liệu gốc của gần như mọi màn hình (truyện, chương, thư
+      // viện, dashboard) — làm mới tất cả thay vì liệt kê từng query key.
+      await client.invalidateQueries();
+      toast(`Đã xóa mục lục: ${res.removed.chapters} chương.`);
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+
+  const openConfirm = () => {
+    // Mặc định là nguồn hiện tại; preset đã bị xóa thì rơi về "Tự động".
+    setTarget(meta.source_presets.includes(meta.source_name) ? meta.source_name : "");
+    setConfirmOpen(true);
+  };
 
   const reset = useMutation({
-    mutationFn: () => api.post(`/ebooks/${slug}/settings/source/reset`),
+    mutationFn: () => api.post(`/ebooks/${slug}/settings/source/reset`, { form: { source: target } }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: settingsKey(slug) });
+      // Đổi nguồn gắn với truyện → thẻ truyện ở thư viện phải vẽ lại.
+      if (target !== meta.source_name) client.invalidateQueries({ queryKey: ["library"] });
       setNonce((n) => n + 1);
       setConfirmOpen(false);
-      toast("Đã reset nguồn về cấu hình mặc định.");
+      toast(target ? `Đã reset về cấu hình của nguồn "${target}".` : "Đã reset nguồn về cấu hình mặc định.");
     },
     onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
   });
@@ -806,9 +867,14 @@ function SourceTab({
         server={server}
         banner={banner}
         extraActions={
-          <Button size="sm" variant="ghost" onClick={() => setConfirmOpen(true)}>
-            Reset nguồn
-          </Button>
+          <>
+            <Button size="sm" variant="danger" loading={summaryLoading} onClick={openClearToc}>
+              Xóa mục lục
+            </Button>
+            <Button size="sm" variant="ghost" onClick={openConfirm}>
+              Reset nguồn
+            </Button>
+          </>
         }
       />
       <ConfirmDialog
@@ -819,7 +885,68 @@ function SourceTab({
         confirmLabel="Reset nguồn"
         destructive
         pending={reset.isPending}
-        body="Xóa toàn bộ ghi đè crawl riêng của truyện (chỉ giữ URL mục lục) và trả về cấu hình mặc định của nguồn. Nội dung đã crawl không bị xóa."
+        body={
+          <div className="grid gap-3">
+            <p>
+              Xóa toàn bộ ghi đè crawl riêng của truyện (chỉ giữ URL mục lục) và trả về cấu hình mặc định
+              của nguồn được chọn. Nội dung đã crawl không bị xóa.
+            </p>
+            <Field
+              label="Reset về nguồn"
+              hint={
+                target && target !== meta.source_name
+                  ? `Truyện sẽ được gắn sang nguồn "${target}".`
+                  : "Chọn nguồn khác nếu truyện đang gắn sai preset."
+              }
+            >
+              <Select value={target} disabled={reset.isPending} onChange={(e) => setTarget(e.target.value)}>
+                <option value="">Tự động — giữ nguồn đang gắn hoặc dò theo URL</option>
+                {meta.source_presets.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                    {name === meta.source_name ? " (hiện tại)" : ""}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        }
+      />
+      <ConfirmDialog
+        open={clearStep === "first"}
+        onCancel={() => !clearToc.isPending && setClearStep(null)}
+        onConfirm={() => (hasContent ? setClearStep("content") : clearToc.mutate())}
+        title="Xóa mục lục?"
+        confirmLabel={hasContent ? "Tiếp tục" : "Xóa mục lục"}
+        destructive
+        pending={clearToc.isPending}
+        body={
+          <p>
+            Xóa toàn bộ <b>{tocSummary?.chapters ?? 0}</b> chương khỏi mục lục của truyện. Metadata, cấu
+            hình nguồn và glossary giữ nguyên — có thể lấy lại mục lục từ URL sau đó.
+          </p>
+        }
+      />
+      <ConfirmDialog
+        open={clearStep === "content"}
+        onCancel={() => !clearToc.isPending && setClearStep(null)}
+        onConfirm={() => clearToc.mutate()}
+        title="Xác nhận lại: xóa cả bản gốc và bản dịch?"
+        confirmLabel="Xóa hết"
+        destructive
+        pending={clearToc.isPending}
+        body={
+          <div className="grid gap-2">
+            <p>
+              Mục lục này đã có <b>{tocSummary?.raw ?? 0}</b> chương có bản gốc và{" "}
+              <b>{tocSummary?.translated ?? 0}</b> chương có bản dịch.
+            </p>
+            <p className="text-error">
+              Xóa mục lục sẽ xóa vĩnh viễn toàn bộ nội dung đó — phải crawl và dịch lại từ đầu. Không thể
+              hoàn tác.
+            </p>
+          </div>
+        }
       />
     </>
   );
@@ -955,7 +1082,7 @@ export function SettingsPage() {
         />
       ) : null}
       {tab === "source" ? (
-        <SourceTab slug={slug} server={data.source} banner={sourceBanner} />
+        <SourceTab slug={slug} server={data.source} meta={data.meta} banner={sourceBanner} />
       ) : null}
       {tab === "translate" ? (
         <>

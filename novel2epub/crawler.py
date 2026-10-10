@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field
 from html import unescape as html_unescape
 
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from .config import CrawlConfig
 from .storage import Chapter
@@ -80,6 +80,20 @@ def _parse_retry_after(value: str | None) -> float | None:
         return secs if secs >= 0 else None
     except ValueError:
         return None
+
+
+class ChapterPageError(Exception):
+    """Một trang con của chương phân trang bị lỗi nên chương chưa trọn vẹn.
+
+    Guard bắt buộc: thà để chương thất bại (tầng retry thử lại, hết lượt thì bỏ
+    qua, KHÔNG ghi raw) còn hơn lưu một chương cụt mà pipeline coi là đã crawl
+    xong và không bao giờ tải lại.
+    """
+
+
+class GuessedPageUrl(str):
+    """URL trang kế do ``next_page_url_pattern`` tự sinh, không phải link có
+    thật trên trang — trang đó có thể không tồn tại (đã hết chương)."""
 
 
 def is_rate_limited(err: BaseException) -> tuple[bool, float | None]:
@@ -191,6 +205,13 @@ def fetch_chapter_paginated(
       3. Nội dung trang mới trùng với một trang đã tải.
       4. Đã đạt ``cfg.max_pages_per_chapter`` trang.
       5. URL kế tiếp trỏ sang một chương khác (xem ``_crosses_chapter_boundary``).
+      6. Trang kế là URL đoán từ pattern (``GuessedPageUrl``) mà không tồn tại
+         (HTTP 404/410) hoặc không có nội dung.
+
+    Guard bắt buộc: lỗi ở BẤT KỲ trang nào (fetch lỗi, HTTP >= 400, không dò
+    được trang kế, hoặc trang được link tới mà rỗng) đều raise thay vì trả phần
+    đã tải — chương cụt không được ghi vào DB. ``RateLimitError`` được giữ
+    nguyên để tầng retry tôn trọng ``Retry-After``.
     """
     max_pages = max(1, int(getattr(cfg, "max_pages_per_chapter", 1) or 1))
     logger.info("Pagination bắt đầu cho chương %s (url=%s, max_pages=%s)", ch.stem, ch.url, max_pages)
@@ -202,16 +223,12 @@ def fetch_chapter_paginated(
     # Lần fetch đầu: lấy text + khám phá next URL TRƯỚC khi extract
     # (vì extract có thể mutate page_obj — vd ScraplingCrawler._extract_text
     # decompose thẻ <a>).
-    try:
-        current_page = fetch_page(current_url)
-    except Exception as e:
-        logger.warning("Pagination chương %s — lỗi fetch trang đầu: %s", ch.stem, e)
-        return "", 0
+    current_page = fetch_page(current_url)
     try:
         next_url = next_page_url(current_url, current_page)
     except Exception as e:
         logger.warning("Pagination chương %s — lỗi resolve next_url trang đầu: %s", ch.stem, e)
-        next_url = None
+        raise ChapterPageError(f"Chương {ch.stem}: không dò được trang kế từ trang 1: {e}") from e
     if _crosses_chapter_boundary(base_chapter_id, next_url):
         logger.info("Pagination chương %s — next_url %s vượt sang chương khác, dừng", ch.stem, next_url)
         next_url = None
@@ -231,25 +248,45 @@ def fetch_chapter_paginated(
             logger.info("Pagination chương %s — next_url %s đã gặp, dừng (trang %s)", ch.stem, next_url, page_num + 2)
             break
         seen_urls.add(next_url)
+        guessed = isinstance(next_url, GuessedPageUrl)
         current_url = next_url
         logger.info("Pagination chương %s — đang tải trang %s: %s", ch.stem, page_num + 2, current_url)
         try:
             current_page = fetch_page(current_url)
+        except RateLimitError:
+            logger.warning("Pagination chương %s — bị chặn ở trang %s, bỏ cả chương", ch.stem, page_num + 2)
+            raise
         except Exception as e:
             logger.warning("Pagination chương %s — lỗi fetch trang %s: %s", ch.stem, page_num + 2, e)
-            break
+            raise ChapterPageError(
+                f"Chương {ch.stem}: lỗi tải trang {page_num + 2} ({current_url}): {e}"
+            ) from e
+        status = getattr(current_page, "status", None)
+        if isinstance(status, int) and status >= 400:
+            if guessed and status in (404, 410):
+                logger.info("Pagination chương %s — trang %s không tồn tại (HTTP %s), dừng", ch.stem, page_num + 2, status)
+                break
+            raise ChapterPageError(
+                f"Chương {ch.stem}: trang {page_num + 2} ({current_url}) trả HTTP {status}"
+            )
         try:
             next_url = next_page_url(current_url, current_page)
         except Exception as e:
             logger.warning("Pagination chương %s — lỗi resolve next_url trang %s: %s", ch.stem, page_num + 2, e)
-            next_url = None
+            raise ChapterPageError(
+                f"Chương {ch.stem}: không dò được trang kế từ trang {page_num + 2}: {e}"
+            ) from e
         if _crosses_chapter_boundary(base_chapter_id, next_url):
             logger.info("Pagination chương %s — next_url %s vượt sang chương khác, dừng", ch.stem, next_url)
             next_url = None
         new_text = (extract_text(current_page) or "").strip()
         if not new_text:
-            logger.info("Pagination chương %s — nội dung trang %s rỗng, dừng", ch.stem, page_num + 2)
-            break
+            if guessed:
+                logger.info("Pagination chương %s — nội dung trang %s rỗng, dừng", ch.stem, page_num + 2)
+                break
+            raise ChapterPageError(
+                f"Chương {ch.stem}: trang {page_num + 2} ({current_url}) không có nội dung"
+            )
         if new_text in pages:
             logger.info("Pagination chương %s — nội dung trang %s trùng lặp, dừng", ch.stem, page_num + 2)
             break
@@ -308,7 +345,7 @@ def _next_page_url_from_pattern(cfg: CrawlConfig):
             + str(n)
             + matched[m.end(1) - m.start():]
         )
-        return current_url[: m.start()] + new_matched + current_url[m.end():]
+        return GuessedPageUrl(current_url[: m.start()] + new_matched + current_url[m.end():])
 
     return _resolver
 
@@ -419,6 +456,35 @@ def _html_paragraphs(node, drop: set[str]) -> list[str]:
 
 
 
+_GENERIC_SLD = {"com", "net", "org", "co", "gov", "edu", "ac"}
+
+
+def _site_key(url: str) -> str:
+    """Tên miền đăng ký (xấp xỉ) của ``url`` — để so "cùng site hay không".
+
+    `www.a.com` và `m.a.com` cùng khoá `a.com`; `a.com.cn` giữ 3 nhãn. Không
+    dùng public-suffix list: chỉ cần đủ để nhận ra bị đẩy sang site KHÁC HẲN.
+    """
+    host = (urlparse(url).hostname or "").lower().strip(".")
+    labels = host.split(".")
+    if len(labels) <= 2:
+        return host
+    keep = 3 if labels[-2] in _GENERIC_SLD and len(labels[-1]) == 2 else 2
+    return ".".join(labels[-keep:])
+
+
+def offsite_redirect_host(requested_url: str, final_url: str) -> str:
+    """Hostname đích nếu ``final_url`` thuộc site khác ``requested_url``, ngược
+    lại chuỗi rỗng. Domain nguồn hết hạn/bị park thường trả 200 rồi đẩy sang
+    trang quảng cáo — không có dấu hiệu lỗi HTTP nào để bắt."""
+    if not requested_url or not final_url:
+        return ""
+    want, got = _site_key(requested_url), _site_key(final_url)
+    if not want or not got or want == got:
+        return ""
+    return (urlparse(final_url).hostname or "").lower()
+
+
 class ScraplingCrawler:
     """Crawler dùng Scrapling — engine duy nhất, 3 mode.
 
@@ -437,6 +503,9 @@ class ScraplingCrawler:
         # >1 = chương multi-page đã ghép). 0 khi chưa fetch gì. Caller đọc để
         # lưu cột `crawl_pages` cùng raw — xem `_crawl_one` trong pipeline.py.
         self.last_page_count: int = 0
+        # Hostname mà LẦN _fetch_page vừa rồi bị chuyển hướng sang (site khác
+        # hẳn URL yêu cầu); rỗng nếu vẫn ở đúng site.
+        self.last_offsite_host: str = ""
         mode = (cfg.scrapling.mode or "fetcher").lower()
         # Scrapling 0.4+ import playwright ngay ca trong Fetcher path
         # (engines.toolbelt.convertor) nen build exe phai bundle playwright
@@ -554,6 +623,13 @@ class ScraplingCrawler:
         status = getattr(page, "status", None)
         if status and status in (429, 503):
             raise RateLimitError(f"Bị chặn: HTTP {status}")
+
+        self.last_offsite_host = offsite_redirect_host(url, str(getattr(page, "url", "") or ""))
+        if self.last_offsite_host:
+            logger.warning(
+                "Trang %s bị chuyển hướng sang site khác: %s (domain nguồn có thể đã hết hạn hoặc đổi tên miền)",
+                url, self.last_offsite_host,
+            )
 
         return page
 
@@ -726,6 +802,14 @@ class ScraplingCrawler:
         pattern = re.compile(self.cfg.chapter_link_pattern)
         all_pairs = self._page_chapter_pairs(page, self.cfg.toc_url, pattern)
         logger.info("Mục lục — trang 1: %s chương", len(all_pairs))
+        if not all_pairs and self.last_offsite_host:
+            # Báo đúng nguyên nhân thay vì "0 chương / đổi cấu trúc" chung chung:
+            # thứ vừa tải về là trang của site khác, selector không liên quan.
+            raise RuntimeError(
+                f"URL mục lục bị chuyển hướng sang site khác ({self.last_offsite_host}) — "
+                "domain nguồn có thể đã hết hạn hoặc đổi tên miền. Cập nhật URL mục lục "
+                "sang domain mới của nguồn."
+            )
 
         # TOC multi-page: follow next-page links
         toc_next_sel = (self.cfg.toc_next_page_selector or "").strip()

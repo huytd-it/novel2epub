@@ -8,6 +8,7 @@ round-trip ruamel trong `sources.yaml`).
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
@@ -216,16 +217,44 @@ def load_presets(path: str | Path) -> dict[str, SourcePreset]:
     return presets
 
 
+_DOMAIN_SPLIT_RE = re.compile(r"[,;\s]+")
+
+
+def split_domains(value: str) -> list[str]:
+    """Tách trường `domains` thành danh sách token đã chuẩn hoá.
+
+    Một nguồn có thể có nhiều domain khác nhau (mirror, đổi tên miền). Người
+    dùng hay dán nguyên URL hoặc ngăn bằng dấu cách/xuống dòng/`;` thay vì
+    phẩy — không chuẩn hoá thì `https://www.a.com/` không bao giờ khớp
+    hostname. Token không cần là domain đầy đủ (`biquge` vẫn hợp lệ).
+    """
+    out: list[str] = []
+    for raw in _DOMAIN_SPLIT_RE.split(value or ""):
+        d = raw.strip().lower()
+        d = re.sub(r"^[a-z][a-z0-9+.-]*://", "", d)
+        d = re.split(r"[/?#]", d, maxsplit=1)[0]
+        d = d.rsplit("@", 1)[-1]
+        d = re.sub(r":\d+$", "", d)
+        d = d.lstrip("*.")
+        if d.startswith("www."):
+            d = d[4:]
+        d = d.strip(".")
+        if d and d not in out:
+            out.append(d)
+    return out
+
+
+def normalize_domains(value: str) -> str:
+    """Dạng lưu chuẩn của `domains`: token đã chuẩn hoá, ngăn bằng phẩy."""
+    return ",".join(split_domains(value))
+
+
 def preset_matches_url(preset: SourcePreset, url: str) -> bool:
     """True nếu hostname của ``url`` chứa một trong các token `domains` của preset."""
     if not url or not preset.domains:
         return False
-    hostname = urlparse(url).hostname or ""
-    for d in preset.domains.split(","):
-        d = d.strip()
-        if d and d in hostname:
-            return True
-    return False
+    hostname = (urlparse(url).hostname or "").lower()
+    return any(d in hostname for d in split_domains(preset.domains))
 
 
 def detect_preset(url: str, presets: dict[str, SourcePreset]) -> str | None:
@@ -234,14 +263,11 @@ def detect_preset(url: str, presets: dict[str, SourcePreset]) -> str | None:
     """
     if not url:
         return None
-    hostname = urlparse(url).hostname or ""
+    hostname = (urlparse(url).hostname or "").lower()
     candidates: list[tuple[int, str]] = []
     for name, p in presets.items():
-        if not p.domains:
-            continue
-        for d in p.domains.split(","):
-            d = d.strip()
-            if d and d in hostname:
+        for d in split_domains(p.domains):
+            if d in hostname:
                 candidates.append((len(d), name))
     if not candidates:
         return None

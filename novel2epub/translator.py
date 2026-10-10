@@ -20,6 +20,7 @@ from . import characters as characters_mod
 from . import genre as genre_mod
 from . import idioms as idioms_mod
 from . import openai_client
+from . import translation_guard
 from .config import TranslateConfig
 from .idioms import Idiom
 from .storage import Storage, normalize_glossary_pending, parse_glossary_line
@@ -760,11 +761,16 @@ class OpenAITranslator:
         Nếu glossary_accumulator được truyền, các entry glossary trích từ response
         AI được append vào đó. Nếu meta_accumulator được truyền, cost/tokens/latency
         từ response (OmniRoute) được cộng dồn vào đó."""
-        out, meta = self._run_chat_with_retry_meta(
-            self._build_prompt(chunk_text, chapter_idx)
-        )
+        prompt = self._build_prompt(chunk_text, chapter_idx)
+        out, meta = self._run_chat_with_retry_meta(prompt)
         if meta_accumulator is not None:
             self._merge_meta(meta_accumulator, meta)
+        # Tách prompt bị lặp TRƯỚC `_split_response`: prompt tự chứa nhãn
+        # `GLOSSARY:` nên nếu để nguyên, phần "bản dịch" sẽ là nửa đầu prompt.
+        stripped = translation_guard.strip_prompt_echo(out, prompt, chunk_text)
+        if stripped != out:
+            self.log("  ⚠ phản hồi lặp lại prompt dịch — đã tách bỏ phần prompt")
+            out = stripped
         translation_text, glossary_entries = self._split_response(out)
         cleaned = _clean_output(translation_text)
         if glossary_entries and glossary_accumulator is not None:

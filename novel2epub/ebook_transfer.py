@@ -289,6 +289,13 @@ def import_transfer_zip(
                 f"Nguon '{source_preset}' chua co tren app nay — ebook van duoc nhap, "
                 "crawl se dung cau hinh mac dinh cho toi khi tao preset."
             )
+            # DB legacy còn FK ebooks→sources (xem config_writer): giữ liên
+            # kết bằng stub rỗng thay vì để add_ebook nổ IntegrityError.
+            # DB mới không FK → no-op, ref treo được giữ nguyên.
+            from .config_writer import _ensure_source_stub_for_legacy_fk
+
+            with conn:
+                _ensure_source_stub_for_legacy_fk(conn, source_preset)
 
     if exists is not None:
         # Ghi de: xoa sach du lieu cu (khong phu thuoc FK cascade).

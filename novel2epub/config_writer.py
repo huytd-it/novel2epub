@@ -35,6 +35,39 @@ _NOVEL_COLUMNS = frozenset({
 _SETTINGS_SECTIONS = ("novel", "crawl", "translate", "ai", "global_ai", "output", "queue", "reader", "api", "wireguard", "tailscale")
 
 
+def _ensure_source_stub_for_legacy_fk(conn, source_name: str) -> None:
+    """Tạo preset rỗng giữ liên kết khi DB cũ còn FK `ebooks`→`sources`.
+
+    Schema chuẩn CỐ Ý không đặt FK lên `ebooks.source_preset` (ebook được
+    phép tham chiếu preset chưa tồn tại — import từ app khác, preset bị
+    xoá — và `config.py` resolve bằng warning graceful). Nhưng DB tạo từ
+    schema cũ vẫn giữ FK đó (`init_schema` chỉ CREATE TABLE IF NOT EXISTS,
+    không dựng lại bảng), nên INSERT/UPDATE `source_preset` trỏ preset chưa
+    có sẽ nổ `IntegrityError: FOREIGN KEY constraint failed`.
+
+    Hàm này là lưới an toàn cho đường đó: trên DB mới (không FK) là no-op
+    tuyệt đối — kể cả khi preset chưa tồn tại, ref treo được giữ nguyên;
+    chỉ DB legacy mới được chèn stub rỗng (`data_json='{}'` = dùng defaults)
+    để giữ liên kết thay vì crash. Migration v29 gỡ FK này nên đường stub
+    gần như không bao giờ kích hoạt sau khi migrate.
+    """
+    if not source_name:
+        return
+    if conn.execute(
+        "SELECT 1 FROM sources WHERE name = ?", (source_name,)
+    ).fetchone():
+        return
+    has_legacy_fk = any(
+        row["table"] == "sources"
+        for row in conn.execute("PRAGMA foreign_key_list(ebooks)").fetchall()
+    )
+    if has_legacy_fk:
+        conn.execute(
+            "INSERT OR IGNORE INTO sources (name, data_json) VALUES (?, '{}')",
+            (source_name,),
+        )
+
+
 def clean_prompt_text(value: str) -> str:
     """Làm sạch nội dung prompt nhập từ textarea cho gọn gàng, thống nhất.
 
@@ -162,6 +195,7 @@ def update_ebook(
             params.append(json.dumps(merged_reader, ensure_ascii=False))
 
         if "source" in updates:
+            _ensure_source_stub_for_legacy_fk(conn, updates["source"] or "")
             set_clauses.append("source_preset = ?")
             params.append(updates["source"] or None)
 
@@ -278,6 +312,9 @@ def add_ebook(
             crawl_over[k] = v
 
     with conn:
+        # DB legacy còn FK ebooks→sources: preset chưa có phải được chèn stub
+        # trước, nếu không INSERT dưới nổ IntegrityError (xem helper).
+        _ensure_source_stub_for_legacy_fk(conn, source_name)
         conn.execute(
             """
             INSERT INTO ebooks (slug, title, author, date_added, identifier, source_preset, crawl_overrides_json)

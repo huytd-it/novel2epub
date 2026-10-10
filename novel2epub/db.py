@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 28
+SCHEMA_VERSION = 29
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -1513,6 +1513,85 @@ def _migration_v17(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE ebooks DROP COLUMN name")
 
 
+def _migration_v29(conn: sqlite3.Connection) -> None:
+    """Gỡ FK legacy `ebooks.source_preset → sources(name)` còn sót trên DB cũ.
+
+    Schema chuẩn CỐ Ý không đặt FK lên cột này (xem CREATE TABLE ebooks):
+    ebook được phép tham chiếu preset chưa tồn tại — preset bị xoá, import
+    transfer zip từ app khác — và `config._resolve_source_overrides` xử lý
+    bằng warning graceful. Nhưng `init_schema` chỉ `CREATE TABLE IF NOT
+    EXISTS` nên DB tạo từ schema cũ giữ mãi FK: INSERT/UPDATE `source_preset`
+    trỏ preset chưa có nổ `FOREIGN KEY constraint failed` (crash import), còn
+    DELETE preset lặng lẽ SET NULL toàn bộ liên kết ebook.
+
+    SQLite không DROP CONSTRAINT được nên phải dựng lại bảng: tạo
+    `ebooks_new` đúng schema chuẩn, copy các cột chung, DROP bảng cũ, RENAME.
+    `PRAGMA foreign_keys` là no-op trong transaction nên phải COMMIT phiên
+    ambient trước (version chỉ ghi sau khi migration xong nên retry vẫn an
+    toàn), tắt FK trong lúc swap để DROP không CASCADE xoá chapters/
+    glossary/... Bảng `ebooks` chỉ chứa metadata (không blob) nên copy rẻ.
+    """
+    legacy_fk = [
+        row
+        for row in conn.execute("PRAGMA foreign_key_list(ebooks)").fetchall()
+        if row["table"] == "sources"
+    ]
+    if not legacy_fk:
+        return
+    try:
+        template = next(
+            stmt
+            for stmt in _SCHEMA_STATEMENTS
+            if "CREATE TABLE IF NOT EXISTS ebooks" in stmt
+        )
+    except StopIteration:  # pragma: no cover - template luôn tồn tại
+        return
+    conn.commit()
+    fk_was_on = bool(conn.execute("PRAGMA foreign_keys").fetchone()[0])
+    try:
+        conn.execute("PRAGMA foreign_keys=OFF")
+        with conn:
+            conn.execute(
+                template.replace(
+                    "CREATE TABLE IF NOT EXISTS ebooks",
+                    "CREATE TABLE IF NOT EXISTS ebooks_new",
+                    1,
+                )
+            )
+            _ensure_columns(conn)
+            old_cols = [
+                row["name"] for row in conn.execute("PRAGMA table_info(ebooks)")
+            ]
+            new_cols = [
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(ebooks_new)")
+            ]
+            common = [name for name in old_cols if name in new_cols]
+            col_list = ", ".join(f'"{name}"' for name in common)
+            conn.execute(
+                f"INSERT INTO ebooks_new ({col_list}) "
+                f"SELECT {col_list} FROM ebooks"
+            )
+            conn.execute("DROP TABLE ebooks")
+            conn.execute("ALTER TABLE ebooks_new RENAME TO ebooks")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_ebooks_archived "
+                "ON ebooks(archived)"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_ebooks_code "
+                "ON ebooks(code) WHERE code <> ''"
+            )
+    except sqlite3.OperationalError as exc:
+        # Hai thread cùng migrate DB legacy 1 lúc: thread thua thấy bảng đã
+        # được swap xong — coi như xong việc, version vẫn được ghi sau.
+        if "no such table" not in str(exc).lower():
+            raise
+    finally:
+        if fk_was_on:
+            conn.execute("PRAGMA foreign_keys=ON")
+
+
 _MIGRATIONS = {
 
     8: _migration_noop,
@@ -1536,6 +1615,7 @@ _MIGRATIONS = {
     26: _migration_v26,
     27: _migration_v27,
     28: _migration_v28,
+    29: _migration_v29,
 }
 
 

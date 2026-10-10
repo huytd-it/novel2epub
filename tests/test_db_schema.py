@@ -706,3 +706,95 @@ def test_failed_migration_does_not_advance_version(monkeypatch):
 
     assert schema_version(conn) == 9
     assert conn.execute("SELECT title FROM ebooks WHERE slug='kept'").fetchone()[0] == "Không mất"
+
+
+def _legacy_fk_db() -> sqlite3.Connection:
+    """DB mô phỏng schema cũ: `ebooks.source_preset` còn FK → `sources(name)`.
+
+    `_meta` ở v28 để `init_schema` chạy migration v29 (DB không `_meta` được
+    coi là mới và bỏ qua mọi migration).
+    """
+    conn = get_connection(":memory:")
+    with conn:
+        conn.execute("""
+            CREATE TABLE sources (
+                name TEXT PRIMARY KEY,
+                data_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE ebooks (
+                slug TEXT PRIMARY KEY,
+                source_preset TEXT REFERENCES sources(name) ON DELETE SET NULL,
+                archived INTEGER NOT NULL DEFAULT 0,
+                title TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE _meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        conn.execute("INSERT INTO _meta (key, value) VALUES ('schema_version', '28')")
+        conn.execute("INSERT INTO sources (name, data_json) VALUES ('sudugu', '{}')")
+        conn.execute(
+            "INSERT INTO ebooks (slug, source_preset, title) "
+            "VALUES ('a', 'sudugu', 'Truyen A')"
+        )
+    return conn
+
+
+def test_v29_drops_legacy_source_preset_fk_without_data_loss():
+    """Import transfer zip với preset lạ từng crash 500 (FK fail) trên DB cũ."""
+    conn = _legacy_fk_db()
+    assert any(
+        row["table"] == "sources"
+        for row in conn.execute("PRAGMA foreign_key_list(ebooks)").fetchall()
+    )
+
+    init_schema(conn)
+
+    assert schema_version(conn) == SCHEMA_VERSION
+    assert [
+        row
+        for row in conn.execute("PRAGMA foreign_key_list(ebooks)").fetchall()
+        if row["table"] == "sources"
+    ] == []
+    # Dữ liệu cũ còn nguyên.
+    row = conn.execute(
+        "SELECT slug, source_preset, title FROM ebooks WHERE slug='a'"
+    ).fetchone()
+    assert (row["slug"], row["source_preset"], row["title"]) == ("a", "sudugu", "Truyen A")
+    # Ref treo giờ hợp lệ (đúng schema chuẩn: không FK).
+    with conn:
+        conn.execute(
+            "INSERT INTO ebooks (slug, source_preset) VALUES ('b', 'preset-chua-co')"
+        )
+    # Xoá preset không còn SET NULL liên kết ebook (khác hành vi DB cũ).
+    with conn:
+        conn.execute("DELETE FROM sources WHERE name = 'sudugu'")
+    assert (
+        conn.execute("SELECT source_preset FROM ebooks WHERE slug='a'").fetchone()[0]
+        == "sudugu"
+    )
+    # Index đi kèm bảng được dựng lại.
+    indexes = {row["name"] for row in conn.execute("PRAGMA index_list(ebooks)")}
+    assert "idx_ebooks_archived" in indexes
+    # Idempotent.
+    init_schema(conn)
+    assert schema_version(conn) == SCHEMA_VERSION
+
+
+def test_v29_noop_on_new_database():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    before = sorted(
+        dict(row) for row in conn.execute("SELECT slug FROM ebooks").fetchall()
+    )
+    init_schema(conn)
+    assert schema_version(conn) == SCHEMA_VERSION
+    assert sorted(
+        dict(row) for row in conn.execute("SELECT slug FROM ebooks").fetchall()
+    ) == before

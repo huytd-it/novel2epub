@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import sqlite3
 import time
 from dataclasses import asdict
 from datetime import datetime
@@ -942,6 +943,12 @@ async def library_transfer_import(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except sqlite3.IntegrityError as exc:
+        # Lưới cuối cho DB legacy chưa migrate xong: trả 400 có message thay
+        # vì 500 Internal Server Error không nói được gì.
+        raise HTTPException(
+            status_code=400, detail=f"Import thất bại (dữ liệu DB không hợp lệ): {exc}"
+        ) from exc
     try:
         request.app.state.job.queue.restore_ebook(result["slug"])
     except Exception:

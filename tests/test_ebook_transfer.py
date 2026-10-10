@@ -250,3 +250,97 @@ def test_route_preview_rejects_non_zip(route_client):
     assert res.status_code == 400
     res = client.get("/api/ui/ebooks/khong-co/transfer/export")
     assert res.status_code == 404
+
+
+def _seed_with_source(data_dir, slug="truyen-mau", source_name="nguon-la"):
+    from novel2epub.config_writer import add_ebook
+    from novel2epub.sources import SourcePreset, save_preset
+
+    _seed(data_dir, slug)
+    db = resolve_db_path(data_dir)
+    save_preset(str(db), SourcePreset(name=source_name, content_selector=".x"))
+    add_ebook(
+        str(db), slug,
+        title="Truyen Mau", author="Tac Gia",
+        toc_url="https://example.com/toc", source_name=source_name,
+    )
+    return db
+
+
+def test_import_keeps_missing_source_preset_with_warning(tmp_path):
+    """Preset gốc không có trên app đích: import vẫn xong, giữ liên kết + cảnh báo."""
+    d1, d2 = tmp_path / "d1", tmp_path / "d2"
+    _seed_with_source(d1)
+    payload = t.build_transfer_zip(d1, "truyen-mau")
+
+    db2 = resolve_db_path(d2)
+    result = t.import_transfer_zip(db2, d2, payload)
+
+    assert result["slug"] == "truyen-mau"
+    assert any("nguon-la" in w for w in result["warnings"])
+    from novel2epub.db import get_thread_connection
+
+    row = get_thread_connection(db2).execute(
+        "SELECT source_preset FROM ebooks WHERE slug=?", ("truyen-mau",)
+    ).fetchone()
+    assert row["source_preset"] == "nguon-la"
+
+
+def test_ensure_source_stub_for_legacy_fk(tmp_path):
+    """Lưới an toàn cho DB cũ còn FK: stub preset rỗng để INSERT không nổ."""
+    import sqlite3
+
+    from novel2epub.config_writer import _ensure_source_stub_for_legacy_fk
+
+    db = tmp_path / "legacy.db"
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.executescript("""
+        CREATE TABLE sources (
+            name TEXT PRIMARY KEY,
+            data_json TEXT NOT NULL DEFAULT '{}'
+        );
+        CREATE TABLE ebooks (
+            slug TEXT PRIMARY KEY,
+            source_preset TEXT REFERENCES sources(name) ON DELETE SET NULL
+        );
+    """)
+    with conn:
+        _ensure_source_stub_for_legacy_fk(conn, "nguon-la")
+        # Stub xong thì INSERT ref treo không còn nổ FK.
+        conn.execute(
+            "INSERT INTO ebooks (slug, source_preset) VALUES ('a', 'nguon-la')"
+        )
+    assert conn.execute(
+        "SELECT 1 FROM sources WHERE name='nguon-la'"
+    ).fetchone() is not None
+    conn.close()
+
+    # DB mới (không FK): no-op tuyệt đối, không sinh stub rác.
+    from novel2epub.db import get_connection, init_schema
+
+    fresh = get_connection(":memory:")
+    init_schema(fresh)
+    with fresh:
+        _ensure_source_stub_for_legacy_fk(fresh, "nguon-la")
+    assert fresh.execute("SELECT COUNT(*) AS c FROM sources").fetchone()["c"] == 0
+
+
+def test_route_import_maps_integrity_error_to_400(route_client, monkeypatch):
+    """DB lỗi integrity còn sót → 400 có message, không 500."""
+    import sqlite3
+
+    from novel2epub import ebook_transfer
+
+    def _boom(*args, **kwargs):
+        raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
+
+    monkeypatch.setattr(ebook_transfer, "import_transfer_zip", _boom)
+    client, _ = route_client
+    res = client.post(
+        "/api/ui/library/ebooks/transfer/import",
+        files={"file": ("x.n2e.zip", b"PK-fake", "application/zip")},
+        data={"slug": "x"},
+    )
+    assert res.status_code == 400

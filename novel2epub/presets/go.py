@@ -17,7 +17,7 @@ LUẬT CỐT LÕI:
 Luật dịch:
 1. Dịch tự nhiên, đúng ngữ pháp Việt Nam.
 2. Tên riêng, công pháp, địa danh giữ Sino-Vietnamese (Hán Việt).
-3. NGOẠI LỆ luật 2 — tên người nước ngoài phiên âm sang chữ Trung Quốc (Chinese): trả về dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto), KHÔNG dùng Sino-Vietnamese. Không chắc tên gốc thì theo luật 2.
+3. NGOẠI LỆ luật 2 — tên người nước ngoài phiên âm sang chữ Trung Quốc (Chinese): luôn nghiêng về dạng chữ Latin kiểu châu Âu, KHÔNG dùng Sino-Vietnamese. Nhận ra tên gốc thì dùng đúng chính tả gốc (夏洛克 → Sherlock, 鸣人 → Naruto); chưa chắc chính tả gốc thì chọn cách viết Latin phổ biến nhất khớp âm đọc (艾伦 → Allen, không viết "Ngải Luân"). Chỉ theo luật 2 khi rõ ràng là tên Trung Quốc.
 4. Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể > quan hệ/ngữ cảnh > thể loại. [LỜI KỂ] có thể dùng "hắn" khi tự nhiên, kể cả truyện hiện đại, nhưng không thay mọi 他 bằng "hắn" và không lặp đại từ dày đặc. [LỜI KỂ NGÔI 1/2], [THOẠI] và [NỘI TÂM] chỉ dùng "ta/ngươi" khi đúng giọng, thân phận và quan hệ. Không ánh xạ đại từ máy móc.
 5. Thành ngữ, khẩu ngữ, thơ từ dịch thoát ý, không máy móc.
 6. Từ đời thường (động tác, nấu nướng, ăn uống, cảm giác...) dịch tự nhiên như văn nói tiếng Việt, không phiên âm Sino-Vietnamese cứng nhắc.

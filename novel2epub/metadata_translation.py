@@ -90,7 +90,7 @@ def _ai_prompt(title: str, author: str, description: str, subjects: list[str]) -
         "\n"
         "QUY TẮC DỊCH\n"
         "- title: dịch sang tiếng Việt tự nhiên, có hồn, không dịch máy hoặc dùng Sino-Vietnamese cứng nhắc; giữ chất liệu gốc nhưng dễ hiểu với độc giả Việt. "
-        "Tên riêng nước ngoài trong tiêu đề giữ dạng Latin gốc khi nhận diện chắc chắn (vd 夏洛克→Sherlock).\n"
+        "Tên riêng nước ngoài phiên âm trong tiêu đề ưu tiên dạng Latin kiểu châu Âu, không Hán Việt hóa (vd 夏洛克→Sherlock, 艾伦→Allen).\n"
         "- author: dùng phiên âm Sino-Vietnamese (Hán Việt), hoặc giữ nguyên nếu đã là Latin/Việt; không tự bịa tên mới.\n"
         "- subjects (thể loại/tag): dịch từng phần tử, giữ nguyên số lượng/thứ tự/boundary, mỗi tag là chuỗi ngắn.\n"
         f"{enrich_instruction}\n"

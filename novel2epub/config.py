@@ -230,8 +230,8 @@ Thứ tự ưu tiên bắt buộc: NGUYÊN TÁC (ngôi kể, người nói, ngư
 
 3. TÊN RIÊNG VÀ THUẬT NGỮ
 - Tên người Trung Quốc, địa danh, môn phái, công pháp, cảnh giới và chiêu thức: dùng dạng Sino-Vietnamese (Hán Việt) quen thuộc, viết hoa và giữ nhất quán.
-- Tên người nước ngoài được phiên âm bằng chữ Trung Quốc (Chinese characters): trả về dạng Latin gốc khi nhận diện chắc chắn, ví dụ 夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura.
-- Không chắc tên Latin gốc thì dùng phương án an toàn theo glossary hoặc quy tắc Sino-Vietnamese; không tự bịa.
+- Tên người nước ngoài được phiên âm bằng chữ Trung Quốc (Chinese characters): luôn nghiêng về dạng Latin kiểu châu Âu, không Hán Việt hóa. Nhận ra tên gốc thì dùng đúng chính tả gốc, ví dụ 夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura; chưa chắc chính tả gốc thì chọn cách viết Latin phổ biến nhất khớp âm đọc, ví dụ 艾伦 → Allen (không viết "Ngải Luân").
+- Chỉ dùng Sino-Vietnamese khi rõ ràng là tên Trung Quốc; tên đã có trong glossary thì theo glossary.
 
 4. SINO-VIETNAMESE (HÁN VIỆT) VÀ THUẦN VIỆT
 - Hạn chế từ Sino-Vietnamese khó hiểu khi có cách nói thuần Việt rõ ràng hơn.
@@ -383,8 +383,8 @@ ZH_DEFAULT_PROMPT = """你是一名专业的中国网络小说越南语译者。
 
 3. 专名与术语
 - 中国人名、地名、门派、功法、境界和招式使用常见的 Sino-Vietnamese（Hán Việt，汉越音）形式，专名统一大写并保持全文一致。
-- 外国人名若在中文中采用音译，只有在能够可靠识别时才恢复为原拉丁字母拼写，例如 夏洛克 → Sherlock、鸣人 → Naruto、小樱 → Sakura。
-- 无法确定原拉丁拼写时，遵循 glossary 或采用安全的 Sino-Vietnamese 方案，不得臆造。
+- 外国人名若在中文中采用音译，一律优先还原为欧洲拉丁字母拼写，不要转为 Sino-Vietnamese。能识别原名时使用原拼写，例如 夏洛克 → Sherlock、鸣人 → Naruto、小樱 → Sakura；无法确定原拼写时，选用与读音最相符的常见拉丁拼写，例如 艾伦 → Allen（不要写成 "Ngải Luân"）。
+- 只有明确是中国人名时才使用 Sino-Vietnamese；glossary 中已有的名称以 glossary 为准。
 
 4. SINO-VIETNAMESE 与自然越南语
 - 有清晰自然的越南语表达时，避免使用晦涩的 Sino-Vietnamese 词语。

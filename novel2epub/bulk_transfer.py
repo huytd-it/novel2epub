@@ -213,8 +213,9 @@ câu đủ chủ – vị, ngắt câu/dấu câu hợp lý).
 hoa, NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary tham khảo.
 6. TÊN NGƯỜI NƯỚC NGOÀI (Âu-Mỹ, Nhật, Hàn...) phải ở dạng chữ Latin gốc, KHÔNG \
 phải Sino-Vietnamese: gặp "Hạ Lạc Khắc" → sửa thành "Sherlock", "Minh Nhân" → \
-"Naruto", "Tiểu Anh" → "Sakura". CHỈ sửa khi nhận ra CHẮC CHẮN tên gốc; không \
-chắc thì giữ nguyên như bản dịch. Ưu tiên tên trong Glossary tham khảo.
+"Naruto", "Tiểu Anh" → "Sakura". Chưa chắc chính tả gốc thì chọn cách viết Latin \
+phổ biến nhất khớp âm đọc ("Ngải Luân" → "Allen"); chỉ giữ Sino-Vietnamese khi rõ \
+ràng là tên Trung Quốc. Ưu tiên tên trong Glossary tham khảo.
 
 ## Quy tắc định dạng đầu ra (bắt buộc để nạp ngược vào hệ thống)
 
@@ -247,8 +248,9 @@ hoa và NHẤT QUÁN xuyên suốt. Dùng đúng các tên trong phần Glossary
 4. NGOẠI LỆ của luật 3 — tên người nước ngoài (Âu-Mỹ, Nhật, Hàn...) được bản \
 gốc phiên âm sang chữ Trung Quốc (Chinese): trả về ĐÚNG dạng chữ Latin gốc (夏洛克 → Sherlock, \
 鸣人 → Naruto, 小樱 → Sakura), KHÔNG chuyển thành Sino-Vietnamese (KHÔNG "Hạ Lạc Khắc", \
-"Minh Nhân"). Viết hoa và NHẤT QUÁN xuyên suốt. CHỈ áp dụng khi nhận ra CHẮC \
-CHẮN tên gốc; không chắc thì giữ Sino-Vietnamese theo luật 3.
+"Minh Nhân"). Viết hoa và NHẤT QUÁN xuyên suốt. Chưa chắc chính tả gốc thì chọn \
+cách viết Latin phổ biến nhất khớp âm đọc (艾伦 → Allen, KHÔNG "Ngải Luân"); chỉ \
+theo luật 3 khi rõ ràng là tên Trung Quốc.
 5. Hạn chế lạm dụng từ Sino-Vietnamese khó hiểu; ưu tiên thuần Việt nếu rõ nghĩa hơn, \
 nhưng giữ chất cổ trang khi cần.
 6. Giữ nguyên cách chia đoạn của bản gốc.

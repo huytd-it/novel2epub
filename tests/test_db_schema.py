@@ -841,3 +841,47 @@ def test_v30_adds_glossary_version_and_updated_at_to_old_database():
         )
     new = conn.execute("SELECT version, updated_at FROM glossary_entries WHERE source='李四'").fetchone()
     assert new["version"] == 1 and new["updated_at"] > 0
+
+
+def test_stored_translate_prompts_lean_to_latin_foreign_names_idempotently():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    custom = "Prompt tự viết: tên nước ngoài giữ Hán Việt."
+    with conn:
+        for slug, old, _new in (
+            ("vi", *db_module._LEGACY_FOREIGN_NAME_RULES[0]),
+            ("zh", *db_module._LEGACY_FOREIGN_NAME_RULES[1]),
+            ("preset", *db_module._LEGACY_FOREIGN_NAME_RULES[2]),
+            ("custom", custom, custom),
+        ):
+            conn.execute(
+                "INSERT INTO ebooks (slug, translate_overrides_json) VALUES (?, ?)",
+                (slug, json.dumps({"openai": {"prompt_template": f"Đầu.\n{old}\nCuối."}}, ensure_ascii=False)),
+            )
+
+    def prompts():
+        return {
+            row["slug"]: json.loads(row["translate_overrides_json"])["openai"]["prompt_template"]
+            for row in conn.execute("SELECT slug, translate_overrides_json FROM ebooks")
+        }
+
+    init_schema(conn)
+    first = prompts()
+    for index, slug in enumerate(("vi", "zh", "preset")):
+        old, new = db_module._LEGACY_FOREIGN_NAME_RULES[index]
+        assert first[slug] == f"Đầu.\n{new}\nCuối."
+        assert "Allen" in new and old not in new
+    assert first["custom"] == f"Đầu.\n{custom}\nCuối."
+    init_schema(conn)
+    assert prompts() == first
+
+
+def test_default_prompts_lean_to_latin_for_transliterated_names():
+    from novel2epub import config, glossary_curator
+    from novel2epub.presets.go import GO_PROMPT
+    from novel2epub.presets.omniroute import OMNIPROUTE_PROMPT
+
+    for prompt in (config.DEFAULT_PROMPT, config.ZH_DEFAULT_PROMPT, GO_PROMPT,
+                   OMNIPROUTE_PROMPT, glossary_curator.PROMPT, glossary_curator.SELECTED_PROMPT):
+        assert "Allen" in prompt and "Ngải Luân" in prompt
+        assert "Latin gốc khi nhận diện chắc chắn" not in prompt and "Không chắc tên gốc" not in prompt

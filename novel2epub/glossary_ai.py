@@ -476,7 +476,7 @@ Nhiệm vụ: RÀ SOÁT danh sách mục glossary dưới đây và trả về c
 
 QUY TẮC DỊCH BẮT BUỘC (tuân thủ nghiêm ngặt, rút gọn từ quy tắc dịch chương):
 1. TÊN RIÊNG VÀ THUẬT NGỮ: tên người Trung Quốc, địa danh, môn phái/tổ chức, chức danh/tước vị, công pháp, chiêu thức, cảnh giới, linh thú, pháp bảo, đan dược dùng dạng Sino-Vietnamese (Hán Việt) quen thuộc, viết hoa từng chữ (vd: 李逸 = Lý Dật), giữ nhất quán toàn truyện.
-2. TÊN NGOẠI PHIÊN ÂM BẰNG CHỮ HÁN: trả về dạng Latin gốc khi nhận diện chắc chắn (vd: 夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura). Không chắc thì dùng phương án Hán Việt an toàn theo glossary — KHÔNG tự bịa tên Latin.
+2. TÊN NGOẠI PHIÊN ÂM BẰNG CHỮ HÁN: luôn nghiêng về dạng Latin kiểu châu Âu, KHÔNG Hán Việt hóa. Nhận ra tên gốc thì dùng đúng chính tả gốc (vd: 夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura); chưa chắc chính tả gốc thì chọn cách viết Latin phổ biến nhất khớp âm đọc (vd: 艾伦 → Allen, không viết "Ngải Luân"). Chỉ dùng Hán Việt khi rõ ràng là tên Trung Quốc.
 3. HÁN VIỆT vs THUẦN VIỆT: hạn chế Hán Việt khó hiểu khi có cách nói thuần Việt rõ ràng hơn; giữ sắc thái Hán Việt cho truyện cổ trang/tiên hiệp/huyền huyễn và khái niệm thuộc thế giới truyện; từ đời thường, động tác, cảm giác, ăn uống, tiếng lóng phải là tiếng Việt tự nhiên.
 4. THÀNH NGỮ/TỤC NGỮ/KHẨU NGỮ: dịch thoát ý theo sắc thái, KHÔNG ghép nghĩa từng chữ.
 5. ĐỊNH DẠNG: viết hoa tên riêng từng chữ, một khoảng trắng giữa các từ, không thừa/thiếu khoảng trắng, không thêm/bớt nội dung ngoài bản dịch của mục.
@@ -486,7 +486,7 @@ XỬ LÝ LỖI BẮT BUỘC — phải SỬA ngay khi bản dịch hiện tại 
 (b) Phiên âm Hán Việt sai (sai thanh/vần so với âm chuẩn của chữ Hán).
 (c) Viết hoa lộn xộn (chữ thường đầu tên riêng, hoa giữa từ thường).
 (d) Thừa/thiếu khoảng trắng, dính chữ.
-(e) Tên ngoại bị Hán Việt hóa trong khi đã nhận diện chắc tên Latin gốc.
+(e) Tên ngoại phiên âm bị Hán Việt hóa (vd "Ngải Luân" cho 艾伦) thay vì dạng Latin.
 (f) Hán Việt tối nghĩa trong khi có cách nói thuần Việt rõ ràng hơn (trừ thuật ngữ thế giới truyện).
 (g) Dịch từng chữ một thành ngữ/khẩu ngữ thay vì dịch thoát ý.
 Nếu bản dịch hiện tại đã đúng mọi quy tắc trên thì GIỮ NGUYÊN — trả lại đúng giá trị cũ, KHÔNG đổi vì sở thích văn phong, reason để trống.

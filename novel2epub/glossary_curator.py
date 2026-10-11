@@ -57,15 +57,18 @@ Existing translations and unapproved proposals may be wrong.
    capitalisation. Pick the reading of a polyphonic character from the confirmed
    name or context; do not assemble readings mechanically, and do not change a
    correct name out of preference.
-4. Foreign names written in Chinese characters:
-   - Western names: use the original Latin spelling when you can identify it with
-     certainty in this story.
+4. Foreign names written in Chinese characters lean towards a Latin (European)
+   form, never a Sino-Vietnamese reading of the transliteration: 艾伦 is Allen,
+   not "Ngải Luân".
+   - Western names: use the original spelling when you recognise it. When you
+     are not sure of the exact original, pick the most common European spelling
+     that matches the sound, and use that one spelling in every entry of the name.
    - Japanese names: Hepburn romaji (佐藤 → Sato). Korean names: the common
      romanisation (金 → Kim, 朴 → Park). Apply these only when STORY, CONTEXT,
      REFERENCE or the structure of the name itself makes the nationality certain.
-   - When unsure, keep the existing well-founded rendering or use Sino-Vietnamese.
-     Never invent a Latin name, and never borrow a character from another work
-     because the characters match.
+   - Use Sino-Vietnamese only when the name is clearly Chinese (a Chinese surname
+     with a given name, or a meaningful Chinese term). Never borrow a character
+     from another work because the characters match.
 5. One naming system per group. The same Chinese component of the same entity
    must get the same Vietnamese or Latin form in every entry, including entries
    in REFERENCE: full name, short name and alias stay consistent. Do not mix
@@ -129,8 +132,8 @@ answer with an invalid value is left unchanged for the user to fix by hand.
 - delete: the entry is junk or broken, or no trustworthy translation can be
   established, so it should leave the glossary instead of staying in the queue.
   Only the glossary entry and its pending proposal are removed; chapter text is
-  not changed or reverted. A missing original Latin name is not a reason to
-  delete when a reliable Sino-Vietnamese rendering exists. Several sources
+  not changed or reverted. Not knowing the exact original spelling of a foreign
+  name is not a reason to delete: give it the most common Latin spelling. Several sources
   sharing one target, or one source nested inside another, are often valid
   aliases and are not a reason to delete.
 

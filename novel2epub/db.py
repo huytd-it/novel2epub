@@ -33,6 +33,25 @@ _LEGACY_PRONOUN_RULES = (
     'phụ/đồ nhi, lão phu/tiểu hữu…). Tránh dùng "ta/ngươi" máy móc.',
 )
 
+# Luật tên nước ngoài cũ ("chỉ Latin khi nhận diện chắc chắn, không chắc thì
+# Hán Việt") trong prompt dịch đã lưu → luật mới nghiêng về Latin kiểu châu Âu.
+# Mỗi cặp là (đoạn đã phát hành, đoạn thay thế); prompt người dùng tự viết
+# không chứa đúng đoạn cũ nên giữ nguyên.
+_LEGACY_FOREIGN_NAME_RULES = (
+    (
+        '- Tên người nước ngoài được phiên âm bằng chữ Trung Quốc (Chinese characters): trả về dạng Latin gốc khi nhận diện chắc chắn, ví dụ 夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura.\n- Không chắc tên Latin gốc thì dùng phương án an toàn theo glossary hoặc quy tắc Sino-Vietnamese; không tự bịa.',
+        '- Tên người nước ngoài được phiên âm bằng chữ Trung Quốc (Chinese characters): luôn nghiêng về dạng Latin kiểu châu Âu, không Hán Việt hóa. Nhận ra tên gốc thì dùng đúng chính tả gốc, ví dụ 夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura; chưa chắc chính tả gốc thì chọn cách viết Latin phổ biến nhất khớp âm đọc, ví dụ 艾伦 → Allen (không viết "Ngải Luân").\n- Chỉ dùng Sino-Vietnamese khi rõ ràng là tên Trung Quốc; tên đã có trong glossary thì theo glossary.',
+    ),
+    (
+        '- 外国人名若在中文中采用音译，只有在能够可靠识别时才恢复为原拉丁字母拼写，例如 夏洛克 → Sherlock、鸣人 → Naruto、小樱 → Sakura。\n- 无法确定原拉丁拼写时，遵循 glossary 或采用安全的 Sino-Vietnamese 方案，不得臆造。',
+        '- 外国人名若在中文中采用音译，一律优先还原为欧洲拉丁字母拼写，不要转为 Sino-Vietnamese。能识别原名时使用原拼写，例如 夏洛克 → Sherlock、鸣人 → Naruto、小樱 → Sakura；无法确定原拼写时，选用与读音最相符的常见拉丁拼写，例如 艾伦 → Allen（不要写成 "Ngải Luân"）。\n- 只有明确是中国人名时才使用 Sino-Vietnamese；glossary 中已有的名称以 glossary 为准。',
+    ),
+    (
+        '3. NGOẠI LỆ luật 2 — tên người nước ngoài phiên âm sang chữ Trung Quốc (Chinese): trả về dạng chữ Latin gốc (夏洛克 → Sherlock, 鸣人 → Naruto), KHÔNG dùng Sino-Vietnamese. Không chắc tên gốc thì theo luật 2.',
+        '3. NGOẠI LỆ luật 2 — tên người nước ngoài phiên âm sang chữ Trung Quốc (Chinese): luôn nghiêng về dạng chữ Latin kiểu châu Âu, KHÔNG dùng Sino-Vietnamese. Nhận ra tên gốc thì dùng đúng chính tả gốc (夏洛克 → Sherlock, 鸣人 → Naruto); chưa chắc chính tả gốc thì chọn cách viết Latin phổ biến nhất khớp âm đọc (艾伦 → Allen, không viết "Ngải Luân"). Chỉ theo luật 2 khi rõ ràng là tên Trung Quốc.',
+    ),
+)
+
 _SCHEMA_STATEMENTS = [
     """
     CREATE TABLE IF NOT EXISTS _meta (
@@ -1115,10 +1134,12 @@ _POST_COLUMN_INDEXES = [
 
 
 def _upgrade_prompt_text(prompt: str) -> str:
-    """Thay đúng luật xưng hô legacy đã phát hành; prompt khác giữ nguyên."""
+    """Thay đúng luật xưng hô/tên nước ngoài legacy đã phát hành; prompt khác giữ nguyên."""
     out = prompt
     for legacy in _LEGACY_PRONOUN_RULES:
         out = out.replace(legacy, _PRONOUN_MIGRATION_RULE)
+    for legacy, upgraded in _LEGACY_FOREIGN_NAME_RULES:
+        out = out.replace(legacy, upgraded)
     return out
 
 

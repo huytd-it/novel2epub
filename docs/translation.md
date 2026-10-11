@@ -104,8 +104,13 @@ Prompt AI duyệt & dọn glossary cũng viết bằng tiếng Anh, chia mục I
 RULES / DECISIONS / READER NOTES / OUTPUT; hai chế độ (rà toàn bộ và dọn mục đã
 chọn) dùng chung quy tắc, chỉ khác mục DECISIONS. Quy tắc dựa trên nguyên tắc ngôn ngữ
 của `DEFAULT_PROMPT`: đúng nghĩa theo ngữ cảnh, Hán Việt phù hợp cho tên riêng,
-thuần Việt tự nhiên cho từ đời thường, không cố định xưng hô máy móc và không
-đoán tên Latin khi thiếu căn cứ. Đầu ra của tác vụ dọn vẫn là mảng JSON thao tác,
+thuần Việt tự nhiên cho từ đời thường, không cố định xưng hô máy móc. Tên người
+nước ngoài phiên âm bằng chữ Hán **luôn nghiêng về dạng Latin kiểu châu Âu**
+(艾伦 → Allen, không "Ngải Luân") ở cả prompt dịch lẫn prompt glossary: nhận ra
+tên gốc thì dùng chính tả gốc, chưa chắc thì chọn cách viết Latin phổ biến nhất
+khớp âm đọc; chỉ dùng Hán Việt khi rõ ràng là tên Trung Quốc. Prompt dịch mặc
+định đã lưu trong DB (global và từng ebook) được tự nâng luật này khi khởi động;
+prompt tự viết giữ nguyên. Đầu ra của tác vụ dọn vẫn là mảng JSON thao tác,
 không phải bản dịch chương. Tên dịch, ghi chú và lý do bằng tiếng Việt (tên ngoại
 giữ dạng Latin gốc khi xác định chắc chắn). Chỉ tạo ghi chú cho **nhân vật** khi
 ngữ cảnh cung cấp rõ vai trò, thuộc phe/phái, quan hệ hoặc bí danh/tên gọi: tối đa một câu ngắn,

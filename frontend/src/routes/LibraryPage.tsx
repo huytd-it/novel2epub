@@ -11,12 +11,16 @@ import { Panel, EmptyState } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { SkeletonTable } from "@/components/ui/Loading";
 import { Badge } from "@/components/ui/Badge";
-import { Input, InputWithIcon, Select } from "@/components/ui/Field";
+import { Checkbox, Input, InputWithIcon, Select } from "@/components/ui/Field";
 import { ConfirmDialog } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { LibraryBulkActions } from "@/components/LibraryBulkActions";
 import { IconChevronRight, IconMenu, IconOverview, IconPlus, IconSearch, IconTable, IconTrash } from "@/components/icons";
 
 type ViewMode = "grid" | "list" | "table";
+/** Truyện đang chọn để thao tác hàng loạt: slug → tiêu đề (giữ qua các trang). */
+type Selection = Map<string, string>;
+type SelectProps = { selected: Selection; onToggle: (book: EbookSummary) => void };
 type LibrarySort = "title" | "title_desc" | "created_at" | "created_at_asc" | "updated_at" | "updated_at_asc";
 
 function loadViewMode(): ViewMode {
@@ -90,13 +94,14 @@ function EbookActions({ book }: { book: EbookSummary }) {
   </>;
 }
 
-function EbookGridCard({ book }: { book: EbookSummary }) {
+function EbookGridCard({ book, selected, onToggle }: { book: EbookSummary } & SelectProps) {
   const [currentSlug, selectBook] = useCurrentBook();
   const done = percent(book.translated_count, book.total);
   const isCurrent = currentSlug === book.slug;
-  return <Panel className={clsx("flex min-w-0 flex-col p-3.5", isCurrent && "ring-1 ring-primary/35")}>
+  return <Panel className={clsx("flex min-w-0 flex-col p-3.5", isCurrent && "ring-1 ring-primary/35", selected.has(book.slug) && "bg-primary/5")}>
     <div className="flex min-w-0 items-start justify-between gap-2">
-      <Link to={`/ebooks/${book.slug}`} onClick={() => selectBook(book.slug)} className="line-clamp-2 min-w-0 font-display text-[15px] leading-snug font-semibold hover:text-primary">{book.title || book.slug}</Link>
+      <Checkbox className="mt-1 shrink-0" checked={selected.has(book.slug)} onChange={() => onToggle(book)} aria-label={`Chọn ${book.title || book.slug}`} />
+      <Link to={`/ebooks/${book.slug}`} onClick={() => selectBook(book.slug)} className="line-clamp-2 min-w-0 flex-1 font-display text-[15px] leading-snug font-semibold hover:text-primary">{book.title || book.slug}</Link>
       <EbookBadges book={book} isCurrent={isCurrent} />
     </div>
     <p className="mt-1 truncate text-xs opacity-60"><span data-numeric>{book.slug}</span>{book.author ? <span> · {book.author}</span> : null}</p>
@@ -106,8 +111,9 @@ function EbookGridCard({ book }: { book: EbookSummary }) {
   </Panel>;
 }
 
-function EbookTable({ books, sort, onSort }: { books: EbookSummary[]; sort: LibrarySort; onSort: (sort: LibrarySort) => void }) {
+function EbookTable({ books, sort, onSort, selected, onToggle, onToggleAll }: { books: EbookSummary[]; sort: LibrarySort; onSort: (sort: LibrarySort) => void; onToggleAll: () => void } & SelectProps) {
   const [currentSlug, selectBook] = useCurrentBook();
+  const allSelected = books.length > 0 && books.every((book) => selected.has(book.slug));
 
   function nextSort(descending: LibrarySort, ascending: LibrarySort): LibrarySort {
     return sort === descending ? ascending : descending;
@@ -124,6 +130,7 @@ function EbookTable({ books, sort, onSort }: { books: EbookSummary[]; sort: Libr
       <table className="w-full min-w-[58rem] border-collapse text-left">
         <thead>
           <tr className="border-b border-base-300 bg-base-200/60">
+            <th className="w-8 py-2 pr-0 pl-3"><Checkbox checked={allSelected} onChange={onToggleAll} aria-label="Chọn tất cả truyện trong trang" /></th>
             <th className="px-3 py-2 text-[10px] font-semibold tracking-[0.1em] opacity-45 uppercase">
               <button type="button" className="hover:text-primary hover:opacity-100" onClick={() => onSort(nextSort("title_desc", "title"))}>Tên{sortMark("title_desc", "title")}</button>
             </th>
@@ -141,7 +148,8 @@ function EbookTable({ books, sort, onSort }: { books: EbookSummary[]; sort: Libr
         <tbody>
           {books.map((book) => {
             const isCurrent = currentSlug === book.slug;
-            return <tr key={book.slug} className={clsx("border-b border-base-300 last:border-b-0 hover:bg-base-200/50", isCurrent && "bg-base-200/30")}>
+            return <tr key={book.slug} className={clsx("border-b border-base-300 last:border-b-0 hover:bg-base-200/50", isCurrent && "bg-base-200/30", selected.has(book.slug) && "bg-primary/5")}>
+              <td className="w-8 py-2.5 pr-0 pl-3"><Checkbox checked={selected.has(book.slug)} onChange={() => onToggle(book)} aria-label={`Chọn ${book.title || book.slug}`} /></td>
               <td className="max-w-80 px-3 py-2.5"><div className="flex min-w-0 items-center gap-2"><Link to={`/ebooks/${book.slug}`} onClick={() => selectBook(book.slug)} className="truncate font-medium hover:text-primary">{book.title || book.slug}</Link><EbookBadges book={book} isCurrent={isCurrent} /></div><p data-numeric className="mt-0.5 truncate text-[11px] opacity-45">{book.slug}</p></td>
               <td className="max-w-52 truncate px-3 py-2.5 text-xs opacity-65">{book.author || "—"}</td>
               <td className="px-3 py-2.5"><div className="flex items-center gap-2"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-base-200"><div className="h-full rounded-full bg-success" style={{ width: `${percent(book.translated_count, book.total)}%` }} /></div><span data-numeric className="text-xs opacity-60">{num(book.translated_count)}/{num(book.total)}</span></div></td>
@@ -156,15 +164,15 @@ function EbookTable({ books, sort, onSort }: { books: EbookSummary[]; sort: Libr
   </Panel>;
 }
 
-function EbookListItem({ book }: { book: EbookSummary }) {
+function EbookListItem({ book, selected, onToggle }: { book: EbookSummary } & SelectProps) {
   const states = useMemo(() => decodeStrip(book.strip), [book.strip]);
   const counts = useMemo(() => stripCounts(book.counts), [book.counts]);
   const [currentSlug, selectBook] = useCurrentBook();
   const navigate = useNavigate();
   const done = percent(book.translated_count, book.total);
   const isCurrent = currentSlug === book.slug;
-  return <article className={clsx("border-b border-base-300 px-3 py-3 last:border-b-0 hover:bg-base-200/50", isCurrent && "bg-base-200/30")}>
-    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><Link to={`/ebooks/${book.slug}`} onClick={() => selectBook(book.slug)} className="truncate font-display text-[15px] font-semibold hover:text-primary">{book.title || book.slug}</Link><EbookBadges book={book} isCurrent={isCurrent} /></div><p className="mt-0.5 truncate text-xs opacity-60"><span data-numeric>{book.slug}</span>{book.author ? <span> · {book.author}</span> : null}{book.translate_type ? <span> · {book.translate_type}</span> : null}</p></div><EbookActions book={book} /></div>
+  return <article className={clsx("border-b border-base-300 px-3 py-3 last:border-b-0 hover:bg-base-200/50", isCurrent && "bg-base-200/30", selected.has(book.slug) && "bg-primary/5")}>
+    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><Checkbox checked={selected.has(book.slug)} onChange={() => onToggle(book)} aria-label={`Chọn ${book.title || book.slug}`} /><Link to={`/ebooks/${book.slug}`} onClick={() => selectBook(book.slug)} className="truncate font-display text-[15px] font-semibold hover:text-primary">{book.title || book.slug}</Link><EbookBadges book={book} isCurrent={isCurrent} /></div><p className="mt-0.5 truncate text-xs opacity-60"><span data-numeric>{book.slug}</span>{book.author ? <span> · {book.author}</span> : null}{book.translate_type ? <span> · {book.translate_type}</span> : null}</p></div><EbookActions book={book} /></div>
     {book.total > 0 ? <div className="mt-3"><div className="rounded-selector bg-base-200 p-px"><ChapterStrip states={states} height={26} onSelect={(index) => { selectBook(book.slug); navigate(`/ebooks/${book.slug}/chapters/${index + 1}`); }} /></div><div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1"><ChapterLegend counts={counts} /><p className="text-[11px] opacity-60"><span data-numeric className="text-[13px] font-semibold opacity-100">{num(book.translated_count)}</span><span data-numeric className="opacity-70">/{num(book.total)}</span> chương đã dịch <span data-numeric className="ml-1.5 opacity-70">{done}%</span></p></div></div> : <p className="mt-2 text-xs opacity-50">Chưa có mục lục. Chạy bước TOC để nạp danh sách chương.</p>}
   </article>;
 }
@@ -180,6 +188,23 @@ export function LibraryPage() {
   const debouncedSearch = useDebouncedValue(search);
   const { data, isPending, error } = useLibrary({ showArchived, q: debouncedSearch, sort, page, limit: pageSize });
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
+  const [selected, setSelected] = useState<Selection>(() => new Map());
+  const selectedBooks = useMemo(() => [...selected].map(([slug, title]) => ({ slug, title })), [selected]);
+  const pageBooks = data?.ebooks ?? [];
+  const allPageSelected = pageBooks.length > 0 && pageBooks.every((book) => selected.has(book.slug));
+  const toggle = (book: EbookSummary) => setSelected((current) => {
+    const next = new Map(current);
+    if (!next.delete(book.slug)) next.set(book.slug, book.title || book.slug);
+    return next;
+  });
+  const toggleAll = () => setSelected((current) => {
+    const next = new Map(current);
+    for (const book of pageBooks) {
+      if (allPageSelected) next.delete(book.slug);
+      else next.set(book.slug, book.title || book.slug);
+    }
+    return next;
+  });
   useEffect(() => setPage(0), [debouncedSearch, showArchived, sort, pageSize]);
   useEffect(() => { try { localStorage.setItem("n2e-library-view", view); } catch { /* localStorage không khả dụng */ } }, [view]);
   useEffect(() => { try { localStorage.setItem("n2e-library-page-size", String(pageSize)); } catch { /* localStorage không khả dụng */ } }, [pageSize]);
@@ -189,6 +214,7 @@ export function LibraryPage() {
     hint={data ? <><span data-numeric>{num(data.total)}</span> truyện{debouncedSearch ? " khớp tìm kiếm" : ""} · trang <span data-numeric>{data.page + 1}/{totalPages}</span></> : "Đang đọc thư viện"}
     actions={<><InputWithIcon icon={<IconSearch size={15} />} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm tên, tác giả hoặc slug" className="w-60" aria-label="Tìm truyện" /><Select value={sort} onChange={(e) => setSort(e.target.value as LibrarySort)} aria-label="Sắp xếp thư viện" className="w-36"><option value="title">Tên A–Z</option><option value="title_desc">Tên Z–A</option><option value="updated_at">Cập nhật mới</option><option value="updated_at_asc">Cập nhật cũ</option><option value="created_at">Tạo mới</option><option value="created_at_asc">Tạo cũ</option></Select><Button variant={showArchived ? "primary" : "neutral"} onClick={() => { setShowArchived((value) => !value); setPage(0); }}>Lưu trữ {data?.archived_count ? <span data-numeric className="ml-1 opacity-60">{data.archived_count}</span> : null}</Button><div className="join" aria-label="Kiểu hiển thị"><Button size="sm" variant={view === "grid" ? "primary" : "neutral"} icon={<IconOverview />} onClick={() => setView("grid")} aria-label="Xem dạng lưới" title="Dạng lưới" /><Button size="sm" variant={view === "list" ? "primary" : "neutral"} icon={<IconMenu />} onClick={() => setView("list")} aria-label="Xem dạng danh sách" title="Dạng danh sách" /><Button size="sm" variant={view === "table" ? "primary" : "neutral"} icon={<IconTable />} onClick={() => setView("table")} aria-label="Xem dạng bảng" title="Dạng bảng" /></div><Button variant="primary" icon={<IconPlus />} onClick={() => navigate("/library/new")}>Thêm truyện</Button></>}
   >
-    {isPending ? <Panel className="overflow-hidden"><SkeletonTable rows={view === "grid" ? 6 : 5} cols={view === "table" ? 6 : 5} /></Panel> : error ? <Panel><EmptyState title="Không đọc được thư viện" hint={error instanceof Error ? error.message : String(error)} /></Panel> : data?.ebooks.length === 0 ? <Panel><EmptyState title={search ? "Không có truyện nào khớp" : "Thư viện đang trống"} hint={search ? "Thử từ khóa khác hoặc bật Lưu trữ." : "Thêm truyện bằng URL mục lục để bắt đầu."} /></Panel> : <>{view === "grid" ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{data!.ebooks.map((book) => <EbookGridCard key={book.slug} book={book} />)}</div> : view === "table" ? <EbookTable books={data!.ebooks} sort={sort} onSort={setSort} /> : <Panel className="overflow-hidden">{data!.ebooks.map((book) => <EbookListItem key={book.slug} book={book} />)}</Panel>}<div className="mt-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><p className="text-xs opacity-55">Hiển thị <span data-numeric>{num(data!.ebooks.length)}</span> trên <span data-numeric>{num(data!.total)}</span> truyện.</p><label className="flex items-center gap-1.5 text-xs opacity-60"><span>Hiện</span><Select value={String(pageSize)} onChange={(event) => setPageSize(Number(event.target.value))} aria-label="Số truyện mỗi trang" className="h-8 w-20"><option value="10">10</option><option value="24">24</option><option value="50">50</option><option value="100">100</option></Select><span>mục</span></label></div><div className="flex items-center gap-2"><Button size="sm" variant="ghost" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Trước</Button><span data-numeric className="text-xs opacity-60">{page + 1}/{totalPages}</span><Button size="sm" variant="ghost" disabled={page + 1 >= totalPages} onClick={() => setPage((value) => value + 1)}>Sau</Button></div></div></>}
+    {isPending ? <Panel className="overflow-hidden"><SkeletonTable rows={view === "grid" ? 6 : 5} cols={view === "table" ? 6 : 5} /></Panel> : error ? <Panel><EmptyState title="Không đọc được thư viện" hint={error instanceof Error ? error.message : String(error)} /></Panel> : data?.ebooks.length === 0 ? <Panel><EmptyState title={search ? "Không có truyện nào khớp" : "Thư viện đang trống"} hint={search ? "Thử từ khóa khác hoặc bật Lưu trữ." : "Thêm truyện bằng URL mục lục để bắt đầu."} /></Panel> : <>{view === "grid" ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{data!.ebooks.map((book) => <EbookGridCard key={book.slug} book={book} selected={selected} onToggle={toggle} />)}</div> : view === "table" ? <EbookTable books={data!.ebooks} sort={sort} onSort={setSort} selected={selected} onToggle={toggle} onToggleAll={toggleAll} /> : <Panel className="overflow-hidden">{data!.ebooks.map((book) => <EbookListItem key={book.slug} book={book} selected={selected} onToggle={toggle} />)}</Panel>}<div className="mt-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2">{view === "table" ? null : <Button size="sm" variant="ghost" onClick={toggleAll}>{allPageSelected ? "Bỏ chọn trang" : "Chọn cả trang"}</Button>}<p className="text-xs opacity-55">Hiển thị <span data-numeric>{num(data!.ebooks.length)}</span> trên <span data-numeric>{num(data!.total)}</span> truyện.</p><label className="flex items-center gap-1.5 text-xs opacity-60"><span>Hiện</span><Select value={String(pageSize)} onChange={(event) => setPageSize(Number(event.target.value))} aria-label="Số truyện mỗi trang" className="h-8 w-20"><option value="10">10</option><option value="24">24</option><option value="50">50</option><option value="100">100</option></Select><span>mục</span></label></div><div className="flex items-center gap-2"><Button size="sm" variant="ghost" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Trước</Button><span data-numeric className="text-xs opacity-60">{page + 1}/{totalPages}</span><Button size="sm" variant="ghost" disabled={page + 1 >= totalPages} onClick={() => setPage((value) => value + 1)}>Sau</Button></div></div></>}
+    {selectedBooks.length > 0 ? <LibraryBulkActions books={selectedBooks} onClear={() => setSelected(new Map())} /> : null}
   </Page>;
 }

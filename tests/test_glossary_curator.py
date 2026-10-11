@@ -24,17 +24,23 @@ def rows(storage):
 
 
 @pytest.mark.parametrize("selected_only", [False, True])
-def test_prompt_vietnamese_with_grounded_character_notes(selected_only):
+def test_prompt_english_with_grounded_character_notes(selected_only):
     prompt = curator.build_prompt([], [], {}, "", selected_only=selected_only)
-    assert "biên tập viên glossary" in prompt
-    assert "NHÂN VẬT" in prompt
-    assert "tối đa 30 từ" in prompt
-    assert "Thiếu bằng chứng thì bỏ trường note" in prompt
-    assert "Không tạo ghi chú cho địa danh" in prompt
-    assert "Bỏ trường note để giữ ghi chú cũ" in prompt
-    assert "Viết target, note và reason bằng tiếng Việt" in prompt
-    if selected_only:
-        assert "giữ nguyên quy tắc dịch và ghi chú" in prompt
+    assert "glossary editor for a Chinese web novel" in prompt
+    assert "only for a CHARACTER" in prompt
+    assert "at most 30 words" in prompt
+    assert "Without evidence, omit it" in prompt
+    assert "Do not write notes for places" in prompt
+    assert "Omit the note field to keep the existing note" in prompt
+    assert "Write target, note and reason in Vietnamese" in prompt
+    # Mỗi chế độ chỉ có một mục DECISIONS của riêng nó, không chồng quy tắc.
+    assert prompt.count("# DECISIONS") == 1
+    assert ("exactly ONE decision for EVERY" in prompt) is selected_only
+    assert ("Do not use create in this mode" in prompt) is selected_only
+    assert ("leave it out of the array" in prompt) is not selected_only
+    # Nhãn khối dữ liệu chỉ xuất hiện một lần để caller tách được BATCH/REFERENCE.
+    for label in ("STORY", "CONTEXT", "BATCH", "REFERENCE"):
+        assert prompt.count(f"\n{label}:\n") == 1
 
 
 def test_group_related_keeps_shared_name_parts_adjacent():
@@ -45,7 +51,7 @@ def test_group_related_keeps_shared_name_parts_adjacent():
     # Cụm quá phổ biến không gom cả glossary thành một nhóm.
     common = [f"{chr(0x4e00 + i)}之剑" for i in range(curator.GROUP_MAX_SHARED + 1)][::-1]
     assert curator.group_related(common) == common
-    assert "romaji Hepburn" in curator.PROMPT
+    assert "Hepburn romaji" in curator.PROMPT
 
 
 def test_crud_propagates_and_separates_reader_note(tmp_path):

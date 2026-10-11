@@ -100,7 +100,9 @@ Không dùng model nhỏ để tự suy luận glossary phức tạp; hãy dịc
 Glossary theo ebook dùng để cố định tên riêng và thuật ngữ đặc thù. Không đưa từ đời thường vào glossary. Matching ưu tiên source dài để tên dài không bị mục ngắn thay trước.
 
 Prompt Auto Glossary kèm bản dịch và AI phân tích chương viết bằng tiếng Anh.
-Prompt AI duyệt & dọn glossary viết bằng tiếng Việt, dựa trên nguyên tắc ngôn ngữ
+Prompt AI duyệt & dọn glossary cũng viết bằng tiếng Anh, chia mục INPUT / TRANSLATION
+RULES / DECISIONS / READER NOTES / OUTPUT; hai chế độ (rà toàn bộ và dọn mục đã
+chọn) dùng chung quy tắc, chỉ khác mục DECISIONS. Quy tắc dựa trên nguyên tắc ngôn ngữ
 của `DEFAULT_PROMPT`: đúng nghĩa theo ngữ cảnh, Hán Việt phù hợp cho tên riêng,
 thuần Việt tự nhiên cho từ đời thường, không cố định xưng hô máy móc và không
 đoán tên Latin khi thiếu căn cứ. Đầu ra của tác vụ dọn vẫn là mảng JSON thao tác,

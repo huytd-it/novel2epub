@@ -182,6 +182,7 @@ const GlossaryRow = memo(function GlossaryRow({
   index,
   draft,
   checked,
+  groupStart,
   slug,
   onSelect,
   onEdit,
@@ -192,6 +193,8 @@ const GlossaryRow = memo(function GlossaryRow({
   index: number;
   draft?: GlossaryEdit;
   checked: boolean;
+  /** Dòng đầu của một nhóm cụm từ liên quan (kẻ đậm phía trên). */
+  groupStart: boolean;
   slug: string;
   onSelect: (e: React.MouseEvent, index: number, source: string) => void;
   onEdit: (entry: GlossaryEntry, patch: Partial<GlossaryEntry>) => void;
@@ -214,9 +217,16 @@ const GlossaryRow = memo(function GlossaryRow({
       className={clsx(
         "border-b border-base-300 last:border-b-0 transition-colors hover:bg-primary/10",
         (draft || checked) && "bg-warning/5",
+        groupStart && "border-t-2 border-t-base-content/30",
       )}
     >
-      <td className="w-8 px-2 py-1">
+      <td
+        className={clsx(
+          "w-8 px-2 py-1",
+          entry.group ? "border-l-2 border-l-primary/70" : "border-l-2 border-l-transparent",
+        )}
+        title={entry.group ? `Nhóm cụm từ liên quan #${entry.group}` : undefined}
+      >
         <Checkbox
           checked={checked}
           title={ROW_CHECK_TITLE}
@@ -1129,6 +1139,17 @@ export function GlossaryPage() {
                     Sau →
                   </Button>
                   </> : null}
+                  <Button
+                    size="sm"
+                    variant={sort === "related" ? "primary" : "neutral"}
+                    title="Xếp các cụm từ chung họ, tên, tiền tố/hậu tố nằm liền nhau để dịch cho đồng nhất. Nhóm nhiều mục lên trước, mục lẻ xếp sau."
+                    onClick={() => {
+                      setSort(sort === "related" ? "" : "related");
+                      setDir("asc");
+                    }}
+                  >
+                    Gom cụm liên quan
+                  </Button>
                   <Select aria-label="Show entries" value={String(perPage)} onChange={(e) => setPerPage(Number(e.target.value))} className="ml-1">
                     {[25, 50, 100, 200].map((n) => (
                       <option key={n} value={n}>
@@ -1252,6 +1273,9 @@ export function GlossaryPage() {
                         draft={drafts[entry.source]}
                         slug={slug}
                         checked={selected.has(entry.source)}
+                        groupStart={
+                          sort === "related" && i > 0 && (entry.group ?? 0) !== (rows[i - 1].group ?? 0)
+                        }
                         onSelect={selectGlossaryRow}
                         onEdit={editRow}
                         onRevert={dropDraft}

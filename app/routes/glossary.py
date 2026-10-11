@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from novel2epub import bulk_transfer, glossary_ai, glossary_review, proper_names
+from novel2epub.glossary_curator import related_groups
 from novel2epub.han_cleanup import count_han
 from novel2epub.notes import split_paras
 from novel2epub.pipeline import _chapter_range, step_find_replace
@@ -111,6 +112,11 @@ def ebook_glossary_list(
     Việt, chữ Latin trong cột Hán...) nên SQLite không lọc được — nhánh này đọc
     cả list rồi lọc/sắp/phân trang trong Python. Vài nghìn mục nên vẫn tức thì,
     và nhánh không lọc giữ nguyên đường SQL cũ.
+
+    `sort=related` gom các mục liên quan (chung một cụm 2 chữ Hán: họ, tên, tiền
+    tố/hậu tố — cùng quy tắc gom lô của AI dọn glossary) nằm liền nhau để rà cho
+    đồng nhất: nhóm nhiều mục lên trước, mục lẻ xếp sau. Mỗi mục kèm `group`
+    (số thứ tự nhóm, 0 = mục lẻ hoặc không sắp theo nhóm). Cũng chạy trong Python.
     """
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -121,18 +127,28 @@ def ebook_glossary_list(
     flags = glossary_review.parse_flags(filter)
     only_version = int(version) if int(version) > 0 else None
 
-    if flags:
+    by_related = sort == "related"
+    group_of: dict[str, int] = {}
+
+    if flags or by_related:
         rows_all = storage.read_glossary_entries("names.txt")
         needle = (q or "").strip().lower()
         if needle:
             rows_all = [r for r in rows_all if needle in (r[0] + r[1] + r[2]).lower()]
+        if flags:
+            rows_all = glossary_review.filter_by_flags(rows_all, flags)
         meta = storage.read_glossary_meta("names.txt")
-        rows_all = [
-            (*r, *meta.get(r[0], (1, 0.0)))
-            for r in glossary_review.filter_by_flags(rows_all, flags)
-        ]
+        rows_all = [(*r, *meta.get(r[0], (1, 0.0))) for r in rows_all]
         if only_version is not None:
             rows_all = [r for r in rows_all if r[3] == only_version]
+        if by_related:
+            by_source = {r[0]: r for r in rows_all}
+            groups = related_groups(list(by_source))
+            shared = [g for g in groups if len(g) > 1]
+            for number, group in enumerate(shared, start=1):
+                group_of.update(dict.fromkeys(group, number))
+            ordered = shared + [g for g in groups if len(g) == 1]
+            rows_all = [by_source[source] for group in ordered for source in group]
         total = len(rows_all)
         if show_all:
             per_page = max(1, total)
@@ -152,7 +168,8 @@ def ebook_glossary_list(
     return JSONResponse(
         {
             "entries": [
-                {"source": s, "target": t, "note": n, "version": v, "updated_at": u}
+                {"source": s, "target": t, "note": n, "version": v, "updated_at": u,
+                 "group": group_of.get(s, 0)}
                 for s, t, n, v, u in rows
             ],
             "versions": [

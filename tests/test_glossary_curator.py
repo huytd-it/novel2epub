@@ -538,14 +538,59 @@ def test_kept_no_han_key_is_held_without_failing_selected_batch(tmp_path):
                                       selected_only=True, defer_conflicts=True)
     assert [(r["source"], r["code"]) for r in result["held"]] == [("Patty", "no_han_key")]
     assert storage.read_glossary_entries_merged() == [("Patty", "Patty", "Hầu gái"), ("王五", "Vương Ngũ", "")]
-    # Đổi sang một khóa không có chữ Hán vẫn là đầu ra hỏng: không ghi cả lô.
+    # Đổi sang một khóa không có chữ Hán là đầu ra hỏng: giữ nguyên riêng mục đó.
     operations[0] = {"op": "update", "original_source": "王五", "source": "Wang", "target": "Vương Ngũ"}
     operations[1] = {"op": "keep", "original_source": "Patty", "reason": "Tên Latin gốc"}
     storage.write_glossary_entries("names.txt", originals)
-    with pytest.raises(ValueError, match="chưa hoàn tất kiểm định"):
-        curator.apply_operations(storage, rows(storage), operations,
-                                 selected_only=True, defer_conflicts=True)
+    result = curator.apply_operations(storage, rows(storage), operations,
+                                      selected_only=True, defer_conflicts=True)
+    assert result["operations"] == []
+    assert {(r["source"], r["code"]) for r in result["held"]} == {
+        ("王五", "invalid_operation"), ("Patty", "no_han_key"),
+    }
     assert storage.read_glossary_entries_merged() == originals
+    # Không có defer_conflicts thì vẫn chặt: lỗi một mục là lỗi cả lô.
+    with pytest.raises(ValueError, match="chưa hoàn tất kiểm định"):
+        curator.apply_operations(storage, rows(storage), operations, selected_only=True)
+    assert storage.read_glossary_entries_merged() == originals
+
+
+def test_invalid_rows_are_held_while_rest_of_selected_batch_commits(tmp_path, monkeypatch):
+    """Một mục lỗi/thiếu/trùng quyết định không làm hỏng cả lô lẫn các lô sau."""
+    storage = Storage(tmp_path, "t")
+    originals = [
+        ("圣洁战锤-ii", "Thánh Khiết Chiến Chùy-ii", ""), ("张三", "Trương Sai", ""),
+        ("李四", "Lý Sai", ""), ("王五", "Vương Sai", ""),
+        ("赵六", "Triệu Sai", ""), ("孙七", "Tôn Sai", ""),
+        ("周八", "Chu Sai", ""),
+    ]
+    storage.write_glossary_entries("names.txt", originals)
+    replies = iter([
+        json.dumps([
+            # Khóa cũ có Latin mà AI giữ nguyên: vẫn sửa được cột Việt.
+            {"op": "update", "original_source": "圣洁战锤-ii", "source": "圣洁战锤-ii", "target": "Thánh Khiết Chiến Chùy II"},
+            {"op": "update", "original_source": "张三", "source": "张三", "target": "Trương 三"},
+        ]),
+        "không phải JSON",
+        json.dumps([
+            {"op": "keep", "original_source": "赵六"},
+            {"op": "delete", "original_source": "赵六", "reason": "trùng"},
+            # 孙七: AI bỏ sót.
+        ]),
+        json.dumps([{"op": "update", "original_source": "周八", "source": "周八", "target": "Chu Bát"}]),
+    ])
+    monkeypatch.setattr(curator.openai_client, "run_chat", lambda cfg, prompt: next(replies))
+    logs = []
+    result = curator.curate(storage, OpenAIConfig(), sources=[s for s, _t, _n in originals],
+                            batch_size=2, log=logs.append)
+    assert {(r["source"], r["code"]) for r in result["held"]} == {
+        ("张三", "invalid_operation"), ("赵六", "invalid_operation"), ("孙七", "no_decision"),
+    }
+    assert result["failed_batches"] == 1
+    assert storage.read_glossary_entries_merged() == [
+        ("圣洁战锤-ii", "Thánh Khiết Chiến Chùy II", ""), *originals[1:6], ("周八", "Chu Bát", ""),
+    ]
+    assert any("Giữ 孙七" in line for line in logs)
 
 
 def test_deferred_conflict_preserves_transitive_pending_owners(tmp_path, monkeypatch):
@@ -617,11 +662,16 @@ def test_failed_alias_review_preserves_entire_group(tmp_path, monkeypatch, failu
 
     monkeypatch.setattr(curator.openai_client, "run_chat", chat)
     logs = []
-    deferred = failure in {"keep", "delete", "disagree"}
+    deferred = failure in {"keep", "delete", "disagree", "missing", "outside"}
     if deferred:
         result = curator.curate(storage, OpenAIConfig(), sources=["猎魔人"], log=logs.append)
         assert result["operations"] == []
         assert {r["source"] for r in result["held"]} == {"猎魔人", "猎 魔 人"}
+    elif failure == "stale":
+        # Dữ liệu đổi giữa chừng: bỏ cả lô nhưng job không hỏng.
+        result = curator.curate(storage, OpenAIConfig(), sources=["猎魔人"], log=logs.append)
+        assert result["operations"] == [] and result["failed_batches"] == 1
+        assert any("ORIGINAL_RESPONSE" in line and "ALIAS_RESPONSE" in line for line in logs)
     else:
         with pytest.raises(RuntimeError if failure == "write" else ValueError):
             curator.curate(storage, OpenAIConfig(), sources=["猎魔人"], log=logs.append)
@@ -634,8 +684,6 @@ def test_failed_alias_review_preserves_entire_group(tmp_path, monkeypatch, failu
         assert storage.read_extra_json("glossary_curator_audit")[0]["operations"] == []
     else:
         assert storage.read_extra_json("glossary_curator_audit") is None
-    if failure in {"outside", "stale"}:
-        assert "ORIGINAL_RESPONSE" in logs[-1] and "ALIAS_RESPONSE" in logs[-1]
 
 
 @pytest.mark.parametrize("other_op", ["keep", "update", "delete", "unselected"])
@@ -873,11 +921,18 @@ def test_selected_propagation_failure_rolls_back_deletion_and_queue(tmp_path, mo
 def test_selected_invalid_response_fails_without_writes(tmp_path, operations, defer_conflicts):
     storage = setup_storage(tmp_path)
     before = rows(storage)
-    with pytest.raises(ValueError):
-        curator.apply_operations(storage, [r for r in before if r["source"] == "长生剑法"], operations,
-                                 selected_only=True, defer_conflicts=defer_conflicts)
+    selected = [r for r in before if r["source"] == "长生剑法"]
+    if defer_conflicts:
+        # Giữ nguyên mục lỗi thay vì làm hỏng lô; vẫn không ghi gì vào glossary.
+        result = curator.apply_operations(storage, selected, operations,
+                                          selected_only=True, defer_conflicts=True)
+        assert result["operations"] == []
+        assert "长生剑法" in {r["source"] for r in result["held"]}
+    else:
+        with pytest.raises(ValueError):
+            curator.apply_operations(storage, selected, operations, selected_only=True)
+        assert storage.read_extra_json("glossary_curator_audit") is None
     assert rows(storage) == before
-    assert storage.read_extra_json("glossary_curator_audit") is None
 
 
 @pytest.mark.parametrize("selected", [True, False])

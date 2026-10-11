@@ -1871,3 +1871,31 @@ def test_list_version_and_updated_at_filter_and_sort(tmp_path, monkeypatch):
     only = client.get(url, params={"filter": "han_latin", "version": 1}).json()
     assert [(e["source"], e["version"]) for e in only["entries"]] == [("张三a", 1)]
     assert only["total"] == 1
+
+
+def test_list_sort_related_groups_shared_name_parts(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_entries("names.txt", [
+        ("长生剑法", "Trường Sinh Kiếm Pháp", ""), ("佐藤健", "Sato Ken", ""),
+        ("艾伦", "Allen", ""), ("李", "Lý", ""), ("佐藤", "Sato", ""),
+        ("艾伦·沃克", "Allen Walker", ""), ("佐藤美咲", "Sato Misaki", ""),
+    ])
+    client = _client(cfg, monkeypatch)
+    url = "/api/ebooks/t/glossary/list"
+
+    data = client.get(url, params={"sort": "related", "per_page": 4}).json()
+    # Nhóm nhiều mục lên trước (theo vị trí thành viên đầu), mục lẻ xếp sau.
+    assert [(e["source"], e["group"]) for e in data["entries"]] == [
+        ("佐藤健", 1), ("佐藤", 1), ("佐藤美咲", 1), ("艾伦", 2),
+    ]
+    assert data["total"] == 7 and data["pages"] == 2
+    page2 = client.get(url, params={"sort": "related", "per_page": 4, "page": 2}).json()
+    assert [(e["source"], e["group"]) for e in page2["entries"]] == [
+        ("艾伦·沃克", 2), ("长生剑法", 0), ("李", 0),
+    ]
+    # Tìm kiếm thu hẹp trước rồi mới gom nhóm; sắp xếp khác không gắn nhóm.
+    found = client.get(url, params={"sort": "related", "q": "Sato"}).json()
+    assert [e["source"] for e in found["entries"]] == ["佐藤健", "佐藤", "佐藤美咲"]
+    assert {e["group"] for e in client.get(url).json()["entries"]} == {0}

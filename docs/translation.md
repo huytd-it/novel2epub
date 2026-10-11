@@ -173,8 +173,14 @@ Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột
   giữ nguyên cũng chỉ được giữ lại như vậy: AI không thể tự đặt khóa Hán, nên
   mục đó không đổi, ghi vào `held` và phần còn lại của lô vẫn được ghi. Sửa khóa
   hoặc xóa mục đó bằng tay; AI vẫn có thể `delete` nếu xác định là rác.
-  Thiếu/trùng quyết định, đầu ra không hợp lệ hoặc dữ liệu đã đổi sau khi gửi AI:
-  cả lô chưa ghi, job báo lỗi để chạy lại; các lô trước đã hoàn tất vẫn được giữ.
+  Lỗi được xử lý **theo từng mục**, không làm hỏng cả job: mục AI bỏ sót, trả
+  nhiều quyết định, hoặc trả giá trị không hợp lệ (cột Việt còn chữ Hán, khóa
+  mới lẫn Latin…) được **giữ nguyên** cùng nhóm alias của nó — mục đang chờ
+  duyệt vẫn nằm trong hàng chờ để duyệt tay — và ghi vào `held`; các mục còn
+  lại của lô vẫn được ghi. Khóa cũ có sẵn chữ Latin (ví dụ `圣洁战锤-ii`) mà AI
+  giữ nguyên thì vẫn sửa được cột Việt. Lô mà AI trả JSON hỏng, hoặc dữ liệu đã
+  đổi sau khi gửi AI, bị bỏ qua nguyên lô (chưa ghi gì, tính vào "lô lỗi" ở dòng
+  tổng kết) rồi job chạy tiếp lô sau; chọn lại các mục đó để chạy lại.
 - Provider có thể có giới hạn thời gian riêng (ví dụ `recipe_timeout` sau 120s).
   Lỗi tạm thời được nhận diện (timeout, rate limit, 5xx, lỗi kết nối khi gửi request)
   được thử lại 1 lần sau 5 giây; nếu vẫn lỗi thì **hủy cả job** (không chia nhỏ

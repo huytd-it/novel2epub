@@ -15,8 +15,6 @@ REFERENCE_MAX_ENTRIES = 5
 REFERENCE_MAX_CHARS = 2_000
 # Cụm 2 chữ Hán xuất hiện ở quá nhiều mục (的人, 之剑…) không nói lên quan hệ.
 GROUP_MAX_SHARED = 20
-# Held outcomes that leave entries unchanged without failing a selected batch.
-_DEFERRABLE = {"key_collision", "shared_target", "related_conflict", "no_han_key"}
 _HAN_RUN = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+")
 
 # Quy tắc ngôn ngữ dựa trên DEFAULT_PROMPT (config.py), với hợp đồng JSON riêng
@@ -117,8 +115,8 @@ _PROMPT_DECISIONS_SELECTED = """
 # DECISIONS (cleanup of selected entries)
 
 The user selected these entries for cleanup. Return exactly ONE decision for EVERY
-entry in the batch, with none left out. A reply that skips an entry or repeats
-one is rejected as a whole.
+entry in the batch, with none left out. An entry you skip, answer twice or
+answer with an invalid value is left unchanged for the user to fix by hand.
 
 - keep: you checked the entry and it is correct. It stays unchanged, and a
   pending proposal for it is approved as is.
@@ -225,8 +223,8 @@ def build_prompt(rows: list[dict], reference: list[dict], story: dict, context: 
     return prefix + "[" + ",".join(parts) + "]"
 
 
-def group_related(keys: list[str]) -> list[str]:
-    """Xếp lại `keys` để các source liên quan nằm liền nhau (cùng lô AI).
+def related_groups(keys: list[str]) -> list[list[str]]:
+    """Chia `keys` thành các nhóm source liên quan.
 
     Hai source liên quan khi chung một cụm 2 chữ Hán liền kề (họ, tên, tiền
     tố/hậu tố: 佐藤 / 佐藤健, 艾伦 / 艾伦·沃克). Nhóm bắc cầu bằng union-find,
@@ -255,7 +253,12 @@ def group_related(keys: list[str]) -> list[str]:
     groups: dict[int, list[str]] = {}
     for i, key in enumerate(keys):
         groups.setdefault(find(i), []).append(key)
-    return [key for root in sorted(groups) for key in groups[root]]
+    return [groups[root] for root in sorted(groups)]
+
+
+def group_related(keys: list[str]) -> list[str]:
+    """Xếp lại `keys` để các source liên quan nằm liền nhau (cùng lô AI)."""
+    return [key for group in related_groups(keys) for key in group]
 
 
 def parse_operations(text: str) -> list[dict]:
@@ -277,12 +280,13 @@ def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selec
     are no replacement pairs and no shared-owner consensus to reach.
     """
     expected = {r["source"]: r for r in rows}
+    # Selected mode wants exactly one decision per entry. A reply that breaks
+    # this for some entries only costs those entries: they are held unchanged
+    # while the rest of the batch still commits.
+    repeated: set[str] = set()
     if selected_only:
-        keys = [r.get("original_source") for r in operations]
-        if (any(not isinstance(k, str) for k in keys)
-                or len(keys) != len(expected) or set(keys) != set(expected)
-                or any(r.get("op") not in ("keep", "update", "delete") for r in operations)):
-            raise ValueError("AI phải trả đúng một quyết định cho mỗi mục đã chọn; hãy chạy lại lô.")
+        keys = [str(r.get("original_source", "")).strip() for r in operations]
+        repeated = {k for k in keys if keys.count(k) > 1}
     current = {s: (t, n) for s, t, n in storage.read_glossary_entries_merged()}
     pending = normalize_glossary_pending(storage.read_extra_json("glossary_pending"))
     queued = {r["source"]: r for r in pending}
@@ -299,14 +303,17 @@ def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selec
         if base is None or not isinstance(op, str) or op not in {"keep", "create", "update", "delete"}:
             reject("Thao tác hoặc khóa ngoài lô")
             continue
-        if key in seen and op != "create":
+        if key in repeated or (key in seen and op != "create"):
             reject("Nhiều thao tác trên cùng khóa")
+            continue
+        if selected_only and op == "create":
+            reject("Chế độ dọn mục đã chọn không tạo mục mới")
             continue
         fresh = queued.get(key)
         actual = current.get(key)
         fresh_value = (fresh["target"], fresh.get("note", "")) if fresh else actual
         if fresh_value != (base["target"], base["note"]):
-            reject("Mục đã thay đổi sau khi gửi AI")
+            reject("Mục đã thay đổi sau khi gửi AI", "stale")
             continue
         if op == "delete":
             if not reason:
@@ -332,7 +339,10 @@ def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selec
                 else:
                     reject("Thiếu Hán/Việt hoặc source không chứa Hán")
                 continue
-            if glossary_review.entry_flags(source, target) & {"vi_han", "same", "han_latin"}:
+            # Latin trong khóa chỉ là lỗi khi chính AI đổi khóa: khóa cũ kiểu
+            # `圣洁战锤-ii` là tên hợp lệ, AI giữ nguyên thì vẫn sửa được cột Việt.
+            bad_flags = {"vi_han", "same"} | ({"han_latin"} if source != key else set())
+            if glossary_review.entry_flags(source, target) & bad_flags:
                 reject("Giá trị sau sửa còn lỗi Hán/Việt")
                 continue
             if source != key and (source in planned or source in queued):
@@ -366,6 +376,13 @@ def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selec
             planned[source] = (target, note)
         accepted.append({"op": op, "original_source": key, "source": source,
                          "target": target, "note": note, "reason": reason})
+
+    if selected_only:
+        answered = seen | {r["source"] for r in held}
+        for key in expected:
+            if key not in answered:
+                held.append({"source": key, "code": "no_decision",
+                             "reason": "AI không trả quyết định cho mục này"})
 
     if not propagate:
         old_targets_by_key.clear()
@@ -426,10 +443,9 @@ def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selec
         # A rejected owner can invalidate another proposal; recheck to a fixed
         # point before committing any glossary changes or replacement pairs.
 
-    if selected_only and defer_conflicts and held and all(
-        r["code"] in _DEFERRABLE for r in held
-    ):
-        # A semantic conflict is an expected review outcome, not a broken job.
+    if selected_only and defer_conflicts and held:
+        # A semantic conflict or an invalid/missing decision for one entry is an
+        # expected review outcome, not a broken job.
         # Keep its whole dependency group unchanged (even keep/delete decisions),
         # while independent entries can still commit. Include both old and
         # pending targets, plus renames, to cover transitive dependencies.
@@ -471,9 +487,8 @@ def apply_operations(storage, rows: list[dict], operations: list[dict], *, selec
     accepted, held, pairs = plan["operations"], plan["held"], plan["pairs"]
     expected = {r["source"] for r in rows}
     seen = {r["original_source"] for r in accepted if r["op"] != "create"}
-    if selected_only and held and not (defer_conflicts and all(
-        r["code"] in _DEFERRABLE for r in held
-    )):
+    # Dữ liệu bị sửa trong lúc chờ AI thì cả lô không còn đáng tin: bỏ lô.
+    if selected_only and held and (not defer_conflicts or any(r["code"] == "stale" for r in held)):
         details = "; ".join(f"{r['source']}: {r['reason']}" for r in held)
         raise ValueError(f"Lô chưa hoàn tất kiểm định ({len(held)} mục): " + details)
 
@@ -521,6 +536,10 @@ def apply_operations(storage, rows: list[dict], operations: list[dict], *, selec
 # một provider đang hỏng.
 AI_RETRY_ATTEMPTS = 2
 AI_RETRY_DELAY_SECONDS = 5.0
+
+
+class ProviderUnavailable(ValueError):
+    """Provider vẫn lỗi sau khi thử lại — hủy cả job, không chạy lô sau."""
 
 
 def _decide_batch(ai_cfg, rows, reference, story, context, *, selected_only, log) -> tuple[str, list[dict]]:
@@ -587,7 +606,7 @@ PROPOSED REPLACEMENTS:
                     selected_only=True, log=log,
                 )
             except openai_client.RetryableAIError as exc:
-                raise ValueError(
+                raise ProviderUnavailable(
                     f"Provider lỗi sau {AI_RETRY_ATTEMPTS} lần thử khi xét alias; hủy job, chưa ghi nhóm này: {exc}"
                 ) from exc
             except Exception as exc:
@@ -650,14 +669,16 @@ def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, b
             # Provider vẫn lỗi sau khi thử lại: các lô sau cũng sẽ lỗi, nên hủy
             # cả job thay vì chạy tiếp. Các lô trước đã ghi vẫn được giữ.
             log(f"[glossary-ai] Lô {batch}: provider lỗi sau {AI_RETRY_ATTEMPTS} lần thử — hủy job.")
-            raise ValueError(
+            raise ProviderUnavailable(
                 f"Lô {batch}: provider lỗi sau {AI_RETRY_ATTEMPTS} lần thử; hủy job, chưa ghi lô này: {exc}"
             ) from exc
         except Exception as exc:
             failed = exc
         if failed is not None:
             offset += consumed
-            if selected_only:
+            # Model trả JSON hỏng chỉ mất lô đó; lỗi gọi API khác (401, sai định
+            # dạng response) sẽ lặp lại ở mọi lô nên vẫn dừng job đã chọn.
+            if selected_only and not isinstance(failed, ValueError):
                 raise ValueError(f"Lô {batch} lỗi gọi/parse AI; chưa ghi lô này: {failed}") from failed
             result["failed_batches"] += 1
             log(f"[glossary-ai] Không ghi lô lỗi gọi/parse AI: {failed}")
@@ -674,7 +695,9 @@ def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, b
                 )
             applied = apply_operations(storage, rows, operations, selected_only=selected_only,
                                        defer_conflicts=selected_only, propagate=propagate)
-        except ValueError:
+        except ProviderUnavailable:
+            raise
+        except ValueError as exc:
             # Keep the model response available even when JSON parsed successfully
             # but domain validation rejected it. Mask an echoed configured key.
             response_log = "\n\n".join(responses)
@@ -683,7 +706,13 @@ def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, b
             if isinstance(api_key, str) and api_key:
                 response_log = response_log.replace(api_key, "[REDACTED]")
             log(f"[glossary-ai] Lô {batch} kiểm định thất bại; nội dung AI trả về ({response_length} ký tự):\n{response_log}")
-            raise
+            if not selected_only:
+                raise
+            # Lô đã chọn hỏng (dữ liệu đổi giữa chừng, alias không xét được):
+            # chưa ghi gì của lô này, các lô sau vẫn chạy.
+            result["failed_batches"] += 1
+            log(f"[glossary-ai] Bỏ qua lô {batch}, chưa ghi lô này: {exc}")
+            continue
         result["related_sources"].extend(
             r["source"] for r in rows if r["source"] not in requested and r["source"] not in reviewed
         )

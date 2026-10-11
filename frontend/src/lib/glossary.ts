@@ -11,6 +11,8 @@ export interface GlossaryEntry {
   version?: number;
   /** Epoch giây của lần đổi gần nhất; 0 = mục có từ trước khi theo dõi. */
   updated_at?: number;
+  /** Số thứ tự nhóm cụm từ liên quan khi `sort=related`; 0 = mục lẻ. */
+  group?: number;
 }
 
 export interface GlossaryPage {

@@ -96,6 +96,8 @@ def ebook_glossary_list(
     """Một trang glossary (server-side pagination + search + sort). Consolidate
     vietphrase legacy vào names.txt trước để chỉ cần quét 1 list.
 
+    `per_page=0` trả về tất cả mục khớp trên một trang.
+
     `filter` là danh sách cờ "giá trị đáng ngờ" ngăn cách bởi dấu phẩy (xem
     `glossary_review.GLOSSARY_FLAGS`). Cờ là vị từ chuỗi (có chữ Hán trong cột
     Việt, chữ Latin trong cột Hán...) nên SQLite không lọc được — nhánh này đọc
@@ -106,6 +108,7 @@ def ebook_glossary_list(
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     storage.consolidate_glossary()
 
+    show_all = per_page == 0
     per_page = max(1, min(int(per_page), 500))
     flags = glossary_review.parse_flags(filter)
 
@@ -116,12 +119,16 @@ def ebook_glossary_list(
             rows_all = [r for r in rows_all if needle in (r[0] + r[1] + r[2]).lower()]
         rows_all = glossary_review.filter_by_flags(rows_all, flags)
         total = len(rows_all)
+        if show_all:
+            per_page = max(1, total)
         pages = max(1, (total + per_page - 1) // per_page)
         page = max(1, min(int(page), pages))
         offset = (page - 1) * per_page
         rows = _sorted_entries(rows_all, sort, dir)[offset : offset + per_page]
     else:
         total = storage.count_glossary_entries("names.txt", q)
+        if show_all:
+            per_page = max(1, total)
         pages = max(1, (total + per_page - 1) // per_page)
         page = max(1, min(int(page), pages))
         offset = (page - 1) * per_page

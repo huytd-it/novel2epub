@@ -17,7 +17,6 @@ import {
   useGlossaryAiReprocessPending,
   useGlossaryFlags,
   useGlossaryJobRefresh,
-  useGlossarySuspects,
   useImportGlossary,
   usePendingGlossary,
   usePreviewGlossaryEdits,
@@ -772,90 +771,12 @@ function ExportImportModal({ open, onClose, slug }: { open: boolean; onClose: ()
   );
 }
 
-/* ── Tab Nghi vấn ────────────────────────────────────────────────────── */
-
-function SuspectsView({ slug }: { slug: string }) {
-  const { data, isPending } = useGlossarySuspects(slug, true);
-
-  if (isPending) {
-    return (
-      <Loading label="Đang quét" />
-    );
-  }
-  if (!data || data.count === 0) {
-    return <EmptyState title="Không có mục nào đáng ngờ" hint="Glossary hiện sạch — không trùng target, không lồng nhau." />;
-  }
-
-  return (
-    <div className="space-y-4 p-3">
-      {data.same_target.length > 0 ? (
-        <div>
-          <h3 className="mb-1.5 text-[13px] font-semibold">
-            Cùng bản dịch Việt ({data.same_target.length} nhóm)
-          </h3>
-          <div className="space-y-2">
-            {data.same_target.map((group) => (
-              <div key={group.target} className="rounded-box border border-base-300 p-2.5">
-                <p className="mb-1 text-[13px] font-medium">{group.target}</p>
-                <ul className="flex flex-wrap gap-1.5">
-                  {group.entries.map((e) => (
-                    <li key={e.source}>
-                      <Badge>{e.source}</Badge>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {data.nested_source.length > 0 ? (
-        <div>
-          <h3 className="mb-1.5 text-[13px] font-semibold">
-            Hán lồng nhau ({data.nested_source.length} cặp)
-          </h3>
-          <div className="space-y-1.5">
-            {data.nested_source.map((pair, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-box border border-base-300 px-2.5 py-1.5 text-[13px]">
-                <span className="font-medium">{pair.outer.source}</span>
-                <span className="opacity-50">→ {pair.outer.target}</span>
-                <span className="mx-1 opacity-30">⊃</span>
-                <span className="font-medium">{pair.inner.source}</span>
-                <span className="opacity-50">→ {pair.inner.target}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {data.conflicts.length > 0 ? (
-        <div>
-          <h3 className="mb-1.5 text-[13px] font-semibold">
-            Mâu thuẫn khi dịch ({data.conflicts.length})
-          </h3>
-          <div className="space-y-1.5">
-            {data.conflicts.map((c, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-box border border-base-300 px-2.5 py-1.5 text-[13px]">
-                <span className="font-medium">{c.source}</span>
-                <span className="opacity-50">giữ "{c.kept}"</span>
-                <span className="mx-1 opacity-30">vs</span>
-                <span className="opacity-50">AI đề xuất "{c.new}"</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 /* ── Trang ───────────────────────────────────────────────────────────── */
 
 export function GlossaryPage() {
   const { slug = "" } = useParams();
   useGlossaryJobRefresh(slug);
-  const [view, setView] = useState<"pending" | "all" | "suspects">("pending");
+  const [view, setView] = useState<"pending" | "approved">("pending");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(50);
@@ -876,11 +797,15 @@ export function GlossaryPage() {
 
   const filter = activeFlags.join(",");
 
-  useEffect(() => setPage(1), [search, filter]);
+  useEffect(() => setPage(1), [search, filter, perPage, view]);
   useEffect(() => {
     setSelected(new Set());
     anchorGlossary.current = null;
-  }, [page, perPage, search, filter]);
+  }, [page, perPage, search, filter, view]);
+  useEffect(() => {
+    setPendingSelected(new Set());
+    anchorPending.current = null;
+  }, [view]);
 
   const { data, isPending, isFetching } = useGlossary(slug, {
     page,
@@ -889,9 +814,9 @@ export function GlossaryPage() {
     sort,
     dir,
     filter,
-  }, view === "all");
+  }, view === "approved");
   const { data: flagData } = useGlossaryFlags(slug);
-  const { data: pending, isPending: pendingIsPending } = usePendingGlossary(slug, view === "pending" || view === "all");
+  const { data: pending, isPending: pendingIsPending } = usePendingGlossary(slug);
   const clean = useCleanGlossary(slug);
   const clearNotes = useClearGlossaryNotes(slug);
   const bulkDelete = useDeleteGlossaryEntries(slug);
@@ -980,17 +905,13 @@ export function GlossaryPage() {
       activeFlags.length > 0
         ? all.filter((p) => (p.flags ?? []).some((f) => activeFlags.includes(f)))
         : all;
-    if (view === "pending") {
-      const q = search.trim().toLowerCase();
-      if (!q) return flagged;
-      return flagged.filter((p) =>
-        `${p.source} ${p.target} ${p.note} ${p.existing_target}`.toLowerCase().includes(q),
-      );
-    }
-    // Chế độ thường: hàng chờ chỉ hiện ở trang 1 để khỏi lặp qua các trang.
-    if (page !== 1) return [];
-    return flagged;
-  }, [pending, view, search, page, activeFlags]);
+    if (view !== "pending") return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return flagged;
+    return flagged.filter((p) =>
+      `${p.source} ${p.target} ${p.note} ${p.existing_target}`.toLowerCase().includes(q),
+    );
+  }, [pending, view, search, activeFlags]);
   const pendingOnly = view === "pending";
   rowsRef.current = rows;
   pendingRowsRef.current = pendingRows;
@@ -1022,6 +943,7 @@ export function GlossaryPage() {
             <button
               role="tab"
               type="button"
+              aria-selected={view === "pending"}
               className={clsx("tab", view === "pending" && "tab-active")}
               onClick={() => {
                 setView("pending");
@@ -1034,24 +956,17 @@ export function GlossaryPage() {
             <button
               role="tab"
               type="button"
-              className={clsx("tab", view === "all" && "tab-active")}
-              onClick={() => setView("all")}
+              aria-selected={view === "approved"}
+              className={clsx("tab", view === "approved" && "tab-active")}
+              onClick={() => setView("approved")}
             >
-              Tất cả
-            </button>
-            <button
-              role="tab"
-              type="button"
-              className={clsx("tab", view === "suspects" && "tab-active")}
-              onClick={() => setView("suspects")}
-            >
-              Nghi vấn
+              Đã duyệt
             </button>
           </div>
         </>
       }
     >
-      {view !== "suspects" ? (
+      {
         <>
           {/* Dính theo màn hình: sửa ở cuối bảng dài vẫn thấy nút Áp dụng. */}
           <div className="sticky top-12 z-20 mb-3 flex flex-wrap items-center gap-2 bg-base-100/95 py-1 backdrop-blur md:top-0">
@@ -1116,7 +1031,7 @@ export function GlossaryPage() {
             </span>
             {(flagData?.flags ?? []).map((flag) => {
               const active = activeFlags.includes(flag.key);
-              const total = flag.count + (pendingFlagCounts[flag.key] ?? 0);
+              const total = pendingOnly ? (pendingFlagCounts[flag.key] ?? 0) : flag.count;
               return (
                 <Button
                   key={flag.key}
@@ -1148,10 +1063,10 @@ export function GlossaryPage() {
                   : data
                     ? `${num(data.total)} mục`
                     : "—"}
-                {!pendingOnly && pendingCount > 0 ? ` · ${num(pendingCount)} chờ duyệt` : ""}
               </span>
-              {!pendingOnly && data && data.pages > 1 ? (
+              {!pendingOnly ? (
                 <div className="flex items-center gap-2">
+                  {data && data.pages > 1 ? <>
                   <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                     ← Trước
                   </Button>
@@ -1161,12 +1076,14 @@ export function GlossaryPage() {
                   <Button size="sm" disabled={page >= data.pages} onClick={() => setPage((p) => p + 1)}>
                     Sau →
                   </Button>
-                  <Select value={String(perPage)} onChange={(e) => setPerPage(Number(e.target.value))} className="ml-1">
+                  </> : null}
+                  <Select aria-label="Show entries" value={String(perPage)} onChange={(e) => setPerPage(Number(e.target.value))} className="ml-1">
                     {[25, 50, 100, 200].map((n) => (
                       <option key={n} value={n}>
                         {n}/trang
                       </option>
                     ))}
+                    <option value={0}>Tất cả</option>
                   </Select>
                 </div>
               ) : null}
@@ -1359,11 +1276,7 @@ export function GlossaryPage() {
             </SelectionBar>
           ) : null}
         </>
-      ) : (
-        <Panel className="overflow-hidden">
-          <SuspectsView slug={slug} />
-        </Panel>
-      )}
+      }
 
       <AiAssistantModal
         open={aiOpen}

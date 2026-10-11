@@ -201,6 +201,29 @@ def test_list_paginates_and_reports_total(tmp_path, monkeypatch):
     assert data["entries"][0]["source"] == "S010"
 
 
+def test_list_all_entries_exceeds_page_limit(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_entries(
+        "names.txt", [(f"S{i:03d}", f"T{i}", "") for i in range(501)]
+    )
+    client = _client(cfg, monkeypatch)
+    for flags in ("", "han_latin"):
+        data = client.get(
+            "/api/ebooks/t/glossary/list",
+            params={"page": 2, "per_page": 0, "filter": flags},
+        ).json()
+        assert data["total"] == 501
+        assert len(data["entries"]) == 501
+        assert data["page"] == data["pages"] == 1
+    data = client.get(
+        "/api/ebooks/t/glossary/list", params={"per_page": 0, "q": "no-match"},
+    ).json()
+    assert data["entries"] == []
+    assert data["page"] == data["pages"] == 1
+
+
 def test_list_search_and_consolidates_legacy(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")

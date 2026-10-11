@@ -634,3 +634,5 @@ EPUB thiếu chương:
   "Build EPUB" kế tiếp nếu hàng đợi không còn job nào cho ebook đó. Cả hai
   đều ghi một dòng WARNING `[build] Giải phóng khoá build mồ côi` vào Nhật ký.
 - Build lại sau đó: khoá cũ có thể rơi giữa chừng nên EPUB có thể chưa xong.
+
+Trang Glossary có hai tab **Chờ duyệt** và **Đã duyệt**. Bộ chọn số mục mỗi trang ở tab Đã duyệt hỗ trợ **Tất cả**, giữ nguyên tìm kiếm và bộ lọc. API `GET /api/ebooks/{slug}/glossary/list` nhận `per_page=0` để trả về toàn bộ mục khớp trên một trang.

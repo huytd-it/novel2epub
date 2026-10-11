@@ -1017,6 +1017,7 @@ def ebook_chapters(
     filter_local_mt: str = "any",
     filter_ai: str = "any",
     filter_title_error: str = "any",
+    filter_raw_shorter: str = "any",
     proofreading_code: str = "",
     offset: int = 0,
     limit: int = 100,
@@ -1046,6 +1047,7 @@ def ebook_chapters(
         filter_local_mt=filter_local_mt,
         filter_ai=filter_ai,
         filter_title_error=filter_title_error,
+        filter_raw_shorter=filter_raw_shorter,
     )
 
     if proofreading_code:

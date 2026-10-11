@@ -152,3 +152,30 @@ def test_sort_by_content_length(tmp_path):
     assert _indexes(rows, sort="zh_chars", direction="asc") == [3, 1, 2]
     assert _indexes(rows, sort="words", direction="desc") == [2, 1, 3]
     assert _indexes(rows, sort="words", direction="asc") == [3, 1, 2]
+
+
+def test_raw_shorter_filter_and_sort_by_pages(tmp_path):
+    """`filter_raw_shorter` so số chữ gốc với số từ dịch; `pages` sắp theo số trang crawl."""
+    storage = Storage(tmp_path, "t")
+    chs = [
+        Chapter(index=1, url="http://x/1", title="Chương 1"),
+        Chapter(index=2, url="http://x/2", title="Chương 2"),
+        Chapter(index=3, url="http://x/3", title="Chương 3"),
+    ]
+    storage.save_manifest(Manifest(slug="t", chapters=chs))
+    # Chương 1: gốc ngắn, dịch dài. Chương 2: gốc dài, dịch ngắn. Chương 3: chỉ có gốc.
+    storage.write_raw(chs[0], "原文", crawl_pages=1)
+    storage.write_raw(chs[1], "原文内容很多很多很多很多很多很多", crawl_pages=3)
+    storage.write_raw(chs[2], "原文", crawl_pages=2)
+    storage.write_branch_text(chs[0], "ai", "một bản dịch dài hơn hẳn bản gốc " * 5)
+    storage.write_branch_text(chs[1], "ai", "ngắn")
+    for ch in chs[:2]:
+        storage.mark_branch_complete(ch, "ai")
+        storage.set_active_branch(ch, "ai")
+
+    manifest = storage.load_manifest()
+    rows = chapter_rows(manifest.chapters, storage, stats_map=storage.bulk_chapter_stats())
+    assert _indexes(rows, filter_raw_shorter="yes") == [1]
+    assert _indexes(rows, filter_raw_shorter="no") == [2, 3]
+    assert _indexes(rows, sort="pages", direction="desc") == [2, 3, 1]
+    assert _indexes(rows, sort="pages", direction="asc") == [1, 3, 2]

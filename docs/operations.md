@@ -396,6 +396,7 @@ từng truyện trong `localStorage`.
 | `filter_local_mt` | Nhánh `local_mt` có bản dịch, không phụ thuộc nhánh nào đang hoạt động. |
 | `filter_ai` | Nhánh `ai` có bản dịch, không phụ thuộc nhánh nào đang hoạt động. |
 | `filter_title_error` | `yes` = chỉ chương có tiêu đề sai mẫu. |
+| `filter_raw_shorter` | `yes` = chỉ chương có số chữ bản gốc ít hơn số từ bản dịch (cần có cả hai). |
 | `filter_missing` | Manifest thiếu trường (url/title/duplicate). |
 | `filter_skipped` | Chương bị đánh dấu bỏ qua. |
 

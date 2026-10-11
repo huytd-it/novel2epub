@@ -85,6 +85,8 @@ export interface ChapterFilters {
   filter_missing: string;
   /** "yes" = chỉ chương sai mẫu "Chương N[: tên]" hoặc còn chữ Hán. */
   filter_title_error: string;
+  /** "yes" = chỉ chương có số chữ bản gốc ít hơn số từ bản dịch. */
+  filter_raw_shorter: string;
   filter_skipped: string;
   /** Hiện tiêu đề tiếng Trung ngay dưới tiêu đề đã dịch trong bảng chương. */
   show_zh_title: boolean;
@@ -100,6 +102,7 @@ export const DEFAULT_FILTERS: ChapterFilters = {
   filter_ai: "any",
   filter_missing: "any",
   filter_title_error: "any",
+  filter_raw_shorter: "any",
   filter_skipped: "any",
   show_zh_title: false,
 };

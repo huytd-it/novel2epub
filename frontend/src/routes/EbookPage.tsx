@@ -469,6 +469,7 @@ const FILTER_SELECTS = [
   { key: "filter_local_mt", label: "Local MT", options: TRISTATE, width: "w-24" },
   { key: "filter_ai", label: "AI", options: TRISTATE, width: "w-24" },
   { key: "filter_title_error", label: "Tiêu đề", options: TITLE_ERROR_STATES, width: "w-28" },
+  { key: "filter_raw_shorter", label: "Gốc < dịch", options: TRISTATE, width: "w-24" },
   { key: "filter_skipped", label: "Bỏ qua", options: TRISTATE, width: "w-24" },
 ] as const satisfies readonly {
   key: keyof ChapterFilters;

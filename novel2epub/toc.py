@@ -182,6 +182,11 @@ class ChapterRow:
     def has_title_error(self) -> bool:
         return not self.title_format_ok
 
+    @property
+    def raw_shorter_than_translated(self) -> bool:
+        """Bản gốc ít chữ hơn số từ bản dịch — chỉ xét chương có đủ cả hai."""
+        return self.has_raw and self.has_translated and self.zh_char_count < self.word_count
+
 
 def missing_metadata(title: str = "", author: str = "", description: str = "") -> list[str]:
     missing = []
@@ -405,6 +410,7 @@ def apply_chapter_query(
     filter_local_mt: str = "any",
     filter_ai: str = "any",
     filter_title_error: str = "any",
+    filter_raw_shorter: str = "any",
 ) -> list[ChapterRow]:
     """Lọc + sắp xếp danh sách chương.
 
@@ -412,6 +418,8 @@ def apply_chapter_query(
     `filter_local_mt` / `filter_ai` xét từng nhánh riêng — ba bộ lọc này độc
     lập nên chọn "Bản dịch: có" cùng "AI: không" là hợp lệ và có nghĩa.
     `filter_title_error` = "yes" chỉ giữ chương có tiêu đề sai mẫu.
+    `filter_raw_shorter` = "yes" chỉ giữ chương có số chữ bản gốc ít hơn số từ
+    bản dịch (dấu hiệu raw crawl thiếu hoặc bản dịch phình bất thường).
     """
     q = (search or "").strip().lower()
     out = []
@@ -431,6 +439,8 @@ def apply_chapter_query(
         if not _matches_filter(row.has_title_error, filter_title_error):
             continue
         if not _matches_filter(row.skipped, filter_skipped):
+            continue
+        if not _matches_filter(row.raw_shorter_than_translated, filter_raw_shorter):
             continue
         out.append(row)
     key = (sort or "source").lower()

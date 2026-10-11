@@ -156,7 +156,7 @@ Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột
   vẫn cần quyết định AI, không tự coi là đồng thuận hay xóa để vượt kiểm định.
   Nếu AI bỏ khoảng trắng làm khóa trùng một mục đã có, hệ thống giữ nguyên
   khóa alias và kiểm định target/note riêng, không ghi đè mục đích hay mất ghi chú.
-  Các lượt xét thêm tuân thủ giới hạn mục/lô, ngân sách context và retry/chia lô;
+  Các lượt xét thêm tuân thủ giới hạn mục/lô, ngân sách context và retry;
   nếu phát hiện thêm chủ sở hữu qua đề xuất chờ, tiếp tục xét đến khi đủ nhóm.
   Chỉ ghi glossary, hàng chờ, audit và lan truyền **cả nhóm trong một transaction**
   sau khi tất cả lượt AI hoàn tất. Mục đã xử lý sớm cùng nhóm được bỏ qua ở lô sau.
@@ -175,9 +175,9 @@ Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột
   cả lô chưa ghi, job báo lỗi để chạy lại; các lô trước đã hoàn tất vẫn được giữ.
 - Provider có thể có giới hạn thời gian riêng (ví dụ `recipe_timeout` sau 120s).
   Lỗi tạm thời được nhận diện (timeout, rate limit, 5xx, lỗi kết nối khi gửi request)
-  được thử lại 1 lần sau 5 giây; nếu vẫn lỗi và lô còn hơn 1 mục thì hệ thống
-  **tự chia đôi lô**. Khi còn 1 mục mà vẫn lỗi, job báo lỗi. Lỗi cấu hình
-  (401, sai định dạng) không thử lại. `timeout_seconds` phía client không ảnh
+  được thử lại 1 lần sau 5 giây; nếu vẫn lỗi thì **hủy cả job** (không chia nhỏ
+  lô, không chạy tiếp lô sau) — các lô trước đã hoàn tất vẫn được giữ, chạy lại
+  khi provider ổn định. Lỗi cấu hình (401, sai định dạng) không thử lại. `timeout_seconds` phía client không ảnh
   hưởng giới hạn của proxy; muốn nới phải chỉnh ở chính provider.
 - Kết quả ghi trực tiếp và gỡ các mục đã xử lý khỏi hàng chờ trong cùng transaction,
   **không cần duyệt lại**. Bản dịch glossary hợp lệ sau sửa (trừ thay đổi chỉ hoa/thường) được lan truyền vào chương

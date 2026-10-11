@@ -443,35 +443,22 @@ def apply_operations(storage, rows: list[dict], operations: list[dict], *, selec
 
 
 # Provider thường có giới hạn thời gian riêng (vd proxy OmniRoute 120s):
-# lô lớn dễ hết hạn. Thử lại 1 lần, rồi tự chia nhỏ lô thay vì bỏ cả job.
+# lô lớn dễ hết hạn. Thử lại 1 lần; vẫn lỗi thì hủy cả job thay vì gọi tiếp
+# một provider đang hỏng.
 AI_RETRY_ATTEMPTS = 2
 AI_RETRY_DELAY_SECONDS = 5.0
-
-
-class _SplitBatch(Exception):
-    """Lô quá nặng cho provider — thử lại với nửa lô."""
-
-    def __init__(self, rows: list[dict]) -> None:
-        super().__init__("chia lô")
-        self.rows = rows
 
 
 def _decide_batch(ai_cfg, rows, reference, story, context, *, selected_only, log) -> tuple[str, list[dict]]:
     """Gọi AI cho một lô, trả `(raw, operations)`.
 
-    Raise `_SplitBatch` khi provider báo lỗi tạm thời cả 2 lần và lô còn
-    lớn hơn 1 mục, để caller thử lại với nửa lô nhẹ hơn.
+    `RetryableAIError` thoát ra ngoài khi provider báo lỗi tạm thời cả 2 lần.
     """
     prompt = build_prompt(rows, reference, story or {}, context, selected_only=selected_only)
-    try:
-        raw = openai_client.run_chat_with_retry(
-            ai_cfg, prompt, attempts=AI_RETRY_ATTEMPTS,
-            delay_seconds=AI_RETRY_DELAY_SECONDS, log=log,
-        )
-    except openai_client.RetryableAIError as exc:
-        if len(rows) > 1:
-            raise _SplitBatch(rows[:max(1, len(rows) // 2)]) from exc
-        raise
+    raw = openai_client.run_chat_with_retry(
+        ai_cfg, prompt, attempts=AI_RETRY_ATTEMPTS,
+        delay_seconds=AI_RETRY_DELAY_SECONDS, log=log,
+    )
     try:
         return raw, parse_operations(raw)
     except Exception as parse_exc:
@@ -525,10 +512,10 @@ PROPOSED REPLACEMENTS:
                     ai_cfg, aliases, reference, story, alias_context,
                     selected_only=True, log=log,
                 )
-            except _SplitBatch as split:
-                aliases = split.rows
-                log(f"[glossary-ai] Alias: provider quá tải/hết thời gian — thử lại với {len(aliases)} mục.")
-                continue
+            except openai_client.RetryableAIError as exc:
+                raise ValueError(
+                    f"Provider lỗi sau {AI_RETRY_ATTEMPTS} lần thử khi xét alias; hủy job, chưa ghi nhóm này: {exc}"
+                ) from exc
             except Exception as exc:
                 raise ValueError(f"Lỗi gọi/parse AI khi xét alias; chưa ghi nhóm này: {exc}") from exc
             responses.append(raw)
@@ -578,26 +565,22 @@ def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, b
         reference = list(fresh.values())
         if selected_only:
             reference = [r for r in reference if not glossary_review.entry_flags(r["source"], r["target"])]
-        # Provider hết thời gian thì thử lại rồi tự chia nhỏ, không bỏ cả job.
         failed = None
-        while True:
-            log(f"[glossary-ai] Lô {batch}: {len(rows)} mục")
-            try:
-                raw, operations = _decide_batch(
-                    ai_cfg, rows, reference, story, context,
-                    selected_only=selected_only, log=log,
-                )
-            except _SplitBatch as split:
-                rows = split.rows
-                # `consumed` phải theo lô mới, nếu không sẽ bỏ sót phần
-                # chưa xử lý của lô cũ khi tiêu lô.
-                consumed = keys[offset:].index(rows[-1]["source"]) + 1
-                log(f"[glossary-ai] Lô {batch}: provider quá tải/hết thời gian — thử lại với {len(rows)} mục.")
-                continue
-            except Exception as exc:
-                failed = exc
-                break
-            break
+        log(f"[glossary-ai] Lô {batch}: {len(rows)} mục")
+        try:
+            raw, operations = _decide_batch(
+                ai_cfg, rows, reference, story, context,
+                selected_only=selected_only, log=log,
+            )
+        except openai_client.RetryableAIError as exc:
+            # Provider vẫn lỗi sau khi thử lại: các lô sau cũng sẽ lỗi, nên hủy
+            # cả job thay vì chạy tiếp. Các lô trước đã ghi vẫn được giữ.
+            log(f"[glossary-ai] Lô {batch}: provider lỗi sau {AI_RETRY_ATTEMPTS} lần thử — hủy job.")
+            raise ValueError(
+                f"Lô {batch}: provider lỗi sau {AI_RETRY_ATTEMPTS} lần thử; hủy job, chưa ghi lô này: {exc}"
+            ) from exc
+        except Exception as exc:
+            failed = exc
         if failed is not None:
             offset += consumed
             if selected_only:

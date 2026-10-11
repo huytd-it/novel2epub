@@ -367,7 +367,7 @@ def test_curate_reviews_shared_aliases_before_propagating(tmp_path, monkeypatch,
     assert {row["source"] for audit in audits for row in audit["before"]} == set(seen)
 
 
-@pytest.mark.parametrize("limit", ["batch", "timeout", "context"])
+@pytest.mark.parametrize("limit", ["batch", "context"])
 def test_related_review_follows_transitive_pending_owners_atomically(tmp_path, monkeypatch, limit):
     storage = Storage(tmp_path, "t")
     # 李四 bridges two old targets, so 王五 only becomes necessary after its review.
@@ -397,8 +397,6 @@ def test_related_review_follows_transitive_pending_owners_atomically(tmp_path, m
         assert curator.token_upper_bound(prompt) <= curator.CONTEXT_TOKENS - curator.OUTPUT_RESERVE
         batch = json.loads(prompt.split("\nBATCH:\n")[1].split("\nREFERENCE:\n")[0])
         sizes.append(len(batch))
-        if limit == "timeout" and len(batch) == 2:
-            raise openai_client.RetryableAIError("timeout")
         seen.extend(row["source"] for row in batch)
         return json.dumps([
             {"op": "update", "original_source": row["source"], "source": row["source"], "target": "Tên mới"}
@@ -876,37 +874,36 @@ def test_selected_invalid_response_fails_without_writes(tmp_path, operations, de
     assert storage.read_extra_json("glossary_curator_audit") is None
 
 
-def test_repeated_provider_timeout_splits_batch_and_finishes(tmp_path, monkeypatch):
-    """Provider hết thời gian 2 lần -> tự chia nhỏ lô, không bỏ cả job."""
+@pytest.mark.parametrize("selected", [True, False])
+def test_repeated_provider_timeout_cancels_job(tmp_path, monkeypatch, selected):
+    """Provider lỗi tạm thời cả 2 lần -> hủy job, không chia lô hay chạy lô sau."""
     storage = Storage(tmp_path, "t")
     pending = [{"source": f"张{i}", "target": f"Trương {i}", "note": ""} for i in range(8)]
     storage.write_extra_json("glossary_pending", pending)
-    sources = [p["source"] for p in pending]
+    monkeypatch.setattr(curator, "AI_RETRY_DELAY_SECONDS", 0)
     sizes = []
-    calls = {"n": 0}
 
     def chat(cfg, prompt):
         batch = json.loads(prompt.split("\nBATCH:\n")[1].split("\nREFERENCE:\n")[0])
         sizes.append(len(batch))
-        # Hai lần gọi đầu với lô 4 mục đều hết thời gian từ provider; lô nhỏ hơn thì ok.
-        if len(batch) == 4 and calls["n"] < 2:
-            calls["n"] += 1
+        # Lô đầu ok, lô thứ hai hết thời gian từ provider ở mọi lần gọi.
+        if len(sizes) > 1:
             raise openai_client.RetryableAIError("Không nhận được reply trong thời hạn (120000ms)")
         return json.dumps([{"op": "keep", "original_source": row["source"]} for row in batch])
 
     monkeypatch.setattr(curator.openai_client, "run_chat", chat)
     logs = []
-    result = curator.curate(storage, OpenAIConfig(), sources=sources, batch_size=4, log=logs.append)
-    assert calls["n"] == curator.AI_RETRY_ATTEMPTS
-    assert result["failed_batches"] == 0
-    assert len(result["operations"]) == 8
-    assert storage.read_extra_json("glossary_pending") == []
-    assert sizes == [4, 4, 2, 4, 2]
-    assert any("provider quá tải/hết thời gian" in line for line in logs)
+    sources = [p["source"] for p in pending] if selected else None
+    with pytest.raises(ValueError, match="hủy job.*120000ms"):
+        curator.curate(storage, OpenAIConfig(), sources=sources, batch_size=3, log=logs.append)
+    assert sizes == [3] + [3] * curator.AI_RETRY_ATTEMPTS
+    # Lô đầu đã ghi vẫn được giữ; phần còn lại chưa bị đụng tới.
+    assert len(storage.read_extra_json("glossary_pending")) == 5
+    assert any("hủy job" in line for line in logs)
 
 
-def test_single_entry_timeout_is_not_split(tmp_path, monkeypatch):
-    """Lô 1 mục hết thời gian thì báo lỗi, không chia tiếp mãi."""
+def test_single_entry_timeout_cancels_job(tmp_path, monkeypatch):
+    """Lô 1 mục hết thời gian thì báo lỗi sau đúng số lần thử."""
     storage = Storage(tmp_path, "t")
     storage.write_extra_json("glossary_pending", [{"source": "张一", "target": "Trương 1", "note": ""}])
     calls = {"n": 0}

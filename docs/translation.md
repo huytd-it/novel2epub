@@ -167,6 +167,10 @@ Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột
   cả các bản dịch cũ/đề xuất chờ nối tiếp và khóa đích của thao tác đổi khóa.
   Xem các mục giữ lại trong log để điều chỉnh bản dịch; hệ thống không ép các
   thuật ngữ khác nghĩa dùng chung bản dịch.
+  Mục cũ có **khóa không chứa chữ Hán** (ví dụ `Patty`, `Ropeny Grilan`) mà AI
+  giữ nguyên cũng chỉ được giữ lại như vậy: AI không thể tự đặt khóa Hán, nên
+  mục đó không đổi, ghi vào `held` và phần còn lại của lô vẫn được ghi. Sửa khóa
+  hoặc xóa mục đó bằng tay; AI vẫn có thể `delete` nếu xác định là rác.
   Thiếu/trùng quyết định, đầu ra không hợp lệ hoặc dữ liệu đã đổi sau khi gửi AI:
   cả lô chưa ghi, job báo lỗi để chạy lại; các lô trước đã hoàn tất vẫn được giữ.
 - Provider có thể có giới hạn thời gian riêng (ví dụ `recipe_timeout` sau 120s).

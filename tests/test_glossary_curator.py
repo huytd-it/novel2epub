@@ -522,6 +522,28 @@ def test_real_key_collision_defers_destination_but_not_independent_changes(tmp_p
     assert storage.read_extra_json("glossary_curator_audit")[0]["replacement_pairs"] == [["Vương Sai", "Vương Ngũ"]]
 
 
+def test_kept_no_han_key_is_held_without_failing_selected_batch(tmp_path):
+    storage = Storage(tmp_path, "t")
+    originals = [("Patty", "Patty", "Hầu gái"), ("王五", "Vương Sai", "")]
+    storage.write_glossary_entries("names.txt", originals)
+    operations = [
+        {"op": "keep", "original_source": "Patty", "reason": "Tên Latin gốc"},
+        {"op": "update", "original_source": "王五", "source": "王五", "target": "Vương Ngũ", "reason": "Sửa"},
+    ]
+    result = curator.apply_operations(storage, rows(storage), operations,
+                                      selected_only=True, defer_conflicts=True)
+    assert [(r["source"], r["code"]) for r in result["held"]] == [("Patty", "no_han_key")]
+    assert storage.read_glossary_entries_merged() == [("Patty", "Patty", "Hầu gái"), ("王五", "Vương Ngũ", "")]
+    # Đổi sang một khóa không có chữ Hán vẫn là đầu ra hỏng: không ghi cả lô.
+    operations[0] = {"op": "update", "original_source": "王五", "source": "Wang", "target": "Vương Ngũ"}
+    operations[1] = {"op": "keep", "original_source": "Patty", "reason": "Tên Latin gốc"}
+    storage.write_glossary_entries("names.txt", originals)
+    with pytest.raises(ValueError, match="chưa hoàn tất kiểm định"):
+        curator.apply_operations(storage, rows(storage), operations,
+                                 selected_only=True, defer_conflicts=True)
+    assert storage.read_glossary_entries_merged() == originals
+
+
 def test_deferred_conflict_preserves_transitive_pending_owners(tmp_path, monkeypatch):
     storage = Storage(tmp_path, "t")
     originals = [("张三", "Tên A", ""), ("李四", "Tên A", ""), ("王五", "Tên B", "")]

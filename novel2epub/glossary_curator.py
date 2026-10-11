@@ -15,6 +15,8 @@ REFERENCE_MAX_ENTRIES = 5
 REFERENCE_MAX_CHARS = 2_000
 # Cụm 2 chữ Hán xuất hiện ở quá nhiều mục (的人, 之剑…) không nói lên quan hệ.
 GROUP_MAX_SHARED = 20
+# Held outcomes that leave entries unchanged without failing a selected batch.
+_DEFERRABLE = {"key_collision", "shared_target", "related_conflict", "no_han_key"}
 _HAN_RUN = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+")
 
 # Quy tắc ngôn ngữ dựa trên DEFAULT_PROMPT (config.py), với hợp đồng JSON riêng
@@ -248,7 +250,13 @@ def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selec
             target = base["target"] if op == "keep" else str(raw.get("target", "")).strip()
             note = base["note"] if op == "keep" or "note" not in raw else str(raw["note"]).strip()
             if not source or not target or count_han(source) == 0:
-                reject("Thiếu Hán/Việt hoặc source không chứa Hán")
+                if source == key and target and op != "create":
+                    # Legacy Latin/Vietnamese key the AI left as is: it cannot
+                    # invent the Chinese source, so this is not a broken reply.
+                    # Leave the entry untouched instead of failing the batch.
+                    reject("Khóa không có chữ Hán, AI không sửa được; giữ nguyên để xử lý thủ công", "no_han_key")
+                else:
+                    reject("Thiếu Hán/Việt hoặc source không chứa Hán")
                 continue
             if glossary_review.entry_flags(source, target) & {"vi_han", "same", "han_latin"}:
                 reject("Giá trị sau sửa còn lỗi Hán/Việt")
@@ -345,13 +353,13 @@ def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selec
         # point before committing any glossary changes or replacement pairs.
 
     if selected_only and defer_conflicts and held and all(
-        r["code"] in {"key_collision", "shared_target"} for r in held
+        r["code"] in _DEFERRABLE for r in held
     ):
         # A semantic conflict is an expected review outcome, not a broken job.
         # Keep its whole dependency group unchanged (even keep/delete decisions),
         # while independent entries can still commit. Include both old and
         # pending targets, plus renames, to cover transitive dependencies.
-        blocked = {r["source"] for r in held}
+        blocked = {r["source"] for r in held if r["code"] != "no_han_key"}
         groups = list(owners.values()) + [
             {r["original_source"].strip(), r["source"].strip()} for r in operations
             if r.get("op") == "update" and isinstance(r.get("source"), str)
@@ -390,7 +398,7 @@ def apply_operations(storage, rows: list[dict], operations: list[dict], *, selec
     expected = {r["source"] for r in rows}
     seen = {r["original_source"] for r in accepted if r["op"] != "create"}
     if selected_only and held and not (defer_conflicts and all(
-        r["code"] in {"key_collision", "shared_target", "related_conflict"} for r in held
+        r["code"] in _DEFERRABLE for r in held
     )):
         details = "; ".join(f"{r['source']}: {r['reason']}" for r in held)
         raise ValueError(f"Lô chưa hoàn tất kiểm định ({len(held)} mục): " + details)

@@ -1,18 +1,26 @@
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 
-import { firstReadingIndex } from "@/lib/chapter";
+import { firstReadingIndex, readReadingPosition } from "@/lib/chapter";
 import { Loading } from "@/components/ui/Loading";
 
 const bookmarkKey = (slug: string) => `n2e-bookmark-${slug}`;
 
-/** `/ebooks/:slug/read` — nhảy tới bookmark đã lưu, hoặc chương đầu có bản dịch. */
+/** `/ebooks/:slug/read` — nhảy tới vị trí đọc gần nhất, bookmark hoặc chương đầu. */
 export function ChapterEntryPage() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
+    const position = readReadingPosition(slug);
+    if (position) {
+      navigate(`/ebooks/${slug}/chapters/${position.chapterIndex}`, {
+        replace: true,
+        state: { restoreReadingPosition: true },
+      });
+      return;
+    }
     const bookmarked = Number(localStorage.getItem(bookmarkKey(slug)));
     if (Number.isFinite(bookmarked) && bookmarked > 0) {
       navigate(`/ebooks/${slug}/chapters/${bookmarked}`, { replace: true });

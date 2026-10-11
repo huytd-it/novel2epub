@@ -1040,11 +1040,13 @@ def ebook_glossary_import(slug: str, text: str = Form(...)):
     return JSONResponse({"added": added, "updated": updated, "total": added + updated})
 
 
-def _compile_find(find: str, regex: bool):
+def _compile_find(find: str, regex: bool, whole_phrase: bool = False):
     """Biên dịch chuỗi tìm kiếm thành pattern. `regex=False` coi `find` là chuỗi
-    literal (escape). Ném HTTPException(400) khi regex không hợp lệ."""
+    literal (escape); `whole_phrase=True` yêu cầu ranh giới từ ở hai đầu cụm.
+    Ném HTTPException(400) khi regex không hợp lệ."""
     try:
-        return re.compile(find if regex else re.escape(find), re.IGNORECASE)
+        literal = rf"(?<!\w){re.escape(find)}(?!\w)" if whole_phrase else re.escape(find)
+        return re.compile(find if regex else literal, re.IGNORECASE)
     except re.error as e:
         raise HTTPException(status_code=400, detail=f"Regex không hợp lệ: {e}")
 
@@ -1164,6 +1166,7 @@ def ebook_glossary_find_preview(
     scope: str = "chapter",
     chapter_index: int = 0,
     source: str = "translated",
+    whole_phrase: bool = False,
 ):
     """Xem trước các ĐOẠN (không phải từng chỗ khớp) chứa `find`, phục vụ
     modal thay thế cho phép chọn áp dụng theo từng đoạn tìm thấy hoặc tất cả.
@@ -1182,7 +1185,9 @@ def ebook_glossary_find_preview(
         raise HTTPException(status_code=400, detail="scope phải là 'chapter' hoặc 'all'.")
     if source not in ("translated", "raw"):
         raise HTTPException(status_code=400, detail="source phải là 'translated' hoặc 'raw'.")
-    pattern = _compile_find(find, regex)
+    if regex and whole_phrase:
+        raise HTTPException(status_code=400, detail="Không thể bật đồng thời Regex và khớp nguyên cụm.")
+    pattern = _compile_find(find, regex, whole_phrase)
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()
@@ -1267,6 +1272,7 @@ def ebook_glossary_apply_selected(
     selections: str = Form("[]"),
     source: str = Form("translated"),
     all_matches: bool = Form(False),
+    whole_phrase: bool = Form(False),
 ):
     """Áp dụng thay thế CHỈ cho các đoạn client đã chọn (từ `/find-preview`).
 
@@ -1286,7 +1292,9 @@ def ebook_glossary_apply_selected(
         raise HTTPException(status_code=400, detail="Cần chuỗi cần tìm.")
     if source not in ("translated", "raw"):
         raise HTTPException(status_code=400, detail="source phải là 'translated' hoặc 'raw'.")
-    pattern = _compile_find(find, regex)
+    if regex and whole_phrase:
+        raise HTTPException(status_code=400, detail="Không thể bật đồng thời Regex và khớp nguyên cụm.")
+    pattern = _compile_find(find, regex, whole_phrase)
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     manifest = storage.load_manifest()

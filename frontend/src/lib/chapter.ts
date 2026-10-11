@@ -277,11 +277,13 @@ export async function previewBookReplace(
   scope: "chapter" | "all" = "all",
   chapterIndex?: number,
   source: FindSource = "translated",
+  wholePhrase = false,
 ) {
   const params = new URLSearchParams({
     find,
     replace,
     regex: String(regex),
+    whole_phrase: String(wholePhrase),
     scope,
     source,
   });
@@ -301,6 +303,7 @@ export async function applyBookReplace(
   items: FindReplacePreviewItem[],
   source: FindSource = "translated",
   allMatches = false,
+  wholePhrase = false,
 ) {
   return api.post<{ replaced: number; chapters: number; stale: number }>(
     `/api/ebooks/${slug}/glossary/apply-selected`,
@@ -309,6 +312,7 @@ export async function applyBookReplace(
         find,
         replace,
         regex,
+        whole_phrase: wholePhrase,
         source,
         all_matches: allMatches,
         selections: JSON.stringify(items.map((item) => ({
@@ -321,13 +325,13 @@ export async function applyBookReplace(
   );
 }
 
-export function useBookSearch(slug: string, query: string, regex: boolean, source: FindSource) {
+export function useBookSearch(slug: string, query: string, regex: boolean, wholePhrase: boolean, source: FindSource) {
   const q = query.trim();
   return useQuery({
-    queryKey: ["book-search", slug, q, regex, source],
+    queryKey: ["book-search", slug, q, regex, wholePhrase, source],
     queryFn: () =>
       api.get<SearchHit[]>(
-        `/api/ebooks/${slug}/search?q=${encodeURIComponent(q)}&regex=${regex}&case=false&source=${source}`,
+        `/api/ebooks/${slug}/search?q=${encodeURIComponent(q)}&regex=${regex}&whole_phrase=${wholePhrase}&case=false&source=${source}`,
       ),
     enabled: Boolean(slug) && q.length > 0,
   });
@@ -348,6 +352,7 @@ export interface ChapterFindState {
   query: string;
   replacement: string;
   regex: boolean;
+  wholePhrase: boolean;
   source: FindSource;
 }
 
@@ -356,16 +361,17 @@ const FIND_KEY_PREFIX = "n2e-find-v1";
 export function loadFindState(slug: string): ChapterFindState {
   try {
     const raw = localStorage.getItem(`${FIND_KEY_PREFIX}:${slug}`);
-    if (!raw) return { query: "", replacement: "", regex: false, source: "translated" };
+    if (!raw) return { query: "", replacement: "", regex: false, wholePhrase: false, source: "translated" };
     const parsed = JSON.parse(raw) as Partial<ChapterFindState>;
     return {
       query: typeof parsed.query === "string" ? parsed.query : "",
       replacement: typeof parsed.replacement === "string" ? parsed.replacement : "",
       regex: Boolean(parsed.regex),
+      wholePhrase: Boolean(parsed.wholePhrase) && !Boolean(parsed.regex),
       source: parsed.source === "raw" ? "raw" : "translated",
     };
   } catch {
-    return { query: "", replacement: "", regex: false, source: "translated" };
+    return { query: "", replacement: "", regex: false, wholePhrase: false, source: "translated" };
   }
 }
 
@@ -411,6 +417,39 @@ export function useBookmark(slug: string): [number | null, (index: number | null
     [slug],
   );
   return [value, set];
+}
+
+/* ── Vị trí đọc gần nhất theo từng truyện ───────────────────────────── */
+
+export interface ReadingPosition {
+  chapterIndex: number;
+  paraIndex: number;
+}
+
+const readingPositionKey = (slug: string) => `n2e-reading-position-${slug}`;
+
+export function readReadingPosition(slug: string): ReadingPosition | null {
+  try {
+    const raw = localStorage.getItem(readingPositionKey(slug));
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<ReadingPosition>;
+    if (
+      !Number.isInteger(value.chapterIndex) || value.chapterIndex! < 0 ||
+      !Number.isInteger(value.paraIndex) || value.paraIndex! < 0
+    ) return null;
+    return { chapterIndex: value.chapterIndex!, paraIndex: value.paraIndex! };
+  } catch {
+    return null;
+  }
+}
+
+export function saveReadingPosition(slug: string, chapterIndex: number, paraIndex: number): void {
+  if (!slug || !Number.isInteger(chapterIndex) || chapterIndex < 0 || !Number.isInteger(paraIndex) || paraIndex < 0) return;
+  try {
+    localStorage.setItem(readingPositionKey(slug), JSON.stringify({ chapterIndex, paraIndex }));
+  } catch {
+    /* bỏ qua khi localStorage không khả dụng */
+  }
 }
 
 /* ── Tuỳ chọn đọc: cỡ chữ, giữ nguyên qua các truyện ─────────────────── */

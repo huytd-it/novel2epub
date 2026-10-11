@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 
@@ -23,6 +23,8 @@ import {
   useDiscardDraft,
   useReaderPreferences,
   useRevertEdits,
+  readReadingPosition,
+  saveReadingPosition,
   useSaveChapterText,
   useSaveRawText,
   useSetActiveBranch,
@@ -632,6 +634,7 @@ function RawMetaHeader({ title, url }: { title: string; url: string }) {
 export function ChapterPage() {
   const { slug = "", index = "0" } = useParams();
   const chapterIndex = Number(index);
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
@@ -822,6 +825,11 @@ export function ChapterPage() {
   };
   const openProofreading = (indexes: number[]) => { setProofreadingIndexes(indexes); setProofreadingOpen(true); };
   const contentRef = useRef<HTMLDivElement>(null);
+  const restoreReadingPosition = Boolean(
+    (location.state as { restoreReadingPosition?: boolean } | null)?.restoreReadingPosition,
+  );
+  const restoredPositionKey = useRef("");
+  const initializedPositionKey = useRef("");
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const [loadedKey, setLoadedKey] = useState("");
   // Raw edit state — chỉ dùng khi view === "raw"
@@ -851,6 +859,47 @@ export function ChapterPage() {
       setProofreadingDraftPublicationTitle(undefined);
     }
   }, [slug, chapterIndex, data, loadedKey, editMode, dirty, documentExpected, documentRevision, documentTitleExpected]);
+
+  useLayoutEffect(() => {
+    if (!data || !restoreReadingPosition || restoredPositionKey.current === location.key) return;
+    const position = readReadingPosition(slug);
+    if (!position || position.chapterIndex !== chapterIndex) return;
+    const target = contentRef.current?.querySelector<HTMLElement>(`[data-para-index="${position.paraIndex}"]`);
+    if (!target) return;
+    restoredPositionKey.current = location.key;
+    const toolbarBottom = document.querySelector<HTMLElement>("[data-reader-toolbar]")?.getBoundingClientRect().bottom ?? 88;
+    const top = target.getBoundingClientRect().top + window.scrollY - toolbarBottom - 12;
+    window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+  }, [data, slug, chapterIndex, restoreReadingPosition, location.key]);
+
+  useEffect(() => {
+    if (!data || initializedPositionKey.current === location.key) return;
+    initializedPositionKey.current = location.key;
+    if (!restoreReadingPosition) saveReadingPosition(slug, chapterIndex, 0);
+  }, [data, slug, chapterIndex, restoreReadingPosition, location.key]);
+
+  useEffect(() => {
+    let frame = 0;
+    const saveVisibleParagraph = () => {
+      frame = 0;
+      if (view !== "read" || !data) return;
+      const paragraphs = contentRef.current?.querySelectorAll<HTMLElement>("[data-para-index]");
+      if (!paragraphs?.length) return;
+      const toolbarBottom = document.querySelector<HTMLElement>("[data-reader-toolbar]")?.getBoundingClientRect().bottom ?? 88;
+      const current = [...paragraphs].find((paragraph) => paragraph.getBoundingClientRect().bottom > toolbarBottom + 12);
+      if (!current) return;
+      const paraIndex = Number(current.dataset.paraIndex);
+      if (Number.isInteger(paraIndex)) saveReadingPosition(slug, chapterIndex, paraIndex);
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(saveVisibleParagraph);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [data, slug, chapterIndex, view]);
 
   // Đồng bộ raw draft khi đổi chương hoặc fetch lại raw — không đè khi đang sửa.
   useEffect(() => {
@@ -1007,6 +1056,7 @@ export function ChapterPage() {
     slug,
     findQuery,
     findState.regex,
+    findState.wholePhrase,
     findState.source,
   );
 
@@ -1084,6 +1134,7 @@ export function ChapterPage() {
         "chapter",
         chapterIndex,
         findState.source,
+        findState.wholePhrase,
       );
       if (requestId !== previewRequestRef.current) return;
       setPreviewItems(result.items);
@@ -1111,6 +1162,8 @@ export function ChapterPage() {
         findState.regex,
         selectedItems,
         findState.source,
+        false,
+        findState.wholePhrase,
       );
       toast(
         `Đã thay ${result.replaced} chỗ trong ${result.chapters} chương${
@@ -1150,6 +1203,7 @@ export function ChapterPage() {
         [],
         findState.source,
         true,
+        findState.wholePhrase,
       );
       toast(`Đã thay ${result.replaced} chỗ trong ${result.chapters} chương.`);
       setPreviewChapter(null);
@@ -1264,6 +1318,8 @@ export function ChapterPage() {
   const go = (target: number | null) => {
     if (target === null) return;
     if ((dirty || rawDirty) && !window.confirm("Chương có thay đổi chưa lưu. Rời chương và bỏ thay đổi?")) return;
+    saveReadingPosition(slug, target, 0);
+    window.scrollTo({ top: 0, behavior: "auto" });
     navigate(`/ebooks/${slug}/chapters/${target}`);
   };
 
@@ -1320,7 +1376,7 @@ export function ChapterPage() {
       style={outerPadRight !== undefined ? { paddingRight: outerPadRight } : undefined}
     >
       {/* ── Thanh công cụ ─────────────────────────────────────────── */}
-      <div className="sticky top-0 z-30 border-b border-base-300 bg-base-100/95 backdrop-blur">
+      <div data-reader-toolbar className="sticky top-0 z-30 border-b border-base-300 bg-base-100/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1100px] flex-wrap items-center gap-2 px-3 py-2 sm:justify-between">
           <div className="flex items-center gap-1">
             <Button

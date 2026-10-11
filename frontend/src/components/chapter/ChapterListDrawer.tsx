@@ -25,7 +25,7 @@ import {
       before/after kiểu VS Code. Checkbox chọn từng đoạn rồi "Áp dụng đã chọn".
 
    Cả `/search` lẫn `/find-preview` đều không phân biệt hoa/thường — UI không
-   cung cấp nút đó. Regex hoạt động xuyên suốt. Có selector đúng MỘT nguồn
+   cung cấp nút đó. Regex và khớp nguyên cụm hoạt động xuyên suốt. Có selector MỘT nguồn
    (Bản dịch / Gốc) — search, preview, apply đều theo nguồn đang chọn; state
    được persist theo slug qua `lib/chapter.loadFindState/saveFindState`.
 
@@ -40,6 +40,7 @@ export interface ChapterFindState {
   query: string;
   replacement: string;
   regex: boolean;
+  wholePhrase: boolean;
   source: FindSource;
 }
 
@@ -607,7 +608,7 @@ const FindReplacePanel = memo(function FindReplacePanel({
             className="select select-sm w-full font-mono text-xs"
             value=""
             onChange={(event) => {
-              if (event.target.value) onFindChange({ query: event.target.value, regex: true });
+              if (event.target.value) onFindChange({ query: event.target.value, regex: true, wholePhrase: false });
             }}
             aria-label="Gợi ý regex loại bỏ nội dung thừa"
           >
@@ -629,10 +630,19 @@ const FindReplacePanel = memo(function FindReplacePanel({
             type="checkbox"
             className="checkbox checkbox-xs"
             checked={find.regex}
-            onChange={(e) => onFindChange({ regex: e.target.checked })}
+            onChange={(e) => onFindChange({ regex: e.target.checked, ...(e.target.checked ? { wholePhrase: false } : {}) })}
           />
           Regex
           <span className="opacity-60">(phân biệt hoa thường chưa hỗ trợ)</span>
+        </label>
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs opacity-70" title="Chỉ khớp nguyên cụm đã nhập, không khớp khi cụm nằm giữa một từ dài hơn.">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-xs"
+            checked={find.wholePhrase}
+            onChange={(e) => onFindChange({ wholePhrase: e.target.checked, ...(e.target.checked ? { regex: false } : {}) })}
+          />
+          Khớp nguyên cụm
         </label>
         <div className="flex gap-1.5">
           <Button size="sm" variant="primary" loading={searchState.loading} onClick={onFind}>
@@ -684,6 +694,7 @@ const FindReplacePanel = memo(function FindReplacePanel({
             onOpenChapter={onOpenChapter}
             matchQuery={activeFindQuery}
             matchRegex={find.regex}
+            matchWholePhrase={find.wholePhrase}
           />
         )}
       </div>
@@ -718,6 +729,7 @@ const ChapterHitList = memo(function ChapterHitList({
   onOpenChapter,
   matchQuery,
   matchRegex,
+  matchWholePhrase,
 }: {
   hits: SearchHit[];
   previewState: ChapterPreviewState;
@@ -729,6 +741,7 @@ const ChapterHitList = memo(function ChapterHitList({
   onOpenChapter: (index: number) => void;
   matchQuery: string;
   matchRegex: boolean;
+  matchWholePhrase: boolean;
 }) {
   return (
     <ul className="space-y-1.5">
@@ -793,6 +806,7 @@ const ChapterHitList = memo(function ChapterHitList({
                   onOpenChapter={onOpenChapter}
                   matchQuery={matchQuery}
                   matchRegex={matchRegex}
+                  matchWholePhrase={matchWholePhrase}
                 />
               )
             ) : null}
@@ -812,6 +826,7 @@ function PreviewRow({
   onToggle,
   matchQuery,
   matchRegex,
+  matchWholePhrase,
 }: {
   item: FindReplacePreviewItem;
   checked: boolean;
@@ -819,6 +834,7 @@ function PreviewRow({
   onToggle: (checked: boolean) => void;
   matchQuery: string;
   matchRegex: boolean;
+  matchWholePhrase: boolean;
 }) {
   const isRegexMatch = item.para_index < 0;
   return (
@@ -846,7 +862,7 @@ function PreviewRow({
       </label>
       <div className="space-y-px px-2 py-1.5 font-mono text-[11px] leading-5">
         <div className="whitespace-pre-wrap break-words">
-          <MatchText text={item.before} query={matchQuery} regex={matchRegex} />
+          <MatchText text={item.before} query={matchQuery} regex={matchRegex} wholePhrase={matchWholePhrase} />
         </div>
         {item.after !== item.before && (
           <div className="whitespace-pre-wrap break-words">
@@ -858,12 +874,13 @@ function PreviewRow({
   );
 }
 
-function MatchText({ text, query, regex }: { text: string; query: string; regex: boolean }) {
+function MatchText({ text, query, regex, wholePhrase }: { text: string; query: string; regex: boolean; wholePhrase: boolean }) {
   const parts = useMemo<ReactNode[]>(() => {
     if (!query) return [text];
     try {
-      const source = regex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(source, "gi");
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const source = regex ? query : wholePhrase ? `(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])` : escaped;
+      const pattern = new RegExp(source, regex ? "gi" : wholePhrase ? "giu" : "gi");
       const nodes: ReactNode[] = [];
       let cursor = 0;
       for (const match of text.matchAll(pattern)) {
@@ -883,7 +900,7 @@ function MatchText({ text, query, regex }: { text: string; query: string; regex:
     } catch {
       return [text];
     }
-  }, [text, query, regex]);
+  }, [text, query, regex, wholePhrase]);
 
   return <>{parts}</>;
 }
@@ -957,6 +974,7 @@ function ChapterPreviewSection({
   onOpenChapter,
   matchQuery,
   matchRegex,
+  matchWholePhrase,
 }: {
   items: FindReplacePreviewItem[];
   selected: Set<string>;
@@ -968,6 +986,7 @@ function ChapterPreviewSection({
   onOpenChapter: (index: number) => void;
   matchQuery: string;
   matchRegex: boolean;
+  matchWholePhrase: boolean;
 }) {
   const disabled = items.length === 0 || applying;
 
@@ -994,6 +1013,7 @@ function ChapterPreviewSection({
             onToggle={(checked) => onTogglePreviewItem(findPreviewKeyOf(item), checked)}
             matchQuery={matchQuery}
             matchRegex={matchRegex}
+            matchWholePhrase={matchWholePhrase}
           />
         ))}
       </ul>

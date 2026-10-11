@@ -61,11 +61,19 @@ def _search_snippet(text: str, match: re.Match) -> str:
 
 
 @router.get("/api/ebooks/{slug}/search")
-def reader_search(slug: str, q: str, regex: bool = False, case: bool = False, source: str = "translated"):
+def reader_search(
+    slug: str,
+    q: str,
+    regex: bool = False,
+    whole_phrase: bool = False,
+    case: bool = False,
+    source: str = "translated",
+):
     """Tìm toàn văn xuyên chương trong bản dịch (mặc định) hoặc bản gốc.
 
-    `regex=True` coi `q` là biểu thức chính quy; `case=True` phân biệt
-    hoa/thường (mặc định không). `source=translated` chỉ quét các chương có bản
+    `regex=True` coi `q` là biểu thức chính quy; `whole_phrase=True` chỉ khớp
+    nguyên cụm literal theo ranh giới từ. `case=True` phân biệt hoa/thường
+    (mặc định không). `source=translated` chỉ quét các chương có bản
     dịch (bản hiện tại của nhánh active); `source=raw` quét bản gốc đã crawl —
     GỒM cả chương chưa dịch. Trả list `{chapter_index, title, count, snippets}`
     theo thứ tự chương.
@@ -75,9 +83,12 @@ def reader_search(slug: str, q: str, regex: bool = False, case: bool = False, so
         raise HTTPException(status_code=400, detail="Chuỗi tìm kiếm đang rỗng.")
     if source not in ("translated", "raw"):
         raise HTTPException(status_code=400, detail="source phải là 'translated' hoặc 'raw'.")
+    if regex and whole_phrase:
+        raise HTTPException(status_code=400, detail="Không thể bật đồng thời Regex và khớp nguyên cụm.")
     flags = 0 if case else re.IGNORECASE
     try:
-        pattern = re.compile(q if regex else re.escape(q), flags)
+        literal = rf"(?<!\w){re.escape(q)}(?!\w)" if whole_phrase else re.escape(q)
+        pattern = re.compile(q if regex else literal, flags)
     except re.error as e:
         raise HTTPException(status_code=400, detail=f"Regex không hợp lệ: {e}")
 

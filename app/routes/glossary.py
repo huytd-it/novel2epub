@@ -542,8 +542,9 @@ class GlossaryAiRequest(BaseModel):
 def glossary_ai_job_factory(params: dict):
     """Tái tạo job Trợ lý AI glossary từ spec đã lưu (xem JobQueue.register_kind).
 
-    `selected_only=True`: chỉ dọn sources đã chọn, batch_size mặc định 10;
+    `selected_only=True`: chỉ dọn sources đã chọn, batch_size mặc định 30;
     ghi/duyệt và lan truyền bản dịch hợp lệ; xóa mục lỗi không lan truyền vào chương.
+    `propagate=False` (chỉ luồng curate) ghi glossary nhưng không thay nội dung chương.
     Nhóm alias trùng khóa/chưa đồng thuận được giữ lại trong outcome/log;
     các mục độc lập tiếp tục được xử lý.
     `curate_all=True`: CRUD toàn glossary + hàng chờ theo từng lô, context 200k.
@@ -578,7 +579,8 @@ def glossary_ai_job_factory(params: dict):
                 context="\n\n".join(x.strip() for x in (cfg.translate.context_note, instruction) if x.strip()),
                 log=log,
                 sources=sources if params.get("selected_only") else None,
-                batch_size=params.get("batch_size", 10),
+                batch_size=params.get("batch_size", 30),
+                propagate=bool(params.get("propagate", True)),
             )
         current = {s: (t, n) for s, t, n in storage.read_glossary_entries_merged()}
         # Chồng đề xuất đang chờ duyệt lên glossary: mục chờ duyệt cũng gửi AI
@@ -802,7 +804,11 @@ class GlossaryAiReprocessRequest(BaseModel):
 
     instruction: str = Field(default="", description="Yêu cầu thêm cho riêng lần chạy này.")
     sources: list[str] = Field(min_length=1)
-    batch_size: int = Field(default=10, ge=1, le=100, strict=True)
+    batch_size: int = Field(default=30, ge=1, le=100, strict=True)
+    propagate: bool = Field(
+        default=True,
+        description="False: chỉ ghi glossary/hàng chờ, không thay bản dịch cũ trong chương.",
+    )
 
 
 @router.post("/api/ebooks/{slug}/glossary/ai/reprocess-pending")
@@ -822,7 +828,8 @@ def ebook_glossary_ai_reprocess_pending(request: Request, slug: str, payload: Gl
     spec = {
         "kind": "glossary-ai",
         "params": {"slug": slug, "sources": sources, "instruction": payload.instruction.strip(),
-                   "auto_approve": True, "selected_only": True, "batch_size": payload.batch_size},
+                   "auto_approve": True, "selected_only": True, "batch_size": payload.batch_size,
+                   "propagate": payload.propagate},
     }
     started = request.app.state.job.start_custom(
         "glossary-ai",
@@ -875,15 +882,25 @@ def ebook_glossary_pending_clear(slug: str, payload: dict = Body(...)):
     Từ chối đề xuất ghi đè (`existing_target → target`) còn hoàn tác ngay ở
     chương đã sinh ra gợi ý: thay `target → existing_target` trong mọi cột
     bản dịch của chương đó (xem `Storage.revert_rejected_glossary`), vì bản
-    dịch LLM vừa lưu đã dùng từ mới."""
+    dịch LLM vừa lưu đã dùng từ mới.
+
+    `{"revert": false}` chỉ gỡ đề xuất, KHÔNG đụng nội dung chương — dùng khi
+    chính đề xuất bị sai (từ thường gặp, tách nhầm) nên thay ngược
+    `target → existing_target` sẽ sửa nhầm chỗ khác trong chương."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     storage.migrate_glossary_queue()
     pending_before = _read_pending(storage)
+
+    def _revert(entries: list[dict]) -> dict:
+        if payload.get("revert", True) is False:
+            return {"total": 0, "chapters": 0}
+        return storage.revert_rejected_glossary(entries)
+
     if payload.get("all"):
         cleared_entries = list(pending_before)
         storage.update_extra_json("glossary_pending", lambda _raw: [])
-        reverted = storage.revert_rejected_glossary(cleared_entries)
+        reverted = _revert(cleared_entries)
         return JSONResponse(
             {"cleared": len(cleared_entries), **reverted}
         )
@@ -896,7 +913,7 @@ def ebook_glossary_pending_clear(slug: str, payload: dict = Body(...)):
         pending = _normalize_pending(raw)
         return [p for p in pending if p["source"] not in sources]
     storage.update_extra_json("glossary_pending", _clear_selected)
-    reverted = storage.revert_rejected_glossary(cleared_entries)
+    reverted = _revert(cleared_entries)
     return JSONResponse({"cleared": cleared, **reverted})
 
 

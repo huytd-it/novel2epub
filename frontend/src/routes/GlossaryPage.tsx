@@ -63,6 +63,10 @@ const sameValues = (draft: GlossaryEdit, entry: GlossaryEntry) =>
 
 /* ── Hàng đề xuất đang chờ duyệt ─────────────────────────────────────── */
 
+const DISCARD_TITLE = "Bỏ đề xuất và hoàn tác từ mới về bản dịch cũ ở chương đã sinh gợi ý";
+const DISCARD_ONLY_TITLE =
+  "Chỉ gỡ đề xuất, giữ nguyên nội dung chương — dùng khi đề xuất bị sai, tránh thay thế nhầm";
+
 const ROW_CHECK_TITLE = "Click: chọn/bỏ mục · Ctrl+Click: chọn thêm · Shift+Click: chọn cả đoạn";
 
 /** Thêm cả đoạn [a..b] trong `items` vào selection (giữ các mục đã chọn). */
@@ -97,6 +101,7 @@ function PendingRow({
   const approve = useApprovePending(slug);
   const clear = useClearPending(slug);
   const toast = useToast();
+  const onError = (err: unknown) => toast(err instanceof Error ? err.message : String(err), "error");
 
   return (
     <tr className="border-b border-base-300 bg-warning/10">
@@ -124,7 +129,7 @@ function PendingRow({
         ) : null}
       </td>
       <td className="px-2 py-1 text-[13px] opacity-60">{entry.note || "—"}</td>
-      <td className="w-40 px-2 py-1 text-right">
+      <td className="w-56 px-2 py-1 text-right">
         <div className="flex justify-end gap-1">
           <Button
             size="sm"
@@ -133,7 +138,7 @@ function PendingRow({
             onClick={() =>
               approve.mutate([{ source: entry.source, target: entry.target, note: entry.note }], {
                 onSuccess: () => toast("Đã xếp vào hàng đợi — xem tiến độ ở trang Hàng đợi."),
-                onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+                onError,
               })
             }
           >
@@ -141,10 +146,22 @@ function PendingRow({
           </Button>
           <Button
             size="sm"
-            loading={clear.isPending}
-            onClick={() => clear.mutate({ sources: [entry.source] })}
+            title={DISCARD_TITLE}
+            loading={clear.isPending && clear.variables?.revert !== false}
+            disabled={clear.isPending}
+            onClick={() => clear.mutate({ sources: [entry.source] }, { onError })}
           >
             Bỏ
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            title={DISCARD_ONLY_TITLE}
+            loading={clear.isPending && clear.variables?.revert === false}
+            disabled={clear.isPending}
+            onClick={() => clear.mutate({ sources: [entry.source], revert: false }, { onError })}
+          >
+            Chỉ bỏ
           </Button>
         </div>
       </td>
@@ -447,7 +464,8 @@ function AiAssistantModal({
   onStarted: () => void;
 }) {
   const [instruction, setInstruction] = useState("");
-  const [batchSize, setBatchSize] = useState("10");
+  const [batchSize, setBatchSize] = useState("30");
+  const [propagate, setPropagate] = useState(true);
   const { data: settings } = useEbookSettings(slug);
   const run = useGlossaryAiReprocessPending(slug);
   const toast = useToast();
@@ -455,7 +473,10 @@ function AiAssistantModal({
   const validSize = Number.isInteger(size) && size >= 1 && size <= 100;
 
   useEffect(() => {
-    if (open) setInstruction("");
+    if (open) {
+      setInstruction("");
+      setPropagate(true);
+    }
   }, [open]);
 
   const context = settings?.translate.context_note.trim() ?? "";
@@ -492,7 +513,7 @@ function AiAssistantModal({
                 onError: (err: unknown) =>
                   toast(err instanceof Error ? err.message : String(err), "error"),
               };
-              run.mutate({ sources, instruction: instruction.trim(), batch_size: size }, done);
+              run.mutate({ sources, instruction: instruction.trim(), batch_size: size, propagate }, done);
             }}
           >
             Dọn và duyệt {num(sources.length)} mục
@@ -507,7 +528,7 @@ function AiAssistantModal({
         và chỉ ghi cả nhóm khi các quyết định đồng thuận.
       </p>
       <p className="mb-3 text-[13px] opacity-60">
-        Bản dịch glossary hợp lệ sau sửa sẽ lan truyền vào chương. Mục lỗi bị loại chỉ xóa
+        Bản dịch glossary hợp lệ sau sửa sẽ lan truyền vào chương (tắt được bên dưới). Mục lỗi bị loại chỉ xóa
         khỏi glossary và hàng chờ, không thay hay hoàn tác nội dung chương. Ghi chú chỉ dành cho độc giả;
         lý do sửa được lưu riêng trong log. Nếu AI hoặc kiểm định lỗi, cả nhóm liên quan chưa được ghi;
         xem lỗi ở Hàng đợi rồi chạy lại.
@@ -531,8 +552,24 @@ function AiAssistantModal({
       <p id="glossary-batch-hint" className={clsx("mb-3 text-xs", !validSize ? "text-error" : "opacity-70")}>
         {validSize
           ? `${num(sources.length)} mục ban đầu: khoảng ${num(Math.ceil(sources.length / size))} lô; có thể thêm lượt xét alias. Tối đa ${size} mục mỗi lượt gọi AI.`
-          : "Nhập số nguyên từ 1 đến 100 (mặc định 10)."}
+          : "Nhập số nguyên từ 1 đến 100 (mặc định 30)."}
       </p>
+
+      <label className="mb-3 flex items-start gap-2 text-[13px]">
+        <Checkbox
+          className="mt-0.5"
+          checked={propagate}
+          onChange={(e) => setPropagate(e.target.checked)}
+        />
+        <span>
+          Lan truyền bản dịch đã sửa vào nội dung chương
+          <span className="block text-xs opacity-60">
+            {propagate
+              ? "Bản dịch cũ trong các chương đã dịch được thay theo bản mới. Không hoàn tác được."
+              : "Chỉ ghi glossary và gỡ hàng chờ; nội dung chương giữ nguyên — dùng khi bản dịch cũ là từ thường gặp, dễ thay nhầm."}
+          </span>
+        </span>
+      </label>
 
       <div className="mb-3 rounded-box border border-base-300 p-2.5">
         <p className="mb-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase opacity-40">
@@ -1271,20 +1308,29 @@ export function GlossaryPage() {
                   >
                     Duyệt đề xuất ({pendingSelected.size})
                   </Button>
-                  <Button
-                    loading={clearPending.isPending}
-                    onClick={() =>
-                      clearPending.mutate(
-                        { sources: [...pendingSelected] },
-                        { onSuccess: () => {
-                          setPendingSelected(new Set());
-                          anchorPending.current = null;
-                        } },
-                      )
-                    }
-                  >
-                    Bỏ đề xuất
-                  </Button>
+                  {[true, false].map((revert) => (
+                    <Button
+                      key={String(revert)}
+                      variant={revert ? "neutral" : "ghost"}
+                      title={revert ? DISCARD_TITLE : DISCARD_ONLY_TITLE}
+                      loading={clearPending.isPending && (clearPending.variables?.revert !== false) === revert}
+                      disabled={clearPending.isPending}
+                      onClick={() =>
+                        clearPending.mutate(
+                          { sources: [...pendingSelected], revert },
+                          {
+                            onSuccess: () => {
+                              setPendingSelected(new Set());
+                              anchorPending.current = null;
+                            },
+                            onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+                          },
+                        )
+                      }
+                    >
+                      {revert ? "Bỏ đề xuất" : "Chỉ bỏ (giữ chương)"}
+                    </Button>
+                  ))}
                 </>
               ) : null}
               {selected.size > 0 ? (

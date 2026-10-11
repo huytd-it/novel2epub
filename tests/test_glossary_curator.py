@@ -37,6 +37,17 @@ def test_prompt_vietnamese_with_grounded_character_notes(selected_only):
         assert "giữ nguyên quy tắc dịch và ghi chú" in prompt
 
 
+def test_group_related_keeps_shared_name_parts_adjacent():
+    keys = ["佐藤健", "长生剑法", "艾伦·沃克", "佐藤", "李", "艾伦", "佐藤美咲"]
+    assert curator.group_related(keys) == [
+        "佐藤健", "佐藤", "佐藤美咲", "长生剑法", "艾伦·沃克", "艾伦", "李",
+    ]
+    # Cụm quá phổ biến không gom cả glossary thành một nhóm.
+    common = [f"{chr(0x4e00 + i)}之剑" for i in range(curator.GROUP_MAX_SHARED + 1)][::-1]
+    assert curator.group_related(common) == common
+    assert "romaji Hepburn" in curator.PROMPT
+
+
 def test_crud_propagates_and_separates_reader_note(tmp_path):
     storage = setup_storage(tmp_path)
     chapter = Chapter(index=1, url="http://x/1")
@@ -271,6 +282,23 @@ def test_shared_old_translation_with_batch_consensus_is_safe(tmp_path, reverse, 
     assert storage.read_extra_json("glossary_curator_audit")[0]["replacement_pairs"] == [
         ["Truyền Kì", "Truyền Kỳ"],
     ]
+
+
+def test_no_propagation_skips_chapter_text_and_shared_owner_consensus(tmp_path):
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [("传奇", "Truyền Kì", ""), ("传奇级", "Truyền Kì", "")])
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Truyền Kì gặp Truyền Kì.")
+    batch = [r for r in rows(storage) if r["source"] == "传奇"]
+    result = curator.apply_operations(storage, batch, [
+        {"op": "update", "original_source": "传奇", "source": "传奇", "target": "Truyền Kỳ"},
+    ], selected_only=True, propagate=False)
+    assert result["held"] == []
+    assert result["replacements"]["total"] == 0
+    assert storage.read_translated(chapter) == "Truyền Kì gặp Truyền Kì."
+    assert storage.read_glossary_file("names.txt") == {"传奇": "Truyền Kỳ", "传奇级": "Truyền Kì"}
+    assert storage.read_extra_json("glossary_curator_audit")[0]["replacement_pairs"] == []
 
 
 def test_keep_shared_translation_without_changes_needs_no_propagation(tmp_path):
@@ -888,7 +916,7 @@ def test_auth_error_is_not_retried(tmp_path, monkeypatch):
     assert calls["n"] == 1
 
 
-def test_selected_default_ten_and_keep_clears_pending(tmp_path, monkeypatch):
+def test_selected_default_thirty_and_keep_clears_pending(tmp_path, monkeypatch):
     storage = Storage(tmp_path, "t")
     pending = [{"source": f"张{i}", "target": f"Trương {i}", "note": ""} for i in range(51)]
     storage.write_extra_json("glossary_pending", pending)
@@ -899,6 +927,6 @@ def test_selected_default_ten_and_keep_clears_pending(tmp_path, monkeypatch):
         return json.dumps([{"op": "keep", "original_source": r["source"]} for r in batch])
     monkeypatch.setattr(curator.openai_client, "run_chat", chat)
     curator.curate(storage, OpenAIConfig(), sources=[p["source"] for p in pending])
-    assert sizes == [10, 10, 10, 10, 10, 1]
+    assert sizes == [30, 21]
     assert storage.read_extra_json("glossary_pending") == []
     assert len(storage.read_glossary_entries_merged()) == 51

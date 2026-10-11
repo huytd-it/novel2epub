@@ -301,7 +301,7 @@ export function useApprovePending(slug: string) {
 export function useGlossaryAiReprocessPending(slug: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { sources: string[]; instruction: string; batch_size: number }) =>
+    mutationFn: (vars: { sources: string[]; instruction: string; batch_size: number; propagate: boolean }) =>
       api.post<{ started: boolean; requested: number }>(
         `/api/ebooks/${slug}/glossary/ai/reprocess-pending`,
         { body: vars },
@@ -330,13 +330,16 @@ export function useGlossaryAiRetranslate(slug: string) {
   });
 }
 
+/** Bỏ đề xuất. `revert: false` chỉ gỡ khỏi hàng chờ, không hoàn tác từ mới
+ * trong chương đã sinh gợi ý (dùng khi chính đề xuất bị sai). */
 export function useClearPending(slug: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { sources?: string[]; all?: boolean }) =>
-      api.post<{ cleared: number }>(`/api/ebooks/${slug}/glossary/pending/clear`, {
-        body: vars.all ? { all: true } : { sources: vars.sources },
-      }),
+    mutationFn: (vars: { sources?: string[]; all?: boolean; revert?: boolean }) =>
+      api.post<{ cleared: number; total: number; chapters: number }>(
+        `/api/ebooks/${slug}/glossary/pending/clear`,
+        { body: { ...(vars.all ? { all: true } : { sources: vars.sources }), revert: vars.revert ?? true } },
+      ),
     onSuccess: () => client.invalidateQueries({ queryKey: pendingKey(slug) }),
   });
 }

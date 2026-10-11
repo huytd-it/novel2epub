@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from . import openai_client, glossary_review
 from .han_cleanup import count_han
@@ -9,9 +10,12 @@ from .storage import normalize_glossary_pending
 
 CONTEXT_TOKENS = 200_000
 OUTPUT_RESERVE = 16_000
-BATCH_SIZE = 10
+BATCH_SIZE = 30
 REFERENCE_MAX_ENTRIES = 5
 REFERENCE_MAX_CHARS = 2_000
+# Cụm 2 chữ Hán xuất hiện ở quá nhiều mục (的人, 之剑…) không nói lên quan hệ.
+GROUP_MAX_SHARED = 20
+_HAN_RUN = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+")
 
 # Quy tắc ngôn ngữ dựa trên DEFAULT_PROMPT (config.py), với hợp đồng JSON riêng
 # cho glossary thay vì đầu ra bản dịch chương.
@@ -45,6 +49,15 @@ chỉ vì truyện hiện đại. Không suy ra một cặp xưng hô cố đị
 6. target phải là một cách dịch dùng trực tiếp trong truyện: rõ nghĩa, gọn, đúng
 chính tả, không còn chữ Hán, không kèm phương án thay thế hay lời giải thích.
 Viết target, note và reason bằng tiếng Việt, ngoại trừ tên riêng Latin gốc.
+7. BATCH đã được gom theo nhóm source liên quan (chung họ, tên, tiền tố/hậu tố,
+tên đầy đủ và tên rút gọn) nằm cạnh nhau. Quyết định cả nhóm cùng lúc: cùng một
+thành phần Hán của cùng một thực thể phải dùng cùng một dạng Việt/Latin ở mọi
+mục, kể cả mục trong REFERENCE. Chọn MỘT hệ đặt tên cho cả nhóm, không trộn Hán
+Việt với Latin trong cùng một tên: tên phương Tây dùng chính tả Latin gốc; tên
+Nhật dùng romaji Hepburn (佐藤 → Sato), tên Hàn dùng cách La-tinh hóa thông dụng
+(金 → Kim, 朴 → Park), chỉ khi STORY/CONTEXT/REFERENCE hoặc chính cấu trúc tên
+cho thấy chắc chắn nhân vật là người Nhật/Hàn; không chắc thì giữ Hán Việt cho
+cả nhóm. Chung chữ nhưng khác thực thể thì không ép giống nhau.
 
 QUYẾT ĐỊNH CHO TỪNG MỤC
 - keep: đã kiểm tra và đúng, giữ nguyên; đề xuất đang chờ sẽ được duyệt.
@@ -136,6 +149,39 @@ Mục delete chỉ bị xóa khỏi glossary và hàng chờ, không thay hay ho
     return prefix + "[" + ",".join(parts) + "]"
 
 
+def group_related(keys: list[str]) -> list[str]:
+    """Xếp lại `keys` để các source liên quan nằm liền nhau (cùng lô AI).
+
+    Hai source liên quan khi chung một cụm 2 chữ Hán liền kề (họ, tên, tiền
+    tố/hậu tố: 佐藤 / 佐藤健, 艾伦 / 艾伦·沃克). Nhóm bắc cầu bằng union-find,
+    đặt tại vị trí thành viên đầu tiên; thứ tự trong nhóm và giữa các mục
+    không liên quan giữ nguyên như đầu vào.
+    """
+    grams: dict[str, list[int]] = {}
+    for i, key in enumerate(keys):
+        for gram in {run[j:j + 2] for run in _HAN_RUN.findall(key) for j in range(len(run) - 1)}:
+            grams.setdefault(gram, []).append(i)
+    parent = list(range(len(keys)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for members in grams.values():
+        if len(members) > GROUP_MAX_SHARED:
+            continue
+        for other in members[1:]:
+            a, b = find(members[0]), find(other)
+            if a != b:
+                parent[max(a, b)] = min(a, b)
+    groups: dict[int, list[str]] = {}
+    for i, key in enumerate(keys):
+        groups.setdefault(find(i), []).append(key)
+    return [key for root in sorted(groups) for key in groups[root]]
+
+
 def parse_operations(text: str) -> list[dict]:
     text = text.strip()
     if text.startswith("```"):
@@ -148,8 +194,12 @@ def parse_operations(text: str) -> list[dict]:
     return data
 
 
-def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selected_only=False, defer_conflicts=False) -> dict:
-    """Validate without writes; identify shared owners still needing AI review."""
+def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selected_only=False, defer_conflicts=False, propagate=True) -> dict:
+    """Validate without writes; identify shared owners still needing AI review.
+
+    `propagate=False`: glossary-only run. No chapter text is replaced, so there
+    are no replacement pairs and no shared-owner consensus to reach.
+    """
     expected = {r["source"]: r for r in rows}
     if selected_only:
         keys = [r.get("original_source") for r in operations]
@@ -234,6 +284,9 @@ def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selec
             planned[source] = (target, note)
         accepted.append({"op": op, "original_source": key, "source": source,
                          "target": target, "note": note, "reason": reason})
+
+    if not propagate:
+        old_targets_by_key.clear()
 
     # Validate propagation against the WHOLE validated batch, not an individual
     # operation against the old DB. Shared translations are safe only when every
@@ -328,9 +381,10 @@ def _plan_operations(storage, rows: list[dict], operations: list[dict], *, selec
             "held": held, "pairs": pairs, "related": related}
 
 
-def apply_operations(storage, rows: list[dict], operations: list[dict], *, selected_only=False, defer_conflicts=False) -> dict:
+def apply_operations(storage, rows: list[dict], operations: list[dict], *, selected_only=False, defer_conflicts=False, propagate=True) -> dict:
     """Commit atomically; optionally retain conflicting groups for later review."""
-    plan = _plan_operations(storage, rows, operations, selected_only=selected_only, defer_conflicts=defer_conflicts)
+    plan = _plan_operations(storage, rows, operations, selected_only=selected_only,
+                            defer_conflicts=defer_conflicts, propagate=propagate)
     current, pending = plan["current"], plan["pending"]
     accepted, held, pairs = plan["operations"], plan["held"], plan["pairs"]
     expected = {r["source"] for r in rows}
@@ -419,7 +473,7 @@ def _decide_batch(ai_cfg, rows, reference, story, context, *, selected_only, log
         ) from parse_exc
 
 
-def _review_related(storage, ai_cfg, rows, operations, responses, *, reference, story, context, batch_size, log):
+def _review_related(storage, ai_cfg, rows, operations, responses, *, reference, story, context, batch_size, log, propagate=True):
     """Expand a selected batch to its shared owners, keeping all writes deferred.
 
     Each request respects batch_size/context/retry limits. Replanning after every
@@ -428,7 +482,7 @@ def _review_related(storage, ai_cfg, rows, operations, responses, *, reference, 
     """
     rows, operations = list(rows), list(operations)
     while True:
-        plan = _plan_operations(storage, rows, operations, selected_only=True)
+        plan = _plan_operations(storage, rows, operations, selected_only=True, propagate=propagate)
         if not plan["related"]:
             return rows, operations
         fresh = {s: {"source": s, "target": t, "note": n} for s, (t, n) in plan["current"].items()}
@@ -475,7 +529,7 @@ PROPOSED REPLACEMENTS:
             break
 
 
-def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, batch_size=None) -> dict:
+def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, batch_size=None, propagate=True) -> dict:
     log = log or (lambda _message: None)
     selected_only = sources is not None
     batch_size = BATCH_SIZE if batch_size is None else batch_size
@@ -490,11 +544,12 @@ def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, b
         for p in normalize_glossary_pending(storage.read_extra_json("glossary_pending")):
             entries[p["source"]] = {k: p[k] for k in ("source", "target", "note")}
         return entries
-    keys = list(dict.fromkeys(sources)) if selected_only else list(snapshot())
+    keys = group_related(list(dict.fromkeys(sources)) if selected_only else list(snapshot()))
     requested = set(keys)
     reviewed: set[str] = set()
     result = {"requested": len(keys), "operations": [], "held": [], "failed_batches": 0, "related_sources": []}
-    log(f"[glossary-ai] Dọn {len(keys)} mục; tối đa {batch_size} mục/lô.")
+    log(f"[glossary-ai] Dọn {len(keys)} mục; tối đa {batch_size} mục/lô."
+        + ("" if propagate else " Không lan truyền vào chương."))
     offset, batch = 0, 0
     while offset < len(keys):
         batch += 1
@@ -550,9 +605,10 @@ def curate(storage, ai_cfg, *, story=None, context="", log=None, sources=None, b
                 rows, operations = _review_related(
                     storage, ai_cfg, rows, operations, responses, reference=reference,
                     story=story, context=context, batch_size=batch_size, log=log,
+                    propagate=propagate,
                 )
             applied = apply_operations(storage, rows, operations, selected_only=selected_only,
-                                       defer_conflicts=selected_only)
+                                       defer_conflicts=selected_only, propagate=propagate)
         except ValueError:
             # Keep the model response available even when JSON parsed successfully
             # but domain validation rejected it. Mask an echoed configured key.

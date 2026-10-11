@@ -1136,6 +1136,56 @@ def test_pending_clear_reverts_new_term_in_origin_chapter(tmp_path, monkeypatch)
     assert ("叶凡", "Diệp Phàm cũ", "") in storage.read_glossary_entries("names.txt")
 
 
+def test_pending_clear_without_revert_keeps_chapter_text(tmp_path, monkeypatch):
+    """Đề xuất sai: chỉ gỡ khỏi hàng chờ, không thay ngược trong chương."""
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "叶凡 = Diệp Phàm cũ\n")
+    chapter = Chapter(index=5, url="http://x/5")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Diệp Phàm mới xuất hiện")
+    pending = [
+        {"source": source, "existing_target": "Diệp Phàm cũ", "target": "Diệp Phàm mới",
+         "chapter_index": 5, "note": ""}
+        for source in ("叶凡", "叶凡凡")
+    ]
+    storage.write_extra_json("glossary_pending", pending)
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/pending/clear", json={"sources": ["叶凡"], "revert": False})
+    assert res.status_code == 200
+    assert res.json() == {"cleared": 1, "total": 0, "chapters": 0}
+    assert [p["source"] for p in storage.read_extra_json("glossary_pending")] == ["叶凡凡"]
+
+    res = client.post("/api/ebooks/t/glossary/pending/clear", json={"all": True, "revert": False})
+    assert res.json() == {"cleared": 1, "total": 0, "chapters": 0}
+    assert storage.read_extra_json("glossary_pending") == []
+    assert storage.read_translated(chapter) == "Diệp Phàm mới xuất hiện"
+    assert ("叶凡", "Diệp Phàm cũ", "") in storage.read_glossary_entries("names.txt")
+
+
+def test_ai_curate_selected_without_propagation_keeps_chapter_text(tmp_path, monkeypatch):
+    from novel2epub import openai_client
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.write_glossary_entries("names.txt", [("张三", "Trương Sai", "")])
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_translated(chapter, "Trương Sai đi chợ.")
+    monkeypatch.setattr(openai_client, "run_chat", lambda ai_cfg, prompt: json.dumps([
+        {"op": "update", "original_source": "张三", "source": "张三", "target": "Trương Tam"},
+    ]))
+    client = _client(cfg, monkeypatch)
+
+    res = client.post("/api/ebooks/t/glossary/ai/reprocess-pending",
+                      json={"sources": ["张三"], "propagate": False})
+    assert res.status_code == 200
+    assert storage.read_glossary_file("names.txt") == {"张三": "Trương Tam"}
+    assert storage.read_translated(chapter) == "Trương Sai đi chợ."
+
+
 def test_replace_approve_upserts_edited_values_and_keeps_unselected(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     storage = Storage(tmp_path, "t")

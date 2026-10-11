@@ -130,7 +130,7 @@ Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột
   hệ thống **tự xét thêm các khóa Hán cùng dùng bản dịch đó**, kể cả ngoài lựa chọn.
   AI nhận bản dịch cũ và các đề xuất chưa ghi để đánh giá đồng thuận; không tự
   tạo thuật ngữ mới. Log liệt kê các alias được xét thêm.
-- Chọn **1–100 mục/lô, mặc định 10**; chạy tuần tự và cập nhật tham chiếu sau mỗi lô.
+- Chọn **1–100 mục/lô, mặc định 30**; chạy tuần tự và cập nhật tham chiếu sau mỗi lô.
   Ngân sách context **200.000 token**, dành 16.000 cho output. Bộ đếm dùng số
   byte UTF-8 làm cận trên bảo thủ cho tokenizer kiểu byte, không nhầm ký tự với
   token. `REFERENCE` chỉ gửi tối đa **5 mục liên quan** (khóa Hán chứa nhau),
@@ -180,12 +180,21 @@ Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột
   **không cần duyệt lại**. Bản dịch glossary hợp lệ sau sửa (trừ thay đổi chỉ hoa/thường) được lan truyền vào chương
   trong cùng transaction, sau khi kiểm tra thay thế không nhập nhằng.
   Mục lỗi bị loại chỉ xóa khỏi glossary/hàng chờ, không thay hay hoàn tác nội dung chương.
+  Bỏ tick "Lan truyền bản dịch đã sửa vào nội dung chương" (`propagate=false`) để AI chỉ
+  ghi glossary/gỡ hàng chờ mà không thay gì trong chương — khi đó cũng không cần đồng thuận alias.
+- Ở hàng chờ duyệt, **Bỏ** gỡ đề xuất và hoàn tác từ mới về bản dịch cũ ở chương đã sinh
+  gợi ý; **Chỉ bỏ** (`pending/clear` với `revert=false`) chỉ gỡ đề xuất, giữ nguyên nội dung
+  chương — dùng khi chính đề xuất bị sai để tránh thay thế nhầm.
 - **Ghi chú là chú thích cho độc giả**, không phải lý do sửa. AI bỏ trường
   `note` để giữ cũ, hoặc sửa/bỏ chú thích sai một cách tường minh.
   `reason` chỉ vào log và audit SQLite `glossary_curator_audit` (kèm dữ liệu cũ).
   Hiện chưa có nút hoàn tác; nên backup DB và lưu các nháp trước khi chạy.
+- Trước khi chia lô, các source được **gom nhóm liên quan** (chung một cụm 2 chữ Hán liền
+  kề: họ, tên, tiền tố/hậu tố, tên đầy đủ/rút gọn) và xếp liền nhau để AI quyết định cả
+  nhóm trong cùng lô — thống nhất một hệ đặt tên (Hán Việt, Latin gốc, romaji Nhật,
+  La-tinh hóa Hàn) cho các tên liên quan. Cụm xuất hiện ở hơn 20 mục bị bỏ qua khi gom.
 - API `/api/ebooks/{slug}/glossary/ai/reprocess-pending` yêu cầu `sources` không rỗng,
-  nhận `batch_size` (mặc định 10) và `instruction`. Job lưu `selected_only=true`
+  nhận `batch_size` (mặc định 30), `instruction` và `propagate` (mặc định `true`). Job lưu `selected_only=true`
   cùng phạm vi/lô để phục hồi đúng; job spec cũ vẫn dùng luồng cũ.
 
 Idioms là từ điển dùng chung cho mọi ebook. Với LLM, idiom được đưa vào prompt như tham chiếu; với MT cục bộ, hệ thống có thể chuẩn hóa bản literal hoặc bảo vệ source qua placeholder.

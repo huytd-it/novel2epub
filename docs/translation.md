@@ -263,7 +263,7 @@ Tiêu đề chương đôi khi dính từ rác kêu gọi độc giả ("(Cầu 
 
 ### Trích xuất tên riêng từ raw
 
-`POST /api/ebooks/{slug}/glossary/proper-names/extract` quét raw bằng heuristic họ người Trung Quốc, tần suất và ngữ cảnh hội thoại. Vì tiếng Trung không viết hoa và không tách từ như tiếng Việt, kết quả chỉ là **ứng viên**, không phải nhận diện chắc chắn.
+`POST /api/ebooks/{slug}/glossary/proper-names/extract` quét raw bằng heuristic họ người Trung Quốc, tần suất và ngữ cảnh hội thoại. Vì tiếng Trung không viết hoa và không tách từ như tiếng Việt, kết quả chỉ là **ứng viên**, không phải nhận diện chắc chắn. Recognizer còn bắt **tên nước ngoài phiên âm** (chuỗi nằm trọn trong bảng chữ phiên âm, có ít nhất một chữ đặc trưng như 斯/尔/克/伦, hoặc có dấu `·`); mỗi ứng viên có `kind` (`translit`/`cn_name`) và `status` (`new`/`pending`/`glossary`). Body nhận thêm `dry_run=true` (chỉ trả ứng viên, không ghi hàng chờ) và `sources=[...]` (chỉ xếp hàng các ứng viên được chọn). Nút **Trích tên riêng** (thử nghiệm) ở bảng Chương của trang ebook dùng hai tham số này: quét chương đang chọn hoặc toàn bộ truyện, hiện ứng viên dạng chờ duyệt, tên được duyệt mới vào tab Chờ duyệt của Glossary (cột Việt còn chữ Hán, dịch bằng AI ở đó).
 
 Endpoint có thể dịch từng ứng viên bằng Local MT rồi đưa vào `glossary_pending`. Nó không ghi trực tiếp vào `names.txt`: source đã tồn tại trong glossary hoặc hàng chờ được bỏ qua, và thao tác merge hàng chờ dùng transaction `BEGIN IMMEDIATE` để không ghi đè snapshot mới hơn. Hãy mở trang Glossary, kiểm tra context/confidence, sửa bản dịch rồi mới duyệt.
 

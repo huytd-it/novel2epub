@@ -33,6 +33,8 @@ class ProperNameExtractRequest(BaseModel):
     min_frequency: int = Field(default=2, ge=1, le=100)
     max_candidates: int = Field(default=100, ge=1, le=500)
     translate: bool = Field(default=True, description="Dịch ứng viên bằng Local MT trước khi xếp hàng.")
+    dry_run: bool = Field(default=False, description="Chỉ trả ứng viên kèm trạng thái, không ghi hàng chờ.")
+    sources: list[str] | None = Field(default=None, description="Chỉ xếp hàng các ứng viên này; bỏ trống để xếp tất cả.")
 
 
 # Recognizer tên riêng + hàng chờ glossary sống trong `novel2epub/proper_names`
@@ -426,6 +428,22 @@ def ebook_glossary_extract_proper_names(slug: str, payload: ProperNameExtractReq
     existing = {source for source, _target, _note in storage.read_glossary_entries_merged()}
     pending_before = _read_pending(storage)
     pending_sources = {row["source"] for row in pending_before}
+    for row in candidates:
+        row["status"] = (
+            "glossary" if row["source"] in existing
+            else "pending" if row["source"] in pending_sources else "new"
+        )
+    if payload.dry_run:
+        return {
+            "scanned_chapters": len(texts),
+            "detected": len(candidates),
+            "queued": 0,
+            "skipped_existing": sum(row["status"] != "new" for row in candidates),
+            "candidates": candidates,
+        }
+    if payload.sources is not None:
+        wanted = {str(s).strip() for s in payload.sources}
+        candidates = [row for row in candidates if row["source"] in wanted]
     translator = None
     if payload.translate and candidates:
         try:

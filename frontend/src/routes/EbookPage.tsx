@@ -31,6 +31,7 @@ import {
   type ChapterRow,
 } from "@/lib/ebook";
 import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
+import { ProperNamesDialog } from "@/components/chapter/ProperNamesDialog";
 import { ProofreadingPanel, type ProofreadingDraft } from "@/components/chapter/ProofreadingPanel";
 import { ProofreadingScan } from "@/components/chapter/ProofreadingScan";
 import type { ProofreadingScanReport, ProofreadingScanRow } from "@/lib/chapter";
@@ -1936,6 +1937,7 @@ function EbookPageContent({ slug }: { slug: string }) {
   const [pageSize, setPageSize] = useState(() => loadPageSize(slug));
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [lastToggled, setLastToggled] = useState<number | null>(null);
+  const [properNamesOpen, setProperNamesOpen] = useState(false);
   const [readerPreview, setReaderPreview] = useState<ReaderPublishPreview | null>(null);
   const [proofreadingCodes, setProofreadingCodes] = useState<string[]>(() => loadProofreadingCodes(slug));
   const [proofreadingReport, setProofreadingReport] = useState<ProofreadingScanReport | null>(null);
@@ -2322,12 +2324,27 @@ function EbookPageContent({ slug }: { slug: string }) {
             ) : undefined
           }
           actions={
-            selected.size === 0 && page && page.matched > 0 ? (
-              <Button size="sm" onClick={() => setSelected(new Set(page.indexes))}>
-                Chọn tất cả {num(page.matched)} chương khớp
+            <>
+              <Button
+                size="sm"
+                title="Thử nghiệm: dò tên người trong nội dung gốc của chương đang chọn (hoặc toàn bộ truyện) và hiện dạng chờ duyệt"
+                onClick={() => setProperNamesOpen(true)}
+              >
+                Trích tên riêng
               </Button>
-            ) : null
+              {selected.size === 0 && page && page.matched > 0 ? (
+                <Button size="sm" onClick={() => setSelected(new Set(page.indexes))}>
+                  Chọn tất cả {num(page.matched)} chương khớp
+                </Button>
+              ) : null}
+            </>
           }
+        />
+        <ProperNamesDialog
+          open={properNamesOpen}
+          onClose={() => setProperNamesOpen(false)}
+          slug={slug}
+          chapterIndexes={[...selected]}
         />
 
         <FilterBar filters={filters} onChange={setFilters} />

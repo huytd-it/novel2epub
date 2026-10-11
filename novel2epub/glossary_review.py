@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 
 from .han_cleanup import count_han
-from .proper_names import _SURNAME
+from .proper_names import _SURNAME, is_transliterated_name
 
 Entry = tuple[str, str, str]  # (source, target, note)
 
@@ -235,23 +235,6 @@ def filter_by_flags(entries: list[Entry], flags: list[str]) -> list[Entry]:
 # dùng một tập chữ hẹp (bảng phiên âm Tân Hoa Xã), nên một source nằm trọn
 # trong tập đó gần như chắc là tên phiên âm.
 
-# Chữ hay dùng để phiên âm tên nước ngoài.
-_TRANSLIT_CHARS = set(
-    "阿埃艾爱安昂奥巴白拜班邦保鲍贝本比彼毕宾波伯博布蔡策查柴昌彻楚茨达代戴丹当道德登邓迪蒂丁东杜敦多"
-    "厄恩尔法凡范菲费芬丰冯弗福夫盖甘冈高戈哥格葛根贡古瓜圭哈海汉豪赫黑亨洪胡华怀惠霍基吉季加佳贾简杰捷"
-    "金津京卡开凯坎康考柯科可克肯孔库夸奎拉莱赖兰朗劳勒雷蕾累里丽莉利立力黎理李林琳龙隆卢鲁露路伦罗洛吕"
-    "略马玛迈麦曼芒毛梅美门蒙孟米密蜜敏明缪莫默姆穆娜纳奈南内妮尼宁纽农努诺欧帕派潘庞佩彭皮平珀普奇齐恰"
-    "钱强乔切钦琴丘琼曲让热若萨塞赛桑瑟森沙莎山尚绍舍申圣施什史士舒斯丝思松苏索塔泰坦汤唐陶特腾提田铁廷"
-    "通图土托瓦娃万旺威薇韦维伟魏温文翁沃乌伍武西希锡席夏肖谢辛欣兴休修雪逊雅亚扬尧耶叶伊依易因英尤于雨"
-    "约泽曾扎詹珍芝朱卓兹佐姬妲娅琪黛茜芙珊"
-)
-# Chữ gần như chỉ gặp trong tên phiên âm, hiếm trong tên/thuật ngữ Trung Quốc.
-_TRANSLIT_STRONG = set("斯尔克特姆兹茨夫伦顿森逊洛莱蕾薇菲芙恩奥埃厄欧乌瓦佩帕珀普赫萨塞瑟舍勒迪蒂娅")
-# Chữ phiên âm nhưng cũng hay có trong tên nữ Trung Quốc (李丽, 王琳): chỉ tính
-# khi source không mở đầu bằng họ Trung Quốc.
-_TRANSLIT_SOFT = set("丽琳娜莉妮亚莎")
-_NAME_SEPARATORS = "·•・‧-－ "
-
 # Mỗi loại: (nhãn hiển thị, mô tả ngắn cho tooltip UI).
 NAME_KINDS: dict[str, tuple[str, str]] = {
     "translit_hv": (
@@ -261,21 +244,6 @@ NAME_KINDS: dict[str, tuple[str, str]] = {
     "translit": ("Tên phiên âm", "Cột Hán là tên nước ngoài phiên âm (艾伦, 夏洛克, 艾伦·沃克)."),
     "cn_name": ("Tên người Trung Quốc", "Cột Hán 2–4 chữ mở đầu bằng họ Trung Quốc (heuristic, có thể lẫn thuật ngữ)."),
 }
-
-
-def is_transliterated_name(source: str) -> bool:
-    """`source` trông như tên nước ngoài phiên âm bằng chữ Hán."""
-    source = (source or "").strip()
-    core = "".join(ch for ch in source if ch not in _NAME_SEPARATORS)
-    if len(core) < 2 or count_han(core) != len(core):
-        return False
-    if any(sep in source for sep in "·•・‧"):
-        return True
-    if not set(core) <= _TRANSLIT_CHARS:
-        return False
-    if set(core) & _TRANSLIT_STRONG:
-        return True
-    return bool(set(core) & _TRANSLIT_SOFT) and core[0] not in _SURNAME
 
 
 def name_kinds(source: str, target: str) -> set[str]:

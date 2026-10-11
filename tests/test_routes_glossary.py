@@ -1931,3 +1931,28 @@ def test_name_kind_filter_finds_transliterated_and_chinese_names(tmp_path, monke
         data = client.get(url, params={"kind": key}).json()
         assert [e["source"] for e in data["entries"]] == expected
         assert data["total"] == len(expected)
+
+
+def test_extract_proper_names_dry_run_then_queue_selected(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_raw(chapter, "艾伦·沃克走了进来。夏洛克看着艾伦·沃克，夏洛克笑了。\n李逸说道：好。李逸点头。张三来了，张三走了。")
+    storage.upsert_glossary_entry("夏洛克", "Sherlock")
+    client = _client(cfg, monkeypatch)
+    url = "/api/ebooks/t/glossary/proper-names/extract"
+
+    preview = client.post(url, json={"dry_run": True, "translate": False}).json()
+    found = {c["source"]: (c["kind"], c["status"]) for c in preview["candidates"]}
+    assert found["艾伦·沃克"] == ("translit", "new")
+    assert found["夏洛克"] == ("translit", "glossary")
+    assert preview["queued"] == 0
+    assert not storage.read_extra_json("glossary_pending")
+
+    result = client.post(url, json={"sources": ["艾伦·沃克"], "translate": False}).json()
+    assert result["queued"] == 1
+    assert [p["source"] for p in storage.read_extra_json("glossary_pending")] == ["艾伦·沃克"]
+    again = client.post(url, json={"dry_run": True, "translate": False}).json()
+    assert {c["source"]: c["status"] for c in again["candidates"]}["艾伦·沃克"] == "pending"

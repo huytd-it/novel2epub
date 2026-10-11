@@ -562,6 +562,8 @@ function FilterBar({
           <option value="zh_chars:asc">Bản gốc: ít chữ trước</option>
           <option value="words:desc">Bản dịch: nhiều từ trước</option>
           <option value="words:asc">Bản dịch: ít từ trước</option>
+          <option value="pages:desc">Crawl: nhiều trang trước</option>
+          <option value="pages:asc">Crawl: ít trang trước</option>
         </Select>
       </label>
     </div>
@@ -1890,6 +1892,14 @@ function ChapterTableRow({
       <td className="w-12 px-2 py-1 text-center">
         <BranchBadge label="AI" has={row.has_ai_translation} active={row.active_branch === "ai"} />
       </td>
+      {/* 0 = chưa crawl, hoặc raw có từ trước khi cột `crawl_pages` tồn tại. */}
+      <td
+        data-numeric
+        className="w-16 px-2 py-1 text-right text-xs opacity-60"
+        title={row.crawl_pages ? `Đã crawl thành công ${num(row.crawl_pages)} trang web` : undefined}
+      >
+        {row.crawl_pages ? num(row.crawl_pages) : "—"}
+      </td>
       <td data-numeric className="w-20 px-2 py-1 text-right text-xs opacity-60">
         {row.zh_char_count ? num(row.zh_char_count) : "—"}
       </td>
@@ -2353,7 +2363,7 @@ function EbookPageContent({ slug }: { slug: string }) {
           />
         ) : (
           <div className={clsx("overflow-x-auto", isFetching && "is-refetching")}>
-            <table className="w-full min-w-[58rem] table-fixed border-collapse text-left">
+            <table className="w-full min-w-[62rem] table-fixed border-collapse text-left">
               <thead>
                 <tr className="border-b border-base-300 bg-base-200/60">
                   <th className="w-9 px-2 py-1.5">
@@ -2371,15 +2381,17 @@ function EbookPageContent({ slug }: { slug: string }) {
                       aria-label="Chọn tất cả chương trên trang"
                     />
                   </th>
-                  {["#", "Tiêu đề", "Trạng thái", "MT", "AI", "Bản gốc", "Bản dịch", ""].map((h, i) => (
+                  {["#", "Tiêu đề", "Trạng thái", "MT", "AI", "Trang", "Bản gốc", "Bản dịch", ""].map((h, i) => (
                     <th
                       key={h || i}
+                      title={h === "Trang" ? "Số trang web đã crawl thành công của chương" : undefined}
                       className={clsx(
                         "px-2 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase opacity-40",
                         h === "#" && "w-10",
                         h === "Tiêu đề" && "w-[22rem]",
+                        h === "Trang" && "w-16",
                         (h === "MT" || h === "AI") && "text-center",
-                        (h === "Bản gốc" || h === "Bản dịch") && "text-right",
+                        (h === "Trang" || h === "Bản gốc" || h === "Bản dịch") && "text-right",
                       )}
                     >
                       {h}

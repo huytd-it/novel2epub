@@ -2,8 +2,7 @@
 
 - `strip_prompt_echo`: LLM lặp lại prompt dịch trong phản hồi → tách bỏ phần
   prompt; không tách ra được bản dịch thì raise.
-- `check_word_counts`: Trung → Việt thì số từ bản Việt phải >= số từ bản Trung
-  (dịch thiếu/cắt cụt), và không bản dịch nào được dài bất thường so với nguồn
+- `check_word_counts`: không bản dịch nào được dài bất thường so với nguồn
   (model lặp, bịa thêm, hoặc dính prompt không tách được).
 
 Không có cấu hình tắt: gọi từ `OpenAITranslator._translate_chunk` và
@@ -52,15 +51,14 @@ def count_words(text: str, *, han: bool = True) -> int:
     return words + len(_HAN_RE.findall(text)) if han else words
 
 
-def check_word_counts(source: str, translated: str, *, zh_to_vi: bool) -> None:
-    """Raise `TranslationGuardError` nếu số từ bản dịch không hợp lệ so với nguồn."""
+def check_word_counts(source: str, translated: str, *, zh_to_vi: bool = False) -> None:
+    """Raise `TranslationGuardError` nếu số từ bản dịch dài bất thường so với nguồn.
+
+    `zh_to_vi` giữ lại để tương thích caller cũ — guard thiếu từ Trung → Việt
+    đã bỏ, tham số này không còn tác dụng.
+    """
     source_words = count_words(source)
     translated_words = count_words(translated, han=False)
-    if zh_to_vi and translated_words < source_words:
-        raise TranslationGuardError(
-            f"Bản dịch thiếu: {translated_words} từ tiếng Việt < {source_words} từ "
-            "bản Trung (Trung → Việt bắt buộc số từ Việt >= số từ Trung)"
-        )
     limit = int(source_words * MAX_WORD_RATIO) + MAX_WORD_SLACK
     if translated_words > limit:
         raise TranslationGuardError(

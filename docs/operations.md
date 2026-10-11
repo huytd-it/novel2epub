@@ -604,7 +604,7 @@ Raw sai hoặc rỗng:
 
 Chương nhiều trang báo `Bỏ qua chương ...` kèm `lỗi tải trang N` / `trang N ... không có nội dung`: một trang con hỏng nên cả chương không được ghi (guard bắt buộc, tránh lưu chương cụt). Crawl lại chương đó; nếu lặp lại, kiểm tra `next_page_selector` có trỏ nhầm sang link không phải trang kế.
 
-Dịch báo `Guard từ chối bản dịch chương ...`: bản dịch thiếu từ so với bản Trung, dài bất thường hoặc chỉ chứa prompt nên không được lưu — xem [translation.md](translation.md#guard-bắt-buộc-khi-dịch-chương). Dịch lại chương đó.
+Dịch báo `Guard từ chối bản dịch chương ...`: bản dịch dài bất thường hoặc chỉ chứa prompt nên không được lưu — xem [translation.md](translation.md#guard-bắt-buộc-khi-dịch-chương). Dịch lại chương đó.
 
 Bị 429 hoặc anti-bot:
 

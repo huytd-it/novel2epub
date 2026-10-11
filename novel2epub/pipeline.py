@@ -1085,8 +1085,8 @@ def _translate_one(cfg: Config, storage: Storage, translator, is_noop: bool, ch:
     `mark_translated_complete` set `complete: true` trong meta — phân biệt
     với partial do job bị crash. Xem spec `translate-chunk-streaming`.
 
-    Guard bắt buộc (`translation_guard`): bản dịch thiếu từ so với bản Trung
-    hoặc dài bất thường / dính prompt không tách được là dịch THẤT BẠI — các
+    Guard bắt buộc (`translation_guard`): bản dịch dài bất thường / dính prompt
+    không tách được là dịch THẤT BẠI — các
     chunk đã stream bị bỏ, nhánh trở về đúng nội dung trước khi dịch.
     """
     branch = revisions.normalize_branch(branch)

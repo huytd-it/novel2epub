@@ -35,6 +35,8 @@ export interface GlossaryQuery {
   filter: string;
   /** Chỉ lấy mục đang ở version này; 0 = không lọc. */
   version: number;
+  /** Các loại tên riêng đang bật, ngăn cách bởi dấu phẩy (OR). */
+  kind: string;
 }
 
 /** Một chip lọc: cờ + số mục dính cờ đó trên toàn glossary. */
@@ -132,6 +134,7 @@ export function useGlossary(slug: string, query: GlossaryQuery, enabled = true) 
     dir: query.dir,
     filter: query.filter,
     version: String(query.version),
+    kind: query.kind,
   });
   return useQuery({
     queryKey: listKey(slug, query),
@@ -156,7 +159,7 @@ export function usePendingGlossary(slug: string, enabled = true) {
 export function useGlossaryFlags(slug: string) {
   return useQuery({
     queryKey: ["glossary-flags", slug],
-    queryFn: () => api.get<{ flags: GlossaryFlag[]; total: number }>(`/api/ebooks/${slug}/glossary/flags`),
+    queryFn: () => api.get<{ flags: GlossaryFlag[]; kinds?: GlossaryFlag[]; total: number }>(`/api/ebooks/${slug}/glossary/flags`),
     enabled: Boolean(slug),
   });
 }

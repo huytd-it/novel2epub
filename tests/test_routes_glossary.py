@@ -1899,3 +1899,35 @@ def test_list_sort_related_groups_shared_name_parts(tmp_path, monkeypatch):
     found = client.get(url, params={"sort": "related", "q": "Sato"}).json()
     assert [e["source"] for e in found["entries"]] == ["佐藤健", "佐藤", "佐藤美咲"]
     assert {e["group"] for e in client.get(url).json()["entries"]} == {0}
+
+
+def test_name_kind_filter_finds_transliterated_and_chinese_names(tmp_path, monkeypatch):
+    from novel2epub import glossary_review
+
+    kinds = glossary_review.name_kinds
+    assert kinds("艾伦", "Ngải Luân") == {"translit", "translit_hv"}
+    assert kinds("艾伦·沃克", "Allen Walker") == {"translit"}
+    assert kinds("夏洛克", "Sherlock") == {"translit"}
+    assert kinds("莉莉", "Lily") == {"translit"}
+    # Tên/thuật ngữ Trung Quốc dù toàn chữ có trong bảng phiên âm.
+    assert kinds("李丽", "Lý Lệ") == {"cn_name"}
+    assert kinds("金丹", "Kim Đan") == {"cn_name"}
+    assert kinds("长生剑法", "Trường Sinh Kiếm Pháp") == set()
+    assert kinds("圣洁战锤-ii", "Thánh Khiết Chiến Chùy II") == set()
+
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_entries("names.txt", [
+        ("艾伦", "Ngải Luân", ""), ("夏洛克", "Sherlock", ""), ("李丽", "Lý Lệ", ""),
+        ("长生剑法", "Trường Sinh Kiếm Pháp", ""),
+    ])
+    client = _client(cfg, monkeypatch)
+    counts = {k["key"]: k["count"] for k in client.get("/api/ebooks/t/glossary/flags").json()["kinds"]}
+    assert counts == {"translit_hv": 1, "translit": 2, "cn_name": 1}
+    url = "/api/ebooks/t/glossary/list"
+    for key, expected in (("translit_hv", ["艾伦"]), ("translit", ["艾伦", "夏洛克"]),
+                          ("translit_hv,cn_name", ["艾伦", "李丽"])):
+        data = client.get(url, params={"kind": key}).json()
+        assert [e["source"] for e in data["entries"]] == expected
+        assert data["total"] == len(expected)

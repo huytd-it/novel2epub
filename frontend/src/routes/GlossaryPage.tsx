@@ -806,6 +806,7 @@ export function GlossaryPage() {
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [activeFlags, setActiveFlags] = useState<string[]>([]);
   const [version, setVersion] = useState(0);
+  const [activeKinds, setActiveKinds] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pendingSelected, setPendingSelected] = useState<Set<string>>(new Set());
   const [drafts, setDrafts] = useState<Drafts>({});
@@ -819,12 +820,13 @@ export function GlossaryPage() {
   const toast = useToast();
 
   const filter = activeFlags.join(",");
+  const kind = activeKinds.join(",");
 
-  useEffect(() => setPage(1), [search, filter, version, perPage, view]);
+  useEffect(() => setPage(1), [search, filter, version, kind, perPage, view]);
   useEffect(() => {
     setSelected(new Set());
     anchorGlossary.current = null;
-  }, [page, perPage, search, filter, version, view]);
+  }, [page, perPage, search, filter, version, kind, view]);
   useEffect(() => {
     setPendingSelected(new Set());
     anchorPending.current = null;
@@ -838,6 +840,7 @@ export function GlossaryPage() {
     dir,
     filter,
     version,
+    kind,
   }, view === "approved");
   const { data: flagData } = useGlossaryFlags(slug);
   const { data: pending, isPending: pendingIsPending } = usePendingGlossary(slug);
@@ -1080,6 +1083,44 @@ export function GlossaryPage() {
             ) : null}
           </div>
 
+          {/* Lọc tên riêng theo cột Hán (heuristic, không gọi AI) để chọn cả
+              loạt rồi nhờ AI dịch lại — chỉ áp cho glossary đã duyệt. */}
+          {!pendingOnly && (flagData?.kinds?.length ?? 0) > 0 ? (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <span className="mr-0.5 inline-flex items-center gap-1.5 text-[13px] opacity-50">
+                <IconFilter size={14} />
+                Lọc tên riêng
+              </span>
+              {(flagData?.kinds ?? []).map((k) => {
+                const active = activeKinds.includes(k.key);
+                return (
+                  <Button
+                    key={k.key}
+                    size="sm"
+                    variant={active ? "primary" : "neutral"}
+                    disabled={k.count === 0 && !active}
+                    title={k.hint}
+                    onClick={() =>
+                      setActiveKinds((prev) =>
+                        prev.includes(k.key) ? prev.filter((x) => x !== k.key) : [...prev, k.key],
+                      )
+                    }
+                  >
+                    {k.label}
+                    <span data-numeric className={clsx("ml-1", !active && "opacity-50")}>
+                      {num(k.count)}
+                    </span>
+                  </Button>
+                );
+              })}
+              {activeKinds.length > 0 ? (
+                <Button size="sm" variant="ghost" onClick={() => setActiveKinds([])}>
+                  Bỏ lọc
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
           {/* Lọc theo version (số lần Việt/Ghi chú đã đổi) — chỉ áp cho glossary
               đã duyệt, hàng chờ chưa có version. Chọn một version mỗi lần. */}
           {!pendingOnly && (data?.versions?.length ?? 0) > 0 ? (
@@ -1171,8 +1212,8 @@ export function GlossaryPage() {
               />
             ) : !pendingOnly && rows.length === 0 && pendingRows.length === 0 ? (
               <EmptyState
-                title={search || version > 0 ? "Không có mục nào khớp" : "Glossary đang trống"}
-                hint={search || version > 0 ? "Thử từ khóa hoặc version khác." : 'Bấm "Thêm mục", hoặc glossary sẽ tự sinh trong lúc dịch.'}
+                title={search || version > 0 || kind ? "Không có mục nào khớp" : "Glossary đang trống"}
+                hint={search || version > 0 || kind ? "Thử từ khóa hoặc bộ lọc khác." : 'Bấm "Thêm mục", hoặc glossary sẽ tự sinh trong lúc dịch.'}
               />
             ) : (
               <div className={clsx("overflow-x-auto", isFetching && "opacity-60")}>

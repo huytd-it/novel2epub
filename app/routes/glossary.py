@@ -98,6 +98,7 @@ def ebook_glossary_list(
     dir: str = "asc",
     filter: str = "",
     version: int = 0,
+    kind: str = "",
 ):
     """Một trang glossary (server-side pagination + search + sort). Consolidate
     vietphrase legacy vào names.txt trước để chỉ cần quét 1 list.
@@ -113,6 +114,10 @@ def ebook_glossary_list(
     cả list rồi lọc/sắp/phân trang trong Python. Vài nghìn mục nên vẫn tức thì,
     và nhánh không lọc giữ nguyên đường SQL cũ.
 
+    `kind` là danh sách loại tên riêng ngăn cách bởi dấu phẩy (xem
+    `glossary_review.NAME_KINDS`: tên phiên âm, phiên âm còn Hán Việt, tên người
+    Trung Quốc) — heuristic thuần chuỗi trên cột Hán, cũng lọc trong Python.
+
     `sort=related` gom các mục liên quan (chung một cụm 2 chữ Hán: họ, tên, tiền
     tố/hậu tố — cùng quy tắc gom lô của AI dọn glossary) nằm liền nhau để rà cho
     đồng nhất: nhóm nhiều mục lên trước, mục lẻ xếp sau. Mỗi mục kèm `group`
@@ -127,16 +132,19 @@ def ebook_glossary_list(
     flags = glossary_review.parse_flags(filter)
     only_version = int(version) if int(version) > 0 else None
 
+    kinds = glossary_review.parse_name_kinds(kind)
     by_related = sort == "related"
     group_of: dict[str, int] = {}
 
-    if flags or by_related:
+    if flags or kinds or by_related:
         rows_all = storage.read_glossary_entries("names.txt")
         needle = (q or "").strip().lower()
         if needle:
             rows_all = [r for r in rows_all if needle in (r[0] + r[1] + r[2]).lower()]
         if flags:
             rows_all = glossary_review.filter_by_flags(rows_all, flags)
+        if kinds:
+            rows_all = glossary_review.filter_by_name_kinds(rows_all, kinds)
         meta = storage.read_glossary_meta("names.txt")
         rows_all = [(*r, *meta.get(r[0], (1, 0.0))) for r in rows_all]
         if only_version is not None:
@@ -186,19 +194,25 @@ def ebook_glossary_list(
 
 @router.get("/api/ebooks/{slug}/glossary/flags")
 def ebook_glossary_flags(slug: str):
-    """Số mục dính từng cờ "giá trị đáng ngờ" — dữ liệu cho các chip Lọc.
+    """Số mục dính từng cờ "giá trị đáng ngờ" và từng loại tên riêng — dữ liệu
+    cho các chip Lọc.
 
-    Dùng chung `entry_flags` với route list nên con số trên chip luôn khớp số
-    dòng bấm vào lọc ra."""
+    Dùng chung `entry_flags`/`name_kinds` với route list nên con số trên chip
+    luôn khớp số dòng bấm vào lọc ra."""
     cfg = deps.resolved_cfg(slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
     entries = storage.read_glossary_entries("names.txt")
     counts = glossary_review.count_entry_flags(entries)
+    kind_counts = glossary_review.count_name_kinds(entries)
     return JSONResponse(
         {
             "flags": [
                 {"key": key, "label": label, "hint": hint, "count": counts[key]}
                 for key, (label, hint) in glossary_review.GLOSSARY_FLAGS.items()
+            ],
+            "kinds": [
+                {"key": key, "label": label, "hint": hint, "count": kind_counts[key]}
+                for key, (label, hint) in glossary_review.NAME_KINDS.items()
             ],
             "total": len(entries),
         }

@@ -7,10 +7,16 @@ export interface GlossaryEntry {
   source: string;
   target: string;
   note: string;
+  /** Số lần Việt/Ghi chú đã đổi + 1 (mục mới = 1). Chỉ có ở route list. */
+  version?: number;
+  /** Epoch giây của lần đổi gần nhất; 0 = mục có từ trước khi theo dõi. */
+  updated_at?: number;
 }
 
 export interface GlossaryPage {
   entries: GlossaryEntry[];
+  /** Số mục theo từng version trên toàn glossary — dữ liệu cho nút lọc. */
+  versions?: { version: number; count: number }[];
   total: number;
   page: number;
   per_page: number;
@@ -25,6 +31,8 @@ export interface GlossaryQuery {
   dir: string;
   /** Các cờ "giá trị đáng ngờ" đang bật, ngăn cách bởi dấu phẩy (OR). */
   filter: string;
+  /** Chỉ lấy mục đang ở version này; 0 = không lọc. */
+  version: number;
 }
 
 /** Một chip lọc: cờ + số mục dính cờ đó trên toàn glossary. */
@@ -121,6 +129,7 @@ export function useGlossary(slug: string, query: GlossaryQuery, enabled = true) 
     sort: query.sort,
     dir: query.dir,
     filter: query.filter,
+    version: String(query.version),
   });
   return useQuery({
     queryKey: listKey(slug, query),

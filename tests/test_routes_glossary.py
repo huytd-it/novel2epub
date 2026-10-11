@@ -1829,3 +1829,45 @@ def test_ai_reprocess_pending_laya_poc_failure_never_breaks_job(tmp_path, monkey
     glossary_ai_job_factory({"slug": "t", "sources": ["叶凡"], "auto_approve": True})(lambda _: None)
     assert dict((s, t) for s, t, _n in storage.read_glossary_entries("names.txt")) == {"叶凡": "Diệp Phàm"}
     assert storage.read_extra_json("glossary_pending") == []
+
+
+def test_list_version_and_updated_at_filter_and_sort(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    entries = [("张三", "Trương Tam", ""), ("李四", "Lý Tứ", ""), ("王五", "Vương Ngũ", "")]
+    storage.write_glossary_entries("names.txt", entries)
+    # Ghi lại cả list: chỉ mục thật sự đổi mới tăng version.
+    storage.write_glossary_entries("names.txt", [entries[0], ("李四", "Lí Tứ", ""), entries[2]])
+    storage.upsert_glossary_entry("李四", "Lí Tứ", "ghi chú")
+    storage.upsert_glossary_entry("王五", "Vương Ngũ", "")
+    storage.upsert_glossary_entry("王五", "Vương Năm", "")
+    client = _client(cfg, monkeypatch)
+    url = "/api/ebooks/t/glossary/list"
+
+    data = client.get(url).json()
+    assert {e["source"]: e["version"] for e in data["entries"]} == {"张三": 1, "李四": 3, "王五": 2}
+    assert all(e["updated_at"] > 0 for e in data["entries"])
+    assert data["versions"] == [
+        {"version": 1, "count": 1}, {"version": 2, "count": 1}, {"version": 3, "count": 1},
+    ]
+
+    by_version = client.get(url, params={"sort": "version", "dir": "desc"}).json()["entries"]
+    assert [e["source"] for e in by_version] == ["李四", "王五", "张三"]
+    only = client.get(url, params={"version": 2}).json()
+    assert [e["source"] for e in only["entries"]] == ["王五"]
+    assert only["total"] == 1
+
+    newest = client.get(url, params={"sort": "updated_at", "dir": "desc"}).json()["entries"]
+    stamps = [e["updated_at"] for e in newest]
+    assert stamps == sorted(stamps, reverse=True)
+
+    # Nhánh lọc cờ (lọc/sắp trong Python) cũng theo version.
+    storage.upsert_glossary_entry("张三a", "Trương Tam", "")
+    storage.upsert_glossary_entry("李四a", "Lý Tứ", "")
+    storage.upsert_glossary_entry("李四a", "Lí Tứ", "")
+    flagged = {"filter": "han_latin", "sort": "version", "dir": "desc"}
+    assert [e["source"] for e in client.get(url, params=flagged).json()["entries"]] == ["李四a", "张三a"]
+    only = client.get(url, params={"filter": "han_latin", "version": 1}).json()
+    assert [(e["source"], e["version"]) for e in only["entries"]] == [("张三a", 1)]
+    assert only["total"] == 1

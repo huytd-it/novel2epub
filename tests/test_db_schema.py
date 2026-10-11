@@ -798,3 +798,46 @@ def test_v29_noop_on_new_database():
     assert sorted(
         dict(row) for row in conn.execute("SELECT slug FROM ebooks").fetchall()
     ) == before
+
+
+def test_v30_adds_glossary_version_and_updated_at_to_old_database():
+    conn = get_connection(":memory:")
+    init_schema(conn)
+    with conn:
+        # Dựng lại bảng glossary kiểu v29: không có cột/trigger version.
+        conn.execute("DROP TRIGGER glossary_entries_after_insert")
+        conn.execute("DROP TRIGGER glossary_entries_after_update")
+        conn.execute("ALTER TABLE glossary_entries DROP COLUMN version")
+        conn.execute("ALTER TABLE glossary_entries DROP COLUMN updated_at")
+        conn.execute("UPDATE _meta SET value = '29' WHERE key = 'schema_version'")
+        conn.execute("INSERT INTO ebooks (slug) VALUES ('demo')")
+        conn.execute(
+            "INSERT INTO glossary_entries (ebook_slug, list_name, source, target) "
+            "VALUES ('demo', 'names.txt', '张三', 'Trương Tam')"
+        )
+
+    init_schema(conn)
+    assert schema_version(conn) == SCHEMA_VERSION
+
+    def row():
+        return tuple(conn.execute(
+            "SELECT version, updated_at FROM glossary_entries WHERE source='张三'"
+        ).fetchone())
+
+    # Mục có từ trước: v1, chưa rõ thời gian.
+    assert row() == (1, 0)
+    with conn:
+        conn.execute("UPDATE glossary_entries SET position = 5 WHERE source='张三'")
+        conn.execute("UPDATE glossary_entries SET target = 'Trương Tam' WHERE source='张三'")
+    assert row() == (1, 0)
+    with conn:
+        conn.execute("UPDATE glossary_entries SET note = 'nhân vật chính' WHERE source='张三'")
+    version, updated_at = row()
+    assert version == 2 and updated_at > 0
+    with conn:
+        conn.execute(
+            "INSERT INTO glossary_entries (ebook_slug, list_name, source, target) "
+            "VALUES ('demo', 'names.txt', '李四', 'Lý Tứ')"
+        )
+    new = conn.execute("SELECT version, updated_at FROM glossary_entries WHERE source='李四'").fetchone()
+    assert new["version"] == 1 and new["updated_at"] > 0

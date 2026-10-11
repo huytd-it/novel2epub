@@ -12,7 +12,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-SCHEMA_VERSION = 29
+SCHEMA_VERSION = 30
 
 _PRONOUN_MIGRATION_RULE = (
     "Ngôi xưng ưu tiên BẢNG NHÂN VẬT > ngôi kể thực tế > quan hệ/ngữ cảnh > "
@@ -318,8 +318,31 @@ _SCHEMA_STATEMENTS = [
         target TEXT NOT NULL DEFAULT '',
         note TEXT NOT NULL DEFAULT '',
         position INTEGER NOT NULL DEFAULT 0,
+        version INTEGER NOT NULL DEFAULT 1,
+        updated_at REAL NOT NULL DEFAULT 0,
         PRIMARY KEY (ebook_slug, list_name, source)
     ) WITHOUT ROWID
+    """,
+    # `version`/`updated_at` do trigger giữ, nên mọi đường ghi (kể cả SQL thô
+    # ở glossary_curator) đều được tính: mục mới = v1, mỗi lần Việt/Ghi chú
+    # thật sự đổi thì +1. `updated_at = 0` là mục có từ trước v30 (không rõ).
+    """
+    CREATE TRIGGER IF NOT EXISTS glossary_entries_after_insert
+    AFTER INSERT ON glossary_entries
+    WHEN NEW.updated_at = 0
+    BEGIN
+        UPDATE glossary_entries SET updated_at = (julianday('now') - 2440587.5) * 86400.0
+        WHERE ebook_slug=NEW.ebook_slug AND list_name=NEW.list_name AND source=NEW.source;
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS glossary_entries_after_update
+    AFTER UPDATE OF target, note ON glossary_entries
+    WHEN NEW.target <> OLD.target OR NEW.note <> OLD.note
+    BEGIN
+        UPDATE glossary_entries SET version = OLD.version + 1, updated_at = (julianday('now') - 2440587.5) * 86400.0
+        WHERE ebook_slug=NEW.ebook_slug AND list_name=NEW.list_name AND source=NEW.source;
+    END
     """,
     # ── từ điển idiom/thành ngữ DÙNG CHUNG mọi ebook (global, không gắn ──
     # ebook_slug). Khác glossary per-ebook: kho thành ngữ/khẩu ngữ chung cho
@@ -898,6 +921,9 @@ _SCHEMA_STATEMENTS = [
 # `_ensure_columns` vá bằng ALTER TABLE. DB tạo mới đã có sẵn (khai báo trong
 # CREATE TABLE ở trên), nên danh sách này là no-op với chúng.
 _ADDED_COLUMNS = [
+    # v30: version + thời gian cập nhật từng mục glossary
+    ("glossary_entries", "version", "INTEGER NOT NULL DEFAULT 1"),
+    ("glossary_entries", "updated_at", "REAL NOT NULL DEFAULT 0"),
     # v2: đẩy chương lên app đọc (novel-reader / Supabase)
     ("settings", "reader_json", "TEXT NOT NULL DEFAULT '{}'"),
     ("ebooks", "reader_overrides_json", "TEXT NOT NULL DEFAULT '{}'"),
@@ -1616,6 +1642,9 @@ _MIGRATIONS = {
     27: _migration_v27,
     28: _migration_v28,
     29: _migration_v29,
+    # v30: glossary_entries.version/updated_at — cột qua `_ADDED_COLUMNS`,
+    # trigger qua `_SCHEMA_STATEMENTS`; mục cũ giữ v1 và updated_at = 0.
+    30: _migration_noop,
 }
 
 

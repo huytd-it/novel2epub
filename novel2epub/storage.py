@@ -2286,16 +2286,24 @@ class Storage:
             if source not in seen:
                 order.append(source)
             seen[source] = (target, note)
+        # Upsert thay vì xoá sạch rồi chèn lại: mục không đổi giữ nguyên
+        # version/updated_at, mục đổi được trigger tăng version.
         with self.conn:
-            self.conn.execute(
-                "DELETE FROM glossary_entries WHERE ebook_slug=? AND list_name=?",
+            existing = self.conn.execute(
+                "SELECT source FROM glossary_entries WHERE ebook_slug=? AND list_name=?",
                 (self.slug, name),
+            ).fetchall()
+            self.conn.executemany(
+                "DELETE FROM glossary_entries WHERE ebook_slug=? AND list_name=? AND source=?",
+                [(self.slug, name, r["source"]) for r in existing if r["source"] not in seen],
             )
             for position, source in enumerate(order):
                 target, note = seen[source]
                 self.conn.execute(
                     "INSERT INTO glossary_entries (ebook_slug, list_name, source, target, note, position) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    "VALUES (?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(ebook_slug, list_name, source) DO UPDATE SET "
+                    "target = excluded.target, note = excluded.note, position = excluded.position",
                     (self.slug, name, source, target, note, position),
                 )
 
@@ -2347,25 +2355,46 @@ class Storage:
 
     # ----- glossary: phân trang + thao tác từng mục (trang Glossary web) -----
     _GLOSS_SORT_COLS = {"source": "source", "target": "target", "note": "note"}
+    _GLOSS_SORT_NUMERIC = {"version": "version", "updated_at": "updated_at"}
 
-    def count_glossary_entries(self, name: str, query: str = "") -> int:
-        """Đếm số mục trong 1 list, có thể lọc theo `query` (substring trên
-        source/target/note). Dùng cho phân trang server-side."""
+    def _glossary_where(self, name: str, query: str, version: int | None) -> tuple[str, list]:
+        where = "ebook_slug=? AND list_name=?"
+        params: list = [self.slug, name]
         query = (query or "").strip()
         if query:
             like = f"%{query}%"
-            row = self.conn.execute(
-                "SELECT COUNT(*) AS c FROM glossary_entries "
-                "WHERE ebook_slug=? AND list_name=? "
-                "AND (source LIKE ? OR target LIKE ? OR note LIKE ?)",
-                (self.slug, name, like, like, like),
-            ).fetchone()
-        else:
-            row = self.conn.execute(
-                "SELECT COUNT(*) AS c FROM glossary_entries WHERE ebook_slug=? AND list_name=?",
-                (self.slug, name),
-            ).fetchone()
+            where += " AND (source LIKE ? OR target LIKE ? OR note LIKE ?)"
+            params += [like, like, like]
+        if version is not None:
+            where += " AND version=?"
+            params.append(int(version))
+        return where, params
+
+    def count_glossary_entries(self, name: str, query: str = "", version: int | None = None) -> int:
+        """Đếm số mục trong 1 list, có thể lọc theo `query` (substring trên
+        source/target/note) và `version`. Dùng cho phân trang server-side."""
+        where, params = self._glossary_where(name, query, version)
+        row = self.conn.execute(
+            f"SELECT COUNT(*) AS c FROM glossary_entries WHERE {where}", params
+        ).fetchone()
         return int(row["c"])
+
+    def read_glossary_meta(self, name: str) -> dict[str, tuple[int, float]]:
+        """`{source: (version, updated_at)}` của 1 list."""
+        rows = self.conn.execute(
+            "SELECT source, version, updated_at FROM glossary_entries WHERE ebook_slug=? AND list_name=?",
+            (self.slug, name),
+        ).fetchall()
+        return {r["source"]: (int(r["version"]), float(r["updated_at"])) for r in rows}
+
+    def glossary_version_counts(self, name: str) -> list[tuple[int, int]]:
+        """`(version, số mục)` tăng dần theo version — dữ liệu cho nút lọc."""
+        rows = self.conn.execute(
+            "SELECT version, COUNT(*) AS c FROM glossary_entries WHERE ebook_slug=? AND list_name=? "
+            "GROUP BY version ORDER BY version",
+            (self.slug, name),
+        ).fetchall()
+        return [(int(r["version"]), int(r["c"])) for r in rows]
 
     def read_glossary_page(
         self,
@@ -2375,30 +2404,36 @@ class Storage:
         query: str = "",
         sort_field: str | None = None,
         sort_dir: str = "asc",
-    ) -> list[tuple[str, str, str]]:
-        """Một trang glossary `(source, target, note)` qua SQL LIMIT/OFFSET.
+        version: int | None = None,
+    ) -> list[tuple[str, str, str, int, float]]:
+        """Một trang glossary `(source, target, note, version, updated_at)`
+        qua SQL LIMIT/OFFSET.
 
-        `sort_field` ∈ {source, target, note}; mặc định giữ thứ tự `position`.
-        Sắp xếp COLLATE NOCASE (đủ dùng cho Latin; Hán/Việt so sánh binary)."""
+        `sort_field` ∈ {source, target, note, version, updated_at}; mặc định giữ
+        thứ tự `position`. Cột chữ sắp xếp COLLATE NOCASE (đủ dùng cho Latin;
+        Hán/Việt so sánh binary)."""
         col = self._GLOSS_SORT_COLS.get(sort_field or "", "")
+        numeric = self._GLOSS_SORT_NUMERIC.get(sort_field or "", "")
         direction = "DESC" if str(sort_dir).lower() == "desc" else "ASC"
-        order = f"{col} COLLATE NOCASE {direction}, position ASC" if col else f"position {direction}"
+        if col:
+            order = f"{col} COLLATE NOCASE {direction}, position ASC"
+        elif numeric:
+            order = f"{numeric} {direction}, position ASC"
+        else:
+            order = f"position {direction}"
 
-        where = "ebook_slug=? AND list_name=?"
-        params: list = [self.slug, name]
-        query = (query or "").strip()
-        if query:
-            like = f"%{query}%"
-            where += " AND (source LIKE ? OR target LIKE ? OR note LIKE ?)"
-            params += [like, like, like]
+        where, params = self._glossary_where(name, query, version)
         params += [int(limit), int(offset)]
 
         rows = self.conn.execute(
-            f"SELECT source, target, note FROM glossary_entries WHERE {where} "
+            f"SELECT source, target, note, version, updated_at FROM glossary_entries WHERE {where} "
             f"ORDER BY {order} LIMIT ? OFFSET ?",
             params,
         ).fetchall()
-        return [(r["source"], r["target"], r["note"]) for r in rows]
+        return [
+            (r["source"], r["target"], r["note"], int(r["version"]), float(r["updated_at"]))
+            for r in rows
+        ]
 
     def upsert_glossary_entry(
         self, source: str, target: str, note: str = "", name: str = "names.txt"

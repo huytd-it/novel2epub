@@ -636,4 +636,4 @@ EPUB thiếu chương:
   đều ghi một dòng WARNING `[build] Giải phóng khoá build mồ côi` vào Nhật ký.
 - Build lại sau đó: khoá cũ có thể rơi giữa chừng nên EPUB có thể chưa xong.
 
-Trang Glossary có hai tab **Chờ duyệt** và **Đã duyệt**. Bộ chọn số mục mỗi trang ở tab Đã duyệt hỗ trợ **Tất cả**, giữ nguyên tìm kiếm và bộ lọc. API `GET /api/ebooks/{slug}/glossary/list` nhận `per_page=0` để trả về toàn bộ mục khớp trên một trang.
+Trang Glossary có hai tab **Chờ duyệt** và **Đã duyệt**. Bộ chọn số mục mỗi trang ở tab Đã duyệt hỗ trợ **Tất cả**, giữ nguyên tìm kiếm và bộ lọc. API `GET /api/ebooks/{slug}/glossary/list` nhận `per_page=0` để trả về toàn bộ mục khớp trên một trang. Tab Đã duyệt có thêm cột **Version** (số lần Việt/Ghi chú đã đổi + 1) và **Cập nhật** (thời điểm đổi gần nhất; `—` là mục có từ trước schema v30): bấm tiêu đề cột để sắp xếp, dùng hàng nút **Lọc version** để chỉ xem một version. Rê chuột lên dòng nào thì dòng đó được tô nền để dóng đúng hàng.

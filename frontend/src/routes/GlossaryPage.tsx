@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import clsx from "clsx";
 
 import { Page } from "@/app/Shell";
-import { num } from "@/lib/format";
+import { ago, dateTime, num } from "@/lib/format";
 import {
   useApplyGlossaryEdits,
   useApprovePending,
@@ -103,7 +103,7 @@ function PendingRow({
   const onError = (err: unknown) => toast(err instanceof Error ? err.message : String(err), "error");
 
   return (
-    <tr className="border-b border-base-300 bg-warning/10">
+    <tr className="border-b border-base-300 bg-warning/10 transition-colors hover:bg-primary/10">
       <td className="w-8 px-2 py-1">
         <Checkbox
           checked={checked}
@@ -128,6 +128,8 @@ function PendingRow({
         ) : null}
       </td>
       <td className="px-2 py-1 text-[13px] opacity-60">{entry.note || "—"}</td>
+      <td className="px-2 py-1 text-[13px] opacity-40">—</td>
+      <td className="px-2 py-1 text-[13px] opacity-40">—</td>
       <td className="w-56 px-2 py-1 text-right">
         <div className="flex justify-end gap-1">
           <Button
@@ -210,7 +212,7 @@ const GlossaryRow = memo(function GlossaryRow({
   return (
     <tr
       className={clsx(
-        "border-b border-base-300 last:border-b-0",
+        "border-b border-base-300 last:border-b-0 transition-colors hover:bg-primary/10",
         (draft || checked) && "bg-warning/5",
       )}
     >
@@ -230,6 +232,16 @@ const GlossaryRow = memo(function GlossaryRow({
       </td>
       <td className="px-1 py-1">
         <Input {...field("note")} placeholder="—" />
+      </td>
+      <td data-numeric className="w-14 px-2 py-1 text-[13px] whitespace-nowrap opacity-70">
+        v{entry.version ?? 1}
+      </td>
+      <td
+        data-numeric
+        className="w-36 px-2 py-1 text-[13px] whitespace-nowrap opacity-70"
+        title={entry.updated_at ? ago(entry.updated_at) : "Có từ trước khi theo dõi thời gian"}
+      >
+        {dateTime(entry.updated_at)}
       </td>
       <td className="w-24 px-2 py-1 text-right">
         <div className="flex justify-end gap-0.5">
@@ -783,6 +795,7 @@ export function GlossaryPage() {
   const [sort, setSort] = useState("");
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [activeFlags, setActiveFlags] = useState<string[]>([]);
+  const [version, setVersion] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pendingSelected, setPendingSelected] = useState<Set<string>>(new Set());
   const [drafts, setDrafts] = useState<Drafts>({});
@@ -797,11 +810,11 @@ export function GlossaryPage() {
 
   const filter = activeFlags.join(",");
 
-  useEffect(() => setPage(1), [search, filter, perPage, view]);
+  useEffect(() => setPage(1), [search, filter, version, perPage, view]);
   useEffect(() => {
     setSelected(new Set());
     anchorGlossary.current = null;
-  }, [page, perPage, search, filter, view]);
+  }, [page, perPage, search, filter, version, view]);
   useEffect(() => {
     setPendingSelected(new Set());
     anchorPending.current = null;
@@ -814,6 +827,7 @@ export function GlossaryPage() {
     sort,
     dir,
     filter,
+    version,
   }, view === "approved");
   const { data: flagData } = useGlossaryFlags(slug);
   const { data: pending, isPending: pendingIsPending } = usePendingGlossary(slug);
@@ -888,7 +902,8 @@ export function GlossaryPage() {
     if (sort === col) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(col);
-      setDir("asc");
+      // Version/thời gian: bấm lần đầu ra mục mới sửa nhất trước.
+      setDir(col === "version" || col === "updated_at" ? "desc" : "asc");
     }
   };
 
@@ -1055,6 +1070,43 @@ export function GlossaryPage() {
             ) : null}
           </div>
 
+          {/* Lọc theo version (số lần Việt/Ghi chú đã đổi) — chỉ áp cho glossary
+              đã duyệt, hàng chờ chưa có version. Chọn một version mỗi lần. */}
+          {!pendingOnly && (data?.versions?.length ?? 0) > 0 ? (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <span className="mr-0.5 inline-flex items-center gap-1.5 text-[13px] opacity-50">
+                <IconFilter size={14} />
+                Lọc version
+              </span>
+              {(data?.versions ?? []).map((v) => {
+                const active = version === v.version;
+                return (
+                  <Button
+                    key={v.version}
+                    size="sm"
+                    variant={active ? "primary" : "neutral"}
+                    title={
+                      v.version === 1
+                        ? "Mục chưa từng đổi Việt/Ghi chú"
+                        : `Mục đã đổi Việt/Ghi chú ${v.version - 1} lần`
+                    }
+                    onClick={() => setVersion(active ? 0 : v.version)}
+                  >
+                    v{v.version}
+                    <span data-numeric className={clsx("ml-1", !active && "opacity-50")}>
+                      {num(v.count)}
+                    </span>
+                  </Button>
+                );
+              })}
+              {version > 0 ? (
+                <Button size="sm" variant="ghost" onClick={() => setVersion(0)}>
+                  Bỏ lọc
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
           <Panel className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-base-300 px-3 py-2 text-[13px]">
               <span data-numeric className="opacity-60">
@@ -1090,7 +1142,7 @@ export function GlossaryPage() {
             </div>
 
             {(pendingOnly ? pendingIsPending : isPending) ? (
-              <SkeletonTable rows={6} cols={4} />
+              <SkeletonTable rows={6} cols={6} />
             ) : pendingOnly && pendingRows.length === 0 ? (
               <EmptyState
                 title={search ? "Không có đề xuất nào khớp" : "Không có đề xuất chờ duyệt"}
@@ -1098,12 +1150,12 @@ export function GlossaryPage() {
               />
             ) : !pendingOnly && rows.length === 0 && pendingRows.length === 0 ? (
               <EmptyState
-                title={search ? "Không có mục nào khớp" : "Glossary đang trống"}
-                hint={search ? "Thử từ khóa khác." : 'Bấm "Thêm mục", hoặc glossary sẽ tự sinh trong lúc dịch.'}
+                title={search || version > 0 ? "Không có mục nào khớp" : "Glossary đang trống"}
+                hint={search || version > 0 ? "Thử từ khóa hoặc version khác." : 'Bấm "Thêm mục", hoặc glossary sẽ tự sinh trong lúc dịch.'}
               />
             ) : (
               <div className={clsx("overflow-x-auto", isFetching && "opacity-60")}>
-                <table className="w-full min-w-[52rem] border-collapse text-left">
+                <table className="w-full min-w-[64rem] border-collapse text-left">
                   <thead>
                     <tr className="border-b border-base-300 bg-base-200/60">
                       <th className="w-8 px-2 py-1.5">
@@ -1156,6 +1208,26 @@ export function GlossaryPage() {
                       <th className="px-2 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase opacity-40">
                         Ghi chú
                       </th>
+                      {[
+                        { key: "version", label: "Version" },
+                        { key: "updated_at", label: "Cập nhật" },
+                      ].map((c) => (
+                        <th
+                          key={c.key}
+                          onClick={pendingOnly ? undefined : () => toggleSort(c.key)}
+                          className={clsx(
+                            "px-2 py-1.5 text-[10px] font-semibold tracking-[0.1em] whitespace-nowrap uppercase opacity-40 select-none",
+                            !pendingOnly && "cursor-pointer",
+                          )}
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            {c.label}
+                            {!pendingOnly && sort === c.key ? (
+                              <IconCaretDown size={10} className={dir === "desc" ? "rotate-180" : ""} />
+                            ) : null}
+                          </span>
+                        </th>
+                      ))}
                       <th className="w-24 px-2 py-1.5" />
                     </tr>
                   </thead>

@@ -74,13 +74,17 @@ def _append_glossary_entry(
     return True
 
 
-def _sorted_entries(rows: list[tuple[str, str, str]], sort: str, dir: str) -> list[tuple[str, str, str]]:
+def _sorted_entries(rows: list[tuple], sort: str, dir: str) -> list[tuple]:
     """Sắp xếp trong Python cho nhánh có lọc cờ — cùng quy tắc với SQL
-    (`COLLATE NOCASE`, cột lạ thì giữ nguyên thứ tự position)."""
+    (`COLLATE NOCASE` cho cột chữ, cột lạ thì giữ nguyên thứ tự position)."""
+    reverse = str(dir).lower() == "desc"
     col = {"source": 0, "target": 1, "note": 2}.get(sort or "")
-    if col is None:
-        return rows
-    return sorted(rows, key=lambda r: r[col].lower(), reverse=str(dir).lower() == "desc")
+    if col is not None:
+        return sorted(rows, key=lambda r: r[col].lower(), reverse=reverse)
+    col = {"version": 3, "updated_at": 4}.get(sort or "")
+    if col is not None:
+        return sorted(rows, key=lambda r: r[col], reverse=reverse)
+    return rows
 
 
 @router.get("/api/ebooks/{slug}/glossary/list")
@@ -92,11 +96,15 @@ def ebook_glossary_list(
     sort: str = "",
     dir: str = "asc",
     filter: str = "",
+    version: int = 0,
 ):
     """Một trang glossary (server-side pagination + search + sort). Consolidate
     vietphrase legacy vào names.txt trước để chỉ cần quét 1 list.
 
     `per_page=0` trả về tất cả mục khớp trên một trang.
+
+    `version` > 0 chỉ lấy mục đang ở đúng version đó (số lần Việt/Ghi chú đã
+    đổi + 1); `versions` trong response là số mục theo từng version.
 
     `filter` là danh sách cờ "giá trị đáng ngờ" ngăn cách bởi dấu phẩy (xem
     `glossary_review.GLOSSARY_FLAGS`). Cờ là vị từ chuỗi (có chữ Hán trong cột
@@ -111,13 +119,20 @@ def ebook_glossary_list(
     show_all = per_page == 0
     per_page = max(1, min(int(per_page), 500))
     flags = glossary_review.parse_flags(filter)
+    only_version = int(version) if int(version) > 0 else None
 
     if flags:
         rows_all = storage.read_glossary_entries("names.txt")
         needle = (q or "").strip().lower()
         if needle:
             rows_all = [r for r in rows_all if needle in (r[0] + r[1] + r[2]).lower()]
-        rows_all = glossary_review.filter_by_flags(rows_all, flags)
+        meta = storage.read_glossary_meta("names.txt")
+        rows_all = [
+            (*r, *meta.get(r[0], (1, 0.0)))
+            for r in glossary_review.filter_by_flags(rows_all, flags)
+        ]
+        if only_version is not None:
+            rows_all = [r for r in rows_all if r[3] == only_version]
         total = len(rows_all)
         if show_all:
             per_page = max(1, total)
@@ -126,17 +141,24 @@ def ebook_glossary_list(
         offset = (page - 1) * per_page
         rows = _sorted_entries(rows_all, sort, dir)[offset : offset + per_page]
     else:
-        total = storage.count_glossary_entries("names.txt", q)
+        total = storage.count_glossary_entries("names.txt", q, only_version)
         if show_all:
             per_page = max(1, total)
         pages = max(1, (total + per_page - 1) // per_page)
         page = max(1, min(int(page), pages))
         offset = (page - 1) * per_page
-        rows = storage.read_glossary_page("names.txt", offset, per_page, q, sort, dir)
+        rows = storage.read_glossary_page("names.txt", offset, per_page, q, sort, dir, only_version)
 
     return JSONResponse(
         {
-            "entries": [{"source": s, "target": t, "note": n} for s, t, n in rows],
+            "entries": [
+                {"source": s, "target": t, "note": n, "version": v, "updated_at": u}
+                for s, t, n, v, u in rows
+            ],
+            "versions": [
+                {"version": v, "count": c}
+                for v, c in storage.glossary_version_counts("names.txt")
+            ],
             "total": total,
             "page": page,
             "per_page": per_page,

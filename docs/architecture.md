@@ -452,6 +452,16 @@ nên đã CORS + auth-eligible sẵn. Riêng bảng glossary có thêm 2 route c
     ra. Chip gộp cả số mục glossary lẫn số đề xuất chờ duyệt dính cờ (preview
     hàng chờ tính sẵn `flags` bằng đúng `entry_flags` trên giá trị đề xuất);
     bật chip thì cả hai danh sách cùng lọc theo cờ đó.
+  - **Version + thời gian cập nhật** (schema v30): mỗi mục `glossary_entries`
+    có `version` (mục mới = 1, +1 mỗi lần Việt/Ghi chú thật sự đổi) và
+    `updated_at` (epoch giây; 0 = mục có từ trước v30). Hai trigger SQLite
+    (`glossary_entries_after_insert`/`_after_update`) giữ hai cột này nên mọi
+    đường ghi đều được tính, kể cả SQL thô của `glossary_curator`;
+    `write_glossary_entries` upsert từng mục thay vì xoá-chèn lại để mục không
+    đổi giữ nguyên version. Đổi khóa Hán là xoá + thêm nên mục mới về v1.
+    Route `/glossary/list` trả `version`/`updated_at` từng mục, `versions`
+    (số mục theo version), nhận `version=<n>` để lọc và
+    `sort=version|updated_at`.
   - **Trợ lý AI** (`POST .../glossary/ai/retranslate`): chọn các mục trên bảng
     rồi nhờ AI dịch lại cả lô. Enqueue MỘT job nền (category=translate, khoá
     ebook) như các batch AI khác; `glossary_ai.retranslate_terms` chia lô theo

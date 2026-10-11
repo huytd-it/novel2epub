@@ -19,6 +19,20 @@ export function ago(epochSeconds: number | null | undefined): string {
   return `${Math.floor(diff / 86400)} ngày trước`;
 }
 
+const dtf = new Intl.DateTimeFormat("vi-VN", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** Ngày giờ tuyệt đối (giờ máy người dùng); mốc 0/thiếu thì "—". */
+export function dateTime(epochSeconds: number | null | undefined): string {
+  if (!epochSeconds) return "—";
+  return dtf.format(new Date(epochSeconds * 1000));
+}
+
 export function duration(from: number | null | undefined, to: number | null | undefined): string {
   if (!from) return "—";
   const end = to ?? Date.now() / 1000;

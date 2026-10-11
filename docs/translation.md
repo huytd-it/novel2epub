@@ -48,8 +48,7 @@ Với nguồn tiếng Việt, đặt `source_language=vi`; hệ thống tự pas
 
 Mọi bản dịch chương (AI lẫn Local MT, trừ passthrough `none`/`source_language=vi`) phải qua guard trong `novel2epub/translation_guard.py` trước khi được coi là dịch xong. Không có cấu hình tắt.
 
-- **Trung → Việt thiếu từ:** số từ bản Việt phải lớn hơn hoặc bằng số từ bản Trung. Mỗi chữ Hán tính là một từ, mỗi cụm chữ/số ngoài Hán là một từ; chữ Hán còn sót trong bản dịch không được tính là từ tiếng Việt. Chỉ áp dụng khi `source_language` rỗng/`zh` và `target_language=vi`.
-- **Dài bất thường:** số từ bản dịch vượt `3 × số từ nguồn + 50` (mọi ngôn ngữ nguồn).
+- **Dài bất thường:** số từ bản dịch vượt `3 × số từ nguồn + 50` (mọi ngôn ngữ nguồn). Mỗi chữ Hán tính là một từ, mỗi cụm chữ/số ngoài Hán là một từ; chữ Hán còn sót trong bản dịch không được tính là từ tiếng Việt.
 - **Dính prompt dịch:** nếu phản hồi của AI lặp lại prompt, phần prompt (và nội dung gốc bị lặp kèm) được tách bỏ theo từng chunk, log `⚠ phản hồi lặp lại prompt dịch`. Bỏ prompt xong mà không còn bản dịch thì chunk đó lỗi.
 
 Bản bị guard từ chối là dịch thất bại: các chunk đã stream bị bỏ, nhánh trở về đúng nội dung trước khi dịch (bản hoàn chỉnh cũ vẫn giữ nguyên khi dịch lại với `force`), lý do nằm ở `meta.last_error` và nhật kí job (`Guard từ chối bản dịch chương ...`). Chương được đánh dấu `failed`; batch vẫn dịch tiếp các chương khác.

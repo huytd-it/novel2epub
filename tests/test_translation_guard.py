@@ -1,6 +1,6 @@
 """Guard bắt buộc khi dịch chương: bản dịch không hợp lệ không được lưu DB.
 
-- Trung → Việt: số từ bản Việt phải >= số từ bản Trung.
+- Không còn kiểm tra thiếu từ Trung → Việt (đã bỏ).
 - Bản dịch dài bất thường, hoặc dính prompt dịch mà không tách ra được.
 """
 from __future__ import annotations
@@ -53,22 +53,13 @@ def test_is_zh_to_vi(source, target, expected):
     assert guard.is_zh_to_vi(source, target) is expected
 
 
-# ---------- guard số từ ----------
+# ---------- guard số từ (chỉ còn trần dài bất thường) ----------
 
-def test_zh_to_vi_requires_at_least_as_many_words():
+def test_short_translation_is_accepted_no_lower_bound():
+    # Guard thiếu từ Trung → Việt đã bỏ: bản ngắn vẫn được lưu.
     guard.check_word_counts(RAW, GOOD, zh_to_vi=True)
-    guard.check_word_counts("他走了。", "Hắn đi rồi.", zh_to_vi=True)  # bằng nhau: hợp lệ
-    with pytest.raises(TranslationGuardError, match="thiếu"):
-        guard.check_word_counts(RAW, SHORT, zh_to_vi=True)
-
-
-def test_untranslated_echo_of_source_is_rejected():
-    with pytest.raises(TranslationGuardError, match="thiếu"):
-        guard.check_word_counts(RAW, RAW, zh_to_vi=True)
-
-
-def test_lower_bound_only_applies_to_zh_to_vi():
-    guard.check_word_counts("one two three four five six", "một hai", zh_to_vi=False)
+    guard.check_word_counts(RAW, SHORT, zh_to_vi=True)
+    guard.check_word_counts(RAW, RAW, zh_to_vi=True)
 
 
 def test_abnormally_long_translation_is_rejected_for_any_language():
@@ -190,18 +181,15 @@ def _translate(tmp_path, monkeypatch, outputs, cfg=None, **kwargs):
     return logs
 
 
-def test_short_translation_is_not_saved(tmp_path, monkeypatch):
+def test_short_translation_is_saved(tmp_path, monkeypatch):
     storage, (ch1, _ch2) = _seed(tmp_path)
 
-    logs = _translate(tmp_path, monkeypatch, {1: ["Hắn", "vào phòng."]}, selected_indexes=[1])
+    _translate(tmp_path, monkeypatch, {1: ["Hắn", "vào phòng."]}, selected_indexes=[1])
 
-    # Chunk đã stream bị bỏ: không còn chữ nào của bản dịch lỗi trong DB.
-    assert storage.read_translated(ch1) == ""
-    assert storage.has_translated(ch1) is False
-    assert storage.read_translated_mt(ch1) == ""
-    assert "thiếu" in storage.read_meta(ch1)["last_error"]
-    assert storage.load_manifest().chapters[0].last_action_status == "failed"
-    assert any("Guard từ chối" in line for line in logs)
+    # Guard thiếu từ đã bỏ: bản ngắn vẫn được lưu bình thường.
+    assert storage.read_translated(ch1) == "Hắn\nvào phòng."
+    assert storage.has_translated(ch1) is True
+    assert storage.load_manifest().chapters[0].last_action_status == "completed"
 
 
 def test_abnormally_long_translation_is_not_saved(tmp_path, monkeypatch):
@@ -218,7 +206,7 @@ def test_rejected_retranslation_keeps_previous_complete_translation(tmp_path, mo
     _translate(tmp_path, monkeypatch, {1: [GOOD]}, selected_indexes=[1])
     revision = storage.read_branch_revision(ch1, "ai")
 
-    _translate(tmp_path, monkeypatch, {1: [SHORT]}, selected_indexes=[1], force=True)
+    _translate(tmp_path, monkeypatch, {1: ["từ " * 200]}, selected_indexes=[1], force=True)
 
     assert storage.read_translated(ch1) == GOOD
     assert storage.has_translated(ch1) is True
@@ -231,7 +219,7 @@ def test_guard_failure_on_first_chapter_does_not_stop_batch(tmp_path, monkeypatc
     hình — batch tuần tự vẫn dịch tiếp chương sau."""
     storage, (ch1, ch2) = _seed(tmp_path)
 
-    logs = _translate(tmp_path, monkeypatch, {1: [SHORT], 2: [GOOD]})
+    logs = _translate(tmp_path, monkeypatch, {1: ["từ " * 200], 2: [GOOD]})
 
     assert storage.has_translated(ch1) is False
     assert storage.read_translated(ch2) == GOOD

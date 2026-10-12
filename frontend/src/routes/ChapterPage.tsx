@@ -847,7 +847,7 @@ export function ChapterPage() {
   useEffect(() => {
     if (!data) return;
     const key = `${slug}:${chapterIndex}:${data.active_branch}`;
-    if (loadedKey !== key || !editMode && !dirty && (documentExpected !== data.translated || documentRevision !== data.revision || documentTitleExpected !== data.title)) {
+    if (loadedKey !== key || !editMode && !dirty && (documentExpected !== data.translated || documentRevision !== data.revision || documentTitleExpected !== data.title || documentHash !== data.content_hash)) {
       setLoadedKey(key);
       setDocumentDraft(data.translated);
       setDocumentExpected(data.translated);
@@ -858,7 +858,7 @@ export function ChapterPage() {
       setProofreadingDraftBranch(undefined);
       setProofreadingDraftPublicationTitle(undefined);
     }
-  }, [slug, chapterIndex, data, loadedKey, editMode, dirty, documentExpected, documentRevision, documentTitleExpected]);
+  }, [slug, chapterIndex, data, loadedKey, editMode, dirty, documentExpected, documentHash, documentRevision, documentTitleExpected]);
 
   useLayoutEffect(() => {
     if (!data || !restoreReadingPosition || restoredPositionKey.current === location.key) return;

@@ -15,6 +15,11 @@ from typing import Any
 
 from .ops_baseline import ENCODING_ZLIB, compress_content, decompress_content, full_content_hash
 
+import uuid
+
+HEALABLE_MISMATCHES = frozenset({"revision", "content_hash", "content"})
+HEAL_OPERATION_KIND = "heal_legacy_write"
+
 BRANCH_COLUMNS = {
     "ai": {
         "title": "title",
@@ -166,6 +171,189 @@ def _verify_pair(current: sqlite3.Row, head: sqlite3.Row, *, slug: str, index: i
     )
 
 
+def reconcile_branch_history(
+    storage,
+    chapter_index: int,
+    branch: str,
+    *,
+    kind: str = HEAL_OPERATION_KIND,
+    message: str = "Tự đồng bộ history head từ current state (ghi ngoài ledger)",
+    actor_issuer: str = "",
+    actor_subject: str = "",
+) -> ChapterDocument:
+    """Vá divergence current-state vs history-head do ghi legacy.
+
+    Các writer cũ (`write_branch_text`, `compare_and_swap_branch`,
+    pipeline translate, find/replace...) UPDATE `chapters` mà không append
+    `chapter_revisions` — lần `read/commit` kế tiếp sẽ nổ
+    `history_state_diverged`. Hàm này append MỘT revision phản chiếu đúng
+    current state để head khớp lại:
+
+    - `current_rev > head_rev` (legacy đã bump revision): giữ nguyên revision,
+      chỉ điền hash + revision khớp nội dung hiện tại.
+    - `current_rev <= head_rev` (stream/pipeline đổi text không bump, hoặc rev
+      tụt): tạo revision `head_rev + 1` và bump current lên theo.
+    - Head thiếu hẳn: dựng baseline cho đúng (chương, nhánh) đó.
+    - Lịch sử hỏng (blob không giải nén / `snapshot_hash` lệch): KHÔNG vá,
+      để lỗi gốc nổi lên — vá sẽ che mất corruption.
+
+    Idempotent theo nội dung: đã đồng nhất thì trả document, không ghi gì.
+    """
+    cols = _strict_branch(branch)
+    slug = storage.slug
+    conn = storage.conn
+
+    current = _current_row(conn, slug, chapter_index, cols)
+    if current is None:
+        raise ChapterVersionError("chapter_not_found", "Không tìm thấy chương")
+    if current["translated"] is None:
+        raise ChapterVersionError("branch_not_initialized", "Nhánh chưa được khởi tạo")
+    head = _head_row(conn, slug, chapter_index, branch)
+    if head is None:
+        from .ops_baseline import initialize_branch_revisions
+
+        initialize_branch_revisions(storage, branches=[branch], chapter_indexes=[chapter_index])
+        current = _current_row(conn, slug, chapter_index, cols)
+        head = _head_row(conn, slug, chapter_index, branch)
+        if current is None or current["translated"] is None or head is None:
+            raise ChapterVersionError("branch_not_initialized", "Nhánh chưa có baseline history")
+        return _verify_pair(current, head, slug=slug, index=chapter_index, branch=branch)
+    try:
+        return _verify_pair(current, head, slug=slug, index=chapter_index, branch=branch)
+    except ChapterVersionError as exc:
+        if exc.code != "history_state_diverged":
+            raise
+        mismatches = set((exc.details or {}).get("mismatches", []))
+        if not mismatches or not mismatches <= set(HEALABLE_MISMATCHES):
+            raise
+
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        current = _current_row(conn, slug, chapter_index, cols)
+        if current is None or current["translated"] is None:
+            raise ChapterVersionError("branch_not_initialized", "Nhánh chưa được khởi tạo")
+        head = _head_row(conn, slug, chapter_index, branch)
+        if head is None:
+            raise ChapterVersionError("branch_not_initialized", "Nhánh chưa có baseline history")
+        try:
+            document = _verify_pair(current, head, slug=slug, index=chapter_index, branch=branch)
+            conn.commit()
+            return document
+        except ChapterVersionError as exc:
+            if exc.code != "history_state_diverged":
+                conn.rollback()
+                raise
+            mismatches = set((exc.details or {}).get("mismatches", []))
+            if not mismatches or not mismatches <= set(HEALABLE_MISMATCHES):
+                conn.rollback()
+                raise
+
+        current_title = current["title"] or ""
+        current_text = current["translated"] if current["translated"] is not None else ""
+        new_hash = full_content_hash(current_title, current_text)
+        blob = compress_content(current_text)
+        try:
+            current_rev = int(current["revision"] or 0)
+        except (TypeError, ValueError):
+            current_rev = 0
+        head_rev = int(head["revision_number"])
+        head_id = int(head["id"])
+        head_hash = head["content_hash"] or ""
+        if current_rev > head_rev:
+            new_rev = current_rev
+            bump_revision = False
+        else:
+            new_rev = head_rev + 1
+            bump_revision = True
+        if new_rev < 1:
+            conn.rollback()
+            raise ChapterVersionError("history_state_diverged", "Current state và history head không đồng nhất")
+
+        client_operation_id = f"heal-{slug}-{chapter_index}-{branch}-{new_rev}-{uuid.uuid4().hex[:8]}"
+        request_hash = _request_hash({
+            "ebook_slug": slug, "chapter_index": chapter_index,
+            "branch": branch, "expected_revision": head_rev,
+            "expected_content_hash": head_hash, "title": current_title,
+            "translated": current_text, "message": message, "kind": kind,
+            "actor_issuer": actor_issuer, "actor_subject": actor_subject,
+            "metadata": {"healed_from_revision": head_rev},
+            "expected_publication_branch": None,
+            "expected_publication_title": None,
+            "proofreading_candidate_id": None,
+        })
+        try:
+            op = conn.execute(
+                "INSERT INTO chapter_operations (ebook_slug, kind, message, actor_issuer, "
+                "actor_subject, client_operation_id, request_hash, metadata_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, '{}')",
+                (slug, kind, message, actor_issuer, actor_subject, client_operation_id, request_hash),
+            )
+            operation_id = int(op.lastrowid)
+            revision = conn.execute(
+                "INSERT INTO chapter_revisions (operation_id, ebook_slug, chapter_index, "
+                "branch, revision_number, parent_revision_id, title, content_blob, "
+                "content_encoding, content_hash, base_content_hash) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    operation_id, slug, chapter_index, branch,
+                    new_rev, head_id, current_title, blob,
+                    ENCODING_ZLIB, new_hash, head_hash,
+                ),
+            )
+            revision_id = int(revision.lastrowid)
+            if bump_revision:
+                cur = conn.execute(
+                    f"UPDATE chapters SET {cols['revision']}=?, {cols['hash']}=? "
+                    "WHERE ebook_slug=? AND idx=? AND "
+                    f"{cols['revision']}=?",
+                    (new_rev, new_hash, slug, chapter_index, current["revision"]),
+                )
+            else:
+                cur = conn.execute(
+                    f"UPDATE chapters SET {cols['hash']}=? "
+                    "WHERE ebook_slug=? AND idx=? AND "
+                    f"{cols['revision']}=?",
+                    (new_hash, slug, chapter_index, current["revision"]),
+                )
+            if cur.rowcount != 1:
+                raise ChapterVersionError(
+                    "history_state_diverged", "Current state và history head không đồng nhất",
+                    details={"chapter_index": chapter_index, "branch": branch, "mismatches": ["concurrent_heal"]},
+                )
+            post_current = _current_row(conn, slug, chapter_index, cols)
+            post_head = _head_row(conn, slug, chapter_index, branch)
+            post = _verify_pair(post_current, post_head, slug=slug, index=chapter_index, branch=branch)
+            if post.head_revision_id != revision_id:
+                raise ChapterVersionError("history_state_diverged", "Postcondition head không khớp revision mới")
+        except ChapterVersionError:
+            conn.rollback()
+            raise
+        except sqlite3.IntegrityError as exc:
+            conn.rollback()
+            raise ChapterVersionError(
+                "history_state_diverged", "Current state và history head không đồng nhất",
+                details={"chapter_index": chapter_index, "branch": branch, "mismatches": ["concurrent_heal"]},
+            ) from exc
+        conn.commit()
+        return post
+    except ChapterVersionError:
+        raise
+    except sqlite3.OperationalError as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        if "locked" in str(exc).lower() or "busy" in str(exc).lower():
+            raise ChapterVersionError("database_busy", "SQLite đang bận") from exc
+        raise
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+
+
 class ChapterVersionService:
     def __init__(self, storage):
         self.storage = storage
@@ -183,8 +371,32 @@ class ChapterVersionService:
             raise ChapterVersionError("branch_not_initialized", "Nhánh chưa được khởi tạo")
         head = _head_row(self.conn, self.storage.slug, chapter_index, branch)
         if head is None:
-            raise ChapterVersionError("branch_not_initialized", "Nhánh chưa có baseline history")
-        return _verify_pair(current, head, slug=self.storage.slug, index=chapter_index, branch=branch)
+            # Nhánh có nội dung nhưng chưa có baseline (ghi legacy/pipeline
+            # trước v13) — dựng baseline rồi đọc lại thay vì báo diverged.
+            reconcile_branch_history(self.storage, chapter_index, branch)
+            current = _current_row(self.conn, self.storage.slug, chapter_index, cols)
+            if current is None or current["translated"] is None:
+                raise ChapterVersionError("branch_not_initialized", "Nhánh chưa được khởi tạo")
+            head = _head_row(self.conn, self.storage.slug, chapter_index, branch)
+            if head is None:
+                raise ChapterVersionError("branch_not_initialized", "Nhánh chưa có baseline history")
+            return _verify_pair(current, head, slug=self.storage.slug, index=chapter_index, branch=branch)
+        try:
+            return _verify_pair(current, head, slug=self.storage.slug, index=chapter_index, branch=branch)
+        except ChapterVersionError as exc:
+            if exc.code != "history_state_diverged":
+                raise
+            # Ghi legacy (compare block, find/replace, pipeline...) đổi
+            # chapters mà không append history — tự vá head từ current state
+            # rồi đọc lại. Heal giữ nguyên revision hiện hành (không nuốt
+            # concurrent edit): expected check ở commit vẫn báo
+            # document_conflict khi client stale.
+            reconcile_branch_history(self.storage, chapter_index, branch)
+            current = _current_row(self.conn, self.storage.slug, chapter_index, cols)
+            head = _head_row(self.conn, self.storage.slug, chapter_index, branch)
+            if current is None or current["translated"] is None or head is None:
+                raise
+            return _verify_pair(current, head, slug=self.storage.slug, index=chapter_index, branch=branch)
 
     def commit_document(
         self, *, chapter_index: int, branch: str, expected_revision: int,
@@ -222,6 +434,27 @@ class ChapterVersionService:
             "proofreading_candidate_id": proofreading_candidate_id,
         })
         conn = self.conn
+        # Vá divergence do ghi legacy trước khi CAS: heal giữ nguyên revision
+        # hiện hành nên expected check phía dưới vẫn báo document_conflict
+        # (tải lại) thay vì history_state_diverged khó hiểu. Không che lỗi
+        # history hỏng thật (blob/snapshot_hash) — reconcile để lỗi gốc nổi.
+        try:
+            reconcile_branch_history(
+                self.storage, chapter_index, branch,
+                kind=HEAL_OPERATION_KIND,
+                message="Tự đồng bộ history head trước commit (ghi ngoài ledger)",
+            )
+        except ChapterVersionError as exc:
+            if exc.code not in ("history_state_diverged", "branch_not_initialized"):
+                raise
+            if exc.code == "history_state_diverged":
+                details = exc.details or {}
+                # Corruption thật (blob/snapshot_hash) phải nổi — không nuốt.
+                # concurrent_heal thì để transaction dưới quyết định (retry).
+                if set(details.get("mismatches", [])) - set(HEALABLE_MISMATCHES) - {"concurrent_heal"}:
+                    raise
+            # branch_not_initialized thật (nhánh chưa có nội dung) thì để
+            # logic dưới báo đúng lỗi.
         try:
             conn.execute("BEGIN IMMEDIATE")
             prior = conn.execute(

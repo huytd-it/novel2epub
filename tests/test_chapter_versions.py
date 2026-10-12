@@ -62,7 +62,11 @@ def test_read_document_preserves_exact_text_and_requires_baseline(env):
     assert doc.content_hash == full_content_hash(doc.title, doc.translated)
     with conn:
         conn.execute("DELETE FROM chapter_revisions WHERE branch='ai'")
-    assert_code("branch_not_initialized", lambda: service.read_document(1, "ai"))
+    # Mất baseline nhưng current còn nguyên — tự dựng lại baseline thay vì
+    # báo branch_not_initialized (ghi legacy/pipeline trước v13).
+    healed = service.read_document(1, "ai")
+    assert (healed.ebook_slug, healed.chapter_index, healed.branch, healed.revision, healed.content_hash, healed.title, healed.translated) == (doc.ebook_slug, doc.chapter_index, doc.branch, doc.revision, doc.content_hash, doc.title, doc.translated)
+    assert service.validate_integrity(chapter_index=1).valid
 
 
 def test_commit_is_atomic_immutable_and_parented(env):
@@ -211,9 +215,78 @@ def test_current_head_divergence_and_corruption_detected(env, mutation):
             conn.execute("UPDATE chapter_revisions SET content_blob=x'00' WHERE branch='ai'")
         else:
             conn.execute("UPDATE chapter_revisions SET content_hash=? WHERE branch='ai'", ("0" * 64,))
-    assert_code("history_state_diverged", lambda: service.read_document(1, "ai"))
-    report = service.validate_integrity(chapter_index=1)
-    assert not report.valid
+    if mutation in ("blob", "snapshot_hash"):
+        # History hỏng thật (blob/snapshot) — không tự vá, phải nổi lỗi.
+        assert_code("history_state_diverged", lambda: service.read_document(1, "ai"))
+        report = service.validate_integrity(chapter_index=1)
+        assert not report.valid
+        return
+    # Ghi legacy đổi current mà không append history — tự vá head từ current
+    # để lần save kế tiếp báo document_conflict (tải lại) thay vì diverged.
+    doc = service.read_document(1, "ai")
+    if mutation == "revision":
+        assert doc.revision == 4
+    elif mutation == "hash":
+        assert doc.content_hash == full_content_hash(doc.title, doc.translated)
+    elif mutation == "title":
+        assert doc.title == "tampered"
+    elif mutation == "text":
+        assert doc.translated == "tampered"
+    assert service.validate_integrity(chapter_index=1).valid
+
+
+def test_legacy_write_then_versioned_save_reports_conflict_not_diverged(env):
+    """Kịch bản ChapterPage: compare-block/find-replace (ghi legacy, bump
+    revision, không append history) rồi Lưu toàn chương (commit versioned).
+
+    Trước fix: commit nổ `history_state_diverged` ("Current state và history
+    head không đồng nhất"). Sau fix: heal head từ current, commit stale báo
+    `document_conflict` (tải lại), commit đúng rev/hash thành công.
+    """
+    conn, _, service = env
+    stale = service.read_document(1, "ai")
+    with conn:
+        conn.execute(
+            "UPDATE chapters SET translated_text=?, revision=revision+1 WHERE idx=1",
+            ("sửa tay ngoài ledger",),
+        )
+    healed = service.read_document(1, "ai")
+    assert healed.translated == "sửa tay ngoài ledger"
+    assert healed.revision == stale.revision + 1
+    assert healed.content_hash == full_content_hash(healed.title, healed.translated)
+    # Client stale (mở trang trước khi sửa legacy) — báo conflict, không diverged.
+    error = assert_code(
+        "document_conflict",
+        lambda: service.commit_document(
+            chapter_index=1, branch="ai", expected_revision=stale.revision,
+            expected_content_hash=stale.content_hash, title="mới", translated="mới",
+            client_operation_id="stale-after-legacy",
+        ),
+    )
+    assert error.details["current_revision"] == healed.revision
+    # Client đã thấy bản legacy (refetch) — lưu thành công, parent là head đã vá.
+    result = service.commit_document(
+        chapter_index=1, branch="ai", expected_revision=healed.revision,
+        expected_content_hash=healed.content_hash, title=healed.title,
+        translated="lưu sau heal", client_operation_id="save-after-heal",
+    )
+    assert result.status == "committed"
+    assert result.document.revision == healed.revision + 1
+    assert service.validate_integrity(chapter_index=1).valid
+
+
+def test_stream_write_without_revision_bump_heals_with_bump(env):
+    """Pipeline stream đổi text nhưng không bump revision (rev == head nhưng
+    nội dung lệch) — heal tạo revision head+1 và bump current theo."""
+    conn, _, service = env
+    base = service.read_document(1, "ai")
+    with conn:
+        conn.execute("UPDATE chapters SET translated_text=? WHERE idx=1", ("stream mới",))
+    healed = service.read_document(1, "ai")
+    assert healed.translated == "stream mới"
+    assert healed.revision == base.revision + 1
+    assert healed.content_hash == full_content_hash(healed.title, "stream mới")
+    assert service.validate_integrity(chapter_index=1).valid
 
 
 def test_failed_postcondition_rolls_back_operation_revision_and_current(env, monkeypatch):

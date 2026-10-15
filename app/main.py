@@ -31,6 +31,7 @@ from .routes import (
     library,
     notes,
     opds,
+    pronouns,
     reader,
     settings,
     sources,
@@ -333,6 +334,7 @@ if _SPA_BUILT:
 app.include_router(ebooks.router)
 app.include_router(assistant.router)
 app.include_router(ai_harness.router)
+app.include_router(pronouns.router)
 app.include_router(chapters.router)
 app.include_router(characters.router)
 app.include_router(glossary.router)

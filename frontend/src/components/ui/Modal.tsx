@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import type { ReactNode } from "react";
 import clsx from "clsx";
 
@@ -13,6 +13,7 @@ export function Modal({
   wide,
   xl,
   fullscreen,
+  dismissible = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -23,8 +24,11 @@ export function Modal({
   /** Rộng hơn `wide` — dùng cho form nhiều field/cột (vd preset nguồn có DOM lab). */
   xl?: boolean;
   fullscreen?: boolean;
+  /** Prevent dismissal while a protected write is in flight. */
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -36,7 +40,7 @@ export function Modal({
   }, [open]);
 
   return (
-    <dialog ref={ref} className="modal" onClose={onClose}>
+    <dialog ref={ref} className="modal" aria-labelledby={titleId} onClose={onClose} onCancel={event => { if (!dismissible) event.preventDefault(); }}>
       <div
         className={clsx(
           "modal-box border border-base-300 p-0",
@@ -46,8 +50,8 @@ export function Modal({
         )}
       >
         <div className="flex items-center justify-between border-b border-base-300 px-4 py-3">
-          <h3 className="font-display text-base font-semibold">{title}</h3>
-          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Đóng">
+          <h3 id={titleId} className="font-display text-base font-semibold">{title}</h3>
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Đóng" disabled={!dismissible}>
             ✕
           </Button>
         </div>
@@ -59,7 +63,7 @@ export function Modal({
         ) : null}
       </div>
       <form method="dialog" className="modal-backdrop">
-        <button type="submit">Đóng</button>
+        <button type="submit" disabled={!dismissible}>Đóng</button>
       </form>
     </dialog>
   );

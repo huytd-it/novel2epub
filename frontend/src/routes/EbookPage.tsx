@@ -32,6 +32,7 @@ import {
 } from "@/lib/ebook";
 import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
 import { ProperNamesDialog } from "@/components/chapter/ProperNamesDialog";
+import { PronounsDialog } from "@/components/chapter/PronounsDialog";
 import { ProofreadingPanel, type ProofreadingDraft } from "@/components/chapter/ProofreadingPanel";
 import { ProofreadingScan } from "@/components/chapter/ProofreadingScan";
 import type { ProofreadingScanReport, ProofreadingScanRow } from "@/lib/chapter";
@@ -1938,6 +1939,7 @@ function EbookPageContent({ slug }: { slug: string }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [lastToggled, setLastToggled] = useState<number | null>(null);
   const [properNamesOpen, setProperNamesOpen] = useState(false);
+  const [pronounsOpen, setPronounsOpen] = useState(false);
   const [readerPreview, setReaderPreview] = useState<ReaderPublishPreview | null>(null);
   const [proofreadingCodes, setProofreadingCodes] = useState<string[]>(() => loadProofreadingCodes(slug));
   const [proofreadingReport, setProofreadingReport] = useState<ProofreadingScanReport | null>(null);
@@ -2332,6 +2334,9 @@ function EbookPageContent({ slug }: { slug: string }) {
               >
                 Trích tên riêng
               </Button>
+              <Button size="sm" disabled={!page?.matched} onClick={() => setPronounsOpen(true)}>
+                Chuẩn hóa xưng hô
+              </Button>
               {selected.size === 0 && page && page.matched > 0 ? (
                 <Button size="sm" onClick={() => setSelected(new Set(page.indexes))}>
                   Chọn tất cả {num(page.matched)} chương khớp
@@ -2346,6 +2351,13 @@ function EbookPageContent({ slug }: { slug: string }) {
           slug={slug}
           chapterIndexes={[...selected]}
         />
+        {pronounsOpen && <PronounsDialog
+          slug={slug}
+          selectedIndexes={[...selected].sort((a, b) => a - b)}
+          availableIndexes={page?.indexes ?? []}
+          onClose={() => setPronounsOpen(false)}
+          onCommitted={refreshProofreading}
+        />}
 
         <FilterBar filters={filters} onChange={setFilters} />
 

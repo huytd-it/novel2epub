@@ -62,7 +62,26 @@ python -m novel2epub -e <slug> normalize-pronouns --branch local_mt --from 1 --t
 - Mỗi chương ghi qua revision/hash CAS và lịch sử bất biến; gặp xung đột thì dừng,
   không ghi đè. Những chương đã lưu trước lỗi vẫn giữ nguyên; xem lại preview để
   chạy tiếp. Skill `.opencode/skills/normalize-pronouns/SKILL.md` hướng dẫn agent
-  thực hiện quy trình duyệt trước khi ghi. Tính năng hiện dùng qua CLI/skill.
+  thực hiện quy trình duyệt trước khi ghi.
+
+### Dùng trên giao diện web
+
+Ở trang truyện, bấm **Chuẩn hóa xưng hô** trong thanh tiêu đề bảng Chương:
+
+1. Chọn rõ nhánh **AI** hoặc **Local MT**. Không tự lấy nhánh đang xuất bản.
+2. Dùng các chương đang chọn trong bảng, hoặc nhập khoảng **index trong kết quả
+   đang lọc**. Mỗi lượt tối đa 50 chương và 2 MB nội dung; không âm thầm cắt phạm vi.
+3. Bấm **Xem trước thay đổi**, mở từng chương để xem đầy đủ diff trước/sau.
+   Việc mở hộp thoại và xem trước không ghi nội dung hoặc backfill lịch sử.
+4. Tích xác nhận đã duyệt rồi bấm **Áp dụng … chương đã duyệt**. Đổi nhánh/phạm vi
+   sẽ bỏ bản xem trước và xác nhận cũ. Không tự build EPUB hoặc đẩy Reader.
+
+API nội bộ `POST /api/ui/ebooks/{slug}/pronouns/preview` và `/apply` chạy quy tắc
+cục bộ, không gọi model. Approval ràng buộc với ebook, nhánh, danh sách index,
+revision/hash nguồn, trạng thái bỏ qua/hoàn chỉnh, entity protect và kết quả đề
+xuất. Bản xem trước cũ bị từ chối; ghi từng chương bằng revision/hash CAS. Nếu có
+xung đột giữa lúc ghi, giao diện báo rõ index thành công/thất bại. Sau lỗi mạng,
+phải xem trước lại trạng thái hiện tại, không tự gửi lại lệnh ghi.
 
 ## Hai Con Đường Dịch
 

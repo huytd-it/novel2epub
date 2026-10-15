@@ -6,9 +6,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router";
 import type { ComponentProps } from "react";
 import type { ProofreadingPanel } from "@/components/chapter/ProofreadingPanel";
+import type { PronounsDialog } from "@/components/chapter/PronounsDialog";
 
 const mocks = vi.hoisted(() => ({ selectBook: vi.fn(), toast: vi.fn(), post: vi.fn(), get: vi.fn() }));
 let panel: ComponentProps<typeof ProofreadingPanel>;
+let pronounsPanel: ComponentProps<typeof PronounsDialog> | undefined;
+vi.mock("@/components/chapter/PronounsDialog", () => ({ PronounsDialog: (props: ComponentProps<typeof PronounsDialog>) => {
+  pronounsPanel = props;
+  return <div role="dialog" aria-label="Chuẩn hóa mock"><button onClick={props.onClose}>Đóng xưng hô mock</button></div>;
+} }));
 vi.mock("@/app/Shell", () => ({ Page: ({ children }: { children: React.ReactNode }) => <main>{children}</main> }));
 vi.mock("@/lib/books", () => ({ useCurrentBook: () => ["demo", mocks.selectBook] }));
 vi.mock("@/components/ui/Toast", () => ({ useToast: () => mocks.toast }));
@@ -78,9 +84,22 @@ afterEach(() => {
   clients.splice(0).forEach(client => client.clear());
   localStorage.clear();
   vi.clearAllMocks();
+  pronounsPanel = undefined;
 });
 
 describe("EbookPage proofreading integration", () => {
+  it("opens pronoun normalization only on click, with current selected and all filtered indexes", () => {
+    mount();
+    expect(screen.queryByRole("dialog", { name: "Chuẩn hóa mock" })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Chọn chương 101" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chuẩn hóa xưng hô" }));
+    expect(pronounsPanel?.selectedIndexes).toEqual([101]);
+    expect(pronounsPanel?.availableIndexes).toEqual([101, 103, 205]);
+    expect(pronounsPanel?.slug).toBe("demo");
+    expect(mocks.post).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Đóng xưng hô mock" }));
+    expect(screen.queryByRole("dialog", { name: "Chuẩn hóa mock" })).toBeNull();
+  });
   it("shows an icon-only error link inside the TOC row, not a separate error table", () => {
     mount();
     const link = screen.getByRole("link", { name: "Sửa lỗi chương 101" });

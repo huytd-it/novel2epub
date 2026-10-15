@@ -16,6 +16,12 @@ description: Chuẩn hóa xưng hô không đồng nhất trong truyện võ hi�
 
 ## Quy trình
 
+Có thể dùng giao diện thay CLI: trang truyện → nút **Chuẩn hóa xưng hô** ở đầu
+bảng Chương → chọn nhánh, chương đang chọn hoặc khoảng index trong kết quả lọc →
+**Xem trước thay đổi** → duyệt diff → tích xác nhận → **Áp dụng**. Mỗi lượt tối đa
+50 chương/2 MB. Không cần gọi model; approval cũ bị từ chối nếu nội dung/phạm vi/
+entity thay đổi. Không bấm Áp dụng khi chưa có sự đồng ý sửa dữ liệu của người dùng.
+
 1. Xem trước 5–10 chương đại diện (dùng Python trong `.venv` nếu có):
 
    ```sh

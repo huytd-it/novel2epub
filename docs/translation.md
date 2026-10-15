@@ -32,6 +32,38 @@ AI không chắc/không có bằng chứng phải để unresolved. HTML lạ gi
 không xóa nhầm ý nghĩa; nội dung từ thẻ script/style còn lại cần người đọc đánh giá.
 Hướng dẫn vận hành và các giới hạn an toàn ở [operations.md](operations.md#soát-lỗi-chương--hàng-loạt).
 
+## Chuẩn hóa xưng hô không tốn token
+
+Lệnh `normalize-pronouns` dùng quy tắc cục bộ, không gọi AI, phù hợp phong cách
+võ hiệp/tiên hiệp muốn thống nhất `ta/ngươi`. Đây là **lựa chọn phong cách**,
+không phải sửa ngữ nghĩa hay nhận diện người nói; `ngươi` có thể thiếu lịch sự
+trong ngữ cảnh hiện đại hoặc quan hệ tôn ti.
+
+```sh
+# Xem đầy đủ diff, không ghi DB; bắt buộc chọn nhánh
+python -m novel2epub -e <slug> normalize-pronouns --branch local_mt --from 1 --to 10
+# Sau khi duyệt diff và sao lưu DB, thêm --apply để ghi kèm lịch sử phiên bản
+python -m novel2epub -e <slug> normalize-pronouns --branch local_mt --from 1 --to 10 --apply
+```
+
+- Chỉ sửa trong ngoặc kép cân bằng cùng dòng (`"…"`, `“…”`, `«…»`, `「…」`,
+  `『…』`): `tôi/tao/tớ → ta`, `mày → ngươi`. Giữ viết hoa.
+- Giữ số nhiều: `chúng/bọn/tụi + tôi/tao/tớ → bọn ta`,
+  `chúng/bọn/tụi mày → các ngươi`; không đổi thành `chúng ta` (khác nghĩa).
+- Giữ lời kể, đại từ mơ hồ (`anh/em/bạn/mình/mi`), ngôi thứ ba và danh xưng
+  quan hệ. Bỏ qua ngoặc thiếu/lồng, thoại nhiều dòng và thoại gạch đầu dòng.
+- Có ngoại lệ từ đồng âm thường gặp (`cái tôi`, `đầy tớ`, `thanh tao`,
+  `tôi luyện`, `lông mày`...). Không bảo đảm bao phủ mọi từ đồng âm; phải duyệt
+  diff, nhất là trích dẫn không phải lời thoại. Entity `protect` giữ cả literal
+  source lẫn target, không thay tên theo từ điển trong bước này.
+- Bỏ `--from/--to` để quét toàn nhánh; bỏ qua chương skipped/chưa dịch hoàn chỉnh.
+  Index là index lưu trong DB. Không thay raw, snapshot MT, tiêu đề, nhánh còn lại
+  hoặc lựa chọn nhánh xuất bản. Không tự build EPUB/publish Reader.
+- Mỗi chương ghi qua revision/hash CAS và lịch sử bất biến; gặp xung đột thì dừng,
+  không ghi đè. Những chương đã lưu trước lỗi vẫn giữ nguyên; xem lại preview để
+  chạy tiếp. Skill `.opencode/skills/normalize-pronouns/SKILL.md` hướng dẫn agent
+  thực hiện quy trình duyệt trước khi ghi. Tính năng hiện dùng qua CLI/skill.
+
 ## Hai Con Đường Dịch
 
 Chỉ còn **hai** backend dịch (`translate.type`):

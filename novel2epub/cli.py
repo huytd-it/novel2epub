@@ -224,6 +224,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("toc", help="Lấy mục lục, không crawl nội dung chương")
     clean_toc_parser = sub.add_parser("clean-toc", help="Dọn từ rác kêu gọi độc giả (cầu nguyệt phiếu, 求月票…) khỏi tiêu đề chương")
     clean_toc_parser.add_argument("--apply", action="store_true", help="Ghi thay đổi (mặc định chỉ preview, không sửa)")
+    pronouns_parser = sub.add_parser("normalize-pronouns", help="Chuẩn hóa xưng hô ta/ngươi trong lời thoại, không gọi AI")
+    pronouns_parser.add_argument("--branch", required=True, choices=["ai", "local_mt"], help="Nhánh bản dịch cần xử lý")
+    pronouns_parser.add_argument("--from", dest="start", type=int, default=None, help="Từ index chương (bao gồm)")
+    pronouns_parser.add_argument("--to", dest="end", type=int, default=None, help="Đến index chương (bao gồm)")
+    pronouns_parser.add_argument("--apply", action="store_true", help="Ghi kèm lịch sử phiên bản; mặc định chỉ in diff")
     chapters_parser = sub.add_parser("chapters", help="Liệt kê chương với sort/search/filter")
     chapters_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Khóa sắp xếp")
     chapters_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort")
@@ -329,6 +334,9 @@ def main(argv: list[str] | None = None) -> int:
     translate_parser.add_argument("--range", dest="visible_range", default="", help="Chọn range theo danh sách đang sort/filter, ví dụ 1:3")
 
     args = parser.parse_args(argv)
+
+    if args.command == "normalize-pronouns" and not args.ebook:
+        parser.error("normalize-pronouns yêu cầu -e/--ebook để chọn rõ ebook.")
 
     if args.command == "list":
         library = load_library(args.config)
@@ -454,7 +462,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "models":
         from . import openai_client
-        from .config import load_config
 
         try:
             cfg = load_config(args.config, args.ebook)
@@ -553,6 +560,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{verb}: {result['changed']}/{result['scanned']} tiêu đề dính từ rác.")
         elif args.command == "chapters":
             _print_chapters(cfg, args)
+        elif args.command == "normalize-pronouns":
+            from .pronouns import normalize_book_pronouns
+
+            result = normalize_book_pronouns(
+                Storage(cfg.output.data_dir, cfg.novel.slug), branch=args.branch,
+                start=args.start, end=args.end, apply=args.apply,
+            )
+            verb = "Đã ghi" if args.apply else "Preview (dùng --apply để ghi)"
+            print(f"{verb}: {result['changed']}/{result['scanned']} chương, {result['replacements']} chỗ xưng hô.")
         elif args.command == "evaluate":
             step_evaluate_translation(cfg, start=args.start, end=args.end)
         elif args.command == "reindex":

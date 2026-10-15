@@ -190,3 +190,39 @@ def test_stale_unchanged_chapter_rejects_entire_approval(book):
     assert response.status_code == 409
     assert counts(storage) == before
     assert storage.read_branch_text(storage.get_chapter(1), "ai") == 'Hắn nói. “Tôi đợi mày.”'
+
+
+def test_selected_dialogue_marks_flow_through_preview_apply_and_audit(book):
+    client, storage = book
+    ch = storage.get_chapter(1)
+    text = 'Tôi kể. "Tôi đi." (Tôi nghĩ.) ‘Tôi chờ mày.’ 「Tôi về.」'
+    storage.write_branch_text(ch, "local_mt", text)
+    scope = {"branch": "local_mt", "indexes": [1], "dialogue_marks": "single_chinese"}
+    report = client.post("/api/ui/ebooks/demo/pronouns/preview", json=scope).json()
+    assert report["dialogue_marks"] == "single_chinese" and report["replacements"] == 3
+    response = client.post("/api/ui/ebooks/demo/pronouns/apply", json={**scope, "token": report["token"], "confirmed": True})
+    assert response.status_code == 200 and response.json()["applied"] == [1]
+    assert storage.read_branch_text(ch, "local_mt") == 'Tôi kể. "Tôi đi." (Tôi nghĩ.) ‘Ta chờ ngươi.’ 「Ta về.」'
+    import json
+    audit = json.loads(storage.conn.execute("SELECT metadata_json FROM chapter_operations WHERE kind='normalize_pronouns'").fetchone()[0])
+    assert audit["dialogue_marks"] == "single_chinese"
+
+
+@pytest.mark.parametrize("mode", ["single_chinese", "parentheses"])
+def test_changing_dialogue_marks_rejects_old_token_even_if_output_is_identical(book, mode):
+    client, storage = book
+    # No edits in either mode: the option must still be bound to the token.
+    storage.write_branch_text(storage.get_chapter(1), "ai", "Không có thoại")
+    scope = {"branch": "ai", "indexes": [1]}
+    report = client.post("/api/ui/ebooks/demo/pronouns/preview", json=scope).json()
+    before = counts(storage)
+    response = client.post("/api/ui/ebooks/demo/pronouns/apply", json={**scope, "dialogue_marks": mode, "token": report["token"], "confirmed": True})
+    assert response.status_code == 409
+    assert counts(storage) == before
+
+
+def test_invalid_dialogue_marks_are_not_silently_ignored(book):
+    client, storage = book
+    before = counts(storage)
+    assert client.post("/api/ui/ebooks/demo/pronouns/preview", json={"branch": "ai", "indexes": [1], "dialogue_marks": "all_text"}).status_code == 422
+    assert counts(storage) == before

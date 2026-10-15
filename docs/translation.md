@@ -71,6 +71,18 @@ python -m novel2epub -e <slug> normalize-pronouns --branch local_mt --from 1 --t
 1. Chọn rõ nhánh **AI** hoặc **Local MT**. Không tự lấy nhánh đang xuất bản.
 2. Dùng các chương đang chọn trong bảng, hoặc nhập khoảng **index trong kết quả
    đang lọc**. Mỗi lượt tối đa 50 chương và 2 MB nội dung; không âm thầm cắt phạm vi.
+   Trong **Chỉ sửa bên trong dấu**, chọn:
+   - **Ngoặc kép thông dụng (hiện tại)**: `"…"`, `“…”`, `«…»`, `「…」`, `『…』`.
+     Đây vẫn là mặc định, tương thích hành vi cũ.
+   - **Chỉ nháy đơn / dấu thoại Trung**: `'…'`, `‘…’`, `“…”`, `「…」`, `『…』`.
+     Không sửa trong ngoặc kép ASCII `"…"` hoặc `«…»`; bỏ qua mọi vùng lồng nhau,
+     kể cả khi cặp ngoài không thuộc kiểu dấu được chọn. Dấu nháy trong từ như
+     `don't`/`O’Connor` không được xem là ranh giới lời thoại.
+   - **Chỉ ngoặc đơn**: `(…)` và `（…）`. Đây có thể là chú thích/suy nghĩ chứ không
+     phải lời nói; chỉ dùng khi biết định dạng truyện và vẫn phải duyệt diff.
+   Tất cả đều lọc **dấu trong bản dịch**, không căn chỉnh với bản gốc tiếng Trung;
+   không tự suy luận lời nói hoặc sửa ngoài vùng đã chọn. Cặp thiếu, lồng, hoặc
+   kéo dài nhiều dòng bị bỏ qua. Đổi kiểu dấu sẽ hủy bản xem trước và xác nhận cũ.
 3. Bấm **Xem trước thay đổi**, mở từng chương để xem đầy đủ diff trước/sau.
    Việc mở hộp thoại và xem trước không ghi nội dung hoặc backfill lịch sử.
 4. Tích xác nhận đã duyệt rồi bấm **Áp dụng … chương đã duyệt**. Đổi nhánh/phạm vi
@@ -78,10 +90,15 @@ python -m novel2epub -e <slug> normalize-pronouns --branch local_mt --from 1 --t
 
 API nội bộ `POST /api/ui/ebooks/{slug}/pronouns/preview` và `/apply` chạy quy tắc
 cục bộ, không gọi model. Approval ràng buộc với ebook, nhánh, danh sách index,
-revision/hash nguồn, trạng thái bỏ qua/hoàn chỉnh, entity protect và kết quả đề
+revision/hash nguồn, trạng thái bỏ qua/hoàn chỉnh, kiểu dấu bao quanh, entity protect và kết quả đề
 xuất. Bản xem trước cũ bị từ chối; ghi từng chương bằng revision/hash CAS. Nếu có
 xung đột giữa lúc ghi, giao diện báo rõ index thành công/thất bại. Sau lỗi mạng,
 phải xem trước lại trạng thái hiện tại, không tự gửi lại lệnh ghi.
+
+CLI có cùng bộ lọc: thêm `--dialogue-marks single_chinese` hoặc
+`--dialogue-marks parentheses`; không truyền tương đương `standard`. API dùng
+field `dialogue_marks` với ba giá trị đó (mặc định `standard`). Kiểu dấu được lưu
+trong metadata của lần ghi; approval không thể dùng lại với kiểu dấu khác.
 
 ## Hai Con Đường Dịch
 

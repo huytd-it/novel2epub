@@ -4,13 +4,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 import difflib
 import re
-from typing import Iterable
+from typing import Iterable, Literal
 import uuid
 
 
-RULE_VERSION = "neutral-dialogue-v1"
+RULE_VERSION = "neutral-dialogue-v2"
 _PAIRS = {'"': '"', '“': '”', '«': '»', '「': '」', '『': '』'}
-_CLOSERS = set(_PAIRS.values())
+DialogueMarks = Literal["standard", "single_chinese", "parentheses"]
+DIALOGUE_MARK_MODES = ("standard", "single_chinese", "parentheses")
+_MARK_PAIRS = {
+    "standard": _PAIRS,
+    "single_chinese": {"'": "'", "‘": "’", "“": "”", "「": "」", "『": "』"},
+    "parentheses": {"(": ")", "（": "）"},
+}
+_ALL_PAIRS = {**_PAIRS, **_MARK_PAIRS["single_chinese"], **_MARK_PAIRS["parentheses"]}
 _SINGULAR = {"tôi": "ta", "tao": "ta", "tớ": "ta", "mày": "ngươi"}
 _PLURAL = {
     f"{group} {pronoun}": "các ngươi" if pronoun == "mày" else "bọn ta"
@@ -48,11 +55,19 @@ class PronounResult:
     changes: tuple[PronounChange, ...]
 
 
-def _dialogue_spans(text: str):
+def _dialogue_spans(text: str, dialogue_marks: DialogueMarks = "standard"):
     """Only balanced, non-nested quotes on one line. Ambiguity means abstain."""
+    if dialogue_marks not in DIALOGUE_MARK_MODES:
+        raise ValueError("Kiểu dấu bao quanh không hợp lệ.")
+    selected = _MARK_PAIRS[dialogue_marks]
+    # Strict modes also recognize unselected wrappers, so a nested selected
+    # marker cannot make part of an ambiguous outer span eligible.
+    pairs = _PAIRS if dialogue_marks == "standard" else _ALL_PAIRS
+    closers = set(pairs.values())
     offset = 0
     stack: list[str] = []
     nested = False
+    eligible = False
     for line in text.splitlines(keepends=True):
         carried = bool(stack)
         spans = []
@@ -66,25 +81,36 @@ def _dialogue_spans(text: str):
             if char == "\\":
                 escaped = True
                 continue
+            if char in {"'", "‘", "’"}:
+                previous = line[pos - 1] if pos else ""
+                following = line[pos + 1] if pos + 1 < len(line) else ""
+                # don't / O’Connor are words, not dialogue boundaries.
+                if previous.isalnum() and following.isalnum():
+                    continue
+                if char == "'" and previous.isalnum() and (not stack or stack[-1] != "'"):
+                    continue
             if stack and char == stack[-1]:
                 stack.pop()
-                if not stack and not nested:
+                if not stack and not nested and eligible:
                     spans.append((offset + start, offset + pos))
-            elif char in _PAIRS:
+            elif char in pairs:
                 if not stack:
                     start = pos + 1
                     nested = False
+                    eligible = char in selected
                 else:
                     nested = True
-                stack.append(_PAIRS[char])
-            elif char in _CLOSERS:
+                stack.append(pairs[char])
+            elif char in closers:
                 malformed = True
         if not carried and not stack and not malformed:
             yield from spans
         offset += len(line)
 
 
-def normalize_pronouns(text: str, *, protected_terms: Iterable[str] = ()) -> PronounResult:
+def normalize_pronouns(
+    text: str, *, protected_terms: Iterable[str] = (), dialogue_marks: DialogueMarks = "standard",
+) -> PronounResult:
     """Return exact-offset edits; keep narration, relations and ambiguous forms intact.
 
     This is a style heuristic, not semantic correction. A preview is mandatory
@@ -98,7 +124,7 @@ def normalize_pronouns(text: str, *, protected_terms: Iterable[str] = ()) -> Pro
                 for m in re.finditer(re.escape(term), text, re.IGNORECASE)
             )
     changes = []
-    for start, end in _dialogue_spans(text):
+    for start, end in _dialogue_spans(text, dialogue_marks):
         for match in _TOKENS.finditer(text, start, end):
             if any(match.start() < right and match.end() > left for left, right in protected):
                 continue
@@ -118,7 +144,7 @@ def normalize_pronouns(text: str, *, protected_terms: Iterable[str] = ()) -> Pro
 
 def normalize_book_pronouns(
     storage, *, branch: str, start: int | None = None, end: int | None = None,
-    apply: bool = False, log=print,
+    apply: bool = False, log=print, dialogue_marks: DialogueMarks = "standard",
 ) -> dict:
     """Explicit branch, preview without writes, CAS commits with immutable history.
 
@@ -129,6 +155,8 @@ def normalize_book_pronouns(
 
     if branch not in {"ai", "local_mt"}:
         raise ValueError("Chọn nhánh ai hoặc local_mt.")
+    if dialogue_marks not in DIALOGUE_MARK_MODES:
+        raise ValueError("Kiểu dấu bao quanh không hợp lệ.")
     if (start is not None and start < 0) or (end is not None and end < 0):
         raise ValueError("Index chương không được âm.")
     if start is not None and end is not None and start > end:
@@ -142,7 +170,7 @@ def normalize_book_pronouns(
     ]
     service = ChapterVersionService(storage)
     summary = {"scanned": 0, "changed": 0, "replacements": 0, "applied": 0}
-    log("Quy tắc cục bộ, không gọi AI. Chỉ xử lý lời thoại có cặp ngoặc kép trên cùng dòng.")
+    log(f"Quy tắc cục bộ, không gọi AI. Dấu bao quanh: {dialogue_marks}; chỉ xử lý cặp cân bằng trên cùng dòng.")
     for chapter in manifest.chapters:
         if chapter.skipped or (start is not None and chapter.index < start) or (end is not None and chapter.index > end):
             continue
@@ -151,11 +179,11 @@ def normalize_book_pronouns(
         # Preview and no-op chapters must not heal/backfill history.
         base = None
         before = storage.read_branch_text(chapter, branch)
-        result = normalize_pronouns(before, protected_terms=protected_terms)
+        result = normalize_pronouns(before, protected_terms=protected_terms, dialogue_marks=dialogue_marks)
         if apply and result.changes:
             base = service.read_document(chapter.index, branch)
             before = base.translated
-            result = normalize_pronouns(before, protected_terms=protected_terms)
+            result = normalize_pronouns(before, protected_terms=protected_terms, dialogue_marks=dialogue_marks)
         summary["scanned"] += 1
         if not result.changes:
             continue
@@ -178,7 +206,7 @@ def normalize_book_pronouns(
                 title=base.title, translated=result.text,
                 client_operation_id=f"pronouns:{uuid.uuid4()}",
                 kind="normalize_pronouns", message="Chuẩn hóa xưng hô ta/ngươi bằng quy tắc cục bộ",
-                metadata={"rules": RULE_VERSION, "replacements": len(result.changes)},
+                metadata={"rules": RULE_VERSION, "replacements": len(result.changes), "dialogue_marks": dialogue_marks},
             )
             summary["applied"] += 1
             log(f"Đã lưu chương {chapter.index}; có lịch sử phiên bản.")

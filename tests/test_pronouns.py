@@ -206,3 +206,61 @@ def test_apply_noop_does_not_create_history(storage):
     result = normalize_book_pronouns(storage, branch="ai", start=1, end=1, apply=True, log=lambda _: None)
     assert result["applied"] == 0
     assert storage.conn.total_changes == before
+
+
+@pytest.mark.parametrize("opening,closing", [("'", "'"), ("‘", "’"), ("“", "”"), ("「", "」"), ("『", "』")])
+def test_single_chinese_mode_only_changes_selected_wrappers(opening, closing):
+    text = f'Tôi kể. "Tôi về với mày." (Tôi đợi mày.) {opening}Tôi tìm mày.{closing} Tôi đi.'
+    result = normalize_pronouns(text, dialogue_marks="single_chinese")
+    assert result.text == f'Tôi kể. "Tôi về với mày." (Tôi đợi mày.) {opening}Ta tìm ngươi.{closing} Tôi đi.'
+    assert len(result.changes) == 2
+    assert all(text[c.start:c.end] == c.before for c in result.changes)
+    assert not normalize_pronouns(result.text, dialogue_marks="single_chinese").changes
+
+
+@pytest.mark.parametrize("opening,closing", [("(", ")"), ("（", "）")])
+def test_parentheses_mode_is_separate_and_preserves_other_quotes(opening, closing):
+    text = f'Tôi kể. "Tôi về." ‘Tôi đi.’ “Tôi chạy.” {opening}Tôi chờ mày.{closing}'
+    assert normalize_pronouns(text, dialogue_marks="parentheses").text == f'Tôi kể. "Tôi về." ‘Tôi đi.’ “Tôi chạy.” {opening}Ta chờ ngươi.{closing}'
+
+
+@pytest.mark.parametrize("mode,text", [
+    ("single_chinese", "'Tôi nhìn mày"),
+    ("single_chinese", "'Tôi nhìn\nmày'"),
+    ("single_chinese", "'Tôi nhìn 「mày」.'"),
+    ("single_chinese", '"Tôi nhìn ‘mày’."'),
+    ("single_chinese", "(‘Tôi nhìn mày.’)"),
+    ("single_chinese", "‘Tôi nhìn mày.'"),
+    ("single_chinese", "'Tôi nhìn mày.' (thiếu"),
+    ("single_chinese", "Don't gọi tôi, O’Connor bảo mày đấy. James' book."),
+    ("single_chinese", "«Tôi chờ mày.»"),
+    ("parentheses", "(Tôi nhìn\nmày)"),
+    ("parentheses", "(Tôi nhìn mày."),
+    ("parentheses", "(Tôi nhìn （mày）.)"),
+    ("parentheses", '"(Tôi nhìn mày.)"'),
+    ("parentheses", "(Tôi nhìn mày.）"),
+])
+def test_strict_modes_abstain_on_ambiguous_or_unselected_regions(mode, text):
+    assert normalize_pronouns(text, dialogue_marks=mode).text == text
+
+
+def test_single_quotes_inside_words_and_escaped_quotes_do_not_break_boundaries():
+    text = "O’Connor nói: 'Tôi don't gọi mày.' Tôi ở ngoài."
+    assert normalize_pronouns(text, dialogue_marks="single_chinese").text == "O’Connor nói: 'Ta don't gọi ngươi.' Tôi ở ngoài."
+    text = "'Tôi nói \\'mày\\' đấy.' Tôi ở ngoài."
+    assert normalize_pronouns(text, dialogue_marks="single_chinese").text == "'Ta nói \\'ngươi\\' đấy.' Tôi ở ngoài."
+
+
+def test_unknown_dialogue_marks_are_rejected():
+    with pytest.raises(ValueError):
+        normalize_pronouns("", dialogue_marks="all_text")
+
+
+def test_cli_dialogue_marks_applied_to_selected_scope(storage, monkeypatch, capsys):
+    from types import SimpleNamespace
+    from novel2epub import cli
+
+    monkeypatch.setattr(cli, "load_config", lambda path, slug: SimpleNamespace(output=SimpleNamespace(data_dir=storage.data_dir), novel=SimpleNamespace(slug=slug)))
+    assert cli.main(["-e", "demo", "normalize-pronouns", "--branch", "ai", "--from", "1", "--to", "1", "--dialogue-marks", "parentheses"]) == 0
+    assert "0/1" in capsys.readouterr().out
+    assert storage.conn.execute("SELECT COUNT(*) FROM chapter_revisions").fetchone()[0] == 0

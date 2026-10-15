@@ -6,14 +6,16 @@ import { PronounsDialog } from "./PronounsDialog";
 import type { PronounPreview } from "@/lib/pronouns";
 
 const mocks = vi.hoisted(() => ({ preview: vi.fn(), apply: vi.fn() }));
-vi.mock("@/lib/pronouns", () => ({ pronounsApi: mocks }));
+vi.mock("@/lib/pronouns", async () => ({
+  ...await vi.importActual<typeof import("@/lib/pronouns")>("@/lib/pronouns"), pronounsApi: mocks,
+}));
 vi.mock("@/components/ui/Modal", () => ({
   Modal: ({ title, children, footer, onClose, dismissible }: { title: string; children: React.ReactNode; footer: React.ReactNode; onClose: () => void; dismissible: boolean }) =>
     <div role="dialog" aria-label={title}><button disabled={!dismissible} onClick={onClose}>Fermer mock</button>{children}{footer}</div>,
 }));
 
 const report: PronounPreview = {
-  branch: "ai", indexes: [1, 2], token: "a".repeat(64), scanned: 2, unchanged: 1,
+  branch: "ai", indexes: [1, 2], dialogue_marks: "standard", token: "a".repeat(64), scanned: 2, unchanged: 1,
   replacements: 2, skipped: [], chapters: [{ index: 1, title: "Chương 1: Thử", revision: 3,
     replacements: 2, diff: '--- Trước\n+++ Sau\n@@ -1 +1 @@\n-😀 “Tôi chờ mày.”\n+😀 “Ta chờ ngươi.”\n' }],
 };
@@ -39,7 +41,7 @@ describe("pronoun review dialog", () => {
     expect(mocks.apply).not.toHaveBeenCalled();
     expect((screen.getByRole("button", { name: "Xem trước thay đổi" }) as HTMLButtonElement).disabled).toBe(true);
     await preview();
-    expect(mocks.preview).toHaveBeenCalledWith("demo", { branch: "ai", indexes: [1, 2] });
+    expect(mocks.preview).toHaveBeenCalledWith("demo", { branch: "ai", indexes: [1, 2], dialogue_marks: "standard" });
     expect(screen.getByText(/Không gọi AI, không tốn token/)).toBeTruthy();
   });
 
@@ -68,7 +70,7 @@ describe("pronoun review dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Xem trước thay đổi" }));
     await screen.findByLabelText("Bản xem trước xưng hô");
     expect((screen.getByRole("checkbox", { name: /Tôi đã xem/ }) as HTMLInputElement).checked).toBe(false);
-    expect(mocks.preview).toHaveBeenLastCalledWith("demo", { branch: "ai", indexes: [1] });
+    expect(mocks.preview).toHaveBeenLastCalledWith("demo", { branch: "ai", indexes: [1], dialogue_marks: "standard" });
     fireEvent.change(screen.getByLabelText("Nhánh bản dịch"), { target: { value: "local_mt" } });
     expect(screen.queryByLabelText("Bản xem trước xưng hô")).toBeNull();
   });
@@ -76,7 +78,7 @@ describe("pronoun review dialog", () => {
   it("uses selected chapters including off-page indexes, without silently clipping", async () => {
     mount({ selectedIndexes: [1, 205], availableIndexes: [1, 2, 205] });
     await preview();
-    expect(mocks.preview).toHaveBeenCalledWith("demo", { branch: "ai", indexes: [1, 205] });
+    expect(mocks.preview).toHaveBeenCalledWith("demo", { branch: "ai", indexes: [1, 205], dialogue_marks: "standard" });
   });
 
   it("rejects more than 50 selected chapters", () => {
@@ -118,5 +120,34 @@ describe("pronoun review dialog", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
     await waitFor(() => expect(onCommitted).toHaveBeenCalledOnce());
     expect(mocks.apply).toHaveBeenCalledOnce();
+  });
+
+  it("invalidates the old preview and approval when dialogue marks change", async () => {
+    mount(); await preview();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Tôi đã xem/ }));
+    fireEvent.change(screen.getByLabelText("Chỉ sửa bên trong dấu", { exact: false }), { target: { value: "single_chinese" } });
+    expect(screen.queryByLabelText("Bản xem trước xưng hô")).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    mocks.preview.mockResolvedValue({ ...report, dialogue_marks: "single_chinese" });
+    fireEvent.click(screen.getByRole("button", { name: "Xem trước thay đổi" }));
+    await screen.findByLabelText("Bản xem trước xưng hô");
+    expect(mocks.preview).toHaveBeenLastCalledWith("demo", { branch: "ai", indexes: [1, 2], dialogue_marks: "single_chinese" });
+    expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByText(/Bộ lọc bản xem trước: Chỉ nháy đơn/)).toBeTruthy();
+  });
+
+  it("offers literal parentheses separately and warns they are not necessarily speech", async () => {
+    mount();
+    fireEvent.change(screen.getByLabelText("Nhánh bản dịch"), { target: { value: "ai" } });
+    fireEvent.change(screen.getByLabelText("Chỉ sửa bên trong dấu", { exact: false }), { target: { value: "parentheses" } });
+    expect(screen.getByText(/Ngoặc đơn thường chứa chú thích/)).toBeTruthy();
+    mocks.preview.mockResolvedValue({ ...report, dialogue_marks: "parentheses" });
+    fireEvent.click(screen.getByRole("button", { name: "Xem trước thay đổi" }));
+    await screen.findByLabelText("Bản xem trước xưng hô");
+    expect(mocks.preview).toHaveBeenLastCalledWith("demo", { branch: "ai", indexes: [1, 2], dialogue_marks: "parentheses" });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Áp dụng 1 chương đã duyệt" }));
+    await screen.findByLabelText("Kết quả chuẩn hóa");
+    expect(mocks.apply).toHaveBeenCalledWith("demo", { ...report, dialogue_marks: "parentheses" });
   });
 });

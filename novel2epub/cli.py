@@ -229,6 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     pronouns_parser.add_argument("--from", dest="start", type=int, default=None, help="Từ index chương (bao gồm)")
     pronouns_parser.add_argument("--to", dest="end", type=int, default=None, help="Đến index chương (bao gồm)")
     pronouns_parser.add_argument("--apply", action="store_true", help="Ghi kèm lịch sử phiên bản; mặc định chỉ in diff")
+    pronouns_parser.add_argument("--dialogue-marks", choices=["standard", "single_chinese", "parentheses"], default="standard", help="Chỉ sửa trong dấu đã chọn: standard (hiện tại), single_chinese (nháy đơn/dấu thoại Trung), parentheses (ngoặc đơn)")
     chapters_parser = sub.add_parser("chapters", help="Liệt kê chương với sort/search/filter")
     chapters_parser.add_argument("--sort", default="source", choices=["source", "title", "raw", "translated"], help="Khóa sắp xếp")
     chapters_parser.add_argument("--desc", action="store_true", help="Đảo chiều sort")
@@ -566,6 +567,7 @@ def main(argv: list[str] | None = None) -> int:
             result = normalize_book_pronouns(
                 Storage(cfg.output.data_dir, cfg.novel.slug), branch=args.branch,
                 start=args.start, end=args.end, apply=args.apply,
+                dialogue_marks=args.dialogue_marks,
             )
             verb = "Đã ghi" if args.apply else "Preview (dùng --apply để ghi)"
             print(f"{verb}: {result['changed']}/{result['scanned']} chương, {result['replacements']} chỗ xưng hô.")

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Checkbox, Input, Select } from "@/components/ui/Field";
-import { pronounsApi, type PronounApplied, type PronounBranch, type PronounPreview } from "@/lib/pronouns";
+import { DIALOGUE_MARK_EXAMPLES, DIALOGUE_MARK_LABELS, pronounsApi, type DialogueMarks, type PronounApplied, type PronounBranch, type PronounPreview } from "@/lib/pronouns";
 
 /** Local extension of the ebook review tools: explicit branch, full diff,
  * protected approval, no model calls or automatic publication. */
@@ -12,6 +12,7 @@ export function PronounsDialog({ slug, selectedIndexes, availableIndexes, onClos
 }) {
   const sorted = [...availableIndexes].sort((a, b) => a - b);
   const [branch, setBranch] = useState<PronounBranch | "">("");
+  const [dialogueMarks, setDialogueMarks] = useState<DialogueMarks>("standard");
   const [scope, setScope] = useState(selectedIndexes.length ? "selected" : "range");
   const [start, setStart] = useState(String(sorted[0] ?? 1));
   const [end, setEnd] = useState(String(sorted[Math.min(9, sorted.length - 1)] ?? 10));
@@ -31,7 +32,7 @@ export function PronounsDialog({ slug, selectedIndexes, availableIndexes, onClos
   const analyze = async () => {
     if (!branch || scopeError || busy) return;
     reset(); setBusy("preview");
-    try { setPreview(await pronounsApi.preview(slug, { branch, indexes })); }
+    try { setPreview(await pronounsApi.preview(slug, { branch, indexes, dialogue_marks: dialogueMarks })); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(null); }
   };
@@ -62,7 +63,7 @@ export function PronounsDialog({ slug, selectedIndexes, availableIndexes, onClos
     <div className="space-y-5 text-sm">
       <div className="space-y-2">
         <p>Thống nhất lời thoại theo phong cách võ hiệp bằng quy tắc cục bộ. <strong>Không gọi AI, không tốn token.</strong></p>
-        <p className="text-base-content/75"><strong>tôi / tao / tớ → ta</strong> · <strong>mày → ngươi</strong>. Giữ số nhiều, lời kể và danh xưng quan hệ. “Ngươi” không phù hợp với mọi vai vế; hãy duyệt thay đổi trước khi ghi.</p>
+        <p className="text-base-content/75"><strong>tôi / tao / tớ → ta</strong> · <strong>mày → ngươi</strong>. Giữ số nhiều, danh xưng quan hệ và phần ngoài vùng được chọn. “Ngươi” không phù hợp với mọi vai vế; hãy duyệt thay đổi trước khi ghi.</p>
       </div>
 
       <fieldset disabled={Boolean(busy)} className="grid gap-4 border-y border-base-300 py-4 sm:grid-cols-2">
@@ -81,12 +82,20 @@ export function PronounsDialog({ slug, selectedIndexes, availableIndexes, onClos
           <label className="space-y-1"><span className="block">Từ index</span><Input className="w-full" type="number" min={0} step={1} value={start} onChange={e => { reset(); setStart(e.target.value); }} /></label>
           <label className="space-y-1"><span className="block">Đến index</span><Input className="w-full" type="number" min={0} step={1} value={end} onChange={e => { reset(); setEnd(e.target.value); }} /></label>
         </div>}
+        <label className="min-w-0 space-y-1 sm:col-span-2"><span className="block font-medium">Chỉ sửa bên trong dấu</span>
+          <Select className="w-full min-w-0 max-w-full" value={dialogueMarks} onChange={e => { reset(); setDialogueMarks(e.target.value as DialogueMarks); }}>
+            {(Object.entries(DIALOGUE_MARK_LABELS) as [DialogueMarks, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </Select>
+          <span className="block text-xs">Cặp dấu được xét: {DIALOGUE_MARK_EXAMPLES[dialogueMarks]}</span>
+          <span className="block text-xs text-base-content/75">Lọc dấu trong bản dịch, không căn chỉnh với bản gốc Trung. Chỉ xét cặp cân bằng trên cùng dòng; không sửa ngoài vùng đã chọn.</span>
+          {dialogueMarks === "parentheses" && <span className="block text-xs text-warning">Ngoặc đơn thường chứa chú thích hoặc suy nghĩ, không chắc là lời nói. Cần xem kỹ diff trước khi áp dụng.</span>}
+        </label>
         <p className="text-base-content/75 sm:col-span-2">{scopeError || `${indexes.length} chương trong phạm vi · tối đa 50 chương mỗi lượt. Chương bỏ qua hoặc chưa dịch hoàn chỉnh sẽ không được sửa.`}</p>
       </fieldset>
 
       <details className="text-base-content/75"><summary className="cursor-pointer font-medium">Quy tắc và giới hạn an toàn</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>Chỉ sửa lời thoại có cặp ngoặc kép trên cùng dòng; bỏ qua ngoặc lồng, ngoặc thiếu và thoại gạch đầu dòng.</li>
+          <li>Chỉ sửa trong kiểu dấu đã chọn trên cùng dòng; bỏ qua ngoặc lồng, ngoặc thiếu và thoại gạch đầu dòng. Không coi dấu nháy trong từ như O’Connor là ranh giới lời thoại.</li>
           <li>Không tự đổi anh/em, bạn/mình/mi, hắn/nàng hay sư phụ/đệ tử. Entity được bảo vệ và từ đồng âm thường gặp được giữ nguyên.</li>
           <li>Có thể bỏ sót hoặc nhận nhầm trích dẫn. Đây là chuẩn hóa phong cách, không phải suy luận người nói.</li>
           <li>Chỉ ghi nhánh đã chọn và lưu lịch sử phiên bản. Không thay bản gốc, snapshot MT, nhánh còn lại; không tự build EPUB hay đẩy Reader.</li>
@@ -109,6 +118,7 @@ export function PronounsDialog({ slug, selectedIndexes, availableIndexes, onClos
           <Button size="sm" disabled={Boolean(busy)} onClick={analyze}>Xem trước lại</Button>
         </div>
         <p className="text-base-content/75">Đã quét {preview.scanned} chương · {preview.unchanged} không đổi · {preview.skipped.length} bỏ qua. Chưa có thay đổi nào được ghi.</p>
+        <p className="text-xs text-base-content/75">Bộ lọc bản xem trước: {DIALOGUE_MARK_LABELS[preview.dialogue_marks]} · {DIALOGUE_MARK_EXAMPLES[preview.dialogue_marks]}</p>
         {!preview.chapters.length && <p>Không có đề xuất không có nghĩa là xưng hô đã hoàn toàn đúng. Những đại từ mơ hồ vẫn cần đọc và biên tập theo ngữ cảnh.</p>}
         {!!preview.skipped.length && <details><summary className="cursor-pointer">Xem chương bỏ qua</summary><ul className="mt-2 space-y-1">{preview.skipped.map(item => <li key={item.index}>Index {item.index}: {item.reason}</li>)}</ul></details>}
         <div className="divide-y divide-base-300">{preview.chapters.map(chapter => <details key={chapter.index} open={preview.chapters.length === 1} className="py-3">

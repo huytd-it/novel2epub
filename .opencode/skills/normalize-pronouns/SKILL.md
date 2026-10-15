@@ -19,8 +19,14 @@ description: Chuẩn hóa xưng hô không đồng nhất trong truyện võ hi�
 Có thể dùng giao diện thay CLI: trang truyện → nút **Chuẩn hóa xưng hô** ở đầu
 bảng Chương → chọn nhánh, chương đang chọn hoặc khoảng index trong kết quả lọc →
 **Xem trước thay đổi** → duyệt diff → tích xác nhận → **Áp dụng**. Mỗi lượt tối đa
-50 chương/2 MB. Không cần gọi model; approval cũ bị từ chối nếu nội dung/phạm vi/
-entity thay đổi. Không bấm Áp dụng khi chưa có sự đồng ý sửa dữ liệu của người dùng.
+50 chương/2 MB. Trong **Chỉ sửa bên trong dấu**, có thể chọn **Chỉ nháy đơn / dấu
+thoại Trung** (`'…'`, `‘…’`, `“…”`, `「…」`, `『…』`), hoặc **Chỉ ngoặc đơn** (`(…)`,
+`（…）` — có thể là chú thích, không chắc là thoại). Bộ lọc dùng dấu trong bản dịch,
+không căn chỉnh raw Trung. Ngoặc lồng/thiếu/nhiều dòng bị bỏ qua, không sửa phần
+ngoài vùng được chọn. CLI tương ứng: `--dialogue-marks single_chinese` hoặc
+`--dialogue-marks parentheses`; mặc định `standard` giữ hành vi cũ.
+Không cần gọi model; approval cũ bị từ chối nếu nội dung/phạm vi/kiểu dấu/entity
+thay đổi. Không bấm Áp dụng khi chưa có sự đồng ý sửa dữ liệu của người dùng.
 
 1. Xem trước 5–10 chương đại diện (dùng Python trong `.venv` nếu có):
 

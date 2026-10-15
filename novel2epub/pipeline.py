@@ -1842,8 +1842,8 @@ def step_translate_toc_selected(
         items = [(ch.index, ch.title_zh or ch.title) for ch in to_translate]
         log(f"[toc] Đang dịch tiêu đề thông minh {len(items)} tiêu đề…")
         try:
-            # translate_titles_once đã tự chia batch + fallback từng cái còn
-            # thiếu nên không bao giờ trả rỗng vì LLM lệch format.
+            # translate_titles_once gửi TOÀN BỘ danh sách trong một lần gọi duy
+            # nhất; tiêu đề nào thiếu được fallback dịch riêng từng cái.
             translated = translator.translate_titles_once(
                 [source for _index, source in items]
             )

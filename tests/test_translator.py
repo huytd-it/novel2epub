@@ -272,6 +272,57 @@ def test_openai_titles_prompt_requests_removing_vote_suffixes():
     assert "cầu vé tháng" in prompt
 
 
+def test_titles_batch_prompt_has_mandatory_source_context():
+    from novel2epub.translator import make_translator
+
+    translator = make_translator(TranslateConfig(type="openai"))
+    prompt = translator._build_titles_batch_prompt(["第303章 无形"])
+
+    assert prompt.startswith(
+        "MANDATORY CONTEXT: The source text is Chinese and the target language "
+        "is Vietnamese."
+    )
+    assert "do not treat them as the source language" in prompt
+
+
+def test_single_title_prompt_has_mandatory_source_context_even_with_en_template():
+    from novel2epub.config import EN_TITLE_PROMPT
+    from novel2epub.translator import make_translator
+
+    cfg = TranslateConfig(
+        type="openai",
+        openai=OpenAIConfig(title_prompt_template=EN_TITLE_PROMPT),
+    )
+    translator = make_translator(cfg)
+    prompt = translator._build_title_prompt("第303章 303无形 一", "tên chương")
+
+    assert prompt.startswith(
+        "MANDATORY CONTEXT: The source text is Chinese and the target language "
+        "is Vietnamese."
+    )
+
+
+def test_translate_titles_once_sends_whole_toc_in_single_call(monkeypatch):
+    from novel2epub.translator import make_translator
+
+    translator = make_translator(TranslateConfig(type="openai"))
+    calls: list[str] = []
+
+    def _mock_run_chat(cfg_, prompt):
+        calls.append(prompt)
+        lines = [line for line in prompt.splitlines() if line[:1].isdigit()]
+        total = len(lines)
+        return "\n".join(f"{i}. Chương {i}: Tên {i}" for i in range(1, total + 1))
+
+    monkeypatch.setattr("novel2epub.translator.openai_client.run_chat", _mock_run_chat)
+    titles = [f"第{i}章 标题{i}" for i in range(1, 121)]
+    result = translator.translate_titles_once(titles)
+
+    assert len(calls) == 1
+    assert len(result) == 120
+    assert result[0] == "Chương 1: Tên 1"
+
+
 def test_go_preset_chapter_translation_uses_openai(monkeypatch):
     from novel2epub.translator import make_translator
 

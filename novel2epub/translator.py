@@ -224,6 +224,20 @@ def _clean_output(text: str, *, normalize_punctuation: bool = True) -> str:
     return cleaned
 
 
+# Tên ngôn ngữ nguồn để gắn MANDATORY CONTEXT vào prompt dịch tiêu đề —
+# từng có ca template EN (ví dụ pinyin/Tiếng Anh như "Xie Lian") được dùng cho
+# tiêu đề chữ Hán, model nhầm ví dụ thành ngôn ngữ nguồn. Rỗng = Trung văn
+# mặc định (TranslateConfig.source_language để trống nghĩa là nguồn Trung).
+_TITLE_SOURCE_NAMES = {
+    "en": "English",
+    "vi": "Vietnamese",
+    "zh": "Chinese",
+    "cn": "Chinese",
+    "zh-cn": "Chinese",
+    "zh-tw": "Chinese",
+}
+
+
 _TITLE_LINE = re.compile(r"^\s*TI[ÊE]U\s*Đ[ỀE]\s*:\s*(.*)$", re.IGNORECASE)
 _NOTE_LINE = re.compile(r"^\s*GI[ẢA]I\s*TH[ÍI]CH\s*:\s*(.*)$", re.IGNORECASE)
 
@@ -489,9 +503,8 @@ class OpenAITranslator:
     # để tránh prompt quá tải/timeout request AI.
     DEFAULT_MAX_CHARS = 6000
 
-    # Số tiêu đề tối đa gộp vào 1 lần gọi khi dịch hàng loạt (translate_titles).
-    # Tiêu đề ngắn nên gộp được nhiều, nhưng vẫn giới hạn để tránh prompt/response
-    # quá dài (timeout, model cắt bớt output) — chia thành nhiều batch nếu cần.
+    # Giữ lại vì tương thích (code ngoài có thể tham chiếu) — smart TOC giờ gửi
+    # toàn bộ danh sách trong ĐÚNG MỘT lần gọi, không chia nhỏ nữa.
     TITLES_BATCH_SIZE = 50
 
     def __init__(self, cfg: TranslateConfig, log: Callable[[str], None] | None = None, storage: "Storage | None" = None):
@@ -680,12 +693,29 @@ class OpenAITranslator:
             entries.append(entry)
         return translation, entries if entries else None
 
+    def _title_mandatory_context(self) -> str:
+        """Dòng khai báo ngôn ngữ nguồn/đích gắn ĐẦU mọi prompt dịch tiêu đề.
+
+        Khóa cứng nguồn/đích thực tế theo `cfg.source_language`, áp dụng bất kể
+        template nào đang pin trong cấu hình (Việt/Anh/Trung) — ví dụ trong
+        template chỉ là hướng dẫn thuật ngữ, không được coi là ngôn ngữ nguồn.
+        """
+        src = _TITLE_SOURCE_NAMES.get(
+            (self.cfg.source_language or "").strip().lower(), "Chinese"
+        )
+        return (
+            f"MANDATORY CONTEXT: The source text is {src} and the target language "
+            "is Vietnamese. Language-specific examples below are terminology guidance "
+            "only; do not treat them as the source language."
+        )
+
     def _build_title_prompt(self, text: str, kind: str) -> str:
-        return self.openai.title_prompt_template.format(
+        rendered = self.openai.title_prompt_template.format(
             text=text,
             kind=kind,
             glossary=_format_glossary(self._glossary_for_prompt(text)),
         )
+        return f"{self._title_mandatory_context()}\n\n{rendered}"
 
     def _run_chat_with_retry(self, prompt: str) -> str:
         attempts = max(1, int(self.cfg.retry.attempts))
@@ -868,6 +898,7 @@ class OpenAITranslator:
         glossary = _format_glossary(self._glossary_for_prompt("\n".join(titles)))
         glossary_block = f"{glossary}\n\n" if glossary else ""
         return (
+            f"{self._title_mandatory_context()}\n\n"
             f"Bạn là biên tập tiêu đề cho truyện dịch Trung-Việt. Nhiệm vụ: chuyển ngữ "
             f"{len(titles)} tiêu đề chương sau sang tiếng Việt thật HAY, có hồn, "
             "KHÔNG dịch sát nghĩa kiểu máy/Quick Translate.\n\n"
@@ -878,73 +909,55 @@ class OpenAITranslator:
             "3. Ưu tiên đúng nghĩa và đúng sắc thái trước độ hoa mỹ; tiêu đề gọn, tự nhiên, "
             "không tiết lộ thêm nội dung.\n"
             "4. Xóa các hậu tố quảng bá/kêu gọi độc giả như cầu phiếu, xin phiếu, "
-            "cầu vé tháng, xin đề cử; không đưa chúng vào tiêu đề dịch.\n\n"
+            "cầu vé tháng, xin đề cử; không đưa chúng vào tiêu đề dịch.\n"
+            "5. ĐỊNH DẠNG BẮT BUỘC — mọi tiêu đề có số phải theo dạng `Chương N: Tên chương`:\n"
+            "   - Nguồn có `第M章` → `Chương M: <tên đã dịch>`; `第M卷` → `Quyển M: <tên đã dịch>`; "
+            "`第M回` → `Hồi M: <tên đã dịch>` (số M Ả Rập, giữ ĐÚNG số gốc).\n"
+            "   - Không có phần tên (vd `第12章`) → chỉ `Chương 12`, không bịa thêm tên.\n"
+            "   - Nguồn không có tiền tố số → chỉ dịch tên, KHÔNG tự thêm `Chương N`.\n"
+            "   - Luôn dùng dấu `:` ngăn số và tên, không dùng `-`, `–`, `.`.\n\n"
             f"{glossary_block}"
             f"Trả lời ĐÚNG {len(titles)} dòng, mỗi dòng một tiêu đề đã dịch, giữ NGUYÊN "
             "thứ tự và số thứ tự như danh sách gốc, theo định dạng:\n"
-            "<số thứ tự>. <bản dịch tiếng Việt>\n"
+            "<số thứ tự>. <bản dịch tiếng Việt theo dạng Chương N: Tên chương>\n"
+            "Ví dụ: `1. 第12章 黑夜` → `1. Chương 12: Đêm đen`; "
+            "`2. 第3卷 王座之战，求月票` → `2. Quyển 3: Cuộc chiến vương tọa`.\n"
             "Không thêm giải thích, không gộp/bỏ dòng nào, không đánh số lại.\n\n"
             "--- Danh sách tiêu đề cần dịch ---\n"
             f"{numbered}"
         )
 
     def translate_titles_once(self, titles: list[str]) -> list[str]:
-        """Dịch toàn bộ danh sách bằng đúng một prompt, không sinh chú thích.
+        """Dịch toàn bộ danh sách trong ĐÚNG MỘT lần gọi prompt batch.
 
-        LLM lệch format (thiếu dòng, sai đánh số) chỉ làm TRỐNG vị trí đó ở
-        bước parse — vòng fallback dưới dịch riêng từng tiêu đề còn thiếu nên
-        batch không bao giờ trả chuỗi rỗng hay sập cả lô vì một dòng hỏng.
-        List quá dài được chia theo TITLES_BATCH_SIZE để model không cắt bớt
-        output (nguyên nhân phổ biến nhất của "thiếu dòng").
+        Toàn bộ TOC được gửi trong một prompt duy nhất để AI có ngữ cảnh xuyên
+        suốt (nhất quán tên riêng/đánh số), không chia nhỏ theo
+        TITLES_BATCH_SIZE. LLM lệch format (thiếu dòng, sai đánh số) chỉ làm
+        TRỐNG vị trí đó ở bước parse — các tiêu đề còn thiếu được fallback dịch
+        riêng từng cái nên batch không bao giờ trả chuỗi rỗng hay sập cả lô vì
+        một dòng hỏng.
         """
         if not titles:
             return []
+        try:
+            out = self._run_chat_with_retry(self._build_titles_batch_prompt(titles))
+        except Exception as exc:  # noqa: BLE001 - một batch hỏng không giết cả lô
+            self.log(f"  ⚠ batch {len(titles)} tiêu đề lỗi gọi AI ({exc}), dịch riêng từng tiêu đề.")
+            return [self.translate_title(source)[0] for source in titles]
+        parsed = _parse_titles_batch_response(out, len(titles))
         result: list[str] = []
-        for start in range(0, len(titles), self.TITLES_BATCH_SIZE):
-            batch = titles[start : start + self.TITLES_BATCH_SIZE]
-            try:
-                out = self._run_chat_with_retry(self._build_titles_batch_prompt(batch))
-            except Exception as exc:  # noqa: BLE001 - một batch hỏng không giết cả lô
-                self.log(f"  ⚠ batch {start + 1}-{start + len(batch)} lỗi gọi AI ({exc}), dịch riêng từng tiêu đề.")
-                for source in batch:
-                    title, _note = self.translate_title(source)
-                    result.append(title)
-                continue
-            parsed = _parse_titles_batch_response(out, len(batch))
-            for i, source in enumerate(batch, start=1):
-                if parsed.get(i):
-                    result.append(_apply_glossary(parsed[i], self.glossary))
-                else:
-                    self.log(
-                        f"  ⚠ batch thiếu dòng {start + i}, dịch riêng: {source[:40]}"
-                    )
-                    title, _note = self.translate_title(source)
-                    result.append(title)
+        for i, source in enumerate(titles, start=1):
+            if parsed.get(i):
+                result.append(_apply_glossary(parsed[i], self.glossary))
+            else:
+                self.log(f"  ⚠ batch thiếu dòng {i}, dịch riêng: {source[:40]}")
+                title, _note = self.translate_title(source)
+                result.append(title)
         return result
 
     def translate_titles(self, titles: list[str]) -> list[str]:
-        if not titles:
-            return []
-        result: list[str] = []
-        for start in range(0, len(titles), self.TITLES_BATCH_SIZE):
-            batch = titles[start : start + self.TITLES_BATCH_SIZE]
-            try:
-                out = self._run_chat_with_retry(self._build_titles_batch_prompt(batch))
-            except Exception as exc:  # noqa: BLE001 - một batch hỏng không giết cả lô
-                self.log(f"  ⚠ batch {start + 1}-{start + len(batch)} lỗi gọi AI ({exc}), dịch riêng từng tiêu đề.")
-                for source in batch:
-                    title, _note = self.translate_title(source)
-                    result.append(title)
-                continue
-            parsed = _parse_titles_batch_response(out, len(batch))
-            for i, t in enumerate(batch, start=1):
-                if i in parsed and parsed[i]:
-                    result.append(_apply_glossary(parsed[i], self.glossary))
-                else:
-                    # Model bỏ sót dòng này trong response hàng loạt → fallback dịch riêng.
-                    title, _note = self.translate_title(t)
-                    result.append(title)
-        return result
+        """Giữ tương thích — đi chung một lần gọi như `translate_titles_once`."""
+        return self.translate_titles_once(titles)
 
 
 class LocalMTTranslator:

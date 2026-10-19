@@ -22,6 +22,12 @@ CLI được định nghĩa trong `novel2epub/cli.py`; Web UI khởi tạo tại
 
 Các bước idempotent theo trạng thái chương. Cờ `force`, phạm vi và bộ lọc cho phép chủ động chạy lại.
 
+### Chuyển nguồn ebook
+
+Trang ebook có nút **Chuyển nguồn**: chọn preset nguồn, URL mục lục khác, chế độ Fetcher/Stealthy và Headless (chỉ áp dụng với Stealthy), xem trước các chương ghép theo số chương duy nhất (không dựa vào vị trí TOC), sửa ghép thủ công hoặc bỏ qua/thêm mới, rồi xác nhận. Lựa chọn chế độ và Headless dùng cho cả lần lấy mục lục xem trước/xác nhận và các lần Crawl tiếp theo. Xem trước không ghi DB. Xác nhận tải lại TOC và kiểm tra fingerprint của hai mục lục; nếu TOC hoặc ebook thay đổi phải xem trước lại. Không chuyển khi ebook có job chạy/chờ. Toàn bộ thay đổi URL chương, tiêu đề nguồn (`title_zh` — khóa ghép mục lục) và cấu hình nguồn nằm trong một giao dịch SQLite; tiêu đề nhánh AI đã dịch/chỉnh tay và dữ liệu bản gốc/bản dịch được giữ nguyên. `title` chỉ đổi khi còn là tiêu đề nguồn cũ. Cấu hình crawl riêng cũ được thay bằng preset mới + URL mục lục + chế độ và Headless đã chọn. Sau đó chạy Crawl bình thường để tải những chương còn thiếu raw; không dùng force nếu muốn giữ raw cũ.
+
+Chương chỉ có ở nguồn mới được tự đề xuất thêm khi số chương không trùng và có thể đối chiếu; nếu hai chương cũ lân cận có khoảng trống index tương ứng thì điền vào index đó. Nếu index ở giữa đã có chương khác, thêm vào cuối để không đổi khóa/index và bản dịch của chương cũ; dùng **Sắp xếp lại** sau khi chuyển nếu muốn khôi phục thứ tự đọc. Có thể nhập thủ công index còn trống trong bản xem trước; API từ chối index trùng hoặc đã có dữ liệu.
+
 ## Lưu Trữ
 
 SQLite là nguồn sự thật duy nhất. `Storage` cung cấp API tương thích cho manifest và nội dung chương nhưng dữ liệu thực tế nằm trong DB, không còn dùng `raw/*.md`, `translated/*.md` hoặc sidecar JSON làm runtime storage.

@@ -32,6 +32,7 @@ import {
 } from "@/lib/ebook";
 import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
 import { ProperNamesDialog } from "@/components/chapter/ProperNamesDialog";
+import { SourceSwitchDialog } from "@/components/SourceSwitchDialog";
 import { PronounsDialog } from "@/components/chapter/PronounsDialog";
 import { ProofreadingPanel, type ProofreadingDraft } from "@/components/chapter/ProofreadingPanel";
 import { ProofreadingScan } from "@/components/chapter/ProofreadingScan";
@@ -1939,6 +1940,8 @@ function EbookPageContent({ slug }: { slug: string }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [lastToggled, setLastToggled] = useState<number | null>(null);
   const [properNamesOpen, setProperNamesOpen] = useState(false);
+  const [sourceSwitchOpen, setSourceSwitchOpen] = useState(false);
+  const [glossaryExtractOpen, setGlossaryExtractOpen] = useState(false);
   const [pronounsOpen, setPronounsOpen] = useState(false);
   const [readerPreview, setReaderPreview] = useState<ReaderPublishPreview | null>(null);
   const [proofreadingCodes, setProofreadingCodes] = useState<string[]>(() => loadProofreadingCodes(slug));
@@ -2178,6 +2181,7 @@ function EbookPageContent({ slug }: { slug: string }) {
             Đẩy Reader
           </Button>
           <TransferExportButton slug={slug} epubExists={book.epub_exists} />
+          <Button onClick={() => setSourceSwitchOpen(true)} disabled={!book.has_manifest}>Chuyển nguồn</Button>
           <Button
             variant="primary"
             icon={<IconRead size={15} />}
@@ -2200,6 +2204,9 @@ function EbookPageContent({ slug }: { slug: string }) {
           Đang chạy: {book.active_jobs.map((j) => j.label).join(", ")}
         </div>
       ) : null}
+
+      <SourceSwitchDialog slug={slug} currentUrl={book.toc_url} open={sourceSwitchOpen}
+        onClose={() => setSourceSwitchOpen(false)} />
 
       <ConfirmDialog
         open={readerPreview !== null}
@@ -2334,6 +2341,14 @@ function EbookPageContent({ slug }: { slug: string }) {
               >
                 Trích tên riêng
               </Button>
+
+              <Button
+                size="sm"
+                title="Trich ten rieng + thuat ngu lap tu raw toan truyen"
+                onClick={() => setGlossaryExtractOpen(true)}
+              >
+                Trich glossary
+              </Button>
               <Button size="sm" disabled={!page?.matched} onClick={() => setPronounsOpen(true)}>
                 Chuẩn hóa xưng hô
               </Button>
@@ -2350,6 +2365,14 @@ function EbookPageContent({ slug }: { slug: string }) {
           onClose={() => setProperNamesOpen(false)}
           slug={slug}
           chapterIndexes={[...selected]}
+        />
+
+        <ProperNamesDialog
+          open={glossaryExtractOpen}
+          onClose={() => setGlossaryExtractOpen(false)}
+          slug={slug}
+          chapterIndexes={[...selected]}
+          includeTerms
         />
         {pronounsOpen && <PronounsDialog
           slug={slug}

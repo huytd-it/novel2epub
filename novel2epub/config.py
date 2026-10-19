@@ -232,6 +232,8 @@ Thứ tự ưu tiên bắt buộc: NGUYÊN TÁC (ngôi kể, người nói, ngư
 - Tên người Trung Quốc, địa danh, môn phái, công pháp, cảnh giới và chiêu thức: dùng dạng Sino-Vietnamese (Hán Việt) quen thuộc, viết hoa và giữ nhất quán.
 - Tên người nước ngoài được phiên âm bằng chữ Trung Quốc (Chinese characters): luôn nghiêng về dạng Latin kiểu châu Âu, không Hán Việt hóa. Nhận ra tên gốc thì dùng đúng chính tả gốc, ví dụ 夏洛克 → Sherlock, 鸣人 → Naruto, 小樱 → Sakura; chưa chắc chính tả gốc thì chọn cách viết Latin phổ biến nhất khớp âm đọc, ví dụ 艾伦 → Allen (không viết "Ngải Luân").
 - Chỉ dùng Sino-Vietnamese khi rõ ràng là tên Trung Quốc; tên đã có trong glossary thì theo glossary.
+- Yếu tố phương Tây/modern: ưu tiên thuần Việt khi có cách nói tự nhiên (ví dụ "Vô Tận Hải" → "biển Vô Tận", lưu ý vị trí từ "biển").
+- Danh từ ưu tiên thứ tự Trung Quốc (giữ trật tự Hán).
 
 4. SINO-VIETNAMESE (HÁN VIỆT) VÀ THUẦN VIỆT
 - Hạn chế từ Sino-Vietnamese khó hiểu khi có cách nói thuần Việt rõ ràng hơn.
@@ -550,6 +552,9 @@ class TranslateConfig:
     # When False: use glossary as-is (fast path). Typically enabled only for
     # new domains not yet in source presets.
     ai_glossary_analysis: bool = False
+    # Ng??ng tr?ch xu?t glossary t? raw (step glossary-extract).
+    glossary_extract_min_frequency: int = 3
+    glossary_extract_max_candidates: int = 200
     # Mô tả bối cảnh truyện do người dùng viết (nhân vật chính, thế giới, cách
     # gọi tên/thuật ngữ muốn giữ). CHỈ chèn vào prompt của Trợ lý AI glossary —
     # không vào prompt dịch chương, để không đội token mỗi chương.

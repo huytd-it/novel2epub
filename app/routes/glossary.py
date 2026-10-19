@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import re
 
-from fastapi import APIRouter, Body, Form, HTTPException, Request
+from fastapi import APIRouter, Body, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 
-from novel2epub import bulk_transfer, glossary_ai, glossary_review, proper_names
+from novel2epub import bulk_transfer, glossary_ai, glossary_review, glossary_sheet, proper_names
 from novel2epub.glossary_curator import related_groups
 from novel2epub.han_cleanup import count_han
 from novel2epub.notes import split_paras
@@ -30,9 +30,10 @@ class ProperNameExtractRequest(BaseModel):
     """Yêu cầu dò tên riêng trong raw và đưa ứng viên vào hàng chờ glossary."""
 
     chapter_indexes: list[int] | None = Field(default=None, description="Giới hạn chương; bỏ trống để quét toàn sách.")
-    min_frequency: int = Field(default=2, ge=1, le=100)
-    max_candidates: int = Field(default=100, ge=1, le=500)
-    translate: bool = Field(default=True, description="Dịch ứng viên bằng Local MT trước khi xếp hàng.")
+    min_frequency: int | None = Field(default=None, ge=1, le=100)
+    max_candidates: int | None = Field(default=None, ge=1, le=500)
+    translate: bool = Field(default=True, description="Dịch bằng engine mặc định của ebook; nếu lỗi thì giữ chữ Hán.")
+    include_terms: bool = Field(default=False, description="Bao gồm thuật ngữ lặp.")
     dry_run: bool = Field(default=False, description="Chỉ trả ứng viên kèm trạng thái, không ghi hàng chờ.")
     sources: list[str] | None = Field(default=None, description="Chỉ xếp hàng các ứng viên này; bỏ trống để xếp tất cả.")
 
@@ -406,7 +407,7 @@ def ebook_glossary_notes_clear(slug: str, payload: GlossaryNotesClearIn):
     summary="Trích xuất tên riêng từ raw",
 )
 def ebook_glossary_extract_proper_names(slug: str, payload: ProperNameExtractRequest):
-    """Dò tên người từ raw, tùy chọn dịch Local MT, rồi xếp hàng chờ duyệt.
+    """Dò tên/thuật ngữ từ raw, tùy chọn dịch bằng engine ebook rồi xếp hàng chờ.
 
     Entry glossary đã tồn tại và source đã có trong pending đều được bỏ qua;
     endpoint không bao giờ ghi trực tiếp vào glossary chuẩn.
@@ -423,7 +424,9 @@ def ebook_glossary_extract_proper_names(slug: str, payload: ProperNameExtractReq
         if (not selected or chapter.index in selected) and storage.has_raw(chapter)
     ]
     candidates = extract_proper_name_candidates(
-        texts, min_frequency=payload.min_frequency, max_candidates=payload.max_candidates
+        texts, min_frequency=payload.min_frequency or cfg.translate.glossary_extract_min_frequency,
+        max_candidates=payload.max_candidates or cfg.translate.glossary_extract_max_candidates,
+        include_terms=payload.include_terms,
     )
     existing = {source for source, _target, _note in storage.read_glossary_entries_merged()}
     pending_before = _read_pending(storage)
@@ -444,13 +447,9 @@ def ebook_glossary_extract_proper_names(slug: str, payload: ProperNameExtractReq
     if payload.sources is not None:
         wanted = {str(s).strip() for s in payload.sources}
         candidates = [row for row in candidates if row["source"] in wanted]
-    translator = None
-    if payload.translate and candidates:
-        try:
-            from .reader import _quick_mt_lock, _quick_mt_translator
-            translator = _quick_mt_translator(slug)
-        except Exception as exc:
-            raise HTTPException(status_code=503, detail=f"Không tải được Local MT: {exc}")
+    fresh = [row for row in candidates if row["status"] == "new"]
+    if payload.translate:
+        proper_names.translate_candidates(cfg, storage, fresh)
 
     additions: list[dict] = []
     skipped_existing = 0
@@ -459,13 +458,7 @@ def ebook_glossary_extract_proper_names(slug: str, payload: ProperNameExtractReq
         if source in existing or source in pending_sources:
             skipped_existing += 1
             continue
-        target = source
-        if translator is not None:
-            try:
-                with _quick_mt_lock:
-                    target = translator.translate(source).strip()
-            except Exception as exc:
-                raise HTTPException(status_code=503, detail=f"Local MT lỗi khi dịch '{source}': {exc}")
+        target = row.get("target", source)
         if not target:
             continue
         additions.append({
@@ -1063,6 +1056,42 @@ def ebook_glossary_quick_add(
     return RedirectResponse(url=f"/ebooks/{slug}/chapters/{chapter_index}", status_code=303)
 
 
+def _merge_glossary_entries(
+    storage: Storage,
+    parsed: dict[str, tuple[str, str]],
+    *,
+    note_from_file: bool = False,
+) -> dict[str, int]:
+    """Gộp `parsed` (`{source: (target, note)}`) vào glossary, trả thống kê.
+
+    Source trùng thì giá trị mới thắng. Ghi chú: ô TRỐNG trong file giữ ghi
+    chú cũ (khớp hành vi nhập từ AI); `note_from_file=True` thì ghi đè cả
+    khi trống — dùng cho nhập .xlsx khi người dùng đã chủ động xoá ô.
+
+    Ghi tất cả vào names.txt + dọn vietphrase.txt (consolidation).
+    """
+    current = storage.read_glossary_entries_merged()
+    merged = {s: (t, n) for s, t, n in current}
+    added = updated = 0
+    for source, (target, note) in parsed.items():
+        note = note.strip()
+        old = merged.get(source)
+        if old is None:
+            merged[source] = (target, note)
+            added += 1
+            continue
+        old_target, old_note = old
+        # Ô ghi chú trống không bao giờ cố ý xoá ghi chú cũ trừ khi caller bật.
+        new_note = note if (note or note_from_file) else old_note
+        if old_target == target and new_note == old_note:
+            continue
+        merged[source] = (target, new_note)
+        updated += 1
+    storage.write_glossary_entries("names.txt", [(s, t, n) for s, (t, n) in merged.items()])
+    storage.write_glossary_entries("vietphrase.txt", [])
+    return {"added": added, "updated": updated, "total": added + updated}
+
+
 @router.post("/api/ebooks/{slug}/glossary/export")
 def ebook_glossary_export(slug: str):
     """Xuất glossary hiện tại kèm prompt nhờ web chat AI dọn lại (dedup, sửa
@@ -1072,6 +1101,72 @@ def ebook_glossary_export(slug: str):
     glossary = {s: t for s, t, _n in storage.read_glossary_entries_merged()}
     text = bulk_transfer.build_glossary_export(glossary)
     return JSONResponse({"text": text, "count": len(glossary)})
+
+
+@router.get("/api/ebooks/{slug}/glossary/export.xlsx")
+def ebook_glossary_export_xlsx(slug: str):
+    """Tải glossary hiện tại thành file `.xlsx` (Hán / Việt / Ghi chú + Version
+    & Cập nhật để đối chiếu). Người dùng sửa trong Excel rồi nhập ngược qua
+    `import.xlsx`."""
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    try:
+        content = glossary_sheet.build_glossary_xlsx(
+            storage.read_glossary_entries_merged(),
+            storage.read_glossary_meta("names.txt"),
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    filename = f"glossary-{cfg.novel.slug}.xlsx"
+    return Response(
+        content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/api/ebooks/{slug}/glossary/import.xlsx")
+async def ebook_glossary_import_xlsx(
+    slug: str,
+    file: UploadFile = File(...),
+    clear_empty_notes: bool = Form(False),
+):
+    """Nhập glossary từ file `.xlsx`, MERGE y như nhập từ AI (source trùng →
+    giá trị mới thắng). Dòng thiếu Hán/Việt hoặc Hán không có chữ Hán bị bỏ
+    và báo lại theo số hàng thay vì làm hỏng cả file.
+
+    `clear_empty_notes=true` để ô Ghi chú trống XOÁ ghi chú đang có; mặc định
+    ô trống giữ ghi chú cũ (khớp nhập từ AI).
+    """
+    cfg = deps.resolved_cfg(slug)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    try:
+        parsed = glossary_sheet.parse_glossary_xlsx(await file.read())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:  # file hỏng / không phải .xlsx
+        raise HTTPException(
+            status_code=400, detail=f"Không đọc được file .xlsx: {exc}"
+        ) from exc
+    if not parsed.entries:
+        detail = "File không có mục glossary hợp lệ nào."
+        if parsed.errors:
+            rows = ", ".join(str(e.row) for e in parsed.errors[:5])
+            detail += f" Dòng bị bỏ: {rows}."
+        raise HTTPException(status_code=400, detail=detail)
+
+    stats = _merge_glossary_entries(
+        storage,
+        {s: (t, n) for s, t, n in parsed.entries},
+        note_from_file=clear_empty_notes,
+    )
+    return JSONResponse(
+        {
+            **stats,
+            "skipped": len(parsed.errors),
+            "errors": [e.as_dict() for e in parsed.errors[:20]],
+        }
+    )
 
 
 @router.post("/api/ebooks/{slug}/glossary/import")
@@ -1090,25 +1185,7 @@ def ebook_glossary_import(slug: str, text: str = Form(...)):
         )
     for source in parsed:
         _validate_glossary_source(source)
-
-    current = storage.read_glossary_entries_merged()
-    note_by_source = {s: n for s, _t, n in current}
-    merged = {s: t for s, t, _n in current}
-    added = updated = 0
-    for source, target in parsed.items():
-        if source not in merged:
-            added += 1
-        elif merged[source] != target:
-            updated += 1
-        else:
-            continue
-        merged[source] = target
-    storage.write_glossary_entries(
-        "names.txt", [(s, t, note_by_source.get(s, "")) for s, t in merged.items()]
-    )
-    storage.write_glossary_entries("vietphrase.txt", [])
-
-    return JSONResponse({"added": added, "updated": updated, "total": added + updated})
+    return JSONResponse(_merge_glossary_entries(storage, {s: (t, "") for s, t in parsed.items()}))
 
 
 def _compile_find(find: str, regex: bool, whole_phrase: bool = False):

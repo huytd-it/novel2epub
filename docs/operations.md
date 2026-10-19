@@ -19,6 +19,21 @@ Các chương sau không lặp marker hoặc định nghĩa. Khi build một ph�
 xét các chương thực sự được đóng gói; mỗi lần build tính lại từ đầu, không sửa
 Glossary hay bản dịch trong DB.
 
+## Trích Glossary từ raw
+
+Đặt step automation `glossary-extract` sau crawl và trước dịch để quét raw toàn truyện,
+đưa ứng viên tên/thuật ngữ vào `glossary_pending`, không tự duyệt glossary.
+`translate.glossary_extract_min_frequency` mặc định 3;
+`translate.glossary_extract_max_candidates` mặc định 200. API và automation dùng chung
+các giá trị này; tham số min/max trong request có thể ghi đè riêng một lượt.
+
+Trang Chương có nút **Trích glossary** (checkbox **Bao gồm thuật ngữ lặp** bật sẵn)
+và **Trích tên riêng** (checkbox tắt sẵn). Xem trước không gọi engine dịch;
+khi đưa ứng viên đã chọn vào hàng chờ, dùng engine mặc định của ebook.
+Nếu engine lỗi/không khả dụng, giữ chữ Hán để duyệt sau. Các mục đã có trong glossary
+hoặc pending không được dịch lại. Hủy automation giữa lúc dịch không ghi batch đang chạy.
+Heuristic quét cụm Hán 2–4 ký tự có thể bỏ sót hoặc lẫn từ thường; luôn kiểm tra hàng chờ.
+
 ## Swagger Và OpenAPI
 
 FastAPI tạo tài liệu API trực tiếp từ route/schema:

@@ -12,18 +12,21 @@ import {
   useClearPending,
   useDeleteGlossaryEntries,
   useDeleteGlossaryEntry,
+  downloadGlossaryXlsx,
   useExportGlossary,
   useGlossary,
   useGlossaryAiReprocessPending,
   useGlossaryFlags,
   useGlossaryJobRefresh,
   useImportGlossary,
+  useImportGlossaryXlsx,
   usePendingGlossary,
   usePreviewGlossaryEdits,
   useUpsertGlossaryEntry,
   type GlossaryEdit,
   type GlossaryEditKind,
   type GlossaryEntry,
+  type GlossaryXlsxImportResult,
   type PendingEntry,
 } from "@/lib/glossary";
 import { useEbookSettings } from "@/lib/settings";
@@ -38,6 +41,7 @@ import { DiffText } from "@/components/DiffText";
 import { useToast } from "@/components/ui/Toast";
 import {
   IconCaretDown,
+  IconDownload,
   IconFilter,
   IconPlus,
   IconRevert,
@@ -702,93 +706,208 @@ function AddEntryModal({ open, onClose, slug }: { open: boolean; onClose: () => 
   );
 }
 
-/* ── Modal xuất / nhập cho AI dọn lại ────────────────────────────────── */
+/* ── Modal xuất / nhập: bảng tính Excel hoặc khối text cho AI ─────────── */
+
+type IoTab = "xlsx" | "ai" | "import";
 
 function ExportImportModal({ open, onClose, slug }: { open: boolean; onClose: () => void; slug: string }) {
-  const [tab, setTab] = useState<"export" | "import">("export");
+  const [tab, setTab] = useState<IoTab>("xlsx");
   const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [clearEmptyNotes, setClearEmptyNotes] = useState(false);
+  const [report, setReport] = useState<GlossaryXlsxImportResult | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const exportMut = useExportGlossary(slug);
   const importMut = useImportGlossary(slug);
+  const importXlsx = useImportGlossaryXlsx(slug);
   const toast = useToast();
+  const onError = (err: unknown) => toast(err instanceof Error ? err.message : String(err), "error");
 
   useEffect(() => {
     if (open) {
-      setTab("export");
+      setTab("xlsx");
       setText("");
-      exportMut.mutate(undefined, { onSuccess: (res) => setText(res.text) });
+      setFile(null);
+      setReport(null);
+      setClearEmptyNotes(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ chạy khi mở modal
   }, [open]);
 
+  // Khối text cho AI chỉ tải khi người dùng mở tab đó — vào modal chỉ để nhập
+  // .xlsx thì không gọi API thừa.
+  useEffect(() => {
+    if (open && tab === "ai" && !exportMut.isPending && exportMut.data == null) {
+      exportMut.mutate(undefined, { onSuccess: (res) => setText(res.text) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ chạy khi mở modal / đổi tab
+  }, [open, tab]);
+
+  const download = () => {
+    setDownloading(true);
+    downloadGlossaryXlsx(slug)
+      .catch(onError)
+      .finally(() => setDownloading(false));
+  };
+
+  const runXlsxImport = () => {
+    if (!file) {
+      toast("Chưa chọn file .xlsx.", "error");
+      return;
+    }
+    importXlsx.mutate(
+      { file, clearEmptyNotes },
+      {
+        onSuccess: (res) => {
+          setReport(res);
+          const parts = [`${res.added} mới`, `${res.updated} cập nhật`];
+          if (res.skipped > 0) parts.push(`${res.skipped} dòng bị bỏ`);
+          toast(`Đã nhập: ${parts.join(" · ")}.`);
+          // Còn dòng bị bỏ thì giữ modal mở để người dùng đọc lý do.
+          if (res.skipped === 0) onClose();
+        },
+        onError,
+      },
+    );
+  };
+
+  const tabs: { key: IoTab; label: string }[] = [
+    { key: "xlsx", label: "Xuất Excel" },
+    { key: "ai", label: "Xuất cho AI" },
+    { key: "import", label: "Nhập" },
+  ];
+
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Xuất / Nhập glossary"
-      wide
-      footer={
-        tab === "import" ? (
-          <>
-            <Button onClick={onClose}>Đóng</Button>
-            <Button
-              variant="primary"
-              loading={importMut.isPending}
-              onClick={() =>
-                importMut.mutate(text, {
-                  onSuccess: (res) => {
-                    toast(`Đã nhập: ${res.added} mới, ${res.updated} cập nhật.`);
-                    onClose();
-                  },
-                  onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
-                })
-              }
-            >
-              Nhập vào glossary
-            </Button>
-          </>
-        ) : (
-          <Button onClick={onClose}>Đóng</Button>
-        )
-      }
-    >
-      <div className="mb-2 flex gap-1.5">
-        <Button size="sm" variant={tab === "export" ? "primary" : "neutral"} onClick={() => setTab("export")}>
-          Xuất
-        </Button>
-        <Button
-          size="sm"
-          variant={tab === "import" ? "primary" : "neutral"}
-          onClick={() => {
-            setTab("import");
-            setText("");
-          }}
-        >
-          Nhập
-        </Button>
+    <Modal open={open} onClose={onClose} title="Xuất / Nhập glossary" wide footer={<Button onClick={onClose}>Đóng</Button>}>
+      <div className="mb-3 flex gap-1.5">
+        {tabs.map((t) => (
+          <Button
+            key={t.key}
+            size="sm"
+            variant={tab === t.key ? "primary" : "neutral"}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </Button>
+        ))}
       </div>
-      {tab === "export" ? (
+
+      {tab === "xlsx" ? (
+        <>
+          <p className="mb-2 text-xs opacity-60">
+            Toàn bộ glossary của truyện thành 1 file <code>.xlsx</code> — sửa bằng Excel, Google Sheets hay
+            LibreOffice rồi nhập ngược ở tab <b>Nhập</b>.
+          </p>
+          <p className="mb-3 rounded-box border border-base-300 bg-base-200/50 px-2.5 py-2 text-xs opacity-70">
+            Cột <b>Hán</b>, <b>Việt</b>, <b>Ghi chú</b> là dữ liệu thật. <b>Version</b> và <b>Cập nhật</b> chỉ để
+            đối chiếu với bảng trên web — nhập sẽ bỏ qua. Đổi tên cột vẫn nhận được; thêm dòng, sắp xếp, xoá
+            dòng tuỳ ý.
+          </p>
+          <Button variant="primary" icon={<IconDownload size={14} />} loading={downloading} onClick={download}>
+            Tải file .xlsx
+          </Button>
+        </>
+      ) : null}
+
+      {tab === "ai" ? (
         <>
           <p className="mb-2 text-xs opacity-60">
             Dán vào chat AI kèm yêu cầu dọn lại (dedup, sửa Hán-Việt, gộp mâu thuẫn), rồi dán kết quả vào tab
             Nhập.
           </p>
-          <Textarea readOnly value={text} rows={16} className="w-full font-mono text-xs" />
+          <Textarea
+            readOnly
+            value={text}
+            rows={16}
+            className="w-full font-mono text-xs"
+            placeholder={exportMut.isPending ? "Đang tải glossary…" : ""}
+          />
         </>
-      ) : (
+      ) : null}
+
+      {tab === "import" ? (
         <>
           <p className="mb-2 text-xs opacity-60">
-            Dán khối <code>GLOSSARY:</code> với các dòng <code>Hán = Việt</code> — merge vào glossary hiện
-            có, source trùng thì giá trị mới thắng.
+            Nạp file <code>.xlsx</code> sửa xong — merge vào glossary hiện có, Hán trùng thì giá trị mới thắng.
+          </p>
+          <input
+            type="file"
+            accept=".xlsx"
+            className="file-input file-input-sm w-full"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              setReport(null);
+            }}
+          />
+          <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs">
+            <Checkbox
+              className="mt-0.5"
+              checked={clearEmptyNotes}
+              onChange={(e) => setClearEmptyNotes(e.target.checked)}
+            />
+            <span>
+              Ô Ghi chú trống sẽ xoá ghi chú đang có
+              <span className="block opacity-60">
+                Mặc định ô trống giữ nguyên ghi chú cũ (giống nhập từ AI) — chỉ tick khi muốn dọn sạch cột.
+              </span>
+            </span>
+          </label>
+          <Button
+            className="mt-3"
+            variant="primary"
+            loading={importXlsx.isPending}
+            disabled={!file}
+            onClick={runXlsxImport}
+          >
+            Nhập file .xlsx
+          </Button>
+
+          {report && report.errors.length > 0 ? (
+            <div className="mt-3 rounded-box border border-warning/40 bg-warning/10 px-2.5 py-2 text-xs">
+              <p className="mb-1 font-medium">
+                {report.skipped} dòng bị bỏ — sửa trong Excel rồi nhập lại:
+              </p>
+              <ul className="grid gap-0.5 opacity-80">
+                {report.errors.map((e) => (
+                  <li key={`${e.row}-${e.message}`}>
+                    Dòng {e.row}: {e.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <div className="my-4 border-t border-base-300" />
+
+          <p className="mb-2 text-xs opacity-60">
+            Hoặc dán khối <code>GLOSSARY:</code> với các dòng <code>Hán = Việt</code> — merge vào glossary
+            hiện có, source trùng thì giá trị mới thắng.
           </p>
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            rows={16}
+            rows={10}
             className="w-full font-mono text-xs"
             placeholder={"GLOSSARY:\n李逸 = Lý Dịch"}
           />
+          <Button
+            className="mt-2"
+            loading={importMut.isPending}
+            disabled={!text.trim()}
+            onClick={() =>
+              importMut.mutate(text, {
+                onSuccess: (res) => {
+                  toast(`Đã nhập: ${res.added} mới, ${res.updated} cập nhật.`);
+                  onClose();
+                },
+                onError,
+              })
+            }
+          >
+            Nhập khối AI
+          </Button>
         </>
-      )}
+      ) : null}
     </Modal>
   );
 }

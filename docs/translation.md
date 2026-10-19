@@ -196,6 +196,31 @@ AI dọn giữ các ghi chú nhận diện bí danh này, không coi chúng là 
 
 Step automation `glossary-ai` là hậu kiểm Glossary: đọc các xung đột đang có, nhờ LLM chọn bản dịch thống nhất theo prompt dịch nghiêm ngặt (kèm tên truyện + tác giả), tự duyệt mục hợp lệ và lan truyền thay đổi vào bản dịch cũ. Mục LLM không trả lời được vẫn giữ trong hàng chờ. Cột Ghi chú giữ nguyên — lý do của LLM chỉ ghi log.
 
+### Xuất / nhập glossary (SPA Glossary)
+
+Nút **Xuất / Nhập** mở 3 tab, cùng một backend `novel2epub/glossary_sheet.py`:
+
+- **Xuất Excel**: `GET /api/ebooks/{slug}/glossary/export.xlsx` trả file `.xlsx`
+  (mọi mục `names.txt` + `vietphrase.txt` đã gộp) với cột `Hán · Việt · Ghi chú ·
+  Version · Cập nhật`. Ba cột đầu là dữ liệu thật, hai cột sau chỉ để đối chiếu với
+  bảng trên web và **bị bỏ qua khi nhập**. Cần `openpyxl` (đã có trong
+  `requirements.txt`).
+- **Xuất cho AI**: khối text `GLOSSARY:` + prompt dọn lại (giữ nguyên từ trước).
+- **Nhập**: nạp file `.xlsx` hoặc dán khối AI — cùng một luật merge (Hán trùng thì
+  giá trị mới thắng, mọi mục gộp về `names.txt`).
+
+Riêng đường `.xlsx`:
+
+- Cột nhận diện theo **tên** (Hán/Việt/Ghi chú, cả `source`/`target`/`note` và
+  `Hán tự`/`bản dịch`), nên kéo đổi thứ tự cột hay tự tạo file mới vẫn nạp được;
+  không khớp tiêu đề nào thì mặc định cột A/B/C.
+- Dòng thiếu Hán, thiếu Việt, hoặc Hán không có chữ Hán **bị bỏ kèm số hàng**
+  (`errors`) thay vì làm hỏng cả file — sửa trong Excel rồi nạp lại.
+- Ô **Ghi chú** trống giữ ghi chú cũ (khớp luật nhập từ AI); tick *Ô Ghi chú trống
+  sẽ xoá ghi chú đang có* (`clear_empty_notes`) thì mới xoá.
+- Import KHÔNG lan truyền vào bản dịch chương đã dịch — sửa cột Việt ở đây chỉ đổi
+  glossary; muốn thay bản dịch cũ thì áp dụng từng mục ở bảng glossary.
+
 ### AI tự động duyệt & dọn (SPA Glossary)
 
 - Bắt đầu từ **các mục đã chọn** trong glossary và hàng chờ (khóa trùng được gộp).

@@ -108,3 +108,42 @@ export const api = {
   patch: <T>(path: string, options: Options = {}) => request<T>(path, { ...options, method: "PATCH" }),
   del: <T>(path: string, options: Options = {}) => request<T>(path, { ...options, method: "DELETE" }),
 };
+
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = apiToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+/** POST multipart/form-data (file + field text) — `api.post` không hỗ trợ file. */
+export async function postFile<T>(
+  path: string,
+  file: File,
+  fields: Record<string, string> = {},
+): Promise<T> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  for (const [key, value] of Object.entries(fields)) form.append(key, value);
+  const res = await fetch(apiUrl(path), { method: "POST", headers: authHeaders(), body: form });
+  if (!res.ok) throw new ApiError(res.status, await readError(res));
+  return (await res.json()) as T;
+}
+
+/** Tải file nhị phân từ API về máy (blob): .xlsx, .zip, .epub… */
+export async function downloadBlob(path: string, filename: string): Promise<void> {
+  const res = await fetch(apiUrl(path), { headers: authHeaders() });
+  if (!res.ok) throw new ApiError(res.status, await readError(res));
+  const url = URL.createObjectURL(await res.blob());
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    // Chrome cần blob còn sống thêm chút sau khi click mới ghi file xong.
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+}

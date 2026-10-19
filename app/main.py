@@ -34,6 +34,7 @@ from .routes import (
     pronouns,
     reader,
     settings,
+    source_switch,
     sources,
     storage,
     tailscale,
@@ -342,6 +343,7 @@ app.include_router(idioms.router)
 app.include_router(jobs.router)
 app.include_router(library.router)
 app.include_router(settings.router)
+app.include_router(source_switch.router)
 app.include_router(sources.router)
 app.include_router(storage.router)
 app.include_router(notes.router)

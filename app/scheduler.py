@@ -18,6 +18,7 @@ from novel2epub.pipeline import (
     step_build,
     step_cleanup_han_selected,
     step_glossary_ai_selected,
+    step_glossary_extract,
     step_crawl_selected,
     step_fetch_toc,
     step_publish_reader,
@@ -63,6 +64,7 @@ _STEP_FN = {
     "cleanup-han": lambda cfg, log: step_cleanup_han_selected(cfg, log),
     "cleanup-han-llm": _step_cleanup_han_llm,
     "glossary-ai": lambda cfg, log: step_glossary_ai_selected(cfg, log),
+    "glossary-extract": lambda cfg, log: step_glossary_extract(cfg, log),
     "build": lambda cfg, log: step_build(cfg, log),
     "publish-reader": lambda cfg, log: step_publish_reader(cfg, log),
 }

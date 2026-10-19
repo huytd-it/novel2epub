@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { api } from "./api";
+import { api, downloadBlob, postFile } from "./api";
 import { useQueue } from "./queue";
 
 export interface GlossaryEntry {
@@ -289,6 +289,37 @@ export function useImportGlossary(slug: string) {
       api.post<{ added: number; updated: number; total: number }>(
         `/api/ebooks/${slug}/glossary/import`,
         { form: { text } },
+      ),
+    onSuccess: invalidate,
+  });
+}
+
+/** Tải toàn bộ glossary của ebook về máy dạng bảng tính .xlsx. */
+export function downloadGlossaryXlsx(slug: string): Promise<void> {
+  return downloadBlob(`/api/ebooks/${slug}/glossary/export.xlsx`, `glossary-${slug}.xlsx`);
+}
+
+export interface GlossaryXlsxImportResult {
+  added: number;
+  updated: number;
+  total: number;
+  /** Số dòng trong file bị bỏ vì thiếu Hán/Việt hoặc Hán không có chữ Hán. */
+  skipped: number;
+  errors: { row: number; message: string }[];
+}
+
+/**
+ * Nhập file .xlsx và merge y như nhập từ AI. `clearEmptyNotes` quyết định ô
+ * Ghi chú trống có XOÁ ghi chú đang có hay giữ nguyên (mặc định giữ).
+ */
+export function useImportGlossaryXlsx(slug: string) {
+  const invalidate = useInvalidateGlossary(slug);
+  return useMutation({
+    mutationFn: (vars: { file: File; clearEmptyNotes: boolean }) =>
+      postFile<GlossaryXlsxImportResult>(
+        `/api/ebooks/${slug}/glossary/import.xlsx`,
+        vars.file,
+        { clear_empty_notes: vars.clearEmptyNotes ? "true" : "false" },
       ),
     onSuccess: invalidate,
   });

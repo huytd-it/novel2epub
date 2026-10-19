@@ -13,7 +13,10 @@ from novel2epub.config import (
     TranslateConfig,
 )
 from novel2epub.storage import Chapter, Manifest, Storage
+from novel2epub import glossary_review, glossary_sheet
 from app.routes.glossary import _append_glossary_entry, extract_proper_name_candidates
+
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def _cfg(tmp_path):
@@ -981,6 +984,160 @@ def test_import_glossary_merges(tmp_path, monkeypatch):
     assert storage.read_glossary_entries("vietphrase.txt") == []
 
 
+# ----- route: xuất / nhập bằng bảng tính Excel (.xlsx) -----
+
+def _xlsx(rows) -> bytes:
+    """Dựng file .xlsx từ list hàng — mô phỏng file người dùng sửa trong Excel."""
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    for row in rows:
+        ws.append(row)
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_export_glossary_xlsx_roundtrip(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm | nam chính\n斗气 = Đấu khí\n")
+    client = _client(cfg, monkeypatch)
+
+    res = client.get("/api/ebooks/t/glossary/export.xlsx")
+    assert res.status_code == 200
+    assert "spreadsheetml" in res.headers["content-type"]
+    assert 'filename="glossary-t.xlsx"' in res.headers["content-disposition"]
+
+    parsed = glossary_sheet.parse_glossary_xlsx(res.content)
+    assert parsed.errors == []
+    assert parsed.entries == [("萧炎", "Tiêu Viêm", "nam chính"), ("斗气", "Đấu khí", "")]
+
+
+def test_import_glossary_xlsx_merges_and_keeps_note(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "萧炎 = Tên cũ | giữ note\n")
+    client = _client(cfg, monkeypatch)
+
+    data = _xlsx(
+        [
+            ["Hán", "Việt", "Ghi chú", "Version", "Cập nhật"],
+            ["萧炎", "Tiêu Viêm", "", 4, "01/01/2026 10:00"],
+            ["林动", "Lâm Động", "npc", 1, ""],
+        ]
+    )
+    res = client.post(
+        "/api/ebooks/t/glossary/import.xlsx",
+        files={"file": ("glossary.xlsx", data, XLSX_MIME)},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert (body["added"], body["updated"], body["skipped"]) == (1, 1, 0)
+
+    names = storage.read_glossary_entries("names.txt")
+    # Ô ghi chú trống giữ ghi chú cũ; cột Version/Cập nhật bị bỏ qua.
+    assert ("萧炎", "Tiêu Viêm", "giữ note") in names
+    assert ("林动", "Lâm Động", "npc") in names
+    assert storage.read_glossary_entries("vietphrase.txt") == []
+
+
+def test_import_glossary_xlsx_clear_empty_notes(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    storage.write_glossary_file("names.txt", "萧炎 = Tiêu Viêm | sẽ bị xoá\n")
+    client = _client(cfg, monkeypatch)
+
+    data = _xlsx([["Hán", "Việt", "Ghi chú"], ["萧炎", "Tiêu Viêm", ""]])
+    res = client.post(
+        "/api/ebooks/t/glossary/import.xlsx",
+        data={"clear_empty_notes": "true"},
+        files={"file": ("glossary.xlsx", data, XLSX_MIME)},
+    )
+    assert res.status_code == 200
+    assert storage.read_glossary_entries("names.txt") == [("萧炎", "Tiêu Viêm", "")]
+
+
+def test_import_glossary_xlsx_skips_bad_rows_and_reports(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    client = _client(cfg, monkeypatch)
+
+    data = _xlsx(
+        [
+            ["Hán", "Việt", "Ghi chú"],
+            ["", "Lâm Động", ""],  # dòng 2 — thiếu Hán
+            ["林动", "", ""],  # dòng 3 — thiếu Việt
+            ["Diệp Phàm", "Diệp Phàm", ""],  # dòng 4 — Hán không có chữ Hán
+            ["叶凡", "Diệp Phàm", ""],  # dòng 5 — hợp lệ
+        ]
+    )
+    res = client.post(
+        "/api/ebooks/t/glossary/import.xlsx",
+        files={"file": ("glossary.xlsx", data, XLSX_MIME)},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert (body["added"], body["updated"], body["skipped"]) == (1, 0, 3)
+    assert [(e["row"], e["message"]) for e in body["errors"]] == [
+        (2, "Thiếu Hán."),
+        (3, "Thiếu Việt."),
+        (4, glossary_review.INVALID_SOURCE_DETAIL),
+    ]
+    # Dòng lỗi KHÔNG ghi gì — chỉ mục hợp lệ mới vào DB.
+    assert storage.read_glossary_entries("names.txt") == [("叶凡", "Diệp Phàm", "")]
+
+
+def test_import_glossary_xlsx_rejects_file_without_valid_rows(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    client = _client(cfg, monkeypatch)
+
+    data = _xlsx([["Hán", "Việt"], ["Diệp Phàm", "Diệp Phàm"]])
+    res = client.post(
+        "/api/ebooks/t/glossary/import.xlsx",
+        files={"file": ("glossary.xlsx", data, XLSX_MIME)},
+    )
+    assert res.status_code == 400
+    assert storage.read_glossary_entries("names.txt") == []
+
+
+def test_import_glossary_xlsx_rejects_non_xlsx(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    client = _client(cfg, monkeypatch)
+
+    res = client.post(
+        "/api/ebooks/t/glossary/import.xlsx",
+        files={"file": ("glossary.xlsx", "không phải xlsx".encode(), XLSX_MIME)},
+    )
+    assert res.status_code == 400
+    assert "Không đọc được file" in res.json()["detail"]
+
+
+def test_import_glossary_xlsx_accepts_reordered_columns(tmp_path, monkeypatch):
+    """Người dùng kéo cột trong Excel — nhận diện theo TÊN cột, không theo vị trí."""
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    client = _client(cfg, monkeypatch)
+
+    data = _xlsx([["Ghi chú", "Việt", "Hán"], ["npc", "Tiêu Viêm", "萧炎"]])
+    res = client.post(
+        "/api/ebooks/t/glossary/import.xlsx",
+        files={"file": ("glossary.xlsx", data, XLSX_MIME)},
+    )
+    assert res.status_code == 200
+    assert storage.read_glossary_entries("names.txt") == [("萧炎", "Tiêu Viêm", "npc")]
+
+
 def test_import_glossary_rejects_empty(tmp_path, monkeypatch):
     cfg = _cfg(tmp_path)
     client = _client(cfg, monkeypatch)
@@ -1912,7 +2069,7 @@ def test_name_kind_filter_finds_transliterated_and_chinese_names(tmp_path, monke
     # Tên/thuật ngữ Trung Quốc dù toàn chữ có trong bảng phiên âm.
     assert kinds("李丽", "Lý Lệ") == {"cn_name"}
     assert kinds("金丹", "Kim Đan") == {"cn_name"}
-    assert kinds("长生剑法", "Trường Sinh Kiếm Pháp") == set()
+    assert kinds("长生剑法", "Trường Sinh Kiếm Pháp") == {"term"}
     assert kinds("圣洁战锤-ii", "Thánh Khiết Chiến Chùy II") == set()
 
     cfg = _cfg(tmp_path)
@@ -1924,7 +2081,7 @@ def test_name_kind_filter_finds_transliterated_and_chinese_names(tmp_path, monke
     ])
     client = _client(cfg, monkeypatch)
     counts = {k["key"]: k["count"] for k in client.get("/api/ebooks/t/glossary/flags").json()["kinds"]}
-    assert counts == {"translit_hv": 1, "translit": 2, "cn_name": 1}
+    assert counts == {"translit_hv": 1, "translit": 2, "cn_name": 1, "term": 1}
     url = "/api/ebooks/t/glossary/list"
     for key, expected in (("translit_hv", ["艾伦"]), ("translit", ["艾伦", "夏洛克"]),
                           ("translit_hv,cn_name", ["艾伦", "李丽"])):
@@ -1941,6 +2098,7 @@ def test_extract_proper_names_dry_run_then_queue_selected(tmp_path, monkeypatch)
     storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
     storage.write_raw(chapter, "艾伦·沃克走了进来。夏洛克看着艾伦·沃克，夏洛克笑了。\n李逸说道：好。李逸点头。张三来了，张三走了。")
     storage.upsert_glossary_entry("夏洛克", "Sherlock")
+    cfg.translate.glossary_extract_min_frequency = 2
     client = _client(cfg, monkeypatch)
     url = "/api/ebooks/t/glossary/proper-names/extract"
 
@@ -1956,3 +2114,53 @@ def test_extract_proper_names_dry_run_then_queue_selected(tmp_path, monkeypatch)
     assert [p["source"] for p in storage.read_extra_json("glossary_pending")] == ["艾伦·沃克"]
     again = client.post(url, json={"dry_run": True, "translate": False}).json()
     assert {c["source"]: c["status"] for c in again["candidates"]}["艾伦·沃克"] == "pending"
+
+
+def test_extract_terms_uses_ebook_limits_and_engine(tmp_path, monkeypatch):
+    from novel2epub import translator
+    from types import SimpleNamespace
+
+    cfg = _cfg(tmp_path)
+    cfg.translate.type = "openai"
+    cfg.translate.glossary_extract_min_frequency = 4
+    cfg.translate.glossary_extract_max_candidates = 1
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_raw(chapter, "灵石。" * 4 + "玄天神功。" * 3)
+    seen = []
+    def factory(options, **kwargs):
+        assert options.type == "openai"
+        assert not options.auto_glossary
+        return SimpleNamespace(translate=lambda text: seen.append(text) or "linh thạch")
+    monkeypatch.setattr(translator, "make_translator", factory)
+    client = _client(cfg, monkeypatch)
+    url = "/api/ebooks/t/glossary/proper-names/extract"
+    preview = client.post(url, json={"include_terms": True, "dry_run": True})
+    assert preview.status_code == 200
+    assert [r["source"] for r in preview.json()["candidates"]] == ["灵石"]
+    assert seen == []
+    result = client.post(url, json={"include_terms": True})
+    assert result.json()["queued"] == 1
+    assert seen == ["灵石"]
+    assert storage.read_extra_json("glossary_pending")[0]["target"] == "linh thạch"
+    client.post(url, json={"include_terms": True})
+    assert seen == ["灵石"]
+
+
+def test_extract_terms_unavailable_engine_retains_han(tmp_path, monkeypatch):
+    from novel2epub import translator
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_raw(chapter, "灵石。" * 3)
+    def fail(*args, **kwargs):
+        raise RuntimeError("offline")
+    monkeypatch.setattr(translator, "make_translator", fail)
+    result = _client(cfg, monkeypatch).post(
+        "/api/ebooks/t/glossary/proper-names/extract", json={"include_terms": True})
+    assert result.status_code == 200
+    assert storage.read_extra_json("glossary_pending")[0]["target"] == "灵石"

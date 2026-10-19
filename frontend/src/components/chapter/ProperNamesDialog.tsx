@@ -14,7 +14,7 @@ import { useToast } from "@/components/ui/Toast";
 
 interface Candidate {
   source: string;
-  kind: "translit" | "cn_name";
+  kind: "translit" | "cn_name" | "term";
   frequency: number;
   confidence: number;
   chapter_index: number;
@@ -33,6 +33,7 @@ interface ExtractResult {
 const KIND: Record<Candidate["kind"], { text: string; tone: Tone }> = {
   translit: { text: "Phiên âm", tone: "indigo" },
   cn_name: { text: "Tên Trung Quốc", tone: "neutral" },
+  term: { text: "Thuật ngữ", tone: "gold" },
 };
 
 const STATUS: Record<Candidate["status"], { text: string; tone: Tone }> = {
@@ -51,24 +52,27 @@ export function ProperNamesDialog({
   onClose,
   slug,
   chapterIndexes,
+  includeTerms = false,
 }: {
   open: boolean;
   onClose: () => void;
   slug: string;
   /** Chương đang chọn; rỗng = quét toàn bộ truyện. */
   chapterIndexes: number[];
+  includeTerms?: boolean;
 }) {
   const toast = useToast();
   const client = useQueryClient();
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [terms, setTerms] = useState(includeTerms);
 
   const request = (extra: Record<string, unknown>) =>
     api.post<ExtractResult>(`/api/ebooks/${slug}/glossary/proper-names/extract`, {
       body: {
         chapter_indexes: chapterIndexes.length > 0 ? chapterIndexes : null,
-        max_candidates: 300,
-        translate: false,
+        translate: true,
+        include_terms: terms,
         ...extra,
       },
     });
@@ -90,8 +94,8 @@ export function ProperNamesDialog({
     setDismissed(new Set());
     scan.reset();
     scan.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ quét lại khi mở hộp thoại
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- quét khi mở hoặc đổi phạm vi thuật ngữ
+  }, [open, terms]);
 
   const rows = useMemo(
     () => (scan.data?.candidates ?? []).filter((c) => !dismissed.has(c.source)),
@@ -112,7 +116,7 @@ export function ProperNamesDialog({
       open={open}
       onClose={onClose}
       wide
-      title="Trích tên riêng (thử nghiệm)"
+      title={includeTerms ? "Trích glossary (thử nghiệm)" : "Trích tên riêng (thử nghiệm)"}
       footer={
         <>
           <Button onClick={onClose}>Đóng</Button>
@@ -128,7 +132,7 @@ export function ProperNamesDialog({
           <Button
             variant="primary"
             loading={queue.isPending}
-            disabled={checked.size === 0}
+            disabled={checked.size === 0 || scan.isPending}
             onClick={() => queue.mutate([...checked])}
           >
             Duyệt {checked.size > 0 ? num(checked.size) : ""} vào hàng chờ Glossary
@@ -136,6 +140,10 @@ export function ProperNamesDialog({
         </>
       }
     >
+      <label className="mb-3 flex items-center gap-2 text-[13px]">
+        <Checkbox checked={terms} disabled={queue.isPending} onChange={(event) => setTerms(event.target.checked)} />
+        Bao gồm thuật ngữ lặp
+      </label>
       <p className="mb-3 text-[13px] opacity-60">
         Dò tên người trong nội dung gốc của{" "}
         {chapterIndexes.length > 0 ? `${num(chapterIndexes.length)} chương đang chọn` : "toàn bộ truyện"} bằng
@@ -144,7 +152,7 @@ export function ProperNamesDialog({
         <Link className="link" to={`/ebooks/${slug}/glossary`}>
           Glossary
         </Link>{" "}
-        với cột Việt còn để chữ Hán — dịch bằng AI ở đó.
+        với bản dịch từ engine mặc định của ebook; nếu engine không khả dụng thì giữ chữ Hán.
       </p>
 
       {scan.isPending ? (
@@ -158,7 +166,7 @@ export function ProperNamesDialog({
       ) : rows.length === 0 ? (
         <EmptyState
           title="Không tìm thấy ứng viên"
-          hint="Cần chương đã có nội dung gốc; tên phải xuất hiện ít nhất 2 lần."
+          hint="Cần chương đã có nội dung gốc; ngưỡng mặc định là 3 lần (hoặc theo cấu hình ebook)."
         />
       ) : (
         <>

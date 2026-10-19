@@ -54,33 +54,35 @@ def is_transliterated_name(source: str) -> bool:
     return bool(set(core) & _TRANSLIT_SOFT) and core[0] not in _SURNAME
 
 
-def extract_proper_name_candidates(texts: list[tuple[int, str]], *, min_frequency: int = 2, max_candidates: int = 100) -> list[dict]:
-    """Dò ứng viên tên người từ raw bằng surname + ngữ cảnh hội thoại, cộng
-    thêm tên nước ngoài phiên âm (chuỗi nằm trọn trong bảng chữ phiên âm).
+def extract_proper_name_candidates(texts, *, min_frequency=2, max_candidates=100, include_terms=False):
+    """D? ?ng vi�n t�n ngu?i t? raw b?ng surname + ng? c?nh h?i tho?i, c?ng
+    th�m t�n nu?c ngo�i phi�n �m (chu?i n?m tr?n trong b?ng ch? phi�n �m).
 
-    Mỗi ứng viên có `kind`: `translit` (tên phiên âm) hoặc `cn_name`.
+    Khi `include_terms=True`, qu?t th�m m?i c?m H�n 2-4 ky t? xu?t hi?n l?p
+    (thu?t ng?) v� ph�n lo?i `kind="term"`.
 
-    Đây là recognizer bảo thủ, không khẳng định entity: kết quả luôn phải qua
-    hàng chờ duyệt trước khi thành glossary.
+    M?i ?ng vi�n c� `kind`: `translit`, `cn_name` ho?c `term`.
+
+    D�y l� recognizer b?o th?, kh�ng kh?ng d?nh entity: k?t qu? lu�n ph?i qua
+    h�ng ch? duy?t tru?c khi th�nh glossary.
     """
+    # T? thuong + metadata chuong thuong g?p trong raw ti?ng Trung - lo?i kh?i
+    # ?ng vi�n thu?t ng? l?p d? tr�nh nhi?u (xem k?t qu? spike).
+    term_stop = set(_NAME_STOP)
+    term_stop |= {
+        "\u4e16\u754c", "\u5f53\u7136", "\u95ee\u9898", "\u672c\u7ae0\u5b8c",
+        "\u4f5c\u8005", "\u65f6\u5019", "\u53ef\u4ee5",
+        "\u5df2\u7ecf", "\u56e0\u4e3a", "\u6240\u4ee5", "\u4e00\u4e2a",
+        "\u8fd9\u4e2a", "\u90a3\u4e2a", "\u6211\u4eec", "\u4ed6\u4eec",
+        "\u6ca1\u6709", "\u4e0d\u662f", "\u5982\u679c", "\u77e5\u9053",
+    }
+
     counts: Counter[str] = Counter()
     contexts: dict[str, str] = {}
     chapters: dict[str, int] = {}
     contextual: Counter[str] = Counter()
     translit: Counter[str] = Counter()
     for chapter_index, text in texts:
-        for match in _HAN_TOKEN.finditer(text):
-            token = match.group(0)
-            if token in _NAME_STOP or token[0] not in _SURNAME:
-                continue
-            counts[token] += 1
-            chapters.setdefault(token, chapter_index)
-            contexts.setdefault(token, text[max(0, match.start() - 18): match.end() + 18].replace("\n", " "))
-        for token in _NAME_CONTEXT.findall(text):
-            if token not in _NAME_STOP:
-                contextual[token] += 1
-                counts[token] += 1
-                chapters.setdefault(token, chapter_index)
         for match in _TRANSLIT_RUN.finditer(text):
             token = match.group(0)
             if token in _NAME_STOP or not is_transliterated_name(token):
@@ -88,18 +90,73 @@ def extract_proper_name_candidates(texts: list[tuple[int, str]], *, min_frequenc
             translit[token] += 1
             chapters.setdefault(token, chapter_index)
             contexts.setdefault(token, text[max(0, match.start() - 18): match.end() + 18].replace("\n", " "))
-    # Hai cách quét có thể cùng đếm một tên: lấy số lớn hơn, không cộng dồn.
+        term_text = text
+        if include_terms:
+            # Mask whole stopword spans before n-grams so cross-boundary fragments
+            # (e.g. 界当 from 世界当然) cannot survive exact stopword filtering.
+            for word in sorted(term_stop, key=len, reverse=True):
+                term_text = term_text.replace(word, " " * len(word))
+        matches = (
+            ((m.start(), m.end(), m.group()) for m in _HAN_TOKEN.finditer(text))
+            if not include_terms else
+            ((run.start() + i, run.start() + i + size, run.group()[i:i + size])
+             for run in re.finditer(r"[\u3400-\u9fff]+", term_text)
+             for i in range(len(run.group())) for size in (2, 3, 4)
+             if i + size <= len(run.group()))
+        )
+        for start, end, token in matches:
+            stop = term_stop if include_terms else _NAME_STOP
+            if token in stop:
+                continue
+            if include_terms and (any(ch in token for ch in "的了着过吗呢吧他她它我你们这那把被拿起没说")
+                                  or any(word in token for word in term_stop)):
+                continue
+            if (not include_terms) and token[0] not in _SURNAME:
+                continue
+            counts[token] += 1
+            chapters.setdefault(token, chapter_index)
+            contexts.setdefault(token, text[max(0, start - 18): end + 18].replace("\n", " "))
+        for token in _NAME_CONTEXT.findall(text):
+            if token in _NAME_STOP:
+                continue
+            contextual[token] += 1
+            if not include_terms:
+                counts[token] += 1
+            chapters.setdefault(token, chapter_index)
+    # Hai c�ch qu?t c� th? c�ng d?m m?t t�n: l?y s? l?n hon, kh�ng c?ng d?n.
     for token, frequency in translit.items():
         counts[token] = max(counts[token], frequency)
+    # L?c fragment overlap: gi? c?m d�i nh?t trong m?t v? tr�.
+    if include_terms:
+        to_drop: set[str] = set()
+        # Enumerate the bounded substrings of each longer candidate, not all pairs.
+        for outer, frequency in counts.items():
+            if frequency < min_frequency:
+                continue
+            for size in range(2, len(outer)):
+                for i in range(len(outer) - size + 1):
+                    inner = outer[i:i + size]
+                    if inner in counts and frequency >= counts[inner]:
+                        to_drop.add(inner)
+        for token in to_drop:
+            counts.pop(token, None)
+            contexts.pop(token, None)
+            chapters.pop(token, None)
     rows = []
     for source, frequency in counts.most_common():
         if frequency < min_frequency:
             continue
-        context_hits = contextual[source]
+        context_hits = contextual.get(source, 0)
         confidence = min(0.98, 0.45 + min(frequency, 10) * 0.035 + min(context_hits, 3) * 0.1)
+        if is_transliterated_name(source):
+            kind = "translit"
+        elif 2 <= len(source) <= 4 and count_han(source) == len(source) and source[0] in _SURNAME:
+            kind = "cn_name"
+        else:
+            kind = "term" if include_terms else "cn_name"
         rows.append({
             "source": source,
-            "kind": "translit" if is_transliterated_name(source) else "cn_name",
+            "kind": kind,
             "frequency": frequency,
             "confidence": round(confidence, 2),
             "chapter_index": chapters[source],
@@ -108,6 +165,35 @@ def extract_proper_name_candidates(texts: list[tuple[int, str]], *, min_frequenc
         if len(rows) >= max_candidates:
             break
     return rows
+
+
+def translate_candidates(cfg, storage, candidates, *, log=lambda message: None, should_cancel=None):
+    """Translate only fresh rows using the ebook engine; failures retain source Han.
+
+    Cancellation returns False; callers must not persist a partially translated batch.
+    """
+    from copy import deepcopy
+    from .translator import make_translator
+
+    if not candidates:
+        return True
+    options = deepcopy(cfg.translate)
+    options.auto_glossary = False
+    options.ai_glossary_analysis = False
+    try:
+        translator = make_translator(options, log=log, storage=storage)
+    except Exception:
+        log("[glossary-extract] Engine không khả dụng; giữ chữ Hán.")
+        return not (should_cancel and should_cancel())
+    for row in candidates:
+        if should_cancel and should_cancel():
+            return False
+        try:
+            row["target"] = translator.translate(row["source"]).strip() or row["source"]
+        except Exception:
+            row["target"] = row["source"]
+            log("[glossary-extract] Không dịch được ứng viên; giữ chữ Hán.")
+    return not (should_cancel and should_cancel())
 
 
 def normalize_pending_queue(raw) -> list[dict]:
@@ -140,10 +226,11 @@ def queue_proper_name_candidates(storage, candidates: list[dict]) -> dict:
         if source in existing or source in pending_sources:
             skipped_existing += 1
             continue
+        target = str(row.get("target") or source).strip() or source
         additions.append({
             "source": source,
             "existing_target": "",
-            "target": source,
+            "target": target,
             "chapter_index": row["chapter_index"],
             "note": f"Raw NER · tần suất {row['frequency']} · tin cậy {row['confidence']:.0%} · {row['context']}",
         })

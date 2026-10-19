@@ -3406,3 +3406,45 @@ def run_all(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None 
         log("[run] Đã dừng theo yêu cầu — bỏ qua bước build.")
         return ""
     return step_build(cfg, log)
+
+def step_glossary_extract(cfg: Config, log: LogFn = _print, *, should_cancel: CancelFn | None = None) -> Manifest | None:
+    """Trich ung vien ten/thuat ngu lap tu raw toan truyen, dua vao hang cho
+    duyet glossary_pending. Chay truoc khi dich. Neu khong co raw thi bo qua."""
+    _emit_config_warnings(cfg, log)
+    storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+    manifest = storage.load_manifest()
+    if manifest is None:
+        raise RuntimeError("Chua co manifest. Hay chay buoc crawl truoc.")
+    texts = [
+        (chapter.index, storage.read_raw(chapter))
+        for chapter in manifest.chapters
+        if storage.has_raw(chapter)
+    ]
+    if not texts:
+        log("[glossary-extract] Khong co raw, bo qua.")
+        return manifest
+    if should_cancel and should_cancel():
+        log("[glossary-extract] Da dung theo yeu cau.")
+        return manifest
+
+    from .proper_names import extract_proper_name_candidates, queue_proper_name_candidates
+
+    min_frequency = int(getattr(cfg.translate, "glossary_extract_min_frequency", 3) or 3)
+    max_candidates = int(getattr(cfg.translate, "glossary_extract_max_candidates", 200) or 200)
+    candidates = extract_proper_name_candidates(
+        texts, min_frequency=min_frequency, max_candidates=max_candidates, include_terms=True,
+    )
+    log("[glossary-extract] Quet %d chuong, tim %d ung vien." % (len(texts), len(candidates)))
+
+    from .proper_names import normalize_pending_queue, translate_candidates
+
+    existing = {s for s, _t, _n in storage.read_glossary_entries_merged()}
+    existing.update(row["source"] for row in normalize_pending_queue(storage.read_extra_json("glossary_pending")))
+    candidates = [row for row in candidates if row["source"] not in existing]
+    if not translate_candidates(cfg, storage, candidates, log=log, should_cancel=should_cancel):
+        log("[glossary-extract] Đã hủy; không ghi hàng chờ.")
+        return manifest
+
+    result = queue_proper_name_candidates(storage, candidates)
+    log("[glossary-extract] Da dua %d ung vien vao hang cho (phat hien %d, bo qua %d)." % (result["queued"], result["detected"], result["skipped_existing"]))
+    return manifest

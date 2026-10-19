@@ -3,6 +3,8 @@ PyYAML>=6.0.1
 fastapi>=0.110.0
 uvicorn>=0.29.0
 python-multipart>=0.0.9
+# Xuat/nhap glossary bang bang tinh Excel (.xlsx) o trang Glossary
+openpyxl>=3.1
 requests>=2.31.0
 pytest>=8.0.0
 croniter>=2.0

@@ -243,6 +243,7 @@ NAME_KINDS: dict[str, tuple[str, str]] = {
     ),
     "translit": ("Tên phiên âm", "Cột Hán là tên nước ngoài phiên âm (艾伦, 夏洛克, 艾伦·沃克)."),
     "cn_name": ("Tên người Trung Quốc", "Cột Hán 2–4 chữ mở đầu bằng họ Trung Quốc (heuristic, có thể lẫn thuật ngữ)."),
+    "term": ("Thuat ngu", "Cum Han 2-4 ky tu lap lai, khong phai ten nguoi (heuristic)."),
 }
 
 
@@ -257,6 +258,8 @@ def name_kinds(source: str, target: str) -> set[str]:
             kinds.add("translit_hv")
     elif 2 <= len(source) <= 4 and count_han(source) == len(source) and source[0] in _SURNAME:
         kinds.add("cn_name")
+    elif 2 <= len(source) <= 4 and count_han(source) == len(source):
+        kinds.add("term")
     return kinds
 
 

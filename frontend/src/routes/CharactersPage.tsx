@@ -16,6 +16,7 @@ import {
   type CharacterEntry,
   type Relation,
 } from "@/lib/characters";
+import { useGlossary, type GlossaryEntry } from "@/lib/glossary";
 import { Panel, EmptyState } from "@/components/ui/Panel";
 import { Button } from "@/components/ui/Button";
 import { Loading, SkeletonTable } from "@/components/ui/Loading";
@@ -24,7 +25,7 @@ import { Checkbox, Input, InputWithIcon, Select } from "@/components/ui/Field";
 import { Modal, ConfirmDialog } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
-import { IconChevronRight, IconPlus, IconSearch, IconTrash } from "@/components/icons";
+import { IconChevronRight, IconGlossary, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 
 const cellInput =
   "input input-xs w-full border-transparent bg-transparent hover:border-base-300 focus:border-primary";
@@ -368,6 +369,172 @@ function AddCharacterModal({ open, onClose, slug }: { open: boolean; onClose: ()
   );
 }
 
+/* ── Modal thêm nhân vật từ Glossary ─────────────────────────────────── */
+
+function AddFromGlossaryModal({
+  open,
+  onClose,
+  slug,
+  existingSources,
+}: {
+  open: boolean;
+  onClose: () => void;
+  slug: string;
+  existingSources: Set<string>;
+}) {
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toast = useToast();
+  const upsert = useUpsertCharacter(slug);
+
+  const query = useMemo(
+    () => ({
+      page: 1,
+      per_page: 0,
+      q: search,
+      sort: "source",
+      dir: "asc" as const,
+      filter: "",
+      version: 0,
+      kind: "",
+    }),
+    [search],
+  );
+
+  const { data, isPending } = useGlossary(slug, query, open);
+
+  useEffect(() => {
+    if (open) {
+      setSearch("");
+      setSelected(new Set());
+    }
+  }, [open]);
+
+  const entries = data?.entries ?? [];
+  const selectable = entries.filter((e) => !existingSources.has(e.source));
+
+  const toggle = (source: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(source)) next.delete(source);
+      else next.add(source);
+      return next;
+    });
+  };
+
+  const allChecked = selectable.length > 0 && selectable.every((e) => selected.has(e.source));
+
+  const submit = async () => {
+    const chosen = entries.filter((e) => selected.has(e.source) && !existingSources.has(e.source));
+    if (chosen.length === 0) {
+      toast("Chưa chọn mục nào.", "error");
+      return;
+    }
+    let added = 0;
+    for (const e of chosen) {
+      try {
+        await upsert.mutateAsync({
+          source: e.source.trim(),
+          target: e.target.trim(),
+          aliases: "",
+          gender: "",
+          self_pronoun: "",
+          narrator_ref: "",
+          role_note: (e.note || "").trim(),
+          importance: "side",
+          originalSource: "",
+        });
+        added++;
+      } catch (err) {
+        toast(err instanceof Error ? err.message : String(err), "error");
+      }
+    }
+    toast(`Đã thêm ${added}/${chosen.length} nhân vật từ Glossary.`);
+    setSelected(new Set());
+    onClose();
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Thêm nhân vật từ Glossary"
+      wide
+      footer={
+        <>
+          <Button onClick={onClose}>Hủy</Button>
+          <Button variant="primary" loading={upsert.isPending} disabled={selected.size === 0} onClick={submit}>
+            Thêm đã chọn ({selected.size})
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <InputWithIcon
+          icon={<IconSearch size={14} />}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Tìm trong Glossary"
+          className="w-full"
+        />
+        {isPending ? (
+          <Loading label="Đang tải Glossary" />
+        ) : entries.length === 0 ? (
+          <EmptyState title="Glossary trống" hint="Chưa có mục nào trong Glossary." />
+        ) : (
+          <div className="max-h-[60vh] overflow-auto rounded-box border border-base-300">
+            <table className="w-full border-collapse text-left text-[12px]">
+              <thead className="sticky top-0 bg-base-200">
+                <tr className="border-b border-base-300">
+                  <th className="w-8 px-2 py-1.5">
+                    <Checkbox
+                      checked={allChecked}
+                      onChange={() =>
+                        setSelected(allChecked ? new Set() : new Set(selectable.map((e) => e.source)))
+                      }
+                    />
+                  </th>
+                  <th className="px-2 py-1.5">Hán (Glossary)</th>
+                  <th className="px-2 py-1.5">Việt</th>
+                  <th className="px-2 py-1.5">Ghi chú</th>
+                  <th className="px-2 py-1.5">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((e: GlossaryEntry) => {
+                  const exists = existingSources.has(e.source);
+                  const checked = selected.has(e.source);
+                  return (
+                    <tr
+                      key={e.source}
+                      className={clsx(
+                        "border-b border-base-300 last:border-b-0",
+                        exists && "opacity-40",
+                      )}
+                    >
+                      <td className="px-2 py-1">
+                        {exists ? null : (
+                          <Checkbox checked={checked} onChange={() => toggle(e.source)} />
+                        )}
+                      </td>
+                      <td className="px-2 py-1 font-medium">{e.source}</td>
+                      <td className="px-2 py-1">{e.target || "—"}</td>
+                      <td className="px-2 py-1 opacity-60">{e.note || "—"}</td>
+                      <td className="px-2 py-1">
+                        {exists ? <Badge tone="celadon">Đã có</Badge> : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 /* ── Tab Đề xuất ─────────────────────────────────────────────────────── */
 
 function PendingTab({ slug }: { slug: string }) {
@@ -546,6 +713,7 @@ export function CharactersPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
+  const [addFromGlossaryOpen, setAddFromGlossaryOpen] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   const { data, isPending } = useCharacters(slug);
@@ -554,6 +722,7 @@ export function CharactersPage() {
 
   const entries = data?.entries ?? [];
   const allSources = useMemo(() => entries.map((e) => e.source), [entries]);
+  const existingSources = useMemo(() => new Set(entries.map((e) => e.source)), [entries]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -608,6 +777,9 @@ export function CharactersPage() {
               {num(filtered.length)} nhân vật
             </span>
             <div className="ml-auto flex gap-2">
+              <Button icon={<IconGlossary size={14} />} onClick={() => setAddFromGlossaryOpen(true)}>
+                Thêm từ Glossary
+              </Button>
               <Button icon={<IconPlus size={14} />} variant="primary" onClick={() => setAddOpen(true)}>
                 Thêm nhân vật
               </Button>
@@ -695,6 +867,12 @@ export function CharactersPage() {
       )}
 
       <AddCharacterModal open={addOpen} onClose={() => setAddOpen(false)} slug={slug} />
+      <AddFromGlossaryModal
+        open={addFromGlossaryOpen}
+        onClose={() => setAddFromGlossaryOpen(false)}
+        slug={slug}
+        existingSources={existingSources}
+      />
       <ConfirmDialog
         open={confirmBulkDelete}
         onCancel={() => setConfirmBulkDelete(false)}

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ApiError, apiBase, apiToken } from "./api";
+import { downloadBlob, postFile } from "./api";
 
 /** Summary đọc từ file package mà không ghi gì — cho UI duyệt trước khi nhập. */
 export interface TransferPreview {
@@ -36,39 +36,8 @@ export interface TransferImportResult {
   warnings: string[];
 }
 
-async function readTransferError(res: Response): Promise<string> {
-  const text = await res.text().catch(() => "");
-  if (!text) return `${res.status} ${res.statusText}`;
-  try {
-    const data = JSON.parse(text) as { detail?: unknown; error?: unknown };
-    const detail = data.detail ?? data.error;
-    if (typeof detail === "string") return detail;
-    if (detail) return JSON.stringify(detail);
-  } catch {
-    /* phản hồi không phải JSON — dùng nguyên văn bên dưới */
-  }
-  return text.slice(0, 400);
-}
-
-/** POST multipart/form-data (file + fields) — `api.post` không hỗ trợ file. */
-async function postTransferFile<T>(
-  path: string,
-  file: File,
-  fields: Record<string, string>,
-): Promise<T> {
-  const form = new FormData();
-  form.append("file", file, file.name);
-  for (const [key, value] of Object.entries(fields)) form.append(key, value);
-  const headers: Record<string, string> = {};
-  const token = apiToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${apiBase()}${path}`, { method: "POST", headers, body: form });
-  if (!res.ok) throw new ApiError(res.status, await readTransferError(res));
-  return (await res.json()) as T;
-}
-
 export function previewTransfer(file: File): Promise<TransferPreview> {
-  return postTransferFile<TransferPreview>(
+  return postFile<TransferPreview>(
     "/api/ui/library/ebooks/transfer/preview",
     file,
     {},
@@ -79,7 +48,7 @@ export function importTransfer(
   file: File,
   opts: { slug?: string; overwrite?: boolean },
 ): Promise<TransferImportResult> {
-  return postTransferFile<TransferImportResult>(
+  return postFile<TransferImportResult>(
     "/api/ui/library/ebooks/transfer/import",
     file,
     { slug: opts.slug ?? "", overwrite: opts.overwrite ? "1" : "" },
@@ -98,25 +67,9 @@ export function useImportTransfer() {
 }
 
 /** Tải package chuyển app (.n2e.zip) của một ebook về máy. */
-export async function downloadTransfer(slug: string, includeEpub: boolean): Promise<void> {
-  const headers: Record<string, string> = {};
-  const token = apiToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(
-    `${apiBase()}/api/ui/ebooks/${encodeURIComponent(slug)}/transfer/export?include_epub=${includeEpub ? "1" : "0"}`,
-    { headers },
+export function downloadTransfer(slug: string, includeEpub: boolean): Promise<void> {
+  return downloadBlob(
+    `/api/ui/ebooks/${encodeURIComponent(slug)}/transfer/export?include_epub=${includeEpub ? "1" : "0"}`,
+    `${slug}.n2e.zip`,
   );
-  if (!res.ok) throw new ApiError(res.status, await readTransferError(res));
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  try {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${slug}.n2e.zip`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  }
 }

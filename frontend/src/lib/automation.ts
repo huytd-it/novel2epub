@@ -10,7 +10,8 @@ export const AUTOMATION_STEP_META: Record<string, { name: string; description: s
   "cleanup-han": { name: "Dọn từ Hán", description: "Rà soát và làm sạch từ Hán còn sót" },
   "cleanup-han-llm": { name: "Dọn chữ Hán bằng LLM", description: "Ép bước dọn chữ Hán chạy bằng AI biên tập" },
   "glossary-ai": { name: "Xử lý Glossary bằng LLM", description: "Kiểm tra xung đột Glossary hiện tại và tự duyệt sau khi LLM xử lý" },
-  build: { name: "Đóng gói EPUB", description: "Tạo lại tệp EPUB hoàn chỉnh" },
+
+  "glossary-extract": { name: "Trich Glossary tu raw", description: "Quet raw toan truyen, trich ung vien ten/thuat ngu lap" },  build: { name: "Đóng gói EPUB", description: "Tạo lại tệp EPUB hoàn chỉnh" },
   "publish-reader": { name: "Đăng Reader", description: "Đồng bộ bản mới lên Reader" },
 };
 

@@ -27,6 +27,7 @@ STEPS = (
     "cleanup-han",
     "cleanup-han-llm",
     "glossary-ai",
+    "glossary-extract",
     "build",
     "publish-reader",
 )

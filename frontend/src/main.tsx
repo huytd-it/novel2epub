@@ -23,6 +23,7 @@ import { ChapterEntryPage } from "@/routes/ChapterEntryPage";
 import { ChapterPage } from "@/routes/ChapterPage";
 import { IdiomsPage } from "@/routes/IdiomsPage";
 import { GlossaryPage } from "@/routes/GlossaryPage";
+import { GlossaryExtractPage } from "@/routes/GlossaryExtractPage";
 import { CharactersPage } from "@/routes/CharactersPage";
 import { QueuePage } from "@/routes/QueuePage";
 import { LogsPage } from "@/routes/LogsPage";
@@ -88,6 +89,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="ebooks/:slug/build" element={<BuildPage />} />
               <Route path="ebooks/:slug/settings" element={<SettingsPage />} />
               <Route path="ebooks/:slug/glossary" element={<GlossaryPage />} />
+              <Route path="ebooks/:slug/glossary/extract" element={<GlossaryExtractPage />} />
               <Route path="ebooks/:slug/ai-harness" element={<AiHarnessPage />} />
               <Route path="ebooks/:slug/characters" element={<CharactersPage />} />
               <Route path="queue" element={<QueuePage />} />

@@ -95,7 +95,11 @@ def test_batch_translate_titles_queues_fast_as_local_mt(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert job.started[0]["category"] == "local-mt"
     assert job.started[0]["chapter_indexes"] == [1, 3]
-    assert calls == [{"force": True, "selected_indexes": [1, 3], "mode": "fast"}]
+    assert len(calls) == 1
+    assert calls[0]["force"] is True
+    assert calls[0]["selected_indexes"] == [1, 3]
+    assert calls[0]["mode"] == "fast"
+    assert calls[0]["should_cancel"] == job.started[0]["cancel_event"].is_set
 
 
 def test_batch_translate_titles_queues_smart_as_ai_translate(tmp_path, monkeypatch):
@@ -213,6 +217,55 @@ def test_toc_fast_uses_local_mt_and_translates_only_split_title(tmp_path, monkey
         "Chương 14",
     ]
     assert [ch.title_note for ch in chapters] == ["", "", ""]
+
+
+def test_toc_fast_saves_each_title_before_translating_next(tmp_path, monkeypatch):
+    storage = _seed(tmp_path, [
+        Chapter(index=1, url="http://x/1", title="第一章 开始"),
+        Chapter(index=2, url="http://x/2", title="第二章 继续"),
+    ])
+
+    class Translator:
+        def translate_title(self, text, kind="tên chương"):
+            if text == "继续":
+                saved = storage.load_manifest().chapters
+                assert saved[0].title == "Chương 1: Bắt đầu"
+                assert saved[0].title_zh == "第一章 开始"
+                raise RuntimeError("MT failed")
+            return "Bắt đầu", ""
+
+    monkeypatch.setattr(pipeline, "make_translator", lambda *args, **kw: Translator())
+    import pytest
+    with pytest.raises(RuntimeError, match="MT failed"):
+        pipeline.step_translate_toc_selected(_cfg(tmp_path), lambda m: None, mode="fast")
+    assert storage.load_manifest().chapters[1].title == "第二章 继续"
+
+
+def test_toc_fast_cancel_keeps_completed_titles(tmp_path, monkeypatch):
+    storage = _seed(tmp_path, [
+        Chapter(index=1, url="http://x/1", title="第一章 开始"),
+        Chapter(index=2, url="http://x/2", title="第二章 继续"),
+    ])
+    tr = _FakeTitleTranslator()
+    monkeypatch.setattr(pipeline, "make_translator", lambda *args, **kw: tr)
+    pipeline.step_translate_toc_selected(
+        _cfg(tmp_path), lambda m: None, mode="fast",
+        should_cancel=lambda: bool(tr.single_calls),
+    )
+    assert tr.single_calls == ["开始"]
+    assert storage.load_manifest().chapters[0].title == "Chương 1: VI:开始"
+    assert storage.load_manifest().chapters[1].title == "第二章 继续"
+
+
+def test_toc_fast_empty_result_keeps_original_title(tmp_path, monkeypatch):
+    storage = _seed(tmp_path, [Chapter(index=1, url="http://x/1", title="第一章 开始")])
+    tr = _FakeTitleTranslator()
+    tr.translate_title = lambda text, kind="tên chương": ("", "")
+    monkeypatch.setattr(pipeline, "make_translator", lambda *args, **kw: tr)
+    pipeline.step_translate_toc_selected(_cfg(tmp_path), lambda m: None, mode="fast")
+    saved = storage.load_manifest().chapters[0]
+    assert saved.title == "第一章 开始"
+    assert not saved.title_zh
 
 
 def test_toc_rejects_unknown_translation_mode(tmp_path):

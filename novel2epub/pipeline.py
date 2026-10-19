@@ -1879,17 +1879,34 @@ def step_translate_toc_selected(
                 if got.strip()
             }
     else:
-        title_lookup = {}
+        changed = 0
         log(f"[toc] Đang dịch tiêu đề nhanh lần lượt {len(to_translate)} tiêu đề…")
-        for ch in to_translate:
+        for i, ch in enumerate(to_translate, start=1):
+            if should_cancel and should_cancel():
+                log(f"[toc] Đã dừng; giữ {changed} tiêu đề đã lưu.")
+                break
             source = ch.title_zh or ch.title
             prefix, title_text = split_zh_title_number(source)
             if title_text:
                 translated, _note = translator.translate_title(title_text)
                 translated = _clean_title(translated)
-                title_lookup[ch.index] = f"{prefix}: {translated}" if prefix else translated
+                if not translated:
+                    log(f"[toc] ({i}/{len(to_translate)}) #{ch.index}: kết quả rỗng, giữ tiêu đề cũ.")
+                    continue
+                title = f"{prefix}: {translated}" if prefix else translated
             elif prefix:
-                title_lookup[ch.index] = prefix
+                title = prefix
+            else:
+                continue
+            if not ch.title_zh:
+                ch.title_zh = source
+            ch.title = ensure_title_number(ch.title_zh, _clean_title(title))
+            ch.title_note = ""
+            storage.save_chapter(ch)
+            changed += 1
+            log(f"[toc] ({i}/{len(to_translate)}) #{ch.index}: đã lưu {ch.title}")
+        log(f"[toc] Đã dịch {changed}/{total} tiêu đề.")
+        return manifest
     changed = 0
     for ch in to_translate:
         if ch.index in title_lookup:

@@ -10,6 +10,14 @@ Mỗi chương có ba lớp nội dung:
 
 Biên tập không ghi đè snapshot MT. Có thể so sánh nguồn, bản máy và bản sửa trong trình đọc ba cột.
 
+## Dịch tiêu đề nhanh
+
+Chọn các chương cần dịch tại trang truyện → **Khác → Dịch tiêu đề nhanh**.
+Local MT xử lý từng tiêu đề và lưu ngay vào SQLite, không chờ hoàn tất cả danh sách.
+Danh sách chương tự làm mới mỗi 2 giây trong lúc job chạy. Dừng job hoặc gặp lỗi
+giữa chừng vẫn giữ các tiêu đề đã lưu; kết quả dịch rỗng không ghi đè tiêu đề cũ.
+Tiêu đề nguồn và nội dung chương được giữ nguyên.
+
 ## Soát Lỗi Có Duyệt
 
 Luồng **Lỗi → Soát lỗi** khác **AI biên tập** ghi trực tiếp Local MT:
@@ -356,7 +364,9 @@ Tiêu đề chương đôi khi dính từ rác kêu gọi độc giả ("(Cầu 
 
 ### Trích xuất tên riêng từ raw
 
-`POST /api/ebooks/{slug}/glossary/proper-names/extract` quét raw bằng heuristic họ người Trung Quốc, tần suất và ngữ cảnh hội thoại. Vì tiếng Trung không viết hoa và không tách từ như tiếng Việt, kết quả chỉ là **ứng viên**, không phải nhận diện chắc chắn. Recognizer còn bắt **tên nước ngoài phiên âm** (chuỗi nằm trọn trong bảng chữ phiên âm, có ít nhất một chữ đặc trưng như 斯/尔/克/伦, hoặc có dấu `·`); mỗi ứng viên có `kind` (`translit`/`cn_name`) và `status` (`new`/`pending`/`glossary`). Body nhận thêm `dry_run=true` (chỉ trả ứng viên, không ghi hàng chờ) và `sources=[...]` (chỉ xếp hàng các ứng viên được chọn). Nút **Trích tên riêng** (thử nghiệm) ở bảng Chương của trang ebook dùng hai tham số này: quét chương đang chọn hoặc toàn bộ truyện, hiện ứng viên dạng chờ duyệt, tên được duyệt mới vào tab Chờ duyệt của Glossary (cột Việt còn chữ Hán, dịch bằng AI ở đó).
+`POST /api/ebooks/{slug}/glossary/proper-names/extract` quét raw bằng heuristic họ người Trung Quốc, tần suất và ngữ cảnh hội thoại. Vì tiếng Trung không viết hoa và không tách từ như tiếng Việt, kết quả chỉ là **ứng viên**, không phải nhận diện chắc chắn. Recognizer còn bắt **tên nước ngoài phiên âm** (chuỗi nằm trọn trong bảng chữ phiên âm, có ít nhất một chữ đặc trưng như 斯/尔/克/伦, hoặc có dấu `·`); mỗi ứng viên có `kind` (`translit`/`cn_name`/`term`) và `status` (`new`/`pending`/`glossary`). Body nhận `include_terms=true` để bắt thuật ngữ lặp, `dry_run=true` để chỉ trả ứng viên (không dịch hoặc ghi hàng chờ) và `sources=[...]` để chỉ xếp hàng ứng viên đã chọn.
+
+Nút **Trích tên riêng** và **Trích glossary** ở bảng Chương mở trang riêng, giữ phạm vi chương đang chọn hoặc toàn bộ truyện. Trang này cho chọn **Dịch thô Local MT** (mặc định, không dùng API AI), engine mặc định của ebook hoặc giữ Hán. Dịch diễn ra khi đưa các mục đã chọn vào tab Chờ duyệt của Glossary; cần duyệt lại bản dịch thô trước khi áp dụng. API dùng `translate_engine=localmt` để buộc Local MT, hoặc `translate=false` để giữ Hán; mặc định API vẫn dùng engine ebook. Engine lỗi thì giữ Hán, không tự chuyển sang gọi AI.
 
 Endpoint có thể dịch từng ứng viên bằng Local MT rồi đưa vào `glossary_pending`. Nó không ghi trực tiếp vào `names.txt`: source đã tồn tại trong glossary hoặc hàng chờ được bỏ qua, và thao tác merge hàng chờ dùng transaction `BEGIN IMMEDIATE` để không ghi đè snapshot mới hơn. Hãy mở trang Glossary, kiểm tra context/confidence, sửa bản dịch rồi mới duyệt.
 

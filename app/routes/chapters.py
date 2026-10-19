@@ -885,6 +885,8 @@ async def api_batch_translate_titles(
             detail="Dịch tiêu đề hàng loạt không hỗ trợ tùy chọn engine/model/prompt riêng.",
         )
 
+    cancel_event = threading.Event()
+
     def _target(log):
         try:
             step_translate_toc_selected(
@@ -893,6 +895,7 @@ async def api_batch_translate_titles(
                 force=True,
                 selected_indexes=index_list,
                 mode=mode,
+                should_cancel=cancel_event.is_set,
             )
         except RuntimeError as e:
             log(f"[batch-tiêu-đề] Lỗi: {e}")
@@ -901,6 +904,7 @@ async def api_batch_translate_titles(
         f"batch-translate-titles-{len(index_list)}",
         _target,
         category="local-mt" if mode == "fast" else "ai-translate",
+        cancel_event=cancel_event,
         ebook=slug,
         chapter_indexes=index_list,
         label=batch_job_label("translate-titles", title=cfg.novel.title, slug=slug, count=len(index_list)),

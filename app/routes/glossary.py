@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import Literal
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
@@ -33,6 +34,7 @@ class ProperNameExtractRequest(BaseModel):
     min_frequency: int | None = Field(default=None, ge=1, le=100)
     max_candidates: int | None = Field(default=None, ge=1, le=500)
     translate: bool = Field(default=True, description="Dịch bằng engine mặc định của ebook; nếu lỗi thì giữ chữ Hán.")
+    translate_engine: Literal["ebook", "localmt"] = Field(default="ebook", description="localmt: dịch thô bằng Local MT, không dùng API AI.")
     include_terms: bool = Field(default=False, description="Bao gồm thuật ngữ lặp.")
     dry_run: bool = Field(default=False, description="Chỉ trả ứng viên kèm trạng thái, không ghi hàng chờ.")
     sources: list[str] | None = Field(default=None, description="Chỉ xếp hàng các ứng viên này; bỏ trống để xếp tất cả.")
@@ -449,7 +451,9 @@ def ebook_glossary_extract_proper_names(slug: str, payload: ProperNameExtractReq
         candidates = [row for row in candidates if row["source"] in wanted]
     fresh = [row for row in candidates if row["status"] == "new"]
     if payload.translate:
-        proper_names.translate_candidates(cfg, storage, fresh)
+        proper_names.translate_candidates(
+            cfg, storage, fresh, engine="localmt" if payload.translate_engine == "localmt" else None,
+        )
 
     additions: list[dict] = []
     skipped_existing = 0

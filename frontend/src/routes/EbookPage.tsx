@@ -31,7 +31,6 @@ import {
   type ChapterRow,
 } from "@/lib/ebook";
 import { BulkPreviewDialog } from "@/components/chapter/BulkPreviewDialog";
-import { ProperNamesDialog } from "@/components/chapter/ProperNamesDialog";
 import { SourceSwitchDialog } from "@/components/SourceSwitchDialog";
 import { PronounsDialog } from "@/components/chapter/PronounsDialog";
 import { ProofreadingPanel, type ProofreadingDraft } from "@/components/chapter/ProofreadingPanel";
@@ -1939,9 +1938,7 @@ function EbookPageContent({ slug }: { slug: string }) {
   const [pageSize, setPageSize] = useState(() => loadPageSize(slug));
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [lastToggled, setLastToggled] = useState<number | null>(null);
-  const [properNamesOpen, setProperNamesOpen] = useState(false);
   const [sourceSwitchOpen, setSourceSwitchOpen] = useState(false);
-  const [glossaryExtractOpen, setGlossaryExtractOpen] = useState(false);
   const [pronounsOpen, setPronounsOpen] = useState(false);
   const [readerPreview, setReaderPreview] = useState<ReaderPublishPreview | null>(null);
   const [proofreadingCodes, setProofreadingCodes] = useState<string[]>(() => loadProofreadingCodes(slug));
@@ -1988,6 +1985,19 @@ function EbookPageContent({ slug }: { slug: string }) {
   });
 
   const { data: book, isPending, error } = useEbook(slug);
+  const hasActiveJobs = Boolean(book?.active_jobs.length);
+  useEffect(() => {
+    if (!hasActiveJobs) return;
+    const timer = window.setInterval(() => {
+      client.invalidateQueries({ queryKey: ebookKey(slug) });
+      client.invalidateQueries({ queryKey: ["chapters", slug] });
+    }, 2000);
+    return () => {
+      window.clearInterval(timer);
+      // Lấy nốt kết quả cuối khi job vừa hoàn tất.
+      client.invalidateQueries({ queryKey: ["chapters", slug] });
+    };
+  }, [client, slug, hasActiveJobs]);
   // Ô tìm kiếm chỉ đẩy lên API sau khi ngừng gõ — giữ nguyên tham chiếu
   // `filters` khi đã bắt kịp để không tạo request thừa do queryKey đổi.
   const debouncedSearch = useDebouncedValue(filters.search);
@@ -2337,17 +2347,17 @@ function EbookPageContent({ slug }: { slug: string }) {
               <Button
                 size="sm"
                 title="Thử nghiệm: dò tên người trong nội dung gốc của chương đang chọn (hoặc toàn bộ truyện) và hiện dạng chờ duyệt"
-                onClick={() => setProperNamesOpen(true)}
+                onClick={() => navigate(`/ebooks/${slug}/glossary/extract?${new URLSearchParams({ terms: "false", chapters: [...selected].join(",") })}`)}
               >
                 Trích tên riêng
               </Button>
 
               <Button
                 size="sm"
-                title="Trich ten rieng + thuat ngu lap tu raw toan truyen"
-                onClick={() => setGlossaryExtractOpen(true)}
+                title="Trích tên riêng và thuật ngữ từ raw trên trang riêng"
+                onClick={() => navigate(`/ebooks/${slug}/glossary/extract?${new URLSearchParams({ terms: "true", chapters: [...selected].join(",") })}`)}
               >
-                Trich glossary
+                Trích glossary
               </Button>
               <Button size="sm" disabled={!page?.matched} onClick={() => setPronounsOpen(true)}>
                 Chuẩn hóa xưng hô
@@ -2359,20 +2369,6 @@ function EbookPageContent({ slug }: { slug: string }) {
               ) : null}
             </>
           }
-        />
-        <ProperNamesDialog
-          open={properNamesOpen}
-          onClose={() => setProperNamesOpen(false)}
-          slug={slug}
-          chapterIndexes={[...selected]}
-        />
-
-        <ProperNamesDialog
-          open={glossaryExtractOpen}
-          onClose={() => setGlossaryExtractOpen(false)}
-          slug={slug}
-          chapterIndexes={[...selected]}
-          includeTerms
         />
         {pronounsOpen && <PronounsDialog
           slug={slug}

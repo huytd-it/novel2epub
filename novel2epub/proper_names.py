@@ -167,7 +167,7 @@ def extract_proper_name_candidates(texts, *, min_frequency=2, max_candidates=100
     return rows
 
 
-def translate_candidates(cfg, storage, candidates, *, log=lambda message: None, should_cancel=None):
+def translate_candidates(cfg, storage, candidates, *, log=lambda message: None, should_cancel=None, engine=None):
     """Translate only fresh rows using the ebook engine; failures retain source Han.
 
     Cancellation returns False; callers must not persist a partially translated batch.
@@ -178,6 +178,8 @@ def translate_candidates(cfg, storage, candidates, *, log=lambda message: None, 
     if not candidates:
         return True
     options = deepcopy(cfg.translate)
+    if engine is not None:
+        options.type = engine
     options.auto_glossary = False
     options.ai_glossary_analysis = False
     try:

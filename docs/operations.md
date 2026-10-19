@@ -28,8 +28,12 @@ Glossary hay bản dịch trong DB.
 các giá trị này; tham số min/max trong request có thể ghi đè riêng một lượt.
 
 Trang Chương có nút **Trích glossary** (checkbox **Bao gồm thuật ngữ lặp** bật sẵn)
-và **Trích tên riêng** (checkbox tắt sẵn). Xem trước không gọi engine dịch;
-khi đưa ứng viên đã chọn vào hàng chờ, dùng engine mặc định của ebook.
+và **Trích tên riêng** (checkbox tắt sẵn), mở trang `/ebooks/{slug}/glossary/extract`.
+Phạm vi chương đã chọn được giữ trong URL; không chọn chương nghĩa là quét toàn truyện.
+Xem trước không gọi engine dịch. Chọn ứng viên rồi chọn **Dịch thô Local MT**
+(mặc định, không gọi API AI), **Engine mặc định của ebook** hoặc **Giữ nguyên chữ Hán**
+trước khi đưa vào hàng chờ. `translate_engine=localmt` chỉ ghi đè engine cho request,
+không thay cấu hình ebook hay engine automation.
 Nếu engine lỗi/không khả dụng, giữ chữ Hán để duyệt sau. Các mục đã có trong glossary
 hoặc pending không được dịch lại. Hủy automation giữa lúc dịch không ghi batch đang chạy.
 Heuristic quét cụm Hán 2–4 ký tự có thể bỏ sót hoặc lẫn từ thường; luôn kiểm tra hàng chờ.

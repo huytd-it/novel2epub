@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import { num } from "@/lib/format";
 import { Badge, type Tone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Field";
+import { Checkbox, Select } from "@/components/ui/Field";
 import { Loading } from "@/components/ui/Loading";
-import { Modal } from "@/components/ui/Modal";
+import { Page } from "@/app/Shell";
 import { EmptyState } from "@/components/ui/Panel";
 import { useToast } from "@/components/ui/Toast";
 
@@ -47,15 +47,11 @@ const STATUS: Record<Candidate["status"], { text: string; tone: Tone }> = {
  * (họ Trung Quốc + bảng chữ phiên âm), không gọi AI. Ứng viên chỉ hiện ở đây
  * dưới dạng chờ duyệt; bấm duyệt mới đưa vào hàng chờ của trang Glossary.
  */
-export function ProperNamesDialog({
-  open,
-  onClose,
+export function GlossaryExtractor({
   slug,
   chapterIndexes,
   includeTerms = false,
 }: {
-  open: boolean;
-  onClose: () => void;
   slug: string;
   /** Chương đang chọn; rỗng = quét toàn bộ truyện. */
   chapterIndexes: number[];
@@ -66,12 +62,14 @@ export function ProperNamesDialog({
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [terms, setTerms] = useState(includeTerms);
+  const [engine, setEngine] = useState("localmt");
 
   const request = (extra: Record<string, unknown>) =>
     api.post<ExtractResult>(`/api/ebooks/${slug}/glossary/proper-names/extract`, {
       body: {
         chapter_indexes: chapterIndexes.length > 0 ? chapterIndexes : null,
-        translate: true,
+        translate: engine !== "none",
+        translate_engine: engine === "localmt" ? "localmt" : "ebook",
         include_terms: terms,
         ...extra,
       },
@@ -89,13 +87,12 @@ export function ProperNamesDialog({
   });
 
   useEffect(() => {
-    if (!open) return;
     setChecked(new Set());
     setDismissed(new Set());
     scan.reset();
     scan.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- quét khi mở hoặc đổi phạm vi thuật ngữ
-  }, [open, terms]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- engine chỉ dùng khi đưa vào hàng chờ
+  }, [terms]);
 
   const rows = useMemo(
     () => (scan.data?.candidates ?? []).filter((c) => !dismissed.has(c.source)),
@@ -112,14 +109,17 @@ export function ProperNamesDialog({
     });
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      wide
-      title={includeTerms ? "Trích glossary (thử nghiệm)" : "Trích tên riêng (thử nghiệm)"}
-      footer={
-        <>
-          <Button onClick={onClose}>Đóng</Button>
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-[13px]">
+          Bản dịch khi đưa vào hàng chờ
+          <Select aria-label="Engine dịch ứng viên" value={engine} disabled={queue.isPending}
+            onChange={(event) => setEngine(event.target.value)}>
+            <option value="localmt">Dịch thô Local MT (không gọi AI)</option>
+            <option value="ebook">Engine mặc định của ebook</option>
+            <option value="none">Giữ nguyên chữ Hán</option>
+          </Select>
+        </label>
           <Button
             disabled={checked.size === 0 || queue.isPending}
             onClick={() => {
@@ -135,11 +135,9 @@ export function ProperNamesDialog({
             disabled={checked.size === 0 || scan.isPending}
             onClick={() => queue.mutate([...checked])}
           >
-            Duyệt {checked.size > 0 ? num(checked.size) : ""} vào hàng chờ Glossary
+            {engine === "localmt" ? "Dịch thô & đưa" : "Đưa"} {checked.size > 0 ? num(checked.size) : ""} vào hàng chờ Glossary
           </Button>
-        </>
-      }
-    >
+      </div>
       <label className="mb-3 flex items-center gap-2 text-[13px]">
         <Checkbox checked={terms} disabled={queue.isPending} onChange={(event) => setTerms(event.target.checked)} />
         Bao gồm thuật ngữ lặp
@@ -152,7 +150,8 @@ export function ProperNamesDialog({
         <Link className="link" to={`/ebooks/${slug}/glossary`}>
           Glossary
         </Link>{" "}
-        với bản dịch từ engine mặc định của ebook; nếu engine không khả dụng thì giữ chữ Hán.
+        theo lựa chọn dịch phía trên. Local MT chỉ tạo bản dịch thô để duyệt lại;
+        nếu engine không khả dụng thì giữ chữ Hán. Không tự ghi glossary chính.
       </p>
 
       {scan.isPending ? (
@@ -174,7 +173,7 @@ export function ProperNamesDialog({
             {num(scan.data?.scanned_chapters ?? 0)} chương đã quét · {num(fresh.length)} tên chờ duyệt ·{" "}
             {num(rows.length - fresh.length)} tên đã có
           </div>
-          <div className="max-h-[60vh] overflow-auto rounded-box border border-base-300">
+          <div className="overflow-x-auto rounded-box border border-base-300">
             <table className="w-full border-collapse text-left text-[13px]">
               <thead className="sticky top-0 bg-base-200">
                 <tr className="border-b border-base-300">
@@ -236,6 +235,20 @@ export function ProperNamesDialog({
           </div>
         </>
       )}
-    </Modal>
+    </>
   );
+}
+
+export function GlossaryExtractPage() {
+  const { slug = "" } = useParams();
+  const [params] = useSearchParams();
+  const chapters = [...new Set((params.get("chapters") ?? "").split(",").filter(Boolean)
+    .map(Number).filter((value) => Number.isSafeInteger(value) && value > 0))];
+  const terms = params.get("terms") !== "false";
+  return <Page title={terms ? "Trích glossary" : "Trích tên riêng"}
+    hint="Quét raw, chọn ứng viên và đưa bản dịch thô vào hàng chờ duyệt."
+    actions={<><Link className="link" to={`/ebooks/${slug}`}>Về trang Chương</Link>
+      <Link className="link" to={`/ebooks/${slug}/glossary`}>Mở Glossary</Link></>}>
+    <GlossaryExtractor key={`${slug}:${terms}:${chapters.join(",")}`} slug={slug} chapterIndexes={chapters} includeTerms={terms} />
+  </Page>;
 }

@@ -2164,3 +2164,31 @@ def test_extract_terms_unavailable_engine_retains_han(tmp_path, monkeypatch):
         "/api/ebooks/t/glossary/proper-names/extract", json={"include_terms": True})
     assert result.status_code == 200
     assert storage.read_extra_json("glossary_pending")[0]["target"] == "灵石"
+
+
+def test_extract_can_force_local_mt_without_changing_ebook_engine(tmp_path, monkeypatch):
+    from novel2epub import translator
+    from types import SimpleNamespace
+
+    cfg = _cfg(tmp_path)
+    cfg.translate.type = "openai"
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_raw(chapter, "灵石。" * 3)
+    engines = []
+    def factory(options, **kwargs):
+        engines.append(options.type)
+        return SimpleNamespace(translate=lambda text: "linh thạch")
+    monkeypatch.setattr(translator, "make_translator", factory)
+    client = _client(cfg, monkeypatch)
+    url = "/api/ebooks/t/glossary/proper-names/extract"
+    preview = client.post(url, json={"include_terms": True, "dry_run": True, "translate_engine": "localmt"})
+    assert preview.status_code == 200 and engines == []
+    result = client.post(url, json={"include_terms": True, "translate_engine": "localmt"})
+    assert result.status_code == 200
+    assert engines == ["localmt"]
+    assert cfg.translate.type == "openai"
+    assert storage.read_extra_json("glossary_pending")[0]["target"] == "linh thạch"
+    assert client.post(url, json={"translate_engine": "invalid"}).status_code == 422

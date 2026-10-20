@@ -11,6 +11,8 @@ import { api } from "./api";
 export interface NovelSettings {
   title: string;
   author: string;
+  raw_title: string;
+  raw_author: string;
   description: string;
   language: string;
   publisher: string;

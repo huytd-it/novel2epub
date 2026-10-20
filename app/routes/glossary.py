@@ -38,6 +38,64 @@ class ProperNameExtractRequest(BaseModel):
     include_terms: bool = Field(default=False, description="Bao gồm thuật ngữ lặp.")
     dry_run: bool = Field(default=False, description="Chỉ trả ứng viên kèm trạng thái, không ghi hàng chờ.")
     sources: list[str] | None = Field(default=None, description="Chỉ xếp hàng các ứng viên này; bỏ trống để xếp tất cả.")
+    targets: dict[str, str] = Field(default_factory=dict, max_length=500, description="Bản dịch xem trước đã duyệt; chỉ áp dụng cho source đang trích được.")
+
+
+class ExtractTranslationEntry(BaseModel):
+    source: str = Field(min_length=1, max_length=80)
+    context: str = Field(default="", max_length=1000)
+
+
+class ExtractTranslationRequest(BaseModel):
+    entries: list[ExtractTranslationEntry] = Field(min_length=1, max_length=200)
+    engine: Literal["localmt", "openai"] = "localmt"
+
+
+def glossary_extract_translate_job_factory(params: dict):
+    """Recreate a read-only Local MT/LLM preview job after restart or retry."""
+    payload = ExtractTranslationRequest.model_validate(params)
+    slug = params["slug"]
+
+    def _target(log):
+        from novel2epub.glossary_extract_translation import translate_extracted_rows
+        cfg = deps.resolved_cfg(slug)
+        storage = Storage(cfg.output.data_dir, cfg.novel.slug)
+        log(f"[glossary-preview] {payload.engine}: {len(payload.entries)} thuật ngữ và ngữ cảnh.")
+        rows = translate_extracted_rows(
+            cfg, storage, [e.model_dump() for e in payload.entries], payload.engine,
+            log=log, should_cancel=getattr(log, "should_cancel", lambda: False),
+        )
+        return {"entries": rows, "engine": payload.engine}
+
+    return _target
+
+
+@router.post("/api/ebooks/{slug}/glossary/proper-names/translate", tags=["Glossary"], status_code=202)
+def ebook_glossary_translate_candidates(request: Request, slug: str, payload: ExtractTranslationRequest):
+    """Queue translation previews on the matching physical worker pool."""
+
+    sources = [entry.source for entry in payload.entries]
+    if len(sources) != len(set(sources)):
+        raise HTTPException(status_code=400, detail="Trùng thuật ngữ trong lượt dịch.")
+    for source in sources:
+        _validate_glossary_source(source)
+    deps.resolved_cfg(slug)
+    category = "local-mt" if payload.engine == "localmt" else "ai-translate"
+    spec = {"kind": "glossary-extract-translate", "params": {"slug": slug, **payload.model_dump()}}
+    job = request.app.state.job.queue.enqueue(
+        category, "glossary-extract-translate", glossary_extract_translate_job_factory(spec["params"]),
+        ebook=slug, label=f"Dịch glossary · {'Local MT' if payload.engine == 'localmt' else 'LLM'} · {len(sources)} dòng",
+        spec=spec,
+    )
+    return {"started": True, "job_id": job.id, "category": category}
+
+
+@router.get("/api/ebooks/{slug}/glossary/proper-names/translate/{job_id}", tags=["Glossary"])
+def ebook_glossary_translation_status(request: Request, slug: str, job_id: str):
+    job = request.app.state.job.queue.job_snapshot(job_id)
+    if job is None or job["ebook"] != slug or job["step"] != "glossary-extract-translate":
+        raise HTTPException(status_code=404, detail="Không tìm thấy job dịch glossary của ebook này.")
+    return job
 
 
 # Recognizer tên riêng + hàng chờ glossary sống trong `novel2epub/proper_names`
@@ -450,9 +508,16 @@ def ebook_glossary_extract_proper_names(slug: str, payload: ProperNameExtractReq
         wanted = {str(s).strip() for s in payload.sources}
         candidates = [row for row in candidates if row["source"] in wanted]
     fresh = [row for row in candidates if row["status"] == "new"]
+    for row in fresh:
+        target = payload.targets.get(row["source"], "").strip()
+        if target:
+            if len(target) > 2000:
+                raise HTTPException(status_code=400, detail="Bản dịch thuật ngữ quá dài.")
+            row["target"] = target
     if payload.translate:
         proper_names.translate_candidates(
-            cfg, storage, fresh, engine="localmt" if payload.translate_engine == "localmt" else None,
+            cfg, storage, [row for row in fresh if not row.get("target")],
+            engine="localmt" if payload.translate_engine == "localmt" else None,
         )
 
     additions: list[dict] = []

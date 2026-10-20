@@ -80,6 +80,7 @@ export function BuildPage() {
   const toast = useToast();
   const client = useQueryClient();
   const [force, setForce] = useState(false);
+  const [includeFootnotes, setIncludeFootnotes] = useState(false);
   const [showAllGroups, setShowAllGroups] = useState(false);
 
   const ebook = useEbook(slug);
@@ -90,7 +91,7 @@ export function BuildPage() {
   });
 
   const buildMut = useMutation({
-    mutationFn: () => api.post<{ ok: boolean; job_id: string }>(`/api/ui/ebooks/${slug}/build/confirm`, { body: { force } }),
+    mutationFn: () => api.post<{ ok: boolean; job_id: string }>(`/api/ui/ebooks/${slug}/build/confirm`, { body: { force, include_footnotes: includeFootnotes } }),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: queueKey });
       client.invalidateQueries({ queryKey: ["build-preview", slug] });
@@ -195,6 +196,10 @@ export function BuildPage() {
             </label>
           </span>
         </div>
+        <label className="mt-2 flex cursor-pointer items-center gap-1.5 text-xs opacity-70">
+          <Checkbox checked={includeFootnotes} onChange={(e) => setIncludeFootnotes(e.target.checked)} />
+          Tạo chú thích cuối chương từ glossary
+        </label>
         {data.blockers.length > 0 ? (
           <p className="mt-2 text-xs opacity-70">
             Blocker: {data.blockers.slice(0, 5).map((b) => (

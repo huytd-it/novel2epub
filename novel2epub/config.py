@@ -1080,6 +1080,11 @@ def load_config(path: str | Path, slug: str = "") -> Config:
     raw = _deep_merge_raw(defaults, override)
 
     novel = NovelConfig(**(raw.get("novel") or {}))
+    from .environment import publisher_override
+
+    global_publisher = publisher_override(base_dir)
+    if global_publisher:
+        novel.publisher = global_publisher
     if not novel.identifier and slug:
         # Sinh + lưu 1 lần urn:uuid ổn định cho ebook chưa có identifier (vd
         # tạo trước khi field này tồn tại) — xem spec ebook-metadata.

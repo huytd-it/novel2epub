@@ -46,5 +46,6 @@ const SPA_EBOOK_PAGE =
 /** `true` nếu `url` là route trang của SPA (query string không quan trọng). */
 export function isSpaPage(url: string): boolean {
   const path = url.split("?")[0].split("#")[0];
-  return SPA_PAGES.has(path) || SPA_EBOOK_PAGE.test(path);
+  return SPA_PAGES.has(path) || SPA_EBOOK_PAGE.test(path)
+    || /^\/ebooks\/[^/]+\/glossary\/extract\/?$/.test(path);
 }

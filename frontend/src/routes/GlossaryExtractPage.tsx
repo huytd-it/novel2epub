@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import { num } from "@/lib/format";
 import { Badge, type Tone } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Checkbox, Select } from "@/components/ui/Field";
+import { Checkbox, Input, Select } from "@/components/ui/Field";
 import { Loading } from "@/components/ui/Loading";
 import { Page } from "@/app/Shell";
 import { EmptyState } from "@/components/ui/Panel";
@@ -28,6 +28,29 @@ interface ExtractResult {
   queued: number;
   skipped_existing: number;
   candidates: Candidate[];
+}
+
+interface Translation {
+  source: string;
+  target: string;
+  context_target: string;
+  engine: "localmt" | "openai";
+  error: string;
+}
+
+interface PreviewJob {
+  id: string;
+  state: "pending" | "running" | "done" | "failed" | "cancelled";
+  outcome?: { entries: Translation[] };
+  error?: string;
+  log: string[];
+}
+
+function readPreviewJob(key: string): { id: string; terms: boolean } | null {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(key) ?? "null");
+    return value && typeof value.id === "string" && typeof value.terms === "boolean" ? value : null;
+  } catch { return null; }
 }
 
 const KIND: Record<Candidate["kind"], { text: string; tone: Tone }> = {
@@ -63,20 +86,37 @@ export function GlossaryExtractor({
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [terms, setTerms] = useState(includeTerms);
   const [engine, setEngine] = useState("localmt");
+  const [translations, setTranslations] = useState<Record<string, Translation>>({});
+  const jobKey = `glossary-extract-preview:${slug}:${chapterIndexes.join(",")}:${includeTerms}`;
+  const [previewJob, setPreviewJob] = useState(() => readPreviewJob(jobKey));
+  const appliedJob = useRef("");
+  const activeJob = previewJob?.terms === terms ? previewJob : null;
+  const jobStatus = useQuery({
+    queryKey: ["glossary-extract-preview", slug, activeJob?.id],
+    enabled: Boolean(activeJob),
+    queryFn: () => api.get<PreviewJob>(`/api/ebooks/${slug}/glossary/proper-names/translate/${activeJob!.id}`),
+    retry: false,
+    refetchInterval: (query) => query.state.status === "error" || (query.state.data &&
+      !["pending", "running"].includes(query.state.data.state)) ? false : 1500,
+  });
+  const jobActive = Boolean(activeJob &&
+    (!jobStatus.data || ["pending", "running"].includes(jobStatus.data.state)));
 
   const request = (extra: Record<string, unknown>) =>
     api.post<ExtractResult>(`/api/ebooks/${slug}/glossary/proper-names/extract`, {
       body: {
         chapter_indexes: chapterIndexes.length > 0 ? chapterIndexes : null,
-        translate: engine !== "none",
-        translate_engine: engine === "localmt" ? "localmt" : "ebook",
+        translate: false,
         include_terms: terms,
         ...extra,
       },
     });
   const scan = useMutation({ mutationFn: () => request({ dry_run: true }) });
   const queue = useMutation({
-    mutationFn: (sources: string[]) => request({ sources }),
+    mutationFn: (sources: string[]) => request({ sources,
+      targets: engine === "none" ? {} : Object.fromEntries(sources.filter((source) => translations[source]?.target.trim())
+        .map((source) => [source, translations[source].target.trim()])),
+    }),
     onSuccess: (result, sources) => {
       toast(`Đã đưa ${num(result.queued)} tên vào hàng chờ Glossary.`);
       setDismissed((prev) => new Set([...prev, ...sources]));
@@ -86,13 +126,48 @@ export function GlossaryExtractor({
     onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
   });
 
+  const translate = useMutation({
+    mutationFn: async () => {
+      const entries = (scan.data?.candidates ?? []).filter((row) => checked.has(row.source))
+        .map(({ source, context }) => ({ source, context }));
+      return api.post<{ job_id: string; category: string }>(`/api/ebooks/${slug}/glossary/proper-names/translate`, {
+        body: { entries, engine },
+      });
+    },
+    onSuccess: (result) => {
+      const record = { id: result.job_id, terms };
+      setPreviewJob(record);
+      try { sessionStorage.setItem(jobKey, JSON.stringify(record)); } catch { /* storage unavailable */ }
+      client.invalidateQueries({ queryKey: ["queue"] });
+      toast("Đã đưa lượt dịch vào Job Queue.");
+    },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+  const cancel = useMutation({
+    mutationFn: () => api.post(`/api/queue/${activeJob!.id}/cancel`),
+    onSuccess: () => { jobStatus.refetch(); client.invalidateQueries({ queryKey: ["queue"] }); },
+    onError: (err) => toast(err instanceof Error ? err.message : String(err), "error"),
+  });
+  const busy = queue.isPending || translate.isPending || jobActive;
+
   useEffect(() => {
     setChecked(new Set());
     setDismissed(new Set());
+    setTranslations({});
+    appliedJob.current = "";
     scan.reset();
     scan.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- engine chỉ dùng khi đưa vào hàng chờ
   }, [terms]);
+
+  useEffect(() => {
+    const result = jobStatus.data;
+    if (!activeJob || result?.id !== activeJob.id || result.state !== "done" || appliedJob.current === result.id) return;
+    appliedJob.current = result.id;
+    setTranslations((previous) => ({ ...previous,
+      ...Object.fromEntries((result.outcome?.entries ?? []).map((row) => [row.source, row])),
+    }));
+  }, [jobStatus.data, activeJob]);
 
   const rows = useMemo(
     () => (scan.data?.candidates ?? []).filter((c) => !dismissed.has(c.source)),
@@ -111,17 +186,21 @@ export function GlossaryExtractor({
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-[13px]">
-          Bản dịch khi đưa vào hàng chờ
-          <Select aria-label="Engine dịch ứng viên" value={engine} disabled={queue.isPending}
+        <label className="flex flex-wrap items-center gap-2 text-[13px]">
+          Engine dịch xem trước
+          <Select aria-label="Engine dịch ứng viên" value={engine} disabled={busy}
             onChange={(event) => setEngine(event.target.value)}>
             <option value="localmt">Dịch thô Local MT (không gọi AI)</option>
-            <option value="ebook">Engine mặc định của ebook</option>
+            <option value="openai">LLM (DEFAULT_PROMPT, nhiều dòng mỗi lượt)</option>
             <option value="none">Giữ nguyên chữ Hán</option>
           </Select>
         </label>
+          <Button loading={translate.isPending || jobActive} disabled={busy || checked.size === 0 || scan.isPending || engine === "none"}
+            onClick={() => translate.mutate()}>
+            Dịch {checked.size > 0 ? num(checked.size) : ""} dòng đã chọn
+          </Button>
           <Button
-            disabled={checked.size === 0 || queue.isPending}
+            disabled={checked.size === 0 || busy}
             onClick={() => {
               setDismissed((prev) => new Set([...prev, ...checked]));
               setChecked(new Set());
@@ -132,14 +211,27 @@ export function GlossaryExtractor({
           <Button
             variant="primary"
             loading={queue.isPending}
-            disabled={checked.size === 0 || scan.isPending}
+            disabled={checked.size === 0 || busy || scan.isPending}
             onClick={() => queue.mutate([...checked])}
           >
-            {engine === "localmt" ? "Dịch thô & đưa" : "Đưa"} {checked.size > 0 ? num(checked.size) : ""} vào hàng chờ Glossary
+            Đưa {checked.size > 0 ? num(checked.size) : ""} vào hàng chờ Glossary
           </Button>
       </div>
+      {activeJob && <div className="mb-3 flex flex-wrap items-center gap-3 text-[13px]">
+        <span role="status">Job dịch: {jobStatus.isError ? "Không lấy được trạng thái" :
+          ({ pending: "Đang chờ", running: "Đang dịch", done: "Hoàn tất", failed: "Thất bại", cancelled: "Đã hủy" }[jobStatus.data?.state ?? "pending"])}</span>
+        <Link className="link" to="/queue">Mở Job Queue</Link>
+        {jobActive && <Button size="sm" loading={cancel.isPending} onClick={() => cancel.mutate()}>Hủy job dịch</Button>}
+        {jobStatus.isError && <Button size="sm" onClick={() => jobStatus.refetch()}>Kiểm tra lại</Button>}
+        {jobStatus.isError && <Button size="sm" onClick={() => {
+          setPreviewJob(null);
+          try { sessionStorage.removeItem(jobKey); } catch { /* storage unavailable */ }
+        }}>Bỏ theo dõi (không hủy job)</Button>}
+        {jobStatus.data?.log?.length ? <span className="opacity-70">{jobStatus.data.log[jobStatus.data.log.length - 1]}</span> : null}
+        {jobStatus.data?.error && <span role="alert" className="text-error">{jobStatus.data.error}</span>}
+      </div>}
       <label className="mb-3 flex items-center gap-2 text-[13px]">
-        <Checkbox checked={terms} disabled={queue.isPending} onChange={(event) => setTerms(event.target.checked)} />
+        <Checkbox aria-label="Bao gồm thuật ngữ lặp" checked={terms} disabled={busy} onChange={(event) => setTerms(event.target.checked)} />
         Bao gồm thuật ngữ lặp
       </label>
       <p className="mb-3 text-[13px] opacity-60">
@@ -150,8 +242,9 @@ export function GlossaryExtractor({
         <Link className="link" to={`/ebooks/${slug}/glossary`}>
           Glossary
         </Link>{" "}
-        theo lựa chọn dịch phía trên. Local MT chỉ tạo bản dịch thô để duyệt lại;
-        nếu engine không khả dụng thì giữ chữ Hán. Không tự ghi glossary chính.
+        sau khi bạn bấm đưa vào hàng chờ. Bấm Dịch để xem bản dịch cả Hán và ngữ cảnh trước;
+        có thể sửa cột Hán → Việt. Chưa dịch thì giữ Hán. Local MT dịch từng thuật ngữ,
+        LLM dùng DEFAULT_PROMPT và dịch nhiều dòng mỗi lượt. Không tự ghi glossary chính.
       </p>
 
       {scan.isPending ? (
@@ -180,12 +273,14 @@ export function GlossaryExtractor({
                   <th className="w-8 px-2 py-1.5">
                     <Checkbox
                       checked={allChecked}
+                      disabled={busy}
                       title="Chọn tất cả tên chờ duyệt"
+                      aria-label="Chọn tất cả tên chờ duyệt"
                       onClick={() => setChecked(allChecked ? new Set() : new Set(fresh.map((c) => c.source)))}
                       onChange={() => {}}
                     />
                   </th>
-                  {["Hán", "Loại", "Số lần", "Ngữ cảnh", "Trạng thái"].map((label) => (
+                  {["Hán", "Hán → Việt", "Loại", "Số lần", "Ngữ cảnh", "Ngữ cảnh → Việt", "Trạng thái"].map((label) => (
                     <th
                       key={label}
                       className="px-2 py-1.5 text-[10px] font-semibold tracking-[0.1em] whitespace-nowrap uppercase opacity-40"
@@ -211,12 +306,23 @@ export function GlossaryExtractor({
                         {isNew ? (
                           <Checkbox
                             checked={checked.has(c.source)}
+                            aria-label={`Chọn ${c.source}`}
+                            disabled={busy}
                             onClick={() => toggle(c.source)}
                             onChange={() => {}}
                           />
                         ) : null}
                       </td>
                       <td className="px-2 py-1 font-medium whitespace-nowrap">{c.source}</td>
+                      <td className="min-w-44 px-2 py-1">
+                        {translations[c.source] ? <>
+                          <Input className="w-full" aria-label={`Bản dịch ${c.source}`} value={translations[c.source].target} disabled={busy}
+                            onChange={(event) => setTranslations((previous) => ({ ...previous,
+                              [c.source]: { ...previous[c.source], target: event.target.value },
+                            }))} />
+                          <div className="mt-1 text-xs opacity-70">{translations[c.source].engine === "localmt" ? "Local MT" : "LLM"}</div>
+                        </> : <span className="text-xs opacity-60">Chưa dịch</span>}
+                      </td>
                       <td className="px-2 py-1 whitespace-nowrap">
                         <Badge tone={KIND[c.kind].tone}>{KIND[c.kind].text}</Badge>
                       </td>
@@ -224,6 +330,10 @@ export function GlossaryExtractor({
                         {num(c.frequency)}
                       </td>
                       <td className="px-2 py-1 opacity-70">{c.context || "—"}</td>
+                      <td className="min-w-52 px-2 py-1">
+                        {translations[c.source]?.context_target || <span className="text-xs opacity-60">Chưa dịch</span>}
+                        {translations[c.source]?.error && <p role="alert" className="mt-1 text-xs text-error">{translations[c.source].error}</p>}
+                      </td>
                       <td className="px-2 py-1 whitespace-nowrap">
                         <Badge tone={STATUS[c.status].tone}>{STATUS[c.status].text}</Badge>
                       </td>

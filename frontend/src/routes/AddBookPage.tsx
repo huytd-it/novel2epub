@@ -358,28 +358,27 @@ function TranslateMetaControl({
   onTranslated,
   disabled,
 }: {
-  values: { title: string; author: string; description: string };
-  onTranslated: (patch: { title: string; author: string; description: string }) => void;
+  values: { title: string; author: string; description: string; subjects?: string[] };
+  onTranslated: (patch: { title: string; author: string; description: string; subjects: string[] }) => void;
   disabled?: boolean;
 }) {
   const mutation = useTranslateMetadata();
   const toast = useToast();
   const globalAi = useGlobalAi();
-  const [engine, setEngine] = useState<string>("localmt");
+  const [engine, setEngine] = useState<string>("ai");
 
   // Build engine options: Local MT + models từ Dịch chung (global_ai)
   const options = useMemo(() => {
     const opts: { value: string; label: string }[] = [{ value: "localmt", label: "Local MT (offline — chỉ dịch y nguyên)" }];
     const t = globalAi.data?.translation_model?.trim();
     const a = globalAi.data?.assistant_model?.trim();
-    if (t) opts.push({ value: `ai:${t}`, label: `AI — ${t} (dịch + sinh mô tả)` });
-    if (a && a !== t) opts.push({ value: `ai:${a}`, label: `AI — ${a} (dịch + sinh mô tả)` });
-    if (!t && !a) opts.push({ value: "ai", label: "AI (mặc định Dịch chung — dịch + sinh mô tả)" });
+    opts.push({ value: "ai", label: "LLM tạo metadata (model trợ lý chung)" });
+    if (a) opts.push({ value: `ai:${a}`, label: `LLM — ${a}` });
+    if (t && t !== a) opts.push({ value: `ai:${t}`, label: `LLM — ${t}` });
     return opts;
   }, [globalAi.data]);
 
   const isAi = engine.startsWith("ai");
-  const willEnrich = isAi && !values.description.trim() && !!values.title.trim();
 
   const translate = async () => {
     const raw = engine.startsWith("ai:") ? engine.slice(3) : engine === "ai" ? "" : "";
@@ -389,20 +388,19 @@ function TranslateMetaControl({
         title: values.title,
         author: values.author,
         description: values.description,
+        subjects: values.subjects ?? [],
         engine: eng,
+        generate: isAi,
         ...(raw ? { model: raw } : {}),
       });
       // AI có thể "enrich" description ngay cả khi input trống → ưu tiên result
       const nextTitle = (result.title ?? "").trim() || values.title;
       const nextAuthor = (result.author ?? "").trim() || values.author;
-      // description: nếu willEnrich thì luôn lấy result.description (dù values rỗng)
       const nextDesc = (result.description ?? "").trim() || values.description;
-      onTranslated({ title: nextTitle, author: nextAuthor, description: nextDesc });
-      if (willEnrich && nextDesc && !values.description.trim()) {
-        toast("AI đã dịch tiêu đề/tác giả và tự viết tóm tắt mô tả từ tiêu đề.", "info");
-      }
+      onTranslated({ title: nextTitle, author: nextAuthor, description: nextDesc, subjects: result.subjects });
+      if (isAi) toast("LLM đã tạo metadata. Kiểm tra trước khi tạo truyện.", "info");
       if (Object.keys(result.errors ?? {}).length) {
-        toast("Dịch có 1 số field lỗi, giữ nguyên bản gốc.", "info");
+        toast("Một số trường xử lý lỗi; đã giữ dữ liệu cũ.", "info");
       }
     } catch (error) {
       toast(error instanceof Error ? error.message : String(error), "error");
@@ -412,7 +410,7 @@ function TranslateMetaControl({
   return (
     <div className="grid gap-1.5">
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={engine} onChange={(e) => setEngine(e.target.value)} className="min-w-[220px] max-w-[280px]" disabled={disabled}>
+        <Select aria-label="Engine metadata" value={engine} onChange={(e) => setEngine(e.target.value)} className="w-full sm:w-auto sm:max-w-[280px]" disabled={disabled || mutation.isPending}>
           {options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -425,23 +423,15 @@ function TranslateMetaControl({
           loading={mutation.isPending}
           disabled={disabled}
           onClick={translate}
-          title={isAi ? "AI dựa vào tiêu đề + tác giả để dịch tên và tự viết tóm tắt 2–4 câu nếu mô tả trống" : "Dịch máy cục bộ, không sinh mô tả mới"}
+          title={isAi ? "LLM tạo/biên tập metadata từ dữ liệu hiện có, không chỉ dịch sát từng trường" : "Dịch máy cục bộ, không sinh mô tả mới"}
         >
-          {isAi ? "Dịch AI + sinh mô tả" : "Dịch meta"}
+          {isAi ? "AI tạo metadata" : "Dịch meta"}
         </Button>
       </div>
       {isAi ? (
         <p className="text-[11px] leading-relaxed opacity-60">
-          {willEnrich ? (
-            <>
-              <span className="font-medium text-primary">AI sẽ dịch tiêu đề/tác giả và tự viết mô tả 2–4 câu</span> từ tiêu đề
-              {values.author.trim() ? ` + tác giả “${values.author.trim()}”` : ""} (mô tả đang trống).
-            </>
-          ) : values.description.trim() ? (
-            <>AI sẽ dịch trọn vẹn tiêu đề, tác giả và mô tả hiện có — không sinh thêm.</>
-          ) : (
-            <>Nhập tiêu đề (và tác giả nếu có) rồi bấm dịch — AI sẽ dịch tên và tự viết tóm tắt nếu mô tả để trống.</>
-          )}
+          LLM tạo tiêu đề tiếng Việt, chuẩn hóa tác giả, biên tập mô tả và đề xuất thể loại từ dữ liệu hiện có.
+          Không bịa tác giả hay tình tiết; kết quả chỉ là bản nháp để duyệt.
         </p>
       ) : (
         <p className="text-[11px] opacity-50">Local MT chỉ dịch y nguyên các field đã có; không tự sinh mô tả khi trống.</p>
@@ -511,7 +501,8 @@ function SingleForm() {
 
   const runPreview = async () => {
     try {
-      setPreview(await previewMutation.mutateAsync({ toc_url: url, source, scrapling_mode: mode }));
+      const fetched = await previewMutation.mutateAsync({ toc_url: url, source, scrapling_mode: mode });
+      setPreview({ ...fetched, raw_title: fetched.title, raw_author: fetched.author });
     } catch (error) {
       showError(error);
     }
@@ -555,7 +546,7 @@ function SingleForm() {
     }
   };
 
-  const handleTranslated = (patch: { title: string; author: string; description: string }) => {
+  const handleTranslated = (patch: { title: string; author: string; description: string; subjects: string[] }) => {
     if (!preview) return;
     const nextSlug = deriveSlug(patch.title);
     setPreview({
@@ -664,11 +655,15 @@ function SingleForm() {
                 <Textarea rows={5} value={preview.description} onChange={(e) => setPreview({ ...preview, description: e.target.value })} />
               </Field>
               <TranslateMetaControl
-                values={{ title: preview.title, author: preview.author, description: preview.description }}
+                values={preview}
                 onTranslated={handleTranslated}
                 disabled={!preview.title.trim()}
               />
-              <p className="text-[11px] opacity-60">Dịch meta sẽ tự cập nhật slug từ tiêu đề mới; nếu không có ký tự latin thì để trống để bạn nhập tay.</p>
+              <Field label="Chủ đề (Thể loại)" hint="Mỗi thể loại một dòng">
+                <Textarea rows={3} value={(preview.subjects ?? []).join("\n")}
+                  onChange={e => setPreview({ ...preview, subjects: e.target.value.split("\n") })} />
+              </Field>
+              <p className="text-[11px] opacity-60">Metadata mới sẽ cập nhật slug từ tiêu đề; kiểm tra lại trước khi tạo truyện.</p>
               <div className="mb-4">
                 <PrettyJson data={preview} title="Preview JSON — beautiful" defaultOpen={false} />
               </div>
@@ -705,7 +700,7 @@ function UploadForm() {
   const [file, setFile] = useState<File | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [preview, setPreview] = useState<UploadPreview | null>(null);
-  const [form, setForm] = useState({ slug: "", title: "", author: "", description: "" });
+  const [form, setForm] = useState({ slug: "", title: "", author: "", raw_title: "", raw_author: "", description: "", subjects: "" });
   const [result, setResult] = useState<(EbookCreateResult & { chapter_count: number }) | null>(null);
   const showError = (error: unknown) => toast(error instanceof Error ? error.message : String(error), "error");
 
@@ -722,7 +717,7 @@ function UploadForm() {
     try {
       const p = await previewUpload(next);
       setPreview(p);
-      setForm({ slug: p.slug, title: p.title, author: p.author, description: "" });
+      setForm({ slug: p.slug, title: p.title, author: p.author, raw_title: p.title, raw_author: p.author, description: "", subjects: "" });
       if (!p.slug) toast("Không gợi ý được slug latin từ file — hãy nhập slug thủ công.", "info");
     } catch (error) {
       showError(error);
@@ -731,9 +726,9 @@ function UploadForm() {
     }
   };
 
-  const handleTranslated = (patch: { title: string; author: string; description: string }) => {
+  const handleTranslated = (patch: { title: string; author: string; description: string; subjects: string[] }) => {
     const nextSlug = deriveSlug(patch.title);
-    setForm((current) => ({ ...current, ...patch, slug: nextSlug }));
+    setForm((current) => ({ ...current, ...patch, subjects: patch.subjects.join("\n"), slug: nextSlug }));
     if (!nextSlug) toast("Tiêu đề dịch không tạo được slug latin — hãy nhập slug thủ công.", "info");
   };
 
@@ -756,7 +751,7 @@ function UploadForm() {
   const reset = () => {
     setFile(null);
     setPreview(null);
-    setForm({ slug: "", title: "", author: "", description: "" });
+    setForm({ slug: "", title: "", author: "", raw_title: "", raw_author: "", description: "", subjects: "" });
     setResult(null);
   };
 
@@ -844,10 +839,13 @@ function UploadForm() {
                 <Textarea rows={5} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
               </Field>
               <TranslateMetaControl
-                values={{ title: form.title, author: form.author, description: form.description }}
+                values={{ ...form, subjects: form.subjects.split("\n").filter(Boolean) }}
                 onTranslated={handleTranslated}
                 disabled={!form.title.trim()}
               />
+              <Field label="Chủ đề (Thể loại)" hint="Mỗi thể loại một dòng">
+                <Textarea rows={3} value={form.subjects} onChange={e => setForm({ ...form, subjects: e.target.value })} />
+              </Field>
             </div>
           </Panel>
         </div>
@@ -1057,9 +1055,9 @@ function BulkPreviewItem({
 }: {
   item: BulkPreviewResult;
   onUpdate: (patch: Partial<BulkPreviewResult>) => void;
-  onTranslated: (patch: { title: string; author: string; description: string }) => void;
+  onTranslated: (patch: { title: string; author: string; description: string; subjects: string[] }) => void;
 }) {
-  const handleTranslated = (patch: { title: string; author: string; description: string }) => {
+  const handleTranslated = (patch: { title: string; author: string; description: string; subjects: string[] }) => {
     onTranslated(patch);
   };
 
@@ -1089,7 +1087,7 @@ function BulkPreviewItem({
           </p>
         </div>
         <TranslateMetaControl
-          values={{ title: item.title ?? "", author: item.author ?? "", description: item.description ?? "" }}
+          values={{ title: item.title ?? "", author: item.author ?? "", description: item.description ?? "", subjects: item.subjects }}
           onTranslated={handleTranslated}
           disabled={!item.title}
         />
@@ -1112,6 +1110,10 @@ function BulkPreviewItem({
       </div>
       <Field label="Mô tả">
         <Textarea rows={2} value={item.description ?? ""} onChange={(e) => onUpdate({ description: e.target.value })} />
+      </Field>
+      <Field label="Chủ đề (Thể loại)" hint="Mỗi thể loại một dòng">
+        <Textarea rows={2} value={(item.subjects ?? []).join("\n")}
+          onChange={e => onUpdate({ subjects: e.target.value.split("\n") })} />
       </Field>
       <div className="mb-4">
         <PrettyJson data={item} title="Item preview — JSON beautiful" />
@@ -1140,7 +1142,8 @@ function BulkForm() {
   const runPreview = async (event: FormEvent) => {
     event.preventDefault();
     try {
-      setPreviews((await previewMutation.mutateAsync({ toc_urls: urls })).results);
+      const fetched = (await previewMutation.mutateAsync({ toc_urls: urls })).results;
+      setPreviews(fetched.map(item => ({ ...item, raw_title: item.title, raw_author: item.author })));
     } catch (error) {
       toast(error instanceof Error ? error.message : String(error), "error");
     }
@@ -1162,6 +1165,9 @@ function BulkForm() {
         title: item.title,
         author: item.author,
         description: item.description,
+        raw_title: item.raw_title,
+        raw_author: item.raw_author,
+        subjects: item.subjects,
         cover_url: item.cover_url,
         source: item.source,
         scrapling_mode: item.scrapling_mode,
@@ -1174,7 +1180,7 @@ function BulkForm() {
   };
 
   // Bulk translation handler — also auto-update slug
-  const handleBulkTranslated = (index: number, patch: { title: string; author: string; description: string }) => {
+  const handleBulkTranslated = (index: number, patch: { title: string; author: string; description: string; subjects: string[] }) => {
     const nextSlug = deriveSlug(patch.title);
     updatePreview(index, { ...patch, slug: nextSlug });
     if (!nextSlug) {

@@ -34,6 +34,7 @@ def _client(monkeypatch):
 
     monkeypatch.setattr(deps, "library", lambda: LibraryConfig())
     monkeypatch.setattr(deps, "resolved_cfg", lambda slug: object())
+    monkeypatch.setattr("app.routes.library.update_ebook", lambda *args, **kwargs: None)
     app.state.job = _Job()
     return app, TestClient(app)
 
@@ -335,3 +336,65 @@ def test_translate_metadata_json_reports_local_mt_error(monkeypatch):
     })
     assert response.status_code == 503
     assert "Local MT" in response.json()["detail"]
+
+
+def test_generate_metadata_forwards_model_subjects_and_mode(monkeypatch):
+    from app.routes import library
+    app, client = _client(monkeypatch)
+    received = {}
+    def generate(cfg, **kwargs):
+        received.update(kwargs)
+        return {"title": "Tên mới", "subjects": ["Kỳ ảo"]}
+    monkeypatch.setattr(library, "translate_ebook_metadata", generate)
+    response = client.post("/api/ui/library/ebooks/translate-metadata", json={
+        "title": "Tên", "subjects": ["Phiêu lưu"], "engine": "ai",
+        "model": "chosen-model", "generate": True,
+    })
+    assert response.status_code == 200
+    assert received["generate"] is True
+    assert received["model"] == "chosen-model"
+    assert received["subjects"] == ["Phiêu lưu"]
+
+
+def test_generate_metadata_rejects_invalid_subjects(monkeypatch):
+    app, client = _client(monkeypatch)
+    response = client.post("/api/ui/library/ebooks/translate-metadata", json={
+        "title": "Tên", "subjects": "Kỳ ảo", "generate": True,
+    })
+    assert response.status_code == 400
+
+
+def test_generate_metadata_uses_ebook_config(monkeypatch):
+    from types import SimpleNamespace
+    from app import deps
+    from app.routes import library
+    app, client = _client(monkeypatch)
+    config = object()
+    monkeypatch.setattr(deps, "library", lambda: SimpleNamespace(ebooks={"demo": object()}))
+    monkeypatch.setattr(deps, "resolved_cfg", lambda slug: config if slug == "demo" else None)
+    def generate(cfg, **kwargs):
+        assert cfg is config
+        return {"title": "Tên mới"}
+    monkeypatch.setattr(library, "translate_ebook_metadata", generate)
+    response = client.post("/api/ui/library/ebooks/translate-metadata", json={
+        "title": "Tên", "ebook_slug": "demo", "generate": True, "engine": "ai",
+    })
+    assert response.status_code == 200
+    response = client.post("/api/ui/library/ebooks/translate-metadata", json={
+        "title": "Tên", "ebook_slug": "missing", "generate": True, "engine": "ai",
+    })
+    assert response.status_code == 404
+
+
+def test_create_persists_reviewed_subjects(monkeypatch):
+    from app.routes import library
+    app, client = _client(monkeypatch)
+    updates = []
+    monkeypatch.setattr(library, "_write_new_ebook", lambda *args, **kwargs: {"slug": "demo", "title": "Tên"})
+    monkeypatch.setattr(library, "_save_ebook_metadata", lambda *args: None)
+    monkeypatch.setattr(library, "update_ebook", lambda path, slug, patch: updates.append((slug, patch)))
+    response = client.post("/api/ui/library/ebooks", json={
+        "toc_url": "https://example.com/book", "title": "Tên", "subjects": [" Kỳ ảo ", ""],
+    })
+    assert response.status_code == 200
+    assert updates == [("demo", {"novel": {"subjects": ["Kỳ ảo"]}})]

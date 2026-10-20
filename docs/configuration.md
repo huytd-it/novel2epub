@@ -1,5 +1,24 @@
 # Cấu Hình
 
+## AI tạo metadata
+
+**Tiêu đề gốc** (`raw_title`) và **Tác giả gốc** (`raw_author`) lưu riêng trong SQLite, giữ nguyên ngôn ngữ nguồn. Có thể sửa ở Cài đặt → Truyện; AI dùng chúng làm đầu vào khi có và không ghi đè hai trường này. Luồng thêm ebook lưu lại tên/tác giả nguồn trước khi tạo metadata tiếng Việt. Ebook cũ chưa có dữ liệu gốc để trống, không tự suy đoán từ tên đã dịch.
+
+### Nhà xuất bản chung qua .env
+
+Thêm vào `.env` ở thư mục dự án (hoặc cạnh DB):
+
+```dotenv
+NOVEL2EPUB_PUBLISHER="Tên nhà xuất bản của bạn"
+```
+
+Giá trị không rỗng ghi đè nhà xuất bản hiệu lực cho **mọi ebook**, kể cả ebook đã có; EPUB build tiếp theo dùng giá trị chung. Biến môi trường tiến trình ưu tiên hơn `.env`; `.env` cạnh DB ưu tiên hơn thư mục làm việc/dự án. Để trống thì giữ nhà xuất bản đã lưu trong DB. Ô Nhà xuất bản ở Cài đặt chỉ hiển thị, không sửa riêng từng ebook. Không sao chép giá trị chung vào từng ebook; không cần migration DB vì các cột tên gốc đã tồn tại. Khởi động lại app nếu đổi biến môi trường; EPUB đã xuất cần build lại.
+
+- **Cài đặt → Truyện → AI tạo metadata** tạo/biên tập tiêu đề, chuẩn hóa tác giả, viết mô tả và đề xuất chủ đề (thể loại) từ bản nháp hiện tại. Dùng provider/model trợ lý hiệu lực của truyện (kế thừa Dịch chung nếu không ghi đè).
+- **Thêm truyện** dùng LLM tạo metadata thay vì chỉ dịch sát từng trường; có thể chọn model trong Dịch chung hoặc Local MT để chỉ dịch offline. Các thể loại được duyệt sẽ lưu cùng ebook, cả nhập URL, hàng loạt và upload file.
+- Kết quả AI chỉ điền bản nháp, không tự lưu: kiểm tra rồi bấm **Lưu** hoặc **Tạo truyện**. Tác giả thiếu được giữ trống, không sinh tên tác giả. Khi một trường trả về lỗi, giữ dữ liệu cũ để sửa tiếp.
+- API SPA `POST /api/ui/library/ebooks/translate-metadata` nhận `generate: true`, `engine: "ai"`, `subjects` (mảng chuỗi), `model` tùy chọn và `ebook_slug` tùy chọn để dùng cấu hình riêng. Không thay đổi prompt dịch chương.
+
 ## Nguồn Cấu Hình
 
 Runtime chỉ đọc SQLite DB, mặc định là `novel2epub.db`. Khởi tạo DB mới:

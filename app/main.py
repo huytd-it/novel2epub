@@ -298,6 +298,7 @@ app.state.job.queue.register_kind("batch-translate", chapters.batch_translate_jo
 app.state.job.queue.register_kind("publish-reader", ebooks.publish_reader_job_factory)
 app.state.job.queue.register_kind("glossary-approve", glossary.glossary_approve_job_factory)
 app.state.job.queue.register_kind("glossary-ai", glossary.glossary_ai_job_factory)
+app.state.job.queue.register_kind("glossary-extract-translate", glossary.glossary_extract_translate_job_factory)
 app.state.job.queue.register_kind("assistant-fill-context", assistant.assistant_fill_context_job_factory)
 app.state.job.queue.register_kind("ai-harness-scan", ai_harness.scan_job_factory)
 app.state.job.queue.register_kind("opds-autobuild", opds.autobuild_job_factory)

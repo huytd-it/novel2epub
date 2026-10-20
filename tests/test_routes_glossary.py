@@ -2192,3 +2192,65 @@ def test_extract_can_force_local_mt_without_changing_ebook_engine(tmp_path, monk
     assert cfg.translate.type == "openai"
     assert storage.read_extra_json("glossary_pending")[0]["target"] == "linh thạch"
     assert client.post(url, json={"translate_engine": "invalid"}).status_code == 422
+
+
+def test_extract_translation_preview_is_read_only_then_queue_reuses_target(tmp_path, monkeypatch):
+    from novel2epub import glossary_extract_translation as preview, translator
+    from types import SimpleNamespace
+    cfg = _cfg(tmp_path)
+    storage = Storage(tmp_path, "t")
+    storage.ensure_dirs()
+    chapter = Chapter(index=1, url="http://x/1")
+    storage.save_manifest(Manifest(slug="t", chapters=[chapter]))
+    storage.write_raw(chapter, "灵石。" * 3)
+    monkeypatch.setattr(preview, "make_translator", lambda *a, **kw:
+                        SimpleNamespace(translate=lambda text: "linh thạch" if text == "灵石" else "ngữ cảnh Việt"))
+    client = _client(cfg, monkeypatch)
+    from app.queue import JobQueue, CATEGORIES
+    work_queue = JobQueue(workers={category: 0 for category in CATEGORIES})
+    client.app.state.job.queue = work_queue
+    url = "/api/ebooks/t/glossary/proper-names/translate"
+    result = client.post(url, json={"entries": [{"source": "灵石", "context": "灵石出现"}]})
+    assert result.status_code == 202
+    job_id = result.json()["job_id"]
+    assert result.json()["category"] == "local-mt"
+    assert client.get(f"{url}/{job_id}").json()["state"] == "pending"
+    job = work_queue._jobs[job_id]
+    job.state = work_queue._execute(job)
+    status = client.get(f"{url}/{job_id}").json()
+    assert status["state"] == "done"
+    row = status["outcome"]["entries"][0]
+    assert row["target"] == "linh thạch" and row["context_target"] == "ngữ cảnh Việt"
+    assert not storage.read_extra_json("glossary_pending")
+    assert storage.read_glossary_entries_merged() == []
+    monkeypatch.setattr(translator, "make_translator", lambda *a, **kw: pytest.fail("translated twice"))
+    queued = client.post("/api/ebooks/t/glossary/proper-names/extract", json={
+        "include_terms": True, "translate": True, "sources": ["灵石"], "targets": {"灵石": row["target"]},
+    })
+    assert queued.status_code == 200 and queued.json()["queued"] == 1
+    assert storage.read_extra_json("glossary_pending")[0]["target"] == "linh thạch"
+    assert client.post(url, json={"entries": [{"source": "灵石"}] * 2}).status_code == 400
+    assert client.post(url, json={"engine": "invalid", "entries": [{"source": "灵石"}]}).status_code == 422
+
+
+@pytest.mark.parametrize("engine, category", [("localmt", "local-mt"), ("openai", "ai-translate")])
+def test_preview_is_queued_on_correct_worker_and_can_be_cancelled(tmp_path, monkeypatch, engine, category):
+    from app.queue import JobQueue, CATEGORIES
+    from novel2epub import glossary_extract_translation as preview
+    calls = []
+    monkeypatch.setattr(preview, "translate_extracted_rows", lambda *a, **kw: calls.append(a) or [])
+    client = _client(_cfg(tmp_path), monkeypatch)
+    work_queue = JobQueue(workers={name: 0 for name in CATEGORIES})
+    client.app.state.job.queue = work_queue
+    url = "/api/ebooks/t/glossary/proper-names/translate"
+    result = client.post(url, json={"engine": engine, "entries": [{"source": "灵石", "context": "灵石出现"}]})
+    assert result.status_code == 202
+    job_id = result.json()["job_id"]
+    assert calls == []  # No inference on the HTTP thread.
+    assert work_queue.job_snapshot(job_id)["category"] == category
+    assert work_queue._jobs[job_id].spec["kind"] == "glossary-extract-translate"
+    assert work_queue.cancel(job_id)
+    assert client.get(f"{url}/{job_id}").json()["state"] == "cancelled"
+    assert client.get(f"/api/ebooks/other/glossary/proper-names/translate/{job_id}").status_code == 404
+    assert client.get(f"{url}/unknown").status_code == 404
+    assert calls == []

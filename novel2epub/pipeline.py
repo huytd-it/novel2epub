@@ -3068,6 +3068,7 @@ def step_build_selected(
     selected_indexes: list[int] | None = None,
     translated_only: bool = True,
     strict_translated: bool = True,
+    include_footnotes: bool = False,
     should_cancel: CancelFn | None = None,
 ) -> str:
     """Đóng gói EPUB.
@@ -3135,7 +3136,9 @@ def step_build_selected(
             md = selected.text
             title = storage.publication_title(ch)
             anchored_stems.add(ch.stem)
-            md, fns = _footnotes.annotate(md, notes)
+            fns = []
+            if include_footnotes:
+                md, fns = _footnotes.annotate(md, notes)
             if fns:
                 footnotes_by_stem[ch.stem] = fns
                 for fn in fns:

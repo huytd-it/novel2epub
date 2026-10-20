@@ -172,12 +172,13 @@ class JobQueue:
         lock_ebook: bool = True,
         chapter_indexes: list | None = None,
         spec: dict | None = None,
+        job_id: str | None = None,
     ) -> Job:
         if _normalize_category(category) not in CATEGORIES:
             raise ValueError(f"category không hợp lệ: {category!r}")
         normalized = _normalize_category(category)
         job = Job(
-            id=str(uuid.uuid4()),
+            id=job_id or str(uuid.uuid4()),
             category=normalized,
             step=step,
             label=label,
@@ -194,6 +195,8 @@ class JobQueue:
         if cancel_event is not None:
             job.cancel_event = cancel_event
         with self._cv:
+            if job.id in self._jobs:
+                raise ValueError("Job ID đã tồn tại")
             if ebook and ebook in self._retired_ebooks:
                 raise ValueError(f"ebook '{ebook}' đã bị xóa")
             self._pending[normalized].append(job)
@@ -477,6 +480,12 @@ class JobQueue:
             job = self._jobs.get(job_id)
             return None if job is None else list(job.log)
 
+    def job_snapshot(self, job_id: str) -> dict | None:
+        """Read one job/outcome without copying the entire queue history."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return None if job is None else job.to_dict(with_log=True)
+
     def logs_snapshot(self, limit: int = 30) -> dict:
         with self._lock:
             running = [j.to_dict(with_log=True) for j in self._running.values()]
@@ -642,6 +651,10 @@ class JobQueue:
             job.log.append(msg)
             logger.info(msg)
 
+        # Read-only preview factories can cooperate with cancel/restart without
+        # retaining a particular Job object in their persisted spec.
+        log_fn.should_cancel = job.cancel_event.is_set
+
         identity = ", ".join(job.chapter_codes) or job.ebook_code or job.ebook or "global"
         logger.info("Bắt đầu job %r [%s] (%s)", job.step, identity, job.id)
         try:
@@ -681,10 +694,12 @@ class JobQueue:
             return 0
         conn = get_thread_connection(self._db_path)
         rows = conn.execute(
-            "SELECT category, step, label, ebook, spec_json FROM job_queue_pending ORDER BY position, rowid"
+            "SELECT id, category, step, label, ebook, spec_json FROM job_queue_pending ORDER BY position, rowid"
         ).fetchall()
         restored = 0
         for row in rows:
+            if self.job_snapshot(row["id"]) is not None:
+                continue
             try:
                 spec = json.loads(row["spec_json"] or "{}")
             except json.JSONDecodeError:
@@ -711,6 +726,7 @@ class JobQueue:
                 ebook=row["ebook"],
                 spec=spec,
                 lock_ebook=False if validation_job else True,
+                job_id=row["id"],
             )
             restored += 1
         return restored

@@ -12,10 +12,13 @@ export interface UploadPreview {
 }
 
 export interface UploadCreateMeta {
+  raw_title?: string;
+  raw_author?: string;
   slug?: string;
   title?: string;
   author?: string;
   description?: string;
+  subjects?: string;
 }
 
 export interface UploadCreateResult {
@@ -71,6 +74,9 @@ export function createFromUpload(file: File, meta: UploadCreateMeta): Promise<Up
     title: meta.title ?? "",
     author: meta.author ?? "",
     description: meta.description ?? "",
+    raw_title: meta.raw_title ?? "",
+    raw_author: meta.raw_author ?? "",
+    subjects: meta.subjects ?? "",
   });
 }
 

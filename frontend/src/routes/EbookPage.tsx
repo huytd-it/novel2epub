@@ -209,6 +209,7 @@ function PipelineBar({ slug, epubExists }: { slug: string; epubExists: boolean }
           key={step}
           loading={running === step}
           disabled={enqueue.isPending}
+          title={step === "build" ? "Mặc định không tạo chú thích cuối chương từ glossary; có thể bật tại trang Build sách." : undefined}
           onClick={() => enqueue.mutate(step)}
         >
           {label}

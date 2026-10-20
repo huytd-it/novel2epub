@@ -55,6 +55,8 @@ def save_novel(
     series_index: str = Form(""),
     identifier: str = Form(""),
     cover_url: str = Form(""),
+    raw_title: str | None = Form(None),
+    raw_author: str | None = Form(None),
 ):
     path = deps.ebook_config_path(slug)
     subject_list = [s.strip() for s in re.split(r"[\n,]", subjects) if s.strip()]
@@ -68,6 +70,8 @@ def save_novel(
     novel_update = {
         "title": title,
         "author": author,
+        **({"raw_title": raw_title} if isinstance(raw_title, str) else {}),
+        **({"raw_author": raw_author} if isinstance(raw_author, str) else {}),
         "description": description,
         "language": language,
         "publisher": publisher,
@@ -81,6 +85,10 @@ def save_novel(
         # "Identifier stable across rebuilds").
         **({"identifier": identifier} if identifier.strip() else {}),
     }
+    from novel2epub.environment import publisher_override
+
+    if publisher_override(Path(deps.DB_PATH).resolve().parent):
+        novel_update.pop("publisher", None)
     update_ebook(deps.WORKSPACE_PATH, slug, {"novel": novel_update})
 
     # Tải ảnh bìa ngay lập tức khi có URL, lưu local bằng Scrapling.

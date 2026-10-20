@@ -5,6 +5,7 @@ import clsx from "clsx";
 
 import { Page } from "@/app/Shell";
 import { api } from "@/lib/api";
+import { useTranslateMetadata } from "@/lib/books";
 import {
   settingsKey,
   useEbookSettings,
@@ -37,6 +38,7 @@ interface FieldSpec<T> {
   options?: { value: string; label: string }[];
   wide?: boolean; // chiếm trọn hàng lưới — cho textarea dài, URL, prompt
   step?: number;
+  readOnly?: boolean;
   // Vô hiệu hoá field dựa trên giá trị các field khác (ví dụ tuỳ chọn chỉ
   // có nghĩa khi scrapling_mode là stealthy/dynamic). Khi bị vô hiệu, UI ghi
   // chú thích rõ lý do để tránh cảm giác "bấm lưu mà không ăn".
@@ -133,6 +135,7 @@ function FieldControl({
         <Field label={spec.label} hint={spec.hint}>
           <Input
             type="text"
+            readOnly={spec.readOnly}
             value={String(value ?? "")}
             disabled={disabled}
             onChange={(e) => onChange(e.target.value)}
@@ -232,16 +235,61 @@ function SectionForm<S extends SettingsSection>({
 const NOVEL_FIELDS: FieldSpec<EbookSettings["novel"]>[] = [
   { key: "title", label: "Tiêu đề", kind: "text" },
   { key: "author", label: "Tác giả", kind: "text" },
+  { key: "raw_title", label: "Tiêu đề gốc", kind: "text", hint: "Giữ nguyên ngôn ngữ nguồn; AI không ghi đè" },
+  { key: "raw_author", label: "Tác giả gốc", kind: "text", hint: "Tên tác giả theo ngôn ngữ nguồn" },
   { key: "language", label: "Ngôn ngữ", kind: "text" },
-  { key: "publisher", label: "Nhà xuất bản", kind: "text" },
+  { key: "publisher", label: "Nhà xuất bản", kind: "text", readOnly: true, hint: "Dùng chung từ NOVEL2EPUB_PUBLISHER trong .env" },
   { key: "pubdate", label: "Ngày xuất bản", kind: "text", hint: "YYYY-MM-DD" },
   { key: "series", label: "Series", kind: "text" },
   { key: "series_index", label: "Thứ tự trong series", kind: "text" },
   { key: "identifier", label: "Identifier", kind: "text", hint: "Để trống để giữ giá trị tự sinh hiện có" },
   { key: "cover_url", label: "URL ảnh bìa", kind: "text", hint: "Lưu là tải về ngay; để trống để gỡ ảnh", wide: true },
   { key: "description", label: "Mô tả", kind: "textarea", wide: true },
-  { key: "subjects", label: "Chủ đề", kind: "textarea", hint: "1 chủ đề / dòng", wide: true },
+  { key: "subjects", label: "Chủ đề (Thể loại)", kind: "textarea", hint: "1 chủ đề / dòng", wide: true },
 ];
+
+export function NovelTab({ slug, server }: { slug: string; server: EbookSettings["novel"] }) {
+  const generate = useTranslateMetadata();
+  const toast = useToast();
+  return (
+    <SectionForm
+      slug={slug}
+      section="novel"
+      title="Truyện"
+      hint="Metadata dùng khi build EPUB. AI tạo tiêu đề, chuẩn hóa tác giả, viết mô tả và đề xuất thể loại; duyệt bản nháp rồi bấm Lưu."
+      fields={NOVEL_FIELDS}
+      server={server}
+      renderExtraActions={(draft, setDraft) => (
+        <Button size="sm" loading={generate.isPending}
+          disabled={!draft.title.trim() && !draft.description.trim()}
+          onClick={async () => {
+            const snapshot = draft;
+            try {
+              const result = await generate.mutateAsync({
+                title: draft.raw_title || draft.title, author: draft.raw_author || draft.author, description: draft.description,
+                subjects: draft.subjects.split("\n").map(item => item.trim()).filter(Boolean),
+                engine: "ai", generate: true, ebook_slug: slug,
+              });
+              // Không ghi đè trường người dùng đã sửa trong khi chờ LLM.
+              setDraft(current => ({ ...current,
+                title: current.title === snapshot.title ? result.title || current.title : current.title,
+                author: current.author === snapshot.author ? result.author || current.author : current.author,
+                description: current.description === snapshot.description ? result.description || current.description : current.description,
+                subjects: current.subjects === snapshot.subjects ? result.subjects.join("\n") : current.subjects,
+              }));
+              toast(Object.keys(result.errors).length
+                ? "Một số trường AI trả về lỗi; đã giữ dữ liệu cũ. Kiểm tra bản nháp trước khi lưu."
+                : "AI đã tạo metadata. Kiểm tra bản nháp rồi bấm Lưu.", "info");
+            } catch (error) {
+              toast(error instanceof Error ? error.message : String(error), "error");
+            }
+          }}>
+          AI tạo metadata
+        </Button>
+      )}
+    />
+  );
+}
 
 const SOURCE_FIELDS: FieldSpec<EbookSettings["source"]>[] = [
   { key: "toc_url", label: "URL mục lục", kind: "text", wide: true },
@@ -1072,14 +1120,7 @@ export function SettingsPage() {
 
       {tab === "opds" ? <OpdsTab server={data.opds} /> : null}
       {tab === "novel" ? (
-        <SectionForm
-          slug={slug}
-          section="novel"
-          title="Truyện"
-          hint="Metadata dùng khi build EPUB"
-          fields={NOVEL_FIELDS}
-          server={data.novel}
-        />
+        <NovelTab key={slug} slug={slug} server={data.novel} />
       ) : null}
       {tab === "source" ? (
         <SourceTab slug={slug} server={data.source} meta={data.meta} banner={sourceBanner} />

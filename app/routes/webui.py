@@ -431,6 +431,10 @@ def library_ebook_create(request: Request, payload: dict = Body(...)):
     slug = str(payload.get("slug") or "").strip()
     description = str(payload.get("description") or "")
     cover_url = str(payload.get("cover_url") or "")
+    original = {key: str(payload[key] or "") for key in ("raw_title", "raw_author") if key in payload}
+    subjects = payload.get("subjects")
+    if subjects is not None and (not isinstance(subjects, list) or not all(isinstance(item, str) for item in subjects)):
+        raise HTTPException(status_code=400, detail="subjects phải là mảng chuỗi.")
 
     if not title:
         try:
@@ -444,11 +448,18 @@ def library_ebook_create(request: Request, payload: dict = Body(...)):
         slug = slug or str(fetched.get("slug") or "")
         description = description or str(fetched.get("description") or "")
         cover_url = cover_url or str(fetched.get("cover_url") or "")
+        original = {"raw_title": str(fetched.get("title") or ""), "raw_author": str(fetched.get("author") or "")}
 
     created = library_routes._write_new_ebook(
         toc_url, slug, title, author, scrapling_mode=mode, source_name=source,
     )
     library_routes._save_ebook_metadata(created["slug"], description, cover_url)
+    if original:
+        library_routes.update_ebook(deps.WORKSPACE_PATH, created["slug"], {"novel": original})
+    if subjects is not None:
+        library_routes.update_ebook(deps.WORKSPACE_PATH, created["slug"], {
+            "novel": {"subjects": [item.strip() for item in subjects if item.strip()]},
+        })
     if bool(payload.get("fetch_toc")):
         toc_job = library_routes._enqueue_fetch_toc(request, created["slug"])
     else:
@@ -496,22 +507,30 @@ def _bulk_items(payload: dict) -> dict[str, dict]:
 
 @router.post("/library/ebooks/translate-metadata")
 def library_ebooks_translate_metadata(payload: dict = Body(...)):
-    """JSON API cho SPA: dịch metadata preview (title/author/description) — Local
-    MT là engine mặc định, trả bản nháp tiếng Việt để duyệt, không lưu gì."""
+    """Trả bản nháp metadata; generate=true dùng LLM biên tập, không ghi DB."""
     engine = str(payload.get("engine") or "localmt").strip().lower()
+    subjects = payload.get("subjects") or []
+    if not isinstance(subjects, list) or not all(isinstance(item, str) for item in subjects):
+        raise HTTPException(status_code=400, detail="subjects phải là mảng chuỗi.")
+    slug = str(payload.get("ebook_slug") or "").strip()
+    if slug and slug not in deps.library().ebooks:
+        raise HTTPException(status_code=404, detail="Không tìm thấy truyện.")
     try:
         return library_routes.translate_ebook_metadata(
-            deps.cfg(),
+            deps.resolved_cfg(slug) if slug else deps.cfg(),
             title=str(payload.get("title") or ""),
             author=str(payload.get("author") or ""),
             description=str(payload.get("description") or ""),
             engine=engine,
+            subjects=subjects,
+            model=str(payload.get("model") or ""),
+            generate=payload.get("generate") is True,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         label = "Local MT" if engine == "localmt" else "AI"
-        raise HTTPException(status_code=503, detail=f"{label} dịch metadata lỗi: {exc}") from exc
+        raise HTTPException(status_code=503, detail=f"{label} xử lý metadata lỗi: {exc}") from exc
 
 
 @router.post("/library/ebooks/bulk-preview")
@@ -563,6 +582,12 @@ def library_ebooks_bulk(request: Request, payload: dict = Body(...)):
                 write_kwargs["scrapling_mode"] = mode
             if source:
                 write_kwargs["source_name"] = source
+            subjects = item.get("subjects") if item else None
+            original = {key: str(item[key] or "") for key in ("raw_title", "raw_author") if item and key in item}
+            if not item:
+                original = {"raw_title": str(fetched.get("title") or ""), "raw_author": str(fetched.get("author") or "")}
+            if subjects is not None and (not isinstance(subjects, list) or not all(isinstance(value, str) for value in subjects)):
+                raise HTTPException(status_code=400, detail="subjects phải là mảng chuỗi.")
             created = library_routes._write_new_ebook(
                 url,
                 str(fetched.get("slug") or ""),
@@ -575,6 +600,12 @@ def library_ebooks_bulk(request: Request, payload: dict = Body(...)):
                 str(fetched.get("description") or ""),
                 str(fetched.get("cover_url") or ""),
             )
+            if subjects is not None:
+                library_routes.update_ebook(deps.WORKSPACE_PATH, created["slug"], {
+                    "novel": {"subjects": [value.strip() for value in subjects if value.strip()]},
+                })
+            if original:
+                library_routes.update_ebook(deps.WORKSPACE_PATH, created["slug"], {"novel": original})
             if fetch_toc:
                 toc_job = library_routes._enqueue_fetch_toc(request, created["slug"])
             else:
@@ -726,6 +757,9 @@ async def library_ebook_upload_create(
     title: str = Form(""),
     author: str = Form(""),
     description: str = Form(""),
+    subjects: str = Form(""),
+    raw_title: str = Form(""),
+    raw_author: str = Form(""),
 ):
     """Tạo ebook mới từ file .txt/.epub: ghi config + chương raw + bìa."""
     from novel2epub.config_writer import add_ebook
@@ -745,6 +779,14 @@ async def library_ebook_upload_create(
 
     add_ebook(deps.WORKSPACE_PATH, final_slug, title=final_title, author=final_author, toc_url="")
     library_routes._save_ebook_metadata(final_slug, description, "")
+    library_routes.update_ebook(deps.WORKSPACE_PATH, final_slug, {"novel": {
+        "raw_title": raw_title.strip() or book.title,
+        "raw_author": raw_author.strip() or book.author,
+    }})
+    if subjects.strip():
+        library_routes.update_ebook(deps.WORKSPACE_PATH, final_slug, {
+            "novel": {"subjects": [item.strip() for item in subjects.splitlines() if item.strip()]},
+        })
 
     cfg = deps.resolved_cfg(final_slug)
     storage = Storage(cfg.output.data_dir, cfg.novel.slug)
@@ -1526,6 +1568,8 @@ def ebook_settings(slug: str):
         "novel": {
             "title": cfg.novel.title,
             "author": cfg.novel.author,
+            "raw_title": cfg.novel.raw_title,
+            "raw_author": cfg.novel.raw_author,
             "description": cfg.novel.description,
             "language": cfg.novel.language,
             "publisher": cfg.novel.publisher,
@@ -1897,7 +1941,7 @@ def ebook_build_preview(slug: str):
 def ebook_build_confirm(request: Request, slug: str, payload: dict = Body(default={})):
     """Xác nhận build sau khi đã xem preview/validation.
 
-    Body: {force?: bool} — khi force=true, bỏ qua validate mềm (vẫn chặn nếu không có gì để build).
+    Body: {force?: bool, include_footnotes?: bool} — khi force=true, bỏ qua validate mềm (vẫn chặn nếu không có gì để build).
     Enqueue job build nền (category build), trả job_id để UI poll queue.
     """
     from novel2epub.pipeline import step_build_selected
@@ -1910,6 +1954,7 @@ def ebook_build_confirm(request: Request, slug: str, payload: dict = Body(defaul
         raise HTTPException(status_code=400, detail="Chưa có manifest — hãy crawl trước.")
 
     force = bool(payload.get("force"))
+    include_footnotes = bool(payload.get("include_footnotes", False))
     if not force:
         blockers = storage.build_blockers(manifest.chapters)
         if blockers:
@@ -1942,7 +1987,7 @@ def ebook_build_confirm(request: Request, slug: str, payload: dict = Body(defaul
             log_orphan_lock_release(slug, "build/confirm")
 
     def _target(log):
-        step_build_selected(cfg, log)
+        step_build_selected(cfg, log, include_footnotes=include_footnotes)
 
     job = queue.enqueue(
         "build",

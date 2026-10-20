@@ -29,6 +29,7 @@ _DEPRECATED_TRANSLATE_FIELDS = frozenset({
 _NOVEL_COLUMNS = frozenset({
     "title", "author", "description", "language", "publisher", "pubdate",
     "date_added", "series", "series_index", "identifier", "cover_url",
+    "raw_title", "raw_author",
 })
 
 # Các section của bảng `settings` — thứ tự khớp cột trong _upsert_settings.

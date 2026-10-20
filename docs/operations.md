@@ -30,11 +30,34 @@ các giá trị này; tham số min/max trong request có thể ghi đè riêng 
 Trang Chương có nút **Trích glossary** (checkbox **Bao gồm thuật ngữ lặp** bật sẵn)
 và **Trích tên riêng** (checkbox tắt sẵn), mở trang `/ebooks/{slug}/glossary/extract`.
 Phạm vi chương đã chọn được giữ trong URL; không chọn chương nghĩa là quét toàn truyện.
-Xem trước không gọi engine dịch. Chọn ứng viên rồi chọn **Dịch thô Local MT**
-(mặc định, không gọi API AI), **Engine mặc định của ebook** hoặc **Giữ nguyên chữ Hán**
-trước khi đưa vào hàng chờ. `translate_engine=localmt` chỉ ghi đè engine cho request,
+Quét ứng viên không gọi engine dịch. Bảng có cột **Hán → Việt** và **Ngữ cảnh → Việt**.
+Chọn ứng viên, chọn engine rồi bấm **Dịch … dòng đã chọn**:
+
+- **Local MT** mặc định, không gọi API AI; giữ một model và dịch từng thuật ngữ,
+  sau đó ngữ cảnh của nó, lần lượt.
+- **LLM** dùng cấu hình API dịch `translate.openai` cùng `DEFAULT_PROMPT` (không dùng
+  prompt tùy chỉnh đã lưu hoặc `ai.openai`), gửi nhiều dòng mỗi lượt, tối đa 20 ứng viên/lô.
+  Lô còn bị giới hạn bởi `translate.prompt_max_chars` (0 dùng trần 20.000 ký tự ở luồng này).
+  Mã dòng ràng buộc kết quả với Hán/ngữ cảnh; phản hồi thiếu/trùng/sai mã bị báo lỗi,
+  không ghép lệch bản dịch. Có thể thử lại các dòng lỗi.
+
+Dịch xem trước chỉ lưu job/kết quả queue, không ghi dữ liệu truyện/glossary. Có thể sửa **Hán → Việt** rồi bấm **Đưa … vào hàng chờ**;
+bản xem trước được dùng lại, không gọi dịch lần nữa. Chưa dịch hoặc chọn giữ Hán thì
+đưa chữ Hán vào hàng chờ. Ngữ cảnh dịch chỉ để đối chiếu, không trở thành ghi chú glossary.
+API xem trước: `POST /api/ebooks/{slug}/glossary/proper-names/translate`, body
+`{"engine":"localmt"|"openai","entries":[{"source":"…","context":"…"}]}`.
+Request chỉ tạo job và trả HTTP **202** với `job_id`, không chạy dịch trên luồng HTTP.
+Local MT vào pool **local-mt**, LLM vào pool **ai-translate**. Trang tự theo dõi
+`GET /api/ebooks/{slug}/glossary/proper-names/translate/{job_id}` để nhận trạng thái,
+log tiến độ và `outcome.entries` khi hoàn tất. Có nút hủy và liên kết Job Queue;
+hủy đang chạy có hiệu lực giữa các thuật ngữ/lô, không ngắt request model đang thực thi.
+Job/spec/kết quả lưu trong hệ thống queue SQLite, có thể khôi phục sau restart/retry;
+ID job được giữ khi khôi phục. Trang lưu ID theo phạm vi trong sessionStorage để
+nhận lại kết quả khi quay về/reload tab. Kết quả job dịch vẫn chỉ là bản xem trước,
+không tự thêm vào `glossary_pending` hoặc glossary chính.
+API extract vẫn hỗ trợ `translate_engine=localmt` cho caller cũ; chỉ ghi đè riêng request,
 không thay cấu hình ebook hay engine automation.
-Nếu engine lỗi/không khả dụng, giữ chữ Hán để duyệt sau. Các mục đã có trong glossary
+Nếu engine lỗi/không khả dụng, trang hiển thị lỗi; vẫn có thể giữ Hán để duyệt sau. Các mục đã có trong glossary
 hoặc pending không được dịch lại. Hủy automation giữa lúc dịch không ghi batch đang chạy.
 Heuristic quét cụm Hán 2–4 ký tự có thể bỏ sót hoặc lẫn từ thường; luôn kiểm tra hàng chờ.
 

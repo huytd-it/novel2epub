@@ -366,7 +366,15 @@ Tiêu đề chương đôi khi dính từ rác kêu gọi độc giả ("(Cầu 
 
 `POST /api/ebooks/{slug}/glossary/proper-names/extract` quét raw bằng heuristic họ người Trung Quốc, tần suất và ngữ cảnh hội thoại. Vì tiếng Trung không viết hoa và không tách từ như tiếng Việt, kết quả chỉ là **ứng viên**, không phải nhận diện chắc chắn. Recognizer còn bắt **tên nước ngoài phiên âm** (chuỗi nằm trọn trong bảng chữ phiên âm, có ít nhất một chữ đặc trưng như 斯/尔/克/伦, hoặc có dấu `·`); mỗi ứng viên có `kind` (`translit`/`cn_name`/`term`) và `status` (`new`/`pending`/`glossary`). Body nhận `include_terms=true` để bắt thuật ngữ lặp, `dry_run=true` để chỉ trả ứng viên (không dịch hoặc ghi hàng chờ) và `sources=[...]` để chỉ xếp hàng ứng viên đã chọn.
 
-Nút **Trích tên riêng** và **Trích glossary** ở bảng Chương mở trang riêng, giữ phạm vi chương đang chọn hoặc toàn bộ truyện. Trang này cho chọn **Dịch thô Local MT** (mặc định, không dùng API AI), engine mặc định của ebook hoặc giữ Hán. Dịch diễn ra khi đưa các mục đã chọn vào tab Chờ duyệt của Glossary; cần duyệt lại bản dịch thô trước khi áp dụng. API dùng `translate_engine=localmt` để buộc Local MT, hoặc `translate=false` để giữ Hán; mặc định API vẫn dùng engine ebook. Engine lỗi thì giữ Hán, không tự chuyển sang gọi AI.
+Nút **Trích tên riêng** và **Trích glossary** ở bảng Chương mở trang riêng, giữ phạm vi chương đang chọn hoặc toàn bộ truyện. Bảng hiển thị riêng **Hán → Việt** và **Ngữ cảnh → Việt**. Chọn các dòng và bấm **Dịch**: Local MT mặc định, xử lý từng thuật ngữ/ngữ cảnh; hoặc LLM dùng `DEFAULT_PROMPT` với cấu hình `translate.openai` để dịch nhiều dòng trong một lô (tối đa 20 ứng viên, giới hạn theo prompt budget). Không dùng prompt tùy chỉnh cho lượt LLM này. Mã dòng được kiểm tra để không ghép nhầm bản dịch giữa các thuật ngữ.
+
+Có thể sửa bản dịch thuật ngữ trước khi đưa vào tab Chờ duyệt của Glossary. Dịch xem trước không ghi DB; đưa vào hàng chờ dùng lại bản dịch đã xem, không dịch lại. Ngữ cảnh dịch chỉ hiển thị để đối chiếu. Chưa dịch thì giữ Hán, engine lỗi được báo trên dòng và không tự chuyển sang engine khác. Xem [operations.md](operations.md#trích-glossary-từ-raw) để biết API và giới hạn lô.
+
+Cả Local MT và LLM xem trước đều chạy qua **Job Queue**, lần lượt ở pool `local-mt`
+và `ai-translate`. Trang hiển thị trạng thái/log và nhận kết quả khi job xong, có thể
+hủy hoặc mở trang Hàng đợi. Job lưu spec/kết quả trong SQLite để khôi phục;
+không tự ghi bản dịch vào glossary hay hàng chờ duyệt. “Không ghi DB” ở đây chỉ nói
+đến dữ liệu truyện/glossary, không phải metadata/job outcome của hệ thống queue.
 
 Endpoint có thể dịch từng ứng viên bằng Local MT rồi đưa vào `glossary_pending`. Nó không ghi trực tiếp vào `names.txt`: source đã tồn tại trong glossary hoặc hàng chờ được bỏ qua, và thao tác merge hàng chờ dùng transaction `BEGIN IMMEDIATE` để không ghi đè snapshot mới hơn. Hãy mở trang Glossary, kiểm tra context/confidence, sửa bản dịch rồi mới duyệt.
 

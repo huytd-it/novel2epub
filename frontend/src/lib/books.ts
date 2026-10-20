@@ -72,9 +72,12 @@ export interface CrawlPreview {
 }
 
 export interface EbookPreview {
+  raw_title?: string;
+  raw_author?: string;
   title: string;
   author: string;
   description: string;
+  subjects?: string[];
   slug: string;
   cover_url: string;
   chapter_count: number;
@@ -84,11 +87,14 @@ export interface EbookPreview {
 }
 
 export interface CreateEbookInput {
+  raw_title?: string;
+  raw_author?: string;
   toc_url: string;
   slug?: string;
   title?: string;
   author?: string;
   description?: string;
+  subjects?: string[];
   cover_url?: string;
   source?: string;
   scrapling_mode?: string;
@@ -114,12 +120,15 @@ export interface BulkEbookResult {
 }
 
 export interface BulkPreviewResult {
+  raw_title?: string;
+  raw_author?: string;
   url: string;
   status: "ok" | "failed";
   reason?: string;
   title?: string;
   author?: string;
   description?: string;
+  subjects?: string[];
   slug?: string;
   cover_url?: string;
   chapter_count?: number;
@@ -130,7 +139,10 @@ export interface BulkPreviewResult {
 }
 
 export interface BulkCreateItem {
+  raw_title?: string;
+  raw_author?: string;
   url: string;
+  subjects?: string[];
   slug?: string;
   title?: string;
   author?: string;
@@ -203,7 +215,7 @@ export function usePreviewEbooksBulk() {
 
 export function useTranslateMetadata() {
   return useMutation({
-    mutationFn: (input: { title?: string; author?: string; description?: string; engine?: "localmt" | "ai"; model?: string }) =>
+    mutationFn: (input: { title?: string; author?: string; description?: string; subjects?: string[]; engine?: "localmt" | "ai"; model?: string; generate?: boolean; ebook_slug?: string }) =>
       api.post<TranslateMetaResult>("/api/ui/library/ebooks/translate-metadata", { body: input }),
   });
 }

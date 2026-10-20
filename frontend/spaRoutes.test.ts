@@ -36,6 +36,8 @@ describe("isSpaPage (bypass của dev proxy)", () => {
       "/ebooks/abc/build",
       "/ebooks/abc/settings",
       "/ebooks/abc/glossary",
+      "/ebooks/abc/glossary/extract",
+      "/ebooks/abc/glossary/extract/",
       "/ebooks/abc/ai-harness",
       "/ebooks/abc/characters",
       "/ebooks/abc/",
@@ -66,5 +68,6 @@ describe("isSpaPage (bypass của dev proxy)", () => {
     expect(isSpaPage("/storage?tab=epub")).toBe(true);
     expect(isSpaPage("/library#top")).toBe(true);
     expect(isSpaPage("/sources/export?all=1")).toBe(false);
+    expect(isSpaPage("/ebooks/abc/glossary/extract?terms=true&chapters=1,2")).toBe(true);
   });
 });

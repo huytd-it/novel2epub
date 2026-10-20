@@ -66,6 +66,35 @@ def test_moi_section_deu_co_mat(client):
         assert section in payload, f"thiếu section {section}"
 
 
+def test_original_metadata_roundtrips_without_changing_translated_fields(client):
+    current = client.get("/api/ui/ebooks/t/settings").json()["novel"]
+    response = client.post("/api/ui/ebooks/t/settings/novel", json={
+        **current, "raw_title": "原书名", "raw_author": "原作者",
+    })
+    assert response.status_code == 200
+    actual = client.get("/api/ui/ebooks/t/settings").json()["novel"]
+    assert actual["raw_title"] == "原书名"
+    assert actual["raw_author"] == "原作者"
+    assert actual["title"] == current["title"]
+    # Older clients/Jinja forms do not send the new fields; do not clear them.
+    legacy = {key: value for key, value in actual.items() if key not in {"raw_title", "raw_author"}}
+    assert client.post("/api/ui/ebooks/t/settings/novel", json=legacy).status_code == 200
+    actual = client.get("/api/ui/ebooks/t/settings").json()["novel"]
+    assert actual["raw_title"] == "原书名" and actual["raw_author"] == "原作者"
+
+
+def test_global_publisher_is_not_copied_into_ebook_on_save(client, monkeypatch):
+    from novel2epub.db import get_thread_connection
+    from app import deps
+    monkeypatch.setenv("NOVEL2EPUB_PUBLISHER", "NXB Chung")
+    current = client.get("/api/ui/ebooks/t/settings").json()["novel"]
+    assert current["publisher"] == "NXB Chung"
+    response = client.post("/api/ui/ebooks/t/settings/novel", json=current)
+    assert response.status_code == 200
+    row = get_thread_connection(deps.DB_PATH).execute("SELECT publisher FROM ebooks WHERE slug='t'").fetchone()
+    assert row["publisher"] != "NXB Chung"
+
+
 def test_source_checkbox_false_xoa_override_true_cu(client):
     """SPA gửi boolean false rõ ràng; lần lưu sau phải xóa override true cũ."""
     current = client.get("/api/ui/ebooks/t/settings").json()["source"]

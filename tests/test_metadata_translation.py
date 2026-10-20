@@ -114,3 +114,38 @@ def test_ai_rejects_subject_boundary_change(monkeypatch):
 def test_rejects_overlong_field():
     with pytest.raises(ValueError, match="description quá dài"):
         translate_ebook_metadata(_cfg(), description="x" * 20001)
+
+
+def test_generate_edits_vietnamese_and_proposes_subjects(monkeypatch):
+    prompts = []
+    def chat(cfg, prompt):
+        prompts.append(prompt)
+        assert cfg.model == "metadata-model"
+        return '{"title":"Tên mới","author":"Không được bịa","description":"Giới thiệu mới","subjects":["Phiêu lưu","Phiêu lưu","Kỳ ảo"]}'
+    monkeypatch.setattr("novel2epub.metadata_translation.openai_client.run_chat", chat)
+    cfg = _cfg()
+    original = cfg.ai.openai.model
+    result = translate_ebook_metadata(cfg, title="Tên Việt", engine="ai", generate=True,
+                                      source_language="vi", model="metadata-model")
+    assert result["title"] == "Tên mới"
+    assert result["author"] == ""
+    assert result["subjects"] == ["Phiêu lưu", "Kỳ ảo"]
+    assert "không chỉ dịch từng trường" in prompts[0]
+    assert cfg.ai.openai.model == original
+
+
+def test_generate_can_change_existing_subject_count(monkeypatch):
+    monkeypatch.setattr("novel2epub.metadata_translation.openai_client.run_chat",
+                        lambda cfg, prompt: '{"subjects":["Kỳ ảo"]}')
+    result = translate_ebook_metadata(_cfg(), subjects=["玄幻", "冒险"], engine="ai", generate=True)
+    assert result["subjects"] == ["Kỳ ảo"]
+    assert "subjects" not in result["errors"]
+
+
+def test_generate_preserves_invalid_fields(monkeypatch):
+    monkeypatch.setattr("novel2epub.metadata_translation.openai_client.run_chat",
+                        lambda cfg, prompt: '{"title":123,"subjects":"not a list"}')
+    result = translate_ebook_metadata(_cfg(), title="Tên cũ", subjects=["Cũ"], engine="ai", generate=True)
+    assert result["title"] == "Tên cũ"
+    assert result["subjects"] == ["Cũ"]
+    assert "title" in result["errors"] and "subjects" in result["errors"]
